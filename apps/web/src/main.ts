@@ -1,21 +1,30 @@
 import {
+  advance,
   applyCommand,
+  availableAdvances,
   buildOptions,
-  building,
   cityAt,
+  government,
+  governmentsAvailable,
   lastTurnEvents,
   newGame,
+  productionCost,
+  productionName,
   unitById,
   unitType,
   type Command,
   type GameState,
   type Production,
+  type TurnEvent,
 } from "@civ/core";
 import {
   citySlotAt,
   drawCityScreen,
+  drawDiscoveryScreen,
   drawMainScreen,
   drawMenu,
+  drawRatesScreen,
+  drawScienceScreen,
   drawStatusLine,
   menuHit,
   PALETTE_RGBA,
@@ -93,6 +102,9 @@ function dispatch(cmd: Command): boolean {
 type Screen =
   | { kind: "map" }
   | { kind: "city"; view: CityScreenView }
+  | { kind: "discovery"; advance: string; then: () => void }
+  | { kind: "science" }
+  | { kind: "rates" }
   | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen };
 
 let screenState: Screen = { kind: "map" };
@@ -123,9 +135,9 @@ function openProductionMenu(cityId: number): void {
   const options = buildOptions(state, city);
   const menu: MenuState = {
     title: `${city.name}: build what?`,
-    items: options.map((p) => (p.kind === "unit" ? unitType(p.id).name : building(p.id).name)),
+    items: options.map((p) => productionName(p)),
     right: options.map((p) => {
-      const cost = p.kind === "unit" ? unitType(p.id).cost : building(p.id).cost;
+      const cost = productionCost(p);
       const t = p.kind === "unit" ? unitType(p.id) : null;
       return t ? `${t.attack}/${t.defense}/${t.moves} ${cost}` : `${cost}`;
     }),
@@ -142,23 +154,80 @@ function openProductionMenu(cityId: number): void {
   };
 }
 
+function openResearchMenu(under: Screen): void {
+  const options = availableAdvances(state.players[state.currentPlayer]!.advances);
+  if (options.length === 0) return;
+  screenState = {
+    kind: "menu",
+    under,
+    menu: { title: "Wise men ask: what shall we research?", items: options.map((a) => a.name), selected: 0 },
+    onPick: (i) => {
+      const a = options[i];
+      if (a) dispatch({ type: "research", advance: a.id });
+    },
+  };
+}
+
+function openGovernmentMenu(under: Screen): void {
+  const ids = governmentsAvailable(state, state.currentPlayer);
+  screenState = {
+    kind: "menu",
+    under,
+    menu: { title: "Choose a new government", items: ids.map((g) => government(g).name), selected: 0 },
+    onPick: (i) => {
+      const g = ids[i];
+      if (g) dispatch({ type: "setGovernment", government: g });
+    },
+  };
+}
+
+function eventMessage(ev: TurnEvent): string | null {
+  if (!("city" in ev)) return null;
+  const name = state.cities.find((c) => c.id === ev.city)?.name ?? "City";
+  switch (ev.kind) {
+    case "grew": return `${name} grows`;
+    case "shrank": return `${name} shrinks`;
+    case "built": return `${name} builds ${ev.detail}`;
+    case "wonder": return `${name} completes ${ev.detail}!`;
+    case "disorder": return `Civil disorder in ${name}!`;
+    case "starving": return `${name} is starving`;
+    case "famine": return `Famine in ${name}: ${ev.detail} lost`;
+  }
+}
+
+/** Play the turn's events as a chain of screens, then land on the map. */
+function presentEvents(events: TurnEvent[]): void {
+  const next = (): void => {
+    const ev = events.shift();
+    if (!ev) {
+      screenState = { kind: "map" };
+      followActive(true);
+      return;
+    }
+    if (ev.kind === "discovered") {
+      screenState = { kind: "discovery", advance: ev.advance, then: next };
+    } else if (ev.kind === "chooseResearch") {
+      openResearchMenu({ kind: "map" });
+      const sc = screenState as Extract<Screen, { kind: "menu" }>;
+      const pick = sc.onPick;
+      sc.onPick = (i) => { pick(i); next(); };
+    } else if (ev.kind === "chooseGovernment") {
+      openGovernmentMenu({ kind: "map" });
+      const sc = screenState as Extract<Screen, { kind: "menu" }>;
+      const pick = sc.onPick;
+      sc.onPick = (i) => { pick(i); next(); };
+    } else {
+      const msg = eventMessage(ev);
+      if (msg) say(msg, 4000);
+      next();
+    }
+  };
+  next();
+}
+
 function endTurn(): void {
   dispatch({ type: "endTurn" });
-  const ev = lastTurnEvents[0];
-  if (ev) {
-    const city = state.cities.find((c) => c.id === ev.city);
-    const name = city?.name ?? "City";
-    const msg = {
-      grew: `${name} grows`,
-      shrank: `${name} shrinks`,
-      built: `${name} builds ${ev.detail}`,
-      disorder: `Civil disorder in ${name}!`,
-      starving: `${name} is starving`,
-      famine: `Famine in ${name}: ${ev.detail} lost`,
-    }[ev.kind];
-    say(msg, 4000);
-  }
-  followActive(true);
+  presentEvents([...lastTurnEvents]);
 }
 
 // ---- input -----------------------------------------------------------------
@@ -213,6 +282,37 @@ function mapKey(e: KeyboardEvent): void {
     case "KeyC":
       followActive(true);
       break;
+    case "KeyT":
+      screenState = { kind: "rates" };
+      break;
+    case "KeyA":
+      screenState = { kind: "science" };
+      break;
+    case "KeyG":
+      if (state.players[state.currentPlayer]!.government === "anarchy") {
+        if (state.players[state.currentPlayer]!.anarchyTurns === 0) openGovernmentMenu({ kind: "map" });
+        else say("Still in anarchy");
+      } else if (confirm("Start a revolution? The government will fall into anarchy.")) {
+        dispatch({ type: "revolution" });
+        say("Revolution! Anarchy reigns.");
+      }
+      break;
+  }
+}
+
+function ratesKey(e: KeyboardEvent): void {
+  const p = state.players[state.currentPlayer]!;
+  const set = (tax: number, lux: number) => {
+    const sci = 10 - tax - lux;
+    if (sci < 0 || tax < 0 || lux < 0) return;
+    dispatch({ type: "setRates", tax, lux, sci });
+  };
+  switch (e.code) {
+    case "ArrowRight": set(p.taxRate + 1, p.luxRate); break;
+    case "ArrowLeft": set(p.taxRate - 1, p.luxRate); break;
+    case "ArrowUp": set(p.taxRate, p.luxRate + 1); break;
+    case "ArrowDown": set(p.taxRate, p.luxRate - 1); break;
+    case "Escape": case "Enter": case "NumpadEnter": screenState = { kind: "map" }; break;
   }
 }
 
@@ -255,7 +355,13 @@ addEventListener("keydown", (e) => {
   const sc = screenState;
   if (sc.kind === "map") mapKey(e);
   else if (sc.kind === "city") cityKey(e, sc.view);
-  else menuKey(e, sc);
+  else if (sc.kind === "rates") ratesKey(e);
+  else if (sc.kind === "science") {
+    if (e.code === "KeyA") openResearchMenu(sc);
+    else if (e.code === "Escape") screenState = { kind: "map" };
+  } else if (sc.kind === "discovery") {
+    sc.then();
+  } else menuKey(e, sc);
 });
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -270,6 +376,14 @@ canvas.addEventListener("mousedown", (e) => {
       screenState = sc.under;
       sc.onPick(i);
     } else screenState = sc.under;
+    return;
+  }
+  if (sc.kind === "discovery") {
+    sc.then();
+    return;
+  }
+  if (sc.kind === "rates" || sc.kind === "science") {
+    screenState = { kind: "map" };
     return;
   }
   if (sc.kind === "city") {
@@ -303,6 +417,12 @@ function frame(t: number): void {
     } else if (sc.kind === "city") {
       sc.view.message = status;
       drawCityScreen(screen, state, sc.view);
+    } else if (sc.kind === "discovery") {
+      drawDiscoveryScreen(screen, state, sc.advance);
+    } else if (sc.kind === "science") {
+      drawScienceScreen(screen, state);
+    } else if (sc.kind === "rates") {
+      drawRatesScreen(screen, state);
     } else {
       draw(sc.under);
       drawMenu(screen, sc.menu);

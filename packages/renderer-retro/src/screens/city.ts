@@ -5,11 +5,13 @@ import {
   computeCity,
   formatYear,
   getTile,
+  productionName,
   radiusTile,
   slotAvailable,
   tileYield,
   turnToYear,
   unitType,
+  wonder,
   type City,
   type GameState,
 } from "@civ/core";
@@ -172,11 +174,16 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
     y += 8;
     if (y > 180) break;
   }
+  for (const w of city.wonders) {
+    drawText(s, COL2_X + 4, y, wonder(w).name, C.YELLOW!);
+    y += 8;
+    if (y > 180) break;
+  }
 
   // Production column.
   drawPanel(s, COL3_X - 4, CITY_MAP_Y - 2, SCREEN_W - COL3_X, 70);
   const p = city.production;
-  const pname = p.kind === "unit" ? unitType(p.id).name : building(p.id).name;
+  const pname = productionName(p);
   drawText(s, COL3_X, CITY_MAP_Y + 2, "Building:", dim);
   drawText(s, COL3_X, CITY_MAP_Y + 11, pname, ink);
   if (p.kind === "unit") s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), SCREEN_W - 24, CITY_MAP_Y + 2, 0);

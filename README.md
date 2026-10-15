@@ -26,7 +26,10 @@ pnpm test
 pnpm typecheck
 ```
 
-Controls: numpad / arrows move the Settlers, `C` centres on the unit.
+Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify · `S` sentry ·
+`I`/`M`/`R` irrigate/mine/road · `B` found city · `Shift+D` disband · `C` centre ·
+`Enter` end turn · `T` rates · `A` science advisor · `G` revolution · click a city to open it.
+City screen: click tiles to work them · `C` change production · `B` buy · `N` rename · `Esc`.
 
 ## Design rules
 
@@ -40,9 +43,9 @@ Controls: numpad / arrows move the Settlers, `C` centres on the unit.
 ## Phases
 
 1. Scaffold + presentation pipeline  ← done
-2. World: faithful map generator, terrain yields, movement costs, ZOC, fog
-3. Cities: founding, growth, tiles worked, production, buildings, happiness
-4. Tech tree, governments, wonders
+2. World: map generator, terrain yields, movement costs, ZOC, fog  ← done
+3. Cities: founding, growth, tiles worked, production, buildings, happiness  ← done
+4. Tech tree, governments, wonders, rates  ← done (tree data to verify against FreeCiv civ1)
 5. Combat, barbarians, diplomacy
 6. Full game loop + baseline AI
 7. AI v2 with headless tournament harness

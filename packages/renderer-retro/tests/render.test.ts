@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, revealAround, Terrain, unitType } from "@civ/core";
-import { drawCityScreen, drawMainScreen, drawMenu, drawText, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { drawCityScreen, drawDiscoveryScreen, drawMainScreen, drawMenu, drawRatesScreen, drawScienceScreen, drawText, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -78,6 +78,24 @@ describe("city screen", () => {
       selected: 2,
     });
     writeFileSync(new URL("./out/city-menu.png", import.meta.url), encodePng(s, 3));
+    expect(s.data.some((c) => c !== 0)).toBe(true);
+  });
+});
+
+describe("advisor screens", () => {
+  it("renders discovery, science and rates screens", () => {
+    const state = newGame(2026);
+    const p = state.players[0]!;
+    p.advances.push("alphabet", "bronze_working");
+    p.researching = "writing";
+    p.science = 14;
+    const s = Surface.screen();
+    drawDiscoveryScreen(s, state, "bronze_working");
+    writeFileSync(new URL("./out/discovery.png", import.meta.url), encodePng(s, 3));
+    drawScienceScreen(s, state);
+    writeFileSync(new URL("./out/science.png", import.meta.url), encodePng(s, 3));
+    drawRatesScreen(s, state);
+    writeFileSync(new URL("./out/rates.png", import.meta.url), encodePng(s, 3));
     expect(s.data.some((c) => c !== 0)).toBe(true);
   });
 });

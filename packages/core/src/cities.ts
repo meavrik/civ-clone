@@ -1,8 +1,10 @@
-import { building } from "./rules/buildings.js";
+import { knows } from "./rules/advances.js";
+import { building, BUILDINGS } from "./rules/buildings.js";
+import { wonder, WONDERS, type WonderRule } from "./rules/wonders.js";
 import { government } from "./rules/governments.js";
 import { nextCityName } from "./rules/names.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
-import { unitType } from "./rules/units.js";
+import { UNIT_TYPES, unitType } from "./rules/units.js";
 import {
   CITY_RADIUS,
   getTile,
@@ -131,7 +133,34 @@ export function foodBox(city: City): number {
 }
 
 export function productionCost(p: Production): number {
-  return p.kind === "unit" ? unitType(p.id).cost : building(p.id).cost;
+  return p.kind === "unit" ? unitType(p.id).cost : p.kind === "wonder" ? wonder(p.id).cost : building(p.id).cost;
+}
+
+export function productionName(p: Production): string {
+  return p.kind === "unit" ? unitType(p.id).name : p.kind === "wonder" ? wonder(p.id).name : building(p.id).name;
+}
+
+/** Active (non-obsolete) wonders owned by a player, with the city holding each. */
+export function activeWonders(state: GameState, owner: number): { rule: WonderRule; city: City }[] {
+  const p = state.players[owner]!;
+  const out: { rule: WonderRule; city: City }[] = [];
+  for (const c of state.cities) {
+    if (c.owner !== owner) continue;
+    for (const id of c.wonders) {
+      const rule = wonder(id);
+      if (rule.obsolete && knows(p.advances, rule.obsolete)) continue;
+      out.push({ rule, city: c });
+    }
+  }
+  return out;
+}
+
+export function hasWonder(state: GameState, owner: number, id: string): boolean {
+  return activeWonders(state, owner).some((w) => w.rule.id === id);
+}
+
+export function wonderBuilt(state: GameState, id: string): boolean {
+  return state.cities.some((c) => c.wonders.includes(id));
 }
 
 export function distanceToCapital(state: GameState, city: City): number {
@@ -189,6 +218,49 @@ export function computeCity(state: GameState, city: City): CityReport {
     buildingUpkeep += b.upkeep;
   }
 
+  // Wonders.
+  const wonders = activeWonders(state, city.owner);
+  let contentFromWonders = 0;
+  let noUnhappy = false;
+  let shieldPerTile = false;
+  let oceanTrade = 0;
+  for (const { rule, city: wc } of wonders) {
+    const e = rule.effect;
+    switch (e.kind) {
+      case "contentAll": contentFromWonders += e.amount; break;
+      case "contentCity": if (wc.id === city.id) contentFromWonders += e.amount; break;
+      case "contentContinent": {
+        const here = getTile(state.map, city.x, city.y)!.continent;
+        if (getTile(state.map, wc.x, wc.y)!.continent === here) contentFromWonders += e.amount;
+        break;
+      }
+      case "noUnhappyCity": if (wc.id === city.id) noUnhappy = true; break;
+      case "sciencePct": if (wc.id === city.id) sciPct += e.amount; break;
+      case "shieldPerWorkedTile": shieldPerTile = true; break;
+      case "oceanTrade": if (wc.id === city.id) oceanTrade += e.amount; break;
+      case "templeDouble": if (has("temple")) contentFromBuildings += building("temple").content ?? 0; break;
+      case "cathedralEverywhere": if (!has("cathedral")) contentFromBuildings += building("cathedral").content ?? 0; break;
+      case "freeUpkeepCheap":
+        for (const id of city.buildings) if (building(id).upkeep === 1) buildingUpkeep -= 1;
+        break;
+      case "factoryBonus": if (has("factory")) shieldPct += e.amount; break;
+      default: break;
+    }
+  }
+  if (shieldPerTile) {
+    for (const slot of city.worked) {
+      const t = radiusTile(state, city, slot);
+      if (t && tileYield(state, t, false, player.government).shields > 0) shields += 1;
+    }
+    shields += 1; // centre always yields a shield
+  }
+  if (oceanTrade) {
+    for (const slot of city.worked) {
+      const t = radiusTile(state, city, slot);
+      if (t?.terrain === Terrain.Ocean) trade += oceanTrade;
+    }
+  }
+
   // Corruption: trade lost to distance from the palace.
   let corruptionPct = Math.min(90, gov.corruptionPerDistance * distanceToCapital(state, city) * 2);
   if (has("courthouse")) corruptionPct = Math.floor(corruptionPct / 2);
@@ -219,14 +291,23 @@ export function computeCity(state: GameState, city: City): CityReport {
   let luxLeft = Math.floor(lux / 2);
   while (luxLeft > 0 && content > 0) { content--; happy++; luxLeft--; }
   while (luxLeft > 0 && unhappy > 0) { unhappy--; content++; luxLeft--; }
-  // Buildings make unhappy citizens content.
-  let fix = contentFromBuildings;
+  // Buildings and wonders make unhappy citizens content.
+  let fix = contentFromBuildings + contentFromWonders;
   while (fix > 0 && unhappy > 0) { unhappy--; content++; fix--; }
   // Martial law.
   if (gov.martialLaw) {
     let police = Math.min(3, state.units.filter((u) => u.x === city.x && u.y === city.y && unitType(u.type).attack > 0 && u.owner === city.owner).length);
     while (police > 0 && unhappy > 0) { unhappy--; content++; police--; }
   }
+  // War weariness: military units outside cities under Republic/Democracy.
+  if (gov.warWeariness > 0) {
+    const abroad = state.units.filter(
+      (u) => u.homeCity === city.id && unitType(u.type).attack > 0 && !cityAt(state, u.x, u.y),
+    ).length;
+    let weary = abroad * gov.warWeariness;
+    while (weary > 0 && content > 0) { content--; unhappy++; weary--; }
+  }
+  if (noUnhappy) { content += unhappy; unhappy = 0; }
   const disorder = unhappy > happy;
 
   // Unit upkeep.
@@ -285,6 +366,7 @@ export function foundCity(state: GameState, owner: number, x: number, y: number,
     worked: [],
     specialists: [],
     buildings: first ? ["palace"] : [],
+    wonders: [],
     production: { kind: "unit", id: "militia" },
     founded: state.turn,
     disorder: false,
@@ -308,7 +390,7 @@ export function buyCost(city: City): number {
 
 export interface CityTurnEvent {
   city: number;
-  kind: "grew" | "shrank" | "built" | "disorder" | "starving" | "famine";
+  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine";
   detail?: string;
 }
 
@@ -378,6 +460,16 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
       }
       city.shields -= cost;
       events.push({ city: city.id, kind: "built", detail: unitType(p.id).name });
+    } else if (p.kind === "wonder") {
+      if (wonderBuilt(state, p.id)) {
+        // Someone else finished it first: the shields stay for the next choice.
+        city.production = { kind: "unit", id: "militia" };
+        return events;
+      }
+      city.wonders.push(p.id);
+      city.shields -= cost;
+      events.push({ city: city.id, kind: "wonder", detail: wonder(p.id).name });
+      city.production = { kind: "unit", id: "militia" };
     } else {
       if (!city.buildings.includes(p.id)) city.buildings.push(p.id);
       city.shields -= cost;
@@ -389,19 +481,28 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
   return events;
 }
 
-/** What a city may build right now (tech gating arrives with phase 4). */
+/** What a city may build right now, gated by the owner's advances. */
 export function buildOptions(state: GameState, city: City): Production[] {
+  const p = state.players[city.owner]!;
   const out: Production[] = [];
-  for (const id of ["settlers", "militia", "phalanx", "legion", "cavalry", "chariot", "catapult", "trireme"]) {
-    const t = unitType(id);
+  for (const t of UNIT_TYPES) {
+    if (t.requires && !knows(p.advances, t.requires)) continue;
     if (t.domain === "sea" && !coastal(state, city)) continue;
-    out.push({ kind: "unit", id });
+    if (t.flags?.includes("nuclear") && !hasWonder(state, city.owner, "manhattan_project")) continue;
+    out.push({ kind: "unit", id: t.id });
   }
-  for (const b of ["barracks", "granary", "temple", "marketplace", "library", "courthouse", "city_walls", "aqueduct", "colosseum"]) {
-    if (city.buildings.includes(b)) continue;
-    const rule = building(b);
-    if (rule.needs && !city.buildings.includes(rule.needs)) continue;
-    out.push({ kind: "building", id: b });
+  for (const b of BUILDINGS) {
+    if (b.id === "palace" && city.buildings.includes("palace")) continue;
+    if (city.buildings.includes(b.id)) continue;
+    if (b.requires && !knows(p.advances, b.requires)) continue;
+    if (b.needs && !city.buildings.includes(b.needs)) continue;
+    out.push({ kind: "building", id: b.id });
+  }
+  for (const w of WONDERS) {
+    if (wonderBuilt(state, w.id)) continue;
+    if (!knows(p.advances, w.requires)) continue;
+    if (w.obsolete && knows(p.advances, w.obsolete)) continue;
+    out.push({ kind: "wonder", id: w.id });
   }
   return out;
 }

@@ -5,6 +5,8 @@ export * from "./rules/units.js";
 export * from "./rules/buildings.js";
 export * from "./rules/governments.js";
 export * from "./rules/names.js";
+export * from "./rules/advances.js";
+export * from "./rules/wonders.js";
 export * from "./cities.js";
 export * from "./map/generate.js";
 export * from "./units.js";

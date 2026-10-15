@@ -24,6 +24,10 @@ function makePlayer(id: number, name: string, color: number): Player {
     sciRate: 5,
     government: "despotism",
     science: 0,
+    advances: [],
+    researching: null,
+    anarchyTurns: 0,
+    pendingGovernment: null,
     difficulty: 2,
   };
 }

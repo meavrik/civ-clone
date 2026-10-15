@@ -5,14 +5,19 @@ import {
   canFoundCity,
   cityById,
   foundCity,
+  hasWonder,
   processCityTurn,
   productionCost,
   slotAvailable,
   type CityTurnEvent,
 } from "./cities.js";
+import { ADVANCE_BY_ID, advance, availableAdvances, researchCost } from "./rules/advances.js";
+import { government, GOVERNMENTS } from "./rules/governments.js";
+import { WONDERS } from "./rules/wonders.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
-import { getTile, type GameState, type Production, type Specialist, type Unit } from "./types.js";
+import { nextInt } from "./rng.js";
+import { getTile, type GameState, type Player, type Production, type Specialist, type Unit } from "./types.js";
 import { applyMove, checkMove, fullMoves, unitById, workOptions } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
@@ -36,12 +41,22 @@ export type Command =
   | { type: "buy"; city: number }
   | { type: "renameCity"; city: number; name: string }
   | { type: "setRates"; tax: number; lux: number; sci: number }
+  | { type: "research"; advance: string }
+  | { type: "revolution" }
+  | { type: "setGovernment"; government: string }
   | { type: "endTurn" };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
+export type TurnEvent =
+  | CityTurnEvent
+  | { kind: "discovered"; advance: string }
+  | { kind: "chooseResearch" }
+  | { kind: "anarchyOver" }
+  | { kind: "chooseGovernment" };
+
 /** Events raised by the last endTurn, for the UI to report. */
-export const lastTurnEvents: CityTurnEvent[] = [];
+export const lastTurnEvents: TurnEvent[] = [];
 
 export function applyCommand(state: GameState, cmd: Command): CommandResult {
   switch (cmd.type) {
@@ -51,9 +66,34 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     case "setRates": {
       if (cmd.tax + cmd.lux + cmd.sci !== 10 || [cmd.tax, cmd.lux, cmd.sci].some((r) => r < 0)) return { ok: false, reason: "rates must sum to 100%" };
       const p = state.players[state.currentPlayer]!;
+      const max = government(p.government).maxRate;
+      if (cmd.tax > max || cmd.lux > max || cmd.sci > max) return { ok: false, reason: `max rate is ${max * 10}%` };
       p.taxRate = cmd.tax;
       p.luxRate = cmd.lux;
       p.sciRate = cmd.sci;
+      return { ok: true };
+    }
+    case "research": {
+      const p = state.players[state.currentPlayer]!;
+      if (!availableAdvances(p.advances).some((a) => a.id === cmd.advance)) return { ok: false, reason: "cannot research that yet" };
+      p.researching = cmd.advance;
+      return { ok: true };
+    }
+    case "revolution": {
+      const p = state.players[state.currentPlayer]!;
+      if (p.government === "anarchy") return { ok: false, reason: "already in anarchy" };
+      p.government = "anarchy";
+      p.anarchyTurns = hasWonder(state, p.id, "pyramids") ? 0 : 1 + nextInt(state.rng, 4);
+      p.pendingGovernment = null;
+      clampRates(p);
+      return { ok: true };
+    }
+    case "setGovernment": {
+      const p = state.players[state.currentPlayer]!;
+      if (p.government !== "anarchy" || p.anarchyTurns > 0) return { ok: false, reason: "not ready for a new government" };
+      if (!governmentsAvailable(state, p.id).includes(cmd.government)) return { ok: false, reason: "government unknown" };
+      p.government = cmd.government;
+      clampRates(p);
       return { ok: true };
     }
     case "setProduction":
@@ -117,6 +157,29 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       selectNextUnit(state, u.id);
       return { ok: true };
     }
+  }
+}
+
+/** Governments the player may choose: despotism always, others by advance (or all with the Pyramids). */
+export function governmentsAvailable(state: GameState, owner: number): string[] {
+  const p = state.players[owner]!;
+  if (hasWonder(state, owner, "pyramids")) return Object.keys(GOVERNMENTS).filter((g) => g !== "anarchy");
+  return Object.keys(GOVERNMENTS).filter((g) => {
+    if (g === "anarchy") return false;
+    if (g === "despotism") return true;
+    const a = Object.values(ADVANCE_BY_ID).find((x) => x.government === g);
+    return a ? p.advances.includes(a.id) : false;
+  });
+}
+
+function clampRates(p: Player): void {
+  const max = government(p.government).maxRate;
+  p.taxRate = Math.min(p.taxRate, max);
+  p.luxRate = Math.min(p.luxRate, max);
+  p.sciRate = 10 - p.taxRate - p.luxRate;
+  if (p.sciRate > max) {
+    p.taxRate += p.sciRate - max;
+    p.sciRate = max;
   }
 }
 
@@ -243,6 +306,38 @@ export function endTurn(state: GameState): void {
   for (const c of state.cities)
     if (c.owner === player && c.worked.length + c.specialists.length !== c.size) autoAssignWorkers(state, c);
 
+  // Research.
+  const p = state.players[player]!;
+  for (const ev of [...lastTurnEvents]) {
+    if (ev.kind !== "wonder") continue;
+    const w = WONDERS.find((x) => x.name === ev.detail);
+    if (w?.effect.kind === "freeAdvances") {
+      for (let i = 0; i < w.effect.amount; i++) {
+        const next = p.researching && availableAdvances(p.advances).some((a) => a.id === p.researching) ? p.researching : availableAdvances(p.advances)[0]?.id;
+        if (!next) break;
+        discover(state, player, next);
+        if (p.researching === next) p.researching = null;
+      }
+    }
+    if (w?.effect.kind === "revealMap") p.explored.fill(1);
+  }
+  if (p.researching === null && p.science > 0 && availableAdvances(p.advances).length > 0) lastTurnEvents.push({ kind: "chooseResearch" });
+  else if (p.researching !== null) {
+    const cost = researchCost(p.advances.length, p.difficulty);
+    if (p.science >= cost) {
+      p.science -= cost;
+      discover(state, player, p.researching);
+      p.researching = null;
+      lastTurnEvents.push({ kind: "chooseResearch" });
+    }
+  }
+
+  // Anarchy countdown.
+  if (p.government === "anarchy") {
+    if (p.anarchyTurns > 0) p.anarchyTurns--;
+    if (p.anarchyTurns === 0) lastTurnEvents.push({ kind: "chooseGovernment" });
+  }
+
   // Single-player loop for now: the same player goes again. Other civs join
   // in phase 5, where this advances through players before incrementing turn.
   state.turn++;
@@ -250,4 +345,13 @@ export function endTurn(state: GameState): void {
   wakeSentries(state, player);
   recomputeVisibility(state, player);
   selectNextUnit(state, null);
+}
+
+/** Grant an advance, with its side effects (Darwin's free advances, government unlocks are read from data). */
+export function discover(state: GameState, player: number, id: string): void {
+  const p = state.players[player]!;
+  if (p.advances.includes(id)) return;
+  p.advances.push(id);
+  lastTurnEvents.push({ kind: "discovered", advance: id });
+  void advance(id);
 }

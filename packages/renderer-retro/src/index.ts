@@ -7,3 +7,4 @@ export * from "./overlays.js";
 export * from "./widgets.js";
 export * from "./screens/city.js";
 export * from "./screens/map-city.js";
+export * from "./screens/discovery.js";

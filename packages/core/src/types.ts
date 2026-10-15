@@ -73,7 +73,7 @@ export interface Unit {
 
 export type Specialist = "entertainer" | "taxman" | "scientist";
 
-export type Production = { kind: "unit"; id: string } | { kind: "building"; id: string };
+export type Production = { kind: "unit"; id: string } | { kind: "building"; id: string } | { kind: "wonder"; id: string };
 
 export interface City {
   id: number;
@@ -88,6 +88,7 @@ export interface City {
   worked: number[];
   specialists: Specialist[];
   buildings: string[];
+  wonders: string[];
   production: Production;
   founded: number;
   /** True once a disorder turn has been reported, for the renderer. */
@@ -108,8 +109,13 @@ export interface Player {
   luxRate: number;
   sciRate: number;
   government: string;
-  /** Accumulated research beakers (spent by the tech tree in phase 4). */
+  /** Accumulated research beakers toward `researching`. */
   science: number;
+  advances: string[];
+  researching: string | null;
+  /** Turns of anarchy left before `pendingGovernment` takes over. */
+  anarchyTurns: number;
+  pendingGovernment: string | null;
   /** Chieftain 0 .. Emperor 4. */
   difficulty: number;
 }

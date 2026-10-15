@@ -92,6 +92,7 @@ describe("cities", () => {
     applyCommand(s, { type: "found", unit: u.id });
     const c = s.cities[0]!;
     c.shields = 8;
+    s.players[0]!.advances.push("pottery");
     applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
     expect(c.shields).toBe(4);
     s.players[0]!.gold = 1000;
