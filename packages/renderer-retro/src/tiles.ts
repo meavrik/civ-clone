@@ -40,10 +40,11 @@ function tree(s: Surface, x: number, y: number, ramp: string, trunk: number): vo
 }
 
 function bush(s: Surface, x: number, y: number, ramp: string): void {
-  s.hline(x + 1, y, 3, shade(ramp, 5));
-  s.hline(x, y + 1, 5, shade(ramp, 4));
-  s.hline(x, y + 2, 5, shade(ramp, 3));
-  s.hline(x + 1, y + 3, 3, shade(ramp, 2));
+  s.hline(x + 1, y, 3, shade(ramp, 7));
+  s.hline(x, y + 1, 5, shade(ramp, 6));
+  s.hline(x, y + 2, 5, shade(ramp, 5));
+  s.hline(x + 1, y + 3, 3, shade(ramp, 0));
+  s.set(x + 2, y + 4, shade("earth", 1));
 }
 
 function build(terrain: Terrain, variant: number): Surface {
@@ -146,7 +147,7 @@ function build(terrain: Terrain, variant: number): Surface {
       }
       break;
     case Terrain.Jungle:
-      speckle(s, "jungle", 3, salt, 0.25);
+      speckle(s, "jungle", 2, salt, 0.25);
       bush(s, 1, 1, "jungle");
       bush(s, 9, 3, "jungle");
       bush(s, 4, 8, "jungle");
@@ -201,22 +202,3 @@ export function drawSpecial(s: Surface, dx: number, dy: number, terrain: Terrain
   s.set(cx + 2, cy, o);
 }
 
-/**
- * A simple original unit sprite: a figure with a shield, drawn in the
- * owner's colour. Enough to prove the unit layer; real unit art comes later.
- */
-export function unitSprite(playerColor: number): Surface {
-  const s = new Surface(TILE, TILE);
-  // body
-  s.rect(6, 4, 4, 2, shade("flesh", 5)); // head
-  s.rect(5, 6, 6, 5, playerColor); // torso
-  s.rect(5, 11, 2, 3, C.DGREY!);
-  s.rect(9, 11, 2, 3, C.DGREY!);
-  // shield
-  s.rect(2, 6, 3, 5, shade("earth", 5));
-  s.vline(3, 6, 5, shade("earth", 3));
-  // spear
-  s.vline(12, 2, 11, shade("earth", 4));
-  s.set(12, 1, C.LGREY!);
-  return s;
-}

@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { newGame, reveal } from "@civ/core";
+import { applyCommand, createUnit, getTile, newGame, revealAround, Terrain } from "@civ/core";
 import { drawMainScreen, drawText, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
@@ -17,34 +17,38 @@ describe("retro renderer", () => {
     expect(s.data.some((c) => c === 15)).toBe(true);
   });
 
-  it("renders the main screen without going out of palette", () => {
+  it("renders the main screen with overlays and units", () => {
     const state = newGame(2026);
-    // Find the 15x13 window with the most terrain variety so the frame is a
-    // useful visual check of every tile type.
-    let best = { x: 0, y: 0, score: -1 };
-    for (let y = 1; y < 50 - 13; y++)
-      for (let x = 0; x < 80; x++) {
-        const seen = new Set<number>();
-        let land = 0;
-        for (let dy = 0; dy < 13; dy++)
-          for (let dx = 0; dx < 15; dx++) {
-            const t = state.map.tiles[(y + dy) * 80 + ((x + dx) % 80)]!;
-            seen.add(t.terrain);
-            if (t.terrain !== 0) land++;
-          }
-        const score = seen.size * 100 + land;
-        if (score > best.score) best = { x, y, score };
-      }
-    for (let y = best.y - 3; y < best.y + 16; y++) for (let x = best.x - 3; x < best.x + 18; x++) reveal(state, x, y, 0);
+    const u = state.units[0]!;
+    // Reveal a neighbourhood and dress it with improvements so every overlay shows.
+    revealAround(state, 0, u.x, u.y, 9);
+    const here = getTile(state.map, u.x, u.y)!;
+    here.road = true;
+    for (const [dx, dy] of [[1, 0], [2, 0], [2, 1]] as const) {
+      const t = getTile(state.map, u.x + dx, u.y + dy)!;
+      t.road = true;
+    }
+    const irr = getTile(state.map, u.x - 1, u.y)!;
+    irr.terrain = Terrain.Plains;
+    irr.irrigation = true;
+    const mine = getTile(state.map, u.x, u.y + 1)!;
+    mine.terrain = Terrain.Hills;
+    mine.mine = true;
+    const m = createUnit(state, "militia", 0, u.x + 2, u.y + 1);
+    applyCommand(state, { type: "fortify", unit: m.id });
+    applyCommand(state, { type: "endTurn" });
+    createUnit(state, "trireme", 0, u.x + 1, u.y - 2);
+    state.activeUnit = u.id;
+
     const view: MainScreenView = {
-      originX: best.x,
-      originY: best.y,
-      unit: { x: best.x + 7, y: best.y + 6, name: "Settlers", moves: "1", owner: 0 },
+      originX: u.x - 7,
+      originY: Math.max(0, u.y - 6),
       blink: true,
       gold: 0,
       taxRate: 5,
       luxRate: 0,
       sciRate: 5,
+      message: "Zone of control",
     };
     const s = Surface.screen();
     drawMainScreen(s, state, view);

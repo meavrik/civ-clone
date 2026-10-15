@@ -1,4 +1,4 @@
-import { newGame, reveal, Terrain, type GameState } from "@civ/core";
+import { applyCommand, newGame, unitById, type Command, type GameState } from "@civ/core";
 import {
   drawMainScreen,
   PALETTE_RGBA,
@@ -37,25 +37,34 @@ function present(): void {
   ctx.putImageData(image, 0, 0);
 }
 
-// ---- game bootstrap (phase 1: a world and one Settlers unit) --------------
-const seed = Number(new URLSearchParams(location.search).get("seed")) || 2026;
-const state: GameState = newGame(seed);
+// ---- game bootstrap --------------------------------------------------------
+const params = new URLSearchParams(location.search);
+const seed = Number(params.get("seed")) || 2026;
+const state: GameState = newGame(seed, { difficulty: Number(params.get("difficulty") ?? 2) });
 
-function findStart(st: GameState): { x: number; y: number } {
-  const good = new Set([Terrain.Grassland, Terrain.Plains]);
-  for (let y = 10; y < st.map.height - 10; y++)
-    for (let x = 0; x < st.map.width; x++)
-      if (good.has(st.map.tiles[y * st.map.width + x]!.terrain)) return { x, y };
-  return { x: 0, y: st.map.height >> 1 };
+/** Command log: with the seed this replays the whole game. Saves come from it. */
+const log: Command[] = [];
+function dispatch(cmd: Command): void {
+  const r = applyCommand(state, cmd);
+  if (r.ok) {
+    log.push(cmd);
+    view.message = undefined;
+  } else {
+    view.message = REASONS[r.reason] ?? r.reason;
+  }
+  blinkOn = true;
+  lastBlink = performance.now();
 }
-
-const unit = { ...findStart(state), name: "Settlers", moves: "1", owner: 0 };
-reveal(state, unit.x, unit.y, 1);
+const REASONS: Record<string, string> = {
+  terrain: "Can't go there",
+  zoc: "Zone of control",
+  attack: "Combat: phase 5",
+  "no-moves": "No moves left",
+};
 
 const view: MainScreenView = {
-  originX: unit.x - (VIEW_TILES_X >> 1),
-  originY: unit.y - (VIEW_TILES_Y >> 1),
-  unit,
+  originX: 0,
+  originY: 0,
   blink: true,
   gold: 0,
   taxRate: 5,
@@ -63,13 +72,24 @@ const view: MainScreenView = {
   sciRate: 5,
 };
 
-function centerOnUnit(): void {
-  view.originX = unit.x - (VIEW_TILES_X >> 1);
-  view.originY = Math.max(0, Math.min(state.map.height - VIEW_TILES_Y, unit.y - (VIEW_TILES_Y >> 1)));
+function centerOn(x: number, y: number): void {
+  view.originX = x - (VIEW_TILES_X >> 1);
+  view.originY = Math.max(0, Math.min(state.map.height - VIEW_TILES_Y, y - (VIEW_TILES_Y >> 1)));
 }
-centerOnUnit();
 
-// Original keypad movement: 7 8 9 / 4 _ 6 / 1 2 3, plus arrows.
+/** Keep the active unit in view, scrolling only when it nears the edge. */
+function followActive(force = false): void {
+  if (state.activeUnit === null) return;
+  const u = unitById(state, state.activeUnit);
+  if (!u) return;
+  const w = state.map.width;
+  const rx = (((u.x - view.originX) % w) + w) % w;
+  const ry = u.y - view.originY;
+  if (force || rx < 2 || rx > VIEW_TILES_X - 3 || ry < 2 || ry > VIEW_TILES_Y - 3) centerOn(u.x, u.y);
+}
+followActive(true);
+
+// ---- input: original keypad movement and order hotkeys -------------------
 const MOVES: Record<string, [number, number]> = {
   Numpad8: [0, -1], ArrowUp: [0, -1],
   Numpad2: [0, 1], ArrowDown: [0, 1],
@@ -79,28 +99,76 @@ const MOVES: Record<string, [number, number]> = {
 };
 
 addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const active = state.activeUnit;
   const mv = MOVES[e.code];
   if (mv) {
     e.preventDefault();
-    const nx = (((unit.x + mv[0]) % state.map.width) + state.map.width) % state.map.width;
-    const ny = unit.y + mv[1];
-    if (ny < 0 || ny >= state.map.height) return;
-    if (state.map.tiles[ny * state.map.width + nx]!.terrain === Terrain.Ocean) return;
-    unit.x = nx;
-    unit.y = ny;
-    reveal(state, nx, ny, 1);
-    // Scroll when the unit nears the viewport edge, like the original.
-    const rx = (((unit.x - view.originX) % state.map.width) + state.map.width) % state.map.width;
-    const ry = unit.y - view.originY;
-    if (rx < 2 || rx > VIEW_TILES_X - 3 || ry < 2 || ry > VIEW_TILES_Y - 3) centerOnUnit();
-    blinkOn = true;
-    lastBlink = performance.now();
-  } else if (e.code === "KeyC") {
-    centerOnUnit();
+    if (active === null) return;
+    const before = state.activeUnit;
+    dispatch({ type: "move", unit: active, dx: mv[0], dy: mv[1] });
+    followActive(state.activeUnit !== before);
+    return;
+  }
+  switch (e.code) {
+    case "Enter":
+    case "NumpadEnter":
+      if (state.activeUnit === null) {
+        dispatch({ type: "endTurn" });
+        followActive(true);
+      }
+      break;
+    case "Space":
+      if (active !== null) dispatch({ type: "skip", unit: active });
+      followActive(true);
+      break;
+    case "KeyW":
+      if (active !== null) dispatch({ type: "wait", unit: active });
+      followActive(true);
+      break;
+    case "KeyF":
+      if (active !== null) dispatch({ type: "fortify", unit: active });
+      followActive(true);
+      break;
+    case "KeyS":
+      if (active !== null) dispatch({ type: "sentry", unit: active });
+      followActive(true);
+      break;
+    case "KeyI":
+      if (active !== null) dispatch({ type: "work", unit: active, work: "irrigate" });
+      followActive(true);
+      break;
+    case "KeyM":
+      if (active !== null) dispatch({ type: "work", unit: active, work: "mine" });
+      followActive(true);
+      break;
+    case "KeyR":
+      if (active !== null) dispatch({ type: "work", unit: active, work: "road" });
+      followActive(true);
+      break;
+    case "KeyD":
+      if (active !== null && e.shiftKey) dispatch({ type: "disband", unit: active });
+      followActive(true);
+      break;
+    case "KeyC":
+      followActive(true);
+      break;
   }
 });
 
-// ---- frame loop: redraw on a slow blink, like the original cursor --------
+// Mouse: click a map tile to scroll there (the original's right-click "center").
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+canvas.addEventListener("mousedown", (e) => {
+  const scale = canvas.clientWidth / SCREEN_W;
+  const px = Math.floor(e.offsetX / scale);
+  const py = Math.floor(e.offsetY / scale);
+  if (px < 80) return;
+  const tx = view.originX + Math.floor((px - 80) / 16);
+  const ty = view.originY + Math.floor(py / 16);
+  centerOn(tx, ty);
+});
+
+// ---- frame loop ------------------------------------------------------------
 let blinkOn = true;
 let lastBlink = 0;
 function frame(t: number): void {
@@ -114,3 +182,6 @@ function frame(t: number): void {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+// Expose for the console while there's no save/load UI yet.
+(window as unknown as { civ: unknown }).civ = { state, log, dispatch };
