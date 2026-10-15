@@ -1,4 +1,5 @@
 import {
+  atWar,
   canFoundCity,
   formatYear,
   GOVERNMENTS,
@@ -135,6 +136,13 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     drawUnit(s, top, pos[0], pos[1], playerColor(top.owner), stack.length > 1);
   }
 
+  // Goto destination of the active unit.
+  const act = state.activeUnit !== null ? state.units.find((u) => u.id === state.activeUnit) : undefined;
+  if (act?.order.kind === "goto") {
+    const pos = tileToScreen(state, view, act.order.x, act.order.y);
+    if (pos) s.frame(pos[0], pos[1], TILE, TILE, C.YELLOW!);
+  }
+
   // Letterbox the bottom half-row like the original's hard panel edge.
   s.rect(VIEW_X, VIEW_H, VIEW_W, SCREEN_H - VIEW_H, C.BLACK!);
 }
@@ -223,6 +231,13 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     y += 9;
     drawText(s, 4, y, "Press Enter", dim);
     y += 9;
+  }
+  const enemies = state.players.filter((p) => p.id !== me.id && p.alive && p.id !== state.barbarians && atWar(state, me.id, p.id));
+  if (enemies.length) {
+    y += 4;
+    drawText(s, 4, y, "At war:", C.LRED!);
+    y += 9;
+    for (const p of enemies) { drawText(s, 8, y, p.name, playerColor(p.id)); y += 8; }
   }
   if (view.message) {
     y += 4;

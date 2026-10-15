@@ -55,6 +55,7 @@ export type UnitOrder =
   | { kind: "fortified" }
   | { kind: "fortifying" }
   | { kind: "sentry" }
+  | { kind: "goto"; x: number; y: number }
   | { kind: "work"; work: "irrigate" | "mine" | "road"; turnsLeft: number };
 
 export interface Unit {
@@ -69,7 +70,11 @@ export interface Unit {
   order: UnitOrder;
   /** City paying this unit's upkeep; null for starting units. */
   homeCity: number | null;
+  /** Id of the ship carrying this unit, if aboard. */
+  aboard: number | null;
 }
+
+export type Relation = "none" | "peace" | "war";
 
 export type Specialist = "entertainer" | "taxman" | "scientist";
 
@@ -97,7 +102,10 @@ export interface City {
 
 export interface Player {
   id: number;
+  civ: string;
   name: string;
+  isAi: boolean;
+  alive: boolean;
   /** Civ colour slot for rendering. */
   color: number;
   explored: Uint8Array;
@@ -130,6 +138,10 @@ export interface GameState {
   cities: City[];
   nextUnitId: number;
   nextCityId: number;
+  /** Relation between players a<b, keyed "a:b". Missing = no contact. */
+  relations: Record<string, Relation>;
+  /** The barbarian player's id. */
+  barbarians: number;
   /** Whose turn it is. */
   currentPlayer: number;
   /** Id of the unit awaiting orders, or null when the turn can end. */

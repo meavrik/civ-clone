@@ -1,6 +1,13 @@
+import { aiTurn } from "@civ/ai";
 import {
   advance,
   applyCommand,
+  atWar,
+  canFoundCity,
+  civ,
+  lastCombat,
+  unitAt,
+  workOptions,
   availableAdvances,
   buildOptions,
   cityAt,
@@ -70,7 +77,11 @@ function present(): void {
 // ---- game bootstrap --------------------------------------------------------
 const params = new URLSearchParams(location.search);
 const seed = Number(params.get("seed")) || 2026;
-const state: GameState = newGame(seed, { difficulty: Number(params.get("difficulty") ?? 2) });
+const state: GameState = newGame(seed, {
+  difficulty: Number(params.get("difficulty") ?? 2),
+  opponents: Number(params.get("opponents") ?? 2),
+  ...(params.get("civ") ? { civ: params.get("civ")! } : {}),
+});
 
 /** Command log: with the seed this replays the whole game. */
 const log: Command[] = [];
@@ -87,15 +98,108 @@ const REASONS: Record<string, string> = {
   zoc: "Zone of control",
   attack: "Combat: phase 5",
   "no-moves": "No moves left",
+  full: "Ship is full",
+  treaty: "We have a treaty (right-click: declare war)",
+  "no route": "No route there",
 };
 
 function dispatch(cmd: Command): boolean {
   const r = applyCommand(state, cmd);
-  if (r.ok) log.push(cmd);
-  else say(REASONS[r.reason] ?? r.reason);
+  if (r.ok) {
+    log.push(cmd);
+    if (cmd.type === "move" && lastCombat) {
+      const c = lastCombat;
+      const them = state.players[c.defenderOwner]!.name;
+      say(c.attackerWon ? `${unitType(c.attackerType).name} defeats ${them} ${unitType(c.defenderType).name}` : `${unitType(c.attackerType).name} lost to ${them} ${unitType(c.defenderType).name}`, 3500);
+    }
+  } else say(REASONS[r.reason] ?? r.reason);
   blinkOn = true;
   lastBlink = performance.now();
   return r.ok;
+}
+
+/** Move the active unit, offering to declare war when a treaty blocks the attack. */
+function tryMove(unit: number, dx: number, dy: number): void {
+  const r = applyCommand(state, { type: "move", unit, dx, dy });
+  if (r.ok) {
+    log.push({ type: "move", unit, dx, dy });
+    if (lastCombat) {
+      const c = lastCombat;
+      const them = state.players[c.defenderOwner]!.name;
+      say(c.attackerWon ? `${unitType(c.attackerType).name} defeats ${them} ${unitType(c.defenderType).name}` : `${unitType(c.attackerType).name} lost to ${them} ${unitType(c.defenderType).name}`, 3500);
+    }
+    return;
+  }
+  if (r.reason === "treaty") {
+    const u = unitById(state, unit)!;
+    const tx = u.x + dx;
+    const ty = u.y + dy;
+    const target = unitAt(state, tx, ty)[0] ?? cityAt(state, tx, ty);
+    if (target) openWarMenu(target.owner, () => tryMove(unit, dx, dy));
+    return;
+  }
+  say(REASONS[r.reason] ?? r.reason);
+}
+
+function openWarMenu(player: number, then?: () => void): void {
+  const name = state.players[player]!.name;
+  screenState = {
+    kind: "menu",
+    under: screenState,
+    menu: { title: `Declare war on the ${name}?`, items: ["No, keep the peace", "Yes, declare war!"], selected: 0 },
+    onPick: (i) => {
+      if (i === 1) {
+        dispatch({ type: "declareWar", player });
+        say(`War with the ${name}!`, 3000);
+        then?.();
+      }
+    },
+  };
+}
+
+function openContactMenu(player: number, next: () => void): void {
+  const p = state.players[player]!;
+  const c = civ(p.civ);
+  screenState = {
+    kind: "menu",
+    under: { kind: "map" },
+    menu: {
+      title: `${c.leader} of the ${c.name} greets you.`,
+      items: ["Exchange peace treaty", "Declare war"],
+      selected: 0,
+    },
+    onPick: (i) => {
+      if (i === 1) dispatch({ type: "declareWar", player });
+      else dispatch({ type: "makePeace", player });
+      next();
+    },
+  };
+}
+
+function openActionMenu(unit: number): void {
+  const u = unitById(state, unit);
+  if (!u) return;
+  const w = workOptions(state, u);
+  const type = unitType(u.type);
+  const items: [string, () => void][] = [];
+  if (type.flags?.includes("settler") && canFoundCity(state, u.x, u.y) === null)
+    items.push(["Found city (B)", () => { if (dispatch({ type: "found", unit })) { const c = cityAt(state, u.x, u.y); if (c) openCity(c.id); } }]);
+  if (w.irrigate !== undefined) items.push([`Irrigate (I) ${w.irrigate}t`, () => dispatch({ type: "work", unit, work: "irrigate" })]);
+  if (w.mine !== undefined) items.push([`Mine (M) ${w.mine}t`, () => dispatch({ type: "work", unit, work: "mine" })]);
+  if (w.road !== undefined) items.push([`Road (R) ${w.road}t`, () => dispatch({ type: "work", unit, work: "road" })]);
+  if (type.domain === "land") items.push(["Fortify (F)", () => dispatch({ type: "fortify", unit })]);
+  items.push(["Sentry (S)", () => dispatch({ type: "sentry", unit })]);
+  items.push(["Wait (W)", () => dispatch({ type: "wait", unit })]);
+  items.push(["Skip turn (Space)", () => dispatch({ type: "skip", unit })]);
+  items.push(["Disband (Shift+D)", () => dispatch({ type: "disband", unit })]);
+  const atWarWith = state.players.filter((p) => p.id !== 0 && p.alive && p.id !== state.barbarians && atWar(state, 0, p.id));
+  for (const p of atWarWith) items.push([`Make peace with ${p.name}`, () => dispatch({ type: "makePeace", player: p.id })]);
+  screenState = {
+    kind: "menu",
+    under: screenState,
+    menu: { title: `${type.name}: orders`, items: items.map((i) => i[0]), selected: 0 },
+    onPick: (i) => { items[i]?.[1](); followActive(true); },
+  };
 }
 
 // ---- screens ---------------------------------------------------------------
@@ -182,7 +286,17 @@ function openGovernmentMenu(under: Screen): void {
 }
 
 function eventMessage(ev: TurnEvent): string | null {
-  if (!("city" in ev)) return null;
+  if (!("city" in ev)) {
+    switch (ev.kind) {
+      case "warDeclared": return `The ${state.players[ev.player]?.name} declare war!`;
+      case "cityLost": return `${ev.name} has been destroyed!`;
+      case "cityCaptured": return `${ev.name} captured!`;
+      case "unitLost": return `${ev.unit} lost to the ${state.players[ev.by]?.name}`;
+      case "barbarians": return "Barbarians have landed!";
+      case "eliminated": return `The ${state.players[ev.player]?.name} civilization has been destroyed.`;
+      default: return null;
+    }
+  }
   const name = state.cities.find((c) => c.id === ev.city)?.name ?? "City";
   switch (ev.kind) {
     case "grew": return `${name} grows`;
@@ -206,6 +320,8 @@ function presentEvents(events: TurnEvent[]): void {
     }
     if (ev.kind === "discovered") {
       screenState = { kind: "discovery", advance: ev.advance, then: next };
+    } else if (ev.kind === "contact") {
+      openContactMenu(ev.player, next);
     } else if (ev.kind === "chooseResearch") {
       openResearchMenu({ kind: "map" });
       const sc = screenState as Extract<Screen, { kind: "menu" }>;
@@ -227,7 +343,22 @@ function presentEvents(events: TurnEvent[]): void {
 
 function endTurn(): void {
   dispatch({ type: "endTurn" });
-  presentEvents([...lastTurnEvents]);
+  const events: TurnEvent[] = [...lastTurnEvents];
+  // Other civilizations move now; keep what concerns us.
+  let guard = 0;
+  while (state.currentPlayer !== 0 && guard++ < 16) {
+    const ai = state.currentPlayer;
+    aiTurn(state);
+    applyCommand(state, { type: "endTurn" });
+    for (const ev of lastTurnEvents) {
+      if (ev.kind === "contact" && ev.player === 0) events.push({ kind: "contact", player: ai });
+      else if ((ev.kind === "cityLost" || ev.kind === "cityCaptured") && ev.player === 0) events.push(ev);
+      else if (ev.kind === "eliminated" || ev.kind === "barbarians") events.push(ev);
+    }
+  }
+  // Our own start-of-turn events (contacts found as our turn begins, lost cities).
+  for (const ev of lastTurnEvents) if (ev.kind === "contact" || ev.kind === "eliminated") events.push(ev);
+  presentEvents(events);
 }
 
 // ---- input -----------------------------------------------------------------
@@ -246,7 +377,9 @@ function mapKey(e: KeyboardEvent): void {
     e.preventDefault();
     if (active === null) return;
     const before = state.activeUnit;
-    dispatch({ type: "move", unit: active, dx: mv[0], dy: mv[1] });
+    tryMove(active, mv[0], mv[1]);
+    blinkOn = true;
+    lastBlink = performance.now();
     followActive(state.activeUnit !== before);
     return;
   }
@@ -287,6 +420,9 @@ function mapKey(e: KeyboardEvent): void {
       break;
     case "KeyA":
       screenState = { kind: "science" };
+      break;
+    case "Escape":
+      if (active !== null) openActionMenu(active);
       break;
     case "KeyG":
       if (state.players[state.currentPlayer]!.government === "anarchy") {
@@ -391,13 +527,69 @@ canvas.addEventListener("mousedown", (e) => {
     if (slot !== null && slot !== 0) dispatch({ type: "toggleTile", city: sc.view.city, slot });
     return;
   }
-  if (px < VIEW_X) return;
-  const tx = view.originX + Math.floor((px - VIEW_X) / TILE);
+  if (px < VIEW_X) {
+    // Minimap click: scroll there.
+    if (py >= 2 && py < 52) centerOn(px, py - 2);
+    return;
+  }
+  const tx = ((view.originX + Math.floor((px - VIEW_X) / TILE)) % state.map.width + state.map.width) % state.map.width;
   const ty = view.originY + Math.floor(py / TILE);
+  if (ty < 0 || ty >= state.map.height) return;
+  const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
+
+  if (e.button === 2) {
+    // Right-click: orders for the active unit, or centre the view.
+    if (active) openActionMenu(active.id);
+    else centerOn(tx, ty);
+    return;
+  }
+
   const city = cityAt(state, tx, ty);
-  if (city && city.owner === state.currentPlayer && e.button === 0) openCity(city.id);
-  else centerOn(tx, ty);
+  if (city && city.owner === state.currentPlayer && !(active && isAdjacent(active, tx, ty) && !(active.x === tx && active.y === ty))) {
+    openCity(city.id);
+    return;
+  }
+  if (active) {
+    if (active.x === tx && active.y === ty) {
+      // Click on the active unit: cycle through the stack.
+      const stack = unitAt(state, tx, ty).filter((u) => u.owner === 0 && u.movesLeft > 0);
+      const i = stack.findIndex((u) => u.id === active.id);
+      const nextUnit = stack[(i + 1) % stack.length];
+      if (nextUnit && nextUnit.id !== active.id) dispatch({ type: "activate", unit: nextUnit.id });
+      return;
+    }
+    if (isAdjacent(active, tx, ty)) {
+      let dx = tx - active.x;
+      if (dx > 1) dx -= state.map.width;
+      if (dx < -1) dx += state.map.width;
+      const before = state.activeUnit;
+      tryMove(active.id, dx, ty - active.y);
+      followActive(state.activeUnit !== before);
+      return;
+    }
+    const own = unitAt(state, tx, ty).find((u) => u.owner === 0 && u.movesLeft > 0);
+    if (own) {
+      dispatch({ type: "activate", unit: own.id });
+      return;
+    }
+    const before = state.activeUnit;
+    if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
+    followActive(state.activeUnit !== before);
+    return;
+  }
+  const own = unitAt(state, tx, ty).find((u) => u.owner === 0);
+  if (own) {
+    dispatch({ type: "activate", unit: own.id });
+    if (state.activeUnit !== own.id) say("No moves left this turn");
+    return;
+  }
+  centerOn(tx, ty);
 });
+
+function isAdjacent(u: { x: number; y: number }, tx: number, ty: number): boolean {
+  const w = state.map.width;
+  return Math.abs(ty - u.y) <= 1 && Math.min(Math.abs(tx - u.x), w - Math.abs(tx - u.x)) <= 1;
+}
 
 // ---- frame loop ------------------------------------------------------------
 let blinkOn = true;

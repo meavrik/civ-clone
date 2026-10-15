@@ -19,7 +19,7 @@ import {
 } from "../src/index.js";
 
 function flatWorld(): GameState {
-  const s = newGame(1);
+  const s = newGame(1, { opponents: 0 });
   for (const t of s.map.tiles) {
     t.terrain = Terrain.Grassland;
     t.river = false; t.road = false; t.irrigation = false; t.mine = false; t.special = false;

@@ -3,10 +3,25 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist-types",
-    "lib": ["ES2022", "DOM"],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "noEmit": false,
     "emitDeclarationOnly": true
   },
-  "include": ["src"],
-  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/renderer-retro" }]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../packages/core"
+    },
+    {
+      "path": "../../packages/renderer-retro"
+    },
+    {
+      "path": "../../packages/ai"
+    }
+  ]
 }

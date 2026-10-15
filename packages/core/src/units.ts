@@ -26,6 +26,7 @@ export function createUnit(state: GameState, type: string, owner: number, x: num
     veteran: false,
     order: { kind: "none" },
     homeCity,
+    aboard: null,
   };
   u.movesLeft = fullMoves(u);
   state.units.push(u);
@@ -44,19 +45,34 @@ export function enemyAdjacent(state: GameState, owner: number, x: number, y: num
   return false;
 }
 
+/** Cargo a ship is carrying. */
+export function cargo(state: GameState, ship: Unit): Unit[] {
+  return state.units.filter((u) => u.aboard === ship.id);
+}
+
+/** A friendly ship on the tile with room for one more. */
+export function shipWithRoom(state: GameState, owner: number, x: number, y: number): Unit | undefined {
+  return unitAt(state, x, y).find((s) => {
+    if (s.owner !== owner) return false;
+    const t = unitType(s.type);
+    return t.domain === "sea" && (t.capacity ?? 0) > cargo(state, s).length;
+  });
+}
+
 export type MoveResult =
-  | { ok: true; cost: number }
-  | { ok: false; reason: "no-moves" | "off-map" | "terrain" | "zoc" | "occupied" | "attack" };
+  | { ok: true; cost: number; board?: number; disembark?: boolean; enemyCity?: boolean }
+  | { ok: false; reason: "no-moves" | "off-map" | "terrain" | "zoc" | "occupied" | "attack" | "full" };
 
 /**
  * Original movement rules:
  *  - terrain cost is paid in full; a unit with ANY moves left may always enter
- *    (the fractional-chance rule arrived in the sequel, not here)
  *  - road-to-road or river-to-river moves cost 1/3
- *  - land units cannot enter ocean; sea units cannot enter land (ports later)
+ *  - land units enter ocean only by boarding a friendly ship with room, and
+ *    leave a ship only onto land; ships enter land only at a friendly city
  *  - zones of control: a land unit may not move from a tile adjacent to an
- *    enemy to another tile adjacent to an enemy, unless the destination holds
- *    a friendly unit (or a city, once cities exist)
+ *    enemy to another tile adjacent to an enemy, unless the destination
+ *    holds a friendly unit or city
+ *  - an enemy-occupied destination is an attack (resolved by the caller)
  */
 export function checkMove(state: GameState, u: Unit, dx: number, dy: number): MoveResult {
   if (u.movesLeft <= 0) return { ok: false, reason: "no-moves" };
@@ -65,42 +81,66 @@ export function checkMove(state: GameState, u: Unit, dx: number, dy: number): Mo
   if (!to) return { ok: false, reason: "off-map" };
   const from = getTile(state.map, u.x, u.y)!;
   const type = unitType(u.type);
+  const nx = wrapX(state.map, u.x + dx);
+  const friendlyCity = state.cities.find((c) => c.x === nx && c.y === ny && c.owner === u.owner);
+  const enemyCity = state.cities.find((c) => c.x === nx && c.y === ny && c.owner !== u.owner);
 
-  if (type.domain === "land" && to.terrain === Terrain.Ocean) return { ok: false, reason: "terrain" };
-  if (type.domain === "sea" && to.terrain !== Terrain.Ocean) return { ok: false, reason: "terrain" };
+  const occupants = unitAt(state, nx, ny);
+  if (occupants.some((o) => o.owner !== u.owner)) return { ok: false, reason: "attack" };
+  const friendlyThere = occupants.length > 0 || !!friendlyCity;
 
-  const occupants = unitAt(state, u.x + dx, ny);
-  if (occupants.some((o) => o.owner !== u.owner)) return { ok: false, reason: "attack" }; // combat: phase 5
-  const friendlyThere = occupants.length > 0;
+  let board: number | undefined;
+  let disembark = false;
+  if (type.domain === "land") {
+    if (to.terrain === Terrain.Ocean) {
+      const ship = shipWithRoom(state, u.owner, nx, ny);
+      if (!ship) return { ok: false, reason: occupants.length ? "full" : "terrain" };
+      board = ship.id;
+    } else if (u.aboard !== null) disembark = true;
+  } else if (type.domain === "sea") {
+    if (to.terrain !== Terrain.Ocean && !friendlyCity) return { ok: false, reason: "terrain" };
+  }
 
   if (
     type.domain === "land" &&
     !type.flags?.includes("ignoreZoc") &&
     !friendlyThere &&
+    !enemyCity &&
     enemyAdjacent(state, u.owner, u.x, u.y) &&
-    enemyAdjacent(state, u.owner, u.x + dx, ny)
+    enemyAdjacent(state, u.owner, nx, ny)
   )
     return { ok: false, reason: "zoc" };
 
   let cost: number;
-  if (type.domain !== "land") cost = MOVE_FRAC;
+  if (type.domain !== "land" || board !== undefined) cost = MOVE_FRAC;
   else if (from.road && to.road) cost = 1;
   else if (from.river && to.river && (dx === 0 || dy === 0)) cost = 1;
   else cost = TERRAIN_RULES[to.terrain].moveCost * MOVE_FRAC;
-  return { ok: true, cost };
+  const r: MoveResult = { ok: true, cost };
+  if (board !== undefined) r.board = board;
+  if (disembark) r.disembark = true;
+  if (enemyCity) r.enemyCity = true;
+  return r;
 }
 
-export function applyMove(state: GameState, u: Unit, dx: number, dy: number, cost: number): void {
+export function applyMove(state: GameState, u: Unit, dx: number, dy: number, r: Extract<MoveResult, { ok: true }>): void {
   u.x = wrapX(state.map, u.x + dx);
   u.y += dy;
-  u.movesLeft = Math.max(0, u.movesLeft - cost);
+  u.movesLeft = Math.max(0, u.movesLeft - r.cost);
   if (u.order.kind === "fortified" || u.order.kind === "fortifying" || u.order.kind === "sentry")
     u.order = { kind: "none" };
+  if (r.board !== undefined) {
+    u.aboard = r.board;
+    u.order = { kind: "sentry" };
+    u.movesLeft = 0;
+  } else if (r.disembark) u.aboard = null;
+  // A moving ship carries its cargo.
+  if (unitType(u.type).domain === "sea") for (const c of cargo(state, u)) { c.x = u.x; c.y = u.y; }
 }
 
 /** Which settler work is possible on the unit's tile, with turns required. */
 export function workOptions(state: GameState, u: Unit): { irrigate?: number; mine?: number; road?: number } {
-  if (!unitType(u.type).flags?.includes("settler")) return {};
+  if (!unitType(u.type).flags?.includes("settler") || u.aboard !== null) return {};
   const t = getTile(state.map, u.x, u.y)!;
   const r = TERRAIN_RULES[t.terrain];
   const out: { irrigate?: number; mine?: number; road?: number } = {};

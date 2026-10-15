@@ -11,14 +11,18 @@ import {
   slotAvailable,
   type CityTurnEvent,
 } from "./cities.js";
+import { maybeSpawnBarbarians } from "./barbarians.js";
+import { captureCity, checkElimination, resolveCombat } from "./combat.js";
+import { atWar, detectContacts, hasContact, setRelation } from "./diplomacy.js";
+import { findPath, stepDir } from "./pathfind.js";
 import { ADVANCE_BY_ID, advance, availableAdvances, researchCost } from "./rules/advances.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
 import { WONDERS } from "./rules/wonders.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
-import { getTile, type GameState, type Player, type Production, type Specialist, type Unit } from "./types.js";
-import { applyMove, checkMove, fullMoves, unitById, workOptions } from "./units.js";
+import { getTile, wrapX, type GameState, type Player, type Production, type Specialist, type Unit } from "./types.js";
+import { applyMove, cargo, checkMove, fullMoves, unitById, workOptions } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
 /**
@@ -44,6 +48,10 @@ export type Command =
   | { type: "research"; advance: string }
   | { type: "revolution" }
   | { type: "setGovernment"; government: string }
+  | { type: "goto"; unit: number; x: number; y: number }
+  | { type: "activate"; unit: number }
+  | { type: "declareWar"; player: number }
+  | { type: "makePeace"; player: number }
   | { type: "endTurn" };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
@@ -53,7 +61,25 @@ export type TurnEvent =
   | { kind: "discovered"; advance: string }
   | { kind: "chooseResearch" }
   | { kind: "anarchyOver" }
-  | { kind: "chooseGovernment" };
+  | { kind: "chooseGovernment" }
+  | { kind: "contact"; player: number }
+  | { kind: "warDeclared"; player: number }
+  | { kind: "cityLost"; name: string; player: number }
+  | { kind: "cityCaptured"; name: string; player: number }
+  | { kind: "unitLost"; unit: string; by: number }
+  | { kind: "barbarians" }
+  | { kind: "eliminated"; player: number };
+
+/** Result of the last move command when it turned into combat (for the UI). */
+export interface CombatReport {
+  attackerWon: boolean;
+  attackerType: string;
+  defenderType: string;
+  defenderOwner: number;
+  x: number;
+  y: number;
+}
+export let lastCombat: CombatReport | null = null;
 
 /** Events raised by the last endTurn, for the UI to report. */
 export const lastTurnEvents: TurnEvent[] = [];
@@ -96,6 +122,16 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       clampRates(p);
       return { ok: true };
     }
+    case "declareWar": {
+      if (cmd.player === state.currentPlayer || !state.players[cmd.player]) return { ok: false, reason: "no such player" };
+      setRelation(state, state.currentPlayer, cmd.player, "war");
+      return { ok: true };
+    }
+    case "makePeace": {
+      if (!hasContact(state, state.currentPlayer, cmd.player)) return { ok: false, reason: "no contact" };
+      setRelation(state, state.currentPlayer, cmd.player, "peace");
+      return { ok: true };
+    }
     case "setProduction":
     case "toggleTile":
     case "setSpecialist":
@@ -108,15 +144,20 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
   if (u.owner !== state.currentPlayer) return { ok: false, reason: "not your unit" };
 
   switch (cmd.type) {
-    case "move": {
-      const r = checkMove(state, u, cmd.dx, cmd.dy);
-      if (!r.ok) return { ok: false, reason: r.reason };
-      applyMove(state, u, cmd.dx, cmd.dy, r.cost);
-      revealAround(state, u.owner, u.x, u.y, unitType(u.type).sight);
-      recomputeVisibility(state, u.owner);
-      if (u.movesLeft === 0) selectNextUnit(state, u.id);
+    case "move":
+      return moveUnit(state, u, cmd.dx, cmd.dy);
+    case "goto": {
+      const path = findPath(state, u, cmd.x, cmd.y);
+      if (!path) return { ok: false, reason: "no route" };
+      u.order = { kind: "goto", x: wrapX(state.map, cmd.x), y: cmd.y };
+      runGoto(state, u);
+      if (u.order.kind === "goto" || u.movesLeft === 0) selectNextUnit(state, u.id);
       return { ok: true };
     }
+    case "activate":
+      u.order = { kind: "none" };
+      if (u.movesLeft > 0) state.activeUnit = u.id;
+      return { ok: true };
     case "fortify":
       if (unitType(u.type).domain !== "land") return { ok: false, reason: "only land units fortify" };
       u.order = { kind: "fortifying" };
@@ -158,6 +199,68 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       return { ok: true };
     }
   }
+}
+
+function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandResult {
+  lastCombat = null;
+  const r = checkMove(state, u, dx, dy);
+  if (!r.ok && r.reason === "attack") {
+    const defenderOwner = state.units.find((o) => o.owner !== u.owner && o.x === wrapX(state.map, u.x + dx) && o.y === u.y + dy)!.owner;
+    if (!atWar(state, u.owner, defenderOwner)) return { ok: false, reason: "treaty" };
+    const c = resolveCombat(state, u, dx, dy);
+    if ("error" in c) return { ok: false, reason: c.error };
+    lastCombat = {
+      attackerWon: c.attackerWon,
+      attackerType: c.attacker.type,
+      defenderType: c.defender.type,
+      defenderOwner: c.defender.owner,
+      x: wrapX(state.map, u.x + dx),
+      y: u.y + dy,
+    };
+    if (!c.attackerWon) lastTurnEvents.push({ kind: "unitLost", unit: unitType(u.type).name, by: c.defender.owner });
+    recomputeVisibility(state, u.owner);
+    for (const id of c.destroyed) if (id === state.activeUnit) state.activeUnit = null;
+    if (!state.units.includes(u) || u.movesLeft === 0) selectNextUnit(state, u.id);
+    return { ok: true };
+  }
+  if (!r.ok) return { ok: false, reason: r.reason };
+  if (r.enemyCity) {
+    const city = state.cities.find((c) => c.x === wrapX(state.map, u.x + dx) && c.y === u.y + dy)!;
+    if (!atWar(state, u.owner, city.owner)) return { ok: false, reason: "treaty" };
+    if (unitType(u.type).domain !== "land") return { ok: false, reason: "only land units take cities" };
+    const prevOwner = city.owner;
+    const name = city.name;
+    const cap = captureCity(state, u, city);
+    lastTurnEvents.push(cap.captured ? { kind: "cityCaptured", name, player: prevOwner } : { kind: "cityLost", name, player: prevOwner });
+    for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
+  }
+  applyMove(state, u, dx, dy, r);
+  revealAround(state, u.owner, u.x, u.y, unitType(u.type).sight);
+  for (const c of cargo(state, u)) revealAround(state, u.owner, c.x, c.y, 1);
+  recomputeVisibility(state, u.owner);
+  for (const met of detectContacts(state, u.owner)) lastTurnEvents.push({ kind: "contact", player: met });
+  if (u.movesLeft === 0 || r.board !== undefined) selectNextUnit(state, u.id);
+  return { ok: true };
+}
+
+/** Walk a goto order as far as this turn's moves allow. Stops on anything unexpected. */
+export function runGoto(state: GameState, u: Unit): void {
+  while (u.order.kind === "goto" && u.movesLeft > 0) {
+    const { x, y } = u.order;
+    if (u.x === x && u.y === y) { u.order = { kind: "none" }; return; }
+    const path = findPath(state, u, x, y);
+    if (!path || path.length === 0) { u.order = { kind: "none" }; return; }
+    const [dx, dy] = stepDir(state, u, path[0]!);
+    const r = checkMove(state, u, dx, dy);
+    if (!r.ok) { u.order = { kind: "none" }; return; } // enemy in the way: ask the player
+    const goal: Unit["order"] = u.order;
+    applyMove(state, u, dx, dy, r);
+    revealAround(state, u.owner, u.x, u.y, unitType(u.type).sight);
+    if (r.board !== undefined) return; // boarded: stay sentried on the ship
+    u.order = goal; // applyMove clears standing orders
+    if (u.x === x && u.y === y) u.order = { kind: "none" };
+  }
+  recomputeVisibility(state, u.owner);
 }
 
 /** Governments the player may choose: despotism always, others by advance (or all with the Pyramids). */
@@ -275,6 +378,9 @@ function wakeSentries(state: GameState, player: number): void {
 
 export function endTurn(state: GameState): void {
   const player = state.currentPlayer;
+  const p = state.players[player]!;
+  lastTurnEvents.length = 0;
+  lastCombat = null;
 
   // Settler work progresses at the end of the owner's turn.
   for (const u of state.units) {
@@ -301,13 +407,11 @@ export function endTurn(state: GameState): void {
   }
 
   // Cities: growth, production, treasury.
-  lastTurnEvents.length = 0;
   for (const c of state.cities) if (c.owner === player) lastTurnEvents.push(...processCityTurn(state, c));
   for (const c of state.cities)
     if (c.owner === player && c.worked.length + c.specialists.length !== c.size) autoAssignWorkers(state, c);
 
-  // Research.
-  const p = state.players[player]!;
+  // Wonder side effects and research.
   for (const ev of [...lastTurnEvents]) {
     if (ev.kind !== "wonder") continue;
     const w = WONDERS.find((x) => x.name === ev.detail);
@@ -331,19 +435,37 @@ export function endTurn(state: GameState): void {
       lastTurnEvents.push({ kind: "chooseResearch" });
     }
   }
-
-  // Anarchy countdown.
   if (p.government === "anarchy") {
     if (p.anarchyTurns > 0) p.anarchyTurns--;
     if (p.anarchyTurns === 0) lastTurnEvents.push({ kind: "chooseGovernment" });
   }
+  for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
 
-  // Single-player loop for now: the same player goes again. Other civs join
-  // in phase 5, where this advances through players before incrementing turn.
-  state.turn++;
+  // Next living player; a full round advances the calendar.
+  // Barbarians only get a turn while they have units on the map.
+  const takesTurn = (id: number) =>
+    state.players[id]!.alive && (id !== state.barbarians || state.units.some((u) => u.owner === id));
+  let next = player;
+  let guard = 0;
+  do next = (next + 1) % state.players.length;
+  while (!takesTurn(next) && ++guard < state.players.length);
+  if (next <= player) {
+    state.turn++;
+    const before = state.units.length;
+    maybeSpawnBarbarians(state);
+    if (state.units.length > before) lastTurnEvents.push({ kind: "barbarians" });
+  }
+  state.currentPlayer = next;
+  startTurn(state, next);
+}
+
+/** Begin a player's turn: restore moves, continue gotos, wake sentries, pick the first unit. */
+export function startTurn(state: GameState, player: number): void {
   for (const u of state.units) if (u.owner === player) u.movesLeft = fullMoves(u);
   wakeSentries(state, player);
+  for (const u of state.units) if (u.owner === player && u.order.kind === "goto") runGoto(state, u);
   recomputeVisibility(state, player);
+  for (const met of detectContacts(state, player)) lastTurnEvents.push({ kind: "contact", player: met });
   selectNextUnit(state, null);
 }
 

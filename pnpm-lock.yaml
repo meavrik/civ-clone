@@ -20,12 +20,21 @@ importers:
 
   apps/web:
     dependencies:
+      '@civ/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@civ/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@civ/renderer-retro':
         specifier: workspace:*
         version: link:../../packages/renderer-retro
+
+  packages/ai:
+    dependencies:
+      '@civ/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core: {}
 
@@ -34,6 +43,10 @@ importers:
       '@civ/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@civ/ai':
+        specifier: workspace:*
+        version: link:../ai
 
 packages:
 

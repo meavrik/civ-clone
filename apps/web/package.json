@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@civ/core": "workspace:*",
-    "@civ/renderer-retro": "workspace:*"
+    "@civ/renderer-retro": "workspace:*",
+    "@civ/ai": "workspace:*"
   }
 }

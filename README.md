@@ -8,7 +8,8 @@ modern-visuals renderer behind the same core.
 ## Layout
 
 ```
-packages/core             deterministic game core: seeded RNG, types, map gen, calendar (no DOM)
+packages/core             deterministic game core: rules, map gen, units, cities, combat, research (no DOM)
+packages/ai               baseline AI opponent, driven through the same commands as a human
 packages/renderer-retro   indexed 320x200 framebuffer, palette, bitmap font, tiles, screen layouts
 apps/web                  Vite app: canvas with integer scaling, keyboard input, frame loop
 ```
@@ -28,8 +29,13 @@ pnpm typecheck
 
 Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify · `S` sentry ·
 `I`/`M`/`R` irrigate/mine/road · `B` found city · `Shift+D` disband · `C` centre ·
-`Enter` end turn · `T` rates · `A` science advisor · `G` revolution · click a city to open it.
+`Enter` end turn · `T` rates · `A` science advisor · `G` revolution · `Esc` orders menu.
+Mouse: click an adjacent tile to move/attack · click farther away to go there ·
+click your own unit to activate it · click the active unit to cycle the stack ·
+click a city to open it · right-click for the orders menu · click the minimap to scroll.
 City screen: click tiles to work them · `C` change production · `B` buy · `N` rename · `Esc`.
+
+URL options: `?seed=1234&difficulty=2&opponents=2&civ=greeks`
 
 ## Design rules
 
@@ -46,7 +52,7 @@ City screen: click tiles to work them · `C` change production · `B` buy · `N`
 2. World: map generator, terrain yields, movement costs, ZOC, fog  ← done
 3. Cities: founding, growth, tiles worked, production, buildings, happiness  ← done
 4. Tech tree, governments, wonders, rates  ← done (tree data to verify against FreeCiv civ1)
-5. Combat, barbarians, diplomacy
-6. Full game loop + baseline AI
+5. Combat, barbarians, transport, goto, multi-civ turn loop, baseline AI, mouse control  ← done
+6. Full game loop: score, end conditions, save/load, diplomacy screen, advisors
 7. AI v2 with headless tournament harness
 8. Modern-visuals renderer

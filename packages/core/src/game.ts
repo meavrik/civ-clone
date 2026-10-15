@@ -1,20 +1,27 @@
 import { selectNextUnit } from "./commands.js";
 import { generateMap, type MapGenOptions } from "./map/generate.js";
 import { createRng, nextInt } from "./rng.js";
+import { civ, CIVS } from "./rules/civs.js";
 import { MAP_HEIGHT, MAP_WIDTH, Terrain, type GameState, type Player } from "./types.js";
 import { createUnit } from "./units.js";
 import { recomputeVisibility } from "./visibility.js";
 
 export interface NewGameOptions extends MapGenOptions {
-  /** Difficulty 0 (Chieftain) .. 4 (Emperor). Affects starting units for now. */
+  /** Difficulty 0 (Chieftain) .. 4 (Emperor). */
   difficulty?: number;
-  playerName?: string;
+  /** Civ id for the human player. */
+  civ?: string;
+  /** Number of AI opponents (0..6). */
+  opponents?: number;
 }
 
-function makePlayer(id: number, name: string, color: number): Player {
+function makePlayer(id: number, civId: string, color: number, isAi: boolean): Player {
   return {
     id,
-    name,
+    civ: civId,
+    name: civ(civId).name,
+    isAi,
+    alive: true,
     color,
     explored: new Uint8Array(MAP_WIDTH * MAP_HEIGHT),
     visible: new Uint8Array(MAP_WIDTH * MAP_HEIGHT),
@@ -35,21 +42,39 @@ function makePlayer(id: number, name: string, color: number): Player {
 export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const rng = createRng(seed);
   const map = generateMap(rng, opts);
+  const humanCiv = opts.civ ?? "romans";
+  const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians");
+  const opponents = Math.max(0, Math.min(others.length, opts.opponents ?? 2));
+  const players: Player[] = [makePlayer(0, humanCiv, 0, false)];
+  for (let i = 0; i < opponents; i++) {
+    const pick = others.splice(nextInt(rng, others.length), 1)[0]!;
+    players.push(makePlayer(players.length, pick.id, players.length, true));
+  }
+  const barbarians = players.length;
+  players.push(makePlayer(barbarians, "barbarians", 5, true));
+
   const state: GameState = {
     seed,
     rng,
     turn: 0,
     map,
-    players: [makePlayer(0, opts.playerName ?? "Player", 0)],
+    players,
     units: [],
     cities: [],
     nextUnitId: 1,
     nextCityId: 1,
+    relations: {},
+    barbarians,
     currentPlayer: 0,
     activeUnit: null,
   };
+  const difficulty = opts.difficulty ?? 2;
+  for (const p of players) {
+    p.difficulty = difficulty;
+    p.gold = [100, 50, 0, 0, 0][difficulty] ?? 0;
+  }
 
-  // Starting position: open land on a decently sized continent, not polar.
+  // Starting positions: open land on decent continents, spread apart.
   const sizes = new Map<number, number>();
   for (const t of map.tiles) if (t.terrain !== Terrain.Ocean) sizes.set(t.continent, (sizes.get(t.continent) ?? 0) + 1);
   const candidates: number[] = [];
@@ -59,16 +84,25 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
       if ((t.terrain === Terrain.Grassland || t.terrain === Terrain.Plains) && (sizes.get(t.continent) ?? 0) >= 40)
         candidates.push(y * map.width + x);
     }
-  const pick = candidates.length ? candidates[nextInt(rng, candidates.length)]! : map.width * (map.height >> 1);
-  const sx = pick % map.width;
-  const sy = Math.floor(pick / map.width);
-
-  state.players[0]!.difficulty = opts.difficulty ?? 2;
-  state.players[0]!.gold = [100, 50, 0, 0, 0][state.players[0]!.difficulty] ?? 0;
-  const settlers = (opts.difficulty ?? 2) <= 1 ? 2 : 1;
-  for (let i = 0; i < settlers; i++) createUnit(state, "settlers", 0, sx, sy);
-  recomputeVisibility(state, 0);
-  state.players[0]!.explored.set(state.players[0]!.visible);
+  const starts: [number, number][] = [];
+  const far = (x: number, y: number) =>
+    starts.every(([sx, sy]) => Math.max(Math.min(Math.abs(sx - x), map.width - Math.abs(sx - x)), Math.abs(sy - y)) >= 10);
+  for (const p of players) {
+    if (p.id === barbarians) continue;
+    let sx = 0;
+    let sy = map.height >> 1;
+    for (let tries = 0; tries < 200 && candidates.length; tries++) {
+      const pick = candidates[nextInt(rng, candidates.length)]!;
+      const x = pick % map.width;
+      const y = Math.floor(pick / map.width);
+      if (tries === 199 || far(x, y)) { sx = x; sy = y; break; }
+    }
+    starts.push([sx, sy]);
+    const settlers = difficulty <= 1 || p.isAi ? 2 : 1;
+    for (let i = 0; i < settlers; i++) createUnit(state, "settlers", p.id, sx, sy);
+    recomputeVisibility(state, p.id);
+    p.explored.set(p.visible);
+  }
   selectNextUnit(state, null);
   return state;
 }

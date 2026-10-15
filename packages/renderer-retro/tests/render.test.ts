@@ -99,3 +99,23 @@ describe("advisor screens", () => {
     expect(s.data.some((c) => c !== 0)).toBe(true);
   });
 });
+
+describe("world with opponents", () => {
+  it("renders enemy cities and units after AI rounds", async () => {
+    const { aiTurn } = await import("@civ/ai");
+    const state = newGame(11, { opponents: 2 });
+    for (let r = 0; r < 25; r++) {
+      let guard = 0;
+      while (state.activeUnit !== null && guard++ < 50) applyCommand(state, { type: "skip", unit: state.activeUnit });
+      applyCommand(state, { type: "endTurn" });
+      while (state.currentPlayer !== 0) { aiTurn(state); applyCommand(state, { type: "endTurn" }); }
+    }
+    const enemy = state.cities.find((c) => c.owner !== 0) ?? state.cities[0]!;
+    state.players[0]!.explored.fill(1);
+    state.players[0]!.visible.fill(1);
+    const s = Surface.screen();
+    drawMainScreen(s, state, { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true });
+    writeFileSync(new URL("./out/world.png", import.meta.url), encodePng(s, 3));
+    expect(state.cities.length).toBeGreaterThan(1);
+  });
+});

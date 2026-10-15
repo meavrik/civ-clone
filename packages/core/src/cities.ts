@@ -2,6 +2,7 @@ import { knows } from "./rules/advances.js";
 import { building, BUILDINGS } from "./rules/buildings.js";
 import { wonder, WONDERS, type WonderRule } from "./rules/wonders.js";
 import { government } from "./rules/governments.js";
+import { civ } from "./rules/civs.js";
 import { nextCityName } from "./rules/names.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
 import { UNIT_TYPES, unitType } from "./rules/units.js";
@@ -354,9 +355,11 @@ export function canFoundCity(state: GameState, x: number, y: number): string | n
 export function foundCity(state: GameState, owner: number, x: number, y: number, name?: string): City {
   const used = new Set(state.cities.map((c) => c.name));
   const first = !state.cities.some((c) => c.owner === owner);
+  const civNames = civ(state.players[owner]!.civ).cities;
+  const fromCiv = civNames.find((n) => !used.has(n));
   const city: City = {
     id: state.nextCityId++,
-    name: name ?? nextCityName(used),
+    name: name ?? fromCiv ?? nextCityName(used),
     owner,
     x: wrapX(state.map, x),
     y,
