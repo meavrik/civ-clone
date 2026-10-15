@@ -18,6 +18,13 @@ function makePlayer(id: number, name: string, color: number): Player {
     color,
     explored: new Uint8Array(MAP_WIDTH * MAP_HEIGHT),
     visible: new Uint8Array(MAP_WIDTH * MAP_HEIGHT),
+    gold: 0,
+    taxRate: 5,
+    luxRate: 0,
+    sciRate: 5,
+    government: "despotism",
+    science: 0,
+    difficulty: 2,
   };
 }
 
@@ -31,7 +38,9 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     map,
     players: [makePlayer(0, opts.playerName ?? "Player", 0)],
     units: [],
+    cities: [],
     nextUnitId: 1,
+    nextCityId: 1,
     currentPlayer: 0,
     activeUnit: null,
   };
@@ -50,6 +59,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const sx = pick % map.width;
   const sy = Math.floor(pick / map.width);
 
+  state.players[0]!.difficulty = opts.difficulty ?? 2;
+  state.players[0]!.gold = [100, 50, 0, 0, 0][state.players[0]!.difficulty] ?? 0;
   const settlers = (opts.difficulty ?? 2) <= 1 ? 2 : 1;
   for (let i = 0; i < settlers; i++) createUnit(state, "settlers", 0, sx, sy);
   recomputeVisibility(state, 0);

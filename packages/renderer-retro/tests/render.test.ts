@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { applyCommand, createUnit, getTile, newGame, revealAround, Terrain } from "@civ/core";
-import { drawMainScreen, drawText, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, revealAround, Terrain, unitType } from "@civ/core";
+import { drawCityScreen, drawMainScreen, drawMenu, drawText, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -44,10 +44,6 @@ describe("retro renderer", () => {
       originX: u.x - 7,
       originY: Math.max(0, u.y - 6),
       blink: true,
-      gold: 0,
-      taxRate: 5,
-      luxRate: 0,
-      sciRate: 5,
       message: "Zone of control",
     };
     const s = Surface.screen();
@@ -55,5 +51,33 @@ describe("retro renderer", () => {
     expect(s.data.length).toBe(320 * 200);
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/main-screen.png", import.meta.url), encodePng(s, 3));
+  });
+});
+
+describe("city screen", () => {
+  it("renders a city with production menu", () => {
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    applyCommand(state, { type: "found", unit: u.id });
+    const city = state.cities[0]!;
+    city.size = 4;
+    city.shields = 7;
+    city.buildings.push("temple", "granary");
+    autoAssignWorkers(state, city);
+    createUnit(state, "militia", 0, city.x, city.y, city.id);
+    applyCommand(state, { type: "toggleTile", city: city.id, slot: city.worked[0]! });
+    const s = Surface.screen();
+    drawCityScreen(s, state, { city: city.id });
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/city-screen.png", import.meta.url), encodePng(s, 3));
+    const opts = buildOptions(state, city);
+    drawMenu(s, {
+      title: `${city.name}: build what?`,
+      items: opts.map((p) => (p.kind === "unit" ? unitType(p.id).name : building(p.id).name)),
+      right: opts.map((p) => String(p.kind === "unit" ? unitType(p.id).cost : building(p.id).cost)),
+      selected: 2,
+    });
+    writeFileSync(new URL("./out/city-menu.png", import.meta.url), encodePng(s, 3));
+    expect(s.data.some((c) => c !== 0)).toBe(true);
   });
 });

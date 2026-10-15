@@ -67,6 +67,31 @@ export interface Unit {
   movesLeft: number;
   veteran: boolean;
   order: UnitOrder;
+  /** City paying this unit's upkeep; null for starting units. */
+  homeCity: number | null;
+}
+
+export type Specialist = "entertainer" | "taxman" | "scientist";
+
+export type Production = { kind: "unit"; id: string } | { kind: "building"; id: string };
+
+export interface City {
+  id: number;
+  name: string;
+  owner: number;
+  x: number;
+  y: number;
+  size: number;
+  food: number;
+  shields: number;
+  /** Indices 0..20 into CITY_RADIUS (excluding the centre, which is always worked). */
+  worked: number[];
+  specialists: Specialist[];
+  buildings: string[];
+  production: Production;
+  founded: number;
+  /** True once a disorder turn has been reported, for the renderer. */
+  disorder: boolean;
 }
 
 export interface Player {
@@ -77,6 +102,16 @@ export interface Player {
   explored: Uint8Array;
   /** Tiles currently seen by a unit/city; recomputed when units move. */
   visible: Uint8Array;
+  gold: number;
+  /** Rates in tenths; they sum to 10. */
+  taxRate: number;
+  luxRate: number;
+  sciRate: number;
+  government: string;
+  /** Accumulated research beakers (spent by the tech tree in phase 4). */
+  science: number;
+  /** Chieftain 0 .. Emperor 4. */
+  difficulty: number;
 }
 
 export interface GameState {
@@ -86,7 +121,9 @@ export interface GameState {
   map: WorldMap;
   players: Player[];
   units: Unit[];
+  cities: City[];
   nextUnitId: number;
+  nextCityId: number;
   /** Whose turn it is. */
   currentPlayer: number;
   /** Id of the unit awaiting orders, or null when the turn can end. */
@@ -111,4 +148,17 @@ export const NEIGHBOURS: ReadonlyArray<readonly [number, number]> = [
   [-1, -1], [0, -1], [1, -1],
   [-1, 0], [1, 0],
   [-1, 1], [0, 1], [1, 1],
+];
+
+/**
+ * The 21-tile city radius as offsets from the centre, in the original's
+ * reading order (the "fat cross": 5x5 minus corners). Index 0 is the centre.
+ */
+export const CITY_RADIUS: ReadonlyArray<readonly [number, number]> = [
+  [0, 0],
+  [-1, -2], [0, -2], [1, -2],
+  [-2, -1], [-1, -1], [0, -1], [1, -1], [2, -1],
+  [-2, 0], [-1, 0], [1, 0], [2, 0],
+  [-2, 1], [-1, 1], [0, 1], [1, 1], [2, 1],
+  [-1, 2], [0, 2], [1, 2],
 ];

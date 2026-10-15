@@ -15,7 +15,7 @@ export function fullMoves(u: Unit): number {
   return unitType(u.type).moves * MOVE_FRAC;
 }
 
-export function createUnit(state: GameState, type: string, owner: number, x: number, y: number): Unit {
+export function createUnit(state: GameState, type: string, owner: number, x: number, y: number, homeCity: number | null = null): Unit {
   const u: Unit = {
     id: state.nextUnitId++,
     type,
@@ -25,6 +25,7 @@ export function createUnit(state: GameState, type: string, owner: number, x: num
     movesLeft: 0,
     veteran: false,
     order: { kind: "none" },
+    homeCity,
   };
   u.movesLeft = fullMoves(u);
   state.units.push(u);

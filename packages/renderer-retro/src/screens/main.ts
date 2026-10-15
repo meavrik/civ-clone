@@ -1,4 +1,5 @@
 import {
+  canFoundCity,
   formatYear,
   getTile,
   NEIGHBOURS,
@@ -16,6 +17,7 @@ import { drawIrrigation, drawMine, drawRoad, drawUnit, unitSprite } from "../ove
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawRiver, drawSpecial, getTile as terrainTile, TILE } from "../tiles.js";
+import { drawCity } from "./map-city.js";
 
 /**
  * Main map screen layout: a left-hand status column and a tile viewport.
@@ -33,10 +35,6 @@ export interface MainScreenView {
   originY: number;
   /** Blink phase for the active unit. */
   blink: boolean;
-  gold: number;
-  taxRate: number;
-  luxRate: number;
-  sciRate: number;
   /** One-line status message under the unit box (e.g. a refused move). */
   message?: string | undefined;
 }
@@ -112,6 +110,13 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     }
   }
 
+  // Cities on explored tiles.
+  for (const c of state.cities) {
+    if (!me.explored[c.y * map.width + c.x]) continue;
+    const pos = tileToScreen(state, view, c.x, c.y);
+    if (pos) drawCity(s, pos[0], pos[1], c, playerColor(c.owner));
+  }
+
   // Units: only those on tiles we currently see. Draw one per tile (top of stack).
   const drawn = new Set<number>();
   for (const u of state.units) {
@@ -123,6 +128,8 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     const top = stack.find((o) => o.id === state.activeUnit) ?? stack[0]!;
     drawn.add(idx);
     const isActive = top.id === state.activeUnit;
+    // Units inside a city are hidden behind it unless active, like the original.
+    if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
     if (isActive && !view.blink) continue;
     drawUnit(s, top, pos[0], pos[1], playerColor(top.owner), stack.length > 1);
   }
@@ -145,6 +152,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
       s.set(x, mmY + y, MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]());
     }
   for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(u.x, mmY + u.y, playerColor(u.owner));
+  for (const c of state.cities) if (me.explored[c.y * map.width + c.x]) s.set(c.x, mmY + c.y, C.WHITE!);
   const vx = ((view.originX % map.width) + map.width) % map.width;
   const vy = Math.max(0, view.originY);
   const vh = Math.min(map.height - vy, VIEW_TILES_Y);
@@ -162,11 +170,12 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   let y = mmY + map.height + 4;
   const ink = shade("ui", 7);
   const dim = shade("ui", 5);
-  drawTextCentered(s, PANEL_W / 2, y, "Pop: 0", ink);
+  const pop = state.cities.filter((c) => c.owner === state.currentPlayer).reduce((n, c) => n + c.size * (c.size + 1) * 5000, 0);
+  drawTextCentered(s, PANEL_W / 2, y, pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : `${Math.floor(pop / 1000)},000`, ink);
   y += 9;
   drawTextCentered(s, PANEL_W / 2, y, formatYear(turnToYear(state.turn)), ink);
   y += 9;
-  drawTextCentered(s, PANEL_W / 2, y, `${view.gold}$ ${view.taxRate}.${view.luxRate}.${view.sciRate}`, ink);
+  drawTextCentered(s, PANEL_W / 2, y, `${me.gold}$ ${me.taxRate}.${me.luxRate}.${me.sciRate}`, ink);
   y += 12;
   s.hline(2, y, PANEL_W - 4, shade("ui", 0));
   y += 4;
@@ -176,10 +185,12 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     const type = unitType(active.type);
     s.blit(unitSprite(active.type, playerColor(active.owner)), 4, y, 0);
     drawText(s, 24, y, type.name, ink);
+    const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
+    if (home) drawText(s, 24, y + 18, home.name, dim);
     const whole = Math.floor(active.movesLeft / 3);
     const frac = active.movesLeft % 3;
     drawText(s, 24, y + 9, `Moves: ${whole}${frac ? ` ${frac}/3` : ""}`, dim);
-    y += 20;
+    y += home ? 28 : 20;
     const t = getTile(map, active.x, active.y);
     if (t) {
       const r = TERRAIN_RULES[t.terrain];
@@ -194,7 +205,10 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
       }
     }
     const w = workOptions(state, active);
-    const keys = [w.irrigate !== undefined && "I", w.mine !== undefined && "M", w.road !== undefined && "R"].filter(Boolean);
+    const keys = [
+      unitType(active.type).flags?.includes("settler") && !canFoundCity(state, active.x, active.y) && "B",
+      w.irrigate !== undefined && "I", w.mine !== undefined && "M", w.road !== undefined && "R",
+    ].filter(Boolean);
     if (keys.length) {
       drawText(s, 4, y, `Orders: ${keys.join(" ")}`, dim);
       y += 9;

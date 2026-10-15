@@ -1,6 +1,18 @@
+import {
+  autoAssignWorkers,
+  buildOptions,
+  buyCost,
+  canFoundCity,
+  cityById,
+  foundCity,
+  processCityTurn,
+  productionCost,
+  slotAvailable,
+  type CityTurnEvent,
+} from "./cities.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
-import { getTile, type GameState, type Unit } from "./types.js";
+import { getTile, type GameState, type Production, type Specialist, type Unit } from "./types.js";
 import { applyMove, checkMove, fullMoves, unitById, workOptions } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
@@ -17,14 +29,39 @@ export type Command =
   | { type: "wait"; unit: number } // w: come back to it later
   | { type: "work"; unit: number; work: "irrigate" | "mine" | "road" }
   | { type: "disband"; unit: number }
+  | { type: "found"; unit: number; name?: string }
+  | { type: "setProduction"; city: number; production: Production }
+  | { type: "toggleTile"; city: number; slot: number }
+  | { type: "setSpecialist"; city: number; index: number; specialist: Specialist }
+  | { type: "buy"; city: number }
+  | { type: "renameCity"; city: number; name: string }
+  | { type: "setRates"; tax: number; lux: number; sci: number }
   | { type: "endTurn" };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
+/** Events raised by the last endTurn, for the UI to report. */
+export const lastTurnEvents: CityTurnEvent[] = [];
+
 export function applyCommand(state: GameState, cmd: Command): CommandResult {
-  if (cmd.type === "endTurn") {
-    endTurn(state);
-    return { ok: true };
+  switch (cmd.type) {
+    case "endTurn":
+      endTurn(state);
+      return { ok: true };
+    case "setRates": {
+      if (cmd.tax + cmd.lux + cmd.sci !== 10 || [cmd.tax, cmd.lux, cmd.sci].some((r) => r < 0)) return { ok: false, reason: "rates must sum to 100%" };
+      const p = state.players[state.currentPlayer]!;
+      p.taxRate = cmd.tax;
+      p.luxRate = cmd.lux;
+      p.sciRate = cmd.sci;
+      return { ok: true };
+    }
+    case "setProduction":
+    case "toggleTile":
+    case "setSpecialist":
+    case "buy":
+    case "renameCity":
+      return applyCityCommand(state, cmd);
   }
   const u = unitById(state, cmd.unit);
   if (!u) return { ok: false, reason: "no such unit" };
@@ -70,6 +107,66 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       recomputeVisibility(state, u.owner);
       selectNextUnit(state, u.id);
       return { ok: true };
+    case "found": {
+      if (!unitType(u.type).flags?.includes("settler")) return { ok: false, reason: "only settlers found cities" };
+      const why = canFoundCity(state, u.x, u.y);
+      if (why) return { ok: false, reason: why };
+      foundCity(state, u.owner, u.x, u.y, cmd.name);
+      state.units = state.units.filter((x) => x.id !== u.id);
+      recomputeVisibility(state, u.owner);
+      selectNextUnit(state, u.id);
+      return { ok: true };
+    }
+  }
+}
+
+function applyCityCommand(
+  state: GameState,
+  cmd: Extract<Command, { city: number }>,
+): CommandResult {
+  const city = cityById(state, cmd.city);
+  if (!city) return { ok: false, reason: "no such city" };
+  if (city.owner !== state.currentPlayer) return { ok: false, reason: "not your city" };
+  switch (cmd.type) {
+    case "setProduction": {
+      const allowed = buildOptions(state, city).some((p) => p.kind === cmd.production.kind && p.id === cmd.production.id);
+      if (!allowed) return { ok: false, reason: "cannot build that here" };
+      // Switching between unit and improvement loses half the box, like the original.
+      if (city.production.kind !== cmd.production.kind) city.shields = Math.floor(city.shields / 2);
+      city.production = cmd.production;
+      return { ok: true };
+    }
+    case "toggleTile": {
+      const i = city.worked.indexOf(cmd.slot);
+      if (i >= 0) {
+        city.worked.splice(i, 1);
+        city.specialists.push("entertainer");
+        return { ok: true };
+      }
+      if (!slotAvailable(state, city, cmd.slot)) return { ok: false, reason: "tile unavailable" };
+      if (city.specialists.length === 0) return { ok: false, reason: "no free citizen" };
+      city.specialists.pop();
+      city.worked.push(cmd.slot);
+      return { ok: true };
+    }
+    case "setSpecialist": {
+      if (cmd.index < 0 || cmd.index >= city.specialists.length) return { ok: false, reason: "no such specialist" };
+      city.specialists[cmd.index] = cmd.specialist;
+      return { ok: true };
+    }
+    case "buy": {
+      const p = state.players[city.owner]!;
+      const cost = buyCost(city);
+      if (cost === 0) return { ok: false, reason: "already complete" };
+      if (p.gold < cost) return { ok: false, reason: "not enough gold" };
+      p.gold -= cost;
+      city.shields = productionCost(city.production);
+      return { ok: true };
+    }
+    case "renameCity":
+      if (!cmd.name.trim()) return { ok: false, reason: "empty name" };
+      city.name = cmd.name.trim().slice(0, 14);
+      return { ok: true };
   }
 }
 
@@ -99,13 +196,15 @@ export function selectNextUnit(state: GameState, after: number | null, wait = fa
   state.activeUnit = mine[0]!.id;
 }
 
-/** Wake a sentried unit when an enemy appears next to it (checked each turn start). */
+/** Wake sentried units when an enemy comes adjacent (checked each turn start). */
 function wakeSentries(state: GameState, player: number): void {
   for (const u of state.units) {
     if (u.owner !== player || u.order.kind !== "sentry") continue;
-    // Enemy adjacency check reuses the ZOC helper via a tiny import cycle-free copy.
     const near = state.units.some(
-      (o) => o.owner !== player && Math.abs(o.y - u.y) <= 1 && Math.min(Math.abs(o.x - u.x), state.map.width - Math.abs(o.x - u.x)) <= 1,
+      (o) =>
+        o.owner !== player &&
+        Math.abs(o.y - u.y) <= 1 &&
+        Math.min(Math.abs(o.x - u.x), state.map.width - Math.abs(o.x - u.x)) <= 1,
     );
     if (near) u.order = { kind: "none" };
   }
@@ -137,6 +236,12 @@ export function endTurn(state: GameState): void {
       }
     }
   }
+
+  // Cities: growth, production, treasury.
+  lastTurnEvents.length = 0;
+  for (const c of state.cities) if (c.owner === player) lastTurnEvents.push(...processCityTurn(state, c));
+  for (const c of state.cities)
+    if (c.owner === player && c.worked.length + c.specialists.length !== c.size) autoAssignWorkers(state, c);
 
   // Single-player loop for now: the same player goes again. Other civs join
   // in phase 5, where this advances through players before incrementing turn.
