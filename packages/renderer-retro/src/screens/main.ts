@@ -39,9 +39,14 @@ export const VIEW_TILES_Y = Math.ceil(VIEW_H / TILE);
 
 import type { MainScreenView } from "@civ/renderer-api";
 
-export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LRED!, C.LMAGENTA!, C.LGREY!];
-export function playerColor(owner: number): number {
-  return PLAYER_COLORS[owner % PLAYER_COLORS.length]!;
+/** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
+export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LMAGENTA!, C.LGREY!, C.ORANGE!, C.LRED!];
+export function slotColor(slot: number): number {
+  return PLAYER_COLORS[((slot % PLAYER_COLORS.length) + PLAYER_COLORS.length) % PLAYER_COLORS.length]!;
+}
+/** A player's colour: their civilization's slot, never their seat. */
+export function playerColor(state: GameState, owner: number): number {
+  return slotColor(state.players[owner]?.color ?? 0);
 }
 
 const MINIMAP_COLOR: Record<Terrain, () => number> = {
@@ -126,7 +131,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   for (const c of state.cities) {
     if (!me.explored[c.y * map.width + c.x]) continue;
     const pos = tileToScreen(state, view, c.x, c.y);
-    if (pos) drawCity(s, pos[0], pos[1], c, playerColor(c.owner));
+    if (pos) drawCity(s, pos[0], pos[1], c, playerColor(state, c.owner));
   }
 
   // Units: only those on tiles we currently see. Draw one per tile (top of stack).
@@ -143,7 +148,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     // Units inside a city are hidden behind it unless active, like the original.
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
     if (isActive && !view.blink) continue;
-    drawUnit(s, top, pos[0], pos[1], playerColor(top.owner), stack.length > 1);
+    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1);
   }
 
   // Goto destination of the active unit.
@@ -189,14 +194,14 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
   ].filter(Boolean).join(", ");
   if (extras) y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, extras, dim, Math.min(2, linesLeft(y)));
   if (city) {
-    y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, `${city.name} (${state.players[city.owner]!.name})`, playerColor(city.owner), Math.min(2, linesLeft(y)));
+    y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, `${city.name} (${state.players[city.owner]!.name})`, playerColor(state, city.owner), Math.min(2, linesLeft(y)));
   }
   const units = me.visible[idx] ? unitAt(state, tx, ty) : [];
   if (units.length) {
     const top = units[0]!;
     const who = top.owner === me.id ? "ours" : state.players[top.owner]!.name;
     const label = units.length === 1 ? `${unitType(top.type).name} (${who})` : `${units.length} units: ${unitType(top.type).name} (${who})`;
-    y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, label, playerColor(top.owner), Math.min(2, linesLeft(y)));
+    y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, label, playerColor(state, top.owner), Math.min(2, linesLeft(y)));
   }
   return y;
 }
@@ -214,7 +219,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
       if (!me.explored[y * map.width + x]) continue;
       s.set(x, mmY + y, MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]());
     }
-  for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(u.x, mmY + u.y, playerColor(u.owner));
+  for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(u.x, mmY + u.y, playerColor(state, u.owner));
   for (const c of state.cities) if (me.explored[c.y * map.width + c.x]) s.set(c.x, mmY + c.y, C.WHITE!);
   const vx = ((view.originX % map.width) + map.width) % map.width;
   const vy = Math.max(0, view.originY);
@@ -251,7 +256,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
   if (active) {
     const type = unitType(active.type);
-    s.blit(unitSprite(active.type, playerColor(active.owner)), 4, y, SPRITE_CLEAR);
+    s.blit(unitSprite(active.type, playerColor(state, active.owner)), 4, y, SPRITE_CLEAR);
     drawTextWrapped(s, 24, y, PANEL_W - 26, type.name, ink, 1);
     const whole = Math.floor(active.movesLeft / 3);
     const frac = active.movesLeft % 3;

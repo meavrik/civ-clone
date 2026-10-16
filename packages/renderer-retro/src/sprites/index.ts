@@ -14,7 +14,7 @@ export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRA
 /** An owner colour's darker partner in the EGA set, for shading the box and `p` pixels. */
 const DARKER: Record<number, number> = {
   [C.WHITE!]: C.LGREY!, [C.LGREEN!]: C.GREEN!, [C.LBLUE!]: C.BLUE!, [C.YELLOW!]: C.BROWN!,
-  [C.LCYAN!]: C.CYAN!, [C.LRED!]: C.RED!, [C.LMAGENTA!]: C.MAGENTA!, [C.LGREY!]: C.DGREY!,
+  [C.LCYAN!]: C.CYAN!, [C.LRED!]: C.RED!, [C.LMAGENTA!]: C.MAGENTA!, [C.LGREY!]: C.DGREY!, [C.ORANGE!]: C.BROWN!,
 };
 export function darker(fill: number): number {
   return DARKER[fill] ?? fill;

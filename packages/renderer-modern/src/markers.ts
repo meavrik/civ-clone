@@ -12,10 +12,12 @@ export const UNIT_ABBR: Record<string, string> = {
 };
 
 export function playerColor(slot: number): string {
-  return PLAYER_COLORS[((slot % 8) + 8) % 8]!;
+  const n = PLAYER_COLORS.length;
+  return PLAYER_COLORS[((slot % n) + n) % n]!;
 }
 export function playerDark(slot: number): string {
-  return PLAYER_DARK[((slot % 8) + 8) % 8]!;
+  const n = PLAYER_DARK.length;
+  return PLAYER_DARK[((slot % n) + n) % n]!;
 }
 
 /** A unit badge: rounded shield in the owner's colour with the type's letters; a hull for ships, wings for aircraft. */

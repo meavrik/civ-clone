@@ -1,6 +1,7 @@
 import {
   cityAt,
   civ,
+  CIV_COLORS,
   CIVS,
   relation,
   Terrain,
@@ -202,8 +203,8 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   return { title: `${TERRAIN_NAMES[t.terrain]}${t.river ? " (River)" : ""}`, lines };
 }
 
-/** Civ colour slot -> a fixed order of eight distinct colours; renderers map the slot to their own palette. */
-export const PLAYER_COLOR_SLOTS = 8;
+/** Colour slots (see CIV_COLORS in core); renderers map each slot to their own palette. */
+export const PLAYER_COLOR_SLOTS = CIV_COLORS.length;
 export function playerSlot(color: number): number {
   return ((color % PLAYER_COLOR_SLOTS) + PLAYER_COLOR_SLOTS) % PLAYER_COLOR_SLOTS;
 }

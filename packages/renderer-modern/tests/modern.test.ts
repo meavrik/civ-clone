@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, createUnit, newGame, revealAround } from "@civ/core";
+import { applyCommand, CIV_COLORS, createUnit, newGame, revealAround } from "@civ/core";
+import { PLAYER_COLORS } from "../src/theme.js";
 import type { MainScreenView } from "@civ/renderer-api";
 import { createModernRenderer, MODERN_H, MODERN_TILE, MODERN_W, type Context2D, type Gradient } from "../src/index.js";
 
@@ -59,6 +60,18 @@ function world() {
   const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true, message: "Zone of control" };
   return { state, u, view };
 }
+
+describe("modern colours", () => {
+  it("give every colour slot its own, clearly different colour", () => {
+    const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    expect(PLAYER_COLORS.length).toBe(CIV_COLORS.length);
+    for (let i = 0; i < PLAYER_COLORS.length; i++)
+      for (let j = i + 1; j < PLAYER_COLORS.length; j++) {
+        const [a, b] = [rgb(PLAYER_COLORS[i]!), rgb(PLAYER_COLORS[j]!)];
+        expect(Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!), `${CIV_COLORS[i]} vs ${CIV_COLORS[j]}`).toBeGreaterThan(110);
+      }
+  });
+});
 
 describe("modern renderer", () => {
   it("draws every screen within its 960x600 frame", () => {

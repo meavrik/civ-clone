@@ -124,7 +124,7 @@ export interface Player {
   name: string;
   isAi: boolean;
   alive: boolean;
-  /** Civ colour slot for rendering. */
+  /** Colour slot (index into CIV_COLORS), fixed by the civilization. */
   color: number;
   explored: Uint8Array;
   /** Tiles currently seen by a unit/city; recomputed when units move. */

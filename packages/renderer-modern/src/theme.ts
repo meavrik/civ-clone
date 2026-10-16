@@ -37,9 +37,9 @@ export const UI = {
   fog: "rgba(6, 10, 18, 0.55)",
 };
 
-/** Civ colour slots 0..7, the same order the retro palette uses. */
-export const PLAYER_COLORS = ["#f4f6f8", "#58d68d", "#5dade2", "#f4d03f", "#48c9b0", "#ec7063", "#c39bd3", "#aab7b8"];
-export const PLAYER_DARK = ["#9aa3ad", "#2e8b57", "#2e6da4", "#b7950b", "#1f8a76", "#b03a2e", "#7d5b9a", "#6d7a7c"];
+/** Colour slots in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
+export const PLAYER_COLORS = ["#f4f6f8", "#4cd964", "#3a5ff0", "#f5e642", "#36d6e7", "#e15bd8", "#9aa5ad", "#ff8c00", "#d92b3a"];
+export const PLAYER_DARK = ["#9aa3ad", "#24944a", "#1f3ba8", "#b3a51a", "#168f9c", "#9b2f95", "#5e676e", "#b35f00", "#8f1520"];
 
 export interface TerrainLook {
   base: string;

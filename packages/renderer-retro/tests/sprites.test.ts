@@ -1,12 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { TERRAIN_RULES, Terrain, UNIT_TYPES } from "@civ/core";
+import { CIV_COLORS, TERRAIN_RULES, Terrain, UNIT_TYPES } from "@civ/core";
 import {
   C,
   drawText,
   FEATURE_SHEET,
   getTile,
   ownerBox,
+  PALETTE,
   parseSheet,
   PLAYER_COLORS,
   SHEETS,
@@ -46,6 +47,16 @@ describe("sprite sheets", () => {
     rows[2] = "..q.";
     expect(() => parseSheet("test", 4, `@thing\n${rows.join("\n")}`, ["grass"])).toThrow(/test\/thing \(2,2\): 'q' is not in the sprite legend/);
     expect(() => parseSheet("test", 4, "@thing\n....\n....", ["grass"])).toThrow(/2 rows, expected 4/);
+  });
+
+  it("give every colour slot its own, clearly different colour", () => {
+    expect(PLAYER_COLORS.length).toBe(CIV_COLORS.length);
+    for (let i = 0; i < PLAYER_COLORS.length; i++)
+      for (let j = i + 1; j < PLAYER_COLORS.length; j++) {
+        const [a, b] = [PALETTE[PLAYER_COLORS[i]!]!, PALETTE[PLAYER_COLORS[j]!]!];
+        const d = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+        expect(d, `${CIV_COLORS[i]} vs ${CIV_COLORS[j]}`).toBeGreaterThan(110);
+      }
   });
 
   it("paints owner colours and keeps black drawable", () => {

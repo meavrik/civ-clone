@@ -82,6 +82,9 @@ for (const [name, colors] of Object.entries(RAMPS)) {
   C[name.toUpperCase()] = PALETTE.length;
   PALETTE.push(...colors);
 }
+// Orange is the one civilization colour the EGA set lacks.
+C.ORANGE = PALETTE.length;
+PALETTE.push([255, 170, 0]);
 while (PALETTE.length < 256) PALETTE.push([0, 0, 0]);
 
 /** Index of shade `n` (0 dark .. 7 light) within a named ramp. */

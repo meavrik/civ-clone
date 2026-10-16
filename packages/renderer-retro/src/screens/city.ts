@@ -23,6 +23,7 @@ import { drawRiver, drawSpecial, getTile as terrainTile, TILE } from "../tiles.j
 import { drawBox, drawPanel } from "../widgets.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
+import { playerColor } from "./main.js";
 
 /**
  * City screen. Layout (320x200):
@@ -211,8 +212,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
 }
 
 function playerColorOf(state: GameState, owner: number): number {
-  const colors = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LRED!, C.LMAGENTA!, C.LGREY!];
-  return colors[state.players[owner]!.color % colors.length]!;
+  return playerColor(state, owner);
 }
 
 export type { City };

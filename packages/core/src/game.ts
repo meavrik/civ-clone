@@ -1,7 +1,7 @@
 import { selectNextUnit } from "./commands.js";
 import { generateMap, type MapGenOptions } from "./map/generate.js";
 import { createRng, nextInt } from "./rng.js";
-import { civ, CIVS } from "./rules/civs.js";
+import { civ, CIVS, colorSlot } from "./rules/civs.js";
 import { newSpaceship } from "./rules/spaceship.js";
 import { MAP_HEIGHT, MAP_WIDTH, Terrain, type GameState, type Player } from "./types.js";
 import { createUnit } from "./units.js";
@@ -21,7 +21,9 @@ export interface NewGameOptions extends MapGenOptions {
   allAi?: boolean;
 }
 
-function makePlayer(id: number, civId: string, color: number, isAi: boolean): Player {
+/** A player for a civilization; its colour slot comes from the civilization, never the seat. */
+function makePlayer(id: number, civId: string, isAi: boolean): Player {
+  const color = colorSlot(civ(civId).color);
   return {
     id,
     civ: civId,
@@ -52,13 +54,18 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const humanCiv = opts.civ ?? "romans";
   const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians");
   const opponents = Math.max(0, Math.min(others.length, opts.opponents ?? 2));
-  const players: Player[] = [makePlayer(0, humanCiv, 0, opts.allAi === true)];
+  const players: Player[] = [makePlayer(0, humanCiv, opts.allAi === true)];
   for (let i = 0; i < opponents; i++) {
-    const pick = others.splice(nextInt(rng, others.length), 1)[0]!;
-    players.push(makePlayer(players.length, pick.id, players.length, true));
+    // Every civilization in the game keeps its own colour: skip civs whose colour is taken.
+    const takenColors = new Set(players.map((p) => p.color));
+    const pool = others.filter((c) => !takenColors.has(colorSlot(c.color)));
+    if (!pool.length) break;
+    const pick = pool[nextInt(rng, pool.length)]!;
+    others.splice(others.indexOf(pick), 1);
+    players.push(makePlayer(players.length, pick.id, true));
   }
   const barbarians = players.length;
-  players.push(makePlayer(barbarians, "barbarians", 5, true));
+  players.push(makePlayer(barbarians, "barbarians", true));
 
   const state: GameState = {
     seed,
