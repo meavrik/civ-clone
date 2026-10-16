@@ -6,6 +6,8 @@ import {
   availableAdvances,
   buildOptions,
   canFoundCity,
+  canHelpWonder,
+  canTradeRoute,
   checkGameEnd,
   cityAt,
   CIVS,
@@ -25,6 +27,7 @@ import {
   productionName,
   rankTitle,
   relation,
+  routeBonus,
   runAiPlayers,
   turnToYear,
   unitAt,
@@ -263,6 +266,12 @@ function openActionMenu(unit: number): void {
   if (w.irrigate !== undefined) items.push([`Irrigate (I) ${w.irrigate}t`, () => dispatch({ type: "work", unit, work: "irrigate" })]);
   if (w.mine !== undefined) items.push([`Mine (M) ${w.mine}t`, () => dispatch({ type: "work", unit, work: "mine" })]);
   if (w.road !== undefined) items.push([`Road (R) ${w.road}t`, () => dispatch({ type: "work", unit, work: "road" })]);
+  if (type.flags?.includes("caravan")) {
+    const c = cityAt(state, u.x, u.y);
+    if (c && canHelpWonder(state, u, c) === null) items.push(["Help build wonder", () => dispatch({ type: "helpWonder", unit })]);
+    if (c && canTradeRoute(state, u, c) === null && u.homeCity !== null)
+      items.push([`Establish trade route (+${routeBonus(state, state.cities.find((h) => h.id === u.homeCity)!, c)})`, () => dispatch({ type: "tradeRoute", unit })]);
+  }
   if (type.domain === "land") items.push(["Fortify (F)", () => dispatch({ type: "fortify", unit })]);
   items.push(["Sentry (S)", () => dispatch({ type: "sentry", unit })]);
   items.push(["Wait (W)", () => dispatch({ type: "wait", unit })]);
@@ -350,6 +359,7 @@ function eventMessage(ev: TurnEvent): string | null {
       case "unitLost": return `${ev.unit} lost to the ${state.players[ev.by]?.name}`;
       case "barbarians": return "Barbarians have landed!";
       case "eliminated": return `The ${state.players[ev.player]?.name} civilization has been destroyed.`;
+      case "tradeRoute": return `Trade route ${ev.from}-${ev.to}: +${ev.bonus} gold and science`;
       case "hut": {
         const r = ev.result;
         return r.kind === "gold" ? `The tribe gives you ${r.amount} gold.`
@@ -459,7 +469,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
   if (r.ok) {
     log.push({ type: "move", unit, dx, dy });
     if (lastCombat) reportCombat();
-    const ev = lastTurnEvents.find((e) => e.kind === "hut" || e.kind === "cityCaptured" || e.kind === "cityLost");
+    const ev = lastTurnEvents.find((e) => e.kind === "hut" || e.kind === "cityCaptured" || e.kind === "cityLost" || e.kind === "tradeRoute");
     if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
   } else if (r.reason === "treaty") {
     const u = unitById(state, unit)!;

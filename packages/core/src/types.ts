@@ -100,6 +100,8 @@ export interface City {
   founded: number;
   /** True once a disorder turn has been reported, for the renderer. */
   disorder: boolean;
+  /** Ids of cities this one trades with (caravan routes, mutual, at most three). */
+  routes: number[];
 }
 
 export interface Player {

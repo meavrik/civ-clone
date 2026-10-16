@@ -99,6 +99,7 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
   winner.gold += plunder;
   for (const o of state.units) if (o.homeCity === city.id) o.homeCity = null;
   if (city.size <= 1 || u.owner === state.barbarians) {
+    for (const o of state.cities) o.routes = o.routes.filter((id) => id !== city.id);
     state.cities = state.cities.filter((c) => c.id !== city.id);
     return { captured: false, destroyed: true, plunder };
   }

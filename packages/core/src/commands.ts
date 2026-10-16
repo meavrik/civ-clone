@@ -4,10 +4,14 @@ import {
   buildOptions,
   buyCost,
   canFoundCity,
+  canHelpWonder,
+  canTradeRoute,
+  cityAt,
   cityById,
   foundCity,
   processCityTurn,
   productionCost,
+  routeBonus,
   slotAvailable,
   type CityTurnEvent,
 } from "./cities.js";
@@ -21,7 +25,7 @@ import { WONDERS } from "./rules/wonders.js";
 import { MOVE_FRAC, TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
-import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Player, type Production, type Specialist, type Unit } from "./types.js";
+import { getTile, NEIGHBOURS, Terrain, wrapX, type City, type GameState, type Player, type Production, type Specialist, type Unit } from "./types.js";
 import { applyMove, cargo, checkMove, createUnit, fullMoves, unitById, workOptions } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
@@ -50,6 +54,8 @@ export type Command =
   | { type: "setGovernment"; government: string }
   | { type: "goto"; unit: number; x: number; y: number }
   | { type: "activate"; unit: number }
+  | { type: "helpWonder"; unit: number } // caravan in a city building a wonder
+  | { type: "tradeRoute"; unit: number } // caravan in a city far from its home
   | { type: "declareWar"; player: number }
   | { type: "makePeace"; player: number }
   | { type: "giveGold"; player: number; amount: number }
@@ -72,7 +78,8 @@ export type TurnEvent =
   | { kind: "unitLost"; unit: string; by: number }
   | { kind: "barbarians" }
   | { kind: "eliminated"; player: number }
-  | { kind: "hut"; result: HutResult };
+  | { kind: "hut"; result: HutResult }
+  | { kind: "tradeRoute"; from: string; to: string; bonus: number };
 
 export type HutResult =
   | { kind: "gold"; amount: number }
@@ -225,6 +232,20 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       recomputeVisibility(state, u.owner);
       selectNextUnit(state, u.id);
       return { ok: true };
+    case "helpWonder": {
+      const city = cityAt(state, u.x, u.y);
+      if (!city) return { ok: false, reason: "not in a city" };
+      const why = canHelpWonder(state, u, city);
+      if (why) return { ok: false, reason: why };
+      city.shields += unitType(u.type).cost;
+      removeUnit(state, u);
+      return { ok: true };
+    }
+    case "tradeRoute": {
+      const city = cityAt(state, u.x, u.y);
+      if (!city) return { ok: false, reason: "not in a city" };
+      return establishRoute(state, u, city);
+    }
     case "found": {
       if (!unitType(u.type).flags?.includes("settler")) return { ok: false, reason: "only settlers found cities" };
       const why = canFoundCity(state, u.x, u.y);
@@ -263,7 +284,11 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
   if (!r.ok) return { ok: false, reason: r.reason };
   if (r.enemyCity) {
     const city = state.cities.find((c) => c.x === wrapX(state.map, u.x + dx) && c.y === u.y + dy)!;
-    if (!atWar(state, u.owner, city.owner)) return { ok: false, reason: "treaty" };
+    if (!atWar(state, u.owner, city.owner)) {
+      // A caravan calling at a peaceful foreign city opens a trade route instead of entering.
+      if (unitType(u.type).flags?.includes("caravan")) return establishRoute(state, u, city);
+      return { ok: false, reason: "treaty" };
+    }
     if (unitType(u.type).domain !== "land") return { ok: false, reason: "only land units take cities" };
     const prevOwner = city.owner;
     const name = city.name;
@@ -279,6 +304,29 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
   for (const met of detectContacts(state, u.owner)) lastTurnEvents.push({ kind: "contact", player: met });
   if (u.movesLeft === 0 || r.board !== undefined) selectNextUnit(state, u.id);
   return { ok: true };
+}
+
+/** Open a route from the caravan's home city to `city`, paying the one-off bonus; the caravan is spent. */
+function establishRoute(state: GameState, u: Unit, city: City): CommandResult {
+  const why = canTradeRoute(state, u, city);
+  if (why) return { ok: false, reason: why };
+  const home = cityById(state, u.homeCity!)!;
+  const bonus = routeBonus(state, home, city);
+  home.routes.push(city.id);
+  city.routes.push(home.id);
+  const p = state.players[u.owner]!;
+  p.gold += bonus;
+  p.science += bonus;
+  lastTurnEvents.push({ kind: "tradeRoute", from: home.name, to: city.name, bonus });
+  removeUnit(state, u);
+  return { ok: true };
+}
+
+/** A unit is spent (disbanded, consumed): drop it and move on to the next one. */
+function removeUnit(state: GameState, u: Unit): void {
+  state.units = state.units.filter((x) => x.id !== u.id);
+  recomputeVisibility(state, u.owner);
+  selectNextUnit(state, u.id);
 }
 
 /** Walk a goto order as far as this turn's moves allow. Stops on anything unexpected. */

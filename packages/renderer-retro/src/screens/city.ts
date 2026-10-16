@@ -163,7 +163,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawBox(s, COL2_X, y, 110, 7, city.food, r.foodBox, C.LGREEN!);
   y += 10;
   row("Shields", `${r.shields}${r.unitShields ? ` (-${r.unitShields})` : ""}`);
-  row("Trade", `${r.trade}${r.corruption ? ` (-${r.corruption})` : ""}`);
+  row("Trade", `${r.trade}${r.routes ? ` (${r.routes} routes)` : ""}${r.corruption ? ` (-${r.corruption})` : ""}`);
   row("Tax/Lux/Sci", `${r.tax}/${r.lux}/${r.science}`);
   row("Upkeep", `${r.buildingUpkeep}$`);
   y += 2;

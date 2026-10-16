@@ -35,7 +35,7 @@ Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify ·
 `F1` cities · `F2` military · `F3` foreign (Enter to talk) · `F4` science · `F5` score · `F10` game menu.
 Mouse: click an adjacent tile to move/attack · click farther away to go there ·
 click your own unit to activate it · click the active unit to cycle the stack ·
-click a city to open it · right-click for the orders menu · click the minimap to scroll.
+click a city to open it · right-click for the orders menu (caravans: help wonder / trade route) · click the minimap to scroll.
 City screen: click tiles to work them · `C` change production · `B` buy · `N` rename · `Esc`.
 
 URL options skip the setup screens: `?seed=1234&difficulty=2&opponents=2&civ=greeks`.

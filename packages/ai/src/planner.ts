@@ -9,7 +9,10 @@ import {
   buildOptions,
   buyCost,
   canFoundCity,
+  canHelpWonder,
+  canTradeRoute,
   cityAt,
+  cityDistance,
   coastal,
   computeCity,
   defenseStrength,
@@ -19,15 +22,19 @@ import {
   governmentsAvailable,
   hasContact,
   hasWaterNearby,
+  MAX_TRADE_ROUTES,
   NEIGHBOURS,
   nextInt,
   radiusTile,
   CITY_RADIUS,
   Terrain,
   TERRAIN_RULES,
+  tileTrade,
   tileYield,
+  TRADE_ROUTE_MIN_DIST,
   unitById,
   unitType,
+  wonder,
   wonderBuilt,
   wrapX,
   type City,
@@ -111,6 +118,10 @@ interface Ctx {
   jobs: Map<number, Job[]>;
   /** Extra military units to send out looking for land, early on. */
   scoutsWanted: number;
+  /** A city of mine building a wonder that still needs a caravan's worth of shields. */
+  wonderSite: City | null;
+  /** Caravans alive or ordered this turn. */
+  caravans: number;
 }
 
 function dist(state: GameState, x1: number, y1: number, x2: number, y2: number): number {
@@ -192,8 +203,11 @@ function analyse(state: GameState, me: number): Ctx {
   }
   const foreignUnitTiles = new Set<number>();
   for (const u of state.units) if (u.owner !== me) foreignUnitTiles.add(u.y * state.map.width + u.x);
+  let wonderSite: City | null = null;
+  for (const c of cities) if (c.production.kind === "wonder" && wonder(c.production.id).cost - c.shields >= 100) { wonderSite = c; break; }
   return {
-    tileWorker, foreignUnitTiles, jobs: new Map(),
+    tileWorker, foreignUnitTiles, jobs: new Map(), wonderSite,
+    caravans: units.filter((u) => unitType(u.type).flags?.includes("caravan")).length,
     me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, income, science, sites,
     wantMoreCities: cities.length < 24,
     military: units.filter(isMilitary).length,
@@ -487,6 +501,15 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     const a = bestUnit(options, "attack");
     if (a) return a;
   }
+  // Caravans carry shields to the wonder city, or open trade routes once the empire has spread out.
+  if (c.size >= 3 && r.shields >= 3 && threat === 0) {
+    const toWonder = ctx.wonderSite !== null && ctx.wonderSite.id !== c.id && ctx.caravans < 3;
+    const toTrade = ctx.wonderSite === null && ctx.cities.length >= 6 && c.size >= 5 && c.routes.length < MAX_TRADE_ROUTES && ctx.caravans < 2 && tradePartner(state, ctx, c) !== null;
+    if (toWonder || toTrade) {
+      const cv = pick("unit", "caravan");
+      if (cv) return cv;
+    }
+  }
   if (wonderCity && r.shields >= 5 && threat === 0 && (ctx.cities.length >= 4 || ctx.turn >= 80)) {
     for (const id of WONDER_ORDER) {
       const w = pick("wonder", id);
@@ -569,6 +592,7 @@ function manageCities(state: GameState, ctx: Ctx): void {
       if (stale || urgent || cheap) applyCommand(state, { type: "setProduction", city: c.id, production: want });
     }
     if (c.production.kind === "unit" && c.production.id === "settlers") settlersPlanned++;
+    if (c.production.kind === "unit" && c.production.id === "caravan") ctx.caravans++;
 
     // Spend gold where it changes the game: empty cities, threatened cities, early settlers, riots.
     const cost = buyCost(c);
@@ -744,6 +768,7 @@ function orderUnit(state: GameState, ctx: Ctx, u: Unit): void {
   const type = unitType(u.type);
   if (u.aboard !== null) { applyCommand(state, { type: "skip", unit: u.id }); return; }
   if (type.flags?.includes("settler")) { orderSettler(state, ctx, u); return; }
+  if (type.flags?.includes("caravan")) { orderCaravan(state, ctx, u); return; }
   if (type.domain !== "land" || type.attack === 0) { applyCommand(state, { type: "skip", unit: u.id }); return; }
   orderMilitary(state, ctx, u);
 }
@@ -883,6 +908,49 @@ function orderMilitary(state: GameState, ctx: Ctx, u: Unit): void {
   const home = nearestCity(state, ctx, u);
   if (home && goto(state, u, home.x, home.y)) return;
   applyCommand(state, { type: "fortify", unit: u.id });
+}
+
+// ---- caravans ----------------------------------------------------------------------------
+
+/** The best city to open a route to from `home`: far away, rich in trade, with room for a route. */
+function tradePartner(state: GameState, ctx: Ctx, home: City): City | null {
+  if (home.routes.length >= MAX_TRADE_ROUTES) return null;
+  let best: City | null = null;
+  let bestV = 0;
+  for (const c of state.cities) {
+    if (c.id === home.id || home.routes.includes(c.id) || c.routes.length >= MAX_TRADE_ROUTES) continue;
+    if (c.owner !== ctx.me && (c.owner === state.barbarians || !hasContact(state, ctx.me, c.owner) || ctx.enemies.has(c.owner))) continue;
+    if (!ctx.continents.has(getTile(state.map, c.x, c.y)!.continent)) continue;
+    const d = cityDistance(state, home, c);
+    if (d < TRADE_ROUTE_MIN_DIST) continue;
+    const v = tileTrade(state, c) * (c.owner === ctx.me ? 1 : 2) + d / 4;
+    if (v > bestV) { bestV = v; best = c; }
+  }
+  return best;
+}
+
+function orderCaravan(state: GameState, ctx: Ctx, u: Unit): void {
+  const here = cityAt(state, u.x, u.y);
+  if (here && here.owner === ctx.me) {
+    if (canHelpWonder(state, u, here) === null && wonder(here.production.id).cost - here.shields >= unitType(u.type).cost / 2) {
+      applyCommand(state, { type: "helpWonder", unit: u.id });
+      return;
+    }
+    if (canTradeRoute(state, u, here) === null) { applyCommand(state, { type: "tradeRoute", unit: u.id }); return; }
+  }
+  const site = ctx.wonderSite;
+  if (site && site.id !== here?.id && (goto(state, u, site.x, site.y) || nudge(state, u, site.x, site.y))) return;
+  const home = u.homeCity !== null ? ctx.cities.find((c) => c.id === u.homeCity) : undefined;
+  const partner = home ? tradePartner(state, ctx, home) : null;
+  if (partner) {
+    // A foreign partner is entered with a plain step; the move itself opens the route.
+    if (dist(state, u.x, u.y, partner.x, partner.y) <= 1 && nudge(state, u, partner.x, partner.y)) return;
+    if (goto(state, u, partner.x, partner.y) || nudge(state, u, partner.x, partner.y)) return;
+  }
+  if (here && here.owner === ctx.me) { applyCommand(state, { type: "skip", unit: u.id }); return; }
+  const back = nearestCity(state, ctx, u);
+  if (back && goto(state, u, back.x, back.y)) return;
+  applyCommand(state, { type: "skip", unit: u.id });
 }
 
 // ---- settlers -------------------------------------------------------------------------

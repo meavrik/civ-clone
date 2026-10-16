@@ -16,6 +16,7 @@ import {
   type GameState,
   type Production,
   type Tile,
+  type Unit,
 } from "./types.js";
 import { createUnit } from "./units.js";
 import { revealAround } from "./visibility.js";
@@ -111,6 +112,8 @@ export interface CityReport {
   food: number;
   shields: number;
   trade: number;
+  /** Part of `trade` that comes from caravan routes. */
+  routes: number;
   foodSurplus: number;
   shieldSurplus: number;
   /** Unit upkeep in shields and food. */
@@ -164,12 +167,64 @@ export function wonderBuilt(state: GameState, id: string): boolean {
   return state.cities.some((c) => c.wonders.includes(id));
 }
 
+export function cityDistance(state: GameState, a: City, b: City): number {
+  const dx = Math.min(Math.abs(a.x - b.x), state.map.width - Math.abs(a.x - b.x));
+  return Math.max(dx, Math.abs(a.y - b.y));
+}
+
 export function distanceToCapital(state: GameState, city: City): number {
   const capital = state.cities.find((c) => c.owner === city.owner && c.buildings.includes("palace"));
   if (!capital) return 16;
-  const dx = Math.min(Math.abs(capital.x - city.x), state.map.width - Math.abs(capital.x - city.x));
-  const dy = Math.abs(capital.y - city.y);
-  return Math.max(dx, dy);
+  return cityDistance(state, capital, city);
+}
+
+// ---- caravans: trade routes and wonder help ----------------------------------
+
+/** Cities must be this far apart to trade. */
+export const TRADE_ROUTE_MIN_DIST = 9;
+export const MAX_TRADE_ROUTES = 3;
+
+/** Trade from the centre and worked tiles alone, so route values never recurse. */
+export function tileTrade(state: GameState, city: City): number {
+  const gov = state.players[city.owner]!.government;
+  let trade = tileYield(state, getTile(state.map, city.x, city.y)!, true, gov).trade;
+  for (const slot of city.worked) {
+    const t = radiusTile(state, city, slot);
+    if (t) trade += tileYield(state, t, false, gov).trade;
+  }
+  return trade;
+}
+
+/** Trade each city earns every turn from a route between them; foreign partners pay double. */
+export function routeTrade(state: GameState, a: City, b: City): number {
+  const base = Math.floor((tileTrade(state, a) + tileTrade(state, b) + 4) / 8);
+  return Math.max(1, a.owner === b.owner ? base : base * 2);
+}
+
+/** One-off gold and science when a route is opened: distance and both cities' trade. */
+export function routeBonus(state: GameState, home: City, target: City): number {
+  const v = Math.floor(((cityDistance(state, home, target) + 10) * (tileTrade(state, home) + tileTrade(state, target))) / 24);
+  return Math.max(1, home.owner === target.owner ? v : v * 2);
+}
+
+/** Why a caravan here could not open a route from its home city to `city`, or null. */
+export function canTradeRoute(state: GameState, u: Unit, city: City): string | null {
+  if (!unitType(u.type).flags?.includes("caravan")) return "only caravans trade";
+  const home = u.homeCity !== null ? cityById(state, u.homeCity) : undefined;
+  if (!home) return "the caravan has no home city";
+  if (home.id === city.id) return "that is its home city";
+  if (cityDistance(state, home, city) < TRADE_ROUTE_MIN_DIST) return "too close to home";
+  if (home.routes.includes(city.id)) return "a route already exists";
+  if (home.routes.length >= MAX_TRADE_ROUTES || city.routes.length >= MAX_TRADE_ROUTES) return "no room for another route";
+  return null;
+}
+
+/** Why a caravan here could not add its shields to the city's wonder, or null. */
+export function canHelpWonder(state: GameState, u: Unit, city: City): string | null {
+  if (!unitType(u.type).flags?.includes("caravan")) return "only caravans help";
+  if (city.owner !== u.owner) return "not our city";
+  if (city.production.kind !== "wonder") return "no wonder in production";
+  return null;
 }
 
 /** Base content citizens by difficulty, shrinking as the empire grows (the original's "unhappiness from size"). */
@@ -201,6 +256,12 @@ export function computeCity(state: GameState, city: City): CityReport {
     shields += y.shields;
     trade += y.trade;
   }
+  let routes = 0;
+  for (const id of city.routes) {
+    const other = cityById(state, id);
+    if (other) routes += routeTrade(state, city, other);
+  }
+  trade += routes;
 
   const has = (id: string) => city.buildings.includes(id);
   let shieldPct = 0;
@@ -315,7 +376,7 @@ export function computeCity(state: GameState, city: City): CityReport {
   const foodEaten = workers * 2 + city.specialists.length * 2 + unitFood;
 
   return {
-    food, shields, trade,
+    food, shields, trade, routes,
     foodSurplus: food - foodEaten,
     shieldSurplus: disorder ? 0 : shields - unitShields,
     unitShields, unitFood, corruption,
@@ -362,6 +423,7 @@ export function foundCity(state: GameState, owner: number, x: number, y: number,
     production: { kind: "unit", id: "militia" },
     founded: state.turn,
     disorder: false,
+    routes: [],
   };
   state.cities.push(city);
   // Founding the city builds its road.
