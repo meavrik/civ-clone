@@ -78,23 +78,30 @@ function roadMask(state: GameState, x: number, y: number, rail = false): number 
 }
 
 /** Screen position of a map tile relative to the viewport, or null if off-screen. */
+/** Pixel shift of the whole viewport while the camera glides between tiles. */
+export function panOffset(view: MainScreenView): [number, number] {
+  return [Math.round((view.panX ?? 0) * TILE), Math.round((view.panY ?? 0) * TILE)];
+}
+
 export function tileToScreen(state: GameState, view: MainScreenView, x: number, y: number): [number, number] | null {
   const w = state.map.width;
   const tx = (((x - view.originX) % w) + w) % w;
   const ty = y - view.originY;
-  if (tx >= VIEW_TILES_X || ty < 0 || ty >= VIEW_TILES_Y) return null;
-  return [VIEW_X + tx * TILE, ty * TILE];
+  if (tx > VIEW_TILES_X || ty < 0 || ty > VIEW_TILES_Y) return null;
+  const [ox, oy] = panOffset(view);
+  return [VIEW_X + tx * TILE - ox, ty * TILE - oy];
 }
 
 export function drawMapViewport(s: Surface, state: GameState, view: MainScreenView): void {
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
-  for (let ty = 0; ty < VIEW_TILES_Y; ty++) {
+  const [ox, oy] = panOffset(view);
+  for (let ty = 0; ty <= VIEW_TILES_Y; ty++) {
     const my = view.originY + ty;
-    const dy = ty * TILE;
-    for (let tx = 0; tx < VIEW_TILES_X; tx++) {
+    const dy = ty * TILE - oy;
+    for (let tx = 0; tx <= VIEW_TILES_X; tx++) {
       const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
-      const dx = VIEW_X + tx * TILE;
+      const dx = VIEW_X + tx * TILE - ox;
       if (my < 0 || my >= map.height || !me.explored[my * map.width + mx]) {
         s.rect(dx, dy, TILE, TILE, C.BLACK!);
         continue;

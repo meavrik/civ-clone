@@ -83,6 +83,7 @@ let renderer: Renderer = createRenderer(rendererChoice());
 function setRenderer(id: string): void {
   renderer = createRenderer(id);
   try { localStorage.setItem("epochs.renderer", renderer.id); } catch { /* private mode */ }
+  if (state) { cam.ready = false; followActive(true); }
 }
 
 addEventListener("resize", fitCanvas);
@@ -127,6 +128,10 @@ type Screen =
 
 let screenState: Screen = { kind: "title" };
 const view: MainScreenView = { originX: 0, originY: 0, blink: true };
+/** The camera in fractional tile units; it glides to each new target so the eye can follow. */
+const cam = { x: 0, y: 0, fromX: 0, fromY: 0, toX: 0, toY: 0, start: 0, animating: false, ready: false };
+const CAMERA_MS = 280;
+
 /** The turn ends by itself once nothing needs orders (game menu toggles it; remembered per browser). */
 let autoEnd = (() => { try { return localStorage.getItem("epochs.autoEnd") !== "off"; } catch { return true; } })();
 let lastInput = 0;
@@ -162,6 +167,7 @@ function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0
   state = newGame(seed, opts);
   log = [];
   screenState = { kind: "map" };
+  cam.ready = false;
   followActive(true);
   say(`${civ(state.players[0]!.civ).leader}, lead the ${state.players[0]!.name} to glory.`, 4000);
 }
@@ -173,6 +179,7 @@ function resumeGame(save: SaveGame): void {
     log = loaded.log;
     options = save.options;
     screenState = { kind: "map" };
+    cam.ready = false;
     followActive(true);
     say(`Loaded: ${formatYear(turnToYear(state.turn))}`);
   } catch (err) {
@@ -193,11 +200,51 @@ if (params.has("seed")) {
 }
 
 // ---- view helpers -----------------------------------------------------------
-function centerOn(x: number, y: number): void {
+function applyCamera(): void {
+  view.originX = Math.floor(cam.x);
+  view.panX = cam.x - view.originX;
+  view.originY = Math.floor(cam.y);
+  view.panY = cam.y - view.originY;
+}
+
+function centerOn(x: number, y: number, instant = false): void {
   const tx = renderer.viewTilesX;
   const ty = renderer.viewTilesY;
-  view.originX = x - (tx >> 1);
-  view.originY = Math.max(0, Math.min(state.map.height - ty, y - (ty >> 1)));
+  const w = state.map.width;
+  const targetX = ((x - (tx >> 1)) % w + w) % w;
+  const targetY = Math.max(0, Math.min(state.map.height - ty, y - (ty >> 1)));
+  if (instant || !cam.ready || screenState.kind !== "map") {
+    cam.x = targetX;
+    cam.y = targetY;
+    cam.animating = false;
+    cam.ready = true;
+    applyCamera();
+    return;
+  }
+  // Shortest way round the world's seam.
+  let dx = ((targetX - cam.x) % w + w) % w;
+  if (dx > w / 2) dx -= w;
+  if (Math.abs(dx) < 0.01 && Math.abs(targetY - cam.y) < 0.01) return;
+  cam.fromX = cam.x;
+  cam.fromY = cam.y;
+  cam.toX = cam.x + dx;
+  cam.toY = targetY;
+  cam.start = performance.now();
+  cam.animating = true;
+}
+
+function stepCamera(now: number): void {
+  if (!cam.animating) return;
+  const t = Math.min(1, (now - cam.start) / CAMERA_MS);
+  const e = 1 - Math.pow(1 - t, 3);
+  cam.x = cam.fromX + (cam.toX - cam.fromX) * e;
+  cam.y = cam.fromY + (cam.toY - cam.fromY) * e;
+  if (t >= 1) {
+    cam.animating = false;
+    const w = state.map.width;
+    cam.x = ((cam.x % w) + w) % w;
+  }
+  applyCamera();
 }
 
 function followActive(force = false): void {
@@ -797,12 +844,27 @@ canvas.addEventListener("mousedown", (e) => {
   const mm = renderer.minimapAt(state, px, py);
   if (mm) { centerOn(mm.x, mm.y); return; }
   const hit = renderer.tileAt(state, view, px, py);
-  if (!hit) return;
-  const { x: tx, y: ty } = hit;
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
+  if (!hit) {
+    if (e.button === 2) { if (active) openActionMenu(active.id); else openGameMenu(); }
+    return;
+  }
+  const { x: tx, y: ty } = hit;
 
+  // Right-click: send the active unit there (its own tile opens its orders); without a unit, the game menu.
   if (e.button === 2) {
-    if (active) openActionMenu(active.id); else openGameMenu();
+    if (!active) { openGameMenu(); return; }
+    if (active.x === tx && active.y === ty) { openActionMenu(active.id); return; }
+    if (isAdjacent(active, tx, ty)) {
+      let dx = tx - active.x;
+      if (dx > 1) dx -= state.map.width;
+      if (dx < -1) dx += state.map.width;
+      tryMove(active.id, dx, ty - active.y);
+      return;
+    }
+    const before = state.activeUnit;
+    if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
+    followActive(state.activeUnit !== before);
     return;
   }
   const city = cityAt(state, tx, ty);
@@ -879,6 +941,7 @@ function frame(t: number): void {
   if (t - lastBlink > 400) { blinkOn = !blinkOn; lastBlink = t; }
   view.blink = blinkOn;
   view.autoEnd = autoEnd;
+  if (screenState.kind !== "title" && screenState.kind !== "setup") stepCamera(t);
   if (status && t > statusUntil) status = undefined;
   // Auto end turn: nothing to order, the player has been idle a moment, and the map is showing.
   if (autoEnd && screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && t - lastInput > 900 && t - lastAutoEnd > 900) {

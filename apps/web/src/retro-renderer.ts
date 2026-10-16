@@ -19,6 +19,7 @@ import {
   drawTitleScreen,
   menuHit,
   PALETTE_RGBA,
+  panOffset,
   SCREEN_H,
   SCREEN_W,
   Surface,
@@ -76,9 +77,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityExitHit: (_px, py) => py > SCREEN_H - 12,
     tileAt(state: GameState, view: MainScreenView, px, py) {
       if (px < VIEW_X) return null;
-      const ty = view.originY + Math.floor(py / TILE);
+      const [ox, oy] = panOffset(view);
+      const ty = view.originY + Math.floor((py + oy) / TILE);
       if (ty < 0 || ty >= state.map.height) return null;
-      return { x: wrapX(state.map, view.originX + Math.floor((px - VIEW_X) / TILE)), y: ty };
+      return { x: wrapX(state.map, view.originX + Math.floor((px - VIEW_X + ox) / TILE)), y: ty };
     },
     minimapAt(state: GameState, px, py) {
       if (px >= VIEW_X || py < 2 || py >= 2 + state.map.height) return null;

@@ -50,19 +50,25 @@ function roadMask(state: GameState, x: number, y: number, rail: boolean): number
   return mask;
 }
 
+function panOffset(view: MainScreenView): [number, number] {
+  return [(view.panX ?? 0) * TILE, (view.panY ?? 0) * TILE];
+}
+
 export function tileToScreen(state: GameState, view: MainScreenView, x: number, y: number): [number, number] | null {
   const w = state.map.width;
   const tx = (((x - view.originX) % w) + w) % w;
   const ty = y - view.originY;
-  if (tx >= VIEW_TILES_X || ty < 0 || ty >= VIEW_TILES_Y) return null;
-  return [VIEW_X + tx * TILE, ty * TILE];
+  if (tx > VIEW_TILES_X || ty < 0 || ty > VIEW_TILES_Y) return null;
+  const [ox, oy] = panOffset(view);
+  return [VIEW_X + tx * TILE - ox, ty * TILE - oy];
 }
 
 export function tileAt(state: GameState, view: MainScreenView, px: number, py: number): { x: number; y: number } | null {
   if (px < VIEW_X || px >= W || py < 0 || py >= H) return null;
-  const ty = view.originY + Math.floor(py / TILE);
+  const [ox, oy] = panOffset(view);
+  const ty = view.originY + Math.floor((py + oy) / TILE);
   if (ty < 0 || ty >= state.map.height) return null;
-  return { x: wrapX(state.map, view.originX + Math.floor((px - VIEW_X) / TILE)), y: ty };
+  return { x: wrapX(state.map, view.originX + Math.floor((px - VIEW_X + ox) / TILE)), y: ty };
 }
 
 export function minimapAt(state: GameState, px: number, py: number): { x: number; y: number } | null {
@@ -79,12 +85,13 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
   ctx.beginPath();
   ctx.rect(VIEW_X, 0, W - VIEW_X, H);
   ctx.clip();
-  for (let ty = 0; ty < VIEW_TILES_Y; ty++) {
+  const [ox, oy] = panOffset(view);
+  for (let ty = 0; ty <= VIEW_TILES_Y; ty++) {
     const my = view.originY + ty;
-    const dy = ty * TILE;
-    for (let tx = 0; tx < VIEW_TILES_X; tx++) {
+    const dy = ty * TILE - oy;
+    for (let tx = 0; tx <= VIEW_TILES_X; tx++) {
       const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
-      const dx = VIEW_X + tx * TILE;
+      const dx = VIEW_X + tx * TILE - ox;
       if (my < 0 || my >= map.height || !me.explored[my * map.width + mx]) {
         ctx.fillStyle = UI.bg;
         ctx.fillRect(dx, dy, TILE, TILE);

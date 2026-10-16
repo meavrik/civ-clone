@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, createUnit, newGame, revealAround } from "@civ/core";
 import type { MainScreenView } from "@civ/renderer-api";
-import { createModernRenderer, MODERN_H, MODERN_W, type Context2D, type Gradient } from "../src/index.js";
+import { createModernRenderer, MODERN_H, MODERN_TILE, MODERN_W, type Context2D, type Gradient } from "../src/index.js";
 
 /** Records what the renderer asks of the canvas; width of text is a flat per-character estimate. */
 class FakeContext implements Context2D {
@@ -86,8 +86,9 @@ describe("modern renderer", () => {
     expect(ctx.texts).toContain("E P O C H S");
     expect(ctx.texts).toContain("Spaceship");
     expect(ctx.texts.some((t) => t.includes("Name the new city"))).toBe(true);
-    expect(ctx.maxX).toBeLessThanOrEqual(MODERN_W + 48);
-    expect(ctx.maxY).toBeLessThanOrEqual(MODERN_H + 48);
+    // The viewport paints one clipped extra row and column while the camera glides.
+    expect(ctx.maxX).toBeLessThanOrEqual(MODERN_W + 2 * MODERN_TILE);
+    expect(ctx.maxY).toBeLessThanOrEqual(MODERN_H + 2 * MODERN_TILE);
   });
 
   it("maps points back to tiles, the minimap, menu rows and city slots", () => {
@@ -97,6 +98,9 @@ describe("modern renderer", () => {
     expect(r.tileAt(state, view, 100, 100)).toBeNull();
     const hit = r.tileAt(state, view, 240 + 48 * 3 + 5, 48 * 2 + 5);
     expect(hit).toEqual({ x: ((view.originX + 3) % 80 + 80) % 80, y: view.originY + 2 });
+    // Half a tile of camera pan shifts which tile sits under the same point.
+    const panned = r.tileAt(state, { ...view, panX: 0.5, panY: 0 }, 240 + 48 * 3 + 30, 48 * 2 + 5);
+    expect(panned).toEqual({ x: ((view.originX + 4) % 80 + 80) % 80, y: view.originY + 2 });
     expect(r.minimapAt(state, 40 + 2 * 10, 14 + 2 * 20)).toEqual({ x: 10, y: 20 });
     expect(r.minimapAt(state, 400, 300)).toBeNull();
     const menu = { title: "Game", items: ["a", "b", "c"], selected: 0 };

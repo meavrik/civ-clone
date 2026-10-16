@@ -14,6 +14,9 @@ import { civ, CIVS, relation, type GameState } from "@civ/core";
 export interface MainScreenView {
   originX: number;
   originY: number;
+  /** Fraction (0..1) of a tile the camera sits past the origin, while it glides; the view shifts up/left by it. */
+  panX?: number | undefined;
+  panY?: number | undefined;
   /** Blink phase for the active unit. */
   blink: boolean;
   /** Status message under the unit box (e.g. a refused move); wrapped to the panel. */

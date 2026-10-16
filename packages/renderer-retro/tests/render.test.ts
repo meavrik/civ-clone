@@ -70,6 +70,14 @@ describe("retro renderer", () => {
     for (let y = 0; y < 200; y++) expect(s.data[y * 320 + 79], `panel edge at row ${y}`).not.toBe(14);
     writeFileSync(new URL("./out/panel-message.png", import.meta.url), encodePng(s, 3));
 
+    // A gliding camera draws the viewport shifted by a fraction of a tile and still stops at the panel.
+    view.panX = 0.4;
+    view.panY = 0.6;
+    drawMainScreen(s, state, view);
+    expect(s.get(70, 100)).not.toBe(0);
+    view.panX = undefined;
+    view.panY = undefined;
+
     // Inspecting a tile shows terrain, yields and what stands there.
     view.message = undefined;
     view.inspect = { x: u.x + 2, y: u.y + 1 };

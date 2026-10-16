@@ -36,7 +36,9 @@ Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify ·
 `Enter` end turn · `T` rates · `G` revolution · `Esc` orders menu (or game menu) ·
 `F1` cities · `F2` military · `F3` foreign (Enter to talk) · `F4` science · `F5` score · `F6` spaceship (Enter to launch) · `F10` game menu (save/load, auto end turn on/off).
 With auto end turn on (the default) the turn ends by itself a moment after the last unit has its orders.
-Mouse: click an adjacent tile to move/attack · click a farther tile to inspect it (terrain, yields, what stands there), click it again to send the unit there ·
+Mouse: right-click a tile to move or attack there (adjacent) or to go there (farther) · right-click the active unit for its orders ·
+left-click an adjacent tile to move/attack · left-click a farther tile to inspect it (terrain, yields, what stands there), click it again to send the unit there ·
+the camera glides to each newly active unit ·
 click your own unit to activate it · click the active unit to cycle the stack ·
 click a city to open it · right-click for the orders menu (caravans: help wonder / trade route; diplomats at a foreign city: steal / sabotage / incite) · click the minimap to scroll.
 City screen: click tiles to work them · `C` change production · `B` buy · `N` rename (in-game prompt) · `Esc`.
