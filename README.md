@@ -36,7 +36,8 @@ Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify ·
 Mouse: click an adjacent tile to move/attack · click farther away to go there ·
 click your own unit to activate it · click the active unit to cycle the stack ·
 click a city to open it · right-click for the orders menu (caravans: help wonder / trade route; diplomats at a foreign city: steal / sabotage / incite) · click the minimap to scroll.
-City screen: click tiles to work them · `C` change production · `B` buy · `N` rename · `Esc`.
+City screen: click tiles to work them · `C` change production · `B` buy · `N` rename (in-game prompt) · `Esc`.
+Founding a city asks for its name (Enter accepts the suggested one).
 
 URL options skip the setup screens: `?seed=1234&difficulty=2&opponents=2&civ=greeks`.
 Saves: slots 1–5 in the game menu, autosave to slot 0 every 5 turns. A save is the seed plus the

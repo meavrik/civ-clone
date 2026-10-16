@@ -68,6 +68,30 @@ export function menuHit(m: MenuState, px: number, py: number): number {
   return i >= 0 && i < m.items.length ? i : -1;
 }
 
+/** A one-line text prompt: title, the text being typed, a blinking cursor. */
+export interface TextInputState {
+  title: string;
+  text: string;
+  maxLength: number;
+}
+
+export const TEXT_INPUT_MAX = 14;
+
+export function drawTextInput(s: Surface, input: TextInputState, cursorOn: boolean): void {
+  const w = 200;
+  const h = 40;
+  const x = Math.floor((320 - w) / 2);
+  const y = Math.floor((200 - h) / 2);
+  drawPanel(s, x, y, w, h);
+  drawText(s, x + 8, y + 4, input.title, shade("ui", 7));
+  s.hline(x + 4, y + 13, w - 8, shade("ui", 0));
+  s.rect(x + 8, y + 18, w - 16, 12, shade("ui", 0));
+  s.frame(x + 8, y + 18, w - 16, 12, shade("ui", 4));
+  drawText(s, x + 12, y + 20, input.text, C.WHITE!);
+  if (cursorOn) s.rect(x + 12 + textWidth(input.text) + 1, y + 20, 4, FONT_HEIGHT, C.YELLOW!);
+  drawText(s, x + w - 8 - textWidth("Enter / Esc"), y + 31, "Enter / Esc", shade("ui", 5));
+}
+
 /** Small one-line message box at the bottom of the screen. */
 export function drawStatusLine(s: Surface, text: string): void {
   drawPanel(s, 80, 188, 240, 12, true);

@@ -68,7 +68,7 @@ turns + baseline AI, diplomacy, save/load, title/setup, advisors, end conditions
    Flight and lands around turn 600-700 in all-AI games). Diplomats done (`diplomat` command next to a
    foreign city: steal an advance, sabotage, incite revolt via `inciteCost`; a victim at peace declares
    war). No embassies or city investigation yet.
-4. Rename uses `prompt()`; diplomacy exchange offers first-for-first only.
+4. Diplomacy exchange offers first-for-first only; no embassies or AI-to-AI tech trading.
 5. Phase 8 — modern-visuals renderer behind the same screen API; swap `renderer-retro`.
 6. Mobile: PWA + touch adapter in apps/web (input is already centralised in main.ts).
 

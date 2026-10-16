@@ -446,14 +446,18 @@ export function canFoundCity(state: GameState, x: number, y: number): string | n
   return null;
 }
 
-export function foundCity(state: GameState, owner: number, x: number, y: number, name?: string): City {
+/** The name a new city of this civilization would get: the next historical name, then the generic list. */
+export function defaultCityName(state: GameState, owner: number): string {
   const used = new Set(state.cities.map((c) => c.name));
+  const fromCiv = civ(state.players[owner]!.civ).cities.find((n) => !used.has(n));
+  return fromCiv ?? nextCityName(used);
+}
+
+export function foundCity(state: GameState, owner: number, x: number, y: number, name?: string): City {
   const first = !state.cities.some((c) => c.owner === owner);
-  const civNames = civ(state.players[owner]!.civ).cities;
-  const fromCiv = civNames.find((n) => !used.has(n));
   const city: City = {
     id: state.nextCityId++,
-    name: name ?? fromCiv ?? nextCityName(used),
+    name: name?.trim().slice(0, 14) || defaultCityName(state, owner),
     owner,
     x: wrapX(state.map, x),
     y,

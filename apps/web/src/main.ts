@@ -13,6 +13,7 @@ import {
   CIVS,
   civ,
   computeScore,
+  defaultCityName,
   FINAL_TURN,
   formatYear,
   government,
@@ -61,6 +62,8 @@ import {
   drawScoreScreen,
   drawSpaceshipScreen,
   drawStatusLine,
+  drawTextInput,
+  TEXT_INPUT_MAX,
   drawTitleScreen,
   leaderLine,
   menuHit,
@@ -73,7 +76,9 @@ import {
   type CityScreenView,
   type MainScreenView,
   type MenuState,
+  textWidth,
   type SetupState,
+  type TextInputState,
 } from "@civ/renderer-retro";
 import { canvas, fitCanvas, present, screen, toScreen } from "./display.js";
 import { listSlots, readSlot, SLOTS, writeSlot } from "./storage.js";
@@ -116,6 +121,7 @@ type Screen =
   | { kind: "diplomacy"; player: number; line: string }
   | { kind: "end"; lines: string[]; rank: string }
   | { kind: "spaceship" }
+  | { kind: "input"; input: TextInputState; onSubmit: (text: string) => void; under: Screen }
   | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void };
 
 let screenState: Screen = { kind: "title" };
@@ -206,6 +212,31 @@ function openCity(id: number): void {
   screenState = { kind: "city", view: { city: id } };
 }
 
+/** Ask for a line of text in-game (no browser prompt): Enter submits, Esc cancels. */
+function askText(title: string, initial: string, onSubmit: (text: string) => void): void {
+  screenState = { kind: "input", input: { title, text: initial, maxLength: TEXT_INPUT_MAX }, onSubmit, under: screenState };
+}
+
+/** Found a city with the active settlers after asking for its name, then open it. */
+function foundWithName(unit: number): void {
+  const u = unitById(state, unit);
+  if (!u) return;
+  const why = canFoundCity(state, u.x, u.y);
+  if (why) { say(why); return; }
+  askText("Name the new city", defaultCityName(state, 0), (name) => {
+    if (dispatch({ type: "found", unit, name })) { const c = cityAt(state, u.x, u.y); if (c) openCity(c.id); }
+    followActive(true);
+  });
+}
+
+function inputKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "input" }>): void {
+  const inp = sc.input;
+  if (e.code === "Escape") { screenState = sc.under; return; }
+  if (e.code === "Enter" || e.code === "NumpadEnter") { screenState = sc.under; if (inp.text.trim()) sc.onSubmit(inp.text.trim()); return; }
+  if (e.code === "Backspace") { inp.text = inp.text.slice(0, -1); return; }
+  if (e.key.length === 1 && inp.text.length < inp.maxLength && textWidth(inp.text + e.key) < 170) inp.text += e.key;
+}
+
 function openProductionMenu(cityId: number): void {
   const city = state.cities.find((c) => c.id === cityId)!;
   const opts = buildOptions(state, city);
@@ -289,7 +320,7 @@ function openActionMenu(unit: number): void {
   const type = unitType(u.type);
   const items: [string, () => void][] = [];
   if (type.flags?.includes("settler") && canFoundCity(state, u.x, u.y) === null)
-    items.push(["Found city (B)", () => { if (dispatch({ type: "found", unit })) { const c = cityAt(state, u.x, u.y); if (c) openCity(c.id); } }]);
+    items.push(["Found city (B)", () => foundWithName(unit)]);
   if (w.irrigate !== undefined) items.push([`Irrigate (I) ${w.irrigate}t`, () => dispatch({ type: "work", unit, work: "irrigate" })]);
   if (w.mine !== undefined) items.push([`Mine (M) ${w.mine}t`, () => dispatch({ type: "work", unit, work: "mine" })]);
   if (w.road !== undefined) items.push([`Road (R) ${w.road}t`, () => dispatch({ type: "work", unit, work: "road" })]);
@@ -561,13 +592,7 @@ function mapKey(e: KeyboardEvent): void {
       break;
     }
     case "KeyP": order({ type: "work", unit: active!, work: "clean" }); break;
-    case "KeyB": {
-      if (active === null) break;
-      const u = unitById(state, active)!;
-      if (dispatch({ type: "found", unit: active })) { const c = cityAt(state, u.x, u.y); if (c) openCity(c.id); }
-      followActive(true);
-      break;
-    }
+    case "KeyB": if (active !== null) foundWithName(active); break;
     case "KeyD": if (e.shiftKey) order({ type: "disband", unit: active! }); break;
     case "KeyC": followActive(true); break;
     case "KeyT": screenState = { kind: "rates" }; break;
@@ -613,7 +638,11 @@ function cityKey(e: KeyboardEvent, cv: CityScreenView): void {
     case "Escape": screenState = { kind: "map" }; break;
     case "KeyC": openProductionMenu(cv.city); break;
     case "KeyB": dispatch({ type: "buy", city: cv.city }); break;
-    case "KeyN": { const name = prompt("City name:"); if (name) dispatch({ type: "renameCity", city: cv.city, name }); break; }
+    case "KeyN": {
+      const city = state.cities.find((c) => c.id === cv.city);
+      if (city) askText("Rename the city", city.name, (name) => dispatch({ type: "renameCity", city: cv.city, name }));
+      break;
+    }
   }
 }
 
@@ -686,6 +715,7 @@ addEventListener("keydown", (e) => {
       else advisorHotkey(e);
       break;
     case "menu": menuKey(e, sc); break;
+    case "input": e.preventDefault(); inputKey(e, sc); break;
   }
 });
 
@@ -732,6 +762,7 @@ canvas.addEventListener("mousedown", (e) => {
     case "end": screenState = { kind: "title" }; return;
     case "diplomacy": screenState = { kind: "map" }; return;
     case "rates": case "science": case "spaceship": screenState = { kind: "map" }; return;
+    case "input": return;
     case "advisor":
       if (sc.which === "foreign") openForeignTalkMenu(); else screenState = { kind: "map" };
       return;
@@ -817,6 +848,10 @@ function draw(sc: Screen): void {
     case "diplomacy": drawDiplomacyScreen(screen, state, sc.player, sc.line); break;
     case "end": drawEndScreen(screen, sc.lines, sc.rank); break;
     case "spaceship": drawSpaceshipScreen(screen, state); break;
+    case "input":
+      draw(sc.under);
+      drawTextInput(screen, sc.input, blinkOn);
+      break;
     case "menu":
       draw(sc.under);
       drawMenu(screen, sc.menu);
