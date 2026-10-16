@@ -25,14 +25,17 @@ export function hasContact(state: GameState, a: number, b: number): boolean {
 }
 
 /**
- * Detect first contacts: a unit or city of `a` adjacent to one of `b`.
- * Returns the ids of players newly contacted this call (relation set to peace).
+ * Detect first contacts: a unit or city of `a` within sight (two tiles) of
+ * one of `b`. Returns the ids of players newly contacted this call
+ * (relation set to peace).
  */
+export const CONTACT_RANGE = 2;
+
 export function detectContacts(state: GameState, a: number): number[] {
   const met: number[] = [];
   const w = state.map.width;
   const near = (x1: number, y1: number, x2: number, y2: number) =>
-    Math.abs(y1 - y2) <= 1 && Math.min(Math.abs(x1 - x2), w - Math.abs(x1 - x2)) <= 1;
+    Math.abs(y1 - y2) <= CONTACT_RANGE && Math.min(Math.abs(x1 - x2), w - Math.abs(x1 - x2)) <= CONTACT_RANGE;
   const mine = [...state.units.filter((u) => u.owner === a), ...state.cities.filter((c) => c.owner === a)];
   for (const p of state.players) {
     if (p.id === a || !p.alive || p.id === state.barbarians || hasContact(state, a, p.id)) continue;

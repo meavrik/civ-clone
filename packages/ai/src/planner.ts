@@ -133,6 +133,8 @@ interface Ctx {
   /** A foreign city worth sending a diplomat to, if any. */
   spyTarget: City | null;
   diplomats: number;
+  /** Cities already producing an attacker this turn. */
+  armyBuilding: number;
 }
 
 function dist(state: GameState, x1: number, y1: number, x2: number, y2: number): number {
@@ -225,6 +227,7 @@ function analyse(state: GameState, me: number): Ctx {
   return {
     tileWorker, foreignUnitTiles, jobs: new Map(), wonderSite, spaceRace, spyTarget,
     diplomats: units.filter((u) => unitType(u.type).flags?.includes("diplomat")).length,
+    armyBuilding: cities.filter((c) => c.production.kind === "unit" && isAttacker({ type: c.production.id } as Unit)).length,
     caravans: units.filter((u) => unitType(u.type).flags?.includes("caravan")).length,
     me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, income, science, sites,
     wantMoreCities: cities.length < 24,
@@ -428,10 +431,10 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
       if ((mine < theirs * 0.7 || pointless) && nextInt(state.rng, 100) < 20) applyCommand(state, { type: "makePeace", player: o.id });
       continue;
     }
-    if (ctx.atWarWith.length > 0 || ctx.turn < 50 || ctx.cities.length < 4 || army < 4) continue;
+    if (ctx.atWarWith.length > 0 || ctx.turn < 50 || ctx.cities.length < 4 || army < Math.max(2, ctx.armyWanted)) continue;
     const theirCities = state.cities.filter((c) => c.owner === o.id);
-    const nearby = theirCities.some((c) => ctx.cities.some((m) => dist(state, c.x, c.y, m.x, m.y) <= 10) && ctx.continents.has(getTile(state.map, c.x, c.y)!.continent));
-    if (nearby && theirCities.length <= ctx.cities.length && mine >= theirs * 1.3 && nextInt(state.rng, 100) < 8) {
+    const nearby = theirCities.some((c) => ctx.cities.some((m) => dist(state, c.x, c.y, m.x, m.y) <= 14) && ctx.continents.has(getTile(state.map, c.x, c.y)!.continent));
+    if (nearby && theirCities.length <= ctx.cities.length + 2 && mine >= theirs * 1.1 && nextInt(state.rng, 100) < 6) {
       applyCommand(state, { type: "declareWar", player: o.id });
       return;
     }
@@ -575,6 +578,11 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     if (a) return a;
   }
   // Caravans carry shields to the wonder city, or open trade routes once the empire has spread out.
+  // A standing army even in peacetime, raised by the cities that can afford it.
+  if (army + ctx.armyBuilding < ctx.armyWanted && military < ctx.militaryCap && c.size >= 4 && r.shields >= 4) {
+    const a = bestUnit(options, "attack");
+    if (a) { ctx.armyBuilding++; return a; }
+  }
   if (ctx.spyTarget && ctx.diplomats < 1 && c.size >= 3 && r.shields >= 3 && threat === 0) {
     const d = pick("unit", "diplomat");
     if (d) return d;
