@@ -24,7 +24,7 @@ function frame(s: Surface, title: string): void {
   drawPanel(s, 4, 4, SCREEN_W - 8, SCREEN_H - 8);
   drawTextCentered(s, SCREEN_W / 2, 8, title, shade("ui", 7));
   s.hline(12, 18, SCREEN_W - 24, shade("ui", 0));
-  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 14, "F1 cities  F2 military  F3 foreign  F4 science  F5 score   Esc", shade("ui", 5));
+  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 14, "F1 cities  F2 military  F3 foreign  F4 science  F5 score  F6 ship   Esc", shade("ui", 5));
 }
 
 /** F1: every city with size, production and status. */

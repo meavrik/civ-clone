@@ -23,6 +23,7 @@ import { findPath, stepDir } from "./pathfind.js";
 import { ADVANCE_BY_ID, ADVANCES, advance, availableAdvances, researchCost } from "./rules/advances.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
 import { WONDERS } from "./rules/wonders.js";
+import { newSpaceship, shipStats } from "./rules/spaceship.js";
 import { MOVE_FRAC, TERRAIN_RULES, WARMING_LIMIT, WARMING_THRESHOLD } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
@@ -62,6 +63,7 @@ export type Command =
   | { type: "giveGold"; player: number; amount: number }
   | { type: "giveAdvance"; player: number; advance: string }
   | { type: "exchangeAdvances"; player: number; give: string; receive: string }
+  | { type: "launch" } // the spaceship, once it can fly
   | { type: "endTurn" };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
@@ -81,7 +83,10 @@ export type TurnEvent =
   | { kind: "eliminated"; player: number }
   | { kind: "hut"; result: HutResult }
   | { kind: "tradeRoute"; from: string; to: string; bonus: number }
-  | { kind: "globalWarming" };
+  | { kind: "globalWarming" }
+  | { kind: "spaceLaunched"; player: number }
+  | { kind: "spaceArrived"; player: number }
+  | { kind: "spaceLost"; player: number };
 
 export type HutResult =
   | { kind: "gold"; amount: number }
@@ -140,6 +145,15 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       if (!governmentsAvailable(state, p.id).includes(cmd.government)) return { ok: false, reason: "government unknown" };
       p.government = cmd.government;
       clampRates(p);
+      return { ok: true };
+    }
+    case "launch": {
+      const p = state.players[state.currentPlayer]!;
+      const st = shipStats(p.spaceship);
+      if (!st.launchable) return { ok: false, reason: "the ship cannot fly yet" };
+      p.spaceship.launched = state.turn;
+      p.spaceship.arrives = state.turn + st.flightTurns;
+      lastTurnEvents.push({ kind: "spaceLaunched", player: p.id });
       return { ok: true };
     }
     case "declareWar": {
@@ -296,6 +310,7 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
     const name = city.name;
     const cap = captureCity(state, u, city);
     lastTurnEvents.push(cap.captured ? { kind: "cityCaptured", name, player: prevOwner } : { kind: "cityLost", name, player: prevOwner });
+    if (cap.shipLost) lastTurnEvents.push({ kind: "spaceLost", player: prevOwner });
     for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
   }
   applyMove(state, u, dx, dy, r);
@@ -611,6 +626,17 @@ export function endTurn(state: GameState): void {
     maybeSpawnBarbarians(state);
     if (state.units.length > before) lastTurnEvents.push({ kind: "barbarians" });
     if (updateWarming(state)) lastTurnEvents.push({ kind: "globalWarming" });
+    for (const pl of state.players) {
+      const ship = pl.spaceship;
+      if (ship.launched === null || ship.arrives === null || ship.arrived || state.turn < ship.arrives) continue;
+      if (nextInt(state.rng, 100) < shipStats(ship).successPct) {
+        ship.arrived = true;
+        lastTurnEvents.push({ kind: "spaceArrived", player: pl.id });
+      } else {
+        Object.assign(ship, newSpaceship());
+        lastTurnEvents.push({ kind: "spaceLost", player: pl.id });
+      }
+    }
   }
   state.currentPlayer = next;
   startTurn(state, next);

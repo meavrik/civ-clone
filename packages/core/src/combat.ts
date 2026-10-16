@@ -1,6 +1,7 @@
 import { cityAt, hasWonder } from "./cities.js";
 import { atWar } from "./diplomacy.js";
 import { nextFloat } from "./rng.js";
+import { newSpaceship } from "./rules/spaceship.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { getTile, type City, type GameState, type Unit } from "./types.js";
@@ -91,7 +92,7 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
 }
 
 /** Move a land unit into an undefended enemy city: capture or raze it. */
-export function captureCity(state: GameState, u: Unit, city: City): { captured: boolean; destroyed: boolean; plunder: number } {
+export function captureCity(state: GameState, u: Unit, city: City): { captured: boolean; destroyed: boolean; plunder: number; shipLost: boolean } {
   const loser = state.players[city.owner]!;
   const winner = state.players[u.owner]!;
   const loserCities = state.cities.filter((c) => c.owner === city.owner).length;
@@ -99,10 +100,16 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
   loser.gold -= plunder;
   winner.gold += plunder;
   for (const o of state.units) if (o.homeCity === city.id) o.homeCity = null;
+  // Losing the capital grounds a launched spaceship.
+  let shipLost = false;
+  if (city.buildings.includes("palace") && loser.spaceship.launched !== null && !loser.spaceship.arrived) {
+    Object.assign(loser.spaceship, newSpaceship());
+    shipLost = true;
+  }
   if (city.size <= 1 || u.owner === state.barbarians) {
     for (const o of state.cities) o.routes = o.routes.filter((id) => id !== city.id);
     state.cities = state.cities.filter((c) => c.id !== city.id);
-    return { captured: false, destroyed: true, plunder };
+    return { captured: false, destroyed: true, plunder, shipLost };
   }
   city.size -= 1;
   city.owner = u.owner;
@@ -113,7 +120,7 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
   city.shields = 0;
   city.production = { kind: "unit", id: "militia" };
   city.disorder = false;
-  return { captured: true, destroyed: false, plunder };
+  return { captured: true, destroyed: false, plunder, shipLost };
 }
 
 /** A player with no cities and no settlers is out of the game. */

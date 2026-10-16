@@ -2,6 +2,7 @@ import { selectNextUnit } from "./commands.js";
 import { generateMap, type MapGenOptions } from "./map/generate.js";
 import { createRng, nextInt } from "./rng.js";
 import { civ, CIVS } from "./rules/civs.js";
+import { newSpaceship } from "./rules/spaceship.js";
 import { MAP_HEIGHT, MAP_WIDTH, Terrain, type GameState, type Player } from "./types.js";
 import { createUnit } from "./units.js";
 import { recomputeVisibility } from "./visibility.js";
@@ -41,6 +42,7 @@ function makePlayer(id: number, civId: string, color: number, isAi: boolean): Pl
     anarchyTurns: 0,
     pendingGovernment: null,
     difficulty: 2,
+    spaceship: newSpaceship(),
   };
 }
 

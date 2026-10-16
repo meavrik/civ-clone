@@ -1,4 +1,5 @@
 import type { RngState } from "./rng.js";
+import type { SpacePart, Spaceship } from "./rules/spaceship.js";
 
 /** Original world size: 80 columns wrapping east-west, 50 rows. */
 export const MAP_WIDTH = 80;
@@ -89,7 +90,11 @@ export type Relation = "none" | "peace" | "war";
 
 export type Specialist = "entertainer" | "taxman" | "scientist";
 
-export type Production = { kind: "unit"; id: string } | { kind: "building"; id: string } | { kind: "wonder"; id: string };
+export type Production =
+  | { kind: "unit"; id: string }
+  | { kind: "building"; id: string }
+  | { kind: "wonder"; id: string }
+  | { kind: "spaceship"; id: SpacePart };
 
 export interface City {
   id: number;
@@ -139,6 +144,7 @@ export interface Player {
   pendingGovernment: string | null;
   /** Chieftain 0 .. Emperor 4. */
   difficulty: number;
+  spaceship: Spaceship;
 }
 
 export interface GameState {

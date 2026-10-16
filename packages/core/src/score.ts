@@ -56,12 +56,15 @@ export function rankTitle(score: number): string {
 
 export type GameEnd =
   | { kind: "conquest"; winner: number }
+  | { kind: "space"; winner: number }
   | { kind: "defeat" }
   | { kind: "time" }
   | null;
 
-/** The game ends with one civ standing, the human eliminated, or 2100 AD. */
+/** The game ends with colonists landing, one civ standing, the human eliminated, or 2100 AD. */
 export function checkGameEnd(state: GameState, finalTurn: number): GameEnd {
+  const landed = state.players.find((p) => p.spaceship.arrived);
+  if (landed) return { kind: "space", winner: landed.id };
   const alive = state.players.filter((p) => p.alive && p.id !== state.barbarians);
   if (!state.players[0]!.alive) return { kind: "defeat" };
   if (alive.length === 1) return { kind: "conquest", winner: alive[0]!.id };

@@ -63,7 +63,9 @@ turns + baseline AI, diplomacy, save/load, title/setup, advisors, end conditions
    Caravans done (help wonder, trade routes: mutual `City.routes`, bonus on opening, route trade in
    `computeCity`). Pollution (per-city chance from shields and industrial population, halved tile output, settler
    clean-up, global warming when it spreads), railroads (free moves, +50% shields) and fortresses
-   (x2 defence, no stack loss) done. Diplomats and the spaceship are not implemented.
+   (x2 defence, no stack loss) done. Spaceship done (`rules/spaceship.ts`: parts after Apollo, launch,
+   flight, landing wins; lost with the capital; F6 screen; the planner races once it knows Space
+   Flight and lands around turn 600-700 in all-AI games). Diplomats are not implemented.
 4. Rename uses `prompt()`; diplomacy exchange offers first-for-first only.
 5. Phase 8 — modern-visuals renderer behind the same screen API; swap `renderer-retro`.
 6. Mobile: PWA + touch adapter in apps/web (input is already centralised in main.ts).

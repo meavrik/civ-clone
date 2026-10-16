@@ -70,7 +70,7 @@ export interface GameResult {
   config: GameConfig;
   /** Rounds actually played. */
   turns: number;
-  end: "conquest" | "turns";
+  end: "conquest" | "space" | "turns";
   /** Sole survivor, or the top scorer at the turn limit. */
   winner: number | null;
   players: PlayerStats[];
@@ -197,6 +197,7 @@ export function runGame(config: GameConfig, onSample?: (s: Sample) => void): Gam
       onSample?.(s);
     }
     if (aliveCivs(state).length <= 1) { end = "conquest"; break; }
+    if (state.players.some((p) => p.spaceship.arrived)) { end = "space"; break; }
   }
   const final = sample(state, config);
   samples.push(final);
@@ -204,6 +205,7 @@ export function runGame(config: GameConfig, onSample?: (s: Sample) => void): Gam
   const alive = final.players.filter((p) => p.alive);
   let winner: number | null = null;
   if (end === "conquest") winner = alive[0]?.id ?? null;
+  else if (end === "space") winner = state.players.find((p) => p.spaceship.arrived)?.id ?? null;
   else if (alive.length) winner = alive.reduce((a, b) => (b.score > a.score ? b : a)).id;
   return {
     seed: config.seed,

@@ -16,6 +16,7 @@ import {
   coastal,
   computeCity,
   defenseStrength,
+  FINAL_TURN,
   findPath,
   getTile,
   government,
@@ -26,6 +27,7 @@ import {
   NEIGHBOURS,
   nextInt,
   radiusTile,
+  shipStats,
   CITY_RADIUS,
   Terrain,
   TERRAIN_RULES,
@@ -42,6 +44,8 @@ import {
   type GameState,
   type Player,
   type Production,
+  type SpacePart,
+  type Spaceship,
   type Unit,
   type WorkKind,
 } from "@civ/core";
@@ -65,6 +69,7 @@ export function plannerTurn(state: GameState): void {
   manageResearch(state, ctx);
   manageGovernment(state, ctx);
   manageDiplomacy(state, ctx);
+  manageSpaceship(state, ctx);
   manageCities(state, ctx);
   manageRates(state, ctx);
   rebalanceGarrisons(state, ctx);
@@ -123,6 +128,8 @@ interface Ctx {
   wonderSite: City | null;
   /** Caravans alive or ordered this turn. */
   caravans: number;
+  /** The Apollo Program stands and we can build parts: the race is on. */
+  spaceRace: boolean;
 }
 
 function dist(state: GameState, x1: number, y1: number, x2: number, y2: number): number {
@@ -171,12 +178,16 @@ function analyse(state: GameState, me: number): Ctx {
     let near = 0;
     for (const h of hostile) if (dist(state, h.x, h.y, c.x, c.y) <= 3) near++;
     threat.set(c.id, near);
+    // Republics pay a shield for every unit, so they keep lean garrisons unless trouble is near.
+    const lean = p.government === "republic" || p.government === "democracy";
     let w = 1;
-    if (c.size >= 5) w++;
     if (near > 0) w++;
     if (near >= 3) w++;
-    if (state.turn >= 120 && coastal(state, c)) w++;
-    if (foreignCities.some((f) => dist(state, f.x, f.y, c.x, c.y) <= 6)) w++;
+    if (!lean) {
+      if (c.size >= 5) w++;
+      if (state.turn >= 120 && coastal(state, c)) w++;
+      if (foreignCities.some((f) => dist(state, f.x, f.y, c.x, c.y) <= 6)) w++;
+    }
     if (state.turn < 20) w = 1;
     wanted.set(c.id, Math.min(4, w));
   }
@@ -206,13 +217,14 @@ function analyse(state: GameState, me: number): Ctx {
   for (const u of state.units) if (u.owner !== me) foreignUnitTiles.add(u.y * state.map.width + u.x);
   let wonderSite: City | null = null;
   for (const c of cities) if (c.production.kind === "wonder" && wonder(c.production.id).cost - c.shields >= 100) { wonderSite = c; break; }
+  const spaceRace = wonderBuilt(state, "apollo_program") && p.advances.includes("space_flight") && p.spaceship.launched === null && !p.spaceship.arrived;
   return {
-    tileWorker, foreignUnitTiles, jobs: new Map(), wonderSite,
+    tileWorker, foreignUnitTiles, jobs: new Map(), wonderSite, spaceRace,
     caravans: units.filter((u) => unitType(u.type).flags?.includes("caravan")).length,
     me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, income, science, sites,
     wantMoreCities: cities.length < 24,
     military: units.filter(isMilitary).length,
-    militaryCap: cities.length * (atWarNow ? 4 : 2) + 2,
+    militaryCap: Math.floor(cities.length * (atWarNow ? 4 : p.government === "republic" || p.government === "democracy" ? 1.5 : 2)) + 2,
     armyWanted: atWarNow ? 2 + cities.length : Math.ceil(cities.length / 3),
     workersWanted: cities.length >= 3 ? Math.floor(cities.length / 3) : 0,
     scoutsWanted: state.turn < 150 ? Math.max(0, Math.min(2, 1 + Math.floor(cities.length / 4)) - units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length) : 0,
@@ -262,13 +274,13 @@ function findSites(state: GameState, me: number, continents: Set<number>, cities
       let tooClose = false;
       for (const c of state.cities) {
         const d = dist(state, c.x, c.y, x, y);
-        if (d < 3 || (c.owner !== me && d < 4)) { tooClose = true; break; }
+        if (d < 4) { tooClose = true; break; }
         if (c.owner === me && d < ownNear) ownNear = d;
       }
       if (tooClose || canFoundCity(state, x, y) !== null) continue;
       const s = siteScore(state, x, y);
       if (s === null) continue;
-      const compact = cities.length === 0 ? 0 : ownNear <= 5 ? 6 : ownNear <= 7 ? 2 : -4;
+      const compact = cities.length === 0 ? 0 : ownNear <= 6 ? 6 : ownNear <= 8 ? 2 : -4;
       out.push({ x, y, score: s + compact });
     }
   }
@@ -327,7 +339,7 @@ function manageResearch(state: GameState, ctx: Ctx): void {
 function bestGovernment(state: GameState, ctx: Ctx): string {
   const avail = governmentsAvailable(state, ctx.me);
   const abroad = ctx.units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length;
-  if (avail.includes("republic") && ctx.atWarWith.length === 0 && ctx.cities.length >= 6 && abroad <= 1 && ctx.turn >= 100) return "republic";
+  if (avail.includes("republic") && ctx.atWarWith.length === 0 && ctx.cities.length >= 6 && abroad <= 1 && ctx.turn >= 100 && ctx.military <= ctx.cities.length * 1.5) return "republic";
   if (avail.includes("monarchy")) return "monarchy";
   return "despotism";
 }
@@ -394,6 +406,31 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
   }
 }
 
+// ---- spaceship -----------------------------------------------------------------------
+
+/** Launch a sound ship, or any ship that can fly once a rival has launched or time runs short. */
+function manageSpaceship(state: GameState, ctx: Ctx): void {
+  const ship = ctx.p.spaceship;
+  const st = shipStats(ship);
+  if (!st.launchable) return;
+  const rivalFlying = state.players.some((o) => o.id !== ctx.me && o.alive && o.spaceship.launched !== null);
+  const lateGame = ctx.turn + st.flightTurns + 10 >= FINAL_TURN;
+  const sound = st.successPct >= 60 && st.components >= 4;
+  if (sound || (rivalFlying && st.successPct >= 40) || lateGame) applyCommand(state, { type: "launch" });
+}
+
+/** The next part worth building: structurals stay a step ahead of what they carry, then habitats, then engines. */
+function nextSpacePart(ship: Spaceship, options: Production[]): Production | undefined {
+  const can = (id: SpacePart) => options.find((o) => o.kind === "spaceship" && o.id === id);
+  if (ship.structurals < ship.components + ship.modules + 1) return can("structural");
+  if (ship.modules < 6) return can("module") ?? can("structural");
+  if (ship.components < 6) return can("component") ?? can("structural");
+  if (ship.structurals < 14) return can("structural");
+  if (ship.modules < 9) return can("module");
+  if (ship.components < 10) return can("component");
+  return undefined;
+}
+
 // ---- cities --------------------------------------------------------------------------
 
 function garrison(state: GameState, ctx: Ctx, c: City): Unit[] {
@@ -426,6 +463,7 @@ function bestUnit(options: Production[], stat: "attack" | "defense"): Production
 const FALLBACK_BUILDINGS = new Set(["temple", "library", "marketplace", "granary", "courthouse", "aqueduct", "university", "bank", "colosseum", "cathedral"]);
 
 const WONDER_ORDER = [
+  "apollo_program", // the gate to the space race, first the moment Space Flight is known
   "hanging_gardens", "colossus", "great_library", "oracle", "michelangelos", "copernicus", "shakespeares",
   "js_bachs", "isaac_newtons", "great_wall", "darwins_voyage", "womens_suffrage", "hoover_dam", "seti_program", "magellans",
   "cure_for_cancer", "pyramids", "united_nations", "lighthouse",
@@ -513,6 +551,10 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
       if (cv) return cv;
     }
   }
+  if (ctx.spaceRace && r.shields >= 5 && threat === 0) {
+    const part = nextSpacePart(ctx.p.spaceship, options);
+    if (part) return part;
+  }
   if (wonderCity && r.shields >= 5 && threat === 0 && (ctx.cities.length >= 4 || ctx.turn >= 80)) {
     for (const id of WONDER_ORDER) {
       const w = pick("wonder", id);
@@ -572,10 +614,12 @@ function manageCities(state: GameState, ctx: Ctx): void {
   const settlersOut = ctx.units.filter((u) => unitType(u.type).flags?.includes("settler") && u.order.kind !== "work").length;
   const army = ctx.units.filter(isAttacker).length;
   const military = ctx.units.filter(isMilitary).length;
-  const buildingWonder = ctx.cities.some((c) => c.production.kind === "wonder");
+  // One wonder city, two once the empire is large; the best shield city that is not already on one.
+  const wonderBuilders = ctx.cities.filter((c) => c.production.kind === "wonder").length;
   let wonderCity: City | null = null;
-  if (!buildingWonder) {
+  if (wonderBuilders < (ctx.cities.length >= 12 ? 2 : 1)) {
     for (const c of ctx.cities) {
+      if (c.production.kind === "wonder") continue;
       const r = ctx.reports.get(c.id)!;
       if (!wonderCity || r.shields > ctx.reports.get(wonderCity.id)!.shields) wonderCity = c;
     }
@@ -714,6 +758,12 @@ function fixDisorder(state: GameState, ctx: Ctx, c: City): void {
     const r2 = computeCity(state, c);
     if (r2.disorder) { applyCommand(state, { type: "toggleTile", city: c.id, slot: best }); break; }
     r = r2;
+  }
+  // Entertainers nobody needs for order do more good as scientists.
+  for (let i = 0; i < c.specialists.length && guard++ < 16; i++) {
+    if (c.specialists[i] !== "entertainer") continue;
+    applyCommand(state, { type: "setSpecialist", city: c.id, index: i, specialist: "scientist" });
+    if (computeCity(state, c).disorder) { applyCommand(state, { type: "setSpecialist", city: c.id, index: i, specialist: "entertainer" }); break; }
   }
   reindexCity(state, ctx, c);
 }

@@ -11,3 +11,4 @@ export * from "./screens/discovery.js";
 export * from "./screens/title.js";
 export * from "./screens/advisors.js";
 export * from "./screens/diplomacy.js";
+export * from "./screens/spaceship.js";

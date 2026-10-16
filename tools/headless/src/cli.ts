@@ -101,7 +101,7 @@ function printSample(s: Sample): void {
 }
 
 function printGame(index: number, r: GameResult, verified: boolean | null): void {
-  const end = r.end === "conquest" ? "conquest" : "turn limit";
+  const end = r.end === "conquest" ? "conquest" : r.end === "space" ? "spaceship" : "turn limit";
   const winner = r.winner === null ? "nobody" : r.players.find((p) => p.id === r.winner)!.civ;
   const check = verified === null ? "" : verified ? "  replay ok" : "  REPLAY MISMATCH";
   console.log(`game ${index + 1}  seed ${r.seed}  ${r.turns} turns  ${end}  winner: ${winner}  ${(r.ms / 1000).toFixed(1)}s${check}`);
@@ -133,7 +133,8 @@ function printSummary(results: GameResult[]): void {
   }
   const totalMs = results.reduce((s, r) => s + r.ms, 0);
   const conquests = results.filter((r) => r.end === "conquest").length;
-  console.log(`\nsummary: ${results.length} game(s), ${conquests} by conquest, ${(totalMs / 1000).toFixed(1)}s total`);
+  const landings = results.filter((r) => r.end === "space").length;
+  console.log(`\nsummary: ${results.length} game(s), ${conquests} by conquest, ${landings} by spaceship, ${(totalMs / 1000).toFixed(1)}s total`);
   console.log("  ai            seats  wins  alive  cities    pop  techs  score   (means per seat)");
   for (const [ai, a] of byAi) {
     const m = (v: number) => (v / a.games).toFixed(1).padStart(6);

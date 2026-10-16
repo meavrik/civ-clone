@@ -29,6 +29,7 @@ import {
   relation,
   routeBonus,
   runAiPlayers,
+  shipStats,
   turnToYear,
   unitAt,
   unitById,
@@ -56,6 +57,7 @@ import {
   drawRatesScreen,
   drawScienceScreen,
   drawScoreScreen,
+  drawSpaceshipScreen,
   drawStatusLine,
   drawTitleScreen,
   leaderLine,
@@ -111,6 +113,7 @@ type Screen =
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
   | { kind: "diplomacy"; player: number; line: string }
   | { kind: "end"; lines: string[]; rank: string }
+  | { kind: "spaceship" }
   | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void };
 
 let screenState: Screen = { kind: "title" };
@@ -293,6 +296,7 @@ function openGameMenu(): void {
   const items: [string, () => void][] = [
     ["Save game", () => openSaveMenu()],
     ["Load game", () => openLoadMenu()],
+    ["Spaceship (F6)", () => { screenState = { kind: "spaceship" }; }],
     ["Retire (end game)", () => endGame({ kind: "time" })],
     ["New game", () => { screenState = { kind: "title" }; }],
   ];
@@ -364,6 +368,9 @@ function eventMessage(ev: TurnEvent): string | null {
       case "eliminated": return `The ${state.players[ev.player]?.name} civilization has been destroyed.`;
       case "tradeRoute": return `Trade route ${ev.from}-${ev.to}: +${ev.bonus} gold and science`;
       case "globalWarming": return "Global warming! Fields wither and forests turn to jungle.";
+      case "spaceLaunched": return ev.player === 0 ? "Our spaceship is on its way." : `The ${state.players[ev.player]?.name} have launched a spaceship!`;
+      case "spaceArrived": return ev.player === 0 ? "Our colonists have landed!" : `The ${state.players[ev.player]?.name} have reached their new world.`;
+      case "spaceLost": return ev.player === 0 ? "Our spaceship is lost!" : `The ${state.players[ev.player]?.name} spaceship is lost.`;
       case "hut": {
         const r = ev.result;
         return r.kind === "gold" ? `The tribe gives you ${r.amount} gold.`
@@ -423,6 +430,7 @@ function endGame(end: NonNullable<ReturnType<typeof checkGameEnd>>): void {
   const me = computeScore(state, 0);
   const lines = [
     end.kind === "conquest" ? (end.winner === 0 ? "You have conquered the world!" : `The ${state.players[end.winner]!.name} rule the world.`)
+      : end.kind === "space" ? (end.winner === 0 ? "Your colonists have reached a new world!" : `The ${state.players[end.winner]!.name} have colonized the stars.`)
       : end.kind === "defeat" ? "Your civilization has been destroyed." : `The year is ${formatYear(turnToYear(state.turn))}. Your reign ends.`,
     "",
     `Citizens: ${me.citizens}`,
@@ -447,6 +455,7 @@ function endTurn(): void {
       if (ev.kind === "contact" && ev.player === 0) events.push({ kind: "contact", player: ai });
       else if ((ev.kind === "cityLost" || ev.kind === "cityCaptured") && ev.player === 0) events.push(ev);
       else if (ev.kind === "eliminated" || ev.kind === "barbarians" || ev.kind === "globalWarming") events.push(ev);
+      else if (ev.kind === "spaceLaunched" || ev.kind === "spaceArrived" || ev.kind === "spaceLost") events.push(ev);
     }
   }
   for (const ev of lastTurnEvents) if (ev.kind === "contact" || ev.kind === "eliminated") events.push(ev);
@@ -530,6 +539,7 @@ function mapKey(e: KeyboardEvent): void {
     case "F3": e.preventDefault(); screenState = { kind: "advisor", which: "foreign" }; break;
     case "F4": e.preventDefault(); screenState = { kind: "science" }; break;
     case "F5": e.preventDefault(); screenState = { kind: "advisor", which: "score" }; break;
+    case "F6": e.preventDefault(); screenState = { kind: "spaceship" }; break;
     case "F10": e.preventDefault(); openGameMenu(); break;
     case "Escape": if (active !== null) openActionMenu(active); else openGameMenu(); break;
     case "KeyG": {
@@ -632,9 +642,21 @@ addEventListener("keydown", (e) => {
     case "discovery": sc.then(); break;
     case "diplomacy": screenState = { kind: "map" }; break;
     case "end": screenState = { kind: "title" }; break;
+    case "spaceship":
+      if (e.code === "Escape" || e.code === "F6") screenState = { kind: "map" };
+      else if ((e.code === "Enter" || e.code === "NumpadEnter") && shipStats(state.players[0]!.spaceship).launchable) openLaunchMenu();
+      else advisorHotkey(e);
+      break;
     case "menu": menuKey(e, sc); break;
   }
 });
+
+function openLaunchMenu(): void {
+  const st = shipStats(state.players[0]!.spaceship);
+  menu(`Launch now? ${st.successPct}% success, ${st.flightTurns} turns`, ["Not yet", "Launch!"], (i) => {
+    if (i === 1 && dispatch({ type: "launch" })) say("The spaceship lifts off!", 4000);
+  });
+}
 
 function advisorHotkey(e: KeyboardEvent): void {
   const map: Record<string, Screen> = {
@@ -643,6 +665,7 @@ function advisorHotkey(e: KeyboardEvent): void {
     F3: { kind: "advisor", which: "foreign" },
     F4: { kind: "science" },
     F5: { kind: "advisor", which: "score" },
+    F6: { kind: "spaceship" },
   };
   const next = map[e.code];
   if (next) { e.preventDefault(); screenState = next; }
@@ -670,7 +693,7 @@ canvas.addEventListener("mousedown", (e) => {
     case "discovery": sc.then(); return;
     case "end": screenState = { kind: "title" }; return;
     case "diplomacy": screenState = { kind: "map" }; return;
-    case "rates": case "science": screenState = { kind: "map" }; return;
+    case "rates": case "science": case "spaceship": screenState = { kind: "map" }; return;
     case "advisor":
       if (sc.which === "foreign") openForeignTalkMenu(); else screenState = { kind: "map" };
       return;
@@ -755,6 +778,7 @@ function draw(sc: Screen): void {
       break;
     case "diplomacy": drawDiplomacyScreen(screen, state, sc.player, sc.line); break;
     case "end": drawEndScreen(screen, sc.lines, sc.rank); break;
+    case "spaceship": drawSpaceshipScreen(screen, state); break;
     case "menu":
       draw(sc.under);
       drawMenu(screen, sc.menu);

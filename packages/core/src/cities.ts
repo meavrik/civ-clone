@@ -1,4 +1,5 @@
 import { knows } from "./rules/advances.js";
+import { addPart, partCount, SPACE_PARTS, spacePart } from "./rules/spaceship.js";
 import { building, BUILDINGS } from "./rules/buildings.js";
 import { wonder, WONDERS, type WonderRule } from "./rules/wonders.js";
 import { government } from "./rules/governments.js";
@@ -172,11 +173,11 @@ export function foodBox(city: City): number {
 }
 
 export function productionCost(p: Production): number {
-  return p.kind === "unit" ? unitType(p.id).cost : p.kind === "wonder" ? wonder(p.id).cost : building(p.id).cost;
+  return p.kind === "unit" ? unitType(p.id).cost : p.kind === "wonder" ? wonder(p.id).cost : p.kind === "spaceship" ? spacePart(p.id).cost : building(p.id).cost;
 }
 
 export function productionName(p: Production): string {
-  return p.kind === "unit" ? unitType(p.id).name : p.kind === "wonder" ? wonder(p.id).name : building(p.id).name;
+  return p.kind === "unit" ? unitType(p.id).name : p.kind === "wonder" ? wonder(p.id).name : p.kind === "spaceship" ? spacePart(p.id).name : building(p.id).name;
 }
 
 /** Active (non-obsolete) wonders owned by a player, with the city holding each. */
@@ -559,6 +560,11 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
       }
       city.shields -= cost;
       events.push({ city: city.id, kind: "built", detail: unitType(p.id).name });
+    } else if (p.kind === "spaceship") {
+      addPart(player.spaceship, p.id);
+      city.shields -= cost;
+      events.push({ city: city.id, kind: "built", detail: spacePart(p.id).name });
+      city.production = { kind: "unit", id: "militia" };
     } else if (p.kind === "wonder") {
       if (wonderBuilt(state, p.id)) {
         // Someone else finished it first: the shields stay for the next choice.
@@ -603,6 +609,9 @@ export function buildOptions(state: GameState, city: City): Production[] {
     if (w.obsolete && knows(p.advances, w.obsolete)) continue;
     out.push({ kind: "wonder", id: w.id });
   }
+  if (wonderBuilt(state, "apollo_program") && p.spaceship.launched === null)
+    for (const part of SPACE_PARTS)
+      if (knows(p.advances, part.requires) && partCount(p.spaceship, part.id) < part.max) out.push({ kind: "spaceship", id: part.id });
   return out;
 }
 
