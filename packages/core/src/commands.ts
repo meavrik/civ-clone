@@ -274,11 +274,7 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
   applyMove(state, u, dx, dy, r);
   revealAround(state, u.owner, u.x, u.y, unitType(u.type).sight);
   for (const c of cargo(state, u)) revealAround(state, u.owner, c.x, c.y, 1);
-  const landed = getTile(state.map, u.x, u.y)!;
-  if (landed.hut && unitType(u.type).domain === "land") {
-    landed.hut = false;
-    lastTurnEvents.push({ kind: "hut", result: openHut(state, u) });
-  }
+  enterHut(state, u);
   recomputeVisibility(state, u.owner);
   for (const met of detectContacts(state, u.owner)) lastTurnEvents.push({ kind: "contact", player: met });
   if (u.movesLeft === 0 || r.board !== undefined) selectNextUnit(state, u.id);
@@ -294,15 +290,25 @@ export function runGoto(state: GameState, u: Unit): void {
     if (!path || path.length === 0) { u.order = { kind: "none" }; return; }
     const [dx, dy] = stepDir(state, u, path[0]!);
     const r = checkMove(state, u, dx, dy);
-    if (!r.ok) { u.order = { kind: "none" }; return; } // enemy in the way: ask the player
+    // An enemy unit or a foreign city in the way: stop and ask the player (an attack or a capture is their call).
+    if (!r.ok || r.enemyCity) { u.order = { kind: "none" }; return; }
     const goal: Unit["order"] = u.order;
     applyMove(state, u, dx, dy, r);
     revealAround(state, u.owner, u.x, u.y, unitType(u.type).sight);
+    enterHut(state, u);
     if (r.board !== undefined) return; // boarded: stay sentried on the ship
     u.order = goal; // applyMove clears standing orders
     if (u.x === x && u.y === y) u.order = { kind: "none" };
   }
   recomputeVisibility(state, u.owner);
+}
+
+/** A land unit arriving on a village opens it, whether it walked or followed a goto. */
+function enterHut(state: GameState, u: Unit): void {
+  const landed = getTile(state.map, u.x, u.y)!;
+  if (!landed.hut || unitType(u.type).domain !== "land") return;
+  landed.hut = false;
+  lastTurnEvents.push({ kind: "hut", result: openHut(state, u) });
 }
 
 /** Enter a minor tribe's village: gold, an advance, a mercenary unit, or an ambush. */

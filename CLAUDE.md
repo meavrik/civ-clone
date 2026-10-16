@@ -19,7 +19,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `packages/core` — deterministic game engine, zero DOM. Rules as data in `src/rules/*`
   (terrain, units, buildings, wonders, advances, governments, civs). Map gen, cities,
   combat, pathfinding, diplomacy, barbarians, save/score. Entry: `src/index.ts`.
-- `packages/ai` — baseline opponent (`aiTurn(state)`), speaks only `Command`s.
+- `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v2, shipped as `aiTurn`) and
+  `baseline.ts` (v1, kept as the tournament yardstick). The planner is stateless between turns: it
+  re-derives the empire picture (`analyse`) from `GameState` every turn, so replays stay exact.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, code-drawn `tiles.ts`/`overlays.ts`, `widgets.ts` (panel/menu/box), one file
   per screen in `src/screens/*`.
@@ -50,9 +52,11 @@ turns + baseline AI, diplomacy, save/load, title/setup, advisors, end conditions
 
 1. Verify the tech-tree edges (`rules/advances.ts`) and numeric tables against FreeCiv's
    civ1 ruleset (read it, don't paste it; it's GPL). Data-only change.
-2. Phase 7 — AI v2: harness done (`tools/headless`). Next a planning AI (continent awareness,
-   tech beelines, unit composition, threat assessment), registered in `AIS` so it can be pitted
-   against `baseline`. Keep `aiTurn` signature.
+2. Phase 7 — AI v2 done: harness (`tools/headless`) + planner. At 300 turns / 4 civs the planner
+   averages ~22 cities, ~43 techs, score ~200 vs the baseline's ~4 / ~8 / ~27. Open AI gaps: no naval
+   expansion or transport (settlers never leave the home continent), no tech trading, wars rarely end
+   in conquest, late games with 100-unit armies run slowly (profile `findPath`/`state.units.filter`).
+   Measure any AI change with `npm run headless -- --ai planner,baseline --games 8 --verify`.
 3. Unbound wonders: Great Library, Great Wall (partially), Lighthouse, Magellan's,
    Women's Suffrage, UN. Caravans/trade routes, diplomats, pollution, spaceship not implemented.
 4. Rename uses `prompt()`; diplomacy exchange offers first-for-first only.

@@ -370,6 +370,7 @@ function eventMessage(ev: TurnEvent): string | null {
     case "disorder": return `Civil disorder in ${name}!`;
     case "starving": return `${name} is starving`;
     case "famine": return `Famine in ${name}: ${ev.detail} lost`;
+    case "sold": return `${name} sells its ${ev.detail} to pay the bills`;
   }
 }
 

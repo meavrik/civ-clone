@@ -1,0 +1,951 @@
+import {
+  advance,
+  applyCommand,
+  atWar,
+  attackStrength,
+  availableAdvances,
+  bestDefender,
+  building,
+  buildOptions,
+  buyCost,
+  canFoundCity,
+  cityAt,
+  coastal,
+  computeCity,
+  defenseStrength,
+  findPath,
+  getTile,
+  government,
+  governmentsAvailable,
+  hasContact,
+  hasWaterNearby,
+  NEIGHBOURS,
+  nextInt,
+  slotAvailable,
+  radiusTile,
+  CITY_RADIUS,
+  Terrain,
+  TERRAIN_RULES,
+  tileYield,
+  unitById,
+  unitType,
+  wonderBuilt,
+  wrapX,
+  type City,
+  type CityReport,
+  type GameState,
+  type Player,
+  type Production,
+  type Unit,
+} from "@civ/core";
+import { baselineTurn } from "./baseline.js";
+
+/**
+ * Planning opponent (AI v2). Once per turn it sizes up the empire — home
+ * continent, free city sites, threats around each city, who is worth a
+ * war — and then lets that picture drive research beelines, government,
+ * tax rates, city production, purchases, and unit orders. Everything is
+ * derived from `GameState` each turn (no memory between calls) and all
+ * randomness comes from `state.rng`, so games replay exactly.
+ */
+export function plannerTurn(state: GameState): void {
+  const me = state.currentPlayer;
+  const p = state.players[me]!;
+  if (!p.isAi) return;
+  if (me === state.barbarians) { baselineTurn(state); return; }
+
+  const ctx = analyse(state, me);
+  manageResearch(state, ctx);
+  manageGovernment(state, ctx);
+  manageDiplomacy(state, ctx);
+  manageCities(state, ctx);
+  manageRates(state, ctx);
+  rebalanceGarrisons(state, ctx);
+
+  let guard = 0;
+  while (state.activeUnit !== null && guard++ < 600) {
+    const u = unitById(state, state.activeUnit);
+    if (!u) break;
+    const before = { x: u.x, y: u.y, moves: u.movesLeft, order: u.order.kind };
+    orderUnit(state, ctx, u);
+    const same = state.activeUnit === u.id && u.x === before.x && u.y === before.y && u.movesLeft === before.moves && u.order.kind === before.order;
+    if (same) applyCommand(state, { type: "skip", unit: u.id });
+  }
+}
+
+// ---- empire picture ----------------------------------------------------------
+
+interface Site { x: number; y: number; score: number }
+
+interface Ctx {
+  me: number;
+  p: Player;
+  turn: number;
+  cities: City[];
+  units: Unit[];
+  reports: Map<number, CityReport>;
+  /** Owners whose units may be attacked (at war, plus barbarians). */
+  enemies: Set<number>;
+  atWarWith: number[];
+  /** Continent ids where I have cities (or settlers, before the first city). */
+  continents: Set<number>;
+  /** Hostile land units within 3 tiles of each city. */
+  threat: Map<number, number>;
+  wanted: Map<number, number>;
+  /** Nearest enemy city reachable over land, if any. */
+  warTarget: City | null;
+  income: number;
+  /** Beakers per turn across the empire; zero means the civ is not getting any trade. */
+  science: number;
+  /** Lazily computed candidate city sites on my continents. */
+  sites: () => Site[];
+  wantMoreCities: boolean;
+  military: number;
+  militaryCap: number;
+  armyWanted: number;
+  workersWanted: number;
+  /** Extra military units to send out looking for land, early on. */
+  scoutsWanted: number;
+}
+
+function dist(state: GameState, x1: number, y1: number, x2: number, y2: number): number {
+  const dx = Math.abs(x1 - x2);
+  return Math.max(Math.min(dx, state.map.width - dx), Math.abs(y1 - y2));
+}
+
+function isMilitary(u: Unit): boolean {
+  const t = unitType(u.type);
+  return t.domain === "land" && t.attack > 0;
+}
+
+function isAttacker(u: Unit): boolean {
+  const t = unitType(u.type);
+  return t.attack > t.defense || (t.attack >= 2 && t.moves >= 2);
+}
+
+function analyse(state: GameState, me: number): Ctx {
+  const p = state.players[me]!;
+  const cities = state.cities.filter((c) => c.owner === me);
+  const units = state.units.filter((u) => u.owner === me);
+  const reports = new Map<number, CityReport>();
+  let income = 0;
+  let science = 0;
+  for (const c of cities) {
+    const r = computeCity(state, c);
+    reports.set(c.id, r);
+    income += r.tax - r.buildingUpkeep;
+    science += r.science;
+  }
+  const enemies = new Set<number>([state.barbarians]);
+  const atWarWith: number[] = [];
+  for (const o of state.players) {
+    if (o.id === me || o.id === state.barbarians || !o.alive) continue;
+    if (atWar(state, me, o.id)) { enemies.add(o.id); atWarWith.push(o.id); }
+  }
+  const continents = new Set<number>();
+  for (const c of cities) continents.add(getTile(state.map, c.x, c.y)!.continent);
+  if (continents.size === 0) for (const u of units) continents.add(getTile(state.map, u.x, u.y)!.continent);
+
+  const hostile = state.units.filter((u) => enemies.has(u.owner) && isMilitary(u) && u.aboard === null);
+  const threat = new Map<number, number>();
+  const wanted = new Map<number, number>();
+  const foreignCities = state.cities.filter((c) => c.owner !== me && c.owner !== state.barbarians);
+  for (const c of cities) {
+    let near = 0;
+    for (const h of hostile) if (dist(state, h.x, h.y, c.x, c.y) <= 3) near++;
+    threat.set(c.id, near);
+    let w = 1;
+    if (c.size >= 5) w++;
+    if (near > 0) w++;
+    if (near >= 3) w++;
+    if (state.turn >= 120 && coastal(state, c)) w++;
+    if (foreignCities.some((f) => dist(state, f.x, f.y, c.x, c.y) <= 6)) w++;
+    if (state.turn < 20) w = 1;
+    wanted.set(c.id, Math.min(4, w));
+  }
+
+  let warTarget: City | null = null;
+  let best = 15;
+  for (const c of state.cities) {
+    if (!atWarWith.includes(c.owner) || !continents.has(getTile(state.map, c.x, c.y)!.continent)) continue;
+    for (const mine of cities) {
+      const d = dist(state, c.x, c.y, mine.x, mine.y);
+      if (d < best) { best = d; warTarget = c; }
+    }
+  }
+
+  let cached: Site[] | null = null;
+  const sites = () => (cached ??= findSites(state, me, continents, cities));
+  const atWarNow = atWarWith.length > 0;
+  return {
+    me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, income, science, sites,
+    wantMoreCities: cities.length < 24,
+    military: units.filter(isMilitary).length,
+    militaryCap: cities.length * (atWarNow ? 4 : 2) + 2,
+    armyWanted: atWarNow ? 2 + cities.length : Math.ceil(cities.length / 3),
+    workersWanted: cities.length >= 3 ? Math.floor(cities.length / 3) : 0,
+    scoutsWanted: state.turn < 150 ? Math.max(0, Math.min(2, 1 + Math.floor(cities.length / 4)) - units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length) : 0,
+  };
+}
+
+// ---- city sites ----------------------------------------------------------------
+
+const CENTRE_OK = new Set([Terrain.Grassland, Terrain.Plains, Terrain.Hills, Terrain.Desert, Terrain.Forest]);
+
+/** Value of founding a city at (x, y): yields of the 21-tile radius plus terrain bonuses; null if unfit. */
+export function siteScore(state: GameState, x: number, y: number): number | null {
+  const t = getTile(state.map, x, y);
+  if (!t || !CENTRE_OK.has(t.terrain)) return null;
+  if ((t.terrain === Terrain.Desert || t.terrain === Terrain.Forest) && !t.river) return null;
+  let score = 0;
+  let land = 0;
+  let sea = 0;
+  for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
+    const [dx, dy] = CITY_RADIUS[slot]!;
+    const n = getTile(state.map, x + dx, y + dy);
+    if (!n) continue;
+    if (n.terrain === Terrain.Ocean) sea++;
+    else land++;
+    const yld = tileYield(state, n, false, "monarchy");
+    score += yld.food * 3 + yld.shields * 2 + yld.trade * 1.5;
+    if (n.special) score += 2;
+  }
+  if (land < 7) return null;
+  if (t.river) score += 5;
+  if (t.terrain === Terrain.Hills) score += 3;
+  if (sea > 0) score += 2;
+  return score;
+}
+
+function findSites(state: GameState, me: number, continents: Set<number>, cities: City[]): Site[] {
+  const p = state.players[me]!;
+  const { width: w, height: h } = state.map;
+  const out: Site[] = [];
+  for (let y = 2; y < h - 2; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (!p.explored[i]) continue;
+      const t = state.map.tiles[i]!;
+      if (!continents.has(t.continent) || !CENTRE_OK.has(t.terrain)) continue;
+      let ownNear = 99;
+      let tooClose = false;
+      for (const c of state.cities) {
+        const d = dist(state, c.x, c.y, x, y);
+        if (d < 3 || (c.owner !== me && d < 4)) { tooClose = true; break; }
+        if (c.owner === me && d < ownNear) ownNear = d;
+      }
+      if (tooClose || canFoundCity(state, x, y) !== null) continue;
+      const s = siteScore(state, x, y);
+      if (s === null) continue;
+      const compact = cities.length === 0 ? 0 : ownNear <= 5 ? 6 : ownNear <= 7 ? 2 : -4;
+      out.push({ x, y, score: s + compact });
+    }
+  }
+  return out;
+}
+
+// ---- research ----------------------------------------------------------------------
+
+const GOALS = [
+  "bronze_working", "alphabet", "ceremonial_burial", "code_of_laws", "monarchy", "currency", "writing", "pottery",
+  "trade", "literacy", "masonry", "mathematics", "iron_working", "philosophy", "horseback_riding", "the_wheel",
+  "construction", "astronomy", "university", "the_republic", "feudalism", "chivalry", "banking", "monotheism", "medicine",
+  "navigation", "invention", "gunpowder", "physics", "theory_of_gravity", "engineering", "bridge_building", "metallurgy",
+  "conscription", "magnetism", "democracy", "steam_engine", "railroad", "industrialization", "electricity",
+  "the_corporation", "explosives", "chemistry", "refining", "combustion", "steel", "automobile", "electronics", "flight",
+  "mass_production", "advanced_flight", "communism", "labor_union", "computers", "rocketry", "atomic_theory",
+  "nuclear_fission", "nuclear_power", "space_flight", "plastics", "superconductor", "robotics", "recycling",
+  "genetic_engineering", "fusion_power", "future_tech",
+];
+const WAR_GOALS = ["bronze_working", "iron_working", "mathematics", "feudalism", "chivalry", "gunpowder"];
+
+const CLOSURE = new Map<string, Set<string>>();
+function closure(id: string): Set<string> {
+  let s = CLOSURE.get(id);
+  if (s) return s;
+  s = new Set([id]);
+  for (const r of advance(id).requires) for (const x of closure(r)) s.add(x);
+  CLOSURE.set(id, s);
+  return s;
+}
+
+/** The available advance that moves toward the first unmet goal. */
+export function pickResearch(known: string[], atWar: boolean): string | null {
+  const avail = availableAdvances(known);
+  if (avail.length === 0) return null;
+  const have = new Set(known);
+  const goals = atWar ? [...WAR_GOALS, ...GOALS] : GOALS;
+  for (const g of goals) {
+    if (have.has(g)) continue;
+    const need = closure(g);
+    const pick = avail.find((a) => need.has(a.id));
+    if (pick) return pick.id;
+  }
+  return avail[0]!.id;
+}
+
+function manageResearch(state: GameState, ctx: Ctx): void {
+  if (ctx.p.researching !== null) return;
+  const threatened = ctx.atWarWith.length > 0 || [...ctx.threat.values()].some((t) => t > 0);
+  const pick = pickResearch(ctx.p.advances, threatened);
+  if (pick) applyCommand(state, { type: "research", advance: pick });
+}
+
+// ---- government, rates, diplomacy -------------------------------------------------
+
+function bestGovernment(state: GameState, ctx: Ctx): string {
+  const avail = governmentsAvailable(state, ctx.me);
+  const abroad = ctx.units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length;
+  if (avail.includes("republic") && ctx.atWarWith.length === 0 && ctx.cities.length >= 6 && abroad <= 1 && ctx.turn >= 100) return "republic";
+  if (avail.includes("monarchy")) return "monarchy";
+  return "despotism";
+}
+
+function manageGovernment(state: GameState, ctx: Ctx): void {
+  const p = ctx.p;
+  if (p.government === "anarchy") {
+    if (p.anarchyTurns === 0) applyCommand(state, { type: "setGovernment", government: bestGovernment(state, ctx) });
+    return;
+  }
+  const best = bestGovernment(state, ctx);
+  const rank: Record<string, number> = { despotism: 0, monarchy: 1, republic: 2 };
+  const underAttack = [...ctx.threat.values()].some((t) => t > 0);
+  if ((rank[best] ?? 0) > (rank[p.government] ?? 0) && !underAttack) applyCommand(state, { type: "revolution" });
+}
+
+function manageRates(state: GameState, ctx: Ctx): void {
+  const p = ctx.p;
+  const max = government(p.government).maxRate;
+  let tax = p.taxRate;
+  const disorder = [...ctx.reports.values()].filter((r) => r.disorder).length;
+  let lux = ctx.cities.length >= 4 && disorder * 3 >= ctx.cities.length ? 2 : 0;
+  // Science first: raise taxes only when the treasury is about to run dry, ease them once there is a cushion.
+  const floor = 15 + 3 * ctx.cities.length;
+  if (p.gold < floor && ctx.income < 1) tax = Math.min(max, tax + 1);
+  else if (p.gold > 4 * floor && ctx.income >= 0) tax = Math.max(1, tax - 1);
+  let sci = 10 - tax - lux;
+  if (sci > max) { sci = max; tax = 10 - lux - sci; }
+  if (tax > max) { tax = max; lux = 10 - tax - sci; }
+  if (lux > max) return;
+  if (tax !== p.taxRate || lux !== p.luxRate || sci !== p.sciRate) applyCommand(state, { type: "setRates", tax, lux, sci });
+}
+
+function strength(state: GameState, owner: number): number {
+  let s = 0;
+  for (const u of state.units) {
+    if (u.owner !== owner) continue;
+    const t = unitType(u.type);
+    if (t.domain === "land") s += t.attack + t.defense;
+  }
+  return s;
+}
+
+function manageDiplomacy(state: GameState, ctx: Ctx): void {
+  const me = ctx.me;
+  const mine = strength(state, me);
+  const army = ctx.units.filter(isAttacker).length;
+  for (const o of state.players) {
+    if (o.id === me || o.id === state.barbarians || !o.alive || !hasContact(state, me, o.id)) continue;
+    const theirs = strength(state, o.id);
+    if (atWar(state, me, o.id)) {
+      const reachable = state.cities.some((c) => c.owner === o.id && ctx.continents.has(getTile(state.map, c.x, c.y)!.continent));
+      const pointless = !reachable && !state.units.some((u) => u.owner === o.id && ctx.continents.has(getTile(state.map, u.x, u.y)!.continent));
+      if ((mine < theirs * 0.7 || pointless) && nextInt(state.rng, 100) < 20) applyCommand(state, { type: "makePeace", player: o.id });
+      continue;
+    }
+    if (ctx.atWarWith.length > 0 || ctx.turn < 50 || ctx.cities.length < 4 || army < 4) continue;
+    const theirCities = state.cities.filter((c) => c.owner === o.id);
+    const nearby = theirCities.some((c) => ctx.cities.some((m) => dist(state, c.x, c.y, m.x, m.y) <= 10) && ctx.continents.has(getTile(state.map, c.x, c.y)!.continent));
+    if (nearby && theirCities.length <= ctx.cities.length && mine >= theirs * 1.3 && nextInt(state.rng, 100) < 8) {
+      applyCommand(state, { type: "declareWar", player: o.id });
+      return;
+    }
+  }
+}
+
+// ---- cities --------------------------------------------------------------------------
+
+function garrison(state: GameState, ctx: Ctx, c: City): Unit[] {
+  return ctx.units.filter((u) => u.x === c.x && u.y === c.y && isMilitary(u) && u.aboard === null);
+}
+
+/** Military units already marching to a city. */
+function incoming(ctx: Ctx, c: City): number {
+  return ctx.units.filter((u) => isMilitary(u) && u.order.kind === "goto" && u.order.x === c.x && u.order.y === c.y).length;
+}
+
+function shortOfGuards(state: GameState, ctx: Ctx, c: City): boolean {
+  return garrison(state, ctx, c).length + incoming(ctx, c) < (ctx.wanted.get(c.id) ?? 1);
+}
+
+function bestUnit(options: Production[], stat: "attack" | "defense"): Production | undefined {
+  let best: Production | undefined;
+  let score = -1;
+  for (const o of options) {
+    if (o.kind !== "unit") continue;
+    const t = unitType(o.id);
+    if (t.domain !== "land" || t.attack === 0 || t.flags?.length) continue;
+    const s = stat === "defense" ? t.defense * 10 - t.cost / 8 : t.attack * 10 + t.moves * 3 - t.cost / 8;
+    if (s > score) { score = s; best = o; }
+  }
+  return best;
+}
+
+/** Improvements worth having even when nothing calls for them; never barracks, walls or plants. */
+const FALLBACK_BUILDINGS = new Set(["temple", "library", "marketplace", "granary", "courthouse", "aqueduct", "university", "bank", "colosseum", "cathedral", "sewer_system", "stock_exchange"]);
+
+const WONDER_ORDER = [
+  "hanging_gardens", "colossus", "great_library", "oracle", "michelangelos", "king_richards", "copernicus", "shakespeares",
+  "js_bachs", "isaac_newtons", "great_wall", "darwins_voyage", "adam_smiths", "womens_suffrage", "hoover_dam", "magellans",
+  "cure_for_cancer", "pyramids", "united_nations", "lighthouse",
+];
+
+function wantBuilding(state: GameState, ctx: Ctx, c: City, r: CityReport, id: string): number {
+  const has = (b: string) => c.buildings.includes(b);
+  const threat = ctx.threat.get(c.id) ?? 0;
+  switch (id) {
+    case "temple": return c.size >= 3 || r.unhappy > 0 ? 8 + r.unhappy * 3 + (r.disorder ? 10 : 0) : 0;
+    case "library": return r.science >= 3 ? 5 + r.science : 0;
+    case "marketplace": return r.tax + r.lux >= 4 ? 4 + r.tax + (ctx.income <= 1 ? 6 : 0) : 0;
+    case "granary": return c.size >= 5 && r.foodSurplus >= 2 ? 3 : 0;
+    case "courthouse": return r.corruption >= 3 ? 2 + r.corruption : 0;
+    case "aqueduct": return c.size >= 8 ? 20 : c.size >= 7 ? 10 : 0;
+    case "city_walls": return threat > 0 ? 6 + threat * 4 : 0;
+    case "colosseum": return r.unhappy >= 2 && has("temple") ? 7 : 0;
+    case "cathedral": return r.unhappy >= 3 ? 6 : 0;
+    case "university": return r.science >= 8 ? 6 : 0;
+    case "bank": return r.tax >= 8 ? 4 : 0;
+    case "harbour": return 0;
+    case "factory": return r.shields >= 10 ? 8 : 0;
+    case "power_plant": case "hydro_plant": case "nuclear_plant": return r.shields >= 15 ? 4 : 0;
+    case "stock_exchange": return r.tax >= 12 ? 3 : 0;
+    case "sewer_system": return c.size >= 14 ? 5 : 0;
+    default: return 0;
+  }
+}
+
+function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, settlersOut: number, army: number, military: number, wonderCity: boolean): Production | undefined {
+  const options = buildOptions(state, c);
+  const pick = (kind: Production["kind"], id: string) => options.find((o) => o.kind === kind && o.id === id);
+  const here = garrison(state, ctx, c).length;
+  const wanted = ctx.wanted.get(c.id) ?? 1;
+  const p = ctx.p;
+
+  if (here < wanted) return bestUnit(options, "defense");
+  if (ctx.scoutsWanted > 0 && c === ctx.cities[0] && here <= wanted) {
+    let scout: Production | undefined;
+    for (const o of options) {
+      if (o.kind !== "unit") continue;
+      const t = unitType(o.id);
+      if (t.domain !== "land" || t.attack === 0 || t.flags?.length) continue;
+      if (!scout) { scout = o; continue; }
+      const s = unitType(scout.id);
+      if (t.moves > s.moves || (t.moves === s.moves && t.cost < s.cost)) scout = o;
+    }
+    if (scout) return scout;
+  }
+
+  const allowance = Math.max(1, Math.ceil(ctx.cities.length / 3)) + (ctx.cities.length < 3 ? 1 : 0);
+  const sitesLeft = ctx.wantMoreCities && ctx.sites().length > 0;
+  if (sitesLeft && settlersOut < allowance && r.foodSurplus >= 1 && (c.size >= 2 || r.foodSurplus >= 2)) {
+    const s = pick("unit", "settlers");
+    if (s) return s;
+  }
+  if (r.disorder || (r.unhappy > 0 && r.unhappy >= r.happy && c.size >= 4)) {
+    const t = pick("building", "temple") ?? pick("building", "colosseum") ?? pick("building", "marketplace");
+    if (t) return t;
+  }
+  const workers = ctx.units.filter((u) => unitType(u.type).flags?.includes("settler") && u.order.kind === "work").length;
+  if (workers < ctx.workersWanted && c.size >= 3 && r.foodSurplus >= 2 && settlersOut <= allowance) {
+    const s = pick("unit", "settlers");
+    if (s) return s;
+  }
+  if (c.size >= 8 && !c.buildings.includes("aqueduct")) {
+    const a = pick("building", "aqueduct");
+    if (a) return a;
+  }
+  const threat = ctx.threat.get(c.id) ?? 0;
+  if (threat > 0 && !c.buildings.includes("city_walls") && c.size >= 3) {
+    const w = pick("building", "city_walls");
+    if (w) return w;
+  }
+  if (ctx.atWarWith.length > 0 && army < ctx.armyWanted && military < ctx.militaryCap) {
+    const a = bestUnit(options, "attack");
+    if (a) return a;
+  }
+  if (wonderCity && r.shields >= 5 && threat === 0 && (ctx.cities.length >= 4 || ctx.turn >= 80)) {
+    for (const id of WONDER_ORDER) {
+      const w = pick("wonder", id);
+      if (!w) continue;
+      if (id === "colossus" && !coastal(state, c)) continue;
+      return w;
+    }
+  }
+  let best: Production | undefined;
+  let bestScore = 0;
+  const starved = ctx.income <= 0 && p.gold < 100;
+  for (const o of options) {
+    if (o.kind !== "building") continue;
+    if (starved && o.id !== "marketplace" && o.id !== "temple") continue;
+    const s = wantBuilding(state, ctx, c, r, o.id);
+    if (s > bestScore) { bestScore = s; best = o; }
+  }
+  if (best) return best;
+  if (army < ctx.armyWanted && military < ctx.militaryCap) {
+    const a = bestUnit(options, "attack");
+    if (a) return a;
+  }
+  if (sitesLeft && r.foodSurplus >= 1) {
+    const s = pick("unit", "settlers");
+    if (s) return s;
+  }
+  // Nothing pressing: the wonder city soaks up shields usefully, others take any improvement, then a worker. Units only under the cap.
+  if (threat === 0 && wonderCity) {
+    for (const id of WONDER_ORDER) {
+      const w = pick("wonder", id);
+      if (w && (id !== "colossus" || coastal(state, c))) return w;
+    }
+  }
+  if (!starved) {
+    let cheapest: Production | undefined;
+    for (const o of options) {
+      if (o.kind !== "building" || !FALLBACK_BUILDINGS.has(o.id)) continue;
+      if (o.id === "aqueduct" && c.size < 6) continue;
+      if (!cheapest || building(o.id).cost < building(cheapest.id).cost) cheapest = o;
+    }
+    if (cheapest) return cheapest;
+  }
+  if (r.foodSurplus >= 2 && settlersOut + workers < ctx.workersWanted + (sitesLeft ? allowance : 0)) {
+    const s = pick("unit", "settlers");
+    if (s) return s;
+  }
+  if (military < ctx.militaryCap) return bestUnit(options, "defense");
+  return undefined;
+}
+
+function sameProduction(a: Production, b: Production): boolean {
+  return a.kind === b.kind && a.id === b.id;
+}
+
+function manageCities(state: GameState, ctx: Ctx): void {
+  const p = ctx.p;
+  const settlersOut = ctx.units.filter((u) => unitType(u.type).flags?.includes("settler") && u.order.kind !== "work").length;
+  const army = ctx.units.filter(isAttacker).length;
+  const military = ctx.units.filter(isMilitary).length;
+  const buildingWonder = ctx.cities.some((c) => c.production.kind === "wonder");
+  let wonderCity: City | null = null;
+  if (!buildingWonder) {
+    for (const c of ctx.cities) {
+      const r = ctx.reports.get(c.id)!;
+      if (!wonderCity || r.shields > ctx.reports.get(wonderCity.id)!.shields) wonderCity = c;
+    }
+  }
+  let settlersPlanned = settlersOut;
+  for (const c of ctx.cities) {
+    governCity(state, ctx, c);
+    fixDisorder(state, c);
+    const r = computeCity(state, c);
+    ctx.reports.set(c.id, r);
+    const current = c.production;
+    const stale = current.kind === "wonder" && wonderBuilt(state, current.id);
+    const want = chooseProduction(state, ctx, c, r, settlersPlanned, army, military, c === wonderCity || current.kind === "wonder");
+    if (want && (stale || !sameProduction(want, current))) {
+      const urgent = want.kind === "unit" && garrison(state, ctx, c).length < (ctx.wanted.get(c.id) ?? 1) && (ctx.threat.get(c.id) ?? 0) > 0;
+      const cheap = c.shields <= 8 || want.kind === current.kind;
+      if (stale || urgent || cheap) applyCommand(state, { type: "setProduction", city: c.id, production: want });
+    }
+    if (c.production.kind === "unit" && c.production.id === "settlers") settlersPlanned++;
+
+    // Spend gold where it changes the game: empty cities, threatened cities, early settlers, riots.
+    const cost = buyCost(c);
+    if (cost === 0) continue;
+    const here = garrison(state, ctx, c).length;
+    const threat = ctx.threat.get(c.id) ?? 0;
+    const prod = c.production;
+    const defensive = prod.kind === "unit" && unitType(prod.id).attack > 0;
+    let buy = false;
+    if (defensive && here === 0 && p.gold >= cost + 20) buy = true;
+    else if (defensive && threat > 0 && here < (ctx.wanted.get(c.id) ?? 1) && p.gold >= cost + 30) buy = true;
+    else if (prod.kind === "unit" && prod.id === "settlers" && c.size >= 2 && ctx.wantMoreCities && ctx.sites().length > 0 && p.gold - cost >= 60 + 10 * ctx.cities.length) buy = true;
+    else if (prod.kind === "building" && prod.id === "temple" && r.disorder && p.gold >= cost + 40) buy = true;
+    else if (prod.kind !== "unit" && (c.shields > 0 || cost <= 60) && p.gold - cost >= 150 + 20 * ctx.cities.length) buy = true;
+    else if (prod.kind === "unit" && prod.id === "settlers" && c.size >= 2 && p.gold - cost >= 200 + 20 * ctx.cities.length) buy = true;
+    if (buy) applyCommand(state, { type: "buy", city: c.id });
+  }
+}
+
+function slotValue(state: GameState, c: City, slot: number, gov: string): number {
+  const t = radiusTile(state, c, slot);
+  if (!t) return -1;
+  const y = tileYield(state, t, false, gov);
+  return y.food * 3 + y.shields * 2 + y.trade;
+}
+
+/**
+ * Re-seat the citizens: grow while the city is small, then favour shields and
+ * trade, and never starve. A civ with no science at all weights trade heavily
+ * so it works rivers and the coast. Changes go through `toggleTile`.
+ */
+function governCity(state: GameState, ctx: Ctx, c: City): void {
+  const gov = government(ctx.p.government);
+  const workers = c.size - c.specialists.length;
+  if (workers <= 0) return;
+  const slots: { slot: number; food: number; shields: number; trade: number }[] = [];
+  for (let s = 1; s < CITY_RADIUS.length; s++) {
+    if (!slotAvailable(state, c, s)) continue;
+    const y = tileYield(state, radiusTile(state, c, s)!, false, ctx.p.government);
+    slots.push({ slot: s, ...y });
+  }
+  if (slots.length === 0) return;
+  const centre = tileYield(state, getTile(state.map, c.x, c.y)!, true, ctx.p.government);
+  let settlerFood = 0;
+  for (const u of ctx.units) if (u.homeCity === c.id && unitType(u.type).flags?.includes("settler")) settlerFood += gov.settlerFood;
+  const cap = c.buildings.includes("aqueduct") ? 99 : 10;
+  const growthTarget = c.size >= cap ? 0 : c.size < 4 ? 2 : 1;
+  const tradeWeight = ctx.turn > 5 && ctx.science < ctx.cities.length ? 3 : 1.5 + gov.tradeBonus * 0.5;
+  let food = centre.food - c.size * 2 - settlerFood;
+  const chosen: number[] = [];
+  const left = [...slots];
+  for (let i = 0; i < workers && left.length > 0; i++) {
+    const fw = food < growthTarget ? 4 : 1.2;
+    let bestIdx = 0;
+    let bestV = -Infinity;
+    for (let k = 0; k < left.length; k++) {
+      const s = left[k]!;
+      const v = s.food * fw + s.shields * 2 + s.trade * tradeWeight;
+      if (v > bestV) { bestV = v; bestIdx = k; }
+    }
+    const [s] = left.splice(bestIdx, 1);
+    chosen.push(s!.slot);
+    food += s!.food;
+  }
+  const remove = c.worked.filter((s) => !chosen.includes(s));
+  const add = chosen.filter((s) => !c.worked.includes(s));
+  for (const s of remove) applyCommand(state, { type: "toggleTile", city: c.id, slot: s });
+  for (const s of add) applyCommand(state, { type: "toggleTile", city: c.id, slot: s });
+}
+
+/** Turn workers into entertainers until order is restored; put surplus entertainers back to work. */
+function fixDisorder(state: GameState, c: City): void {
+  const gov = state.players[c.owner]!.government;
+  let r = computeCity(state, c);
+  let guard = 0;
+  while (r.disorder && c.worked.length > 0 && guard++ < 8) {
+    let worst = c.worked[0]!;
+    for (const s of c.worked) if (slotValue(state, c, s, gov) < slotValue(state, c, worst, gov)) worst = s;
+    if (!applyCommand(state, { type: "toggleTile", city: c.id, slot: worst }).ok) break;
+    r = computeCity(state, c);
+  }
+  while (!r.disorder && c.specialists.length > 0 && guard++ < 8) {
+    let best = -1;
+    let bestV = 0;
+    for (let s = 1; s < CITY_RADIUS.length; s++) {
+      if (c.worked.includes(s) || !slotAvailable(state, c, s)) continue;
+      const v = slotValue(state, c, s, gov);
+      if (v > bestV) { bestV = v; best = s; }
+    }
+    if (best < 0 || !applyCommand(state, { type: "toggleTile", city: c.id, slot: best }).ok) break;
+    const r2 = computeCity(state, c);
+    if (r2.disorder) { applyCommand(state, { type: "toggleTile", city: c.id, slot: best }); break; }
+    r = r2;
+  }
+}
+
+// ---- garrisons: sorties and excess -------------------------------------------------
+
+function winChance(state: GameState, u: Unit, x: number, y: number): number | null {
+  const d = bestDefender(state, x, y, u);
+  if (!d) return null;
+  const a = attackStrength(u);
+  const ds = defenseStrength(state, d, u);
+  return a / (a + ds);
+}
+
+function rebalanceGarrisons(state: GameState, ctx: Ctx): void {
+  const needy = ctx.cities.some((c) => shortOfGuards(state, ctx, c));
+  for (const c of ctx.cities) {
+    const g = garrison(state, ctx, c);
+    const wanted = ctx.wanted.get(c.id) ?? 1;
+    // Sortie against hostile units next to the city when the odds are good and a defender stays behind.
+    for (const [dx, dy] of NEIGHBOURS) {
+      const x = wrapX(state.map, c.x + dx);
+      const y = c.y + dy;
+      if (!state.units.some((o) => ctx.enemies.has(o.owner) && o.x === x && o.y === y && o.aboard === null)) continue;
+      const sortie = g.filter((u) => unitType(u.type).attack >= 2 && u.movesLeft > 0).sort((a, b) => unitType(b.type).attack - unitType(a.type).attack);
+      for (const u of sortie) {
+        if (g.length <= 1) break;
+        const p = winChance(state, u, x, y);
+        if (p === null || p < 0.55) continue;
+        applyCommand(state, { type: "activate", unit: u.id });
+        applyCommand(state, { type: "move", unit: u.id, dx, dy });
+        if (!state.units.some((o) => ctx.enemies.has(o.owner) && o.x === x && o.y === y)) break;
+      }
+    }
+    // Release surplus defenders when someone else needs them or there is a war to fight.
+    const extra = g.length - wanted;
+    if (extra <= 0) continue;
+    if (needy || ctx.warTarget !== null || ctx.scoutsWanted > 0) {
+      const release = g.filter((u) => u.order.kind === "fortified" || u.order.kind === "sentry").sort((a, b) => unitType(b.type).attack - unitType(a.type).attack).slice(0, extra);
+      for (const u of release) applyCommand(state, { type: "activate", unit: u.id });
+      continue;
+    }
+    // At peace and over strength: let the weakest surplus unit go rather than pay for it.
+    if (ctx.atWarWith.length === 0 && ctx.military > ctx.militaryCap + 2 && extra >= 2) {
+      const weakest = g.reduce((a, b) => (unitType(b.type).defense + unitType(b.type).attack < unitType(a.type).defense + unitType(a.type).attack ? b : a));
+      applyCommand(state, { type: "disband", unit: weakest.id });
+      ctx.military--;
+    }
+  }
+}
+
+// ---- units ---------------------------------------------------------------------------
+
+function orderUnit(state: GameState, ctx: Ctx, u: Unit): void {
+  const type = unitType(u.type);
+  if (u.aboard !== null) { applyCommand(state, { type: "skip", unit: u.id }); return; }
+  if (type.flags?.includes("settler")) { orderSettler(state, ctx, u); return; }
+  if (type.domain !== "land" || type.attack === 0) { applyCommand(state, { type: "skip", unit: u.id }); return; }
+  orderMilitary(state, ctx, u);
+}
+
+/** Issue a goto; if the first step is refused (zones of control), try a plain step instead. */
+function goto(state: GameState, u: Unit, x: number, y: number): boolean {
+  if (u.x === x && u.y === y) return false;
+  const [bx, by] = [u.x, u.y];
+  if (!applyCommand(state, { type: "goto", unit: u.id, x, y }).ok) return false;
+  if (u.order.kind === "goto" || u.x !== bx || u.y !== by) return true;
+  return nudge(state, u, x, y);
+}
+
+/** Step one tile toward a target when a goto cannot be issued (e.g. zones of control). */
+function nudge(state: GameState, u: Unit, x: number, y: number): boolean {
+  let dx = x - u.x;
+  if (dx > state.map.width / 2) dx -= state.map.width;
+  if (dx < -state.map.width / 2) dx += state.map.width;
+  const sx = Math.sign(dx);
+  const sy = Math.sign(y - u.y);
+  for (const [mx, my] of [[sx, sy], [sx, 0], [0, sy]] as const) {
+    if (mx === 0 && my === 0) continue;
+    if (applyCommand(state, { type: "move", unit: u.id, dx: mx, dy: my }).ok) return true;
+  }
+  return false;
+}
+
+function nearestCity(state: GameState, ctx: Ctx, u: Unit, pred: (c: City) => boolean = () => true): City | null {
+  let best: City | null = null;
+  let bestD = 99;
+  for (const c of ctx.cities) {
+    if (!pred(c)) continue;
+    const d = dist(state, u.x, u.y, c.x, c.y);
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  return best;
+}
+
+/**
+ * Breadth-first over land for the nearest unexplored tile (a visible hut
+ * wins). Like the original's opponents it walks the real map, so it heads
+ * for land it has not seen rather than feeling along the edge of the known.
+ */
+function frontierTarget(state: GameState, u: Unit, limit = 900): [number, number] | null {
+  const p = state.players[u.owner]!;
+  const { width: w, height: h } = state.map;
+  const start = u.y * w + u.x;
+  const seen = new Uint8Array(w * h);
+  seen[start] = 1;
+  const queue = [start];
+  let head = 0;
+  let fallback: [number, number] | null = null;
+  while (head < queue.length && head < limit) {
+    const i = queue[head++]!;
+    const x = i % w;
+    const y = Math.floor(i / w);
+    const t = state.map.tiles[i]!;
+    if (i !== start) {
+      if (t.hut && p.explored[i]) return [x, y];
+      if (fallback === null && !p.explored[i]) fallback = [x, y];
+    }
+    for (const [dx, dy] of NEIGHBOURS) {
+      const ny = y + dy;
+      if (ny < 1 || ny >= h - 1) continue;
+      const nx = wrapX(state.map, x + dx);
+      const ni = ny * w + nx;
+      if (seen[ni]) continue;
+      seen[ni] = 1;
+      const n = state.map.tiles[ni]!;
+      if (n.terrain === Terrain.Ocean) continue;
+      if (state.units.some((o) => o.owner !== u.owner && o.x === nx && o.y === ny)) continue;
+      if (state.cities.some((c) => c.owner !== u.owner && c.x === nx && c.y === ny)) continue;
+      queue.push(ni);
+    }
+  }
+  return fallback;
+}
+
+function explore(state: GameState, u: Unit): boolean {
+  const target = frontierTarget(state, u);
+  if (!target) return false;
+  if (goto(state, u, target[0], target[1])) return true;
+  return nudge(state, u, target[0], target[1]);
+}
+
+function orderMilitary(state: GameState, ctx: Ctx, u: Unit): void {
+  const type = unitType(u.type);
+  const here = cityAt(state, u.x, u.y);
+  const inOwnCity = here !== undefined && here.owner === ctx.me;
+
+  // 1. Something to hit next door?
+  let bestP = 0;
+  let bestDir: [number, number] | null = null;
+  for (const [dx, dy] of NEIGHBOURS) {
+    const x = wrapX(state.map, u.x + dx);
+    const y = u.y + dy;
+    if (y < 0 || y >= state.map.height) continue;
+    const city = cityAt(state, x, y);
+    const hostileCity = city !== undefined && city.owner !== ctx.me && ctx.enemies.has(city.owner);
+    const occupied = state.units.some((o) => o.owner !== ctx.me && o.x === x && o.y === y);
+    if (!occupied) {
+      if (hostileCity && city.owner !== state.barbarians) { applyCommand(state, { type: "move", unit: u.id, dx, dy }); return; }
+      continue;
+    }
+    if (!state.units.some((o) => ctx.enemies.has(o.owner) && o.x === x && o.y === y)) continue;
+    const p = winChance(state, u, x, y);
+    if (p === null) continue;
+    const allies = state.units.filter((o) => o.owner === ctx.me && isAttacker(o) && dist(state, o.x, o.y, x, y) <= 1).length;
+    const threshold = hostileCity ? (allies >= 3 ? 0.3 : 0.45) : inOwnCity ? 0.5 : 0.55;
+    if (p >= threshold && p > bestP) { bestP = p; bestDir = [dx, dy]; }
+  }
+  if (bestDir) { applyCommand(state, { type: "move", unit: u.id, dx: bestDir[0], dy: bestDir[1] }); return; }
+
+  // 2. Garrison duty.
+  if (inOwnCity) {
+    const others = garrison(state, ctx, here).filter((o) => o.id !== u.id).length;
+    const wanted = ctx.wanted.get(here.id) ?? 1;
+    if (others < wanted) { applyCommand(state, { type: "fortify", unit: u.id }); return; }
+  }
+  const attacker = isAttacker(u);
+  if (ctx.warTarget && attacker) {
+    const t = ctx.warTarget;
+    if (dist(state, u.x, u.y, t.x, t.y) <= 1) { applyCommand(state, { type: "skip", unit: u.id }); return; } // siege: wait for better odds
+    if (goto(state, u, t.x, t.y) || nudge(state, u, t.x, t.y)) return;
+  }
+  const needy = nearestCity(state, ctx, u, (c) => shortOfGuards(state, ctx, c) && !(here && c.id === here.id));
+  if (needy && goto(state, u, needy.x, needy.y)) return;
+
+  // 3. Exploration while the map is young.
+  const scouting = ctx.units.filter((o) => isMilitary(o) && o.id !== u.id && !cityAt(state, o.x, o.y)).length;
+  if ((ctx.turn < 150 || ctx.cities.length === 0) && scouting < 2 && explore(state, u)) return;
+
+  // 4. Otherwise sit tight at home.
+  if (inOwnCity) { applyCommand(state, { type: "fortify", unit: u.id }); return; }
+  const home = nearestCity(state, ctx, u);
+  if (home && goto(state, u, home.x, home.y)) return;
+  applyCommand(state, { type: "fortify", unit: u.id });
+}
+
+// ---- settlers -------------------------------------------------------------------------
+
+interface Job { x: number; y: number; work: "irrigate" | "mine" | "road"; value: number }
+
+function terraformJobs(state: GameState, ctx: Ctx, c: City): Job[] {
+  const jobs: Job[] = [];
+  const gov = government(ctx.p.government);
+  // Worked tiles first, plus the best two spare tiles the city will grow onto.
+  const spare: { slot: number; v: number }[] = [];
+  for (let s = 1; s < CITY_RADIUS.length; s++) {
+    if (c.worked.includes(s) || !slotAvailable(state, c, s)) continue;
+    const t = radiusTile(state, c, s)!;
+    if (t.terrain === Terrain.Ocean) continue;
+    spare.push({ slot: s, v: slotValue(state, c, s, ctx.p.government) });
+  }
+  spare.sort((a, b) => b.v - a.v);
+  for (const slot of [...c.worked, ...spare.slice(0, 2).map((s) => s.slot)]) {
+    const [dx, dy] = CITY_RADIUS[slot]!;
+    const x = wrapX(state.map, c.x + dx);
+    const y = c.y + dy;
+    const t = getTile(state.map, x, y);
+    if (!t || t.terrain === Terrain.Ocean) continue;
+    if (state.units.some((o) => o.owner !== ctx.me && o.x === x && o.y === y)) continue;
+    const r = TERRAIN_RULES[t.terrain];
+    const busy = ctx.units.some((o) => o.order.kind === "work" && o.x === x && o.y === y);
+    if (busy) continue;
+    if (r.irrigate?.food && r.irrigate.becomes === undefined && !t.irrigation && !t.mine && hasWaterNearby(state, x, y))
+      jobs.push({ x, y, work: "irrigate", value: 3 + (gov.tilePenalty && r.food >= 2 ? -1 : 0) });
+    if (t.terrain === Terrain.Hills && !t.mine) jobs.push({ x, y, work: "mine", value: 4 });
+    if (r.road.trade > 0 && !t.road && !t.river) jobs.push({ x, y, work: "road", value: 2 + gov.tradeBonus });
+  }
+  return jobs;
+}
+
+function reservedSites(state: GameState, ctx: Ctx, except: Unit): [number, number][] {
+  const out: [number, number][] = [];
+  for (const o of ctx.units) {
+    if (o.id === except.id || !unitType(o.type).flags?.includes("settler") || o.order.kind !== "goto") continue;
+    out.push([o.order.x, o.order.y]);
+  }
+  return out;
+}
+
+function orderSettler(state: GameState, ctx: Ctx, u: Unit): void {
+  const here = cityAt(state, u.x, u.y);
+  const canFound = !here && canFoundCity(state, u.x, u.y) === null;
+  const hereScore = canFound ? siteScore(state, u.x, u.y) : null;
+
+  // The first city goes down at once on any fit tile.
+  if (ctx.cities.length === 0) {
+    if (hereScore !== null) { applyCommand(state, { type: "found", unit: u.id }); return; }
+    const sites = ctx.sites().filter((s) => dist(state, u.x, u.y, s.x, s.y) <= 3);
+    const near = sites.sort((a, b) => b.score - a.score)[0];
+    if (near && (goto(state, u, near.x, near.y) || nudge(state, u, near.x, near.y))) return;
+    if (canFound) { applyCommand(state, { type: "found", unit: u.id }); return; }
+    explore(state, u);
+    return;
+  }
+
+  const workers = ctx.units.filter((o) => o.id !== u.id && unitType(o.type).flags?.includes("settler") && o.order.kind === "work").length;
+  const home = (u.homeCity !== null ? ctx.cities.find((c) => c.id === u.homeCity) : undefined) ?? nearestCity(state, ctx, u);
+  const jobs: Job[] = [];
+  for (const c of ctx.cities) if (dist(state, u.x, u.y, c.x, c.y) <= 6) jobs.push(...terraformJobs(state, ctx, c));
+  const sites = ctx.wantMoreCities ? ctx.sites() : [];
+  const wantWork = jobs.length > 0 && (sites.length === 0 || workers < ctx.workersWanted);
+
+  if (wantWork) {
+    let best: Job | null = null;
+    let bestV = -Infinity;
+    for (const j of jobs) {
+      const v = j.value * 3 - dist(state, u.x, u.y, j.x, j.y);
+      if (v > bestV) { bestV = v; best = j; }
+    }
+    if (best) {
+      if (u.x === best.x && u.y === best.y) {
+        if (applyCommand(state, { type: "work", unit: u.id, work: best.work }).ok) return;
+      } else if (goto(state, u, best.x, best.y) || nudge(state, u, best.x, best.y)) return;
+    }
+  }
+
+  // Found here when this tile is about as good as anything nearby.
+  const reserved = reservedSites(state, ctx, u);
+  const open = sites.filter((s) => !reserved.some(([rx, ry]) => dist(state, rx, ry, s.x, s.y) < 3));
+  const ranked = open
+    .map((s) => ({ s, v: s.score - 3 * dist(state, u.x, u.y, s.x, s.y) }))
+    .sort((a, b) => b.v - a.v);
+  if (hereScore !== null) {
+    const bestNear = ranked[0]?.s.score ?? 0;
+    if (hereScore >= bestNear * 0.9 || ranked.length === 0) { applyCommand(state, { type: "found", unit: u.id }); return; }
+  }
+  for (const { s } of ranked.slice(0, 4)) {
+    if (goto(state, u, s.x, s.y)) return;
+  }
+  if (ranked[0] && nudge(state, u, ranked[0].s.x, ranked[0].s.y)) return;
+  if (hereScore !== null) { applyCommand(state, { type: "found", unit: u.id }); return; }
+  // Nothing to do: look around for land we have not seen; a surplus of idle settlers is just mouths to feed.
+  if (ctx.sites().length === 0 && explore(state, u)) return;
+  const idle = ctx.units.filter((o) => unitType(o.type).flags?.includes("settler") && o.order.kind === "none").length;
+  if (jobs.length === 0 && sites.length === 0 && ctx.turn > 40 && idle > Math.ceil(ctx.cities.length / 4)) {
+    applyCommand(state, { type: "disband", unit: u.id });
+    return;
+  }
+  if (here && here.owner === ctx.me) { applyCommand(state, { type: "skip", unit: u.id }); return; }
+  if (home && goto(state, u, home.x, home.y)) return;
+  applyCommand(state, { type: "skip", unit: u.id });
+}

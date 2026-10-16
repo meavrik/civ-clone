@@ -9,7 +9,7 @@ modern-visuals renderer behind the same core.
 
 ```
 packages/core             deterministic game core: rules, map gen, units, cities, combat, research (no DOM)
-packages/ai               baseline AI opponent, driven through the same commands as a human
+packages/ai               AI opponents (planner v2 shipped as aiTurn, baseline v1 as yardstick), same commands as a human
 packages/renderer-retro   indexed 320x200 framebuffer, palette, bitmap font, tiles, screen layouts
 apps/web                  Vite app: canvas with integer scaling, keyboard input, frame loop
 tools/headless            tournament harness: seeded all-AI games, per-civ stats, replay verification
@@ -66,5 +66,6 @@ The repo's own `node_modules` stays macOS-native for `pnpm dev`.
 5. Combat, barbarians, transport, goto, multi-civ turn loop, baseline AI, mouse control  ← done
 6. Title/setup, save/load (seed + command log, IndexedDB), huts, score, end conditions,
    diplomacy screen with tribute/tech exchange, advisors (F1–F5)  ← done
-7. AI v2 with headless tournament harness  ← harness done, planning AI next
+7. AI v2 (planner: continent-aware expansion, tech beelines, threat-aware garrisons, tile governor)
+   with headless tournament harness  ← done
 8. Modern-visuals renderer

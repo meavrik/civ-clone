@@ -153,3 +153,22 @@ describe("cities", () => {
     expect(s.players[0]!.gold).toBe(gold + computeCity(s, c).tax - 1);
   });
 });
+
+describe("bankruptcy", () => {
+  it("sells the costliest improvement when the treasury goes negative", () => {
+    const s = flatWorld();
+    const u = createUnit(s, "settlers", 0, 10, 10);
+    applyCommand(s, { type: "found", unit: u.id });
+    const c = s.cities[0]!;
+    c.buildings.push("temple", "city_walls");
+    s.players[0]!.gold = 0;
+    s.players[0]!.taxRate = 0;
+    s.players[0]!.sciRate = 6;
+    s.players[0]!.luxRate = 4;
+    applyCommand(s, { type: "endTurn" });
+    expect(c.buildings).not.toContain("city_walls");
+    expect(c.buildings).toContain("temple");
+    expect(s.players[0]!.gold).toBeGreaterThan(0);
+    expect(lastTurnEvents.some((e) => e.kind === "sold")).toBe(true);
+  });
+});

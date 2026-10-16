@@ -393,7 +393,7 @@ export function buyCost(city: City): number {
 
 export interface CityTurnEvent {
   city: number;
-  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine";
+  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine" | "sold";
   detail?: string;
 }
 
@@ -406,8 +406,17 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
   city.disorder = r.disorder;
   if (r.disorder) events.push({ city: city.id, kind: "disorder" });
 
-  // Treasury: tax in, building upkeep out. Selling buildings on bankruptcy comes with the AI phase.
+  // Treasury: tax in, building upkeep out. A bankrupt treasury sells the costliest improvement to keep.
   player.gold += r.tax - r.buildingUpkeep;
+  if (player.gold < 0) {
+    const forSale = city.buildings.filter((b) => building(b).upkeep > 0 && b !== "palace").sort((a, b) => building(b).upkeep - building(a).upkeep);
+    const sold = forSale[0];
+    if (sold) {
+      city.buildings = city.buildings.filter((b) => b !== sold);
+      player.gold += building(sold).cost;
+      events.push({ city: city.id, kind: "sold", detail: building(sold).name });
+    }
+  }
   player.science += r.science;
 
   // Food.

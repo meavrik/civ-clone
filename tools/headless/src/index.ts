@@ -1,4 +1,4 @@
-import { aiTurn } from "@civ/ai";
+import { aiTurn, baselineTurn, plannerTurn } from "@civ/ai";
 import {
   computeScore,
   loadSave,
@@ -22,7 +22,8 @@ export type AiFn = (state: GameState) => void;
 
 /** Named AI variants a seat can be given. */
 export const AIS: Record<string, AiFn> = {
-  baseline: aiTurn,
+  baseline: baselineTurn,
+  planner: plannerTurn,
 };
 
 export interface GameConfig {
