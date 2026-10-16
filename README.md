@@ -12,6 +12,7 @@ packages/core             deterministic game core: rules, map gen, units, cities
 packages/ai               baseline AI opponent, driven through the same commands as a human
 packages/renderer-retro   indexed 320x200 framebuffer, palette, bitmap font, tiles, screen layouts
 apps/web                  Vite app: canvas with integer scaling, keyboard input, frame loop
+tools/headless            tournament harness: seeded all-AI games, per-civ stats, replay verification
 ```
 
 The core never touches the DOM and the renderer never touches the core's
@@ -25,6 +26,7 @@ pnpm install
 pnpm dev          # http://localhost:5173  (?seed=1234 for a different world)
 pnpm test
 pnpm typecheck
+pnpm headless -- --games 4 --turns 200 --civs 4 --every 50   # AI-vs-AI tournament, see --help
 ```
 
 Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify · `S` sentry ·
@@ -64,5 +66,5 @@ The repo's own `node_modules` stays macOS-native for `pnpm dev`.
 5. Combat, barbarians, transport, goto, multi-civ turn loop, baseline AI, mouse control  ← done
 6. Title/setup, save/load (seed + command log, IndexedDB), huts, score, end conditions,
    diplomacy screen with tribute/tech exchange, advisors (F1–F5)  ← done
-7. AI v2 with headless tournament harness
+7. AI v2 with headless tournament harness  ← harness done, planning AI next
 8. Modern-visuals renderer

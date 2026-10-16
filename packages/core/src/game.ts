@@ -13,6 +13,11 @@ export interface NewGameOptions extends MapGenOptions {
   civ?: string;
   /** Number of AI opponents (0..6). */
   opponents?: number;
+  /**
+   * Player 0 is AI-driven too (no human seat). Used by the headless
+   * tournament harness; such a game has an empty command log.
+   */
+  allAi?: boolean;
 }
 
 function makePlayer(id: number, civId: string, color: number, isAi: boolean): Player {
@@ -45,7 +50,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const humanCiv = opts.civ ?? "romans";
   const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians");
   const opponents = Math.max(0, Math.min(others.length, opts.opponents ?? 2));
-  const players: Player[] = [makePlayer(0, humanCiv, 0, false)];
+  const players: Player[] = [makePlayer(0, humanCiv, 0, opts.allAi === true)];
   for (let i = 0; i < opponents; i++) {
     const pick = others.splice(nextInt(rng, others.length), 1)[0]!;
     players.push(makePlayer(players.length, pick.id, players.length, true));

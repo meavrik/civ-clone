@@ -16,6 +16,10 @@ export interface SaveGame {
   log: Command[];
   /** Informational only: shown in the load menu. */
   savedAt: number;
+  /**
+   * Turn reached. Informational for games with a human seat; for an
+   * `allAi` game (empty log) it says how many rounds to replay.
+   */
   turn: number;
   civ: string;
   label?: string;
@@ -51,13 +55,23 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
     log.push(cmd);
     if (cmd.type === "endTurn") runAiPlayers(state, aiTurn);
   }
+  // No human seat: nothing is logged, so play the recorded number of rounds.
+  if (save.options.allAi) {
+    let guard = 0;
+    while (state.turn < save.turn && guard++ < 10000) runAiPlayers(state, aiTurn);
+  }
   return { state, log };
 }
 
-/** Advance through AI players until a human's turn. */
+/**
+ * Advance through AI players until a human's turn comes up or a full round
+ * has been played (the turn counter moved on), whichever is first. With a
+ * human seat the two coincide; in an all-AI game one call is one round.
+ */
 export function runAiPlayers(state: GameState, aiTurn: (state: GameState) => void): void {
+  const turn = state.turn;
   let guard = 0;
-  while (state.players[state.currentPlayer]!.isAi && guard++ < 64) {
+  while (state.players[state.currentPlayer]!.isAi && state.turn === turn && guard++ < 64) {
     aiTurn(state);
     applyCommand(state, { type: "endTurn" });
   }

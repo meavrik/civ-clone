@@ -10,6 +10,8 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `npm test` — vitest, all packages (50+ tests; render tests dump PNGs to `packages/renderer-retro/tests/out/`)
 - `npm run typecheck` — `tsc -b` across the workspace (strict, exactOptionalPropertyTypes, noUncheckedIndexedAccess)
 - `npm run build` — typecheck + Vite build
+- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--verify] [--json out.json]` —
+  seeded all-AI tournaments (`tools/headless`); `--verify` replays each game from its save and checks the state digest
 - npm and pnpm both work (`workspaces` + `*` deps, `.npmrc` links workspace packages for pnpm)
 
 ## Layout
@@ -22,6 +24,8 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `font.ts`, code-drawn `tiles.ts`/`overlays.ts`, `widgets.ts` (panel/menu/box), one file
   per screen in `src/screens/*`.
 - `apps/web` — `main.ts` (screen stack + input), `display.ts` (canvas scaling), `storage.ts` (IndexedDB saves).
+- `tools/headless` — tournament harness: `runGame(config)` plays an `allAi` game through `runAiPlayers`, samples
+  per-civ stats, fingerprints the final state; `AIS` registry seats a named AI per civ. `cli.ts` prints tables.
 - `scripts/mirror-test.sh` — for a Linux shell on a Mac checkout; not needed on macOS.
 
 ## Invariants (do not break)
@@ -46,9 +50,9 @@ turns + baseline AI, diplomacy, save/load, title/setup, advisors, end conditions
 
 1. Verify the tech-tree edges (`rules/advances.ts`) and numeric tables against FreeCiv's
    civ1 ruleset (read it, don't paste it; it's GPL). Data-only change.
-2. Phase 7 — AI v2: headless tournament harness (`tools/headless`: run N seeded AI-vs-AI
-   games, dump score/cities/techs per turn), then a planning AI (continent awareness,
-   tech beelines, unit composition, threat assessment). Keep `aiTurn` signature.
+2. Phase 7 — AI v2: harness done (`tools/headless`). Next a planning AI (continent awareness,
+   tech beelines, unit composition, threat assessment), registered in `AIS` so it can be pitted
+   against `baseline`. Keep `aiTurn` signature.
 3. Unbound wonders: Great Library, Great Wall (partially), Lighthouse, Magellan's,
    Women's Suffrage, UN. Caravans/trade routes, diplomats, pollution, spaceship not implemented.
 4. Rename uses `prompt()`; diplomacy exchange offers first-for-first only.
