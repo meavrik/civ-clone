@@ -226,7 +226,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   const ink = shade("ui", 7);
   const dim = shade("ui", 5);
   const pop = state.cities.filter((c) => c.owner === state.currentPlayer).reduce((n, c) => n + c.size * (c.size + 1) * 5000, 0);
-  drawTextCentered(s, PANEL_W / 2, y, pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : `${Math.floor(pop / 1000)},000`, ink);
+  drawTextCentered(s, PANEL_W / 2, y, pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : pop >= 1000 ? `${Math.floor(pop / 1000)},000` : String(pop), ink);
   y += 9;
   drawTextCentered(s, PANEL_W / 2, y, formatYear(turnToYear(state.turn)), ink);
   y += 9;

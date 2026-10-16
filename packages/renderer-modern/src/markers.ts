@@ -1,0 +1,99 @@
+import { unitType, type City, type Unit } from "@civ/core";
+import type { Context2D } from "./context.js";
+import { circle, fillRound, measure, strokeRound, text } from "./draw.js";
+import { PLAYER_COLORS, PLAYER_DARK, TILE, UI } from "./theme.js";
+
+export const UNIT_ABBR: Record<string, string> = {
+  settlers: "S", militia: "M", phalanx: "P", legion: "L", cavalry: "C", chariot: "Ch",
+  catapult: "Ca", knights: "K", musketeers: "Mu", cannon: "Cn", riflemen: "R", mech_inf: "MI",
+  armor: "A", artillery: "Ar", diplomat: "D", caravan: "Cv", trireme: "T", sail: "Sl",
+  frigate: "F", ironclad: "I", cruiser: "Cr", battleship: "B", submarine: "Su", carrier: "CV",
+  transport: "Tr", fighter: "Ft", bomber: "Bo", nuclear: "N",
+};
+
+export function playerColor(slot: number): string {
+  return PLAYER_COLORS[((slot % 8) + 8) % 8]!;
+}
+export function playerDark(slot: number): string {
+  return PLAYER_DARK[((slot % 8) + 8) % 8]!;
+}
+
+/** A unit badge: rounded shield in the owner's colour with the type's letters; a hull for ships, wings for aircraft. */
+export function paintBadge(ctx: Context2D, x: number, y: number, type: string, slot: number, size = 34): void {
+  const t = unitType(type);
+  const r = size * 0.24;
+  const bx = x + (TILE - size) / 2;
+  const by = y + (TILE - size) / 2;
+  if (t.domain === "sea") {
+    ctx.fillStyle = "#1b2a3a";
+    ctx.beginPath();
+    ctx.moveTo(bx - 3, by + size - 6);
+    ctx.lineTo(bx + size + 3, by + size - 6);
+    ctx.lineTo(bx + size - 4, by + size + 3);
+    ctx.lineTo(bx + 4, by + size + 3);
+    ctx.closePath();
+    ctx.fill();
+  } else if (t.domain === "air") {
+    ctx.fillStyle = "#cfd6dd";
+    ctx.fillRect(bx - 5, by + size / 2 - 2, size + 10, 4);
+  }
+  fillRound(ctx, bx, by, size, size, r, playerColor(slot));
+  strokeRound(ctx, bx + 1, by + 1, size - 2, size - 2, r, playerDark(slot), 2.5);
+  const label = UNIT_ABBR[type] ?? "?";
+  text(ctx, bx + size / 2, by + size / 2 - 9, label, { size: label.length > 1 ? 15 : 17, weight: "bold", color: "#111820", align: "center" });
+}
+
+export interface UnitLook {
+  stacked: boolean;
+  active: boolean;
+}
+
+export function paintUnit(ctx: Context2D, x: number, y: number, u: Unit, slot: number, look: UnitLook): void {
+  if (look.stacked) {
+    fillRound(ctx, x + 11, y + 11, 34, 34, 8, "rgba(0,0,0,0.55)");
+  }
+  if (look.active) {
+    strokeRound(ctx, x + 3, y + 3, TILE - 6, TILE - 6, 10, UI.accent, 3);
+  }
+  paintBadge(ctx, x, y, u.type, slot);
+  if (u.order.kind === "fortified") strokeRound(ctx, x + 9, y + 9, TILE - 18, TILE - 18, 7, "rgba(255,255,255,0.85)", 2);
+  else if (u.order.kind === "sentry") text(ctx, x + TILE - 6, y + 2, "z", { size: 12, weight: "bold", color: "#fff", align: "right", shadow: true });
+  if (u.veteran) circle(ctx, x + 9, y + 9, 4, UI.accent);
+}
+
+/** City marker: a dark block in the owner's colour frame with a cluster of buildings and the size badge. */
+export function paintCity(ctx: Context2D, x: number, y: number, city: City, slot: number): void {
+  const color = playerColor(slot);
+  const walled = city.buildings.includes("city_walls");
+  fillRound(ctx, x + 3, y + 3, TILE - 6, TILE - 6, 8, "#1c2430");
+  strokeRound(ctx, x + 3, y + 3, TILE - 6, TILE - 6, 8, color, 3);
+  if (walled) strokeRound(ctx, x + 0.5, y + 0.5, TILE - 1, TILE - 1, 10, "#cfd6dd", 2);
+  ctx.fillStyle = color;
+  ctx.fillRect(x + 10, y + 22, 8, 14);
+  ctx.fillRect(x + 20, y + 14, 9, 22);
+  ctx.fillRect(x + 31, y + 26, 7, 10);
+  ctx.fillStyle = "#1c2430";
+  ctx.fillRect(x + 22, y + 18, 2, 2);
+  ctx.fillRect(x + 26, y + 18, 2, 2);
+  ctx.fillRect(x + 22, y + 24, 2, 2);
+  ctx.fillRect(x + 26, y + 24, 2, 2);
+  const n = String(city.size);
+  const bw = Math.max(16, measure(ctx, n, 12, "bold") + 8);
+  fillRound(ctx, x + TILE - bw - 2, y + TILE - 18, bw, 16, 8, "#f4f6f8");
+  text(ctx, x + TILE - 2 - bw / 2, y + TILE - 17, n, { size: 12, weight: "bold", color: "#111820", align: "center" });
+  if (city.disorder) {
+    ctx.fillStyle = UI.danger;
+    ctx.fillRect(x + 6, y + 4, 8, 6);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(x + 5, y + 4, 2, 14);
+  }
+}
+
+/** The city's name under its tile, in a dark pill. */
+export function paintCityLabel(ctx: Context2D, x: number, y: number, name: string, slot: number): void {
+  const w = measure(ctx, name, 12, "600") + 12;
+  const lx = x + TILE / 2 - w / 2;
+  const ly = y + TILE - 2;
+  fillRound(ctx, lx, ly, w, 16, 8, "rgba(10, 14, 20, 0.78)");
+  text(ctx, x + TILE / 2, ly + 1, name, { size: 12, weight: "600", color: playerColor(slot), align: "center" });
+}

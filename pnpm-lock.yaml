@@ -35,6 +35,9 @@ importers:
       '@civ/renderer-api':
         specifier: '*'
         version: link:../../packages/renderer-api
+      '@civ/renderer-modern':
+        specifier: '*'
+        version: link:../../packages/renderer-modern
       '@civ/renderer-retro':
         specifier: '*'
         version: link:../../packages/renderer-retro
@@ -52,6 +55,15 @@ importers:
       '@civ/core':
         specifier: '*'
         version: link:../core
+
+  packages/renderer-modern:
+    dependencies:
+      '@civ/core':
+        specifier: '*'
+        version: link:../core
+      '@civ/renderer-api':
+        specifier: '*'
+        version: link:../renderer-api
 
   packages/renderer-retro:
     dependencies:

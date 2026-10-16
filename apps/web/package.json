@@ -12,6 +12,7 @@
     "@civ/core": "*",
     "@civ/renderer-retro": "*",
     "@civ/ai": "*",
-    "@civ/renderer-api": "*"
+    "@civ/renderer-api": "*",
+    "@civ/renderer-modern": "*"
   }
 }

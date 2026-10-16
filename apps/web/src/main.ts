@@ -57,7 +57,8 @@ import {
   type SetupState,
   type TextInputState,
 } from "@civ/renderer-api";
-import { canvas, configureDisplay, fitCanvas, toLogical } from "./display.js";
+import { createModernRenderer } from "@civ/renderer-modern";
+import { backingScale, canvas, configureDisplay, fitCanvas, toLogical } from "./display.js";
 import { createRetroRenderer } from "./retro-renderer.js";
 import { listSlots, readSlot, SLOTS, writeSlot } from "./storage.js";
 
@@ -70,8 +71,9 @@ function rendererChoice(): string {
 }
 
 function createRenderer(id: string): Renderer {
-  const r = createRetroRenderer(canvas);
-  void id;
+  const r = id === "modern"
+    ? createModernRenderer(canvas.getContext("2d", { alpha: false }) as unknown as Parameters<typeof createModernRenderer>[0], backingScale)
+    : createRetroRenderer(canvas);
   configureDisplay(r.width, r.height, r.id === "retro");
   return r;
 }
