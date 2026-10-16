@@ -9,8 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@civ/core": "workspace:*",
-    "@civ/renderer-retro": "workspace:*",
-    "@civ/ai": "workspace:*"
+    "@civ/core": "*",
+    "@civ/renderer-retro": "*",
+    "@civ/ai": "*"
   }
 }

@@ -11,7 +11,7 @@ rsync -a --delete \
   --exclude 'tests/out' --exclude '*.tsbuildinfo' \
   "$SRC/" "$DST/"
 cd "$DST"
-[ -d node_modules ] || npm_config_registry=https://registry.npmjs.org npx --yes pnpm@10 install --frozen-lockfile >/dev/null
+[ -d node_modules ] || npm_config_registry=https://registry.npmjs.org npx --yes pnpm@10.28.0 install --frozen-lockfile >/dev/null
 npx pnpm vitest run "$@"
 npx pnpm tsc -b
 echo "mirror OK"

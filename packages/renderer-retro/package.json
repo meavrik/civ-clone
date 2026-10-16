@@ -12,9 +12,9 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@civ/core": "workspace:*"
+    "@civ/core": "*"
   },
   "devDependencies": {
-    "@civ/ai": "workspace:*"
+    "@civ/ai": "*"
   }
 }
