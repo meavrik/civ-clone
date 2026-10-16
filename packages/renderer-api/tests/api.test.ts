@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, createUnit, getTile, newGame, revealAround, Terrain } from "@civ/core";
-import { MENU_BAR, opponentsForChoice, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
+import { MENU_BAR, MotionPlayer, opponentsForChoice, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
 const fresh = (step: SetupState["step"]): SetupState => ({ step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
 
@@ -119,5 +119,58 @@ describe("world reports", () => {
     const page = topCitiesReport(s);
     expect(page.lines.map((l) => l.text)).toEqual(["1. Town5", "2. Town4", "3. Town3", "4. Town2", "5. Town1"]);
     expect(page.lines[0]!.right).toBe(`size 9 (${s.players[0]!.name})`);
+  });
+});
+
+describe("unit motion", () => {
+  const step = (unit: number, fromX: number, fromY: number, toX: number, toY: number, aboard?: number) =>
+    ({ unit, type: "militia", owner: 0, fromX, fromY, toX, toY, ...(aboard !== undefined ? { aboard } : {}) });
+  const pace = { stepMs: 100, maxMs: 1000, width: 80 };
+
+  it("slides one square at a time, each step after the one before", () => {
+    const m = new MotionPlayer();
+    m.play([step(1, 10, 10, 11, 10), step(1, 11, 10, 12, 11)], 0, pace);
+    expect(m.at(0)).toEqual([{ unit: 1, type: "militia", owner: 0, x: 10, y: 10 }]);
+    expect(m.at(50)[0]).toMatchObject({ x: 10.5, y: 10 });
+    expect(m.at(150)[0]).toMatchObject({ x: 11.5, y: 10.5 });
+    expect(m.busy(150)).toBe(true);
+    expect(m.at(200)).toEqual([]);
+    expect(m.busy(200)).toBe(false);
+  });
+
+  it("holds a unit on its old square until its turn to move comes", () => {
+    const m = new MotionPlayer();
+    m.play([step(1, 10, 10, 11, 10)], 0, pace);
+    m.play([step(2, 20, 20, 20, 21)], 0, pace);
+    expect(m.at(50).find((u) => u.unit === 2)).toMatchObject({ x: 20, y: 20 });
+    expect(m.at(150).map((u) => u.unit)).toEqual([2]);
+    expect(m.at(150)[0]).toMatchObject({ y: 20.5 });
+  });
+
+  it("moves cargo in its ship's beat and marks it aboard", () => {
+    const m = new MotionPlayer();
+    m.play([step(5, 3, 3, 4, 3), step(6, 3, 3, 4, 3, 5), step(5, 4, 3, 5, 3), step(6, 4, 3, 5, 3, 5)], 0, pace);
+    const mid = m.at(50);
+    expect(mid).toHaveLength(2);
+    expect(mid.find((u) => u.unit === 6)).toMatchObject({ x: 3.5, aboard: 5 });
+    expect(m.busy(199)).toBe(true);
+    expect(m.busy(200)).toBe(false);
+  });
+
+  it("slides the short way across the seam", () => {
+    const m = new MotionPlayer();
+    m.play([step(1, 79, 5, 0, 5), step(2, 0, 6, 79, 6)], 0, pace);
+    expect(m.at(50).find((u) => u.unit === 1)!.x).toBeCloseTo(79.5);
+    expect(m.at(150).find((u) => u.unit === 2)!.x).toBeCloseTo(-0.5);
+  });
+
+  it("fits a long chain into the time allowed, and clear() snaps everything home", () => {
+    const m = new MotionPlayer();
+    const chain = Array.from({ length: 40 }, (_, i) => step(1, i, 0, i + 1, 0));
+    m.play(chain, 0, pace);
+    expect(m.busy(999)).toBe(true);
+    expect(m.busy(1000)).toBe(false);
+    m.clear();
+    expect(m.at(10)).toEqual([]);
   });
 });

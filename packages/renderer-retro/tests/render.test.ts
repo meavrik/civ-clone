@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, revealAround, Terrain, unitType } from "@civ/core";
-import { drawCityScreen, drawDiscoveryScreen, drawMainScreen, drawMenu, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { drawCityScreen, drawDiscoveryScreen, drawMainScreen, drawMenu, drawUnit, playerColor, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -118,6 +118,26 @@ describe("retro renderer", () => {
     view.autoEnd = true;
     drawMainScreen(s, state, view);
     writeFileSync(new URL("./out/panel-inspect.png", import.meta.url), encodePng(s, 3));
+  });
+
+  it("draws a sliding unit between squares and not on its own square", () => {
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    revealAround(state, 0, u.x, u.y, 9);
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) getTile(state.map, u.x + dx, u.y + dy)!.terrain = Terrain.Grassland;
+    state.activeUnit = null;
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true };
+    const s = Surface.screen();
+    // Halfway from the square on its left: the map shows it there, and its own square is empty.
+    drawMainScreen(s, state, { ...view, moving: [{ unit: u.id, type: u.type, owner: 0, x: u.x - 0.5, y: u.y }] });
+    writeFileSync(new URL("./out/unit-sliding.png", import.meta.url), encodePng(s, 3));
+    const others = state.units.filter((o) => o.id !== u.id);
+    const expected = Surface.screen();
+    drawMainScreen(expected, { ...state, units: others }, view);
+    const px = 80 + (u.x - view.originX) * 16;
+    const py = 9 + (u.y - view.originY) * 16;
+    drawUnit(expected, u, px - 8, py, playerColor(state, 0), false);
+    for (let y = 9; y < 200; y++) for (let x = 80; x < 320; x++) expect(s.get(x, y), `pixel ${x},${y}`).toBe(expected.get(x, y));
   });
 
   it("draws the menu bar above the map, with dropdowns under their titles", async () => {

@@ -7,6 +7,7 @@ import {
   findPath,
   getTile,
   lastCombat,
+  lastSteps,
   lastTurnEvents,
   newGame,
   relation,
@@ -110,6 +111,38 @@ describe("transport", () => {
     getTile(s.map, 13, 9)!.terrain = Terrain.Grassland;
     expect(applyCommand(s, { type: "move", unit: inf.id, dx: 0, dy: -1 }).ok).toBe(true);
     expect(inf.aboard).toBeNull();
+  });
+});
+
+describe("unit steps", () => {
+  it("records each square moved, cargo with its ship, a goto square by square, and clears at end of turn", () => {
+    const s = world();
+    applyCommand(s, { type: "endTurn" });
+    applyCommand(s, { type: "endTurn" }); // a fresh turn for player 0, nothing recorded yet
+    lastSteps.length = 0;
+    for (let x = 12; x < 20; x++) getTile(s.map, x, 10)!.terrain = Terrain.Ocean;
+    const ship = createUnit(s, "trireme", 0, 12, 10);
+    const inf = createUnit(s, "militia", 0, 11, 10);
+    applyCommand(s, { type: "move", unit: inf.id, dx: 1, dy: 0 });
+    expect(lastSteps).toEqual([{ unit: inf.id, type: "militia", owner: 0, fromX: 11, fromY: 10, toX: 12, toY: 10 }]);
+    applyCommand(s, { type: "move", unit: ship.id, dx: 1, dy: 0 });
+    expect(lastSteps.slice(1)).toEqual([
+      { unit: ship.id, type: "trireme", owner: 0, fromX: 12, fromY: 10, toX: 13, toY: 10 },
+      { unit: inf.id, type: "militia", owner: 0, fromX: 12, fromY: 10, toX: 13, toY: 10, aboard: ship.id },
+    ]);
+    const walker = createUnit(s, "cavalry", 0, 3, 3);
+    const mark = lastSteps.length;
+    applyCommand(s, { type: "goto", unit: walker.id, x: 5, y: 3 });
+    const walked = lastSteps.slice(mark);
+    expect(walked).toHaveLength(2);
+    expect(walked[0]).toMatchObject({ unit: walker.id, fromX: 3, fromY: 3 });
+    expect(walked[1]).toMatchObject({ fromX: walked[0]!.toX, fromY: walked[0]!.toY, toX: 5, toY: 3 });
+    // Across the seam the step is recorded wrapped, as the unit stands.
+    const edge = createUnit(s, "militia", 0, 0, 20);
+    applyCommand(s, { type: "move", unit: edge.id, dx: -1, dy: 0 });
+    expect(lastSteps.at(-1)).toMatchObject({ fromX: 0, toX: s.map.width - 1 });
+    applyCommand(s, { type: "endTurn" });
+    expect(lastSteps.every((st) => st.owner !== 0)).toBe(true);
   });
 });
 

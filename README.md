@@ -42,6 +42,8 @@ visuals, save/load, retire, new game) · **Orders** (the active unit's orders wi
 **Advisors** (city status, military, foreign, science) · **World** (wonders of the world, top 5 cities,
 score, world map, spaceships). Click a title or press `Alt+G`/`Alt+O`/`Alt+A`/`Alt+W`; `Left`/`Right` move between menus.
 With auto end turn on (the default) the turn ends by itself a moment after the last unit has its orders.
+Units slide from square to square (a goto walks its path); after the other civilizations' turns, the moves you
+could see on screen play back before the turn's news. `Enter` skips a playback.
 Mouse: right-click an adjacent tile to move or attack · right-click any other square for its terrain window (yields, movement, specials, city, units, with "Send here") · right-click the active unit for its orders ·
 left-click an adjacent tile to move/attack · left-click a farther tile to inspect it (terrain, yields, what stands there), click it again to send the unit there ·
 the camera glides to each newly active unit ·

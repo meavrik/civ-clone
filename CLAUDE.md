@@ -31,6 +31,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`). The web app
   only talks to a `Renderer`. The main screen has a menu bar (`MENU_BAR`: Game, Orders, Advisors,
   World) above map and panel; a `MenuState` with an `anchor` and an empty title is a bar dropdown.
+  Unit animation: core's `applyMove` appends to `lastSteps` (a UI side channel like `lastTurnEvents`,
+  emptied by `endTurn`, never read by replays or AI); `MotionPlayer` (`renderer-api/src/motion.ts`)
+  times them into `view.moving`, and renderers draw those units at fractional squares.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
   terrain, cities, villages and specials are pixel art in `src/art/*.art.ts` (text grids; legend

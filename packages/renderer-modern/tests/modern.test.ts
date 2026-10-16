@@ -93,6 +93,10 @@ describe("modern renderer", () => {
     r.report({ title: "Wonders of the World", lines: [{ text: "Pyramids", right: "Rome (Romans)", slot: 0 }], hint: "1 of 21 built" });
     r.worldMap(state);
     r.main(state, { ...view, menuOpen: 2 });
+    const settler = state.units.find((u) => u.type === "settlers") ?? state.units[0]!;
+    const before = ctx.texts.length;
+    r.main(state, { ...view, message: undefined, moving: [{ unit: settler.id, type: settler.type, owner: 0, x: settler.x + 0.5, y: settler.y }] });
+    expect(ctx.texts.length).toBeGreaterThan(before);
     r.menu({ title: "", items: ["City Status", "Military Advisor"], right: ["F1", "F2"], selected: 0, anchor: r.menuBarAnchor(2) });
     r.menu({ title: "Game", items: ["Save game", "Load game"], selected: 1, right: ["", "slot 2"] });
     r.textInput({ title: "Name the new city", text: "Rome", maxLength: 14 }, true);

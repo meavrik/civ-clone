@@ -1,3 +1,5 @@
+import type { UnitMotion } from "./motion.js";
+export * from "./motion.js";
 import {
   cityAt,
   civ,
@@ -48,6 +50,8 @@ export interface MainScreenView {
   autoEnd?: boolean | undefined;
   /** Index into MENU_BAR of the dropdown that is open, to highlight its title. */
   menuOpen?: number | undefined;
+  /** Units sliding between squares: each is drawn at its position here, not on its square. */
+  moving?: UnitMotion[] | undefined;
 }
 
 export interface CityScreenView {

@@ -50,7 +50,7 @@ export interface UnitLook {
   active: boolean;
 }
 
-export function paintUnit(ctx: Context2D, x: number, y: number, u: Unit, slot: number, look: UnitLook): void {
+export function paintUnit(ctx: Context2D, x: number, y: number, u: Pick<Unit, "type" | "order" | "veteran">, slot: number, look: UnitLook): void {
   if (look.stacked) {
     fillRound(ctx, x + 11, y + 11, 34, 34, 8, "rgba(0,0,0,0.55)");
   }

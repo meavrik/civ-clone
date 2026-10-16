@@ -20,6 +20,7 @@ import {
   hasContact,
   inciteCost,
   lastCombat,
+  lastSteps,
   lastTurnEvents,
   loadSave,
   makeSave,
@@ -44,10 +45,12 @@ import {
   type Production,
   type SaveGame,
   type TurnEvent,
+  type UnitStep,
 } from "@civ/core";
 import {
   DIFFICULTIES,
   leaderLine,
+  MotionPlayer,
   setupChoose,
   setupMenu,
   setupOptions,
@@ -141,6 +144,50 @@ const view: MainScreenView = { originX: 0, originY: 0, blink: true };
 const cam = { x: 0, y: 0, fromX: 0, fromY: 0, toX: 0, toY: 0, start: 0, animating: false, ready: false };
 const CAMERA_MS = 280;
 
+/**
+ * Units slide from square to square instead of jumping. The state has
+ * already moved; this only times the drawing. Our own moves play at once
+ * (a new order snaps any slide still running); after the other
+ * civilizations' turns, the moves we could see on screen play back in order.
+ */
+const motion = new MotionPlayer();
+const OWN_PACE = { stepMs: 120, maxMs: 1000 };
+const OTHERS_PACE = { stepMs: 110, maxMs: 2500 };
+/** Things to show once every slide has landed (a village's gift, an audience, the turn's news). */
+const afterSlides: (() => void)[] = [];
+
+function whenStill(fn: () => void): void {
+  afterSlides.push(fn);
+}
+
+function resetMotion(): void {
+  motion.clear();
+  afterSlides.length = 0;
+}
+
+/** Slide our units along steps they just took. */
+function slideOwn(steps: readonly UnitStep[]): void {
+  if (!steps.length) return;
+  motion.clear();
+  motion.play(steps, performance.now(), { ...OWN_PACE, width: state.map.width });
+}
+
+/** True if a square is in (or one square around) the part of the map on screen. */
+function onScreen(x: number, y: number): boolean {
+  const w = state.map.width;
+  const rx = (((x - view.originX) % w) + w) % w;
+  const ry = y - view.originY;
+  return (rx <= renderer.viewTilesX || rx >= w - 1) && ry >= -1 && ry <= renderer.viewTilesY;
+}
+
+/** Steps taken out of our turn that we could have watched: seen squares on screen. */
+function watchable(steps: readonly UnitStep[]): UnitStep[] {
+  const me = state.players[0]!;
+  const w = state.map.width;
+  const sees = (x: number, y: number) => me.visible[y * w + x] === 1 && onScreen(x, y);
+  return steps.filter((s) => sees(s.fromX, s.fromY) || sees(s.toX, s.toY));
+}
+
 /** The turn ends by itself once nothing needs orders (game menu toggles it; remembered per browser). */
 let autoEnd = (() => { try { return localStorage.getItem("epochs.autoEnd") !== "off"; } catch { return true; } })();
 let lastInput = 0;
@@ -176,14 +223,16 @@ function afterAction(): void {
     if (ev.kind === "hut" && ev.player === 0) { events.push(ev); lastTurnEvents.splice(i, 1); } else i++;
   }
   events.push(...newContacts());
-  if (events.length) presentEvents(events);
+  if (events.length) whenStill(() => presentEvents(events));
 }
 
 function dispatch(cmd: Command): boolean {
   view.inspect = undefined;
+  const mark = lastSteps.length;
   const r = applyCommand(state, cmd);
   if (r.ok) {
     log.push(cmd);
+    if (cmd.type !== "endTurn") slideOwn(lastSteps.slice(mark));
     if (cmd.type === "move" && lastCombat) reportCombat();
     if (cmd.type !== "endTurn") afterAction();
   } else say(REASONS[r.reason] ?? r.reason);
@@ -206,6 +255,7 @@ function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0
   state = newGame(seed, opts);
   log = [];
   announced.clear();
+  resetMotion();
   screenState = { kind: "map" };
   cam.ready = false;
   followActive(true);
@@ -219,6 +269,7 @@ function resumeGame(save: SaveGame): void {
     log = loaded.log;
     options = save.options;
     announced.clear();
+    resetMotion();
     for (const p of state.players) if (p.id !== 0 && hasContact(state, 0, p.id)) announced.add(p.id);
     screenState = { kind: "map" };
     cam.ready = false;
@@ -727,6 +778,10 @@ function concernsUs(ev: TurnEvent): boolean {
 }
 
 function endTurn(): void {
+  // Last turn's news has not been shown yet (slides still running): show it first.
+  if (afterSlides.length) { motion.clear(); return; }
+  motion.clear();
+  const watched: UnitStep[] = [];
   dispatch({ type: "endTurn" });
   // Our own end of turn (contacts come from the relations; other civs' villages are theirs).
   const events: TurnEvent[] = lastTurnEvents.filter((ev) => ev.kind !== "contact" && !(ev.kind === "hut" && ev.player !== 0));
@@ -736,6 +791,7 @@ function endTurn(): void {
   while (state.players[state.currentPlayer]!.isAi && guard++ < 16) {
     aiTurn(state);
     for (const ev of lastTurnEvents.slice(seen)) if (concernsUs(ev)) events.push(ev);
+    watched.push(...watchable(lastSteps));
     applyCommand(state, { type: "endTurn" });
     seen = 0;
   }
@@ -745,10 +801,14 @@ function endTurn(): void {
   void runAiPlayers; // replay helper lives in core; here the loop above also harvests events
   // Autosave every 5 turns.
   if (state.turn % 5 === 0) void writeSlot(0, makeSave(state, options, log)).catch(() => {});
-  presentEvents(events, () => {
+  // Their moves we could see, then our gotos (begun as our turn started), then the news.
+  const now = performance.now();
+  motion.play(watched, now, { ...OTHERS_PACE, width: state.map.width });
+  motion.play(watchable(lastSteps.filter((s) => s.owner === 0)), now, { ...OWN_PACE, width: state.map.width });
+  whenStill(() => presentEvents(events, () => {
     const end = checkGameEnd(state, FINAL_TURN);
     if (end) endGame(end);
-  });
+  }));
 }
 
 // ---- input: keyboard --------------------------------------------------------
@@ -762,9 +822,11 @@ const MOVES: Record<string, [number, number]> = {
 
 function tryMove(unit: number, dx: number, dy: number): void {
   const before = state.activeUnit;
+  const mark = lastSteps.length;
   const r = applyCommand(state, { type: "move", unit, dx, dy });
   if (r.ok) {
     log.push({ type: "move", unit, dx, dy });
+    slideOwn(lastSteps.slice(mark));
     if (lastCombat) reportCombat();
     afterAction();
     const ev = lastTurnEvents.find((e) => e.kind === "cityCaptured" || e.kind === "cityLost" || e.kind === "tradeRoute" || e.kind === "nuked");
@@ -795,7 +857,10 @@ function mapKey(e: KeyboardEvent): void {
   }
   const order = (cmd: Command) => { if (active !== null) dispatch(cmd); followActive(true); };
   switch (e.code) {
-    case "Enter": case "NumpadEnter": if (active === null) endTurn(); break;
+    case "Enter": case "NumpadEnter":
+      if (motion.busy(performance.now())) motion.clear(); // skip the playback
+      else if (active === null) endTurn();
+      break;
     case "Space": order({ type: "skip", unit: active! }); break;
     case "KeyW": order({ type: "wait", unit: active! }); break;
     case "KeyF": {
@@ -1123,8 +1188,12 @@ function frame(t: number): void {
   view.autoEnd = autoEnd;
   if (screenState.kind !== "title" && screenState.kind !== "setup") stepCamera(t);
   if (status && t > statusUntil) status = undefined;
+  const moving = motion.at(t);
+  view.moving = moving.length ? moving : undefined;
+  if (!moving.length && afterSlides.length && screenState.kind === "map") for (const fn of afterSlides.splice(0)) fn();
   // Auto end turn: nothing to order, the player has been idle a moment, and the map is showing.
-  if (autoEnd && screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && t - lastInput > 900 && t - lastAutoEnd > 900) {
+  if (autoEnd && screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !moving.length && !afterSlides.length
+    && t - lastInput > 900 && t - lastAutoEnd > 900) {
     lastAutoEnd = t;
     endTurn();
   }
@@ -1135,4 +1204,4 @@ function frame(t: number): void {
 }
 requestAnimationFrame(frame);
 
-(window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return log; }, dispatch, atWar, DIFFICULTIES };
+(window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return log; }, get moving() { return view.moving; }, get screen() { return screenState.kind; }, dispatch, atWar, DIFFICULTIES };

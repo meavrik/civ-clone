@@ -129,11 +129,12 @@ export function panOffset(view: MainScreenView): [number, number] {
 
 export function tileToScreen(state: GameState, view: MainScreenView, x: number, y: number): [number, number] | null {
   const w = state.map.width;
-  const tx = (((x - view.originX) % w) + w) % w;
+  let tx = (((x - view.originX) % w) + w) % w;
+  if (tx > w - 1) tx -= w; // a unit sliding out past the left edge, under the panel
   const ty = y - view.originY;
-  if (tx > VIEW_TILES_X || ty < 0 || ty > VIEW_TILES_Y) return null;
+  if (tx > VIEW_TILES_X || ty <= -1 || ty > VIEW_TILES_Y) return null;
   const [ox, oy] = panOffset(view);
-  return [VIEW_X + tx * TILE - ox, VIEW_Y + ty * TILE - oy];
+  return [Math.round(VIEW_X + tx * TILE - ox), Math.round(VIEW_Y + ty * TILE - oy)];
 }
 
 export function drawMapViewport(s: Surface, state: GameState, view: MainScreenView): void {
@@ -173,13 +174,17 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   }
 
   // Units: only those on tiles we currently see. Draw one per tile (top of stack).
+  // A unit sliding between squares is drawn after the rest, where it is now.
+  const moving = view.moving ?? [];
+  const slidingIds = new Set(moving.map((m) => m.unit));
+  const units = slidingIds.size ? state.units.filter((u) => !slidingIds.has(u.id)) : state.units;
   const drawn = new Set<number>();
-  for (const u of state.units) {
+  for (const u of units) {
     const idx = u.y * map.width + u.x;
     if (!me.visible[idx] || drawn.has(idx)) continue;
     const pos = tileToScreen(state, view, u.x, u.y);
     if (!pos) continue;
-    const stack = state.units.filter((o) => o.x === u.x && o.y === u.y);
+    const stack = units.filter((o) => o.x === u.x && o.y === u.y);
     const top = stack.find((o) => o.id === state.activeUnit) ?? stack[0]!;
     drawn.add(idx);
     const isActive = top.id === state.activeUnit;
@@ -187,6 +192,11 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
     if (isActive && !view.blink) continue;
     drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1);
+  }
+  for (const m of moving) {
+    if (m.aboard !== undefined) continue;
+    const pos = tileToScreen(state, view, m.x, m.y);
+    if (pos) drawUnit(s, { type: m.type, order: { kind: "none" } }, pos[0], pos[1], playerColor(state, m.owner), moving.some((o) => o.aboard === m.unit));
   }
 
   // Goto destination of the active unit.

@@ -121,7 +121,7 @@ export function unitSprite(type: string, color: number): Surface {
   return s;
 }
 
-export function drawUnit(s: Surface, u: Unit, dx: number, dy: number, color: number, stacked: boolean): void {
+export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order">, dx: number, dy: number, color: number, stacked: boolean): void {
   if (stacked) {
     // A second box edge peeking out shows a stack, like the original.
     s.rect(dx + 3, dy + 3, 13, 13, C.BLACK!);

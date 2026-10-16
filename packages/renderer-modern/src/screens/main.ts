@@ -92,9 +92,10 @@ function panOffset(view: MainScreenView): [number, number] {
 
 export function tileToScreen(state: GameState, view: MainScreenView, x: number, y: number): [number, number] | null {
   const w = state.map.width;
-  const tx = (((x - view.originX) % w) + w) % w;
+  let tx = (((x - view.originX) % w) + w) % w;
+  if (tx > w - 1) tx -= w; // a unit sliding out past the left edge, clipped at the panel
   const ty = y - view.originY;
-  if (tx > VIEW_TILES_X || ty < 0 || ty > VIEW_TILES_Y) return null;
+  if (tx > VIEW_TILES_X || ty <= -1 || ty > VIEW_TILES_Y) return null;
   const [ox, oy] = panOffset(view);
   return [VIEW_X + tx * TILE - ox, VIEW_Y + ty * TILE - oy];
 }
@@ -154,19 +155,33 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
     if (pos) paintCity(ctx, pos[0], pos[1], c, state.players[c.owner]!.color);
   }
 
+  // A unit sliding between squares is drawn after the rest, where it is now.
+  const moving = view.moving ?? [];
+  const slidingIds = new Set(moving.map((m) => m.unit));
+  const units = slidingIds.size ? state.units.filter((u) => !slidingIds.has(u.id)) : state.units;
   const drawn = new Set<number>();
-  for (const u of state.units) {
+  for (const u of units) {
     const idx = u.y * map.width + u.x;
     if (!me.visible[idx] || drawn.has(idx)) continue;
     const pos = tileToScreen(state, view, u.x, u.y);
     if (!pos) continue;
-    const stack = state.units.filter((o) => o.x === u.x && o.y === u.y);
+    const stack = units.filter((o) => o.x === u.x && o.y === u.y);
     const top = stack.find((o) => o.id === state.activeUnit) ?? stack[0]!;
     drawn.add(idx);
     const isActive = top.id === state.activeUnit;
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
     if (isActive && !view.blink) continue;
     paintUnit(ctx, pos[0], pos[1], top, state.players[top.owner]!.color, { stacked: stack.length > 1, active: isActive });
+  }
+  for (const m of moving) {
+    if (m.aboard !== undefined) continue;
+    const pos = tileToScreen(state, view, m.x, m.y);
+    if (!pos) continue;
+    const veteran = state.units.find((u) => u.id === m.unit)?.veteran ?? false;
+    paintUnit(ctx, pos[0], pos[1], { type: m.type, order: { kind: "none" }, veteran }, state.players[m.owner]!.color, {
+      stacked: moving.some((o) => o.aboard === m.unit),
+      active: m.unit === state.activeUnit,
+    });
   }
 
   for (const c of state.cities) {

@@ -125,9 +125,31 @@ export function checkMove(state: GameState, u: Unit, dx: number, dy: number): Mo
   return r;
 }
 
+/**
+ * One square a unit moved, for the UI to animate. `aboard` names the ship
+ * that carried it along. Steps are not game state: replays and the AI never
+ * read them.
+ */
+export interface UnitStep {
+  unit: number;
+  type: string;
+  owner: number;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  aboard?: number;
+}
+
+/** Every step taken since the current player's turn began, in order; endTurn empties it. */
+export const lastSteps: UnitStep[] = [];
+
 export function applyMove(state: GameState, u: Unit, dx: number, dy: number, r: Extract<MoveResult, { ok: true }>): void {
+  const fromX = u.x;
+  const fromY = u.y;
   u.x = wrapX(state.map, u.x + dx);
   u.y += dy;
+  lastSteps.push({ unit: u.id, type: u.type, owner: u.owner, fromX, fromY, toX: u.x, toY: u.y });
   u.movesLeft = Math.max(0, u.movesLeft - r.cost);
   if (u.order.kind === "fortified" || u.order.kind === "fortifying" || u.order.kind === "sentry")
     u.order = { kind: "none" };
@@ -137,7 +159,12 @@ export function applyMove(state: GameState, u: Unit, dx: number, dy: number, r: 
     u.movesLeft = 0;
   } else if (r.disembark) u.aboard = null;
   // A moving ship carries its cargo.
-  if (unitType(u.type).domain === "sea") for (const c of cargo(state, u)) { c.x = u.x; c.y = u.y; }
+  if (unitType(u.type).domain === "sea")
+    for (const c of cargo(state, u)) {
+      lastSteps.push({ unit: c.id, type: c.type, owner: c.owner, fromX: c.x, fromY: c.y, toX: u.x, toY: u.y, aboard: u.id });
+      c.x = u.x;
+      c.y = u.y;
+    }
 }
 
 /** Which settler work is possible on the unit's tile, with turns required. */

@@ -30,7 +30,7 @@ import { MOVE_FRAC, TERRAIN_RULES, WARMING_LIMIT, WARMING_THRESHOLD } from "./ru
 import { unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
 import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type GameState, type Player, type Production, type Specialist, type Unit, type WorkKind } from "./types.js";
-import { applyMove, cargo, checkMove, createUnit, fullMoves, unitById, workOptions } from "./units.js";
+import { applyMove, cargo, checkMove, createUnit, fullMoves, lastSteps, unitById, workOptions } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
 /**
@@ -656,6 +656,7 @@ export function endTurn(state: GameState): void {
   const p = state.players[player]!;
   lastTurnEvents.length = 0;
   lastCombat = null;
+  lastSteps.length = 0;
 
   // Settler work progresses at the end of the owner's turn.
   for (const u of state.units) {
