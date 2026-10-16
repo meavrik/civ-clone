@@ -40,6 +40,12 @@ URL options skip the setup screens: `?seed=1234&difficulty=2&opponents=2&civ=gre
 Saves: slots 1–5 in the game menu, autosave to slot 0 every 5 turns. A save is the seed plus the
 command log and is replayed on load, so it also serves as a replay for the AI harness.
 
+## Working from a Linux shell on this machine
+
+`scripts/mirror-test.sh` rsyncs the source (minus `node_modules`) to
+`~/work/mirror`, installs Linux deps there once, and runs vitest + tsc.
+The repo's own `node_modules` stays macOS-native for `pnpm dev`.
+
 ## Design rules
 
 - Everything drawn goes through `Surface` (one byte per pixel) and the
