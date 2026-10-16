@@ -1,6 +1,7 @@
 import {
   atWar,
   canFoundCity,
+  cityAt,
   formatYear,
   GOVERNMENTS,
   getTile,
@@ -8,13 +9,16 @@ import {
   Terrain,
   TERRAIN_NAMES,
   TERRAIN_RULES,
+  tileYield,
   turnToYear,
+  unitAt,
   unitById,
   unitType,
   workOptions,
+  wrapX,
   type GameState,
 } from "@civ/core";
-import { drawText, drawTextCentered } from "../font.js";
+import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, wrapText } from "../font.js";
 import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
@@ -37,8 +41,12 @@ export interface MainScreenView {
   originY: number;
   /** Blink phase for the active unit. */
   blink: boolean;
-  /** One-line status message under the unit box (e.g. a refused move). */
+  /** Status message under the unit box (e.g. a refused move); wrapped to the panel. */
   message?: string | undefined;
+  /** Tile the player clicked to inspect; shown instead of the message. */
+  inspect?: { x: number; y: number } | undefined;
+  /** The turn ends by itself once no unit needs orders. */
+  autoEnd?: boolean | undefined;
 }
 
 export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LRED!, C.LMAGENTA!, C.LGREY!];
@@ -151,6 +159,50 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   s.rect(VIEW_X, VIEW_H, VIEW_W, SCREEN_H - VIEW_H, C.BLACK!);
 }
 
+const TEXT_X = 3;
+const TEXT_W = PANEL_W - 6;
+const PANEL_BOTTOM = SCREEN_H - 2;
+
+function linesLeft(y: number): number {
+  return Math.max(0, Math.floor((PANEL_BOTTOM - y) / FONT_HEIGHT));
+}
+
+/** What a tile holds, for the inspect box: terrain and yields, improvements, city, units. Returns the next y. */
+export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: number, x: number, y: number): number {
+  const me = state.players[state.currentPlayer]!;
+  const ink = shade("ui", 7);
+  const dim = shade("ui", 5);
+  const idx = ty * state.map.width + wrapX(state.map, tx);
+  if (ty < 0 || ty >= state.map.height || !me.explored[idx]) {
+    drawText(s, x, y, "Unexplored", dim);
+    return y + FONT_HEIGHT;
+  }
+  const t = state.map.tiles[idx]!;
+  const r = TERRAIN_RULES[t.terrain];
+  const city = cityAt(state, tx, ty);
+  drawText(s, x, y, TERRAIN_NAMES[t.terrain], ink);
+  y += FONT_HEIGHT;
+  const yld = tileYield(state, t, city !== undefined, me.government);
+  drawText(s, x, y, `F${yld.food} S${yld.shields} T${yld.trade}  mv ${r.moveCost}${r.defense !== 1 ? ` x${r.defense}` : ""}`, ink);
+  y += FONT_HEIGHT;
+  const extras = [
+    t.special && r.special?.name, t.river && "River", t.railroad ? "Railroad" : t.road && "Road", t.irrigation && "Irrigation",
+    t.mine && "Mine", t.fortress && "Fortress", t.pollution && "Pollution", t.hut && "Village",
+  ].filter(Boolean).join(", ");
+  if (extras) y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, extras, dim, Math.min(2, linesLeft(y)));
+  if (city) {
+    y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, `${city.name} (${state.players[city.owner]!.name})`, playerColor(city.owner), Math.min(2, linesLeft(y)));
+  }
+  const units = me.visible[idx] ? unitAt(state, tx, ty) : [];
+  if (units.length) {
+    const top = units[0]!;
+    const who = top.owner === me.id ? "ours" : state.players[top.owner]!.name;
+    const label = units.length === 1 ? `${unitType(top.type).name} (${who})` : `${units.length} units: ${unitType(top.type).name} (${who})`;
+    y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, label, playerColor(top.owner), Math.min(2, linesLeft(y)));
+  }
+  return y;
+}
+
 export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenView): void {
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
@@ -180,10 +232,10 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   }
   s.hline(0, mmY + map.height, PANEL_W, shade("ui", 0));
 
+  // Empire line: population, year, treasury and rates, government.
   let y = mmY + map.height + 4;
   const ink = shade("ui", 7);
   const dim = shade("ui", 5);
-  void ink;
   const pop = state.cities.filter((c) => c.owner === state.currentPlayer).reduce((n, c) => n + c.size * (c.size + 1) * 5000, 0);
   drawTextCentered(s, PANEL_W / 2, y, pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : `${Math.floor(pop / 1000)},000`, ink);
   y += 9;
@@ -193,33 +245,29 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   y += 9;
   const govName = GOVERNMENTS[me.government]?.name ?? me.government;
   drawTextCentered(s, PANEL_W / 2, y, govName, dim);
-  y += 12;
+  y += 11;
   s.hline(2, y, PANEL_W - 4, shade("ui", 0));
   y += 4;
 
+  // Unit box: the unit awaiting orders, or the end of the turn.
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
   if (active) {
     const type = unitType(active.type);
     s.blit(unitSprite(active.type, playerColor(active.owner)), 4, y, 0);
-    drawText(s, 24, y, type.name, ink);
-    const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
-    if (home) drawText(s, 24, y + 18, home.name, dim);
+    drawTextWrapped(s, 24, y, PANEL_W - 26, type.name, ink, 1);
     const whole = Math.floor(active.movesLeft / 3);
     const frac = active.movesLeft % 3;
     drawText(s, 24, y + 9, `Moves: ${whole}${frac ? ` ${frac}/3` : ""}`, dim);
-    y += home ? 28 : 20;
+    const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
+    y += 18;
+    if (home) { drawTextWrapped(s, TEXT_X, y, TEXT_W, home.name, dim, 1); y += FONT_HEIGHT; }
     const t = getTile(map, active.x, active.y);
     if (t) {
       const r = TERRAIN_RULES[t.terrain];
-      drawText(s, 4, y, `(${TERRAIN_NAMES[t.terrain]})`, dim);
-      y += 9;
       const extras = [t.river && "River", t.railroad ? "Railroad" : t.road && "Road", t.irrigation && "Irrigation", t.mine && "Mine", t.fortress && "Fortress", t.pollution && "Pollution", t.special && r.special?.name]
         .filter(Boolean)
         .join(", ");
-      if (extras) {
-        drawText(s, 4, y, `(${extras})`, dim);
-        y += 9;
-      }
+      y += FONT_HEIGHT * drawTextWrapped(s, TEXT_X, y, TEXT_W, `(${TERRAIN_NAMES[t.terrain]}${extras ? `: ${extras}` : ""})`, dim, Math.min(2, linesLeft(y)));
     }
     const w = workOptions(state, active);
     const keys = [
@@ -228,26 +276,31 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
       w.fortress !== undefined && "F", w.clean !== undefined && "P",
     ].filter(Boolean);
     if (keys.length) {
-      drawText(s, 4, y, `Orders: ${keys.join(" ")}`, dim);
-      y += 9;
+      drawText(s, TEXT_X, y, `Orders: ${keys.join(" ")}`, dim);
+      y += FONT_HEIGHT;
     }
   } else {
-    drawText(s, 4, y, "End of Turn", ink);
-    y += 9;
-    drawText(s, 4, y, "Press Enter", dim);
-    y += 9;
+    drawText(s, TEXT_X, y, "End of Turn", ink);
+    y += FONT_HEIGHT;
+    drawText(s, TEXT_X, y, view.autoEnd ? "(auto)" : "Press Enter", dim);
+    y += FONT_HEIGHT;
   }
+  y += 3;
+  s.hline(2, y, PANEL_W - 4, shade("ui", 0));
+  y += 4;
+
+  // Bottom: who we are at war with, kept clear of everything above it.
   const enemies = state.players.filter((p) => p.id !== me.id && p.alive && p.id !== state.barbarians && atWar(state, me.id, p.id));
+  let bottom = PANEL_BOTTOM;
   if (enemies.length) {
-    y += 4;
-    drawText(s, 4, y, "At war:", C.LRED!);
-    y += 9;
-    for (const p of enemies) { drawText(s, 8, y, p.name, playerColor(p.id)); y += 8; }
+    const lines = wrapText(`At war: ${enemies.map((p) => p.name).join(", ")}`, TEXT_W).slice(0, 2);
+    bottom = PANEL_BOTTOM - lines.length * FONT_HEIGHT - 2;
+    lines.forEach((line, i) => drawText(s, TEXT_X, bottom + 2 + i * FONT_HEIGHT, line, C.LRED!));
   }
-  if (view.message) {
-    y += 4;
-    drawText(s, 4, y, view.message, C.YELLOW!);
-  }
+
+  // Info area: the tile under inspection, else the latest message.
+  if (view.inspect) drawTileInfo(s, state, view.inspect.x, view.inspect.y, TEXT_X, y);
+  else if (view.message) drawTextWrapped(s, TEXT_X, y, TEXT_W, view.message, C.YELLOW!, Math.max(0, Math.floor((bottom - y) / FONT_HEIGHT)));
 
   s.vline(PANEL_W - 1, 0, SCREEN_H, shade("ui", 0));
 }

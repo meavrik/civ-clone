@@ -61,6 +61,23 @@ describe("retro renderer", () => {
     expect(s.data.length).toBe(320 * 200);
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/main-screen.png", import.meta.url), encodePng(s, 3));
+
+    // A long message wraps inside the panel and never crosses into the map.
+    view.message = "Trade route Rome-Capua: +45 gold and science, a long message that must wrap";
+    state.relations["0:1"] = "war";
+    state.relations["0:2"] = "war";
+    drawMainScreen(s, state, view);
+    for (let y = 0; y < 200; y++) expect(s.data[y * 320 + 79], `panel edge at row ${y}`).not.toBe(14);
+    writeFileSync(new URL("./out/panel-message.png", import.meta.url), encodePng(s, 3));
+
+    // Inspecting a tile shows terrain, yields and what stands there.
+    view.message = undefined;
+    view.inspect = { x: u.x + 2, y: u.y + 1 };
+    state.currentPlayer = 0;
+    state.activeUnit = null;
+    view.autoEnd = true;
+    drawMainScreen(s, state, view);
+    writeFileSync(new URL("./out/panel-inspect.png", import.meta.url), encodePng(s, 3));
   });
 });
 

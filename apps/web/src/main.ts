@@ -126,8 +126,17 @@ type Screen =
 
 let screenState: Screen = { kind: "title" };
 const view: MainScreenView = { originX: 0, originY: 0, blink: true };
+/** The turn ends by itself once nothing needs orders (game menu toggles it; remembered per browser). */
+let autoEnd = (() => { try { return localStorage.getItem("epochs.autoEnd") !== "off"; } catch { return true; } })();
+let lastInput = 0;
+let lastAutoEnd = 0;
+function setAutoEnd(on: boolean): void {
+  autoEnd = on;
+  try { localStorage.setItem("epochs.autoEnd", on ? "on" : "off"); } catch { /* private mode */ }
+}
 
 function dispatch(cmd: Command): boolean {
+  view.inspect = undefined;
   const r = applyCommand(state, cmd);
   if (r.ok) {
     log.push(cmd);
@@ -358,6 +367,7 @@ function openGameMenu(): void {
     ["Save game", () => openSaveMenu()],
     ["Load game", () => openLoadMenu()],
     ["Spaceship (F6)", () => { screenState = { kind: "spaceship" }; }],
+    [`Auto end turn: ${autoEnd ? "on" : "off"}`, () => { setAutoEnd(!autoEnd); say(`Auto end turn ${autoEnd ? "on" : "off"}`); }],
     ["Retire (end game)", () => endGame({ kind: "time" })],
     ["New game", () => { screenState = { kind: "title" }; }],
   ];
@@ -690,6 +700,8 @@ function openTitleMenu(): void {
 
 addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  lastInput = performance.now();
+  view.inspect = undefined;
   const sc = screenState;
   switch (sc.kind) {
     case "title": openTitleMenu(); break;
@@ -744,6 +756,7 @@ function advisorHotkey(e: KeyboardEvent): void {
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 canvas.addEventListener("mousedown", (e) => {
   const [px, py] = toScreen(e);
+  lastInput = performance.now();
   const sc = screenState;
   switch (sc.kind) {
     case "title": openTitleMenu(); return;
@@ -811,6 +824,8 @@ canvas.addEventListener("mousedown", (e) => {
     }
     const own = unitAt(state, tx, ty).find((u) => u.owner === 0 && u.movesLeft > 0);
     if (own) { dispatch({ type: "activate", unit: own.id }); return; }
+    // First click looks at the tile; a second click on the same tile sends the unit there.
+    if (!(view.inspect && view.inspect.x === tx && view.inspect.y === ty)) { view.inspect = { x: tx, y: ty }; return; }
     const before = state.activeUnit;
     if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
     followActive(state.activeUnit !== before);
@@ -822,7 +837,8 @@ canvas.addEventListener("mousedown", (e) => {
     if (state.activeUnit !== own.id) say("No moves left this turn");
     return;
   }
-  centerOn(tx, ty);
+  if (view.inspect && view.inspect.x === tx && view.inspect.y === ty) { centerOn(tx, ty); return; }
+  view.inspect = { x: tx, y: ty };
 });
 
 // ---- frame loop ---------------------------------------------------------------
@@ -864,7 +880,13 @@ function draw(sc: Screen): void {
 function frame(t: number): void {
   if (t - lastBlink > 400) { blinkOn = !blinkOn; lastBlink = t; }
   view.blink = blinkOn;
+  view.autoEnd = autoEnd;
   if (status && t > statusUntil) status = undefined;
+  // Auto end turn: nothing to order, the player has been idle a moment, and the map is showing.
+  if (autoEnd && screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && t - lastInput > 900 && t - lastAutoEnd > 900) {
+    lastAutoEnd = t;
+    endTurn();
+  }
   draw(screenState);
   present();
   requestAnimationFrame(frame);
