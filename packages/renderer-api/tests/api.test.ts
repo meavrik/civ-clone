@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, createUnit, getTile, newGame, revealAround, Terrain } from "@civ/core";
-import { opponentsForChoice, setupChoose, setupMenu, setupOptions, terrainInfo, type SetupState } from "../src/index.js";
+import { MENU_BAR, opponentsForChoice, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
 const fresh = (step: SetupState["step"]): SetupState => ({ step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
 
@@ -74,5 +74,50 @@ describe("terrain info", () => {
     applyCommand(s, { type: "found", unit: u.id });
     expect(terrainInfo(s, u.x, u.y).lines.some((l) => l.startsWith(`City: ${s.cities[0]!.name} (Romans), size 1`))).toBe(true);
     expect(terrainInfo(s, (u.x + 40) % 80, u.y)).toEqual({ title: "Unexplored", lines: ["Our explorers have not seen this land."] });
+  });
+});
+
+describe("world reports", () => {
+  it("names the bar's four menus in the original's order", () => {
+    expect([...MENU_BAR]).toEqual(["Game", "Orders", "Advisors", "World"]);
+  });
+
+  it("lists built wonders, hiding the city of a civilization we have not met", () => {
+    const s = newGame(2026, { opponents: 2 });
+    expect(wondersReport(s).lines).toEqual([{ text: "No wonder has been built yet.", dim: true }]);
+    applyCommand(s, { type: "found", unit: s.units[0]!.id });
+    const mine = s.cities[0]!;
+    mine.wonders.push("pyramids");
+    const rival = s.players[1]!;
+    const theirs = { ...mine, id: 999, owner: 1, name: "Faraway", x: (mine.x + 30) % s.map.width, wonders: ["colossus"] };
+    s.cities.push(theirs);
+    const page = wondersReport(s);
+    expect(page.title).toBe("Wonders of the World");
+    expect(page.lines.map((l) => l.text)).toEqual(expect.arrayContaining(["Pyramids", "Colossus"]));
+    const pyramids = page.lines.find((l) => l.text === "Pyramids")!;
+    expect(pyramids.right).toBe(`${mine.name} (${s.players[0]!.name})`);
+    expect(pyramids.slot).toBe(s.players[0]!.color);
+    const colossus = page.lines.find((l) => l.text === "Colossus")!;
+    expect(colossus.right).toBe("a distant civilization");
+    expect(colossus.right).not.toContain("Faraway");
+    expect(colossus.dim).toBe(true);
+    expect(colossus.slot).toBe(rival.color);
+    expect(page.hint).toMatch(/^2 of \d+ built$/);
+  });
+
+  it("ranks the five largest cities we know of by size", () => {
+    const s = newGame(2026, { opponents: 2 });
+    expect(topCitiesReport(s).lines[0]!.dim).toBe(true);
+    applyCommand(s, { type: "found", unit: s.units[0]!.id });
+    const base = s.cities[0]!;
+    base.size = 3;
+    for (let i = 0; i < 6; i++) s.cities.push({ ...base, id: 100 + i, name: `Town${i}`, size: 4 + i, wonders: [] });
+    // A big city on land we have never seen stays off the list.
+    const hidden = { ...base, id: 200, owner: 1, name: "Unseen", size: 30, x: (base.x + 40) % s.map.width, wonders: [] };
+    s.players[0]!.explored[hidden.y * s.map.width + hidden.x] = 0;
+    s.cities.push(hidden);
+    const page = topCitiesReport(s);
+    expect(page.lines.map((l) => l.text)).toEqual(["1. Town5", "2. Town4", "3. Town3", "4. Town2", "5. Town1"]);
+    expect(page.lines[0]!.right).toBe(`size 9 (${s.players[0]!.name})`);
   });
 });

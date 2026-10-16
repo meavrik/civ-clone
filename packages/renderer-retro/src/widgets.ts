@@ -40,10 +40,11 @@ function menuLayout(m: MenuState): MenuLayout {
   const w = Math.min(300, Math.max(maxItem, Math.min(bodyW, 276)) + 24);
   const lines = (m.body ?? []).flatMap((l) => wrapText(l, w - 20));
   const bodyH = lines.length ? lines.length * FONT_HEIGHT + 5 : 0;
-  const h = 14 + bodyH + m.items.length * MENU_ROW + 8;
-  const x = Math.floor((320 - w) / 2);
-  const y = Math.max(0, Math.floor((200 - h) / 2));
-  return { x, y, w, h, lines, itemsY: y + 16 + bodyH };
+  const head = m.title ? 16 : 3;
+  const h = head + bodyH + m.items.length * MENU_ROW + (m.title ? 6 : 3);
+  const x = m.anchor ? Math.max(0, Math.min(320 - w, m.anchor.x)) : Math.floor((320 - w) / 2);
+  const y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
+  return { x, y, w, h, lines, itemsY: y + head + bodyH };
 }
 
 export function menuRect(m: MenuState): { x: number; y: number; w: number; h: number } {
@@ -54,9 +55,11 @@ export function menuRect(m: MenuState): { x: number; y: number; w: number; h: nu
 export function drawMenu(s: Surface, m: MenuState): void {
   const { x, y, w, h, lines, itemsY } = menuLayout(m);
   drawPanel(s, x, y, w, h);
-  drawText(s, x + 8, y + 4, m.title, shade("ui", 7));
-  s.hline(x + 4, y + 13, w - 8, shade("ui", 0));
-  lines.forEach((line, i) => drawText(s, x + 10, y + 17 + i * FONT_HEIGHT, line, shade("ui", 6)));
+  if (m.title) {
+    drawText(s, x + 8, y + 4, m.title, shade("ui", 7));
+    s.hline(x + 4, y + 13, w - 8, shade("ui", 0));
+  }
+  lines.forEach((line, i) => drawText(s, x + 10, y + (m.title ? 17 : 4) + i * FONT_HEIGHT, line, shade("ui", 6)));
   if (lines.length) s.hline(x + 4, itemsY - 3, w - 8, shade("ui", 1));
   m.items.forEach((item, i) => {
     const ry = itemsY + i * MENU_ROW;

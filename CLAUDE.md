@@ -27,8 +27,10 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `baseline.ts` (v1, kept as the tournament yardstick). The planner is stateless between turns: it
   re-derives the empire picture (`analyse`) from `GameState` every turn, so replays stay exact.
 - `packages/renderer-api` — the `Renderer` interface every renderer implements (draw each screen
-  in its own logical size, hit-test menus/city map/tiles/minimap), the shared view types and the
-  DOM-free screen logic (`setupMenu`, `leaderLine`). The web app only talks to a `Renderer`.
+  in its own logical size, hit-test menus/city map/tiles/minimap/menu bar), the shared view types and the
+  DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`). The web app
+  only talks to a `Renderer`. The main screen has a menu bar (`MENU_BAR`: Game, Orders, Advisors,
+  World) above map and panel; a `MenuState` with an `anchor` and an empty title is a bar dropdown.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
   terrain, cities, villages and specials are pixel art in `src/art/*.art.ts` (text grids; legend

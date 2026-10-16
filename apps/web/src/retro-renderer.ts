@@ -27,6 +27,11 @@ import {
   VIEW_TILES_X,
   VIEW_TILES_Y,
   VIEW_X,
+  VIEW_Y,
+  drawReportScreen,
+  drawWorldMap,
+  menuBarAnchor,
+  menuBarHit,
 } from "@civ/renderer-retro";
 import { wrapX, type GameState } from "@civ/core";
 
@@ -76,15 +81,20 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     citySlotAt: (px, py) => citySlotAt(px, py),
     cityExitHit: (_px, py) => py > SCREEN_H - 12,
     tileAt(state: GameState, view: MainScreenView, px, py) {
-      if (px < VIEW_X) return null;
+      if (px < VIEW_X || py < VIEW_Y) return null;
       const [ox, oy] = panOffset(view);
-      const ty = view.originY + Math.floor((py + oy) / TILE);
+      const ty = view.originY + Math.floor((py - VIEW_Y + oy) / TILE);
       if (ty < 0 || ty >= state.map.height) return null;
       return { x: wrapX(state.map, view.originX + Math.floor((px - VIEW_X + ox) / TILE)), y: ty };
     },
     minimapAt(state: GameState, px, py) {
-      if (px >= VIEW_X || py < 2 || py >= 2 + state.map.height) return null;
-      return { x: px, y: py - 2 };
+      const top = VIEW_Y + 2;
+      if (px >= VIEW_X || py < top || py >= top + state.map.height) return null;
+      return { x: px, y: py - top };
     },
+    report: (page) => drawReportScreen(screen, page),
+    worldMap: (state) => drawWorldMap(screen, state),
+    menuBarHit: (px, py) => menuBarHit(px, py),
+    menuBarAnchor: (index) => menuBarAnchor(index),
   };
 }

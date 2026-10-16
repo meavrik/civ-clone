@@ -119,6 +119,40 @@ describe("retro renderer", () => {
     drawMainScreen(s, state, view);
     writeFileSync(new URL("./out/panel-inspect.png", import.meta.url), encodePng(s, 3));
   });
+
+  it("draws the menu bar above the map, with dropdowns under their titles", async () => {
+    const { drawReportScreen, drawWorldMap, menuBarAnchor, menuBarHit, wondersReport, topCitiesReport, VIEW_Y } = await import("../src/index.js");
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    revealAround(state, 0, u.x, u.y, 9);
+    applyCommand(state, { type: "found", unit: u.id });
+    state.cities[0]!.wonders.push("pyramids");
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true, menuOpen: 2 };
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    // Titles left to right along the top rows; nothing of the map shows above the bar's edge.
+    const titles: number[] = [];
+    for (let x = 0; x < 320; x++) { const t = menuBarHit(x, 4); if (titles.at(-1) !== t) titles.push(t); }
+    expect(titles.filter((t) => t >= 0)).toEqual([0, 1, 2, 3]);
+    expect(menuBarHit(10, VIEW_Y + 2)).toBe(-1);
+    const bg = s.get(316, 2);
+    for (let x = 300; x < 320; x++) expect(s.get(x, 2)).toBe(bg);
+    const anchor = menuBarAnchor(2);
+    const drop = { title: "", items: ["City Status", "Military Advisor", "Foreign Minister", "Science Advisor"], right: ["F1", "F2", "F3", "F4"], selected: 1, anchor };
+    drawMenu(s, drop);
+    writeFileSync(new URL("./out/menu-bar.png", import.meta.url), encodePng(s, 3));
+    let top = -1;
+    for (let y = 0; y < 200 && top < 0; y++) if (menuHit(drop, anchor.x + 20, y) === 0) top = y;
+    expect(top).toBeGreaterThanOrEqual(VIEW_Y);
+    expect(top).toBeLessThan(VIEW_Y + 12);
+    drawReportScreen(s, wondersReport(state));
+    writeFileSync(new URL("./out/report-wonders.png", import.meta.url), encodePng(s, 3));
+    drawReportScreen(s, topCitiesReport(state));
+    writeFileSync(new URL("./out/report-cities.png", import.meta.url), encodePng(s, 3));
+    drawWorldMap(s, state);
+    writeFileSync(new URL("./out/world-map.png", import.meta.url), encodePng(s, 3));
+    expect(s.data.some((c) => c !== 0)).toBe(true);
+  });
 });
 
 describe("city screen", () => {

@@ -3,6 +3,8 @@ import {
   civ,
   CIV_COLORS,
   CIVS,
+  hasContact,
+  WONDERS,
   nativeCivs,
   PREMADE_WORLDS,
   premadeWorld,
@@ -44,6 +46,8 @@ export interface MainScreenView {
   inspect?: { x: number; y: number } | undefined;
   /** The turn ends by itself once no unit needs orders. */
   autoEnd?: boolean | undefined;
+  /** Index into MENU_BAR of the dropdown that is open, to highlight its title. */
+  menuOpen?: number | undefined;
 }
 
 export interface CityScreenView {
@@ -52,7 +56,10 @@ export interface CityScreenView {
 }
 
 export interface MenuState {
+  /** Shown in a header row; an empty title (a dropdown) has no header. */
   title: string;
+  /** Open at this point (a dropdown under the menu bar) instead of the centre of the screen. */
+  anchor?: { x: number; y: number };
   /** Paragraphs shown between the title and the choices (a modal message); renderers wrap them. */
   body?: string[];
   items: string[];
@@ -70,6 +77,24 @@ export interface TextInputState {
 export const TEXT_INPUT_MAX = 14;
 
 export type AdvisorKind = "domestic" | "military" | "foreign" | "score";
+
+/** The menu bar across the top of the map screen, as in the original. */
+export const MENU_BAR = ["Game", "Orders", "Advisors", "World"] as const;
+
+/** A row of a report page; `slot` colours a civilization's marker. */
+export interface ReportLine {
+  text: string;
+  right?: string;
+  slot?: number;
+  dim?: boolean;
+}
+
+/** A titled page of rows (Wonders of the World, Top 5 Cities...). */
+export interface ReportPage {
+  title: string;
+  lines: ReportLine[];
+  hint?: string;
+}
 
 export interface SetupState {
   step: "world" | "starts" | "landMass" | "temperature" | "climate" | "age" | "difficulty" | "opponents" | "civ" | "done";
@@ -126,6 +151,15 @@ export interface Renderer {
   tileAt(state: GameState, view: MainScreenView, px: number, py: number): { x: number; y: number } | null;
   /** Map tile under a point on the main screen's minimap, or null. */
   minimapAt(state: GameState, px: number, py: number): { x: number; y: number } | null;
+
+  /** A report page (wonders, top cities...). */
+  report(page: ReportPage): void;
+  /** The whole world as far as the current player has explored it. */
+  worldMap(state: GameState): void;
+  /** Index into MENU_BAR of the title under a point on the main screen's menu bar, or -1. */
+  menuBarHit(px: number, py: number): number;
+  /** Where that title's dropdown opens. */
+  menuBarAnchor(index: number): { x: number; y: number };
 }
 
 // ---- screen logic shared by every renderer -----------------------------------------
@@ -247,6 +281,42 @@ export function leaderLine(state: GameState, player: number): string {
   if (theirs > mine * 2) return "Our armies are mighty. Tread carefully.";
   if (mine > theirs * 2) return "We seek only peace with so great a power.";
   return "Greetings. What brings you to our court?";
+}
+
+/** A civilization's name as the current player knows it: unmet civilizations stay anonymous. */
+function knownName(state: GameState, owner: number): string {
+  const me = state.currentPlayer;
+  const p = state.players[owner]!;
+  if (owner === me || hasContact(state, me, owner)) return p.name;
+  return "a distant civilization";
+}
+
+/** Wonders of the World: every wonder built so far, with its city and civilization. */
+export function wondersReport(state: GameState): ReportPage {
+  const lines: ReportLine[] = [];
+  for (const w of WONDERS) {
+    const city = state.cities.find((c) => c.wonders.includes(w.id));
+    if (!city) continue;
+    const mine = city.owner === state.currentPlayer;
+    const known = mine || hasContact(state, state.currentPlayer, city.owner);
+    lines.push({ text: w.name, right: known ? `${city.name} (${knownName(state, city.owner)})` : knownName(state, city.owner), slot: state.players[city.owner]!.color, dim: !known });
+  }
+  if (!lines.length) lines.push({ text: "No wonder has been built yet.", dim: true });
+  return { title: "Wonders of the World", lines, hint: `${lines.length && !lines[0]!.dim ? lines.length : 0} of ${WONDERS.length} built` };
+}
+
+/** Top 5 Cities: the largest cities the current player knows of, by size. */
+export function topCitiesReport(state: GameState): ReportPage {
+  const me = state.players[state.currentPlayer]!;
+  const known = state.cities.filter((c) => c.owner === me.id || me.explored[c.y * state.map.width + c.x]);
+  const top = [...known].sort((a, b) => b.size - a.size || b.wonders.length - a.wonders.length || a.id - b.id).slice(0, 5);
+  const lines: ReportLine[] = top.map((c, i) => ({
+    text: `${i + 1}. ${c.name}`,
+    right: `size ${c.size}${c.wonders.length ? `, ${c.wonders.length} wonder${c.wonders.length > 1 ? "s" : ""}` : ""} (${knownName(state, c.owner)})`,
+    slot: state.players[c.owner]!.color,
+  }));
+  if (!lines.length) lines.push({ text: "We know of no cities yet.", dim: true });
+  return { title: "Top 5 Cities", lines };
 }
 
 /** Rival civilizations for the n-th choice of the "How many civilizations?" menu. */

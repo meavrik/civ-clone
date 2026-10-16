@@ -18,7 +18,7 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, wrapText } from "../font.js";
+import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
@@ -27,17 +27,55 @@ import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 
 /**
- * Main map screen layout: a left-hand status column and a tile viewport.
- * The column is 80px wide, which fits an 80x50 minimap at one pixel per tile.
+ * Main map screen layout, as in the original: a menu bar across the top, a
+ * left-hand status column and a tile viewport below it. The column is 80px
+ * wide, which fits an 80x50 minimap at one pixel per tile.
  */
+export const BAR_H = 9;
 export const PANEL_W = 80;
 export const VIEW_X = PANEL_W;
+export const VIEW_Y = BAR_H;
 export const VIEW_W = SCREEN_W - PANEL_W; // 240 = 15 tiles
-export const VIEW_H = SCREEN_H; // 200 = 12.5 tiles
+export const VIEW_H = SCREEN_H - BAR_H; // 191 = 12 tiles (the last one cut)
 export const VIEW_TILES_X = Math.ceil(VIEW_W / TILE);
 export const VIEW_TILES_Y = Math.ceil(VIEW_H / TILE);
 
-import type { MainScreenView } from "@civ/renderer-api";
+const BAR_X0 = 6;
+const BAR_GAP = 14;
+
+/** Left edge and width of each menu bar title. */
+export function menuBarLayout(): { x: number; w: number }[] {
+  let x = BAR_X0;
+  return MENU_BAR.map((t) => {
+    const w = textWidth(t);
+    const r = { x, w };
+    x += w + BAR_GAP;
+    return r;
+  });
+}
+
+export function menuBarHit(px: number, py: number): number {
+  if (py < 0 || py >= BAR_H) return -1;
+  return menuBarLayout().findIndex(({ x, w }) => px >= x - BAR_GAP / 2 && px < x + w + BAR_GAP / 2);
+}
+
+export function menuBarAnchor(index: number): { x: number; y: number } {
+  const t = menuBarLayout()[index] ?? { x: BAR_X0, w: 0 };
+  return { x: Math.max(0, t.x - 6), y: BAR_H };
+}
+
+/** The menu bar: parchment strip with the titles, the open one inverted. */
+export function drawMenuBar(s: Surface, open?: number): void {
+  s.rect(0, 0, SCREEN_W, BAR_H, shade("ui", 6));
+  s.hline(0, BAR_H - 1, SCREEN_W, shade("ui", 3));
+  menuBarLayout().forEach(({ x, w }, i) => {
+    const on = i === open;
+    if (on) s.rect(x - 4, 0, w + 8, BAR_H - 1, shade("ui", 1));
+    drawText(s, x, 1, MENU_BAR[i]!, on ? shade("ui", 7) : C.BLACK!);
+  });
+}
+
+import { MENU_BAR, type MainScreenView } from "@civ/renderer-api";
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
 export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LMAGENTA!, C.LGREY!, C.ORANGE!, C.LRED!];
@@ -49,7 +87,7 @@ export function playerColor(state: GameState, owner: number): number {
   return slotColor(state.players[owner]?.color ?? 0);
 }
 
-const MINIMAP_COLOR: Record<Terrain, () => number> = {
+export const MINIMAP_COLOR: Record<Terrain, () => number> = {
   [Terrain.Ocean]: () => shade("ocean", 2),
   [Terrain.Grassland]: () => shade("grass", 4),
   [Terrain.Plains]: () => shade("plains", 4),
@@ -95,7 +133,7 @@ export function tileToScreen(state: GameState, view: MainScreenView, x: number, 
   const ty = y - view.originY;
   if (tx > VIEW_TILES_X || ty < 0 || ty > VIEW_TILES_Y) return null;
   const [ox, oy] = panOffset(view);
-  return [VIEW_X + tx * TILE - ox, ty * TILE - oy];
+  return [VIEW_X + tx * TILE - ox, VIEW_Y + ty * TILE - oy];
 }
 
 export function drawMapViewport(s: Surface, state: GameState, view: MainScreenView): void {
@@ -104,7 +142,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const [ox, oy] = panOffset(view);
   for (let ty = 0; ty <= VIEW_TILES_Y; ty++) {
     const my = view.originY + ty;
-    const dy = ty * TILE - oy;
+    const dy = VIEW_Y + ty * TILE - oy;
     for (let tx = 0; tx <= VIEW_TILES_X; tx++) {
       const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
       const dx = VIEW_X + tx * TILE - ox;
@@ -159,7 +197,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   }
 
   // Letterbox the bottom half-row like the original's hard panel edge.
-  s.rect(VIEW_X, VIEW_H, VIEW_W, SCREEN_H - VIEW_H, C.BLACK!);
+  void VIEW_H;
 }
 
 const TEXT_X = 3;
@@ -209,10 +247,10 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
 export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenView): void {
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
-  s.rect(0, 0, PANEL_W, SCREEN_H, shade("ui", 1));
+  s.rect(0, VIEW_Y, PANEL_W, SCREEN_H - VIEW_Y, shade("ui", 1));
 
   // Minimap: 80x50, one pixel per tile.
-  const mmY = 2;
+  const mmY = VIEW_Y + 2;
   s.rect(0, mmY, PANEL_W, map.height, C.BLACK!);
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
@@ -305,11 +343,12 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   if (view.inspect) drawTileInfo(s, state, view.inspect.x, view.inspect.y, TEXT_X, y);
   else if (view.message) drawTextWrapped(s, TEXT_X, y, TEXT_W, view.message, C.YELLOW!, Math.max(0, Math.floor((bottom - y) / FONT_HEIGHT)));
 
-  s.vline(PANEL_W - 1, 0, SCREEN_H, shade("ui", 0));
+  s.vline(PANEL_W - 1, VIEW_Y, SCREEN_H - VIEW_Y, shade("ui", 0));
 }
 
 export function drawMainScreen(s: Surface, state: GameState, view: MainScreenView): void {
   s.fill(C.BLACK!);
   drawMapViewport(s, state, view);
   drawStatusPanel(s, state, view);
+  drawMenuBar(s, view.menuOpen);
 }

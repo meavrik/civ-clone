@@ -21,11 +21,11 @@ import {
   WONDERS,
   type GameState,
 } from "@civ/core";
-import type { AdvisorKind } from "@civ/renderer-api";
+import type { AdvisorKind, ReportPage } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, page, panel, paragraph, text } from "../draw.js";
 import { paintBadge, playerColor } from "../markers.js";
-import { H, UI, W } from "../theme.js";
+import { H, TERRAIN, UI, W } from "../theme.js";
 
 /** The text pages: discovery, science, rates, the advisors, diplomacy and the spaceship. */
 
@@ -277,4 +277,55 @@ export function drawSpaceshipScreen(ctx: Context2D, state: GameState): void {
     y += 24;
     if (y > box.y + box.h) break;
   }
+}
+
+/** A titled page of rows; a long list flows into two columns. */
+export function drawReport(ctx: Context2D, report: ReportPage): void {
+  const box = page(ctx, W, H, report.title, report.hint ? `${report.hint} · any key to return` : "Any key to return");
+  const rowH = 28;
+  const rows = Math.floor(box.h / rowH);
+  const columns = report.lines.length > rows ? 2 : 1;
+  const colW = Math.floor(box.w / columns);
+  report.lines.slice(0, rows * columns).forEach((line, i) => {
+    const col = Math.floor(i / rows);
+    const x = box.x + col * colW;
+    const y = box.y + (i % rows) * rowH;
+    let tx = x;
+    if (line.slot !== undefined) {
+      fillRound(ctx, x, y + 3, 14, 14, 3, playerColor(line.slot));
+      tx += 24;
+    }
+    text(ctx, tx, y, line.text, { size: 16, weight: line.dim ? "normal" : "600", color: line.dim ? UI.dim : UI.ink });
+    if (line.right) text(ctx, x + colW - 16, y + 1, line.right, { size: 14, color: line.dim ? UI.faint : UI.dim, align: "right" });
+  });
+}
+
+/** The whole world as far as we have explored it, at twelve units a square. */
+export function drawWorldMap(ctx: Context2D, state: GameState): void {
+  const { map } = state;
+  const me = state.players[state.currentPlayer]!;
+  const k = Math.floor(Math.min(W / map.width, H / map.height));
+  const ox = Math.floor((W - map.width * k) / 2);
+  const oy = Math.floor((H - map.height * k) / 2);
+  ctx.fillStyle = UI.bg;
+  ctx.fillRect(0, 0, W, H);
+  for (let y = 0; y < map.height; y++)
+    for (let x = 0; x < map.width; x++) {
+      if (!me.explored[y * map.width + x]) continue;
+      ctx.fillStyle = TERRAIN[map.tiles[y * map.width + x]!.terrain].base;
+      ctx.fillRect(ox + x * k, oy + y * k, k, k);
+    }
+  for (const u of state.units) {
+    if (!me.visible[u.y * map.width + u.x]) continue;
+    circle(ctx, ox + u.x * k + k / 2, oy + u.y * k + k / 2, Math.max(2, k / 4), playerColor(state.players[u.owner]!.color));
+  }
+  for (const c of state.cities) {
+    if (!me.explored[c.y * map.width + c.x]) continue;
+    fillRound(ctx, ox + c.x * k + 1, oy + c.y * k + 1, k - 2, k - 2, 3, playerColor(state.players[c.owner]!.color));
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(ox + c.x * k + 1.5, oy + c.y * k + 1.5, k - 3, k - 3);
+  }
+  fillRound(ctx, 16, H - 46, 260, 30, 15, "rgba(10, 14, 20, 0.85)");
+  text(ctx, 32, H - 39, "World Map · any key to return", { size: 14, color: UI.ink });
 }

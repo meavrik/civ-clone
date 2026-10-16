@@ -1,8 +1,8 @@
 import type { Renderer } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, citySlotAt, cityExitHit } from "./screens/city.js";
-import { drawMainScreen, minimapAt, tileAt } from "./screens/main.js";
-import { drawAdvisor, drawDiplomacyScreen, drawDiscoveryScreen, drawRatesScreen, drawScienceScreen, drawSpaceshipScreen } from "./screens/pages.js";
+import { drawMainScreen, menuBarAnchor, menuBarHit, minimapAt, tileAt } from "./screens/main.js";
+import { drawAdvisor, drawDiplomacyScreen, drawDiscoveryScreen, drawRatesScreen, drawReport, drawScienceScreen, drawSpaceshipScreen, drawWorldMap } from "./screens/pages.js";
 import { drawEndScreen, drawTitleScreen } from "./screens/title.js";
 import { drawMenu, drawStatusLine, drawTextInput, menuHit } from "./screens/widgets.js";
 import { H, VIEW_TILES_X, VIEW_TILES_Y, W } from "./theme.js";
@@ -47,5 +47,9 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     cityExitHit: (px, py) => cityExitHit(px, py),
     tileAt: (state, view, px, py) => tileAt(state, view, px, py),
     minimapAt: (state, px, py) => minimapAt(state, px, py),
+    report: (page) => drawReport(ctx, page),
+    worldMap: (state) => drawWorldMap(ctx, state),
+    menuBarHit: (px, py) => menuBarHit(ctx, px, py),
+    menuBarAnchor: (index) => menuBarAnchor(ctx, index),
   };
 }

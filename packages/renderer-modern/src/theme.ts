@@ -13,7 +13,10 @@ export const PANEL_W = 240;
 export const VIEW_X = PANEL_W;
 export const VIEW_W = W - PANEL_W; // 720 = 15 tiles
 export const VIEW_TILES_X = Math.ceil(VIEW_W / TILE);
-export const VIEW_TILES_Y = Math.ceil(H / TILE);
+/** The menu bar across the top; the panel and the map sit below it. */
+export const BAR_H = 30;
+export const VIEW_Y = BAR_H;
+export const VIEW_TILES_Y = Math.ceil((H - BAR_H) / TILE);
 
 export const FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 export const font = (px: number, weight: "normal" | "bold" | "600" = "normal") => `${weight} ${px}px ${FONT}`;

@@ -19,15 +19,18 @@ function menuLayout(ctx: Context2D, m: MenuState): MenuLayout {
     widest = Math.max(widest, measure(ctx, item, 15) + (right ? measure(ctx, right, 13) + 32 : 0));
   });
   for (const l of m.body ?? []) widest = Math.max(widest, Math.min(measure(ctx, l, 15), 520));
-  const w = Math.min(W - 80, Math.max(320, widest + 56));
+  const w = Math.min(W - 80, Math.max(m.anchor ? 240 : 320, widest + 56));
   const lines = (m.body ?? []).flatMap((l) => wrap(ctx, l, w - 48, 15));
   const bodyH = lines.length ? lines.length * BODY_LINE + 14 : 0;
+  // A dropdown (no title) has no header row.
+  const head = m.title ? TITLE_H : 10;
+  const top = m.anchor ? m.anchor.y : 32;
   // Long lists (every tribe, every build) tighten their rows to stay on screen.
-  const row = Math.max(20, Math.min(ROW, Math.floor((H - 32 - TITLE_H - bodyH - 16) / Math.max(1, m.items.length))));
-  const h = TITLE_H + bodyH + m.items.length * row + 16;
-  const x = Math.round((W - w) / 2);
-  const y = Math.round(Math.max(16, (H - h) / 2));
-  return { x, y, w, h, lines, itemsY: y + TITLE_H + bodyH, row };
+  const row = Math.max(20, Math.min(ROW, Math.floor((H - top - head - bodyH - 16) / Math.max(1, m.items.length))));
+  const h = head + bodyH + m.items.length * row + (m.title ? 16 : 10);
+  const x = m.anchor ? Math.max(4, Math.min(W - w - 4, m.anchor.x)) : Math.round((W - w) / 2);
+  const y = m.anchor ? m.anchor.y : Math.round(Math.max(16, (H - h) / 2));
+  return { x, y, w, h, lines, itemsY: y + head + bodyH, row };
 }
 
 export function menuRect(ctx: Context2D, m: MenuState): { x: number; y: number; w: number; h: number } {
@@ -37,11 +40,13 @@ export function menuRect(ctx: Context2D, m: MenuState): { x: number; y: number; 
 
 export function drawMenu(ctx: Context2D, m: MenuState): void {
   const { x, y, w, h, lines, itemsY, row } = menuLayout(ctx, m);
-  panel(ctx, x, y, w, h, 14, UI.card);
-  text(ctx, x + 24, y + 14, m.title, { size: 18, weight: "600" });
-  ctx.fillStyle = UI.panelEdge;
-  ctx.fillRect(x + 16, y + TITLE_H - 6, w - 32, 1);
-  lines.forEach((line, i) => text(ctx, x + 24, y + TITLE_H + 2 + i * BODY_LINE, line, { size: 15, color: "#d5dde6" }));
+  panel(ctx, x, y, w, h, m.anchor ? 10 : 14, UI.card);
+  if (m.title) {
+    text(ctx, x + 24, y + 14, m.title, { size: 18, weight: "600" });
+    ctx.fillStyle = UI.panelEdge;
+    ctx.fillRect(x + 16, y + TITLE_H - 6, w - 32, 1);
+  }
+  lines.forEach((line, i) => text(ctx, x + 24, y + (m.title ? TITLE_H + 2 : 12) + i * BODY_LINE, line, { size: 15, color: "#d5dde6" }));
   if (lines.length) { ctx.fillStyle = UI.panelEdge; ctx.fillRect(x + 16, itemsY - 7, w - 32, 1); }
   m.items.forEach((item, i) => {
     const ry = itemsY + i * row;

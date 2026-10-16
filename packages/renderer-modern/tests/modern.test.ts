@@ -90,6 +90,10 @@ describe("modern renderer", () => {
     r.diplomacy(state, 1, "Greetings.");
     r.end(["Citizens: 3", "Total score: 12"], "Modest");
     r.spaceship(state);
+    r.report({ title: "Wonders of the World", lines: [{ text: "Pyramids", right: "Rome (Romans)", slot: 0 }], hint: "1 of 21 built" });
+    r.worldMap(state);
+    r.main(state, { ...view, menuOpen: 2 });
+    r.menu({ title: "", items: ["City Status", "Military Advisor"], right: ["F1", "F2"], selected: 0, anchor: r.menuBarAnchor(2) });
     r.menu({ title: "Game", items: ["Save game", "Load game"], selected: 1, right: ["", "slot 2"] });
     r.textInput({ title: "Name the new city", text: "Rome", maxLength: 14 }, true);
     r.statusLine("Going to...");
@@ -98,6 +102,7 @@ describe("modern renderer", () => {
     expect(ctx.calls.get("fillText")!).toBeGreaterThan(50);
     expect(ctx.texts).toContain("E P O C H S");
     expect(ctx.texts).toContain("Spaceship");
+    for (const t of ["Game", "Orders", "Advisors", "World", "Wonders of the World", "City Status"]) expect(ctx.texts).toContain(t);
     expect(ctx.texts.some((t) => t.includes("Name the new city"))).toBe(true);
     // The viewport paints one clipped extra row and column while the camera glides.
     expect(ctx.maxX).toBeLessThanOrEqual(MODERN_W + 2 * MODERN_TILE);
@@ -108,13 +113,29 @@ describe("modern renderer", () => {
     const ctx = new FakeContext();
     const r = createModernRenderer(ctx);
     const { state, view } = world();
+    const bar = 30; // the menu bar sits above the map and the panel
     expect(r.tileAt(state, view, 100, 100)).toBeNull();
-    const hit = r.tileAt(state, view, 240 + 48 * 3 + 5, 48 * 2 + 5);
+    expect(r.tileAt(state, view, 400, 10)).toBeNull();
+    const hit = r.tileAt(state, view, 240 + 48 * 3 + 5, bar + 48 * 2 + 5);
     expect(hit).toEqual({ x: ((view.originX + 3) % 80 + 80) % 80, y: view.originY + 2 });
     // Half a tile of camera pan shifts which tile sits under the same point.
-    const panned = r.tileAt(state, { ...view, panX: 0.5, panY: 0 }, 240 + 48 * 3 + 30, 48 * 2 + 5);
+    const panned = r.tileAt(state, { ...view, panX: 0.5, panY: 0 }, 240 + 48 * 3 + 30, bar + 48 * 2 + 5);
     expect(panned).toEqual({ x: ((view.originX + 4) % 80 + 80) % 80, y: view.originY + 2 });
-    expect(r.minimapAt(state, 40 + 2 * 10, 14 + 2 * 20)).toEqual({ x: 10, y: 20 });
+    expect(r.minimapAt(state, 40 + 2 * 10, bar + 14 + 2 * 20)).toEqual({ x: 10, y: 20 });
+    // The bar's four titles, left to right; each dropdown opens under its own title.
+    const titles: number[] = [];
+    for (let x = 0; x < 960; x += 4) { const t = r.menuBarHit(x, 15); if (titles.at(-1) !== t) titles.push(t); }
+    expect(titles.filter((t) => t >= 0)).toEqual([0, 1, 2, 3]);
+    expect(r.menuBarHit(30, bar + 5)).toBe(-1);
+    const anchors = [0, 1, 2, 3].map((i) => r.menuBarAnchor(i));
+    for (let i = 1; i < 4; i++) expect(anchors[i]!.x).toBeGreaterThan(anchors[i - 1]!.x);
+    expect(anchors[0]!.y).toBeGreaterThanOrEqual(bar);
+    // An anchored dropdown's first row sits right under the bar, not in the middle of the screen.
+    const drop = { title: "", items: ["a", "b"], selected: 0, anchor: anchors[1]! };
+    let top = -1;
+    for (let y = 0; y < 600 && top < 0; y++) if (r.menuHit(drop, anchors[1]!.x + 40, y) === 0) top = y;
+    expect(top).toBeGreaterThan(bar);
+    expect(top).toBeLessThan(bar + 40);
     expect(r.minimapAt(state, 400, 300)).toBeNull();
     const menu = { title: "Game", items: ["a", "b", "c"], selected: 0 };
     expect(r.menuHit(menu, 480, 0)).toBe(-1);

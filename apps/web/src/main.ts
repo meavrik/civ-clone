@@ -57,6 +57,10 @@ import {
   type MainScreenView,
   type MenuState,
   type Renderer,
+  type ReportPage,
+  MENU_BAR,
+  topCitiesReport,
+  wondersReport,
   type SetupState,
   type TextInputState,
 } from "@civ/renderer-api";
@@ -127,7 +131,9 @@ type Screen =
   | { kind: "end"; lines: string[]; rank: string }
   | { kind: "spaceship" }
   | { kind: "input"; input: TextInputState; onSubmit: (text: string) => void; under: Screen }
-  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void };
+  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number }
+  | { kind: "report"; page: ReportPage }
+  | { kind: "worldMap" };
 
 let screenState: Screen = { kind: "title" };
 const view: MainScreenView = { originX: 0, originY: 0, blink: true };
@@ -442,57 +448,131 @@ function openDiplomatMenu(unit: number, cityId: number): void {
   menu(`${city.name} (${state.players[city.owner]!.name}): our diplomat...`, items.map((i) => i[0]), (i) => items[i]?.[1]());
 }
 
-function openActionMenu(unit: number): void {
+/** A menu entry: its label, the key that does the same on the map, and what it does. */
+type MenuEntry = [label: string, key: string, run: () => void];
+
+/** What the active unit can be ordered to do, with each order's key. */
+function unitOrders(unit: number): MenuEntry[] {
   const u = unitById(state, unit);
-  if (!u) return;
+  if (!u) return [];
   const w = workOptions(state, u);
   const type = unitType(u.type);
-  const items: [string, () => void][] = [];
-  if (type.flags?.includes("settler") && canFoundCity(state, u.x, u.y) === null)
-    items.push(["Found city (B)", () => foundWithName(unit)]);
-  if (w.irrigate !== undefined) items.push([`Irrigate (I) ${w.irrigate}t`, () => dispatch({ type: "work", unit, work: "irrigate" })]);
-  if (w.mine !== undefined) items.push([`Mine (M) ${w.mine}t`, () => dispatch({ type: "work", unit, work: "mine" })]);
-  if (w.road !== undefined) items.push([`Road (R) ${w.road}t`, () => dispatch({ type: "work", unit, work: "road" })]);
-  if (w.railroad !== undefined) items.push([`Railroad (R) ${w.railroad}t`, () => dispatch({ type: "work", unit, work: "railroad" })]);
-  if (w.fortress !== undefined) items.push([`Fortress (F) ${w.fortress}t`, () => dispatch({ type: "work", unit, work: "fortress" })]);
-  if (w.clean !== undefined) items.push([`Clean pollution (P) ${w.clean}t`, () => dispatch({ type: "work", unit, work: "clean" })]);
+  const items: MenuEntry[] = [];
+  if (type.flags?.includes("settler") && canFoundCity(state, u.x, u.y) === null) items.push(["Found city", "B", () => foundWithName(unit)]);
+  if (w.irrigate !== undefined) items.push([`Irrigate (${w.irrigate} turns)`, "I", () => dispatch({ type: "work", unit, work: "irrigate" })]);
+  if (w.mine !== undefined) items.push([`Mine (${w.mine} turns)`, "M", () => dispatch({ type: "work", unit, work: "mine" })]);
+  if (w.road !== undefined) items.push([`Road (${w.road} turns)`, "R", () => dispatch({ type: "work", unit, work: "road" })]);
+  if (w.railroad !== undefined) items.push([`Railroad (${w.railroad} turns)`, "R", () => dispatch({ type: "work", unit, work: "railroad" })]);
+  if (w.fortress !== undefined) items.push([`Fortress (${w.fortress} turns)`, "F", () => dispatch({ type: "work", unit, work: "fortress" })]);
+  if (w.clean !== undefined) items.push([`Clean pollution (${w.clean} turns)`, "P", () => dispatch({ type: "work", unit, work: "clean" })]);
   if (type.flags?.includes("caravan")) {
     const c = cityAt(state, u.x, u.y);
-    if (c && canHelpWonder(state, u, c) === null) items.push(["Help build wonder", () => dispatch({ type: "helpWonder", unit })]);
+    if (c && canHelpWonder(state, u, c) === null) items.push(["Help build wonder", "", () => dispatch({ type: "helpWonder", unit })]);
     if (c && canTradeRoute(state, u, c) === null && u.homeCity !== null)
-      items.push([`Establish trade route (+${routeBonus(state, state.cities.find((h) => h.id === u.homeCity)!, c)})`, () => dispatch({ type: "tradeRoute", unit })]);
+      items.push([`Establish trade route (+${routeBonus(state, state.cities.find((h) => h.id === u.homeCity)!, c)})`, "", () => dispatch({ type: "tradeRoute", unit })]);
   }
   if (type.flags?.includes("diplomat")) {
     for (const c of state.cities) {
       if (c.owner === 0 || c.owner === state.barbarians || !isAdjacent(u, c.x, c.y)) continue;
-      items.push([`Diplomat: ${c.name}`, () => openDiplomatMenu(unit, c.id)]);
+      items.push([`Diplomat: ${c.name}`, "", () => openDiplomatMenu(unit, c.id)]);
     }
   }
-  if (type.domain === "land") items.push(["Fortify (F)", () => dispatch({ type: "fortify", unit })]);
-  items.push(["Sentry (S)", () => dispatch({ type: "sentry", unit })]);
-  items.push(["Wait (W)", () => dispatch({ type: "wait", unit })]);
-  items.push(["Skip turn (Space)", () => dispatch({ type: "skip", unit })]);
-  items.push(["Disband (Shift+D)", () => dispatch({ type: "disband", unit })]);
+  if (type.domain === "land") items.push(["Fortify", "F", () => dispatch({ type: "fortify", unit })]);
+  items.push(["Sentry", "S", () => dispatch({ type: "sentry", unit })]);
+  items.push(["Wait", "W", () => dispatch({ type: "wait", unit })]);
+  items.push(["Skip turn", "Space", () => dispatch({ type: "skip", unit })]);
+  items.push(["Disband", "Shift+D", () => dispatch({ type: "disband", unit })]);
+  return items;
+}
+
+function openActionMenu(unit: number): void {
+  const u = unitById(state, unit);
+  if (!u) return;
+  const items = unitOrders(unit);
   screenState = {
     kind: "menu",
     under: screenState,
-    menu: { title: `${type.name}: orders`, items: items.map((i) => i[0]), selected: 0 },
-    onPick: (i) => { items[i]?.[1](); followActive(true); },
+    menu: { title: `${unitType(u.type).name}: orders`, items: items.map((i) => i[0]), right: items.map((i) => i[1]), selected: 0 },
+    onPick: (i) => { items[i]?.[2](); followActive(true); },
   };
 }
 
-/** The game menu (F10 / Esc with no unit). */
+/** Start a revolution, or pick the new government once anarchy is over (G). */
+function askRevolution(): void {
+  const p = state.players[0]!;
+  if (p.government === "anarchy") {
+    if (p.anarchyTurns === 0) openGovernmentMenu({ kind: "map" }); else say("Still in anarchy");
+    return;
+  }
+  menu("Start a revolution?", ["No", "Yes, overthrow the government"], (i) => {
+    if (i === 1) { dispatch({ type: "revolution" }); say("Revolution! Anarchy reigns.", 3000); }
+  });
+}
+
+/** Find City: our cities by name; the map centres on the one picked. */
+function openFindCity(): void {
+  const mine = state.cities.filter((c) => c.owner === 0).sort((a, b) => a.name.localeCompare(b.name));
+  if (!mine.length) { say("We have no cities yet."); return; }
+  menu("Find which city?", mine.map((c) => `${c.name} (${c.size})`), (i) => { const c = mine[i]; if (c) { centerOn(c.x, c.y); view.inspect = { x: c.x, y: c.y }; } });
+}
+
+/** The entries of one menu bar dropdown, built fresh each time it opens. */
+function barEntries(index: number): MenuEntry[] {
+  switch (MENU_BAR[index]) {
+    case "Game":
+      return [
+        ["Tax Rate", "T", () => { screenState = { kind: "rates" }; }],
+        ["Find City", "", () => openFindCity()],
+        ["Revolution!", "G", () => askRevolution()],
+        [`Auto End Turn: ${autoEnd ? "On" : "Off"}`, "", () => { setAutoEnd(!autoEnd); say(`Auto end turn ${autoEnd ? "on" : "off"}`); }],
+        [`Visuals: ${renderer.id === "retro" ? "Retro" : "Modern"}`, "", () => setRenderer(renderer.id === "retro" ? "modern" : "retro")],
+        ["Save Game", "", () => void openSaveMenu()],
+        ["Load Game", "", () => void openLoadMenu()],
+        ["Retire", "", () => endGame({ kind: "time" })],
+        ["New Game", "", () => { screenState = { kind: "title" }; }],
+      ];
+    case "Orders": {
+      const active = state.activeUnit;
+      if (active === null) return [["End Turn", "Enter", () => endTurn()]];
+      return unitOrders(active).map(([l, k, run]): MenuEntry => [l, k, () => { run(); followActive(true); }]);
+    }
+    case "Advisors":
+      return [
+        ["City Status", "F1", () => { screenState = { kind: "advisor", which: "domestic" }; }],
+        ["Military Advisor", "F2", () => { screenState = { kind: "advisor", which: "military" }; }],
+        ["Foreign Minister", "F3", () => { screenState = { kind: "advisor", which: "foreign" }; }],
+        ["Science Advisor", "F4", () => { screenState = { kind: "science" }; }],
+      ];
+    case "World":
+      return [
+        ["Wonders of the World", "", () => { screenState = { kind: "report", page: wondersReport(state) }; }],
+        ["Top 5 Cities", "", () => { screenState = { kind: "report", page: topCitiesReport(state) }; }],
+        ["Civilization Score", "F5", () => { screenState = { kind: "advisor", which: "score" }; }],
+        ["World Map", "", () => { screenState = { kind: "worldMap" }; }],
+        ["Spaceships", "F6", () => { screenState = { kind: "spaceship" }; }],
+      ];
+    default:
+      return [];
+  }
+}
+
+/** Open a menu bar dropdown over the map. */
+function openBarMenu(index: number): void {
+  const n = MENU_BAR.length;
+  const i = ((index % n) + n) % n;
+  const items = barEntries(i);
+  screenState = {
+    kind: "menu",
+    under: { kind: "map" },
+    bar: i,
+    menu: { title: "", items: items.map((e) => e[0]), right: items.map((e) => e[1]), selected: 0, anchor: renderer.menuBarAnchor(i) },
+    onPick: (k) => items[k]?.[2](),
+  };
+}
+
+/** The game menu (F10, or Esc with no unit): the bar's Game dropdown. */
 function openGameMenu(): void {
-  const items: [string, () => void][] = [
-    ["Save game", () => openSaveMenu()],
-    ["Load game", () => openLoadMenu()],
-    ["Spaceship (F6)", () => { screenState = { kind: "spaceship" }; }],
-    [`Auto end turn: ${autoEnd ? "on" : "off"}`, () => { setAutoEnd(!autoEnd); say(`Auto end turn ${autoEnd ? "on" : "off"}`); }],
-    [`Visuals: ${renderer.id === "retro" ? "retro" : "modern"}`, () => setRenderer(renderer.id === "retro" ? "modern" : "retro")],
-    ["Retire (end game)", () => endGame({ kind: "time" })],
-    ["New game", () => { screenState = { kind: "title" }; }],
-  ];
-  menu("Game", items.map((i) => i[0]), (i) => items[i]?.[1]());
+  openBarMenu(0);
 }
 
 async function openSaveMenu(): Promise<void> {
@@ -745,15 +825,7 @@ function mapKey(e: KeyboardEvent): void {
     case "F6": e.preventDefault(); screenState = { kind: "spaceship" }; break;
     case "F10": e.preventDefault(); openGameMenu(); break;
     case "Escape": if (active !== null) openActionMenu(active); else openGameMenu(); break;
-    case "KeyG": {
-      const p = state.players[0]!;
-      if (p.government === "anarchy") {
-        if (p.anarchyTurns === 0) openGovernmentMenu({ kind: "map" }); else say("Still in anarchy");
-      } else menu("Start a revolution?", ["No", "Yes, overthrow the government"], (i) => {
-        if (i === 1) { dispatch({ type: "revolution" }); say("Revolution! Anarchy reigns.", 3000); }
-      });
-      break;
-    }
+    case "KeyG": askRevolution(); break;
   }
 }
 
@@ -788,6 +860,10 @@ function cityKey(e: KeyboardEvent, cv: CityScreenView): void {
 
 function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void {
   const m = sc.menu;
+  if (sc.bar !== undefined && (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.code === "Numpad4" || e.code === "Numpad6")) {
+    openBarMenu(sc.bar + (e.code === "ArrowLeft" || e.code === "Numpad4" ? -1 : 1));
+    return;
+  }
   switch (e.code) {
     case "ArrowUp": case "Numpad8": m.selected = (m.selected + m.items.length - 1) % m.items.length; break;
     case "ArrowDown": case "Numpad2": m.selected = (m.selected + 1) % m.items.length; break;
@@ -832,7 +908,19 @@ function openTitleMenu(): void {
   };
 }
 
+/** Alt+G, Alt+O, Alt+A, Alt+W open the bar's dropdowns, as the original's menu keys did. */
+const BAR_KEYS: Record<string, number> = { KeyG: 0, KeyO: 1, KeyA: 2, KeyW: 3 };
+
 addEventListener("keydown", (e) => {
+  if (e.altKey && !e.metaKey && !e.ctrlKey && BAR_KEYS[e.code] !== undefined) {
+    const sc0 = screenState;
+    if (sc0.kind === "map" || (sc0.kind === "menu" && sc0.bar !== undefined)) {
+      e.preventDefault();
+      lastInput = performance.now();
+      openBarMenu(BAR_KEYS[e.code]!);
+    }
+    return;
+  }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   lastInput = performance.now();
   view.inspect = undefined;
@@ -862,6 +950,7 @@ addEventListener("keydown", (e) => {
       else advisorHotkey(e);
       break;
     case "menu": menuKey(e, sc); break;
+    case "report": case "worldMap": screenState = { kind: "map" }; break;
     case "input": e.preventDefault(); inputKey(e, sc); break;
   }
 });
@@ -901,11 +990,16 @@ canvas.addEventListener("mousedown", (e) => {
       return;
     }
     case "menu": {
+      if (sc.bar !== undefined) {
+        const t = renderer.menuBarHit(px, py);
+        if (t >= 0) { if (t === sc.bar) screenState = sc.under; else openBarMenu(t); return; }
+      }
       const i = renderer.menuHit(sc.menu, px, py);
       screenState = sc.under;
       if (i >= 0) sc.onPick(i); else sc.onCancel?.();
       return;
     }
+    case "report": case "worldMap": screenState = { kind: "map" }; return;
     case "discovery": sc.then(); return;
     case "end": screenState = { kind: "title" }; return;
     case "diplomacy": screenState = { kind: "map" }; return;
@@ -923,6 +1017,8 @@ canvas.addEventListener("mousedown", (e) => {
     case "map": break;
   }
 
+  const bar = renderer.menuBarHit(px, py);
+  if (bar >= 0) { openBarMenu(bar); return; }
   const mm = renderer.minimapAt(state, px, py);
   if (mm) { centerOn(mm.x, mm.y); return; }
   const hit = renderer.tileAt(state, view, px, py);
@@ -997,6 +1093,8 @@ function draw(sc: Screen): void {
       break;
     }
     case "map": view.message = status; renderer.main(state, view); break;
+    case "report": renderer.report(sc.page); break;
+    case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
     case "discovery": renderer.discovery(state, sc.advance); break;
     case "science": renderer.science(state); break;
@@ -1010,7 +1108,9 @@ function draw(sc: Screen): void {
       renderer.textInput(sc.input, blinkOn);
       break;
     case "menu":
+      view.menuOpen = sc.bar;
       draw(sc.under);
+      view.menuOpen = undefined;
       renderer.menu(sc.menu);
       if (status && sc.under.kind !== "map") renderer.statusLine(status);
       break;

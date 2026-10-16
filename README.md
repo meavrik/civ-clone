@@ -35,8 +35,12 @@ pnpm headless -- --games 4 --turns 200 --civs 4 --every 50   # AI-vs-AI tourname
 
 Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify · `S` sentry ·
 `I`/`M`/`R` irrigate/mine/road (R again: railroad) · `F` fortress (settlers) · `P` clean pollution · `B` found city · `Shift+D` disband · `C` centre ·
-`Enter` end turn · `T` rates · `G` revolution · `Esc` orders menu (or game menu) ·
-`F1` cities · `F2` military · `F3` foreign (Enter to talk) · `F4` science · `F5` score · `F6` spaceship (Enter to launch) · `F10` game menu (save/load, auto end turn on/off).
+`Enter` end turn · `T` rates · `G` revolution · `Esc` orders menu (or the Game menu) ·
+`F1` cities · `F2` military · `F3` foreign (Enter to talk) · `F4` science · `F5` score · `F6` spaceship (Enter to launch) · `F10` Game menu.
+Menu bar above the map, as in the original: **Game** (tax rate, find city, revolution, auto end turn,
+visuals, save/load, retire, new game) · **Orders** (the active unit's orders with their keys, or End Turn) ·
+**Advisors** (city status, military, foreign, science) · **World** (wonders of the world, top 5 cities,
+score, world map, spaceships). Click a title or press `Alt+G`/`Alt+O`/`Alt+A`/`Alt+W`; `Left`/`Right` move between menus.
 With auto end turn on (the default) the turn ends by itself a moment after the last unit has its orders.
 Mouse: right-click an adjacent tile to move or attack · right-click any other square for its terrain window (yields, movement, specials, city, units, with "Send here") · right-click the active unit for its orders ·
 left-click an adjacent tile to move/attack · left-click a farther tile to inspect it (terrain, yields, what stands there), click it again to send the unit there ·

@@ -18,17 +18,53 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import type { MainScreenView } from "@civ/renderer-api";
+import { MENU_BAR, type MainScreenView } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
-import { fillRound, panel, paragraph, strokeRound, text } from "../draw.js";
+import { fillRound, measure, panel, paragraph, strokeRound, text } from "../draw.js";
 import { paintBadge, paintCity, paintCityLabel, paintUnit, playerColor } from "../markers.js";
 import { paintFog, paintFortress, paintHut, paintIrrigation, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
-import { H, PANEL_W, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, W } from "../theme.js";
+import { BAR_H, H, PANEL_W, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, VIEW_Y, W } from "../theme.js";
 
 /** The main map: a 48px-tile viewport right of a 240px panel, the same split as the retro layout. */
 
 const MINIMAP_X = 40;
-const MINIMAP_Y = 14;
+const MINIMAP_Y = BAR_H + 14;
+const BAR_X0 = 20;
+const BAR_GAP = 30;
+
+/** Left edge and width of each menu bar title. */
+function menuBarLayout(ctx: Context2D): { x: number; w: number }[] {
+  let x = BAR_X0;
+  return MENU_BAR.map((t) => {
+    const w = measure(ctx, t, 15, "600");
+    const r = { x, w };
+    x += w + BAR_GAP;
+    return r;
+  });
+}
+
+export function menuBarHit(ctx: Context2D, px: number, py: number): number {
+  if (py < 0 || py >= BAR_H) return -1;
+  return menuBarLayout(ctx).findIndex(({ x, w }) => px >= x - BAR_GAP / 2 && px < x + w + BAR_GAP / 2);
+}
+
+export function menuBarAnchor(ctx: Context2D, index: number): { x: number; y: number } {
+  const t = menuBarLayout(ctx)[index] ?? { x: BAR_X0, w: 0 };
+  return { x: Math.max(4, t.x - 12), y: BAR_H + 2 };
+}
+
+/** The menu bar: a dark strip with the titles; the open one sits on a highlight. */
+export function drawMenuBar(ctx: Context2D, open?: number): void {
+  ctx.fillStyle = "rgba(14, 19, 26, 0.97)";
+  ctx.fillRect(0, 0, W, BAR_H);
+  ctx.fillStyle = UI.panelEdge;
+  ctx.fillRect(0, BAR_H - 1, W, 1);
+  menuBarLayout(ctx).forEach(({ x, w }, i) => {
+    const on = i === open;
+    if (on) fillRound(ctx, x - 10, 4, w + 20, BAR_H - 8, 6, UI.selection);
+    text(ctx, x, 7, MENU_BAR[i]!, { size: 15, weight: "600", color: on ? UI.ink : "#c9d3de" });
+  });
+}
 const MINIMAP_SCALE = 2;
 
 function riverMask(state: GameState, x: number, y: number): number {
@@ -60,13 +96,13 @@ export function tileToScreen(state: GameState, view: MainScreenView, x: number, 
   const ty = y - view.originY;
   if (tx > VIEW_TILES_X || ty < 0 || ty > VIEW_TILES_Y) return null;
   const [ox, oy] = panOffset(view);
-  return [VIEW_X + tx * TILE - ox, ty * TILE - oy];
+  return [VIEW_X + tx * TILE - ox, VIEW_Y + ty * TILE - oy];
 }
 
 export function tileAt(state: GameState, view: MainScreenView, px: number, py: number): { x: number; y: number } | null {
-  if (px < VIEW_X || px >= W || py < 0 || py >= H) return null;
+  if (px < VIEW_X || px >= W || py < VIEW_Y || py >= H) return null;
   const [ox, oy] = panOffset(view);
-  const ty = view.originY + Math.floor((py + oy) / TILE);
+  const ty = view.originY + Math.floor((py - VIEW_Y + oy) / TILE);
   if (ty < 0 || ty >= state.map.height) return null;
   return { x: wrapX(state.map, view.originX + Math.floor((px - VIEW_X + ox) / TILE)), y: ty };
 }
@@ -83,12 +119,12 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
   const me = state.players[state.currentPlayer]!;
   ctx.save();
   ctx.beginPath();
-  ctx.rect(VIEW_X, 0, W - VIEW_X, H);
+  ctx.rect(VIEW_X, VIEW_Y, W - VIEW_X, H - VIEW_Y);
   ctx.clip();
   const [ox, oy] = panOffset(view);
   for (let ty = 0; ty <= VIEW_TILES_Y; ty++) {
     const my = view.originY + ty;
-    const dy = ty * TILE - oy;
+    const dy = VIEW_Y + ty * TILE - oy;
     for (let tx = 0; tx <= VIEW_TILES_X; tx++) {
       const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
       const dx = VIEW_X + tx * TILE - ox;
@@ -200,9 +236,9 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
   ctx.fillStyle = UI.panel;
-  ctx.fillRect(0, 0, PANEL_W, H);
+  ctx.fillRect(0, BAR_H, PANEL_W, H - BAR_H);
   ctx.fillStyle = UI.panelEdge;
-  ctx.fillRect(PANEL_W - 1, 0, 1, H);
+  ctx.fillRect(PANEL_W - 1, BAR_H, 1, H - BAR_H);
 
   // Minimap at two pixels per tile.
   const mw = map.width * MINIMAP_SCALE;
@@ -305,4 +341,5 @@ export function drawMainScreen(ctx: Context2D, state: GameState, view: MainScree
   ctx.fillRect(0, 0, W, H);
   drawViewport(ctx, state, view);
   drawPanel(ctx, state, view);
+  drawMenuBar(ctx, view.menuOpen);
 }
