@@ -59,8 +59,8 @@ turns + baseline AI, diplomacy, save/load, title/setup, advisors, end conditions
    expansion or transport (settlers never leave the home continent), no tech trading, wars rarely end
    in conquest. A 300-turn 5-civ game runs in ~5-8s; `findPath` is still the hot spot if it regresses.
    Measure any AI change with `npm run headless -- --ai planner,baseline --games 8 --verify`.
-3. Unbound wonders: Great Library, Great Wall (partially), Lighthouse, Magellan's,
-   Women's Suffrage, UN. Caravans/trade routes, diplomats, pollution, spaceship not implemented.
+3. Every wonder is bound (Great Library, sea-move wonders, SETI, Hoover, Women's Suffrage, UN).
+   Caravans/trade routes, diplomats, pollution, railroads/fortresses, spaceship not implemented.
 4. Rename uses `prompt()`; diplomacy exchange offers first-for-first only.
 5. Phase 8 — modern-visuals renderer behind the same screen API; swap `renderer-retro`.
 6. Mobile: PWA + touch adapter in apps/web (input is already centralised in main.ts).

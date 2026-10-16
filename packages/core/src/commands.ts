@@ -15,10 +15,10 @@ import { maybeSpawnBarbarians } from "./barbarians.js";
 import { captureCity, checkElimination, resolveCombat } from "./combat.js";
 import { atWar, detectContacts, hasContact, setRelation } from "./diplomacy.js";
 import { findPath, stepDir } from "./pathfind.js";
-import { ADVANCE_BY_ID, advance, availableAdvances, researchCost } from "./rules/advances.js";
+import { ADVANCE_BY_ID, ADVANCES, advance, availableAdvances, researchCost } from "./rules/advances.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
 import { WONDERS } from "./rules/wonders.js";
-import { TERRAIN_RULES } from "./rules/terrain.js";
+import { MOVE_FRAC, TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Player, type Production, type Specialist, type Unit } from "./types.js";
@@ -517,6 +517,16 @@ export function endTurn(state: GameState): void {
     }
     if (w?.effect.kind === "revealMap") p.explored.fill(1);
   }
+  // The Great Library hands over anything two other civilizations already know.
+  if (activeWonders(state, player).some((w) => w.rule.effect.kind === "greatLibrary")) {
+    const others = state.players.filter((o) => o.id !== player && o.alive && o.id !== state.barbarians);
+    for (const a of ADVANCES) {
+      if (p.advances.includes(a.id)) continue;
+      if (others.filter((o) => o.advances.includes(a.id)).length < 2) continue;
+      discover(state, player, a.id);
+      if (p.researching === a.id) p.researching = null;
+    }
+  }
   if (p.researching === null && p.science > 0 && availableAdvances(p.advances).length > 0) lastTurnEvents.push({ kind: "chooseResearch" });
   else if (p.researching !== null) {
     const cost = researchCost(p.advances.length, p.difficulty);
@@ -552,8 +562,16 @@ export function endTurn(state: GameState): void {
 }
 
 /** Begin a player's turn: restore moves, continue gotos, wake sentries, pick the first unit. */
+/** Movement points a unit starts its turn with: its type's, plus any wonder bonus for ships. */
+export function moveAllowance(state: GameState, u: Unit): number {
+  let moves = fullMoves(u);
+  if (unitType(u.type).domain === "sea")
+    for (const w of activeWonders(state, u.owner)) if (w.rule.effect.kind === "seaMoves") moves += w.rule.effect.amount * MOVE_FRAC;
+  return moves;
+}
+
 export function startTurn(state: GameState, player: number): void {
-  for (const u of state.units) if (u.owner === player) u.movesLeft = fullMoves(u);
+  for (const u of state.units) if (u.owner === player) u.movesLeft = moveAllowance(state, u);
   wakeSentries(state, player);
   for (const u of state.units) if (u.owner === player && u.order.kind === "goto") runGoto(state, u);
   recomputeVisibility(state, player);
