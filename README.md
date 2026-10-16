@@ -69,4 +69,7 @@ The repo's own `node_modules` stays macOS-native for `pnpm dev`.
    diplomacy screen with tribute/tech exchange, advisors (F1–F5)  ← done
 7. AI v2 (planner: continent-aware expansion, tech beelines, threat-aware garrisons, tile governor)
    with headless tournament harness  ← done
+7b. Rules completeness: data verified against FreeCiv civ1, every wonder bound, caravans and trade
+   routes, railroads, fortresses, pollution and global warming, spaceship, diplomats, nuclear
+   strikes, in-game text prompt  ← done
 8. Modern-visuals renderer

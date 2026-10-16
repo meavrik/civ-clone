@@ -45,8 +45,11 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 
 ## Status
 
-Phases 1–6 done: world, cities, tech/wonders/governments, combat/transport/goto, multi-civ
-turns + baseline AI, diplomacy, save/load, title/setup, advisors, end conditions.
+Phases 1–7 done: world, cities, tech/wonders/governments, combat/transport/goto, multi-civ
+turns, diplomacy, save/load, title/setup, advisors, end conditions, headless harness, planner AI.
+Rules-completeness pass done (2026-10-16): data verified against FreeCiv civ1, all wonders bound,
+caravans, railroads/fortresses/pollution/global warming, spaceship, diplomats, nukes, in-game text
+prompt. Next: Phase 8 (modern-visuals renderer) or mobile/PWA.
 
 ## Known gaps / next steps
 
