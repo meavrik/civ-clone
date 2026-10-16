@@ -69,9 +69,11 @@ runtime. Next: mobile/PWA + touch adapter.
    cathedral everywhere, Colossus boosts ocean tiles. Legion 3/1, Musketeers 2/3, Riflemen 3/5
    follow the ruleset even though the 1991 manual is often quoted as 4/2, 3/3, 5/4.
 2. Phase 7 — AI v2 done: harness (`tools/headless`) + planner. At 300 turns / 4 civs the planner
-   averages ~22 cities, ~43 techs, score ~200 vs the baseline's ~4 / ~8 / ~27. Open AI gaps: no naval
+   averages ~27 cities, ~40 techs, score ~255 vs the baseline's ~4 / ~8 / ~28. The planner explores by
+   sea: Map Making first once its continent is charted (or it has met nobody by turn 50), triremes
+   within two squares of land, seagoing ships once only open sea is left. Open AI gaps: no naval
    expansion or transport (settlers never leave the home continent), no tech trading, wars rarely end
-   in conquest. A 300-turn 5-civ game runs in ~5-8s; `findPath` is still the hot spot if it regresses.
+   in conquest. A 7-civ game costs ~35 ms per round; `findPath` (marching armies) is the hot spot.
    Measure any AI change with `npm run headless -- --ai planner,baseline --games 8 --verify`.
 3. Every wonder is bound (Great Library, sea-move wonders, SETI, Hoover, Women's Suffrage, UN).
    Caravans done (help wonder, trade routes: mutual `City.routes`, bonus on opening, route trade in

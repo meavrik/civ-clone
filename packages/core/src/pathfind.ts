@@ -2,6 +2,9 @@ import { MOVE_FRAC, TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Unit } from "./types.js";
 
+let DIST = new Float64Array(0);
+let PREV = new Int32Array(0);
+
 /**
  * Dijkstra over movement cost (in thirds) for a unit's domain. Enemy units
  * and cities are impassable except as the destination, so a goto can end in
@@ -15,9 +18,12 @@ export function findPath(state: GameState, u: Unit, tx: number, ty: number): [nu
   const target = ty * w + wrapX(state.map, tx);
   const start = u.y * w + u.x;
   if (start === target) return [];
+  if (ty < 0 || ty >= h) return null;
 
-  const dist = new Float64Array(w * h).fill(Infinity);
-  const prev = new Int32Array(w * h).fill(-1);
+  // Scratch buffers are reused between searches (sized to the map); every cell is reset here.
+  if (DIST.length !== w * h) { DIST = new Float64Array(w * h); PREV = new Int32Array(w * h); }
+  const dist = DIST.fill(Infinity);
+  const prev = PREV.fill(-1);
   dist[start] = 0;
   // Simple binary heap.
   const heap: [number, number][] = [[0, start]];

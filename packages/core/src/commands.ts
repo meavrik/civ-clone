@@ -217,7 +217,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       const path = findPath(state, u, cmd.x, cmd.y);
       if (!path) return { ok: false, reason: "no route" };
       u.order = { kind: "goto", x: wrapX(state.map, cmd.x), y: cmd.y };
-      runGoto(state, u);
+      runGoto(state, u, path);
       if (u.order.kind === "goto" || u.movesLeft === 0) selectNextUnit(state, u.id);
       return { ok: true };
     }
@@ -464,12 +464,13 @@ function removeUnit(state: GameState, u: Unit): void {
 }
 
 /** Walk a goto order as far as this turn's moves allow. Stops on anything unexpected. */
-export function runGoto(state: GameState, u: Unit): void {
+export function runGoto(state: GameState, u: Unit, planned?: [number, number][]): void {
   if (u.order.kind !== "goto") return;
   const { x, y } = u.order;
   if (u.x === x && u.y === y) { u.order = { kind: "none" }; return; }
   // Plan once per call: nothing but this unit moves while it walks; the next turn replans.
-  const path = findPath(state, u, x, y);
+  // A goto just validated by the command passes its path in, so it is not searched twice.
+  const path = planned ?? findPath(state, u, x, y);
   if (!path || path.length === 0) { u.order = { kind: "none" }; return; }
   for (const step of path) {
     if (u.order.kind !== "goto" || u.movesLeft <= 0) break;

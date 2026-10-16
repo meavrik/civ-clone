@@ -11,6 +11,7 @@ import {
   canFoundCity,
   canHelpWonder,
   canTradeRoute,
+  cargo,
   cityAt,
   cityDistance,
   coastal,
@@ -124,6 +125,14 @@ interface Ctx {
   jobs: Map<number, Job[]>;
   /** Extra military units to send out looking for land, early on. */
   scoutsWanted: number;
+  /** Our continents still hold land we have not seen. */
+  landUnexplored: boolean;
+  /** Ships wanted for exploring the coasts and seas, and ships we have (or are building). */
+  /** Ships wanted for exploring (computed on first use: it searches the sea). */
+  seaExplorersWanted: () => number;
+  /** Some unknown water is reachable by a trireme (computed on first use). */
+  coastFrontier: () => boolean;
+  ships: number;
   /** A city of mine building a wonder that still needs a caravan's worth of shields. */
   wonderSite: City | null;
   /** Caravans alive or ordered this turn. */
@@ -224,6 +233,25 @@ function analyse(state: GameState, me: number): Ctx {
   for (const c of cities) if (c.production.kind === "wonder" && wonder(c.production.id).cost - c.shields >= 100) { wonderSite = c; break; }
   const spaceRace = wonderBuilt(state, "apollo_program") && p.advances.includes("space_flight") && p.spaceship.launched === null && !p.spaceship.arrived;
   const spyTarget = findSpyTarget(state, me, cities, continents, enemies);
+  // Exploration: unseen land at home keeps a scout out; once Map Making is known, a ship
+  // charts the seas while some unknown can still be reached from our ports by a ship we can build.
+  let landUnexplored = false;
+  for (let i = 0; i < state.map.tiles.length && !landUnexplored; i++) {
+    const t = state.map.tiles[i]!;
+    if (!p.explored[i] && t.terrain !== Terrain.Ocean && continents.has(t.continent)) landUnexplored = true;
+  }
+  let frontier: { coast: boolean; open: boolean } | null = null;
+  const seaFrontiers = (): { coast: boolean; open: boolean } => {
+    if (frontier) return frontier;
+    const ports = cities.filter((c) => coastal(state, c)).map((c) => c.y * state.map.width + c.x);
+    if (!p.advances.includes("map_making") || !ports.length || state.turn < 30) return (frontier = { coast: false, open: false });
+    const coast = seaFrontierFrom(state, me, ports, true) !== null;
+    const openSeaShip = p.advances.includes("navigation") || p.advances.includes("magnetism") || p.advances.includes("steam_engine");
+    const open = coast || (openSeaShip && seaFrontierFrom(state, me, ports, false) !== null);
+    return (frontier = { coast, open });
+  };
+  const coastFrontier = () => seaFrontiers().coast;
+  const seaExplorersWanted = () => (seaFrontiers().open ? (cities.length >= 10 ? 2 : 1) : 0);
   return {
     tileWorker, foreignUnitTiles, jobs: new Map(), wonderSite, spaceRace, spyTarget,
     diplomats: units.filter((u) => unitType(u.type).flags?.includes("diplomat")).length,
@@ -235,7 +263,11 @@ function analyse(state: GameState, me: number): Ctx {
     militaryCap: Math.floor(cities.length * (atWarNow ? 4 : p.government === "republic" || p.government === "democracy" ? 1.5 : 2)) + 2,
     armyWanted: atWarNow ? 2 + cities.length : Math.ceil(cities.length / 3),
     workersWanted: cities.length >= 3 ? Math.floor(cities.length / 3) : 0,
-    scoutsWanted: state.turn < 150 ? Math.max(0, Math.min(2, 1 + Math.floor(cities.length / 4)) - units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length) : 0,
+    scoutsWanted: Math.max(0, (state.turn < 150 ? Math.min(2, 1 + Math.floor(cities.length / 4)) : landUnexplored ? 1 : 0) - units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length),
+    landUnexplored,
+    seaExplorersWanted,
+    coastFrontier,
+    ships: units.filter((u) => unitType(u.type).domain === "sea").length + cities.filter((c) => c.production.kind === "unit" && unitType(c.production.id).domain === "sea").length,
   };
 }
 
@@ -347,12 +379,16 @@ function closure(id: string): Set<string> {
   return s;
 }
 
-/** The available advance that moves toward the first unmet goal. */
-export function pickResearch(known: string[], atWar: boolean): string | null {
+/**
+ * The available advance that moves toward the first unmet goal. `seaward`
+ * (a coastal civ that has run out of land to explore, or met nobody) puts
+ * Map Making first so its ships can go and look.
+ */
+export function pickResearch(known: string[], atWar: boolean, seaward = false): string | null {
   const avail = availableAdvances(known);
   if (avail.length === 0) return null;
   const have = new Set(known);
-  const goals = atWar ? [...WAR_GOALS, ...GOALS] : GOALS;
+  const goals = [...(seaward ? ["map_making"] : []), ...(atWar ? WAR_GOALS : []), ...GOALS];
   for (const g of goals) {
     if (have.has(g)) continue;
     const need = closure(g);
@@ -365,7 +401,9 @@ export function pickResearch(known: string[], atWar: boolean): string | null {
 function manageResearch(state: GameState, ctx: Ctx): void {
   if (ctx.p.researching !== null) return;
   const threatened = ctx.atWarWith.length > 0 || [...ctx.threat.values()].some((t) => t > 0);
-  const pick = pickResearch(ctx.p.advances, threatened);
+  const lonely = ctx.turn >= 50 && !state.players.some((o) => o.id !== ctx.me && o.id !== state.barbarians && o.alive && hasContact(state, ctx.me, o.id));
+  const seaward = ctx.cities.some((c) => coastal(state, c)) && (!ctx.landUnexplored || lonely);
+  const pick = pickResearch(ctx.p.advances, threatened, seaward);
   if (pick) applyCommand(state, { type: "research", advance: pick });
 }
 
@@ -536,6 +574,20 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   const p = ctx.p;
 
   if (here < wanted) return bestUnit(options, "defense");
+  if (r.shields >= 2 && ctx.ships < 2 && ctx.p.advances.includes("map_making") && (ctx.threat.get(c.id) ?? 0) === 0 && coastal(state, c) && ctx.ships < ctx.seaExplorersWanted()) {
+    // The quickest, cheapest ship that can sail: a trireme early, sail and frigates later.
+    let ship: Production | undefined;
+    for (const o of options) {
+      if (o.kind !== "unit") continue;
+      const t = unitType(o.id);
+      if (t.domain !== "sea") continue;
+      if (o.id === "trireme" && !ctx.coastFrontier()) continue;
+      if (!ship) { ship = o; continue; }
+      const sh = unitType(ship.id);
+      if (t.moves > sh.moves || (t.moves === sh.moves && t.cost < sh.cost)) ship = o;
+    }
+    if (ship) { ctx.ships++; return ship; }
+  }
   if (ctx.scoutsWanted > 0 && c === ctx.cities[0] && here <= wanted) {
     let scout: Production | undefined;
     for (const o of options) {
@@ -868,6 +920,7 @@ function orderUnit(state: GameState, ctx: Ctx, u: Unit): void {
   if (type.flags?.includes("settler")) { orderSettler(state, ctx, u); return; }
   if (type.flags?.includes("caravan")) { orderCaravan(state, ctx, u); return; }
   if (type.flags?.includes("diplomat")) { orderDiplomat(state, ctx, u); return; }
+  if (type.domain === "sea") { orderShip(state, ctx, u); return; }
   if (type.domain !== "land" || type.attack === 0) { applyCommand(state, { type: "skip", unit: u.id }); return; }
   orderMilitary(state, ctx, u);
 }
@@ -948,6 +1001,93 @@ function frontierTarget(state: GameState, u: Unit, limit = 900): [number, number
   return fallback;
 }
 
+/** Water squares within two of land, per map (land never turns into sea, so this is computed once). */
+const NEAR_LAND = new WeakMap<GameState["map"], Uint8Array>();
+function nearLandMask(state: GameState): Uint8Array {
+  let mask = NEAR_LAND.get(state.map);
+  if (mask) return mask;
+  const { width: w, height: h, tiles } = state.map;
+  mask = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      if (tiles[y * w + x]!.terrain === Terrain.Ocean) continue;
+      for (let dy = -2; dy <= 2; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) continue;
+        for (let dx = -2; dx <= 2; dx++) mask[ny * w + wrapX(state.map, x + dx)] = 1;
+      }
+    }
+  NEAR_LAND.set(state.map, mask);
+  return mask;
+}
+
+/**
+ * Breadth-first over the sea from one or more squares for the nearest water
+ * square that borders the unknown. A trireme keeps within two squares of
+ * land, as the original's had to hug the coast, so it can cross a narrow
+ * strait but open ocean waits for Navigation.
+ */
+function seaFrontierFrom(state: GameState, owner: number, starts: number[], coastOnly: boolean, limit = 4000): [number, number] | null {
+  const p = state.players[owner]!;
+  const { width: w, height: h } = state.map;
+  const seen = new Uint8Array(w * h);
+  const queue: number[] = [];
+  for (const s of starts) if (!seen[s]) { seen[s] = 1; queue.push(s); }
+  const startSet = new Set(starts);
+  let head = 0;
+  const blocked = new Set<number>();
+  for (const o of state.units) if (o.owner !== owner) blocked.add(o.y * w + o.x);
+  const ownCity = new Set<number>();
+  for (const c of state.cities) if (c.owner === owner) ownCity.add(c.y * w + c.x);
+  const near = coastOnly ? nearLandMask(state) : null;
+  while (head < queue.length && head < limit) {
+    const i = queue[head++]!;
+    const x = i % w;
+    const y = Math.floor(i / w);
+    if (!startSet.has(i) && state.map.tiles[i]!.terrain === Terrain.Ocean) {
+      for (const [dx, dy] of NEIGHBOURS) {
+        const ny = y + dy;
+        if (ny >= 0 && ny < h && !p.explored[ny * w + wrapX(state.map, x + dx)]) return [x, y];
+      }
+    }
+    for (const [dx, dy] of NEIGHBOURS) {
+      const ny = y + dy;
+      if (ny < 1 || ny >= h - 1) continue;
+      const nx = wrapX(state.map, x + dx);
+      const ni = ny * w + nx;
+      if (seen[ni]) continue;
+      seen[ni] = 1;
+      const n = state.map.tiles[ni]!;
+      if (!p.explored[ni] || blocked.has(ni)) continue;
+      if (n.terrain !== Terrain.Ocean && !ownCity.has(ni)) continue;
+      if (near && n.terrain === Terrain.Ocean && !near[ni]) continue;
+      queue.push(ni);
+    }
+  }
+  return null;
+}
+
+function seaFrontierTarget(state: GameState, u: Unit, coastOnly: boolean): [number, number] | null {
+  return seaFrontierFrom(state, u.owner, [u.y * state.map.width + u.x], coastOnly);
+}
+
+/** Ships chart the seas; with nothing left to find they go home and are let go. */
+function orderShip(state: GameState, ctx: Ctx, u: Unit): void {
+  if (cargo(state, u).length > 0) { applyCommand(state, { type: "skip", unit: u.id }); return; }
+  const target = seaFrontierTarget(state, u, u.type === "trireme");
+  if (target && (goto(state, u, target[0], target[1]) || nudge(state, u, target[0], target[1]))) return;
+  const here = cityAt(state, u.x, u.y);
+  if (here && here.owner === ctx.me) {
+    // Nothing left for this ship: let it go (a trireme that cannot reach open-sea work makes room for a seagoing ship).
+    if (!target && (ctx.seaExplorersWanted() === 0 || (u.type === "trireme" && !ctx.coastFrontier()))) { applyCommand(state, { type: "disband", unit: u.id }); ctx.ships--; return; }
+    applyCommand(state, { type: "skip", unit: u.id });
+    return;
+  }
+  const port = nearestCity(state, ctx, u, (c) => coastal(state, c));
+  if (port && goto(state, u, port.x, port.y)) return;
+  applyCommand(state, { type: "skip", unit: u.id });
+}
+
 function explore(state: GameState, u: Unit): boolean {
   const target = frontierTarget(state, u);
   if (!target) return false;
@@ -1000,7 +1140,7 @@ function orderMilitary(state: GameState, ctx: Ctx, u: Unit): void {
 
   // 3. Exploration while the map is young.
   const scouting = ctx.units.filter((o) => isMilitary(o) && o.id !== u.id && !cityAt(state, o.x, o.y)).length;
-  if ((ctx.turn < 150 || ctx.cities.length === 0) && scouting < 2 && explore(state, u)) return;
+  if ((ctx.turn < 150 || ctx.cities.length === 0 || ctx.landUnexplored) && scouting < (ctx.turn < 150 ? 2 : 1) && explore(state, u)) return;
 
   // 4. Otherwise sit tight at home.
   if (inOwnCity) { applyCommand(state, { type: "fortify", unit: u.id }); return; }
