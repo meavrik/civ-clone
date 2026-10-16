@@ -1,13 +1,26 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, revealAround, Terrain, unitType } from "@civ/core";
-import { drawCityScreen, drawDiscoveryScreen, drawMainScreen, drawMenu, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { drawCityScreen, drawDiscoveryScreen, drawMainScreen, drawMenu, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
   it("palette has 256 entries, EGA first", () => {
     expect(PALETTE.length).toBe(256);
     expect(PALETTE[15]).toEqual([255, 255, 255]);
+  });
+
+  it("draws a modal with paragraphs above its choices and hit-tests only the choices", () => {
+    const s = Surface.screen();
+    s.fill(0);
+    const box = { title: "A Tribal Village", body: ["Among the villagers you find scrolls of ancient wisdom.", "We learn Bronze Working!"], items: ["OK"], selected: 0 };
+    drawMenu(s, box);
+    let okRow = -1;
+    for (let y = 0; y < 200 && okRow < 0; y++) if (menuHit(box, 160, y) === 0) okRow = y;
+    expect(okRow).toBeGreaterThan(100 - 30);
+    expect(menuHit(box, 160, okRow - 12)).toBe(-1);
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/modal.png", import.meta.url), encodePng(s, 3));
   });
 
   it("draws a text prompt with a cursor", () => {

@@ -40,6 +40,7 @@ import {
   type Command,
   type DiplomatAction,
   type GameState,
+  type HutResult,
   type NewGameOptions,
   type Production,
   type SaveGame,
@@ -48,7 +49,9 @@ import {
 import {
   DIFFICULTIES,
   leaderLine,
+  opponentsForChoice,
   setupMenu,
+  terrainInfo,
   TEXT_INPUT_MAX,
   type CityScreenView,
   type MainScreenView,
@@ -141,12 +144,42 @@ function setAutoEnd(on: boolean): void {
   try { localStorage.setItem("epochs.autoEnd", on ? "on" : "off"); } catch { /* private mode */ }
 }
 
+/**
+ * Civilizations already introduced to the player. Contact is read from the
+ * relations after every action and every AI round (the turn's event list
+ * is cleared at each end of turn, so a meeting during another civ's move
+ * would otherwise go unannounced).
+ */
+const announced = new Set<number>();
+
+function newContacts(): TurnEvent[] {
+  const out: TurnEvent[] = [];
+  for (const p of state.players) {
+    if (p.id === 0 || p.id === state.barbarians || !p.alive || announced.has(p.id) || !hasContact(state, 0, p.id)) continue;
+    announced.add(p.id);
+    out.push({ kind: "contact", player: p.id });
+  }
+  return out;
+}
+
+/** After one of our actions: villages our units entered and civilizations we just met, each in its own window. */
+function afterAction(): void {
+  const events: TurnEvent[] = [];
+  for (let i = 0; i < lastTurnEvents.length; ) {
+    const ev = lastTurnEvents[i]!;
+    if (ev.kind === "hut" && ev.player === 0) { events.push(ev); lastTurnEvents.splice(i, 1); } else i++;
+  }
+  events.push(...newContacts());
+  if (events.length) presentEvents(events);
+}
+
 function dispatch(cmd: Command): boolean {
   view.inspect = undefined;
   const r = applyCommand(state, cmd);
   if (r.ok) {
     log.push(cmd);
     if (cmd.type === "move" && lastCombat) reportCombat();
+    if (cmd.type !== "endTurn") afterAction();
   } else say(REASONS[r.reason] ?? r.reason);
   blinkOn = true;
   lastBlink = performance.now();
@@ -166,6 +199,7 @@ function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0
   options = opts;
   state = newGame(seed, opts);
   log = [];
+  announced.clear();
   screenState = { kind: "map" };
   cam.ready = false;
   followActive(true);
@@ -178,6 +212,8 @@ function resumeGame(save: SaveGame): void {
     state = loaded.state;
     log = loaded.log;
     options = save.options;
+    announced.clear();
+    for (const p of state.players) if (p.id !== 0 && hasContact(state, 0, p.id)) announced.add(p.id);
     screenState = { kind: "map" };
     cam.ready = false;
     followActive(true);
@@ -192,7 +228,7 @@ if (params.has("seed")) {
   startGame(
     {
       difficulty: Number(params.get("difficulty") ?? 2),
-      opponents: Number(params.get("opponents") ?? 2),
+      opponents: Number(params.get("opponents") ?? 6),
       ...(params.get("civ") ? { civ: params.get("civ")! } : {}),
     },
     Number(params.get("seed")) || 2026,
@@ -269,6 +305,39 @@ function menu(title: string, items: string[], onPick: (i: number) => void, extra
 
 function openCity(id: number): void {
   screenState = { kind: "city", view: { city: id } };
+}
+
+/** A modal window: a title, a few paragraphs, and choices (just "OK" for a message). */
+function modal(title: string, body: string[], items: string[], onPick: (i: number) => void, selected = 0, onCancel?: () => void): void {
+  screenState = { kind: "menu", under: screenState, menu: { title, body, items, selected }, onPick, ...(onCancel ? { onCancel } : {}) };
+}
+
+/** What a tribal village held, in a window like the original's. */
+function hutModal(r: HutResult, then: () => void): void {
+  const body = r.kind === "gold" ? [`The elders welcome you with a gift of ${r.amount} gold.`]
+    : r.kind === "advance" ? ["Among the villagers you find scrolls of ancient wisdom.", `We learn ${advance(r.advance).name}!`]
+    : r.kind === "unit" ? [`The village warriors swear allegiance: a unit of ${unitType(r.unit).name} joins you.`]
+    : r.kind === "barbarians" ? ["The village was a trap!", "A horde of barbarians bursts from the huts."]
+    : ["The village stands empty; its people are long gone."];
+  modal("A Tribal Village", body, ["OK"], () => then(), 0, then);
+}
+
+/** Right-click on the map: what is known about the square, with a few things to do about it. */
+function openTerrainInfo(tx: number, ty: number): void {
+  const info = terrainInfo(state, tx, ty);
+  const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
+  const items: [string, () => void][] = [];
+  if (active && !(active.x === tx && active.y === ty))
+    items.push([`Send the ${unitType(active.type).name} here`, () => {
+      const before = state.activeUnit;
+      if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
+      followActive(state.activeUnit !== before);
+    }]);
+  const city = cityAt(state, tx, ty);
+  if (city && city.owner === 0) items.push(["Open the city", () => openCity(city.id)]);
+  items.push(["Center the map here", () => centerOn(tx, ty)]);
+  items.push(["Close", () => {}]);
+  modal(info.title, info.lines, items.map((i) => i[0]), (i) => items[i]?.[1](), items.length - 1);
 }
 
 /** Ask for a line of text in-game (no browser prompt): Enter submits, Esc cancels. */
@@ -533,6 +602,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       return;
     }
     if (ev.kind === "discovered") screenState = { kind: "discovery", advance: ev.advance, then: next };
+    else if (ev.kind === "hut") hutModal(ev.result, next);
     else if (ev.kind === "contact") {
       const c = civ(state.players[ev.player]!.civ);
       screenState = { kind: "diplomacy", player: ev.player, line: `${c.leader} of the ${c.name} greets you.` };
@@ -568,23 +638,29 @@ function endGame(end: NonNullable<ReturnType<typeof checkGameEnd>>): void {
   screenState = { kind: "end", lines, rank: rankTitle(me.total) };
 }
 
+/** Events from another civilization's turn that the player should hear about. */
+function concernsUs(ev: TurnEvent): boolean {
+  if (ev.kind === "cityLost" || ev.kind === "cityCaptured") return ev.player === 0;
+  return ev.kind === "eliminated" || ev.kind === "barbarians" || ev.kind === "globalWarming" || ev.kind === "nuked"
+    || ev.kind === "spaceLaunched" || ev.kind === "spaceArrived" || ev.kind === "spaceLost";
+}
+
 function endTurn(): void {
   dispatch({ type: "endTurn" });
-  const events: TurnEvent[] = [...lastTurnEvents];
-  // Other civilizations move now; keep what concerns us.
+  // Our own end of turn (contacts come from the relations; other civs' villages are theirs).
+  const events: TurnEvent[] = lastTurnEvents.filter((ev) => ev.kind !== "contact" && !(ev.kind === "hut" && ev.player !== 0));
+  // Other civilizations move now. Each one's moves are read before its own end of turn clears them.
+  let seen = lastTurnEvents.length;
   let guard = 0;
   while (state.players[state.currentPlayer]!.isAi && guard++ < 16) {
-    const ai = state.currentPlayer;
     aiTurn(state);
+    for (const ev of lastTurnEvents.slice(seen)) if (concernsUs(ev)) events.push(ev);
     applyCommand(state, { type: "endTurn" });
-    for (const ev of lastTurnEvents) {
-      if (ev.kind === "contact" && ev.player === 0) events.push({ kind: "contact", player: ai });
-      else if ((ev.kind === "cityLost" || ev.kind === "cityCaptured") && ev.player === 0) events.push(ev);
-      else if (ev.kind === "eliminated" || ev.kind === "barbarians" || ev.kind === "globalWarming") events.push(ev);
-      else if (ev.kind === "spaceLaunched" || ev.kind === "spaceArrived" || ev.kind === "spaceLost") events.push(ev);
-    }
+    seen = 0;
   }
-  for (const ev of lastTurnEvents) if (ev.kind === "contact" || ev.kind === "eliminated") events.push(ev);
+  // The last civ's end of turn and the start of ours (a goto may have reached a village).
+  for (const ev of lastTurnEvents) if (concernsUs(ev) || (ev.kind === "hut" && ev.player === 0)) events.push(ev);
+  events.push(...newContacts());
   void runAiPlayers; // replay helper lives in core; here the loop above also harvests events
   // Autosave every 5 turns.
   if (state.turn % 5 === 0) void writeSlot(0, makeSave(state, options, log)).catch(() => {});
@@ -609,7 +685,8 @@ function tryMove(unit: number, dx: number, dy: number): void {
   if (r.ok) {
     log.push({ type: "move", unit, dx, dy });
     if (lastCombat) reportCombat();
-    const ev = lastTurnEvents.find((e) => e.kind === "hut" || e.kind === "cityCaptured" || e.kind === "cityLost" || e.kind === "tradeRoute" || e.kind === "nuked");
+    afterAction();
+    const ev = lastTurnEvents.find((e) => e.kind === "cityCaptured" || e.kind === "cityLost" || e.kind === "tradeRoute" || e.kind === "nuked");
     if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
   } else if (r.reason === "treaty") {
     const u = unitById(state, unit)!;
@@ -723,14 +800,14 @@ function setupKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "setup" }>): voi
   const civs = CIVS.filter((c) => c.id !== "barbarians");
   const apply = (i: number) => {
     if (sc.setup.step === "difficulty") { sc.setup.difficulty = i; sc.setup.step = "opponents"; }
-    else if (sc.setup.step === "opponents") { sc.setup.opponents = i + 1; sc.setup.step = "civ"; }
+    else if (sc.setup.step === "opponents") { sc.setup.opponents = opponentsForChoice(i); sc.setup.step = "civ"; }
     else { sc.setup.civ = civs[i]!.id; startGame({ difficulty: sc.setup.difficulty, opponents: sc.setup.opponents, civ: sc.setup.civ }); }
   };
   setupSelection = Math.min(setupSelection, m.items.length - 1);
   switch (e.code) {
     case "ArrowUp": case "Numpad8": setupSelection = (setupSelection + m.items.length - 1) % m.items.length; break;
     case "ArrowDown": case "Numpad2": setupSelection = (setupSelection + 1) % m.items.length; break;
-    case "Enter": case "NumpadEnter": case "Space": apply(setupSelection); setupSelection = 0; break;
+    case "Enter": case "NumpadEnter": case "Space": apply(setupSelection); setupSelection = setupMenu(sc.setup).selected; break;
     case "Escape": screenState = { kind: "title" }; break;
   }
 }
@@ -738,7 +815,7 @@ let setupSelection = 0;
 
 function openTitleMenu(): void {
   const items: [string, () => void][] = [
-    ["Start a new game", () => { screenState = { kind: "setup", setup: { step: "difficulty", difficulty: 2, opponents: 2, civ: "romans" } }; setupSelection = 2; }],
+    ["Start a new game", () => { screenState = { kind: "setup", setup: { step: "difficulty", difficulty: 2, opponents: 6, civ: "romans" } }; setupSelection = 2; }],
     ["Load a saved game", () => void openLoadMenu()],
     [`Visuals: ${renderer.id === "retro" ? "retro" : "modern"}`, () => { setRenderer(renderer.id === "retro" ? "modern" : "retro"); openTitleMenu(); }],
   ];
@@ -851,20 +928,18 @@ canvas.addEventListener("mousedown", (e) => {
   }
   const { x: tx, y: ty } = hit;
 
-  // Right-click: send the active unit there (its own tile opens its orders); without a unit, the game menu.
+  // Right-click: step the active unit onto an adjacent square, open its orders on its own square,
+  // and anywhere else show the terrain window (which can also send the unit there).
   if (e.button === 2) {
-    if (!active) { openGameMenu(); return; }
-    if (active.x === tx && active.y === ty) { openActionMenu(active.id); return; }
-    if (isAdjacent(active, tx, ty)) {
+    if (active && active.x === tx && active.y === ty) { openActionMenu(active.id); return; }
+    if (active && isAdjacent(active, tx, ty)) {
       let dx = tx - active.x;
       if (dx > 1) dx -= state.map.width;
       if (dx < -1) dx += state.map.width;
       tryMove(active.id, dx, ty - active.y);
       return;
     }
-    const before = state.activeUnit;
-    if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
-    followActive(state.activeUnit !== before);
+    openTerrainInfo(tx, ty);
     return;
   }
   const city = cityAt(state, tx, ty);

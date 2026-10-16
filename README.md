@@ -36,7 +36,7 @@ Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify ·
 `Enter` end turn · `T` rates · `G` revolution · `Esc` orders menu (or game menu) ·
 `F1` cities · `F2` military · `F3` foreign (Enter to talk) · `F4` science · `F5` score · `F6` spaceship (Enter to launch) · `F10` game menu (save/load, auto end turn on/off).
 With auto end turn on (the default) the turn ends by itself a moment after the last unit has its orders.
-Mouse: right-click a tile to move or attack there (adjacent) or to go there (farther) · right-click the active unit for its orders ·
+Mouse: right-click an adjacent tile to move or attack · right-click any other square for its terrain window (yields, movement, specials, city, units, with "Send here") · right-click the active unit for its orders ·
 left-click an adjacent tile to move/attack · left-click a farther tile to inspect it (terrain, yields, what stands there), click it again to send the unit there ·
 the camera glides to each newly active unit ·
 click your own unit to activate it · click the active unit to cycle the stack ·
@@ -44,7 +44,8 @@ click a city to open it · right-click for the orders menu (caravans: help wonde
 City screen: click tiles to work them · `C` change production · `B` buy · `N` rename (in-game prompt) · `Esc`.
 Founding a city asks for its name (Enter accepts the suggested one).
 
-URL options skip the setup screens: `?seed=1234&difficulty=2&opponents=2&civ=greeks`.
+URL options skip the setup screens: `?seed=1234&difficulty=2&opponents=6&civ=greeks` (6 rivals = 7 civilizations, the default).
+Entering a tribal village shows what it held in a window; meeting a civilization opens an audience with its leader.
 Saves: slots 1–5 in the game menu, autosave to slot 0 every 5 turns. A save is the seed plus the
 command log and is replayed on load, so it also serves as a replay for the AI harness.
 

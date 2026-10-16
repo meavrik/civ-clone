@@ -107,6 +107,16 @@ describe("modern renderer", () => {
     expect(r.menuHit(menu, 480, 0)).toBe(-1);
     const rows = [0, 1, 2].map((i) => r.menuHit(menu, 480, 300 - 30 + i * 30));
     expect(new Set(rows).size).toBeGreaterThan(1);
+    // A modal's choices sit below its paragraphs; the paragraphs are not clickable.
+    const box = { title: "A Tribal Village", body: ["The elders welcome you with a gift of 50 gold.", "A second line."], items: ["OK", "Close"], selected: 0 };
+    const hits = new Set<number>();
+    for (let y = 0; y < 600; y += 2) hits.add(r.menuHit(box, 480, y));
+    expect(hits).toEqual(new Set([-1, 0, 1]));
+    let firstOk = -1;
+    for (let y = 0; y < 600 && firstOk < 0; y++) if (r.menuHit(box, 480, y) === 0) firstOk = y;
+    let firstPlain = -1;
+    for (let y = 0; y < 600 && firstPlain < 0; y++) if (r.menuHit({ ...box, body: [] }, 480, y) === 0) firstPlain = y;
+    expect(firstOk).toBeGreaterThan(firstPlain);
     expect(r.citySlotAt(20 + 48 * 2 + 10, 92 + 48 * 2 + 10)).toBe(0);
     expect(r.citySlotAt(20 + 48 * 4 + 10, 92 + 10)).toBeNull();
     expect(r.cityExitHit(10, 590)).toBe(true);

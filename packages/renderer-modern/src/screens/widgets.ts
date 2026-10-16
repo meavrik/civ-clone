@@ -1,6 +1,6 @@
 import type { MenuState, TextInputState } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
-import { fillRound, measure, panel, text } from "../draw.js";
+import { fillRound, measure, panel, text, wrap } from "../draw.js";
 import { H, UI, VIEW_X, W } from "../theme.js";
 
 /** Menus, the text prompt and the status line: overlays drawn on top of any screen. */
@@ -8,25 +8,41 @@ import { H, UI, VIEW_X, W } from "../theme.js";
 const ROW = 30;
 const TITLE_H = 48;
 
-export function menuRect(ctx: Context2D, m: MenuState): { x: number; y: number; w: number; h: number } {
+const BODY_LINE = 21;
+
+interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number }
+
+function menuLayout(ctx: Context2D, m: MenuState): MenuLayout {
   let widest = measure(ctx, m.title, 18, "600");
   m.items.forEach((item, i) => {
     const right = m.right?.[i];
     widest = Math.max(widest, measure(ctx, item, 15) + (right ? measure(ctx, right, 13) + 32 : 0));
   });
+  for (const l of m.body ?? []) widest = Math.max(widest, Math.min(measure(ctx, l, 15), 520));
   const w = Math.min(W - 80, Math.max(320, widest + 56));
-  const h = TITLE_H + m.items.length * ROW + 16;
-  return { x: Math.round((W - w) / 2), y: Math.round(Math.max(24, (H - h) / 2)), w, h };
+  const lines = (m.body ?? []).flatMap((l) => wrap(ctx, l, w - 48, 15));
+  const bodyH = lines.length ? lines.length * BODY_LINE + 14 : 0;
+  const h = TITLE_H + bodyH + m.items.length * ROW + 16;
+  const x = Math.round((W - w) / 2);
+  const y = Math.round(Math.max(16, (H - h) / 2));
+  return { x, y, w, h, lines, itemsY: y + TITLE_H + bodyH };
+}
+
+export function menuRect(ctx: Context2D, m: MenuState): { x: number; y: number; w: number; h: number } {
+  const { x, y, w, h } = menuLayout(ctx, m);
+  return { x, y, w, h };
 }
 
 export function drawMenu(ctx: Context2D, m: MenuState): void {
-  const { x, y, w, h } = menuRect(ctx, m);
+  const { x, y, w, h, lines, itemsY } = menuLayout(ctx, m);
   panel(ctx, x, y, w, h, 14, UI.card);
   text(ctx, x + 24, y + 14, m.title, { size: 18, weight: "600" });
   ctx.fillStyle = UI.panelEdge;
   ctx.fillRect(x + 16, y + TITLE_H - 6, w - 32, 1);
+  lines.forEach((line, i) => text(ctx, x + 24, y + TITLE_H + 2 + i * BODY_LINE, line, { size: 15, color: "#d5dde6" }));
+  if (lines.length) { ctx.fillStyle = UI.panelEdge; ctx.fillRect(x + 16, itemsY - 7, w - 32, 1); }
   m.items.forEach((item, i) => {
-    const ry = y + TITLE_H + i * ROW;
+    const ry = itemsY + i * ROW;
     const sel = i === m.selected;
     if (sel) fillRound(ctx, x + 10, ry + 1, w - 20, ROW - 2, 8, UI.selection);
     text(ctx, x + 24, ry + 7, item, { size: 15, color: sel ? UI.ink : "#c9d3de", weight: sel ? "600" : "normal" });
@@ -37,9 +53,9 @@ export function drawMenu(ctx: Context2D, m: MenuState): void {
 
 /** Row index under a screen point, or -1. */
 export function menuHit(ctx: Context2D, m: MenuState, px: number, py: number): number {
-  const { x, y, w } = menuRect(ctx, m);
+  const { x, w, itemsY } = menuLayout(ctx, m);
   if (px < x + 10 || px > x + w - 10) return -1;
-  const i = Math.floor((py - (y + TITLE_H)) / ROW);
+  const i = Math.floor((py - itemsY) / ROW);
   return i >= 0 && i < m.items.length ? i : -1;
 }
 

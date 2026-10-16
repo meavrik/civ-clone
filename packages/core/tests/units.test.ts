@@ -4,6 +4,7 @@ import {
   checkMove,
   createUnit,
   getTile,
+  lastTurnEvents,
   newGame,
   Terrain,
   type GameState,
@@ -116,5 +117,19 @@ describe("new game", () => {
     expect(s.players[0]!.visible[u.y * 80 + u.x]).toBe(1);
     expect(s.activeUnit).toBe(u.id);
     expect(t.continent).toBeGreaterThan(0);
+  });
+});
+
+describe("tribal villages", () => {
+  it("report the player whose unit entered them", () => {
+    const s = newGame(1, { opponents: 1 });
+    for (const t of s.map.tiles) { t.terrain = Terrain.Grassland; t.hut = false; }
+    s.units = [];
+    const u = createUnit(s, "militia", 0, 10, 10);
+    getTile(s.map, 11, 10)!.hut = true;
+    expect(applyCommand(s, { type: "move", unit: u.id, dx: 1, dy: 0 }).ok).toBe(true);
+    const ev = lastTurnEvents.find((e) => e.kind === "hut");
+    expect(ev && ev.kind === "hut" && ev.player).toBe(0);
+    expect(getTile(s.map, 11, 10)!.hut).toBe(false);
   });
 });

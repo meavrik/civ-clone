@@ -86,7 +86,7 @@ export type TurnEvent =
   | { kind: "unitLost"; unit: string; by: number }
   | { kind: "barbarians" }
   | { kind: "eliminated"; player: number }
-  | { kind: "hut"; result: HutResult }
+  | { kind: "hut"; result: HutResult; player: number }
   | { kind: "tradeRoute"; from: string; to: string; bonus: number }
   | { kind: "globalWarming" }
   | { kind: "spaceLaunched"; player: number }
@@ -493,7 +493,7 @@ function enterHut(state: GameState, u: Unit): void {
   const landed = getTile(state.map, u.x, u.y)!;
   if (!landed.hut || unitType(u.type).domain !== "land") return;
   landed.hut = false;
-  lastTurnEvents.push({ kind: "hut", result: openHut(state, u) });
+  lastTurnEvents.push({ kind: "hut", result: openHut(state, u), player: u.owner });
 }
 
 /** Enter a minor tribe's village: gold, an advance, a mercenary unit, or an ambush. */

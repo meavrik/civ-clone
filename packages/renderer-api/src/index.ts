@@ -1,4 +1,17 @@
-import { civ, CIVS, relation, type GameState } from "@civ/core";
+import {
+  cityAt,
+  civ,
+  CIVS,
+  relation,
+  Terrain,
+  TERRAIN_NAMES,
+  TERRAIN_RULES,
+  tileYield,
+  unitAt,
+  unitType,
+  wrapX,
+  type GameState,
+} from "@civ/core";
 
 /**
  * The screen API every renderer implements. The web app only ever talks to
@@ -34,6 +47,8 @@ export interface CityScreenView {
 
 export interface MenuState {
   title: string;
+  /** Paragraphs shown between the title and the choices (a modal message); renderers wrap them. */
+  body?: string[];
   items: string[];
   selected: number;
   /** Optional second column per row (cost, turns...). */
@@ -110,7 +125,12 @@ export function setupMenu(setup: SetupState): { title: string; items: string[]; 
     case "difficulty":
       return { title: "Choose your difficulty level", items: DIFFICULTIES, selected: setup.difficulty };
     case "opponents":
-      return { title: "How many rival civilizations?", items: ["1", "2", "3", "4", "5", "6", "7"], selected: setup.opponents - 1 };
+      // Civilizations in play, ours included, as in the original: 3 to 7.
+      return {
+        title: "How many civilizations?",
+        items: [3, 4, 5, 6, 7].map((n) => `${n} civilizations`),
+        selected: Math.max(0, Math.min(4, setup.opponents - 2)),
+      };
     case "civ": {
       const civs = CIVS.filter((c) => c.id !== "barbarians");
       return { title: "Choose your tribe", items: civs.map((c) => c.name), selected: Math.max(0, civs.findIndex((c) => c.id === setup.civ)) };
@@ -131,6 +151,55 @@ export function leaderLine(state: GameState, player: number): string {
   if (theirs > mine * 2) return "Our armies are mighty. Tread carefully.";
   if (mine > theirs * 2) return "We seek only peace with so great a power.";
   return "Greetings. What brings you to our court?";
+}
+
+/** Rival civilizations for the n-th choice of the "How many civilizations?" menu. */
+export function opponentsForChoice(index: number): number {
+  return Math.max(2, Math.min(6, index + 2));
+}
+
+/**
+ * What the current player knows about a map square, for the terrain
+ * information window: yields under their government, movement and
+ * defence, specials and improvements, what settlers could do there, and
+ * the city and units on it. Plain ASCII so every font can draw it.
+ */
+export function terrainInfo(state: GameState, x: number, y: number): { title: string; lines: string[] } {
+  const me = state.players[state.currentPlayer]!;
+  const { map } = state;
+  const idx = y * map.width + wrapX(map, x);
+  if (y < 0 || y >= map.height || !me.explored[idx]) return { title: "Unexplored", lines: ["Our explorers have not seen this land."] };
+  const t = map.tiles[idx]!;
+  const r = TERRAIN_RULES[t.terrain];
+  const city = cityAt(state, x, y);
+  const yld = tileYield(state, t, city !== undefined, me.government);
+  const lines: string[] = [];
+  lines.push(`Food ${yld.food}, shields ${yld.shields}, trade ${yld.trade}`);
+  lines.push(`Movement cost ${r.moveCost}, defence ${r.defense === 1 ? "normal" : `+${Math.round((r.defense - 1) * 100)}%`}`);
+  if (t.special && r.special) lines.push(`Special resource: ${r.special.name}`);
+  const improved = [t.railroad ? "Railroad" : t.road && "Road", t.irrigation && "Irrigation", t.mine && "Mine", t.fortress && "Fortress"].filter(Boolean);
+  if (improved.length) lines.push(`Improvements: ${improved.join(", ")}`);
+  if (t.pollution) lines.push("Polluted: output halved until cleaned.");
+  if (t.hut) lines.push("A village of a minor tribe stands here.");
+  if (t.terrain !== Terrain.Ocean) {
+    const work: string[] = [];
+    if (r.irrigate) work.push(r.irrigate.becomes !== undefined ? `irrigate into ${TERRAIN_NAMES[r.irrigate.becomes]}` : `irrigate +${r.irrigate.food ?? 0} food`);
+    if (r.mine) work.push(r.mine.becomes !== undefined ? `mine into ${TERRAIN_NAMES[r.mine.becomes]}` : `mine +${r.mine.shields ?? 0} shields`);
+    if (r.road.trade > 0) work.push(`road +${r.road.trade} trade`);
+    if (work.length) lines.push(`Settlers can ${work.join(", ")}.`);
+  }
+  if (city) lines.push(`City: ${city.name} (${state.players[city.owner]!.name}), size ${city.size}`);
+  if (me.visible[idx]) {
+    const units = unitAt(state, x, y);
+    if (units.length) {
+      const owner = state.players[units[0]!.owner]!;
+      const counts = new Map<string, number>();
+      for (const u of units) counts.set(unitType(u.type).name, (counts.get(unitType(u.type).name) ?? 0) + 1);
+      const names = [...counts].map(([n, k]) => (k > 1 ? `${k} ${n}` : n)).join(", ");
+      lines.push(`Units (${owner.id === me.id ? "ours" : owner.name}): ${names}`);
+    }
+  }
+  return { title: `${TERRAIN_NAMES[t.terrain]}${t.river ? " (River)" : ""}`, lines };
 }
 
 /** Civ colour slot -> a fixed order of eight distinct colours; renderers map the slot to their own palette. */
