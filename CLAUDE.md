@@ -55,7 +55,7 @@ turns + baseline AI, diplomacy, save/load, title/setup, advisors, end conditions
 2. Phase 7 — AI v2 done: harness (`tools/headless`) + planner. At 300 turns / 4 civs the planner
    averages ~22 cities, ~43 techs, score ~200 vs the baseline's ~4 / ~8 / ~27. Open AI gaps: no naval
    expansion or transport (settlers never leave the home continent), no tech trading, wars rarely end
-   in conquest, late games with 100-unit armies run slowly (profile `findPath`/`state.units.filter`).
+   in conquest. A 300-turn 5-civ game runs in ~5-8s; `findPath` is still the hot spot if it regresses.
    Measure any AI change with `npm run headless -- --ai planner,baseline --games 8 --verify`.
 3. Unbound wonders: Great Library, Great Wall (partially), Lighthouse, Magellan's,
    Women's Suffrage, UN. Caravans/trade routes, diplomats, pollution, spaceship not implemented.

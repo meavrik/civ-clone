@@ -15,7 +15,7 @@ describe("all-AI games", () => {
   });
 
   it("runs a seeded game, samples stats and replays to the same state", () => {
-    const config = defaultConfig(11, { civs: 3, turns: 30, every: 10, ais: ["baseline"] });
+    const config = defaultConfig(11, { civs: 3, turns: 30, every: 10, ais: ["planner"] });
     const a = runGame(config);
     expect(a.turns).toBe(30);
     expect(a.end).toBe("turns");
@@ -23,7 +23,7 @@ describe("all-AI games", () => {
     expect(a.samples.map((s) => s.turn)).toEqual([10, 20, 30]);
     expect(a.players.some((p) => p.cities > 0)).toBe(true);
     expect(a.winner).not.toBeNull();
-    expect(seatAis(config)).toEqual(["baseline", "baseline", "baseline"]);
+    expect(seatAis(config)).toEqual(["planner", "planner", "planner"]);
 
     const b = runGame(config);
     expect(b.digest).toBe(a.digest);

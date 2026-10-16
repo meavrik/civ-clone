@@ -28,14 +28,14 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --civs C         civilizations per game, 2..8 (default 4)
   --difficulty D   0 Chieftain .. 4 Emperor (default 2)
   --every K        print a stats row for every civ every K turns (default 0: final only)
-  --ai a,b,...     AI per seat, cycled (known: ${Object.keys(AIS).join(", ")})
+  --ai a,b,...     AI per seat, cycled (default planner; known: ${Object.keys(AIS).join(", ")})
   --json FILE      write all results (with per-sample series) as JSON
   --verify         replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["baseline"], json: null, verify: false, quiet: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);

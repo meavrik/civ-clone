@@ -82,13 +82,13 @@ export interface GameResult {
 }
 
 export function defaultConfig(seed: number, over: Partial<GameConfig> = {}): GameConfig {
-  return { seed, civs: 4, difficulty: 2, turns: 200, ais: ["baseline"], every: 0, ...over };
+  return { seed, civs: 4, difficulty: 2, turns: 200, ais: ["planner"], every: 0, ...over };
 }
 
 /** AI name seated at each civ slot (barbarians excluded). */
 export function seatAis(config: GameConfig): string[] {
   const out: string[] = [];
-  for (let i = 0; i < config.civs; i++) out.push(config.ais[i % config.ais.length] ?? "baseline");
+  for (let i = 0; i < config.civs; i++) out.push(config.ais[i % config.ais.length] ?? "planner");
   return out;
 }
 

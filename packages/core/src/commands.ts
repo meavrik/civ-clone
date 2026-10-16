@@ -283,12 +283,15 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
 
 /** Walk a goto order as far as this turn's moves allow. Stops on anything unexpected. */
 export function runGoto(state: GameState, u: Unit): void {
-  while (u.order.kind === "goto" && u.movesLeft > 0) {
-    const { x, y } = u.order;
-    if (u.x === x && u.y === y) { u.order = { kind: "none" }; return; }
-    const path = findPath(state, u, x, y);
-    if (!path || path.length === 0) { u.order = { kind: "none" }; return; }
-    const [dx, dy] = stepDir(state, u, path[0]!);
+  if (u.order.kind !== "goto") return;
+  const { x, y } = u.order;
+  if (u.x === x && u.y === y) { u.order = { kind: "none" }; return; }
+  // Plan once per call: nothing but this unit moves while it walks; the next turn replans.
+  const path = findPath(state, u, x, y);
+  if (!path || path.length === 0) { u.order = { kind: "none" }; return; }
+  for (const step of path) {
+    if (u.order.kind !== "goto" || u.movesLeft <= 0) break;
+    const [dx, dy] = stepDir(state, u, step);
     const r = checkMove(state, u, dx, dy);
     // An enemy unit or a foreign city in the way: stop and ask the player (an attack or a capture is their call).
     if (!r.ok || r.enemyCity) { u.order = { kind: "none" }; return; }
@@ -298,7 +301,7 @@ export function runGoto(state: GameState, u: Unit): void {
     enterHut(state, u);
     if (r.board !== undefined) return; // boarded: stay sentried on the ship
     u.order = goal; // applyMove clears standing orders
-    if (u.x === x && u.y === y) u.order = { kind: "none" };
+    if (u.x === x && u.y === y) { u.order = { kind: "none" }; break; }
   }
   recomputeVisibility(state, u.owner);
 }

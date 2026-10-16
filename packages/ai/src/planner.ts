@@ -21,7 +21,6 @@ import {
   hasWaterNearby,
   NEIGHBOURS,
   nextInt,
-  slotAvailable,
   radiusTile,
   CITY_RADIUS,
   Terrain,
@@ -104,6 +103,12 @@ interface Ctx {
   militaryCap: number;
   armyWanted: number;
   workersWanted: number;
+  /** Tile index -> id of the city working it or sitting on it (every civ), kept current as citizens move. */
+  tileWorker: Map<number, number>;
+  /** Tiles holding a foreign unit. */
+  foreignUnitTiles: Set<number>;
+  /** Per-city terraforming jobs, computed on demand this turn. */
+  jobs: Map<number, Job[]>;
   /** Extra military units to send out looking for land, early on. */
   scoutsWanted: number;
 }
@@ -177,7 +182,18 @@ function analyse(state: GameState, me: number): Ctx {
   let cached: Site[] | null = null;
   const sites = () => (cached ??= findSites(state, me, continents, cities));
   const atWarNow = atWarWith.length > 0;
+  const tileWorker = new Map<number, number>();
+  for (const c of state.cities) {
+    tileWorker.set(c.y * state.map.width + c.x, c.id);
+    for (const s of c.worked) {
+      const [dx, dy] = CITY_RADIUS[s]!;
+      tileWorker.set((c.y + dy) * state.map.width + wrapX(state.map, c.x + dx), c.id);
+    }
+  }
+  const foreignUnitTiles = new Set<number>();
+  for (const u of state.units) if (u.owner !== me) foreignUnitTiles.add(u.y * state.map.width + u.x);
   return {
+    tileWorker, foreignUnitTiles, jobs: new Map(),
     me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, income, science, sites,
     wantMoreCities: cities.length < 24,
     military: units.filter(isMilitary).length,
@@ -543,7 +559,7 @@ function manageCities(state: GameState, ctx: Ctx): void {
   let settlersPlanned = settlersOut;
   for (const c of ctx.cities) {
     governCity(state, ctx, c);
-    fixDisorder(state, c);
+    fixDisorder(state, ctx, c);
     const r = computeCity(state, c);
     ctx.reports.set(c.id, r);
     const current = c.production;
@@ -581,6 +597,28 @@ function slotValue(state: GameState, c: City, slot: number, gov: string): number
   return y.food * 3 + y.shields * 2 + y.trade;
 }
 
+/** Same answer as core's `slotAvailable`, from the per-turn index instead of a scan of every city. */
+function slotFree(state: GameState, ctx: Ctx, c: City, slot: number): boolean {
+  if (slot === 0) return false;
+  const [dx, dy] = CITY_RADIUS[slot]!;
+  const y = c.y + dy;
+  if (y < 0 || y >= state.map.height) return false;
+  const i = y * state.map.width + wrapX(state.map, c.x + dx);
+  const w = ctx.tileWorker.get(i);
+  if (w !== undefined && w !== c.id) return false;
+  return !ctx.foreignUnitTiles.has(i);
+}
+
+/** Refresh the index for one city after its citizens were moved. */
+function reindexCity(state: GameState, ctx: Ctx, c: City): void {
+  for (const [i, id] of ctx.tileWorker) if (id === c.id) ctx.tileWorker.delete(i);
+  ctx.tileWorker.set(c.y * state.map.width + c.x, c.id);
+  for (const s of c.worked) {
+    const [dx, dy] = CITY_RADIUS[s]!;
+    ctx.tileWorker.set((c.y + dy) * state.map.width + wrapX(state.map, c.x + dx), c.id);
+  }
+}
+
 /**
  * Re-seat the citizens: grow while the city is small, then favour shields and
  * trade, and never starve. A civ with no science at all weights trade heavily
@@ -592,7 +630,7 @@ function governCity(state: GameState, ctx: Ctx, c: City): void {
   if (workers <= 0) return;
   const slots: { slot: number; food: number; shields: number; trade: number }[] = [];
   for (let s = 1; s < CITY_RADIUS.length; s++) {
-    if (!slotAvailable(state, c, s)) continue;
+    if (!slotFree(state, ctx, c, s)) continue;
     const y = tileYield(state, radiusTile(state, c, s)!, false, ctx.p.government);
     slots.push({ slot: s, ...y });
   }
@@ -621,14 +659,17 @@ function governCity(state: GameState, ctx: Ctx, c: City): void {
   }
   const remove = c.worked.filter((s) => !chosen.includes(s));
   const add = chosen.filter((s) => !c.worked.includes(s));
+  if (remove.length === 0 && add.length === 0) return;
   for (const s of remove) applyCommand(state, { type: "toggleTile", city: c.id, slot: s });
   for (const s of add) applyCommand(state, { type: "toggleTile", city: c.id, slot: s });
+  reindexCity(state, ctx, c);
 }
 
 /** Turn workers into entertainers until order is restored; put surplus entertainers back to work. */
-function fixDisorder(state: GameState, c: City): void {
+function fixDisorder(state: GameState, ctx: Ctx, c: City): void {
   const gov = state.players[c.owner]!.government;
   let r = computeCity(state, c);
+  if (!r.disorder && c.specialists.length === 0) return;
   let guard = 0;
   while (r.disorder && c.worked.length > 0 && guard++ < 8) {
     let worst = c.worked[0]!;
@@ -640,7 +681,7 @@ function fixDisorder(state: GameState, c: City): void {
     let best = -1;
     let bestV = 0;
     for (let s = 1; s < CITY_RADIUS.length; s++) {
-      if (c.worked.includes(s) || !slotAvailable(state, c, s)) continue;
+      if (c.worked.includes(s) || !slotFree(state, ctx, c, s)) continue;
       const v = slotValue(state, c, s, gov);
       if (v > bestV) { bestV = v; best = s; }
     }
@@ -649,6 +690,7 @@ function fixDisorder(state: GameState, c: City): void {
     if (r2.disorder) { applyCommand(state, { type: "toggleTile", city: c.id, slot: best }); break; }
     r = r2;
   }
+  reindexCity(state, ctx, c);
 }
 
 // ---- garrisons: sorties and excess -------------------------------------------------
@@ -756,6 +798,9 @@ function frontierTarget(state: GameState, u: Unit, limit = 900): [number, number
   const queue = [start];
   let head = 0;
   let fallback: [number, number] | null = null;
+  const blocked = new Set<number>();
+  for (const o of state.units) if (o.owner !== u.owner) blocked.add(o.y * w + o.x);
+  for (const c of state.cities) if (c.owner !== u.owner) blocked.add(c.y * w + c.x);
   while (head < queue.length && head < limit) {
     const i = queue[head++]!;
     const x = i % w;
@@ -774,8 +819,7 @@ function frontierTarget(state: GameState, u: Unit, limit = 900): [number, number
       seen[ni] = 1;
       const n = state.map.tiles[ni]!;
       if (n.terrain === Terrain.Ocean) continue;
-      if (state.units.some((o) => o.owner !== u.owner && o.x === nx && o.y === ny)) continue;
-      if (state.cities.some((c) => c.owner !== u.owner && c.x === nx && c.y === ny)) continue;
+      if (blocked.has(ni)) continue;
       queue.push(ni);
     }
   }
@@ -847,13 +891,27 @@ function orderMilitary(state: GameState, ctx: Ctx, u: Unit): void {
 
 interface Job { x: number; y: number; work: "irrigate" | "mine" | "road"; value: number }
 
+/** Jobs around a city, computed once per turn; a job vanishes from the list once a settler takes it. */
+function cityJobs(state: GameState, ctx: Ctx, c: City): Job[] {
+  let jobs = ctx.jobs.get(c.id);
+  if (!jobs) { jobs = terraformJobs(state, ctx, c); ctx.jobs.set(c.id, jobs); }
+  return jobs;
+}
+
+function takeJob(ctx: Ctx, job: Job): void {
+  for (const list of ctx.jobs.values()) {
+    const i = list.findIndex((j) => j.x === job.x && j.y === job.y);
+    if (i >= 0) list.splice(i, 1);
+  }
+}
+
 function terraformJobs(state: GameState, ctx: Ctx, c: City): Job[] {
   const jobs: Job[] = [];
   const gov = government(ctx.p.government);
   // Worked tiles first, plus the best two spare tiles the city will grow onto.
   const spare: { slot: number; v: number }[] = [];
   for (let s = 1; s < CITY_RADIUS.length; s++) {
-    if (c.worked.includes(s) || !slotAvailable(state, c, s)) continue;
+    if (c.worked.includes(s) || !slotFree(state, ctx, c, s)) continue;
     const t = radiusTile(state, c, s)!;
     if (t.terrain === Terrain.Ocean) continue;
     spare.push({ slot: s, v: slotValue(state, c, s, ctx.p.government) });
@@ -905,7 +963,7 @@ function orderSettler(state: GameState, ctx: Ctx, u: Unit): void {
   const workers = ctx.units.filter((o) => o.id !== u.id && unitType(o.type).flags?.includes("settler") && o.order.kind === "work").length;
   const home = (u.homeCity !== null ? ctx.cities.find((c) => c.id === u.homeCity) : undefined) ?? nearestCity(state, ctx, u);
   const jobs: Job[] = [];
-  for (const c of ctx.cities) if (dist(state, u.x, u.y, c.x, c.y) <= 6) jobs.push(...terraformJobs(state, ctx, c));
+  for (const c of ctx.cities) if (dist(state, u.x, u.y, c.x, c.y) <= 6) jobs.push(...cityJobs(state, ctx, c));
   const sites = ctx.wantMoreCities ? ctx.sites() : [];
   const wantWork = jobs.length > 0 && (sites.length === 0 || workers < ctx.workersWanted);
 
@@ -918,8 +976,8 @@ function orderSettler(state: GameState, ctx: Ctx, u: Unit): void {
     }
     if (best) {
       if (u.x === best.x && u.y === best.y) {
-        if (applyCommand(state, { type: "work", unit: u.id, work: best.work }).ok) return;
-      } else if (goto(state, u, best.x, best.y) || nudge(state, u, best.x, best.y)) return;
+        if (applyCommand(state, { type: "work", unit: u.id, work: best.work }).ok) { takeJob(ctx, best); return; }
+      } else if (goto(state, u, best.x, best.y) || nudge(state, u, best.x, best.y)) { takeJob(ctx, best); return; }
     }
   }
 

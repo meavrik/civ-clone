@@ -51,13 +51,12 @@ export function findPath(state: GameState, u: Unit, tx: number, ty: number): [nu
     return top;
   };
 
-  const blocked = (i: number): boolean => {
-    const x = i % w;
-    const y = Math.floor(i / w);
-    if (state.units.some((o) => o.owner !== u.owner && o.x === x && o.y === y)) return true;
-    if (state.cities.some((c) => c.owner !== u.owner && c.x === x && c.y === y)) return true;
-    return false;
-  };
+  // Foreign units and cities are impassable (except as the destination); own cities let ships in.
+  const blockedSet = new Set<number>();
+  const ownCities = new Set<number>();
+  for (const o of state.units) if (o.owner !== u.owner) blockedSet.add(o.y * w + o.x);
+  for (const c of state.cities) (c.owner === u.owner ? ownCities : blockedSet).add(c.y * w + c.x);
+  const blocked = (i: number): boolean => blockedSet.has(i);
 
   while (heap.length) {
     const [d, i] = pop()!;
@@ -72,7 +71,7 @@ export function findPath(state: GameState, u: Unit, tx: number, ty: number): [nu
       const nx = wrapX(state.map, x + dx);
       const ni = ny * w + nx;
       const to = getTile(state.map, nx, ny)!;
-      const isCity = state.cities.some((c) => c.x === nx && c.y === ny && c.owner === u.owner);
+      const isCity = ownCities.has(ni);
       if (land && to.terrain === Terrain.Ocean) {
         // Land units may path onto a friendly ship as the destination only.
         if (ni !== target) continue;
