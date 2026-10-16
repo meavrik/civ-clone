@@ -1,4 +1,3 @@
-import { CIVS } from "@civ/core";
 import { drawText, drawTextCentered } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
@@ -50,30 +49,6 @@ export function drawTitleScreen(s: Surface, blink: boolean): void {
   drawTextCentered(s, SCREEN_W / 2, 18, "E P O C H S", C.WHITE!, C.BLACK!);
   drawTextCentered(s, SCREEN_W / 2, 30, "an empire game in the 1991 style", shade("sand", 7), C.BLACK!);
   if (blink) drawTextCentered(s, SCREEN_W / 2, 184, "Press any key", C.WHITE!, C.BLACK!);
-}
-
-export interface SetupState {
-  step: "difficulty" | "opponents" | "civ" | "done";
-  difficulty: number;
-  opponents: number;
-  civ: string;
-}
-
-export const DIFFICULTIES = ["Chieftain", "Warlord", "Prince", "King", "Emperor"];
-
-export function setupMenu(setup: SetupState): { title: string; items: string[]; selected: number } {
-  switch (setup.step) {
-    case "difficulty":
-      return { title: "Choose your difficulty level", items: DIFFICULTIES, selected: setup.difficulty };
-    case "opponents":
-      return { title: "How many rival civilizations?", items: ["1", "2", "3", "4", "5", "6", "7"], selected: setup.opponents - 1 };
-    case "civ": {
-      const civs = CIVS.filter((c) => c.id !== "barbarians");
-      return { title: "Choose your tribe", items: civs.map((c) => c.name), selected: Math.max(0, civs.findIndex((c) => c.id === setup.civ)) };
-    }
-    default:
-      return { title: "", items: [], selected: 0 };
-  }
 }
 
 /** End of game: score sheet and rank. */

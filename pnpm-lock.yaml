@@ -32,6 +32,9 @@ importers:
       '@civ/core':
         specifier: '*'
         version: link:../../packages/core
+      '@civ/renderer-api':
+        specifier: '*'
+        version: link:../../packages/renderer-api
       '@civ/renderer-retro':
         specifier: '*'
         version: link:../../packages/renderer-retro
@@ -44,11 +47,20 @@ importers:
 
   packages/core: {}
 
+  packages/renderer-api:
+    dependencies:
+      '@civ/core':
+        specifier: '*'
+        version: link:../core
+
   packages/renderer-retro:
     dependencies:
       '@civ/core':
         specifier: '*'
         version: link:../core
+      '@civ/renderer-api':
+        specifier: '*'
+        version: link:../renderer-api
     devDependencies:
       '@civ/ai':
         specifier: '*'

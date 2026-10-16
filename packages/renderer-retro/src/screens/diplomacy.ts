@@ -34,16 +34,3 @@ export function drawDiplomacyScreen(s: Surface, state: GameState, player: number
   drawText(s, 22, 150, `"${line}"`, shade("ui", 7));
   void SCREEN_H;
 }
-
-/** A leader's greeting line, by mood. */
-export function leaderLine(state: GameState, player: number): string {
-  const p = state.players[player]!;
-  const c = civ(p.civ);
-  const r = relation(state, state.currentPlayer, player);
-  if (r === "war") return `${c.leader} spits: your cities will burn.`;
-  const mine = state.units.filter((u) => u.owner === state.currentPlayer).length;
-  const theirs = state.units.filter((u) => u.owner === player).length;
-  if (theirs > mine * 2) return "Our armies are mighty. Tread carefully.";
-  if (mine > theirs * 2) return "We seek only peace with so great a power.";
-  return "Greetings. What brings you to our court?";
-}

@@ -36,18 +36,7 @@ export const VIEW_H = SCREEN_H; // 200 = 12.5 tiles
 export const VIEW_TILES_X = Math.ceil(VIEW_W / TILE);
 export const VIEW_TILES_Y = Math.ceil(VIEW_H / TILE);
 
-export interface MainScreenView {
-  originX: number;
-  originY: number;
-  /** Blink phase for the active unit. */
-  blink: boolean;
-  /** Status message under the unit box (e.g. a refused move); wrapped to the panel. */
-  message?: string | undefined;
-  /** Tile the player clicked to inspect; shown instead of the message. */
-  inspect?: { x: number; y: number } | undefined;
-  /** The turn ends by itself once no unit needs orders. */
-  autoEnd?: boolean | undefined;
-}
+import type { MainScreenView } from "@civ/renderer-api";
 
 export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LRED!, C.LMAGENTA!, C.LGREY!];
 export function playerColor(owner: number): number {

@@ -1,32 +1,44 @@
-import { PALETTE_RGBA, SCREEN_H, SCREEN_W, Surface } from "@civ/renderer-retro";
-
-/** 320x200 indexed framebuffer -> integer-scaled canvas. */
+/**
+ * The one canvas on the page, fitted to the window for whichever renderer is
+ * active: a crisp integer-scaled framebuffer for the retro renderer, a
+ * device-pixel-ratio-aware surface for the modern one. Renderers draw in
+ * their own logical size; mouse positions are mapped back into it.
+ */
 export const canvas = document.getElementById("screen") as HTMLCanvasElement;
-const ctx = canvas.getContext("2d", { alpha: false })!;
-const image = ctx.createImageData(SCREEN_W, SCREEN_H);
-export const screen = Surface.screen();
+
+let logicalW = 320;
+let logicalH = 200;
+let crisp = true;
+let scale = 1;
+
+export function configureDisplay(width: number, height: number, pixelated: boolean): void {
+  logicalW = width;
+  logicalH = height;
+  crisp = pixelated;
+  fitCanvas();
+}
 
 export function fitCanvas(): void {
-  const scale = Math.max(1, Math.floor(Math.min(innerWidth / SCREEN_W, innerHeight / SCREEN_H)));
-  canvas.style.width = `${SCREEN_W * scale}px`;
-  canvas.style.height = `${SCREEN_H * scale}px`;
-}
-
-export function present(): void {
-  const px = image.data;
-  const src = screen.data;
-  for (let i = 0, j = 0; i < src.length; i++, j += 4) {
-    const p = src[i]! * 4;
-    px[j] = PALETTE_RGBA[p]!;
-    px[j + 1] = PALETTE_RGBA[p + 1]!;
-    px[j + 2] = PALETTE_RGBA[p + 2]!;
-    px[j + 3] = 255;
+  const raw = Math.min(innerWidth / logicalW, innerHeight / logicalH);
+  scale = crisp ? Math.max(1, Math.floor(raw)) : Math.max(0.2, raw);
+  canvas.style.width = `${Math.round(logicalW * scale)}px`;
+  canvas.style.height = `${Math.round(logicalH * scale)}px`;
+  canvas.style.imageRendering = crisp ? "pixelated" : "auto";
+  if (crisp) {
+    if (canvas.width !== logicalW || canvas.height !== logicalH) { canvas.width = logicalW; canvas.height = logicalH; }
+  } else {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(logicalW * scale * dpr));
+    canvas.height = Math.max(1, Math.round(logicalH * scale * dpr));
   }
-  ctx.putImageData(image, 0, 0);
 }
 
-/** Canvas event position in framebuffer pixels. */
-export function toScreen(e: MouseEvent): [number, number] {
-  const scale = canvas.clientWidth / SCREEN_W;
+/** Backing-store pixels per logical unit, for a renderer that draws straight onto the canvas. */
+export function backingScale(): number {
+  return canvas.width / logicalW;
+}
+
+/** Canvas event position in the active renderer's logical units. */
+export function toLogical(e: MouseEvent): [number, number] {
   return [Math.floor(e.offsetX / scale), Math.floor(e.offsetY / scale)];
 }

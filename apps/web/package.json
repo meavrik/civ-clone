@@ -11,6 +11,7 @@
   "dependencies": {
     "@civ/core": "*",
     "@civ/renderer-retro": "*",
-    "@civ/ai": "*"
+    "@civ/ai": "*",
+    "@civ/renderer-api": "*"
   }
 }

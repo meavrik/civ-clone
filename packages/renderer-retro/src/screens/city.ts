@@ -38,10 +38,7 @@ export const CITY_MAP_Y = 30;
 const COL2_X = 96;
 const COL3_X = 214;
 
-export interface CityScreenView {
-  city: number;
-  message?: string | undefined;
-}
+import type { CityScreenView } from "@civ/renderer-api";
 
 export function citySlotAt(px: number, py: number): number | null {
   const tx = Math.floor((px - CITY_MAP_X) / TILE);

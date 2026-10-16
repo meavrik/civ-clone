@@ -28,13 +28,7 @@ export function drawBox(s: Surface, x: number, y: number, w: number, h: number, 
     }
 }
 
-export interface MenuState {
-  title: string;
-  items: string[];
-  selected: number;
-  /** Optional second column per row (cost, turns...). */
-  right?: string[];
-}
+import type { MenuState, TextInputState } from "@civ/renderer-api";
 
 export const MENU_ROW = FONT_HEIGHT + 1;
 
@@ -69,14 +63,6 @@ export function menuHit(m: MenuState, px: number, py: number): number {
 }
 
 /** A one-line text prompt: title, the text being typed, a blinking cursor. */
-export interface TextInputState {
-  title: string;
-  text: string;
-  maxLength: number;
-}
-
-export const TEXT_INPUT_MAX = 14;
-
 export function drawTextInput(s: Surface, input: TextInputState, cursorOn: boolean): void {
   const w = 200;
   const h = 40;

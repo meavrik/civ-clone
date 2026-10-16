@@ -12,7 +12,8 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@civ/core": "*"
+    "@civ/core": "*",
+    "@civ/renderer-api": "*"
   },
   "devDependencies": {
     "@civ/ai": "*"

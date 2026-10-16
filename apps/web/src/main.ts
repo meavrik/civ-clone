@@ -46,45 +46,44 @@ import {
   type TurnEvent,
 } from "@civ/core";
 import {
-  citySlotAt,
   DIFFICULTIES,
-  drawCityScreen,
-  drawDiplomacyScreen,
-  drawDiscoveryScreen,
-  drawDomesticAdvisor,
-  drawEndScreen,
-  drawForeignAdvisor,
-  drawMainScreen,
-  drawMenu,
-  drawMilitaryAdvisor,
-  drawRatesScreen,
-  drawScienceScreen,
-  drawScoreScreen,
-  drawSpaceshipScreen,
-  drawStatusLine,
-  drawTextInput,
-  TEXT_INPUT_MAX,
-  drawTitleScreen,
   leaderLine,
-  menuHit,
-  SCREEN_H,
   setupMenu,
-  TILE,
-  VIEW_TILES_X,
-  VIEW_TILES_Y,
-  VIEW_X,
+  TEXT_INPUT_MAX,
   type CityScreenView,
   type MainScreenView,
   type MenuState,
-  textWidth,
+  type Renderer,
   type SetupState,
   type TextInputState,
-} from "@civ/renderer-retro";
-import { canvas, fitCanvas, present, screen, toScreen } from "./display.js";
+} from "@civ/renderer-api";
+import { canvas, configureDisplay, fitCanvas, toLogical } from "./display.js";
+import { createRetroRenderer } from "./retro-renderer.js";
 import { listSlots, readSlot, SLOTS, writeSlot } from "./storage.js";
 
+// ---- renderer ----------------------------------------------------------------
+/** Which visuals to use: ?renderer= on the URL, else the remembered choice, else retro. */
+function rendererChoice(): string {
+  const fromUrl = new URLSearchParams(location.search).get("renderer");
+  if (fromUrl) return fromUrl;
+  try { return localStorage.getItem("epochs.renderer") ?? "retro"; } catch { return "retro"; }
+}
+
+function createRenderer(id: string): Renderer {
+  const r = createRetroRenderer(canvas);
+  void id;
+  configureDisplay(r.width, r.height, r.id === "retro");
+  return r;
+}
+
+let renderer: Renderer = createRenderer(rendererChoice());
+
+function setRenderer(id: string): void {
+  renderer = createRenderer(id);
+  try { localStorage.setItem("epochs.renderer", renderer.id); } catch { /* private mode */ }
+}
+
 addEventListener("resize", fitCanvas);
-fitCanvas();
 
 // ---- session ----------------------------------------------------------------
 let state: GameState;
@@ -193,8 +192,10 @@ if (params.has("seed")) {
 
 // ---- view helpers -----------------------------------------------------------
 function centerOn(x: number, y: number): void {
-  view.originX = x - (VIEW_TILES_X >> 1);
-  view.originY = Math.max(0, Math.min(state.map.height - VIEW_TILES_Y, y - (VIEW_TILES_Y >> 1)));
+  const tx = renderer.viewTilesX;
+  const ty = renderer.viewTilesY;
+  view.originX = x - (tx >> 1);
+  view.originY = Math.max(0, Math.min(state.map.height - ty, y - (ty >> 1)));
 }
 
 function followActive(force = false): void {
@@ -204,7 +205,7 @@ function followActive(force = false): void {
   const w = state.map.width;
   const rx = (((u.x - view.originX) % w) + w) % w;
   const ry = u.y - view.originY;
-  if (force || rx < 2 || rx > VIEW_TILES_X - 3 || ry < 2 || ry > VIEW_TILES_Y - 3) centerOn(u.x, u.y);
+  if (force || rx < 2 || rx > renderer.viewTilesX - 3 || ry < 2 || ry > renderer.viewTilesY - 3) centerOn(u.x, u.y);
 }
 
 function isAdjacent(u: { x: number; y: number }, tx: number, ty: number): boolean {
@@ -243,7 +244,7 @@ function inputKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "input" }>): voi
   if (e.code === "Escape") { screenState = sc.under; return; }
   if (e.code === "Enter" || e.code === "NumpadEnter") { screenState = sc.under; if (inp.text.trim()) sc.onSubmit(inp.text.trim()); return; }
   if (e.code === "Backspace") { inp.text = inp.text.slice(0, -1); return; }
-  if (e.key.length === 1 && inp.text.length < inp.maxLength && textWidth(inp.text + e.key) < 170) inp.text += e.key;
+  if (e.key.length === 1 && inp.text.length < inp.maxLength) inp.text += e.key;
 }
 
 function openProductionMenu(cityId: number): void {
@@ -368,6 +369,7 @@ function openGameMenu(): void {
     ["Load game", () => openLoadMenu()],
     ["Spaceship (F6)", () => { screenState = { kind: "spaceship" }; }],
     [`Auto end turn: ${autoEnd ? "on" : "off"}`, () => { setAutoEnd(!autoEnd); say(`Auto end turn ${autoEnd ? "on" : "off"}`); }],
+    [`Visuals: ${renderer.id === "retro" ? "retro" : "modern"}`, () => setRenderer(renderer.id === "retro" ? "modern" : "retro")],
     ["Retire (end game)", () => endGame({ kind: "time" })],
     ["New game", () => { screenState = { kind: "title" }; }],
   ];
@@ -689,6 +691,7 @@ function openTitleMenu(): void {
   const items: [string, () => void][] = [
     ["Start a new game", () => { screenState = { kind: "setup", setup: { step: "difficulty", difficulty: 2, opponents: 2, civ: "romans" } }; setupSelection = 2; }],
     ["Load a saved game", () => void openLoadMenu()],
+    [`Visuals: ${renderer.id === "retro" ? "retro" : "modern"}`, () => { setRenderer(renderer.id === "retro" ? "modern" : "retro"); openTitleMenu(); }],
   ];
   screenState = {
     kind: "menu",
@@ -755,19 +758,19 @@ function advisorHotkey(e: KeyboardEvent): void {
 // ---- input: mouse -----------------------------------------------------------
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 canvas.addEventListener("mousedown", (e) => {
-  const [px, py] = toScreen(e);
+  const [px, py] = toLogical(e);
   lastInput = performance.now();
   const sc = screenState;
   switch (sc.kind) {
     case "title": openTitleMenu(); return;
     case "setup": {
       const m = setupMenu(sc.setup);
-      const i = menuHit({ ...m }, px, py);
+      const i = renderer.menuHit({ ...m }, px, py);
       if (i >= 0) { setupSelection = i; setupKey({ code: "Enter" } as KeyboardEvent, sc); }
       return;
     }
     case "menu": {
-      const i = menuHit(sc.menu, px, py);
+      const i = renderer.menuHit(sc.menu, px, py);
       screenState = sc.under;
       if (i >= 0) sc.onPick(i); else sc.onCancel?.();
       return;
@@ -781,21 +784,19 @@ canvas.addEventListener("mousedown", (e) => {
       if (sc.which === "foreign") openForeignTalkMenu(); else screenState = { kind: "map" };
       return;
     case "city": {
-      const slot = citySlotAt(px, py);
+      const slot = renderer.citySlotAt(px, py);
       if (slot !== null && slot !== 0) dispatch({ type: "toggleTile", city: sc.view.city, slot });
-      else if (py > SCREEN_H - 12) screenState = { kind: "map" };
+      else if (renderer.cityExitHit(px, py)) screenState = { kind: "map" };
       return;
     }
     case "map": break;
   }
 
-  if (px < VIEW_X) {
-    if (py >= 2 && py < 52) centerOn(px, py - 2);
-    return;
-  }
-  const tx = ((view.originX + Math.floor((px - VIEW_X) / TILE)) % state.map.width + state.map.width) % state.map.width;
-  const ty = view.originY + Math.floor(py / TILE);
-  if (ty < 0 || ty >= state.map.height) return;
+  const mm = renderer.minimapAt(state, px, py);
+  if (mm) { centerOn(mm.x, mm.y); return; }
+  const hit = renderer.tileAt(state, view, px, py);
+  if (!hit) return;
+  const { x: tx, y: ty } = hit;
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
 
   if (e.button === 2) {
@@ -844,35 +845,30 @@ canvas.addEventListener("mousedown", (e) => {
 // ---- frame loop ---------------------------------------------------------------
 function draw(sc: Screen): void {
   switch (sc.kind) {
-    case "title": drawTitleScreen(screen, blinkOn); break;
+    case "title": renderer.title(blinkOn); break;
     case "setup": {
-      drawTitleScreen(screen, false);
+      renderer.title(false);
       const m = setupMenu(sc.setup);
-      drawMenu(screen, { ...m, selected: setupSelection });
+      renderer.menu({ ...m, selected: setupSelection });
       break;
     }
-    case "map": view.message = status; drawMainScreen(screen, state, view); break;
-    case "city": sc.view.message = status; drawCityScreen(screen, state, sc.view); break;
-    case "discovery": drawDiscoveryScreen(screen, state, sc.advance); break;
-    case "science": drawScienceScreen(screen, state); break;
-    case "rates": drawRatesScreen(screen, state); break;
-    case "advisor":
-      if (sc.which === "domestic") drawDomesticAdvisor(screen, state);
-      else if (sc.which === "military") drawMilitaryAdvisor(screen, state);
-      else if (sc.which === "foreign") drawForeignAdvisor(screen, state);
-      else drawScoreScreen(screen, state);
-      break;
-    case "diplomacy": drawDiplomacyScreen(screen, state, sc.player, sc.line); break;
-    case "end": drawEndScreen(screen, sc.lines, sc.rank); break;
-    case "spaceship": drawSpaceshipScreen(screen, state); break;
+    case "map": view.message = status; renderer.main(state, view); break;
+    case "city": sc.view.message = status; renderer.city(state, sc.view); break;
+    case "discovery": renderer.discovery(state, sc.advance); break;
+    case "science": renderer.science(state); break;
+    case "rates": renderer.rates(state); break;
+    case "advisor": renderer.advisor(state, sc.which); break;
+    case "diplomacy": renderer.diplomacy(state, sc.player, sc.line); break;
+    case "end": renderer.end(sc.lines, sc.rank); break;
+    case "spaceship": renderer.spaceship(state); break;
     case "input":
       draw(sc.under);
-      drawTextInput(screen, sc.input, blinkOn);
+      renderer.textInput(sc.input, blinkOn);
       break;
     case "menu":
       draw(sc.under);
-      drawMenu(screen, sc.menu);
-      if (status && sc.under.kind !== "map") drawStatusLine(screen, status);
+      renderer.menu(sc.menu);
+      if (status && sc.under.kind !== "map") renderer.statusLine(status);
       break;
   }
 }
@@ -887,8 +883,9 @@ function frame(t: number): void {
     lastAutoEnd = t;
     endTurn();
   }
+  renderer.beginFrame();
   draw(screenState);
-  present();
+  renderer.present();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

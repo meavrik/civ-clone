@@ -1,3 +1,4 @@
+export * from "@civ/renderer-api";
 export * from "./surface.js";
 export * from "./palette.js";
 export * from "./font.js";
