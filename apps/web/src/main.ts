@@ -18,6 +18,7 @@ import {
   government,
   governmentsAvailable,
   hasContact,
+  inciteCost,
   lastCombat,
   lastTurnEvents,
   loadSave,
@@ -36,6 +37,7 @@ import {
   unitType,
   workOptions,
   type Command,
+  type DiplomatAction,
   type GameState,
   type NewGameOptions,
   type Production,
@@ -258,6 +260,28 @@ function openWarMenu(player: number, then?: () => void): void {
   });
 }
 
+/** A diplomat at a foreign gate: steal, sabotage or buy the city. */
+function openDiplomatMenu(unit: number, cityId: number): void {
+  const city = state.cities.find((c) => c.id === cityId);
+  if (!city) return;
+  const cost = inciteCost(state, city);
+  const run = (action: DiplomatAction) => () => {
+    if (dispatch({ type: "diplomat", unit, action, x: city.x, y: city.y })) {
+      const ev = lastTurnEvents.find((e) => e.kind === "spy");
+      const m = ev && eventMessage(ev);
+      if (m) say(m, 4000);
+      lastTurnEvents.length = 0;
+    }
+  };
+  const items: [string, () => void][] = [
+    ["Steal technology", run("steal")],
+    ["Sabotage", run("sabotage")],
+    [Number.isFinite(cost) ? `Incite revolt (${cost} gold)` : "Incite revolt (capital: impossible)", run("incite")],
+    ["Never mind", () => {}],
+  ];
+  menu(`${city.name} (${state.players[city.owner]!.name}): our diplomat...`, items.map((i) => i[0]), (i) => items[i]?.[1]());
+}
+
 function openActionMenu(unit: number): void {
   const u = unitById(state, unit);
   if (!u) return;
@@ -277,6 +301,12 @@ function openActionMenu(unit: number): void {
     if (c && canHelpWonder(state, u, c) === null) items.push(["Help build wonder", () => dispatch({ type: "helpWonder", unit })]);
     if (c && canTradeRoute(state, u, c) === null && u.homeCity !== null)
       items.push([`Establish trade route (+${routeBonus(state, state.cities.find((h) => h.id === u.homeCity)!, c)})`, () => dispatch({ type: "tradeRoute", unit })]);
+  }
+  if (type.flags?.includes("diplomat")) {
+    for (const c of state.cities) {
+      if (c.owner === 0 || c.owner === state.barbarians || !isAdjacent(u, c.x, c.y)) continue;
+      items.push([`Diplomat: ${c.name}`, () => openDiplomatMenu(unit, c.id)]);
+    }
   }
   if (type.domain === "land") items.push(["Fortify (F)", () => dispatch({ type: "fortify", unit })]);
   items.push(["Sentry (S)", () => dispatch({ type: "sentry", unit })]);
@@ -371,6 +401,9 @@ function eventMessage(ev: TurnEvent): string | null {
       case "spaceLaunched": return ev.player === 0 ? "Our spaceship is on its way." : `The ${state.players[ev.player]?.name} have launched a spaceship!`;
       case "spaceArrived": return ev.player === 0 ? "Our colonists have landed!" : `The ${state.players[ev.player]?.name} have reached their new world.`;
       case "spaceLost": return ev.player === 0 ? "Our spaceship is lost!" : `The ${state.players[ev.player]?.name} spaceship is lost.`;
+      case "spy": return ev.action === "steal" ? `Our diplomat steals ${ev.detail} from ${ev.target}!`
+        : ev.action === "sabotage" ? `Our diplomat wrecks ${ev.target}: ${ev.detail} destroyed.`
+        : `${ev.target} revolts and joins us!`;
       case "hut": {
         const r = ev.result;
         return r.kind === "gold" ? `The tribe gives you ${r.amount} gold.`
@@ -489,6 +522,11 @@ function tryMove(unit: number, dx: number, dy: number): void {
     const u = unitById(state, unit)!;
     const target = unitAt(state, u.x + dx, u.y + dy)[0] ?? cityAt(state, u.x + dx, u.y + dy);
     if (target) openWarMenu(target.owner, () => tryMove(unit, dx, dy));
+    return;
+  } else if (r.reason === "diplomat") {
+    const u = unitById(state, unit)!;
+    const city = cityAt(state, u.x + dx, u.y + dy);
+    if (city) openDiplomatMenu(unit, city.id);
     return;
   } else say(REASONS[r.reason] ?? r.reason);
   blinkOn = true;

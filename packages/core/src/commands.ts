@@ -10,6 +10,7 @@ import {
   cityById,
   computeCity,
   foundCity,
+  inciteCost,
   processCityTurn,
   productionCost,
   routeBonus,
@@ -21,6 +22,7 @@ import { captureCity, checkElimination, resolveCombat } from "./combat.js";
 import { atWar, detectContacts, hasContact, setRelation } from "./diplomacy.js";
 import { findPath, stepDir } from "./pathfind.js";
 import { ADVANCE_BY_ID, ADVANCES, advance, availableAdvances, researchCost } from "./rules/advances.js";
+import { building } from "./rules/buildings.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
 import { WONDERS } from "./rules/wonders.js";
 import { newSpaceship, shipStats } from "./rules/spaceship.js";
@@ -58,6 +60,7 @@ export type Command =
   | { type: "activate"; unit: number }
   | { type: "helpWonder"; unit: number } // caravan in a city building a wonder
   | { type: "tradeRoute"; unit: number } // caravan in a city far from its home
+  | { type: "diplomat"; unit: number; action: DiplomatAction; x: number; y: number } // against the foreign city at (x, y) next door
   | { type: "declareWar"; player: number }
   | { type: "makePeace"; player: number }
   | { type: "giveGold"; player: number; amount: number }
@@ -65,6 +68,8 @@ export type Command =
   | { type: "exchangeAdvances"; player: number; give: string; receive: string }
   | { type: "launch" } // the spaceship, once it can fly
   | { type: "endTurn" };
+
+export type DiplomatAction = "steal" | "sabotage" | "incite";
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
@@ -86,7 +91,8 @@ export type TurnEvent =
   | { kind: "globalWarming" }
   | { kind: "spaceLaunched"; player: number }
   | { kind: "spaceArrived"; player: number }
-  | { kind: "spaceLost"; player: number };
+  | { kind: "spaceLost"; player: number }
+  | { kind: "spy"; action: DiplomatAction; detail: string; target: string };
 
 export type HutResult =
   | { kind: "gold"; amount: number }
@@ -262,6 +268,8 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       if (!city) return { ok: false, reason: "not in a city" };
       return establishRoute(state, u, city);
     }
+    case "diplomat":
+      return spy(state, u, cmd.action, cmd.x, cmd.y);
     case "found": {
       if (!unitType(u.type).flags?.includes("settler")) return { ok: false, reason: "only settlers found cities" };
       const why = canFoundCity(state, u.x, u.y);
@@ -300,6 +308,8 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
   if (!r.ok) return { ok: false, reason: r.reason };
   if (r.enemyCity) {
     const city = state.cities.find((c) => c.x === wrapX(state.map, u.x + dx) && c.y === u.y + dy)!;
+    // A diplomat at a foreign gate acts through the diplomat command, never by walking in.
+    if (unitType(u.type).flags?.includes("diplomat")) return { ok: false, reason: "diplomat" };
     if (!atWar(state, u.owner, city.owner)) {
       // A caravan calling at a peaceful foreign city opens a trade route instead of entering.
       if (unitType(u.type).flags?.includes("caravan")) return establishRoute(state, u, city);
@@ -336,6 +346,65 @@ function establishRoute(state: GameState, u: Unit, city: City): CommandResult {
   p.science += bonus;
   lastTurnEvents.push({ kind: "tradeRoute", from: home.name, to: city.name, bonus });
   removeUnit(state, u);
+  return { ok: true };
+}
+
+/**
+ * A diplomat next to a foreign city steals an advance, wrecks its production
+ * or an improvement, or buys the city outright. The diplomat is spent, and
+ * a victim at peace takes it as an act of war.
+ */
+function spy(state: GameState, u: Unit, action: DiplomatAction, x: number, y: number): CommandResult {
+  if (!unitType(u.type).flags?.includes("diplomat")) return { ok: false, reason: "only diplomats do that" };
+  if (u.movesLeft <= 0) return { ok: false, reason: "no moves left" };
+  const city = cityAt(state, x, y);
+  if (!city || city.owner === u.owner || city.owner === state.barbarians) return { ok: false, reason: "no foreign city there" };
+  const dx = Math.abs(city.x - u.x);
+  if (Math.min(dx, state.map.width - dx) > 1 || Math.abs(city.y - u.y) > 1) return { ok: false, reason: "not next to the city" };
+  const me = state.players[u.owner]!;
+  const victim = state.players[city.owner]!;
+  let detail: string;
+  switch (action) {
+    case "steal": {
+      const options = victim.advances.filter((a) => !me.advances.includes(a));
+      if (options.length === 0) return { ok: false, reason: "they know nothing we do not" };
+      const a = options[nextInt(state.rng, options.length)]!;
+      discover(state, me.id, a);
+      detail = advance(a).name;
+      break;
+    }
+    case "sabotage": {
+      const targets = city.buildings.filter((b) => b !== "palace");
+      if (targets.length > 0 && nextInt(state.rng, 2) === 0) {
+        const b = targets[nextInt(state.rng, targets.length)]!;
+        city.buildings = city.buildings.filter((id) => id !== b);
+        detail = building(b).name;
+      } else {
+        city.shields = 0;
+        detail = "production";
+      }
+      break;
+    }
+    case "incite": {
+      const cost = inciteCost(state, city);
+      if (!Number.isFinite(cost)) return { ok: false, reason: "a capital cannot be bought" };
+      if (me.gold < cost) return { ok: false, reason: `it would cost ${cost} gold` };
+      me.gold -= cost;
+      city.owner = me.id;
+      city.disorder = false;
+      for (const o of state.units) if (o.owner === victim.id && o.x === city.x && o.y === city.y) o.owner = me.id;
+      for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
+      detail = city.name;
+      break;
+    }
+  }
+  if (victim.alive && !atWar(state, me.id, victim.id)) {
+    setRelation(state, me.id, victim.id, "war");
+    lastTurnEvents.push({ kind: "warDeclared", player: victim.id });
+  }
+  lastTurnEvents.push({ kind: "spy", action, detail, target: city.name });
+  removeUnit(state, u);
+  recomputeVisibility(state, me.id);
   return { ok: true };
 }
 

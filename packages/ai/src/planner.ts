@@ -130,6 +130,9 @@ interface Ctx {
   caravans: number;
   /** The Apollo Program stands and we can build parts: the race is on. */
   spaceRace: boolean;
+  /** A foreign city worth sending a diplomat to, if any. */
+  spyTarget: City | null;
+  diplomats: number;
 }
 
 function dist(state: GameState, x1: number, y1: number, x2: number, y2: number): number {
@@ -218,8 +221,10 @@ function analyse(state: GameState, me: number): Ctx {
   let wonderSite: City | null = null;
   for (const c of cities) if (c.production.kind === "wonder" && wonder(c.production.id).cost - c.shields >= 100) { wonderSite = c; break; }
   const spaceRace = wonderBuilt(state, "apollo_program") && p.advances.includes("space_flight") && p.spaceship.launched === null && !p.spaceship.arrived;
+  const spyTarget = findSpyTarget(state, me, cities, continents, enemies);
   return {
-    tileWorker, foreignUnitTiles, jobs: new Map(), wonderSite, spaceRace,
+    tileWorker, foreignUnitTiles, jobs: new Map(), wonderSite, spaceRace, spyTarget,
+    diplomats: units.filter((u) => unitType(u.type).flags?.includes("diplomat")).length,
     caravans: units.filter((u) => unitType(u.type).flags?.includes("caravan")).length,
     me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, income, science, sites,
     wantMoreCities: cities.length < 24,
@@ -229,6 +234,33 @@ function analyse(state: GameState, me: number): Ctx {
     workersWanted: cities.length >= 3 ? Math.floor(cities.length / 3) : 0,
     scoutsWanted: state.turn < 150 ? Math.max(0, Math.min(2, 1 + Math.floor(cities.length / 4)) - units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length) : 0,
   };
+}
+
+/**
+ * Who to spy on: the nearest reachable foreign city whose people know
+ * several advances we lack. At peace only a clearly weaker civ with a big
+ * lead is worth the war that follows.
+ */
+function findSpyTarget(state: GameState, me: number, cities: City[], continents: Set<number>, enemies: Set<number>): City | null {
+  const p = state.players[me]!;
+  if (!p.advances.includes("writing") || cities.length < 5) return null;
+  const mine = strength(state, me);
+  let best: City | null = null;
+  let bestD = 15;
+  for (const c of state.cities) {
+    if (c.owner === me || c.owner === state.barbarians || !hasContact(state, me, c.owner)) continue;
+    if (!continents.has(getTile(state.map, c.x, c.y)!.continent)) continue;
+    const o = state.players[c.owner]!;
+    const lead = o.advances.filter((a) => !p.advances.includes(a)).length;
+    const hostile = enemies.has(c.owner);
+    if (lead < (hostile ? 1 : 6)) continue;
+    if (!hostile && strength(state, c.owner) * 1.5 > mine) continue;
+    for (const m of cities) {
+      const d = dist(state, c.x, c.y, m.x, m.y);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+  }
+  return best;
 }
 
 // ---- city sites ----------------------------------------------------------------
@@ -543,6 +575,10 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     if (a) return a;
   }
   // Caravans carry shields to the wonder city, or open trade routes once the empire has spread out.
+  if (ctx.spyTarget && ctx.diplomats < 1 && c.size >= 3 && r.shields >= 3 && threat === 0) {
+    const d = pick("unit", "diplomat");
+    if (d) return d;
+  }
   if (c.size >= 3 && r.shields >= 3 && threat === 0) {
     const toWonder = ctx.wonderSite !== null && ctx.wonderSite.id !== c.id && ctx.caravans < 3;
     const toTrade = ctx.wonderSite === null && ctx.cities.length >= 6 && c.size >= 5 && c.routes.length < MAX_TRADE_ROUTES && ctx.caravans < 2 && tradePartner(state, ctx, c) !== null;
@@ -640,6 +676,7 @@ function manageCities(state: GameState, ctx: Ctx): void {
     }
     if (c.production.kind === "unit" && c.production.id === "settlers") settlersPlanned++;
     if (c.production.kind === "unit" && c.production.id === "caravan") ctx.caravans++;
+    if (c.production.kind === "unit" && c.production.id === "diplomat") ctx.diplomats++;
 
     // Spend gold where it changes the game: empty cities, threatened cities, early settlers, riots.
     const cost = buyCost(c);
@@ -822,6 +859,7 @@ function orderUnit(state: GameState, ctx: Ctx, u: Unit): void {
   if (u.aboard !== null) { applyCommand(state, { type: "skip", unit: u.id }); return; }
   if (type.flags?.includes("settler")) { orderSettler(state, ctx, u); return; }
   if (type.flags?.includes("caravan")) { orderCaravan(state, ctx, u); return; }
+  if (type.flags?.includes("diplomat")) { orderDiplomat(state, ctx, u); return; }
   if (type.domain !== "land" || type.attack === 0) { applyCommand(state, { type: "skip", unit: u.id }); return; }
   orderMilitary(state, ctx, u);
 }
@@ -1003,6 +1041,27 @@ function orderCaravan(state: GameState, ctx: Ctx, u: Unit): void {
   if (here && here.owner === ctx.me) { applyCommand(state, { type: "skip", unit: u.id }); return; }
   const back = nearestCity(state, ctx, u);
   if (back && goto(state, u, back.x, back.y)) return;
+  applyCommand(state, { type: "skip", unit: u.id });
+}
+
+// ---- diplomats -----------------------------------------------------------------------
+
+function orderDiplomat(state: GameState, ctx: Ctx, u: Unit): void {
+  const target = ctx.spyTarget;
+  if (!target) {
+    const home = nearestCity(state, ctx, u);
+    if (home && !(u.x === home.x && u.y === home.y) && goto(state, u, home.x, home.y)) return;
+    applyCommand(state, { type: "skip", unit: u.id });
+    return;
+  }
+  if (dist(state, u.x, u.y, target.x, target.y) <= 1) {
+    const theirs = state.players[target.owner]!.advances.filter((a) => !ctx.p.advances.includes(a));
+    const action = theirs.length > 0 ? "steal" : "sabotage";
+    if (applyCommand(state, { type: "diplomat", unit: u.id, action, x: target.x, y: target.y }).ok) return;
+    applyCommand(state, { type: "skip", unit: u.id });
+    return;
+  }
+  if (goto(state, u, target.x, target.y) || nudge(state, u, target.x, target.y)) return;
   applyCommand(state, { type: "skip", unit: u.id });
 }
 

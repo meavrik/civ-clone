@@ -255,6 +255,13 @@ export function canTradeRoute(state: GameState, u: Unit, city: City): string | n
   return null;
 }
 
+/** Gold to buy a city's loyalty: dearer the bigger it is, the richer its owner and the closer to its capital. Capitals never sell. */
+export function inciteCost(state: GameState, city: City): number {
+  if (city.buildings.includes("palace")) return Infinity;
+  const owner = state.players[city.owner]!;
+  return Math.floor(((1000 + owner.gold) * city.size) / (3 + distanceToCapital(state, city)));
+}
+
 /** Why a caravan here could not add its shields to the city's wonder, or null. */
 export function canHelpWonder(state: GameState, u: Unit, city: City): string | null {
   if (!unitType(u.type).flags?.includes("caravan")) return "only caravans help";
