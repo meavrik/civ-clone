@@ -26,8 +26,13 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   in its own logical size, hit-test menus/city map/tiles/minimap), the shared view types and the
   DOM-free screen logic (`setupMenu`, `leaderLine`). The web app only talks to a `Renderer`.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
-  `font.ts`, code-drawn `tiles.ts`/`overlays.ts`, `widgets.ts` (panel/menu/box), one file
-  per screen in `src/screens/*`.
+  `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
+  terrain, cities, villages and specials are pixel art in `src/art/*.art.ts` (text grids; legend
+  and parser in `src/sprites/sheet.ts`, compiled surfaces in `src/sprites/index.ts`); roads,
+  rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.
+- `tools/sprites` — `npm run sprites -- export [dir]` writes the sheets as PNGs (8 sprites wide,
+  1:1, magenta = owner colour); `npm run sprites -- import <sheet>.png` writes an edited sheet
+  back into `src/art`, rejecting any pixel outside the sprite's palette legend.
 - `packages/renderer-modern` — canvas-2D renderer on a 960x600 logical surface (same panel/
   viewport split, 48px tiles): `theme.ts` (all colours and fonts), `draw.ts` (panels, wrapped
   text, bars), `tiles.ts`/`markers.ts` (terrain, overlays, units, cities), `screens/*`. It draws
@@ -93,5 +98,8 @@ runtime. Next: mobile/PWA + touch adapter.
 ## Conventions
 
 - TypeScript strict; small pure functions; tests next to packages in `tests/`.
-- When a render change is made, run the render tests and look at the PNGs in `tests/out/`.
+- When a render change is made, run the render tests and look at the PNGs in `tests/out/`
+  (`sprites.png` previews every sprite on two civilizations' colours; `main-screen.png` the map).
+- Art is ours: draw new sprites in the text grids or a paint program and import them. Do not use
+  image generators or the original game's files for shipped art.
 - Commit per phase or per feature; messages in imperative mood.

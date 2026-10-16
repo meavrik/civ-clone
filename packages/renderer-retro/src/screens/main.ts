@@ -22,7 +22,8 @@ import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, wrapText } fr
 import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawRiver, drawSpecial, getTile as terrainTile, TILE } from "../tiles.js";
+import { drawHut, drawRiver, drawSpecial, getTile as terrainTile, TILE } from "../tiles.js";
+import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 
 /**
@@ -115,6 +116,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       if (tile.road) drawRoad(s, dx, dy, roadMask(state, mx, my));
       if (tile.railroad) drawRailroad(s, dx, dy, roadMask(state, mx, my, true));
       if (tile.special) drawSpecial(s, dx, dy, tile.terrain);
+      if (tile.hut) drawHut(s, dx, dy);
       if (tile.fortress) drawFortress(s, dx, dy);
       if (tile.pollution) drawPollution(s, dx, dy);
     }
@@ -249,7 +251,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
   if (active) {
     const type = unitType(active.type);
-    s.blit(unitSprite(active.type, playerColor(active.owner)), 4, y, 0);
+    s.blit(unitSprite(active.type, playerColor(active.owner)), 4, y, SPRITE_CLEAR);
     drawTextWrapped(s, 24, y, PANEL_W - 26, type.name, ink, 1);
     const whole = Math.floor(active.movesLeft / 3);
     const frac = active.movesLeft % 3;

@@ -6,6 +6,8 @@ export * from "./tiles.js";
 export * from "./screens/main.js";
 export * from "./overlays.js";
 export * from "./widgets.js";
+export * from "./sprites/sheet.js";
+export * from "./sprites/index.js";
 export * from "./screens/city.js";
 export * from "./screens/map-city.js";
 export * from "./screens/discovery.js";

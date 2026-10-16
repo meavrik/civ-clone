@@ -1,0 +1,14 @@
+{
+  "name": "@civ/sprites-tool",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/png.ts",
+  "types": "./src/png.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@civ/renderer-retro": "*"
+  }
+}

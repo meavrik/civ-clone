@@ -60,7 +60,26 @@ describe("retro renderer", () => {
     const m = createUnit(state, "militia", 0, u.x + 2, u.y + 1);
     applyCommand(state, { type: "fortify", unit: m.id });
     applyCommand(state, { type: "endTurn" });
+    // Let the other civilizations pass so the screen shows our view again.
+    while (state.currentPlayer !== 0) applyCommand(state, { type: "endTurn" });
     createUnit(state, "trireme", 0, u.x + 1, u.y - 2);
+    // A stack on land and a village on land near the settlers.
+    const land: [number, number][] = [];
+    for (let dy = -4; dy <= 4; dy++)
+      for (let dx = -5; dx <= 5; dx++) {
+        const t = getTile(state.map, u.x + dx, u.y + dy);
+        if (t && t.terrain !== Terrain.Ocean && Math.max(Math.abs(dx), Math.abs(dy)) >= 2) land.push([u.x + dx, u.y + dy]);
+      }
+    const [sx, sy] = land[0]!;
+    createUnit(state, "legion", 0, sx, sy);
+    createUnit(state, "legion", 0, sx, sy);
+    const [hx, hy] = land[land.length - 1]!;
+    getTile(state.map, hx, hy)!.hut = true;
+    revealAround(state, 0, u.x, u.y, 9);
+    for (let dy = -6; dy <= 6; dy++) for (let dx = -8; dx <= 8; dx++) {
+      const yy = u.y + dy;
+      if (yy >= 0 && yy < state.map.height) state.players[0]!.visible[yy * state.map.width + ((u.x + dx) % state.map.width + state.map.width) % state.map.width] = 1;
+    }
     state.activeUnit = u.id;
 
     const view: MainScreenView = {

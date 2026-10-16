@@ -21,6 +21,7 @@ import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawRiver, drawSpecial, getTile as terrainTile, TILE } from "../tiles.js";
 import { drawBox, drawPanel } from "../widgets.js";
+import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 
 /**
@@ -187,7 +188,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const pname = productionName(p);
   drawText(s, COL3_X, CITY_MAP_Y + 2, "Building:", dim);
   drawText(s, COL3_X, CITY_MAP_Y + 11, pname, ink);
-  if (p.kind === "unit") s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), SCREEN_W - 24, CITY_MAP_Y + 2, 0);
+  if (p.kind === "unit") s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), SCREEN_W - 24, CITY_MAP_Y + 2, SPRITE_CLEAR);
   drawBox(s, COL3_X, CITY_MAP_Y + 22, SCREEN_W - COL3_X - 8, 8, city.shields, r.productionCost, C.LGREY!);
   drawText(s, COL3_X, CITY_MAP_Y + 32, `${city.shields}/${r.productionCost} shields`, dim);
   const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
@@ -199,7 +200,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const supported = state.units.filter((u) => u.homeCity === city.id);
   drawText(s, COL3_X, CITY_MAP_Y + 74, `Units: ${supported.length}`, dim);
   supported.slice(0, 10).forEach((u, i) => {
-    s.blit(unitSprite(u.type, playerColorOf(state, u.owner)), COL3_X + (i % 5) * 18, CITY_MAP_Y + 84 + Math.floor(i / 5) * 18, 0);
+    s.blit(unitSprite(u.type, playerColorOf(state, u.owner)), COL3_X + (i % 5) * 18, CITY_MAP_Y + 84 + Math.floor(i / 5) * 18, SPRITE_CLEAR);
   });
 
   // Hints.

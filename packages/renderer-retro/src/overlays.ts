@@ -3,6 +3,8 @@ import { drawText, textWidth } from "./font.js";
 import { C, shade } from "./palette.js";
 import { Surface } from "./surface.js";
 import { TILE } from "./tiles.js";
+import { SPRITE_CLEAR } from "./sprites/sheet.js";
+import { darker, ownerBox, spriteSurface, UNIT_SHEET } from "./sprites/index.js";
 
 /** Road segments toward neighbouring road tiles. Mask bits follow NEIGHBOURS order. */
 export function drawRoad(s: Surface, dx: number, dy: number, mask: number): void {
@@ -97,45 +99,38 @@ export const UNIT_ABBR: Record<string, string> = {
 const spriteCache = new Map<string, Surface>();
 
 /**
- * Original placeholder unit art: a shield-shaped badge in the owner's colour
- * with the unit's abbreviation, a bar for land, a hull for sea, wings for air.
- * The real sprite set replaces this module; `unitSprite` keeps its contract.
+ * A unit as the map shows it: the owner's colour box with the unit's figure
+ * from the units sheet on top. Clear pixels are SPRITE_CLEAR, so blit with
+ * that key. A type missing from the sheet falls back to its letters.
  */
 export function unitSprite(type: string, color: number): Surface {
   const key = `${type}:${color}`;
   const hit = spriteCache.get(key);
   if (hit) return hit;
   const s = new Surface(TILE, TILE);
-  const domain = unitType(type).domain;
-  const edge = C.BLACK!;
-  // badge
-  s.rect(2, 2, 12, 11, color);
-  s.frame(2, 2, 12, 11, edge);
-  s.hline(3, 13, 10, edge);
-  s.hline(4, 14, 8, edge);
-  s.rect(4, 13, 8, 1, color);
-  s.rect(5, 14, 6, 1, color);
-  if (domain === "sea") {
-    s.hline(1, 12, 14, shade("earth", 2));
-    s.hline(2, 13, 12, shade("earth", 3));
-  } else if (domain === "air") {
-    s.hline(0, 7, 16, C.LGREY!);
+  s.fill(SPRITE_CLEAR);
+  s.blit(ownerBox(color), 0, 0, SPRITE_CLEAR);
+  const figure = spriteSurface(UNIT_SHEET, type, color);
+  if (figure) s.blit(figure, 0, 0, SPRITE_CLEAR);
+  else {
+    const label = UNIT_ABBR[type] ?? "?";
+    drawText(s, Math.floor(8 - textWidth(label) / 2), 4, label, C.BLACK!);
   }
-  const label = UNIT_ABBR[type] ?? "?";
-  drawText(s, Math.floor(8 - textWidth(label) / 2), 4, label, edge);
+  void unitType;
   spriteCache.set(key, s);
   return s;
 }
 
 export function drawUnit(s: Surface, u: Unit, dx: number, dy: number, color: number, stacked: boolean): void {
   if (stacked) {
-    // A second badge edge peeking out shows a stack, like the original.
-    s.rect(dx + 4, dy + 4, 12, 12, C.BLACK!);
+    // A second box edge peeking out shows a stack, like the original.
+    s.rect(dx + 3, dy + 3, 13, 13, C.BLACK!);
+    s.rect(dx + 4, dy + 4, 11, 11, darker(color));
   }
-  s.blit(unitSprite(u.type, color), dx, dy, 0);
+  s.blit(unitSprite(u.type, color), dx, dy, SPRITE_CLEAR);
   if (u.order.kind === "fortified") {
-    s.frame(dx + 1, dy + 1, 14, 14, shade("stone", 6));
+    s.frame(dx, dy, TILE, TILE, shade("stone", 6));
   } else if (u.order.kind === "sentry") {
-    s.hline(dx + 5, dy + 15, 6, C.WHITE!);
+    s.hline(dx + 4, dy + 15, 8, C.WHITE!);
   }
 }

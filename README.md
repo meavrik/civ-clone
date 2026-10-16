@@ -15,6 +15,7 @@ packages/renderer-retro   indexed 320x200 framebuffer, palette, bitmap font, til
 packages/renderer-modern  canvas-2D renderer: 960x600, soft colour, real fonts, same layout and controls
 apps/web                  Vite app: canvas with integer scaling, keyboard input, frame loop
 tools/headless            tournament harness: seeded all-AI games, per-civ stats, replay verification
+tools/sprites             export the pixel-art sheets to PNG for a paint program, import them back
 ```
 
 The core never touches the DOM and the renderer never touches the core's
@@ -54,6 +55,21 @@ command log and is replayed on load, so it also serves as a replay for the AI ha
 `scripts/mirror-test.sh` rsyncs the source (minus `node_modules`) to
 `~/work/mirror`, installs Linux deps there once, and runs vitest + tsc.
 The repo's own `node_modules` stays macOS-native for `pnpm dev`.
+
+## Pixel art
+
+Units, terrain, cities, villages and special resources for the retro look are drawn as text grids
+in `packages/renderer-retro/src/art/*.art.ts`: one character per pixel, each naming a palette
+colour (the legend is at the top of each file). Edit them directly, or use a paint program:
+
+```
+npm run sprites -- export            # art-export/units.png, terrain.png, features.png
+# edit in Aseprite / Piskel / GIMP at 1:1 (magenta stands for the civilization's colour)
+npm run sprites -- import art-export/units.png
+```
+
+The import rejects any colour that the sprite's legend cannot name and lists the pixels.
+`npm test` dumps `packages/renderer-retro/tests/out/sprites.png` to review the whole set.
 
 ## Design rules
 

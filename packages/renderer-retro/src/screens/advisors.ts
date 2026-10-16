@@ -18,6 +18,7 @@ import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawPanel } from "../widgets.js";
 import { PLAYER_COLORS } from "./main.js";
+import { SPRITE_CLEAR } from "../sprites/sheet.js";
 
 function frame(s: Surface, title: string): void {
   s.fill(shade("ui", 1));
@@ -64,7 +65,7 @@ export function drawMilitaryAdvisor(s: Surface, state: GameState): void {
   let x = 12;
   const ink = shade("ui", 7);
   for (const [type, n] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
-    s.blit(unitSprite(type, PLAYER_COLORS[0]!), x, y, 0);
+    s.blit(unitSprite(type, PLAYER_COLORS[state.players[me]!.color % PLAYER_COLORS.length]!), x, y, SPRITE_CLEAR);
     const t = unitType(type);
     drawText(s, x + 20, y, `${n} ${t.name}`, ink);
     drawText(s, x + 20, y + 8, `${t.attack}/${t.defense}/${t.moves}`, shade("ui", 5));

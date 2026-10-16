@@ -1,4 +1,6 @@
-import { Terrain } from "@civ/core";
+import { Terrain, TERRAIN_RULES } from "@civ/core";
+import { FEATURE_SHEET, mirrored, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
+import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { C, shade } from "./palette.js";
 import { Surface } from "./surface.js";
 
@@ -19,154 +21,31 @@ function h(x: number, y: number, salt: number): number {
   return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
 }
 
-function speckle(s: Surface, rampName: string, base: number, salt: number, density = 0.18): void {
-  for (let y = 0; y < TILE; y++)
-    for (let x = 0; x < TILE; x++) {
-      const r = h(x, y, salt);
-      if (r < density / 2) s.set(x, y, shade(rampName, base - 1));
-      else if (r < density) s.set(x, y, shade(rampName, base + 1));
-      else s.set(x, y, shade(rampName, base));
-    }
-}
+const TERRAIN_SPRITE: Record<Terrain, string> = {
+  [Terrain.Ocean]: "ocean",
+  [Terrain.Grassland]: "grassland",
+  [Terrain.Plains]: "plains",
+  [Terrain.Forest]: "forest",
+  [Terrain.Hills]: "hills",
+  [Terrain.Mountains]: "mountains",
+  [Terrain.Desert]: "desert",
+  [Terrain.Tundra]: "tundra",
+  [Terrain.Arctic]: "arctic",
+  [Terrain.Swamp]: "swamp",
+  [Terrain.Jungle]: "jungle",
+};
 
-function tree(s: Surface, x: number, y: number, ramp: string, trunk: number): void {
-  // 5x6 conifer
-  s.set(x + 2, y, shade(ramp, 5));
-  s.hline(x + 1, y + 1, 3, shade(ramp, 4));
-  s.hline(x, y + 2, 5, shade(ramp, 3));
-  s.hline(x + 1, y + 3, 3, shade(ramp, 4));
-  s.hline(x, y + 4, 5, shade(ramp, 2));
-  s.set(x + 2, y + 5, trunk);
-}
-
-function bush(s: Surface, x: number, y: number, ramp: string): void {
-  s.hline(x + 1, y, 3, shade(ramp, 7));
-  s.hline(x, y + 1, 5, shade(ramp, 6));
-  s.hline(x, y + 2, 5, shade(ramp, 5));
-  s.hline(x + 1, y + 3, 3, shade(ramp, 0));
-  s.set(x + 2, y + 4, shade("earth", 1));
-}
-
-function build(terrain: Terrain, variant: number): Surface {
-  const s = new Surface(TILE, TILE);
-  const salt = terrain * 7 + variant;
-  switch (terrain) {
-    case Terrain.Ocean: {
-      speckle(s, "ocean", 3, salt, 0.08);
-      // wave crests
-      for (let i = 0; i < 3; i++) {
-        const x = Math.floor(h(i, variant, 3) * 12);
-        const y = 2 + Math.floor(h(variant, i, 4) * 12);
-        s.hline(x, y, 3, shade("ocean", 5));
-        s.set(x + 1, y - 1, shade("ocean", 6));
-      }
-      break;
-    }
-    case Terrain.Grassland:
-      speckle(s, "grass", 4, salt, 0.25);
-      break;
-    case Terrain.Plains:
-      speckle(s, "plains", 4, salt, 0.3);
-      for (let i = 0; i < 4; i++) {
-        const x = Math.floor(h(i, variant, 9) * 14);
-        const y = Math.floor(h(variant, i, 10) * 14);
-        s.vline(x, y, 2, shade("plains", 2));
-      }
-      break;
-    case Terrain.Forest: {
-      speckle(s, "grass", 3, salt, 0.2);
-      const spots: [number, number][] = [
-        [1, 1],
-        [8, 2],
-        [4, 7],
-        [11, 8],
-        [0, 10],
-        [7, 10],
-      ];
-      for (const [x, y] of spots) tree(s, x, y, "forest", shade("earth", 2));
-      break;
-    }
-    case Terrain.Hills: {
-      speckle(s, "grass", 4, salt, 0.2);
-      // two rounded hills with lit top edge
-      const draw = (x: number, y: number, w: number) => {
-        for (let r = 0; r < 4; r++) {
-          const inset = Math.max(0, 3 - r) ;
-          s.hline(x + inset, y + r, w - inset * 2, shade("earth", r === 0 ? 6 : 4 - Math.floor(r / 2)));
-        }
-      };
-      draw(0, 4, 10);
-      draw(6, 9, 10);
-      break;
-    }
-    case Terrain.Mountains: {
-      speckle(s, "stone", 2, salt, 0.2);
-      const peak = (px: number, py: number, hgt: number) => {
-        for (let r = 0; r < hgt; r++) {
-          const w = 1 + r * 2;
-          const x0 = px - r;
-          s.hline(x0, py + r, w, shade("stone", 3));
-          s.set(x0, py + r, shade("stone", 5)); // lit left face
-          s.set(x0 + w - 1, py + r, shade("stone", 1)); // shaded right
-          if (r < 2) s.hline(x0, py + r, w, shade("snow", 6));
-        }
-      };
-      peak(5, 2, 8);
-      peak(12, 6, 6);
-      break;
-    }
-    case Terrain.Desert:
-      speckle(s, "sand", 4, salt, 0.25);
-      s.hline(2, 5, 6, shade("sand", 6));
-      s.hline(7, 11, 7, shade("sand", 6));
-      s.hline(3, 6, 6, shade("sand", 2));
-      s.hline(8, 12, 7, shade("sand", 2));
-      break;
-    case Terrain.Tundra:
-      speckle(s, "swamp", 4, salt, 0.3);
-      for (let i = 0; i < 5; i++) {
-        const x = Math.floor(h(i, variant, 11) * 14);
-        const y = Math.floor(h(variant, i, 12) * 14);
-        s.hline(x, y, 2, shade("snow", 6));
-      }
-      break;
-    case Terrain.Arctic:
-      speckle(s, "snow", 6, salt, 0.2);
-      s.hline(1, 4, 5, shade("snow", 3));
-      s.hline(9, 10, 5, shade("snow", 3));
-      s.hline(2, 3, 4, shade("snow", 7));
-      s.hline(10, 9, 4, shade("snow", 7));
-      break;
-    case Terrain.Swamp:
-      speckle(s, "swamp", 3, salt, 0.3);
-      for (let i = 0; i < 4; i++) {
-        const x = Math.floor(h(i, variant, 13) * 12);
-        const y = Math.floor(h(variant, i, 14) * 12);
-        s.hline(x, y, 4, shade("ocean", 3));
-        s.vline(x + 1, y - 2, 2, shade("swamp", 1));
-      }
-      break;
-    case Terrain.Jungle:
-      speckle(s, "jungle", 2, salt, 0.25);
-      bush(s, 1, 1, "jungle");
-      bush(s, 9, 3, "jungle");
-      bush(s, 4, 8, "jungle");
-      bush(s, 10, 11, "jungle");
-      bush(s, 0, 12, "jungle");
-      break;
-  }
-  return s;
-}
-
-const VARIANTS = 4;
 const cache = new Map<number, Surface>();
 
+/** The terrain sprite for a square, mirrored on about half the squares so large areas do not tile visibly. */
 export function getTile(terrain: Terrain, x: number, y: number): Surface {
-  const variant = (x * 3 + y * 5) % VARIANTS;
-  const key = terrain * VARIANTS + variant;
+  const variant = h(x, y, 1) < 0.5 ? 0 : 1;
+  const key = terrain * 2 + variant;
   let t = cache.get(key);
   if (!t) {
-    t = build(terrain, variant);
+    const base = spriteSurface(TERRAIN_SHEET, TERRAIN_SPRITE[terrain]);
+    if (!base) throw new Error(`terrain sheet has no sprite for ${TERRAIN_SPRITE[terrain]}`);
+    t = variant ? mirrored(base) : base;
     cache.set(key, t);
   }
   return t;
@@ -185,20 +64,16 @@ export function drawRiver(s: Surface, dx: number, dy: number, mask: number): voi
   if (mask === 0) s.rect(cx - 2, cy - 1, 6, 3, c);
 }
 
-/** Special-resource marker: a small diamond in the tile's lit shade. */
+/** A special resource: its icon from the features sheet (named after the resource). */
 export function drawSpecial(s: Surface, dx: number, dy: number, terrain: Terrain): void {
-  const ramp =
-    terrain === Terrain.Ocean ? "ocean" : terrain === Terrain.Desert ? "sand" : "plains";
-  const c = shade(ramp, 7);
-  const o = C.BLACK!;
-  const cx = dx + 11;
-  const cy = dy + 11;
-  s.set(cx, cy - 2, o);
-  s.hline(cx - 1, cy - 1, 3, c);
-  s.hline(cx - 2, cy, 5, c);
-  s.hline(cx - 1, cy + 1, 3, c);
-  s.set(cx, cy + 2, o);
-  s.set(cx - 2, cy, o);
-  s.set(cx + 2, cy, o);
+  const name = TERRAIN_RULES[terrain].special?.name.toLowerCase();
+  const icon = name ? spriteSurface(FEATURE_SHEET, name) : null;
+  if (icon) { s.blit(icon, dx, dy, SPRITE_CLEAR); return; }
+  s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!);
 }
 
+/** A minor tribe's village. */
+export function drawHut(s: Surface, dx: number, dy: number): void {
+  const hut = spriteSurface(FEATURE_SHEET, "hut");
+  if (hut) s.blit(hut, dx, dy, SPRITE_CLEAR);
+}

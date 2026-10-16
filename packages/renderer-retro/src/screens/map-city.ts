@@ -1,26 +1,28 @@
 import type { City } from "@civ/core";
 import { drawText, textWidth } from "../font.js";
-import { C, shade } from "../palette.js";
+import { C } from "../palette.js";
+import { SPRITE_CLEAR } from "../sprites/sheet.js";
+import { FEATURE_SHEET, ownerBox, spriteSurface } from "../sprites/index.js";
 import type { Surface } from "../surface.js";
-import { TILE } from "../tiles.js";
 
 /**
- * City marker on the map: a walled square in the owner's colour with the
- * population number, flag raised when in disorder. Original art.
+ * City marker on the map: buildings from the features sheet on the owner's
+ * colour box, stone walls around it when built, the population in a dark
+ * label, and a red flag in disorder.
  */
 export function drawCity(s: Surface, dx: number, dy: number, city: City, color: number): void {
-  const walled = city.buildings.includes("city_walls");
-  s.rect(dx + 1, dy + 1, TILE - 2, TILE - 2, color);
-  s.frame(dx + 1, dy + 1, TILE - 2, TILE - 2, C.BLACK!);
-  if (walled) {
-    s.frame(dx, dy, TILE, TILE, shade("stone", 5));
-    for (let k = 0; k < TILE; k += 3) {
-      s.set(dx + k, dy, shade("stone", 2));
-      s.set(dx + k, dy + TILE - 1, shade("stone", 2));
-    }
+  s.blit(ownerBox(color), dx, dy, SPRITE_CLEAR);
+  const town = spriteSurface(FEATURE_SHEET, "city", color);
+  if (town) s.blit(town, dx, dy, SPRITE_CLEAR);
+  if (city.buildings.includes("city_walls")) {
+    const walls = spriteSurface(FEATURE_SHEET, "walls", color);
+    if (walls) s.blit(walls, dx, dy, SPRITE_CLEAR);
   }
   const n = String(city.size);
-  drawText(s, dx + 8 - Math.floor(textWidth(n) / 2), dy + 4, n, C.BLACK!);
+  const w = textWidth(n) + 2;
+  const lx = dx + 8 - Math.floor(w / 2);
+  s.rect(lx, dy + 9, w, 7, C.BLACK!);
+  drawText(s, lx + 1, dy + 9, n, C.WHITE!);
   if (city.disorder) {
     s.vline(dx + 13, dy + 1, 5, C.BLACK!);
     s.rect(dx + 11, dy + 1, 2, 3, C.LRED!);
