@@ -22,10 +22,19 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v2, shipped as `aiTurn`) and
   `baseline.ts` (v1, kept as the tournament yardstick). The planner is stateless between turns: it
   re-derives the empire picture (`analyse`) from `GameState` every turn, so replays stay exact.
+- `packages/renderer-api` — the `Renderer` interface every renderer implements (draw each screen
+  in its own logical size, hit-test menus/city map/tiles/minimap), the shared view types and the
+  DOM-free screen logic (`setupMenu`, `leaderLine`). The web app only talks to a `Renderer`.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, code-drawn `tiles.ts`/`overlays.ts`, `widgets.ts` (panel/menu/box), one file
   per screen in `src/screens/*`.
-- `apps/web` — `main.ts` (screen stack + input), `display.ts` (canvas scaling), `storage.ts` (IndexedDB saves).
+- `packages/renderer-modern` — canvas-2D renderer on a 960x600 logical surface (same panel/
+  viewport split, 48px tiles): `theme.ts` (all colours and fonts), `draw.ts` (panels, wrapped
+  text, bars), `tiles.ts`/`markers.ts` (terrain, overlays, units, cities), `screens/*`. It draws
+  through a `Context2D` subset so Node tests use a recording fake.
+- `apps/web` — `main.ts` (screen stack + input, picks the renderer: `?renderer=modern|retro`, the
+  "Visuals" menu entry, remembered in localStorage), `retro-renderer.ts` (adapter), `display.ts`
+  (canvas fitting: crisp integer scale for retro, DPR-aware for modern), `storage.ts` (IndexedDB saves).
 - `tools/headless` — tournament harness: `runGame(config)` plays an `allAi` game through `runAiPlayers`, samples
   per-civ stats, fingerprints the final state; `AIS` registry seats a named AI per civ. `cli.ts` prints tables.
 - `scripts/mirror-test.sh` — for a Linux shell on a Mac checkout; not needed on macOS.
@@ -36,8 +45,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   Human input, AI and replays use the same `Command` union. Add new actions as commands.
 - Randomness only via `state.rng` (`nextInt`/`nextFloat`). Never `Math.random` in core/ai.
   Seed + command log must replay to an identical state (`save.ts`, test in `tests/save.test.ts`).
-- Renderer never touches `state.rng`; it draws into `Surface` with palette indices only.
-  No RGB in game code. Use `shade(ramp, 0..7)` or `C.*`.
+- Renderers never touch `state.rng` and never change state. The retro renderer draws into
+  `Surface` with palette indices only (no RGB in its code; use `shade(ramp, 0..7)` or `C.*`); the
+  modern renderer keeps every colour in `theme.ts`.
 - Movement points are stored in thirds (`MOVE_FRAC = 3`). Map wraps east-west only (`wrapX`).
 - `endTurn` cycles players: human -> AI civs -> barbarians (skipped when unit-less) -> turn++.
   `lastTurnEvents` is the per-turn event list the UI presents.
@@ -49,7 +59,8 @@ Phases 1–7 done: world, cities, tech/wonders/governments, combat/transport/got
 turns, diplomacy, save/load, title/setup, advisors, end conditions, headless harness, planner AI.
 Rules-completeness pass done (2026-10-16): data verified against FreeCiv civ1, all wonders bound,
 caravans, railroads/fortresses/pollution/global warming, spaceship, diplomats, nukes, in-game text
-prompt. Next: Phase 8 (modern-visuals renderer) or mobile/PWA.
+prompt. Phase 8 done: modern-visuals renderer behind the shared `Renderer` API, switchable at
+runtime. Next: mobile/PWA + touch adapter.
 
 ## Known gaps / next steps
 
@@ -74,7 +85,7 @@ prompt. Next: Phase 8 (modern-visuals renderer) or mobile/PWA.
    left; SDI Defense within three tiles stops them. No embassies, city investigation, air fuel or
    trireme loss at sea yet.
 4. Diplomacy exchange offers first-for-first only; no embassies or AI-to-AI tech trading.
-5. Phase 8 — modern-visuals renderer behind the same screen API; swap `renderer-retro`.
+5. Modern renderer polish: real sprites/icons for units and specials, animation, hover states.
 6. Mobile: PWA + touch adapter in apps/web (input is already centralised in main.ts).
 
 ## Conventions

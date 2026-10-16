@@ -10,7 +10,9 @@ modern-visuals renderer behind the same core.
 ```
 packages/core             deterministic game core: rules, map gen, units, cities, combat, research (no DOM)
 packages/ai               AI opponents (planner v2 shipped as aiTurn, baseline v1 as yardstick), same commands as a human
+packages/renderer-api     the Renderer interface and shared screen logic both renderers implement
 packages/renderer-retro   indexed 320x200 framebuffer, palette, bitmap font, tiles, screen layouts
+packages/renderer-modern  canvas-2D renderer: 960x600, soft colour, real fonts, same layout and controls
 apps/web                  Vite app: canvas with integer scaling, keyboard input, frame loop
 tools/headless            tournament harness: seeded all-AI games, per-civ stats, replay verification
 ```
@@ -23,7 +25,7 @@ which dumps a frame to `tests/out/main-screen.png`).
 
 ```
 pnpm install
-pnpm dev          # http://localhost:5173  (?seed=1234 for a different world)
+pnpm dev          # http://localhost:5173  (?seed=1234 for a different world, ?renderer=modern for the modern look)
 pnpm test
 pnpm typecheck
 pnpm headless -- --games 4 --turns 200 --civs 4 --every 50   # AI-vs-AI tournament, see --help
@@ -73,4 +75,4 @@ The repo's own `node_modules` stays macOS-native for `pnpm dev`.
 7b. Rules completeness: data verified against FreeCiv civ1, every wonder bound, caravans and trade
    routes, railroads, fortresses, pollution and global warming, spaceship, diplomats, nuclear
    strikes, in-game text prompt  ← done
-8. Modern-visuals renderer
+8. Modern-visuals renderer behind the same screen API, switchable from the title/game menu  ← done
