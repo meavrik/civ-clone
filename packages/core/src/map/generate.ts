@@ -78,7 +78,7 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
   const mountainsAt = pct(0.91);
   const tiles: Tile[] = new Array(w * h);
   const blank = (terrain: Terrain): Tile => ({
-    terrain, river: false, special: false, road: false, irrigation: false, mine: false, continent: 0,
+    terrain, river: false, special: false, road: false, irrigation: false, mine: false, hut: false, continent: 0,
   });
   for (let y = 0; y < h; y++) {
     const lat = Math.abs(y - (h - 1) / 2) / ((h - 1) / 2); // 0 equator .. 1 pole
@@ -153,6 +153,14 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
       const lattice = ((x + sx) * 13 + (y + sy) * 11 + ((x + sx) >> 2)) % 32 === 0;
       if (lattice) t.special = true;
       else if (t.terrain === Terrain.Ocean && (x * 7 + y * 3 + sx) % 29 === 0) t.special = true;
+    }
+
+  // Huts: roughly one per 60 land tiles, never on the poles.
+  for (let y = 2; y < h - 2; y++)
+    for (let x = 0; x < w; x++) {
+      const t = tiles[y * w + x]!;
+      if (t.terrain === Terrain.Ocean || t.terrain === Terrain.Arctic) continue;
+      if (nextInt(rng, 60) === 0) t.hut = true;
     }
 
   labelContinents(map);

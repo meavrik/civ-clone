@@ -21,8 +21,8 @@ import { WONDERS } from "./rules/wonders.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
-import { getTile, wrapX, type GameState, type Player, type Production, type Specialist, type Unit } from "./types.js";
-import { applyMove, cargo, checkMove, fullMoves, unitById, workOptions } from "./units.js";
+import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Player, type Production, type Specialist, type Unit } from "./types.js";
+import { applyMove, cargo, checkMove, createUnit, fullMoves, unitById, workOptions } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
 /**
@@ -52,6 +52,9 @@ export type Command =
   | { type: "activate"; unit: number }
   | { type: "declareWar"; player: number }
   | { type: "makePeace"; player: number }
+  | { type: "giveGold"; player: number; amount: number }
+  | { type: "giveAdvance"; player: number; advance: string }
+  | { type: "exchangeAdvances"; player: number; give: string; receive: string }
   | { type: "endTurn" };
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
@@ -68,7 +71,15 @@ export type TurnEvent =
   | { kind: "cityCaptured"; name: string; player: number }
   | { kind: "unitLost"; unit: string; by: number }
   | { kind: "barbarians" }
-  | { kind: "eliminated"; player: number };
+  | { kind: "eliminated"; player: number }
+  | { kind: "hut"; result: HutResult };
+
+export type HutResult =
+  | { kind: "gold"; amount: number }
+  | { kind: "advance"; advance: string }
+  | { kind: "unit"; unit: string }
+  | { kind: "barbarians" }
+  | { kind: "empty" };
 
 /** Result of the last move command when it turned into combat (for the UI). */
 export interface CombatReport {
@@ -130,6 +141,32 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     case "makePeace": {
       if (!hasContact(state, state.currentPlayer, cmd.player)) return { ok: false, reason: "no contact" };
       setRelation(state, state.currentPlayer, cmd.player, "peace");
+      return { ok: true };
+    }
+    case "giveGold": {
+      const me = state.players[state.currentPlayer]!;
+      const them = state.players[cmd.player];
+      if (!them || !hasContact(state, me.id, them.id)) return { ok: false, reason: "no contact" };
+      if (cmd.amount <= 0 || cmd.amount > me.gold) return { ok: false, reason: "not enough gold" };
+      me.gold -= cmd.amount;
+      them.gold += cmd.amount;
+      return { ok: true };
+    }
+    case "giveAdvance": {
+      const me = state.players[state.currentPlayer]!;
+      const them = state.players[cmd.player];
+      if (!them || !hasContact(state, me.id, them.id)) return { ok: false, reason: "no contact" };
+      if (!me.advances.includes(cmd.advance)) return { ok: false, reason: "we don't know that" };
+      if (!them.advances.includes(cmd.advance)) them.advances.push(cmd.advance);
+      return { ok: true };
+    }
+    case "exchangeAdvances": {
+      const me = state.players[state.currentPlayer]!;
+      const them = state.players[cmd.player];
+      if (!them || !hasContact(state, me.id, them.id)) return { ok: false, reason: "no contact" };
+      if (!me.advances.includes(cmd.give) || !them.advances.includes(cmd.receive)) return { ok: false, reason: "invalid exchange" };
+      if (!them.advances.includes(cmd.give)) them.advances.push(cmd.give);
+      discover(state, me.id, cmd.receive);
       return { ok: true };
     }
     case "setProduction":
@@ -237,6 +274,11 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
   applyMove(state, u, dx, dy, r);
   revealAround(state, u.owner, u.x, u.y, unitType(u.type).sight);
   for (const c of cargo(state, u)) revealAround(state, u.owner, c.x, c.y, 1);
+  const landed = getTile(state.map, u.x, u.y)!;
+  if (landed.hut && unitType(u.type).domain === "land") {
+    landed.hut = false;
+    lastTurnEvents.push({ kind: "hut", result: openHut(state, u) });
+  }
   recomputeVisibility(state, u.owner);
   for (const met of detectContacts(state, u.owner)) lastTurnEvents.push({ kind: "contact", player: met });
   if (u.movesLeft === 0 || r.board !== undefined) selectNextUnit(state, u.id);
@@ -261,6 +303,42 @@ export function runGoto(state: GameState, u: Unit): void {
     if (u.x === x && u.y === y) u.order = { kind: "none" };
   }
   recomputeVisibility(state, u.owner);
+}
+
+/** Enter a minor tribe's village: gold, an advance, a mercenary unit, or an ambush. */
+function openHut(state: GameState, u: Unit): HutResult {
+  const p = state.players[u.owner]!;
+  const roll = nextInt(state.rng, 100);
+  const nearCity = state.cities.some((c) => Math.abs(c.y - u.y) <= 3 && Math.min(Math.abs(c.x - u.x), state.map.width - Math.abs(c.x - u.x)) <= 3);
+  if (roll < 40) {
+    const amount = 25 + nextInt(state.rng, 4) * 25;
+    p.gold += amount;
+    return { kind: "gold", amount };
+  }
+  if (roll < 60) {
+    const options = availableAdvances(p.advances);
+    if (options.length) {
+      const a = options[nextInt(state.rng, options.length)]!.id;
+      discover(state, u.owner, a);
+      return { kind: "advance", advance: a };
+    }
+  }
+  if (roll < 80) {
+    const type = p.advances.includes("horseback_riding") ? "cavalry" : p.advances.includes("bronze_working") ? "phalanx" : "militia";
+    createUnit(state, type, u.owner, u.x, u.y, u.homeCity);
+    return { kind: "unit", unit: type };
+  }
+  if (roll < 90 && !nearCity && u.owner !== state.barbarians) {
+    for (const [dx, dy] of NEIGHBOURS) {
+      const t = getTile(state.map, u.x + dx, u.y + dy);
+      if (!t || t.terrain === Terrain.Ocean) continue;
+      if (state.units.some((o) => o.x === wrapX(state.map, u.x + dx) && o.y === u.y + dy)) continue;
+      createUnit(state, "legion", state.barbarians, u.x + dx, u.y + dy);
+      createUnit(state, "legion", state.barbarians, u.x + dx, u.y + dy);
+      return { kind: "barbarians" };
+    }
+  }
+  return { kind: "empty" };
 }
 
 /** Governments the player may choose: despotism always, others by advance (or all with the Pyramids). */

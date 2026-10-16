@@ -3,41 +3,62 @@ import {
   advance,
   applyCommand,
   atWar,
-  canFoundCity,
-  civ,
-  lastCombat,
-  unitAt,
-  workOptions,
   availableAdvances,
   buildOptions,
+  canFoundCity,
+  checkGameEnd,
   cityAt,
+  CIVS,
+  civ,
+  computeScore,
+  FINAL_TURN,
+  formatYear,
   government,
   governmentsAvailable,
+  hasContact,
+  lastCombat,
   lastTurnEvents,
+  loadSave,
+  makeSave,
   newGame,
   productionCost,
   productionName,
+  rankTitle,
+  relation,
+  runAiPlayers,
+  turnToYear,
+  unitAt,
   unitById,
   unitType,
+  workOptions,
   type Command,
   type GameState,
+  type NewGameOptions,
   type Production,
+  type SaveGame,
   type TurnEvent,
 } from "@civ/core";
 import {
   citySlotAt,
+  DIFFICULTIES,
   drawCityScreen,
+  drawDiplomacyScreen,
   drawDiscoveryScreen,
+  drawDomesticAdvisor,
+  drawEndScreen,
+  drawForeignAdvisor,
   drawMainScreen,
   drawMenu,
+  drawMilitaryAdvisor,
   drawRatesScreen,
   drawScienceScreen,
+  drawScoreScreen,
   drawStatusLine,
+  drawTitleScreen,
+  leaderLine,
   menuHit,
-  PALETTE_RGBA,
   SCREEN_H,
-  SCREEN_W,
-  Surface,
+  setupMenu,
   TILE,
   VIEW_TILES_X,
   VIEW_TILES_Y,
@@ -45,48 +66,22 @@ import {
   type CityScreenView,
   type MainScreenView,
   type MenuState,
+  type SetupState,
 } from "@civ/renderer-retro";
+import { canvas, fitCanvas, present, screen, toScreen } from "./display.js";
+import { listSlots, readSlot, SLOTS, writeSlot } from "./storage.js";
 
-// ---- display: 320x200 indexed framebuffer -> integer-scaled canvas -------
-const canvas = document.getElementById("screen") as HTMLCanvasElement;
-const ctx = canvas.getContext("2d", { alpha: false })!;
-const image = ctx.createImageData(SCREEN_W, SCREEN_H);
-const screen = Surface.screen();
-
-function fitCanvas(): void {
-  const scale = Math.max(1, Math.floor(Math.min(innerWidth / SCREEN_W, innerHeight / SCREEN_H)));
-  canvas.style.width = `${SCREEN_W * scale}px`;
-  canvas.style.height = `${SCREEN_H * scale}px`;
-}
 addEventListener("resize", fitCanvas);
 fitCanvas();
 
-function present(): void {
-  const px = image.data;
-  const src = screen.data;
-  for (let i = 0, j = 0; i < src.length; i++, j += 4) {
-    const p = src[i]! * 4;
-    px[j] = PALETTE_RGBA[p]!;
-    px[j + 1] = PALETTE_RGBA[p + 1]!;
-    px[j + 2] = PALETTE_RGBA[p + 2]!;
-    px[j + 3] = 255;
-  }
-  ctx.putImageData(image, 0, 0);
-}
-
-// ---- game bootstrap --------------------------------------------------------
-const params = new URLSearchParams(location.search);
-const seed = Number(params.get("seed")) || 2026;
-const state: GameState = newGame(seed, {
-  difficulty: Number(params.get("difficulty") ?? 2),
-  opponents: Number(params.get("opponents") ?? 2),
-  ...(params.get("civ") ? { civ: params.get("civ")! } : {}),
-});
-
-/** Command log: with the seed this replays the whole game. */
-const log: Command[] = [];
+// ---- session ----------------------------------------------------------------
+let state: GameState;
+let options: NewGameOptions;
+let log: Command[] = [];
 let status: string | undefined;
 let statusUntil = 0;
+let blinkOn = true;
+let lastBlink = 0;
 
 function say(text: string, ms = 2500): void {
   status = text;
@@ -96,84 +91,165 @@ function say(text: string, ms = 2500): void {
 const REASONS: Record<string, string> = {
   terrain: "Can't go there",
   zoc: "Zone of control",
-  attack: "Combat: phase 5",
   "no-moves": "No moves left",
   full: "Ship is full",
-  treaty: "We have a treaty (right-click: declare war)",
+  treaty: "We have a treaty",
   "no route": "No route there",
 };
+
+type Screen =
+  | { kind: "title" }
+  | { kind: "setup"; setup: SetupState }
+  | { kind: "map" }
+  | { kind: "city"; view: CityScreenView }
+  | { kind: "discovery"; advance: string; then: () => void }
+  | { kind: "science" }
+  | { kind: "rates" }
+  | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
+  | { kind: "diplomacy"; player: number; line: string }
+  | { kind: "end"; lines: string[]; rank: string }
+  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void };
+
+let screenState: Screen = { kind: "title" };
+const view: MainScreenView = { originX: 0, originY: 0, blink: true };
 
 function dispatch(cmd: Command): boolean {
   const r = applyCommand(state, cmd);
   if (r.ok) {
     log.push(cmd);
-    if (cmd.type === "move" && lastCombat) {
-      const c = lastCombat;
-      const them = state.players[c.defenderOwner]!.name;
-      say(c.attackerWon ? `${unitType(c.attackerType).name} defeats ${them} ${unitType(c.defenderType).name}` : `${unitType(c.attackerType).name} lost to ${them} ${unitType(c.defenderType).name}`, 3500);
-    }
+    if (cmd.type === "move" && lastCombat) reportCombat();
   } else say(REASONS[r.reason] ?? r.reason);
   blinkOn = true;
   lastBlink = performance.now();
   return r.ok;
 }
 
-/** Move the active unit, offering to declare war when a treaty blocks the attack. */
-function tryMove(unit: number, dx: number, dy: number): void {
-  const r = applyCommand(state, { type: "move", unit, dx, dy });
-  if (r.ok) {
-    log.push({ type: "move", unit, dx, dy });
-    if (lastCombat) {
-      const c = lastCombat;
-      const them = state.players[c.defenderOwner]!.name;
-      say(c.attackerWon ? `${unitType(c.attackerType).name} defeats ${them} ${unitType(c.defenderType).name}` : `${unitType(c.attackerType).name} lost to ${them} ${unitType(c.defenderType).name}`, 3500);
-    }
-    return;
+function reportCombat(): void {
+  const c = lastCombat!;
+  const them = state.players[c.defenderOwner]!.name;
+  const a = unitType(c.attackerType).name;
+  const d = unitType(c.defenderType).name;
+  say(c.attackerWon ? `${a} defeats ${them} ${d}` : `${a} lost to ${them} ${d}`, 3500);
+}
+
+// ---- game start -------------------------------------------------------------
+function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0): void {
+  options = opts;
+  state = newGame(seed, opts);
+  log = [];
+  screenState = { kind: "map" };
+  followActive(true);
+  say(`${civ(state.players[0]!.civ).leader}, lead the ${state.players[0]!.name} to glory.`, 4000);
+}
+
+function resumeGame(save: SaveGame): void {
+  try {
+    const loaded = loadSave(save, aiTurn);
+    state = loaded.state;
+    log = loaded.log;
+    options = save.options;
+    screenState = { kind: "map" };
+    followActive(true);
+    say(`Loaded: ${formatYear(turnToYear(state.turn))}`);
+  } catch (err) {
+    say(`Load failed: ${(err as Error).message}`, 4000);
   }
-  if (r.reason === "treaty") {
-    const u = unitById(state, unit)!;
-    const tx = u.x + dx;
-    const ty = u.y + dy;
-    const target = unitAt(state, tx, ty)[0] ?? cityAt(state, tx, ty);
-    if (target) openWarMenu(target.owner, () => tryMove(unit, dx, dy));
-    return;
-  }
-  say(REASONS[r.reason] ?? r.reason);
+}
+
+const params = new URLSearchParams(location.search);
+if (params.has("seed")) {
+  startGame(
+    {
+      difficulty: Number(params.get("difficulty") ?? 2),
+      opponents: Number(params.get("opponents") ?? 2),
+      ...(params.get("civ") ? { civ: params.get("civ")! } : {}),
+    },
+    Number(params.get("seed")) || 2026,
+  );
+}
+
+// ---- view helpers -----------------------------------------------------------
+function centerOn(x: number, y: number): void {
+  view.originX = x - (VIEW_TILES_X >> 1);
+  view.originY = Math.max(0, Math.min(state.map.height - VIEW_TILES_Y, y - (VIEW_TILES_Y >> 1)));
+}
+
+function followActive(force = false): void {
+  if (state.activeUnit === null) return;
+  const u = unitById(state, state.activeUnit);
+  if (!u) return;
+  const w = state.map.width;
+  const rx = (((u.x - view.originX) % w) + w) % w;
+  const ry = u.y - view.originY;
+  if (force || rx < 2 || rx > VIEW_TILES_X - 3 || ry < 2 || ry > VIEW_TILES_Y - 3) centerOn(u.x, u.y);
+}
+
+function isAdjacent(u: { x: number; y: number }, tx: number, ty: number): boolean {
+  const w = state.map.width;
+  return Math.abs(ty - u.y) <= 1 && Math.min(Math.abs(tx - u.x), w - Math.abs(tx - u.x)) <= 1;
+}
+
+// ---- menus ------------------------------------------------------------------
+function menu(title: string, items: string[], onPick: (i: number) => void, extra: Partial<Extract<Screen, { kind: "menu" }>> = {}): void {
+  screenState = { kind: "menu", under: screenState, menu: { title, items, selected: 0 }, onPick, ...extra };
+}
+
+function openCity(id: number): void {
+  screenState = { kind: "city", view: { city: id } };
+}
+
+function openProductionMenu(cityId: number): void {
+  const city = state.cities.find((c) => c.id === cityId)!;
+  const opts = buildOptions(state, city);
+  screenState = {
+    kind: "menu",
+    under: screenState,
+    menu: {
+      title: `${city.name}: build what?`,
+      items: opts.map((p) => productionName(p)),
+      right: opts.map((p) => {
+        const t = p.kind === "unit" ? unitType(p.id) : null;
+        return t ? `${t.attack}/${t.defense}/${t.moves} ${productionCost(p)}` : `${productionCost(p)}`;
+      }),
+      selected: Math.max(0, opts.findIndex((p) => p.kind === city.production.kind && p.id === city.production.id)),
+    },
+    onPick: (i) => {
+      const p: Production | undefined = opts[i];
+      if (p) dispatch({ type: "setProduction", city: cityId, production: p });
+    },
+  };
+}
+
+function openResearchMenu(under: Screen, then?: () => void): void {
+  const opts = availableAdvances(state.players[0]!.advances);
+  if (opts.length === 0) { then?.(); return; }
+  screenState = {
+    kind: "menu",
+    under,
+    menu: { title: "Wise men ask: what shall we research?", items: opts.map((a) => a.name), selected: 0 },
+    onPick: (i) => { const a = opts[i]; if (a) dispatch({ type: "research", advance: a.id }); then?.(); },
+  };
+}
+
+function openGovernmentMenu(under: Screen, then?: () => void): void {
+  const ids = governmentsAvailable(state, 0);
+  screenState = {
+    kind: "menu",
+    under,
+    menu: { title: "Choose a new government", items: ids.map((g) => government(g).name), selected: 0 },
+    onPick: (i) => { const g = ids[i]; if (g) dispatch({ type: "setGovernment", government: g }); then?.(); },
+  };
 }
 
 function openWarMenu(player: number, then?: () => void): void {
   const name = state.players[player]!.name;
-  screenState = {
-    kind: "menu",
-    under: screenState,
-    menu: { title: `Declare war on the ${name}?`, items: ["No, keep the peace", "Yes, declare war!"], selected: 0 },
-    onPick: (i) => {
-      if (i === 1) {
-        dispatch({ type: "declareWar", player });
-        say(`War with the ${name}!`, 3000);
-        then?.();
-      }
-    },
-  };
-}
-
-function openContactMenu(player: number, next: () => void): void {
-  const p = state.players[player]!;
-  const c = civ(p.civ);
-  screenState = {
-    kind: "menu",
-    under: { kind: "map" },
-    menu: {
-      title: `${c.leader} of the ${c.name} greets you.`,
-      items: ["Exchange peace treaty", "Declare war"],
-      selected: 0,
-    },
-    onPick: (i) => {
-      if (i === 1) dispatch({ type: "declareWar", player });
-      else dispatch({ type: "makePeace", player });
-      next();
-    },
-  };
+  menu(`Declare war on the ${name}?`, ["No, keep the peace", "Yes, declare war!"], (i) => {
+    if (i === 1) {
+      dispatch({ type: "declareWar", player });
+      say(`War with the ${name}!`, 3000);
+      then?.();
+    }
+  });
 }
 
 function openActionMenu(unit: number): void {
@@ -192,8 +268,6 @@ function openActionMenu(unit: number): void {
   items.push(["Wait (W)", () => dispatch({ type: "wait", unit })]);
   items.push(["Skip turn (Space)", () => dispatch({ type: "skip", unit })]);
   items.push(["Disband (Shift+D)", () => dispatch({ type: "disband", unit })]);
-  const atWarWith = state.players.filter((p) => p.id !== 0 && p.alive && p.id !== state.barbarians && atWar(state, 0, p.id));
-  for (const p of atWarWith) items.push([`Make peace with ${p.name}`, () => dispatch({ type: "makePeace", player: p.id })]);
   screenState = {
     kind: "menu",
     under: screenState,
@@ -202,89 +276,71 @@ function openActionMenu(unit: number): void {
   };
 }
 
-// ---- screens ---------------------------------------------------------------
-type Screen =
-  | { kind: "map" }
-  | { kind: "city"; view: CityScreenView }
-  | { kind: "discovery"; advance: string; then: () => void }
-  | { kind: "science" }
-  | { kind: "rates" }
-  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen };
-
-let screenState: Screen = { kind: "map" };
-const view: MainScreenView = { originX: 0, originY: 0, blink: true };
-
-function centerOn(x: number, y: number): void {
-  view.originX = x - (VIEW_TILES_X >> 1);
-  view.originY = Math.max(0, Math.min(state.map.height - VIEW_TILES_Y, y - (VIEW_TILES_Y >> 1)));
+/** The game menu (F10 / Esc with no unit). */
+function openGameMenu(): void {
+  const items: [string, () => void][] = [
+    ["Save game", () => openSaveMenu()],
+    ["Load game", () => openLoadMenu()],
+    ["Retire (end game)", () => endGame({ kind: "time" })],
+    ["New game", () => { screenState = { kind: "title" }; }],
+  ];
+  menu("Game", items.map((i) => i[0]), (i) => items[i]?.[1]());
 }
 
-function followActive(force = false): void {
-  if (state.activeUnit === null) return;
-  const u = unitById(state, state.activeUnit);
-  if (!u) return;
-  const w = state.map.width;
-  const rx = (((u.x - view.originX) % w) + w) % w;
-  const ry = u.y - view.originY;
-  if (force || rx < 2 || rx > VIEW_TILES_X - 3 || ry < 2 || ry > VIEW_TILES_Y - 3) centerOn(u.x, u.y);
-}
-followActive(true);
-
-function openCity(id: number): void {
-  screenState = { kind: "city", view: { city: id } };
+async function openSaveMenu(): Promise<void> {
+  const slots = await listSlots();
+  const items = slots.map((s, i) => (i === 0 ? "(autosave)" : s ? `${i}. ${s.civ}, ${formatYear(turnToYear(s.turn))}` : `${i}. empty`));
+  menu("Save to slot", items, (i) => {
+    if (i === 0) return;
+    void writeSlot(i, makeSave(state, options, log)).then(() => say(`Saved to slot ${i}`));
+  });
 }
 
-function openProductionMenu(cityId: number): void {
-  const city = state.cities.find((c) => c.id === cityId)!;
-  const options = buildOptions(state, city);
-  const menu: MenuState = {
-    title: `${city.name}: build what?`,
-    items: options.map((p) => productionName(p)),
-    right: options.map((p) => {
-      const cost = productionCost(p);
-      const t = p.kind === "unit" ? unitType(p.id) : null;
-      return t ? `${t.attack}/${t.defense}/${t.moves} ${cost}` : `${cost}`;
-    }),
-    selected: Math.max(0, options.findIndex((p) => p.kind === city.production.kind && p.id === city.production.id)),
-  };
+async function openLoadMenu(): Promise<void> {
+  const slots = await listSlots();
+  const items = slots.map((s, i) => (s ? `${i === 0 ? "auto" : i}. ${s.civ}, ${formatYear(turnToYear(s.turn))}` : `${i === 0 ? "auto" : i}. empty`));
+  menu("Load which game?", items, (i) => {
+    void readSlot(i).then((s) => { if (s) resumeGame(s); else say("Empty slot"); });
+  });
+}
+
+function openDiplomacy(player: number): void {
+  screenState = { kind: "diplomacy", player, line: leaderLine(state, player) };
+  const me = state.players[0]!;
+  const them = state.players[player]!;
+  const r = relation(state, 0, player);
+  const items: [string, () => void][] = [];
+  if (r === "war") items.push(["Propose peace", () => { dispatch({ type: "makePeace", player }); say("Peace is agreed."); }]);
+  else items.push(["Declare war", () => openWarMenu(player)]);
+  const theirsOnly = them.advances.filter((a) => !me.advances.includes(a));
+  const mineOnly = me.advances.filter((a) => !them.advances.includes(a));
+  if (r !== "war" && theirsOnly.length && mineOnly.length)
+    items.push(["Exchange knowledge", () => {
+      // Offer our first unique advance for their first; good enough until a bargaining screen.
+      const give = mineOnly[0]!;
+      const receive = theirsOnly[0]!;
+      menu(`Trade ${advance(give).name} for ${advance(receive).name}?`, ["Yes", "No"], (i) => {
+        if (i === 0 && dispatch({ type: "exchangeAdvances", player, give, receive })) say(`We learn ${advance(receive).name}.`, 3000);
+      });
+    }]);
+  if (me.gold >= 50) items.push(["Give 50 gold as tribute", () => { dispatch({ type: "giveGold", player, amount: 50 }); say("The gift is accepted."); }]);
+  items.push(["Farewell", () => {}]);
   screenState = {
     kind: "menu",
-    menu,
     under: screenState,
-    onPick: (i) => {
-      const p: Production | undefined = options[i];
-      if (p) dispatch({ type: "setProduction", city: cityId, production: p });
-    },
+    menu: { title: "Your proposal?", items: items.map((i) => i[0]), selected: 0 },
+    onPick: (i) => { items[i]?.[1](); if (screenState.kind === "diplomacy") screenState = { kind: "map" }; },
+    onCancel: () => { screenState = { kind: "map" }; },
   };
 }
 
-function openResearchMenu(under: Screen): void {
-  const options = availableAdvances(state.players[state.currentPlayer]!.advances);
-  if (options.length === 0) return;
-  screenState = {
-    kind: "menu",
-    under,
-    menu: { title: "Wise men ask: what shall we research?", items: options.map((a) => a.name), selected: 0 },
-    onPick: (i) => {
-      const a = options[i];
-      if (a) dispatch({ type: "research", advance: a.id });
-    },
-  };
+function openForeignTalkMenu(): void {
+  const known = state.players.filter((p) => p.id !== 0 && p.alive && p.id !== state.barbarians && hasContact(state, 0, p.id));
+  if (!known.length) { say("We have met no one."); return; }
+  menu("Send an emissary to...", known.map((p) => p.name), (i) => { const p = known[i]; if (p) openDiplomacy(p.id); });
 }
 
-function openGovernmentMenu(under: Screen): void {
-  const ids = governmentsAvailable(state, state.currentPlayer);
-  screenState = {
-    kind: "menu",
-    under,
-    menu: { title: "Choose a new government", items: ids.map((g) => government(g).name), selected: 0 },
-    onPick: (i) => {
-      const g = ids[i];
-      if (g) dispatch({ type: "setGovernment", government: g });
-    },
-  };
-}
-
+// ---- turn flow --------------------------------------------------------------
 function eventMessage(ev: TurnEvent): string | null {
   if (!("city" in ev)) {
     switch (ev.kind) {
@@ -294,6 +350,14 @@ function eventMessage(ev: TurnEvent): string | null {
       case "unitLost": return `${ev.unit} lost to the ${state.players[ev.by]?.name}`;
       case "barbarians": return "Barbarians have landed!";
       case "eliminated": return `The ${state.players[ev.player]?.name} civilization has been destroyed.`;
+      case "hut": {
+        const r = ev.result;
+        return r.kind === "gold" ? `The tribe gives you ${r.amount} gold.`
+          : r.kind === "advance" ? `Scrolls of ancient wisdom: ${advance(r.advance).name}!`
+          : r.kind === "unit" ? `A band of ${unitType(r.unit).name} joins you.`
+          : r.kind === "barbarians" ? "You have unleashed a horde of barbarians!"
+          : "The village is deserted.";
+      }
       default: return null;
     }
   }
@@ -310,29 +374,27 @@ function eventMessage(ev: TurnEvent): string | null {
 }
 
 /** Play the turn's events as a chain of screens, then land on the map. */
-function presentEvents(events: TurnEvent[]): void {
+function presentEvents(events: TurnEvent[], done?: () => void): void {
   const next = (): void => {
     const ev = events.shift();
     if (!ev) {
       screenState = { kind: "map" };
       followActive(true);
+      done?.();
       return;
     }
-    if (ev.kind === "discovered") {
-      screenState = { kind: "discovery", advance: ev.advance, then: next };
-    } else if (ev.kind === "contact") {
-      openContactMenu(ev.player, next);
-    } else if (ev.kind === "chooseResearch") {
-      openResearchMenu({ kind: "map" });
-      const sc = screenState as Extract<Screen, { kind: "menu" }>;
-      const pick = sc.onPick;
-      sc.onPick = (i) => { pick(i); next(); };
-    } else if (ev.kind === "chooseGovernment") {
-      openGovernmentMenu({ kind: "map" });
-      const sc = screenState as Extract<Screen, { kind: "menu" }>;
-      const pick = sc.onPick;
-      sc.onPick = (i) => { pick(i); next(); };
-    } else {
+    if (ev.kind === "discovered") screenState = { kind: "discovery", advance: ev.advance, then: next };
+    else if (ev.kind === "contact") {
+      const c = civ(state.players[ev.player]!.civ);
+      screenState = { kind: "diplomacy", player: ev.player, line: `${c.leader} of the ${c.name} greets you.` };
+      menu("Your reply?", ["Exchange peace treaty", "Declare war"], (i) => {
+        if (i === 1) dispatch({ type: "declareWar", player: ev.player });
+        else dispatch({ type: "makePeace", player: ev.player });
+        next();
+      }, { onCancel: next });
+    } else if (ev.kind === "chooseResearch") openResearchMenu({ kind: "map" }, next);
+    else if (ev.kind === "chooseGovernment") openGovernmentMenu({ kind: "map" }, next);
+    else {
       const msg = eventMessage(ev);
       if (msg) say(msg, 4000);
       next();
@@ -341,12 +403,27 @@ function presentEvents(events: TurnEvent[]): void {
   next();
 }
 
+function endGame(end: NonNullable<ReturnType<typeof checkGameEnd>>): void {
+  const me = computeScore(state, 0);
+  const lines = [
+    end.kind === "conquest" ? (end.winner === 0 ? "You have conquered the world!" : `The ${state.players[end.winner]!.name} rule the world.`)
+      : end.kind === "defeat" ? "Your civilization has been destroyed." : `The year is ${formatYear(turnToYear(state.turn))}. Your reign ends.`,
+    "",
+    `Citizens: ${me.citizens}`,
+    `Wonders: ${me.wonders}`,
+    `Advances: ${me.techs}`,
+    `Peace: ${me.peace}`,
+    `Total score: ${me.total}`,
+  ];
+  screenState = { kind: "end", lines, rank: rankTitle(me.total) };
+}
+
 function endTurn(): void {
   dispatch({ type: "endTurn" });
   const events: TurnEvent[] = [...lastTurnEvents];
   // Other civilizations move now; keep what concerns us.
   let guard = 0;
-  while (state.currentPlayer !== 0 && guard++ < 16) {
+  while (state.players[state.currentPlayer]!.isAi && guard++ < 16) {
     const ai = state.currentPlayer;
     aiTurn(state);
     applyCommand(state, { type: "endTurn" });
@@ -356,12 +433,17 @@ function endTurn(): void {
       else if (ev.kind === "eliminated" || ev.kind === "barbarians") events.push(ev);
     }
   }
-  // Our own start-of-turn events (contacts found as our turn begins, lost cities).
   for (const ev of lastTurnEvents) if (ev.kind === "contact" || ev.kind === "eliminated") events.push(ev);
-  presentEvents(events);
+  void runAiPlayers; // replay helper lives in core; here the loop above also harvests events
+  // Autosave every 5 turns.
+  if (state.turn % 5 === 0) void writeSlot(0, makeSave(state, options, log)).catch(() => {});
+  presentEvents(events, () => {
+    const end = checkGameEnd(state, FINAL_TURN);
+    if (end) endGame(end);
+  });
 }
 
-// ---- input -----------------------------------------------------------------
+// ---- input: keyboard --------------------------------------------------------
 const MOVES: Record<string, [number, number]> = {
   Numpad8: [0, -1], ArrowUp: [0, -1],
   Numpad2: [0, 1], ArrowDown: [0, 1],
@@ -370,28 +452,36 @@ const MOVES: Record<string, [number, number]> = {
   Numpad7: [-1, -1], Numpad9: [1, -1], Numpad1: [-1, 1], Numpad3: [1, 1],
 };
 
+function tryMove(unit: number, dx: number, dy: number): void {
+  const before = state.activeUnit;
+  const r = applyCommand(state, { type: "move", unit, dx, dy });
+  if (r.ok) {
+    log.push({ type: "move", unit, dx, dy });
+    if (lastCombat) reportCombat();
+    const ev = lastTurnEvents.find((e) => e.kind === "hut" || e.kind === "cityCaptured" || e.kind === "cityLost");
+    if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
+  } else if (r.reason === "treaty") {
+    const u = unitById(state, unit)!;
+    const target = unitAt(state, u.x + dx, u.y + dy)[0] ?? cityAt(state, u.x + dx, u.y + dy);
+    if (target) openWarMenu(target.owner, () => tryMove(unit, dx, dy));
+    return;
+  } else say(REASONS[r.reason] ?? r.reason);
+  blinkOn = true;
+  lastBlink = performance.now();
+  followActive(state.activeUnit !== before);
+}
+
 function mapKey(e: KeyboardEvent): void {
   const active = state.activeUnit;
   const mv = MOVES[e.code];
   if (mv) {
     e.preventDefault();
-    if (active === null) return;
-    const before = state.activeUnit;
-    tryMove(active, mv[0], mv[1]);
-    blinkOn = true;
-    lastBlink = performance.now();
-    followActive(state.activeUnit !== before);
+    if (active !== null) tryMove(active, mv[0], mv[1]);
     return;
   }
-  const order = (cmd: Command) => {
-    if (active !== null) dispatch(cmd);
-    followActive(true);
-  };
+  const order = (cmd: Command) => { if (active !== null) dispatch(cmd); followActive(true); };
   switch (e.code) {
-    case "Enter":
-    case "NumpadEnter":
-      if (state.activeUnit === null) endTurn();
-      break;
+    case "Enter": case "NumpadEnter": if (active === null) endTurn(); break;
     case "Space": order({ type: "skip", unit: active! }); break;
     case "KeyW": order({ type: "wait", unit: active! }); break;
     case "KeyF": order({ type: "fortify", unit: active! }); break;
@@ -402,42 +492,35 @@ function mapKey(e: KeyboardEvent): void {
     case "KeyB": {
       if (active === null) break;
       const u = unitById(state, active)!;
-      if (dispatch({ type: "found", unit: active })) {
-        const c = cityAt(state, u.x, u.y);
-        if (c) openCity(c.id);
-      }
+      if (dispatch({ type: "found", unit: active })) { const c = cityAt(state, u.x, u.y); if (c) openCity(c.id); }
       followActive(true);
       break;
     }
-    case "KeyD":
-      if (e.shiftKey) order({ type: "disband", unit: active! });
+    case "KeyD": if (e.shiftKey) order({ type: "disband", unit: active! }); break;
+    case "KeyC": followActive(true); break;
+    case "KeyT": screenState = { kind: "rates" }; break;
+    case "KeyA": screenState = { kind: "science" }; break;
+    case "F1": e.preventDefault(); screenState = { kind: "advisor", which: "domestic" }; break;
+    case "F2": e.preventDefault(); screenState = { kind: "advisor", which: "military" }; break;
+    case "F3": e.preventDefault(); screenState = { kind: "advisor", which: "foreign" }; break;
+    case "F4": e.preventDefault(); screenState = { kind: "science" }; break;
+    case "F5": e.preventDefault(); screenState = { kind: "advisor", which: "score" }; break;
+    case "F10": e.preventDefault(); openGameMenu(); break;
+    case "Escape": if (active !== null) openActionMenu(active); else openGameMenu(); break;
+    case "KeyG": {
+      const p = state.players[0]!;
+      if (p.government === "anarchy") {
+        if (p.anarchyTurns === 0) openGovernmentMenu({ kind: "map" }); else say("Still in anarchy");
+      } else menu("Start a revolution?", ["No", "Yes, overthrow the government"], (i) => {
+        if (i === 1) { dispatch({ type: "revolution" }); say("Revolution! Anarchy reigns.", 3000); }
+      });
       break;
-    case "KeyC":
-      followActive(true);
-      break;
-    case "KeyT":
-      screenState = { kind: "rates" };
-      break;
-    case "KeyA":
-      screenState = { kind: "science" };
-      break;
-    case "Escape":
-      if (active !== null) openActionMenu(active);
-      break;
-    case "KeyG":
-      if (state.players[state.currentPlayer]!.government === "anarchy") {
-        if (state.players[state.currentPlayer]!.anarchyTurns === 0) openGovernmentMenu({ kind: "map" });
-        else say("Still in anarchy");
-      } else if (confirm("Start a revolution? The government will fall into anarchy.")) {
-        dispatch({ type: "revolution" });
-        say("Revolution! Anarchy reigns.");
-      }
-      break;
+    }
   }
 }
 
 function ratesKey(e: KeyboardEvent): void {
-  const p = state.players[state.currentPlayer]!;
+  const p = state.players[0]!;
   const set = (tax: number, lux: number) => {
     const sci = 10 - tax - lux;
     if (sci < 0 || tax < 0 || lux < 0) return;
@@ -454,20 +537,10 @@ function ratesKey(e: KeyboardEvent): void {
 
 function cityKey(e: KeyboardEvent, cv: CityScreenView): void {
   switch (e.code) {
-    case "Escape":
-      screenState = { kind: "map" };
-      break;
-    case "KeyC":
-      openProductionMenu(cv.city);
-      break;
-    case "KeyB":
-      dispatch({ type: "buy", city: cv.city });
-      break;
-    case "KeyN": {
-      const name = prompt("City name:");
-      if (name) dispatch({ type: "renameCity", city: cv.city, name });
-      break;
-    }
+    case "Escape": screenState = { kind: "map" }; break;
+    case "KeyC": openProductionMenu(cv.city); break;
+    case "KeyB": dispatch({ type: "buy", city: cv.city }); break;
+    case "KeyN": { const name = prompt("City name:"); if (name) dispatch({ type: "renameCity", city: cv.city, name }); break; }
   }
 }
 
@@ -476,59 +549,116 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
   switch (e.code) {
     case "ArrowUp": case "Numpad8": m.selected = (m.selected + m.items.length - 1) % m.items.length; break;
     case "ArrowDown": case "Numpad2": m.selected = (m.selected + 1) % m.items.length; break;
-    case "Enter": case "NumpadEnter": case "Space":
-      screenState = sc.under;
-      sc.onPick(m.selected);
-      break;
-    case "Escape":
-      screenState = sc.under;
-      break;
+    case "Enter": case "NumpadEnter": case "Space": screenState = sc.under; sc.onPick(m.selected); break;
+    case "Escape": screenState = sc.under; sc.onCancel?.(); break;
   }
+}
+
+function setupKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "setup" }>): void {
+  const m = setupMenu(sc.setup);
+  const civs = CIVS.filter((c) => c.id !== "barbarians");
+  const apply = (i: number) => {
+    if (sc.setup.step === "difficulty") { sc.setup.difficulty = i; sc.setup.step = "opponents"; }
+    else if (sc.setup.step === "opponents") { sc.setup.opponents = i + 1; sc.setup.step = "civ"; }
+    else { sc.setup.civ = civs[i]!.id; startGame({ difficulty: sc.setup.difficulty, opponents: sc.setup.opponents, civ: sc.setup.civ }); }
+  };
+  setupSelection = Math.min(setupSelection, m.items.length - 1);
+  switch (e.code) {
+    case "ArrowUp": case "Numpad8": setupSelection = (setupSelection + m.items.length - 1) % m.items.length; break;
+    case "ArrowDown": case "Numpad2": setupSelection = (setupSelection + 1) % m.items.length; break;
+    case "Enter": case "NumpadEnter": case "Space": apply(setupSelection); setupSelection = 0; break;
+    case "Escape": screenState = { kind: "title" }; break;
+  }
+}
+let setupSelection = 0;
+
+function openTitleMenu(): void {
+  const items: [string, () => void][] = [
+    ["Start a new game", () => { screenState = { kind: "setup", setup: { step: "difficulty", difficulty: 2, opponents: 2, civ: "romans" } }; setupSelection = 2; }],
+    ["Load a saved game", () => void openLoadMenu()],
+  ];
+  screenState = {
+    kind: "menu",
+    under: { kind: "title" },
+    menu: { title: "Epochs", items: items.map((i) => i[0]), selected: 0 },
+    onPick: (i) => items[i]?.[1](),
+  };
 }
 
 addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const sc = screenState;
-  if (sc.kind === "map") mapKey(e);
-  else if (sc.kind === "city") cityKey(e, sc.view);
-  else if (sc.kind === "rates") ratesKey(e);
-  else if (sc.kind === "science") {
-    if (e.code === "KeyA") openResearchMenu(sc);
-    else if (e.code === "Escape") screenState = { kind: "map" };
-  } else if (sc.kind === "discovery") {
-    sc.then();
-  } else menuKey(e, sc);
+  switch (sc.kind) {
+    case "title": openTitleMenu(); break;
+    case "setup": setupKey(e, sc); break;
+    case "map": mapKey(e); break;
+    case "city": cityKey(e, sc.view); break;
+    case "rates": ratesKey(e); break;
+    case "science":
+      if (e.code === "KeyA") openResearchMenu(sc);
+      else if (e.code === "Escape" || e.code === "F4") screenState = { kind: "map" };
+      else advisorHotkey(e);
+      break;
+    case "advisor":
+      if (e.code === "Escape") screenState = { kind: "map" };
+      else if (sc.which === "foreign" && (e.code === "Enter" || e.code === "NumpadEnter")) openForeignTalkMenu();
+      else advisorHotkey(e);
+      break;
+    case "discovery": sc.then(); break;
+    case "diplomacy": screenState = { kind: "map" }; break;
+    case "end": screenState = { kind: "title" }; break;
+    case "menu": menuKey(e, sc); break;
+  }
 });
 
+function advisorHotkey(e: KeyboardEvent): void {
+  const map: Record<string, Screen> = {
+    F1: { kind: "advisor", which: "domestic" },
+    F2: { kind: "advisor", which: "military" },
+    F3: { kind: "advisor", which: "foreign" },
+    F4: { kind: "science" },
+    F5: { kind: "advisor", which: "score" },
+  };
+  const next = map[e.code];
+  if (next) { e.preventDefault(); screenState = next; }
+}
+
+// ---- input: mouse -----------------------------------------------------------
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 canvas.addEventListener("mousedown", (e) => {
-  const scale = canvas.clientWidth / SCREEN_W;
-  const px = Math.floor(e.offsetX / scale);
-  const py = Math.floor(e.offsetY / scale);
+  const [px, py] = toScreen(e);
   const sc = screenState;
-  if (sc.kind === "menu") {
-    const i = menuHit(sc.menu, px, py);
-    if (i >= 0) {
+  switch (sc.kind) {
+    case "title": openTitleMenu(); return;
+    case "setup": {
+      const m = setupMenu(sc.setup);
+      const i = menuHit({ ...m }, px, py);
+      if (i >= 0) { setupSelection = i; setupKey({ code: "Enter" } as KeyboardEvent, sc); }
+      return;
+    }
+    case "menu": {
+      const i = menuHit(sc.menu, px, py);
       screenState = sc.under;
-      sc.onPick(i);
-    } else screenState = sc.under;
-    return;
+      if (i >= 0) sc.onPick(i); else sc.onCancel?.();
+      return;
+    }
+    case "discovery": sc.then(); return;
+    case "end": screenState = { kind: "title" }; return;
+    case "diplomacy": screenState = { kind: "map" }; return;
+    case "rates": case "science": screenState = { kind: "map" }; return;
+    case "advisor":
+      if (sc.which === "foreign") openForeignTalkMenu(); else screenState = { kind: "map" };
+      return;
+    case "city": {
+      const slot = citySlotAt(px, py);
+      if (slot !== null && slot !== 0) dispatch({ type: "toggleTile", city: sc.view.city, slot });
+      else if (py > SCREEN_H - 12) screenState = { kind: "map" };
+      return;
+    }
+    case "map": break;
   }
-  if (sc.kind === "discovery") {
-    sc.then();
-    return;
-  }
-  if (sc.kind === "rates" || sc.kind === "science") {
-    screenState = { kind: "map" };
-    return;
-  }
-  if (sc.kind === "city") {
-    const slot = citySlotAt(px, py);
-    if (slot !== null && slot !== 0) dispatch({ type: "toggleTile", city: sc.view.city, slot });
-    return;
-  }
+
   if (px < VIEW_X) {
-    // Minimap click: scroll there.
     if (py >= 2 && py < 52) centerOn(px, py - 2);
     return;
   }
@@ -538,20 +668,16 @@ canvas.addEventListener("mousedown", (e) => {
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
 
   if (e.button === 2) {
-    // Right-click: orders for the active unit, or centre the view.
-    if (active) openActionMenu(active.id);
-    else centerOn(tx, ty);
+    if (active) openActionMenu(active.id); else openGameMenu();
     return;
   }
-
   const city = cityAt(state, tx, ty);
-  if (city && city.owner === state.currentPlayer && !(active && isAdjacent(active, tx, ty) && !(active.x === tx && active.y === ty))) {
+  if (city && city.owner === 0 && !(active && isAdjacent(active, tx, ty) && !(active.x === tx && active.y === ty))) {
     openCity(city.id);
     return;
   }
   if (active) {
     if (active.x === tx && active.y === ty) {
-      // Click on the active unit: cycle through the stack.
       const stack = unitAt(state, tx, ty).filter((u) => u.owner === 0 && u.movesLeft > 0);
       const i = stack.findIndex((u) => u.id === active.id);
       const nextUnit = stack[(i + 1) % stack.length];
@@ -562,16 +688,11 @@ canvas.addEventListener("mousedown", (e) => {
       let dx = tx - active.x;
       if (dx > 1) dx -= state.map.width;
       if (dx < -1) dx += state.map.width;
-      const before = state.activeUnit;
       tryMove(active.id, dx, ty - active.y);
-      followActive(state.activeUnit !== before);
       return;
     }
     const own = unitAt(state, tx, ty).find((u) => u.owner === 0 && u.movesLeft > 0);
-    if (own) {
-      dispatch({ type: "activate", unit: own.id });
-      return;
-    }
+    if (own) { dispatch({ type: "activate", unit: own.id }); return; }
     const before = state.activeUnit;
     if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
     followActive(state.activeUnit !== before);
@@ -586,45 +707,45 @@ canvas.addEventListener("mousedown", (e) => {
   centerOn(tx, ty);
 });
 
-function isAdjacent(u: { x: number; y: number }, tx: number, ty: number): boolean {
-  const w = state.map.width;
-  return Math.abs(ty - u.y) <= 1 && Math.min(Math.abs(tx - u.x), w - Math.abs(tx - u.x)) <= 1;
-}
-
-// ---- frame loop ------------------------------------------------------------
-let blinkOn = true;
-let lastBlink = 0;
-function frame(t: number): void {
-  if (t - lastBlink > 400) {
-    blinkOn = !blinkOn;
-    lastBlink = t;
-  }
-  view.blink = blinkOn;
-  if (status && t > statusUntil) status = undefined;
-
-  const draw = (sc: Screen): void => {
-    if (sc.kind === "map") {
-      view.message = status;
-      drawMainScreen(screen, state, view);
-    } else if (sc.kind === "city") {
-      sc.view.message = status;
-      drawCityScreen(screen, state, sc.view);
-    } else if (sc.kind === "discovery") {
-      drawDiscoveryScreen(screen, state, sc.advance);
-    } else if (sc.kind === "science") {
-      drawScienceScreen(screen, state);
-    } else if (sc.kind === "rates") {
-      drawRatesScreen(screen, state);
-    } else {
+// ---- frame loop ---------------------------------------------------------------
+function draw(sc: Screen): void {
+  switch (sc.kind) {
+    case "title": drawTitleScreen(screen, blinkOn); break;
+    case "setup": {
+      drawTitleScreen(screen, false);
+      const m = setupMenu(sc.setup);
+      drawMenu(screen, { ...m, selected: setupSelection });
+      break;
+    }
+    case "map": view.message = status; drawMainScreen(screen, state, view); break;
+    case "city": sc.view.message = status; drawCityScreen(screen, state, sc.view); break;
+    case "discovery": drawDiscoveryScreen(screen, state, sc.advance); break;
+    case "science": drawScienceScreen(screen, state); break;
+    case "rates": drawRatesScreen(screen, state); break;
+    case "advisor":
+      if (sc.which === "domestic") drawDomesticAdvisor(screen, state);
+      else if (sc.which === "military") drawMilitaryAdvisor(screen, state);
+      else if (sc.which === "foreign") drawForeignAdvisor(screen, state);
+      else drawScoreScreen(screen, state);
+      break;
+    case "diplomacy": drawDiplomacyScreen(screen, state, sc.player, sc.line); break;
+    case "end": drawEndScreen(screen, sc.lines, sc.rank); break;
+    case "menu":
       draw(sc.under);
       drawMenu(screen, sc.menu);
       if (status && sc.under.kind !== "map") drawStatusLine(screen, status);
-    }
-  };
+      break;
+  }
+}
+
+function frame(t: number): void {
+  if (t - lastBlink > 400) { blinkOn = !blinkOn; lastBlink = t; }
+  view.blink = blinkOn;
+  if (status && t > statusUntil) status = undefined;
   draw(screenState);
   present();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
-(window as unknown as { civ: unknown }).civ = { state, log, dispatch };
+(window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return log; }, dispatch, atWar, DIFFICULTIES };

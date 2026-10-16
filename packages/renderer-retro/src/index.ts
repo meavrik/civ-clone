@@ -8,3 +8,6 @@ export * from "./widgets.js";
 export * from "./screens/city.js";
 export * from "./screens/map-city.js";
 export * from "./screens/discovery.js";
+export * from "./screens/title.js";
+export * from "./screens/advisors.js";
+export * from "./screens/diplomacy.js";

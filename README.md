@@ -29,13 +29,16 @@ pnpm typecheck
 
 Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify · `S` sentry ·
 `I`/`M`/`R` irrigate/mine/road · `B` found city · `Shift+D` disband · `C` centre ·
-`Enter` end turn · `T` rates · `A` science advisor · `G` revolution · `Esc` orders menu.
+`Enter` end turn · `T` rates · `G` revolution · `Esc` orders menu (or game menu) ·
+`F1` cities · `F2` military · `F3` foreign (Enter to talk) · `F4` science · `F5` score · `F10` game menu.
 Mouse: click an adjacent tile to move/attack · click farther away to go there ·
 click your own unit to activate it · click the active unit to cycle the stack ·
 click a city to open it · right-click for the orders menu · click the minimap to scroll.
 City screen: click tiles to work them · `C` change production · `B` buy · `N` rename · `Esc`.
 
-URL options: `?seed=1234&difficulty=2&opponents=2&civ=greeks`
+URL options skip the setup screens: `?seed=1234&difficulty=2&opponents=2&civ=greeks`.
+Saves: slots 1–5 in the game menu, autosave to slot 0 every 5 turns. A save is the seed plus the
+command log and is replayed on load, so it also serves as a replay for the AI harness.
 
 ## Design rules
 
@@ -53,6 +56,7 @@ URL options: `?seed=1234&difficulty=2&opponents=2&civ=greeks`
 3. Cities: founding, growth, tiles worked, production, buildings, happiness  ← done
 4. Tech tree, governments, wonders, rates  ← done (tree data to verify against FreeCiv civ1)
 5. Combat, barbarians, transport, goto, multi-civ turn loop, baseline AI, mouse control  ← done
-6. Full game loop: score, end conditions, save/load, diplomacy screen, advisors
+6. Title/setup, save/load (seed + command log, IndexedDB), huts, score, end conditions,
+   diplomacy screen with tribute/tech exchange, advisors (F1–F5)  ← done
 7. AI v2 with headless tournament harness
 8. Modern-visuals renderer

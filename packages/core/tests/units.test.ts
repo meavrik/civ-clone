@@ -18,6 +18,7 @@ function flatWorld(): GameState {
     t.road = false;
     t.irrigation = false;
     t.mine = false;
+    t.hut = false;
   }
   s.units = [];
   return s;

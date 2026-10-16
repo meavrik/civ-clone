@@ -119,3 +119,34 @@ describe("world with opponents", () => {
     expect(state.cities.length).toBeGreaterThan(1);
   });
 });
+
+describe("title, advisors, diplomacy, end", () => {
+  it("renders the phase 6 screens", async () => {
+    const { aiTurn } = await import("@civ/ai");
+    const { drawTitleScreen, drawDomesticAdvisor, drawForeignAdvisor, drawDiplomacyScreen, drawEndScreen, drawScoreScreen, leaderLine } = await import("../src/index.js");
+    const state = newGame(11, { opponents: 2 });
+    applyCommand(state, { type: "found", unit: state.units[0]!.id });
+    for (let r = 0; r < 15; r++) {
+      let guard = 0;
+      while (state.activeUnit !== null && guard++ < 50) applyCommand(state, { type: "skip", unit: state.activeUnit });
+      applyCommand(state, { type: "endTurn" });
+      while (state.currentPlayer !== 0) { aiTurn(state); applyCommand(state, { type: "endTurn" }); }
+    }
+    state.relations["0:1"] = "peace";
+    state.relations["0:2"] = "war";
+    const s = Surface.screen();
+    drawTitleScreen(s, true);
+    writeFileSync(new URL("./out/title.png", import.meta.url), encodePng(s, 3));
+    drawDomesticAdvisor(s, state);
+    writeFileSync(new URL("./out/advisor-domestic.png", import.meta.url), encodePng(s, 3));
+    drawForeignAdvisor(s, state);
+    writeFileSync(new URL("./out/advisor-foreign.png", import.meta.url), encodePng(s, 3));
+    drawScoreScreen(s, state);
+    writeFileSync(new URL("./out/score.png", import.meta.url), encodePng(s, 3));
+    drawDiplomacyScreen(s, state, 1, leaderLine(state, 1));
+    writeFileSync(new URL("./out/diplomacy.png", import.meta.url), encodePng(s, 3));
+    drawEndScreen(s, ["You have conquered the world!", "", "Total score: 123"], "Great");
+    writeFileSync(new URL("./out/end.png", import.meta.url), encodePng(s, 3));
+    expect(s.data.some((c) => c !== 0)).toBe(true);
+  });
+});

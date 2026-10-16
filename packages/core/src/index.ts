@@ -18,3 +18,5 @@ export * from "./units.js";
 export * from "./visibility.js";
 export * from "./commands.js";
 export * from "./game.js";
+export * from "./save.js";
+export * from "./score.js";

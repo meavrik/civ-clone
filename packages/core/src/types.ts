@@ -39,6 +39,8 @@ export interface Tile {
   road: boolean;
   irrigation: boolean;
   mine: boolean;
+  /** Minor tribe village; removed when entered. */
+  hut: boolean;
   /** Id of the continent (land) or ocean body this tile belongs to; 0 = unassigned. */
   continent: number;
 }
