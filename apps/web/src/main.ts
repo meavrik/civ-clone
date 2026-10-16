@@ -432,6 +432,7 @@ function eventMessage(ev: TurnEvent): string | null {
       case "spaceLaunched": return ev.player === 0 ? "Our spaceship is on its way." : `The ${state.players[ev.player]?.name} have launched a spaceship!`;
       case "spaceArrived": return ev.player === 0 ? "Our colonists have landed!" : `The ${state.players[ev.player]?.name} have reached their new world.`;
       case "spaceLost": return ev.player === 0 ? "Our spaceship is lost!" : `The ${state.players[ev.player]?.name} spaceship is lost.`;
+      case "nuked": return ev.stopped ? "SDI Defense destroys the missile!" : ev.by === 0 ? "Nuclear detonation!" : `The ${state.players[ev.by]?.name} have used a nuclear weapon!`;
       case "spy": return ev.action === "steal" ? `Our diplomat steals ${ev.detail} from ${ev.target}!`
         : ev.action === "sabotage" ? `Our diplomat wrecks ${ev.target}: ${ev.detail} destroyed.`
         : `${ev.target} revolts and joins us!`;
@@ -547,7 +548,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
   if (r.ok) {
     log.push({ type: "move", unit, dx, dy });
     if (lastCombat) reportCombat();
-    const ev = lastTurnEvents.find((e) => e.kind === "hut" || e.kind === "cityCaptured" || e.kind === "cityLost" || e.kind === "tradeRoute");
+    const ev = lastTurnEvents.find((e) => e.kind === "hut" || e.kind === "cityCaptured" || e.kind === "cityLost" || e.kind === "tradeRoute" || e.kind === "nuked");
     if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
   } else if (r.reason === "treaty") {
     const u = unitById(state, unit)!;

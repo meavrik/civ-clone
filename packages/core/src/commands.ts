@@ -92,7 +92,8 @@ export type TurnEvent =
   | { kind: "spaceLaunched"; player: number }
   | { kind: "spaceArrived"; player: number }
   | { kind: "spaceLost"; player: number }
-  | { kind: "spy"; action: DiplomatAction; detail: string; target: string };
+  | { kind: "spy"; action: DiplomatAction; detail: string; target: string }
+  | { kind: "nuked"; x: number; y: number; by: number; stopped: boolean };
 
 export type HutResult =
   | { kind: "gold"; amount: number }
@@ -285,6 +286,12 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
 
 function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandResult {
   lastCombat = null;
+  if (unitType(u.type).flags?.includes("nuclear")) {
+    const tx = wrapX(state.map, u.x + dx);
+    const ty = u.y + dy;
+    const hostile = state.units.some((o) => o.owner !== u.owner && o.x === tx && o.y === ty) || state.cities.some((c) => c.owner !== u.owner && c.x === tx && c.y === ty);
+    if (hostile) return detonate(state, u, tx, ty);
+  }
   const r = checkMove(state, u, dx, dy);
   if (!r.ok && r.reason === "attack") {
     const defenderOwner = state.units.find((o) => o.owner !== u.owner && o.x === wrapX(state.map, u.x + dx) && o.y === u.y + dy)!.owner;
@@ -405,6 +412,47 @@ function spy(state: GameState, u: Unit, action: DiplomatAction, x: number, y: nu
   lastTurnEvents.push({ kind: "spy", action, detail, target: city.name });
   removeUnit(state, u);
   recomputeVisibility(state, me.id);
+  return { ok: true };
+}
+
+/**
+ * A nuclear strike on (x, y): every unit within one tile dies, a city there
+ * loses half its people, and the land is left with fallout. A city with
+ * SDI Defense within three tiles shoots the missile down. Needs a war.
+ */
+function detonate(state: GameState, u: Unit, x: number, y: number): CommandResult {
+  const owners = new Set<number>();
+  for (const o of state.units) if (o.x === x && o.y === y) owners.add(o.owner);
+  for (const c of state.cities) if (c.x === x && c.y === y) owners.add(c.owner);
+  for (const owner of owners) if (owner !== u.owner && !atWar(state, u.owner, owner)) return { ok: false, reason: "treaty" };
+  const shielded = state.cities.some((c) => c.owner !== u.owner && c.buildings.includes("sdi_defense") && Math.abs(c.y - y) <= 3 && Math.min(Math.abs(c.x - x), state.map.width - Math.abs(c.x - x)) <= 3);
+  if (shielded) {
+    lastTurnEvents.push({ kind: "nuked", x, y, by: u.owner, stopped: true });
+    removeUnit(state, u);
+    return { ok: true };
+  }
+  const dead = new Set<number>();
+  for (const o of state.units) {
+    if (o.id === u.id) continue;
+    const ddx = Math.abs(o.x - x);
+    if (Math.min(ddx, state.map.width - ddx) <= 1 && Math.abs(o.y - y) <= 1) dead.add(o.id);
+  }
+  for (const id of [...dead]) for (const o of state.units) if (o.aboard === id) dead.add(o.id);
+  state.units = state.units.filter((o) => !dead.has(o.id) && o.id !== u.id);
+  const city = cityAt(state, x, y);
+  if (city) {
+    city.size = Math.max(1, Math.floor(city.size / 2));
+    autoAssignWorkers(state, city);
+  }
+  for (const [ddx, ddy] of [[0, 0], ...NEIGHBOURS] as const) {
+    const t = getTile(state.map, x + ddx, y + ddy);
+    if (t && t.terrain !== Terrain.Ocean) t.pollution = true;
+  }
+  lastTurnEvents.push({ kind: "nuked", x, y, by: u.owner, stopped: false });
+  for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
+  for (const p of state.players) if (p.alive) recomputeVisibility(state, p.id);
+  if (state.activeUnit !== null && !state.units.some((o) => o.id === state.activeUnit)) state.activeUnit = null;
+  selectNextUnit(state, u.id);
   return { ok: true };
 }
 
