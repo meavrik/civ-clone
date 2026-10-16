@@ -41,6 +41,12 @@ export interface Tile {
   mine: boolean;
   /** Minor tribe village; removed when entered. */
   hut: boolean;
+  /** Rails on top of a road: free movement along them, more shields. */
+  railroad: boolean;
+  /** Settler-built fortification: doubles defence, no stack losses. */
+  fortress: boolean;
+  /** Industrial pollution: halves the tile's output until cleaned. */
+  pollution: boolean;
   /** Id of the continent (land) or ocean body this tile belongs to; 0 = unassigned. */
   continent: number;
 }
@@ -52,13 +58,16 @@ export interface WorldMap {
   tiles: Tile[];
 }
 
+/** Settler jobs on a tile. */
+export type WorkKind = "irrigate" | "mine" | "road" | "railroad" | "fortress" | "clean";
+
 export type UnitOrder =
   | { kind: "none" }
   | { kind: "fortified" }
   | { kind: "fortifying" }
   | { kind: "sentry" }
   | { kind: "goto"; x: number; y: number }
-  | { kind: "work"; work: "irrigate" | "mine" | "road"; turnsLeft: number };
+  | { kind: "work"; work: WorkKind; turnsLeft: number };
 
 export interface Unit {
   id: number;
@@ -150,6 +159,8 @@ export interface GameState {
   currentPlayer: number;
   /** Id of the unit awaiting orders, or null when the turn can end. */
   activeUnit: number | null;
+  /** Pollution pressure accumulated toward the next bout of global warming. */
+  warming: number;
 }
 
 export function wrapX(map: WorldMap, x: number): number {

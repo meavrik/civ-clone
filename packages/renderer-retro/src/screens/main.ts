@@ -15,7 +15,7 @@ import {
   type GameState,
 } from "@civ/core";
 import { drawText, drawTextCentered } from "../font.js";
-import { drawIrrigation, drawMine, drawRoad, drawUnit, unitSprite } from "../overlays.js";
+import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawRiver, drawSpecial, getTile as terrainTile, TILE } from "../tiles.js";
@@ -71,10 +71,11 @@ function riverMask(state: GameState, x: number, y: number): number {
   return mask;
 }
 
-function roadMask(state: GameState, x: number, y: number): number {
+function roadMask(state: GameState, x: number, y: number, rail = false): number {
   let mask = 0;
   NEIGHBOURS.forEach(([dx, dy], i) => {
-    if (getTile(state.map, x + dx, y + dy)?.road) mask |= 1 << i;
+    const n = getTile(state.map, x + dx, y + dy);
+    if (n && (rail ? n.railroad : n.road)) mask |= 1 << i;
   });
   return mask;
 }
@@ -108,7 +109,10 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       if (tile.irrigation) drawIrrigation(s, dx, dy);
       if (tile.mine) drawMine(s, dx, dy);
       if (tile.road) drawRoad(s, dx, dy, roadMask(state, mx, my));
+      if (tile.railroad) drawRailroad(s, dx, dy, roadMask(state, mx, my, true));
       if (tile.special) drawSpecial(s, dx, dy, tile.terrain);
+      if (tile.fortress) drawFortress(s, dx, dy);
+      if (tile.pollution) drawPollution(s, dx, dy);
     }
   }
 
@@ -209,7 +213,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
       const r = TERRAIN_RULES[t.terrain];
       drawText(s, 4, y, `(${TERRAIN_NAMES[t.terrain]})`, dim);
       y += 9;
-      const extras = [t.river && "River", t.road && "Road", t.irrigation && "Irrigation", t.mine && "Mine", t.special && r.special?.name]
+      const extras = [t.river && "River", t.railroad ? "Railroad" : t.road && "Road", t.irrigation && "Irrigation", t.mine && "Mine", t.fortress && "Fortress", t.pollution && "Pollution", t.special && r.special?.name]
         .filter(Boolean)
         .join(", ");
       if (extras) {
@@ -220,7 +224,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     const w = workOptions(state, active);
     const keys = [
       unitType(active.type).flags?.includes("settler") && !canFoundCity(state, active.x, active.y) && "B",
-      w.irrigate !== undefined && "I", w.mine !== undefined && "M", w.road !== undefined && "R",
+      w.irrigate !== undefined && "I", w.mine !== undefined && "M", (w.road ?? w.railroad) !== undefined && "R",
+      w.fortress !== undefined && "F", w.clean !== undefined && "P",
     ].filter(Boolean);
     if (keys.length) {
       drawText(s, 4, y, `Orders: ${keys.join(" ")}`, dim);

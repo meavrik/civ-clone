@@ -43,6 +43,7 @@ import {
   type Player,
   type Production,
   type Unit,
+  type WorkKind,
 } from "@civ/core";
 import { baselineTurn } from "./baseline.js";
 
@@ -447,7 +448,9 @@ function wantBuilding(state: GameState, ctx: Ctx, c: City, r: CityReport, id: st
     case "bank": return r.tax >= 8 ? 4 : 0;
     case "harbour": return 0;
     case "factory": return r.shields >= 10 ? 8 : 0;
-    case "power_plant": case "hydro_plant": case "nuclear_plant": return r.shields >= 15 ? 4 : 0;
+    case "power_plant": case "hydro_plant": case "nuclear_plant": return r.shields >= 15 ? 4 + (r.pollution >= 10 ? 4 : 0) : 0;
+    case "mass_transit": return r.pollution >= 8 && c.size >= 8 ? 10 : 0;
+    case "recycling_center": return r.pollution >= 8 ? 9 : 0;
     default: return 0;
   }
 }
@@ -955,7 +958,7 @@ function orderCaravan(state: GameState, ctx: Ctx, u: Unit): void {
 
 // ---- settlers -------------------------------------------------------------------------
 
-interface Job { x: number; y: number; work: "irrigate" | "mine" | "road"; value: number }
+interface Job { x: number; y: number; work: WorkKind; value: number }
 
 /** Jobs around a city, computed once per turn; a job vanishes from the list once a settler takes it. */
 function cityJobs(state: GameState, ctx: Ctx, c: City): Job[] {
@@ -993,10 +996,26 @@ function terraformJobs(state: GameState, ctx: Ctx, c: City): Job[] {
     const r = TERRAIN_RULES[t.terrain];
     const busy = ctx.units.some((o) => o.order.kind === "work" && o.x === x && o.y === y);
     if (busy) continue;
+    if (t.pollution) { jobs.push({ x, y, work: "clean", value: 6 }); continue; }
     if (r.irrigate?.food && r.irrigate.becomes === undefined && !t.irrigation && !t.mine && hasWaterNearby(state, x, y))
       jobs.push({ x, y, work: "irrigate", value: 3 + (gov.tilePenalty && r.food >= 2 ? -1 : 0) });
     if (t.terrain === Terrain.Hills && !t.mine) jobs.push({ x, y, work: "mine", value: 4 });
     if (r.road.trade > 0 && !t.road && !t.river) jobs.push({ x, y, work: "road", value: 2 + gov.tradeBonus });
+    if (ctx.p.advances.includes("railroad") && tileYield(state, t, false, ctx.p.government).shields >= 2) {
+      // Rails pay on shield tiles; the road comes first where there is none yet.
+      if (t.road && !t.railroad) jobs.push({ x, y, work: "railroad", value: 3 });
+      else if (!t.road && !t.river && r.road.turns > 0) jobs.push({ x, y, work: "road", value: 2 });
+    }
+  }
+  // Pollution anywhere in the radius is worth clearing, worked or not.
+  for (let s = 1; s < CITY_RADIUS.length; s++) {
+    if (c.worked.includes(s)) continue;
+    const [dx, dy] = CITY_RADIUS[s]!;
+    const x = wrapX(state.map, c.x + dx);
+    const y = c.y + dy;
+    const t = getTile(state.map, x, y);
+    if (!t?.pollution || ctx.units.some((o) => o.order.kind === "work" && o.x === x && o.y === y)) continue;
+    jobs.push({ x, y, work: "clean", value: 5 });
   }
   return jobs;
 }

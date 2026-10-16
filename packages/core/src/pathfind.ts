@@ -79,6 +79,7 @@ export function findPath(state: GameState, u: Unit, tx: number, ty: number): [nu
       if (ni !== target && blocked(ni)) continue;
       let cost: number;
       if (!land) cost = MOVE_FRAC;
+      else if (from.railroad && to.railroad) cost = 0;
       else if (from.road && to.road) cost = 1;
       else if (from.river && to.river && (dx === 0 || dy === 0)) cost = 1;
       else cost = TERRAIN_RULES[to.terrain].moveCost * MOVE_FRAC;

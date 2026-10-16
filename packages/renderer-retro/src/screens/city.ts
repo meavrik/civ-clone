@@ -16,7 +16,7 @@ import {
   type GameState,
 } from "@civ/core";
 import { drawText, drawTextCentered, textWidth } from "../font.js";
-import { drawIrrigation, drawMine, drawRoad, unitSprite } from "../overlays.js";
+import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawRiver, drawSpecial, getTile as terrainTile, TILE } from "../tiles.js";
@@ -132,7 +132,10 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       if (tile.irrigation) drawIrrigation(s, px, py);
       if (tile.mine) drawMine(s, px, py);
       if (tile.road) drawRoad(s, px, py, 0);
+      if (tile.railroad) drawRailroad(s, px, py, 0);
       if (tile.special) drawSpecial(s, px, py, tile.terrain);
+      if (tile.fortress) drawFortress(s, px, py);
+      if (tile.pollution) drawPollution(s, px, py);
       const worked = slot === 0 || city.worked.includes(slot);
       if (worked) {
         const y = tileYield(state, tile, slot === 0, player.government);
@@ -166,6 +169,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   row("Trade", `${r.trade}${r.routes ? ` (${r.routes} routes)` : ""}${r.corruption ? ` (-${r.corruption})` : ""}`);
   row("Tax/Lux/Sci", `${r.tax}/${r.lux}/${r.science}`);
   row("Upkeep", `${r.buildingUpkeep}$`);
+  if (r.pollution > 0) row("Pollution", `${r.pollution}%`, C.LRED!);
   y += 2;
   drawText(s, COL2_X, y, "Improvements", dim);
   y += 9;

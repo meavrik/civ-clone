@@ -45,6 +45,7 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
   if ((tile.irrigation || isCentre) && r.irrigate?.food && !tile.mine) food += r.irrigate.food;
   if (tile.mine && r.mine?.shields) shields += r.mine.shields;
   if (isCentre && shields < 1) shields = 1;
+  if (tile.railroad) shields += Math.floor(shields / 2);
   const gov = government(govId);
   if (gov.tilePenalty) {
     if (food > 2) food--;
@@ -52,7 +53,39 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
     if (trade > 2) trade--;
   }
   if (gov.tradeBonus && trade > 0) trade += gov.tradeBonus;
+  if (tile.pollution) {
+    food = Math.floor(food / 2);
+    shields = Math.floor(shields / 2);
+    trade = Math.floor(trade / 2);
+  }
   return { food, shields, trade };
+}
+
+/** Advances that make each citizen pollute a little more. */
+const POLLUTING_ADVANCES = ["industrialization", "automobile", "mass_production", "plastics"];
+
+/**
+ * Chance (percent per turn) that the city fouls a tile in its radius:
+ * shields over twenty, plus a share of the population once industry
+ * arrives. Mass Transit removes the population part; Recycling Centers,
+ * plants and the Hoover Dam cut the production part (the best one counts).
+ */
+export function pollutionChance(state: GameState, city: City, shields: number): number {
+  const p = state.players[city.owner]!;
+  let prodCut = 0;
+  let transit = false;
+  for (const id of city.buildings) {
+    const b = building(id);
+    if (id === "mass_transit") transit = true;
+    else if (b.pollutionPct) prodCut = Math.max(prodCut, b.pollutionPct);
+  }
+  const here = getTile(state.map, city.x, city.y)!.continent;
+  for (const { rule, city: wc } of activeWonders(state, city.owner))
+    if (rule.effect.kind === "powerPlantContinent" && getTile(state.map, wc.x, wc.y)!.continent === here) prodCut = Math.max(prodCut, 50);
+  const prod = Math.floor((shields * (100 - prodCut)) / 100);
+  const techs = POLLUTING_ADVANCES.filter((a) => knows(p.advances, a)).length;
+  const pop = transit ? 0 : Math.floor((city.size * techs * 25) / 100);
+  return Math.max(0, prod + pop - 20);
 }
 
 export function cityById(state: GameState, id: number): City | undefined {
@@ -114,6 +147,8 @@ export interface CityReport {
   trade: number;
   /** Part of `trade` that comes from caravan routes. */
   routes: number;
+  /** Percent chance per turn of polluting a tile. */
+  pollution: number;
   foodSurplus: number;
   shieldSurplus: number;
   /** Unit upkeep in shields and food. */
@@ -377,6 +412,7 @@ export function computeCity(state: GameState, city: City): CityReport {
 
   return {
     food, shields, trade, routes,
+    pollution: pollutionChance(state, city, shields),
     foodSurplus: food - foodEaten,
     shieldSurplus: disorder ? 0 : shields - unitShields,
     unitShields, unitFood, corruption,
@@ -444,7 +480,7 @@ export function buyCost(city: City): number {
 
 export interface CityTurnEvent {
   city: number;
-  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine" | "sold";
+  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine" | "sold" | "pollution";
   detail?: string;
 }
 

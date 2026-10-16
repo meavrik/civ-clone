@@ -1,12 +1,14 @@
 import { computeCity } from "./cities.js";
 import { wonder } from "./rules/wonders.js";
-import type { GameState } from "./types.js";
+import { CITY_RADIUS, wrapX, type GameState } from "./types.js";
 
 export interface ScoreBreakdown {
   citizens: number; // happy 2, content 1
   wonders: number;
   peace: number;
   techs: number;
+  /** Penalty: polluted tiles around the civ's cities. */
+  pollution: number;
   total: number;
 }
 
@@ -28,7 +30,18 @@ export function computeScore(state: GameState, owner: number): ScoreBreakdown {
   const atWarWithAnyone = Object.entries(state.relations).some(([k, v]) => v === "war" && k.split(":").map(Number).includes(owner));
   const peace = atWarWithAnyone ? 0 : 3;
   const techs = p.advances.length * 2;
-  return { citizens, wonders, peace, techs, total: citizens + wonders + peace + techs };
+  const polluted = new Set<number>();
+  for (const c of state.cities) {
+    if (c.owner !== owner) continue;
+    for (const [dx, dy] of CITY_RADIUS) {
+      const y = c.y + dy;
+      if (y < 0 || y >= state.map.height) continue;
+      const i = y * state.map.width + wrapX(state.map, c.x + dx);
+      if (state.map.tiles[i]!.pollution) polluted.add(i);
+    }
+  }
+  const pollution = -5 * polluted.size;
+  return { citizens, wonders, peace, techs, pollution, total: citizens + wonders + peace + techs + pollution };
 }
 
 /** Civilization-level rank string shown on the end screen. */

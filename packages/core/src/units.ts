@@ -1,6 +1,7 @@
-import { MOVE_FRAC, TERRAIN_RULES } from "./rules/terrain.js";
+import { knows } from "./rules/advances.js";
+import { CLEAN_TURNS, FORTRESS_TURNS, MOVE_FRAC, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
-import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Unit } from "./types.js";
+import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Unit, type WorkKind } from "./types.js";
 
 export function unitAt(state: GameState, x: number, y: number): Unit[] {
   const wx = wrapX(state.map, x);
@@ -113,6 +114,7 @@ export function checkMove(state: GameState, u: Unit, dx: number, dy: number): Mo
 
   let cost: number;
   if (type.domain !== "land" || board !== undefined) cost = MOVE_FRAC;
+  else if (from.railroad && to.railroad) cost = 0;
   else if (from.road && to.road) cost = 1;
   else if (from.river && to.river && (dx === 0 || dy === 0)) cost = 1;
   else cost = TERRAIN_RULES[to.terrain].moveCost * MOVE_FRAC;
@@ -139,15 +141,20 @@ export function applyMove(state: GameState, u: Unit, dx: number, dy: number, r: 
 }
 
 /** Which settler work is possible on the unit's tile, with turns required. */
-export function workOptions(state: GameState, u: Unit): { irrigate?: number; mine?: number; road?: number } {
+export function workOptions(state: GameState, u: Unit): Partial<Record<WorkKind, number>> {
   if (!unitType(u.type).flags?.includes("settler") || u.aboard !== null) return {};
   const t = getTile(state.map, u.x, u.y)!;
   const r = TERRAIN_RULES[t.terrain];
-  const out: { irrigate?: number; mine?: number; road?: number } = {};
+  const known = state.players[u.owner]!.advances;
+  const out: Partial<Record<WorkKind, number>> = {};
   if (r.irrigate && !t.irrigation && (r.irrigate.becomes !== undefined || hasWaterNearby(state, u.x, u.y)))
     out.irrigate = r.irrigate.turns;
   if (r.mine && !t.mine) out.mine = r.mine.turns;
   if (r.road.turns > 0 && !t.road && !t.river) out.road = r.road.turns;
+  if (t.road && !t.railroad && knows(known, "railroad")) out.railroad = Math.max(2, r.road.turns * RAILROAD_TURNS_FACTOR);
+  if (!t.fortress && t.terrain !== Terrain.Ocean && knows(known, "construction") && !state.cities.some((c) => c.x === u.x && c.y === u.y))
+    out.fortress = FORTRESS_TURNS;
+  if (t.pollution) out.clean = CLEAN_TURNS;
   return out;
 }
 

@@ -266,6 +266,9 @@ function openActionMenu(unit: number): void {
   if (w.irrigate !== undefined) items.push([`Irrigate (I) ${w.irrigate}t`, () => dispatch({ type: "work", unit, work: "irrigate" })]);
   if (w.mine !== undefined) items.push([`Mine (M) ${w.mine}t`, () => dispatch({ type: "work", unit, work: "mine" })]);
   if (w.road !== undefined) items.push([`Road (R) ${w.road}t`, () => dispatch({ type: "work", unit, work: "road" })]);
+  if (w.railroad !== undefined) items.push([`Railroad (R) ${w.railroad}t`, () => dispatch({ type: "work", unit, work: "railroad" })]);
+  if (w.fortress !== undefined) items.push([`Fortress (F) ${w.fortress}t`, () => dispatch({ type: "work", unit, work: "fortress" })]);
+  if (w.clean !== undefined) items.push([`Clean pollution (P) ${w.clean}t`, () => dispatch({ type: "work", unit, work: "clean" })]);
   if (type.flags?.includes("caravan")) {
     const c = cityAt(state, u.x, u.y);
     if (c && canHelpWonder(state, u, c) === null) items.push(["Help build wonder", () => dispatch({ type: "helpWonder", unit })]);
@@ -360,6 +363,7 @@ function eventMessage(ev: TurnEvent): string | null {
       case "barbarians": return "Barbarians have landed!";
       case "eliminated": return `The ${state.players[ev.player]?.name} civilization has been destroyed.`;
       case "tradeRoute": return `Trade route ${ev.from}-${ev.to}: +${ev.bonus} gold and science`;
+      case "globalWarming": return "Global warming! Fields wither and forests turn to jungle.";
       case "hut": {
         const r = ev.result;
         return r.kind === "gold" ? `The tribe gives you ${r.amount} gold.`
@@ -381,6 +385,7 @@ function eventMessage(ev: TurnEvent): string | null {
     case "starving": return `${name} is starving`;
     case "famine": return `Famine in ${name}: ${ev.detail} lost`;
     case "sold": return `${name} sells its ${ev.detail} to pay the bills`;
+    case "pollution": return `Pollution near ${name}!`;
   }
 }
 
@@ -441,7 +446,7 @@ function endTurn(): void {
     for (const ev of lastTurnEvents) {
       if (ev.kind === "contact" && ev.player === 0) events.push({ kind: "contact", player: ai });
       else if ((ev.kind === "cityLost" || ev.kind === "cityCaptured") && ev.player === 0) events.push(ev);
-      else if (ev.kind === "eliminated" || ev.kind === "barbarians") events.push(ev);
+      else if (ev.kind === "eliminated" || ev.kind === "barbarians" || ev.kind === "globalWarming") events.push(ev);
     }
   }
   for (const ev of lastTurnEvents) if (ev.kind === "contact" || ev.kind === "eliminated") events.push(ev);
@@ -495,11 +500,20 @@ function mapKey(e: KeyboardEvent): void {
     case "Enter": case "NumpadEnter": if (active === null) endTurn(); break;
     case "Space": order({ type: "skip", unit: active! }); break;
     case "KeyW": order({ type: "wait", unit: active! }); break;
-    case "KeyF": order({ type: "fortify", unit: active! }); break;
+    case "KeyF": {
+      const u = active !== null ? unitById(state, active) : undefined;
+      order(u && workOptions(state, u).fortress !== undefined ? { type: "work", unit: active!, work: "fortress" } : { type: "fortify", unit: active! });
+      break;
+    }
     case "KeyS": order({ type: "sentry", unit: active! }); break;
     case "KeyI": order({ type: "work", unit: active!, work: "irrigate" }); break;
     case "KeyM": order({ type: "work", unit: active!, work: "mine" }); break;
-    case "KeyR": order({ type: "work", unit: active!, work: "road" }); break;
+    case "KeyR": {
+      const u = active !== null ? unitById(state, active) : undefined;
+      order({ type: "work", unit: active!, work: u && workOptions(state, u).road === undefined ? "railroad" : "road" });
+      break;
+    }
+    case "KeyP": order({ type: "work", unit: active!, work: "clean" }); break;
     case "KeyB": {
       if (active === null) break;
       const u = unitById(state, active)!;

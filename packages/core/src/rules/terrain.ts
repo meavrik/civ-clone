@@ -93,3 +93,12 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
 
 /** Movement points are stored in thirds so roads (1/3) stay integral. */
 export const MOVE_FRAC = 3;
+
+/** Settler-turns for the later improvements: rails take twice a road, forts and clean-ups three turns. */
+export const RAILROAD_TURNS_FACTOR = 2;
+export const FORTRESS_TURNS = 3;
+export const CLEAN_TURNS = 3;
+
+/** Polluted tiles above this count push the world toward global warming; it strikes when the pressure reaches the limit. */
+export const WARMING_THRESHOLD = 12;
+export const WARMING_LIMIT = 100;

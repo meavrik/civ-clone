@@ -19,7 +19,8 @@ export function defenseStrength(state: GameState, d: Unit, attacker: Unit): numb
   if (type.domain === "land") s *= TERRAIN_RULES[tile.terrain].defense;
   if (d.veteran) s *= 1.5;
   const city = cityAt(state, d.x, d.y);
-  if (d.order.kind === "fortified" || city) s *= 1.5;
+  if (tile.fortress && !city && type.domain === "land") s *= 2;
+  else if (d.order.kind === "fortified" || city) s *= 1.5;
   const aType = unitType(attacker.type);
   if (city && aType.domain === "land" && (city.buildings.includes("city_walls") || hasWonder(state, city.owner, "great_wall"))) s *= 3;
   return s;
@@ -72,7 +73,7 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
   const city = cityAt(state, tx, ty);
 
   if (attackerWon) {
-    if (city) destroyed.push(defender.id);
+    if (city || targetTile.fortress) destroyed.push(defender.id);
     else for (const o of unitAt(state, tx, ty)) if (o.owner === defender.owner) destroyed.push(o.id);
     if (nextFloat(state.rng) < 0.5) u.veteran = true;
   } else {

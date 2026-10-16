@@ -8,6 +8,7 @@ import {
   canTradeRoute,
   cityAt,
   cityById,
+  computeCity,
   foundCity,
   processCityTurn,
   productionCost,
@@ -22,10 +23,10 @@ import { findPath, stepDir } from "./pathfind.js";
 import { ADVANCE_BY_ID, ADVANCES, advance, availableAdvances, researchCost } from "./rules/advances.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
 import { WONDERS } from "./rules/wonders.js";
-import { MOVE_FRAC, TERRAIN_RULES } from "./rules/terrain.js";
+import { MOVE_FRAC, TERRAIN_RULES, WARMING_LIMIT, WARMING_THRESHOLD } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
-import { getTile, NEIGHBOURS, Terrain, wrapX, type City, type GameState, type Player, type Production, type Specialist, type Unit } from "./types.js";
+import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type GameState, type Player, type Production, type Specialist, type Unit, type WorkKind } from "./types.js";
 import { applyMove, cargo, checkMove, createUnit, fullMoves, unitById, workOptions } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
@@ -40,7 +41,7 @@ export type Command =
   | { type: "sentry"; unit: number }
   | { type: "skip"; unit: number } // space: done for this turn
   | { type: "wait"; unit: number } // w: come back to it later
-  | { type: "work"; unit: number; work: "irrigate" | "mine" | "road" }
+  | { type: "work"; unit: number; work: WorkKind }
   | { type: "disband"; unit: number }
   | { type: "found"; unit: number; name?: string }
   | { type: "setProduction"; city: number; production: Production }
@@ -79,7 +80,8 @@ export type TurnEvent =
   | { kind: "barbarians" }
   | { kind: "eliminated"; player: number }
   | { kind: "hut"; result: HutResult }
-  | { kind: "tradeRoute"; from: string; to: string; bonus: number };
+  | { kind: "tradeRoute"; from: string; to: string; bonus: number }
+  | { kind: "globalWarming" };
 
 export type HutResult =
   | { kind: "gold"; amount: number }
@@ -532,6 +534,9 @@ export function endTurn(state: GameState): void {
         const t = getTile(state.map, u.x, u.y)!;
         const rule = TERRAIN_RULES[t.terrain];
         if (u.order.work === "road") t.road = true;
+        else if (u.order.work === "railroad") t.railroad = true;
+        else if (u.order.work === "fortress") t.fortress = true;
+        else if (u.order.work === "clean") t.pollution = false;
         else if (u.order.work === "irrigate") {
           if (rule.irrigate?.becomes !== undefined) t.terrain = rule.irrigate.becomes;
           else t.irrigation = true;
@@ -546,8 +551,9 @@ export function endTurn(state: GameState): void {
     }
   }
 
-  // Cities: growth, production, treasury.
+  // Cities: growth, production, treasury, and the smoke they make.
   for (const c of state.cities) if (c.owner === player) lastTurnEvents.push(...processCityTurn(state, c));
+  for (const c of state.cities) if (c.owner === player && pollute(state, c)) lastTurnEvents.push({ city: c.id, kind: "pollution" });
   for (const c of state.cities)
     if (c.owner === player && c.worked.length + c.specialists.length !== c.size) autoAssignWorkers(state, c);
 
@@ -604,9 +610,55 @@ export function endTurn(state: GameState): void {
     const before = state.units.length;
     maybeSpawnBarbarians(state);
     if (state.units.length > before) lastTurnEvents.push({ kind: "barbarians" });
+    if (updateWarming(state)) lastTurnEvents.push({ kind: "globalWarming" });
   }
   state.currentPlayer = next;
   startTurn(state, next);
+}
+
+/** Roll for pollution around a city; a fouled tile returns true. */
+function pollute(state: GameState, city: City): boolean {
+  const chance = computeCity(state, city).pollution;
+  if (chance <= 0 || nextInt(state.rng, 100) >= chance) return false;
+  const candidates: number[] = [];
+  for (const [dx, dy] of CITY_RADIUS) {
+    const y = city.y + dy;
+    if (y < 0 || y >= state.map.height) continue;
+    const i = y * state.map.width + wrapX(state.map, city.x + dx);
+    const t = state.map.tiles[i]!;
+    if (t.terrain !== Terrain.Ocean && !t.pollution) candidates.push(i);
+  }
+  if (candidates.length === 0) return false;
+  state.map.tiles[candidates[nextInt(state.rng, candidates.length)]!]!.pollution = true;
+  return true;
+}
+
+/** Pollution pressure builds while many tiles are fouled; at the limit the climate shifts. */
+function updateWarming(state: GameState): boolean {
+  let polluted = 0;
+  for (const t of state.map.tiles) if (t.pollution) polluted++;
+  if (polluted > WARMING_THRESHOLD) state.warming += polluted - WARMING_THRESHOLD;
+  else state.warming = Math.max(0, state.warming - 2);
+  if (state.warming < WARMING_LIMIT) return false;
+  state.warming = 0;
+  globalWarming(state);
+  return true;
+}
+
+/** Global warming: about a twelfth of the open land dries out or turns to swamp and jungle. */
+export function globalWarming(state: GameState): void {
+  for (const t of state.map.tiles) {
+    if (nextInt(state.rng, 12) !== 0) continue;
+    switch (t.terrain) {
+      case Terrain.Grassland: t.terrain = nextInt(state.rng, 2) === 0 ? Terrain.Plains : Terrain.Swamp; break;
+      case Terrain.Plains: t.terrain = Terrain.Desert; break;
+      case Terrain.Forest: t.terrain = Terrain.Jungle; break;
+      default: continue;
+    }
+    t.irrigation = false;
+    t.mine = false;
+    t.special = false;
+  }
 }
 
 /** Begin a player's turn: restore moves, continue gotos, wake sentries, pick the first unit. */

@@ -27,6 +27,48 @@ export function drawRoad(s: Surface, dx: number, dy: number, mask: number): void
   if (!any) s.rect(cx - 1, cy - 1, 4, 4, c); // isolated stub
 }
 
+/** Railroad: a dark rail along each connected direction with cross-ties, over the road. */
+export function drawRailroad(s: Surface, dx: number, dy: number, mask: number): void {
+  const rail = shade("stone", 1);
+  const tie = shade("earth", 2);
+  const cx = dx + 7;
+  const cy = dy + 7;
+  const ends: [number, number][] = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+  let any = false;
+  ends.forEach(([ex, ey], i) => {
+    if (!(mask & (1 << i))) return;
+    any = true;
+    for (let t = 0; t <= 8; t++) {
+      const px = cx + ex * t;
+      const py = cy + ey * t;
+      s.set(px, py, t % 3 === 1 ? tie : rail);
+      s.set(px + (ey !== 0 ? 1 : 0), py + (ex !== 0 && ey === 0 ? 1 : 0), t % 3 === 1 ? tie : rail);
+    }
+  });
+  s.rect(cx, cy, 2, 2, rail);
+  if (!any) s.rect(cx - 2, cy - 1, 6, 4, rail);
+}
+
+/** Fortress: a square rampart with corner towers. */
+export function drawFortress(s: Surface, dx: number, dy: number): void {
+  const wall = shade("stone", 5);
+  const dark = shade("stone", 2);
+  s.frame(dx + 2, dy + 2, 12, 12, wall);
+  s.frame(dx + 3, dy + 3, 10, 10, dark);
+  for (const [tx, ty] of [[2, 2], [12, 2], [2, 12], [12, 12]] as const) s.rect(dx + tx, dy + ty, 2, 2, wall);
+}
+
+/** Pollution: a smear of dark specks across the tile. */
+export function drawPollution(s: Surface, dx: number, dy: number): void {
+  const c = shade("stone", 0);
+  for (let i = 0; i < 14; i++) {
+    const x = (i * 7 + 3) % TILE;
+    const y = (i * 5 + 2) % TILE;
+    s.set(dx + x, dy + y, c);
+    s.set(dx + ((x + 1) % TILE), dy + y, c);
+  }
+}
+
 /** Irrigation: two short furrow rows in the tile's lower half. */
 export function drawIrrigation(s: Surface, dx: number, dy: number): void {
   const c = shade("ocean", 5);

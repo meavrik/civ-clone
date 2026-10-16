@@ -78,7 +78,8 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
   const mountainsAt = pct(0.91);
   const tiles: Tile[] = new Array(w * h);
   const blank = (terrain: Terrain): Tile => ({
-    terrain, river: false, special: false, road: false, irrigation: false, mine: false, hut: false, continent: 0,
+    terrain, river: false, special: false, road: false, irrigation: false, mine: false, hut: false,
+    railroad: false, fortress: false, pollution: false, continent: 0,
   });
   for (let y = 0; y < h; y++) {
     const lat = Math.abs(y - (h - 1) / 2) / ((h - 1) / 2); // 0 equator .. 1 pole

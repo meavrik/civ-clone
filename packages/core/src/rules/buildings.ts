@@ -30,7 +30,7 @@ export interface BuildingRule {
   wallsPct?: number;
   /** Required building. */
   needs?: string;
-  /** Pollution reduction percent. */
+  /** Pollution cut, percent: Mass Transit removes population pollution; the rest cut production pollution (best one counts). */
   pollutionPct?: number;
 }
 

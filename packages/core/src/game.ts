@@ -72,6 +72,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     barbarians,
     currentPlayer: 0,
     activeUnit: null,
+    warming: 0,
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

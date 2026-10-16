@@ -30,7 +30,7 @@ pnpm headless -- --games 4 --turns 200 --civs 4 --every 50   # AI-vs-AI tourname
 ```
 
 Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify · `S` sentry ·
-`I`/`M`/`R` irrigate/mine/road · `B` found city · `Shift+D` disband · `C` centre ·
+`I`/`M`/`R` irrigate/mine/road (R again: railroad) · `F` fortress (settlers) · `P` clean pollution · `B` found city · `Shift+D` disband · `C` centre ·
 `Enter` end turn · `T` rates · `G` revolution · `Esc` orders menu (or game menu) ·
 `F1` cities · `F2` military · `F3` foreign (Enter to talk) · `F4` science · `F5` score · `F10` game menu.
 Mouse: click an adjacent tile to move/attack · click farther away to go there ·

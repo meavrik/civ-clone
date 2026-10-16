@@ -113,6 +113,7 @@ export function drawScoreScreen(s: Surface, state: GameState): void {
   row("Wonders", me.wonders);
   row("Advances", me.techs);
   row("Peace", me.peace);
+  if (me.pollution) row("Pollution", me.pollution);
   row("Total", me.total);
   y += 8;
   drawText(s, 12, y, "Civilizations", dim);
