@@ -38,6 +38,10 @@ export interface GameConfig {
   ais: string[];
   /** Sample statistics every N turns (0 = final only). */
   every: number;
+  /** Premade world id; a generated world when absent. */
+  world?: string;
+  /** On a premade world, civilizations start in their historical homelands. */
+  historical?: boolean;
 }
 
 export interface PlayerStats {
@@ -103,7 +107,12 @@ export function makeRouter(config: GameConfig): AiFn {
 }
 
 export function gameOptions(config: GameConfig): NewGameOptions {
-  return { allAi: true, opponents: Math.max(1, Math.min(7, config.civs - 1)), difficulty: config.difficulty };
+  return {
+    allAi: true,
+    opponents: Math.max(1, Math.min(7, config.civs - 1)),
+    difficulty: config.difficulty,
+    ...(config.world ? { world: config.world, historical: config.historical === true } : {}),
+  };
 }
 
 export function playerStats(state: GameState, id: number, ai: string): PlayerStats {

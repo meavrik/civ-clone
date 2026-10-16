@@ -16,6 +16,7 @@ packages/renderer-modern  canvas-2D renderer: 960x600, soft colour, real fonts, 
 apps/web                  Vite app: canvas with integer scaling, keyboard input, frame loop
 tools/headless            tournament harness: seeded all-AI games, per-civ stats, replay verification
 tools/sprites             export the pixel-art sheets to PNG for a paint program, import them back
+tools/maps                rebuild the premade worlds (Earth, Europe, Middle East) from Natural Earth data
 ```
 
 The core never touches the DOM and the renderer never touches the core's
@@ -45,7 +46,13 @@ click a city to open it · right-click for the orders menu (caravans: help wonde
 City screen: click tiles to work them · `C` change production · `B` buy · `N` rename (in-game prompt) · `Esc`.
 Founding a city asks for its name (Enter accepts the suggested one).
 
-URL options skip the setup screens: `?seed=1234&difficulty=2&opponents=6&civ=greeks` (6 rivals = 7 civilizations, the default).
+URL options skip the setup screens: `?seed=1234&difficulty=2&opponents=6&civ=greeks` (6 rivals = 7 civilizations, the default);
+add `&world=earth` (or `europe`, `middle-east`) for a premade world, with `&historical=0` to scatter the civilizations.
+
+The title menu offers three kinds of world: **Start a new game** (a random world), **Play on a premade
+world** (Earth, Europe or the Middle East; then choose whether the civilizations start in their historical
+homelands, in which case only the tribes native to that map are offered) and **Customize world**
+(land mass, temperature, climate and age, as in the original).
 Entering a tribal village shows what it held in a window; meeting a civilization opens an audience with its leader.
 Saves: slots 1–5 in the game menu, autosave to slot 0 every 5 turns. A save is the seed plus the
 command log and is replayed on load, so it also serves as a replay for the AI harness.
@@ -70,6 +77,15 @@ npm run sprites -- import art-export/units.png
 
 The import rejects any colour that the sprite's legend cannot name and lists the pixels.
 `npm test` dumps `packages/renderer-retro/tests/out/sprites.png` to review the whole set.
+
+## Premade worlds
+
+`packages/core/src/map/worlds/*.ts` hold the three premade worlds as 50 rows of 80 characters
+(one per square, upper case marks a river) plus each native civilization's homeland square. They are
+generated, not drawn: `npm run maps` downloads Natural Earth's public-domain 1:50m coastlines, lakes,
+rivers and named regions once into `tools/maps/.cache`, projects them onto the grid, picks terrain from
+climate zones (`tools/maps/src/climate.ts`) and writes the modules plus preview PNGs to `tools/maps/out/`.
+Change a frame, homeland or zone in `tools/maps/src` and rerun; hand edits to the modules are lost.
 
 ## Design rules
 

@@ -3,3 +3,5 @@ dist
 *.tsbuildinfo
 packages/renderer-retro/tests/out
 art-export
+tools/maps/.cache
+tools/maps/out

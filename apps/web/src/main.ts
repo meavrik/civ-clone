@@ -10,7 +10,6 @@ import {
   canTradeRoute,
   checkGameEnd,
   cityAt,
-  CIVS,
   civ,
   computeScore,
   defaultCityName,
@@ -49,8 +48,9 @@ import {
 import {
   DIFFICULTIES,
   leaderLine,
-  opponentsForChoice,
+  setupChoose,
   setupMenu,
+  setupOptions,
   terrainInfo,
   TEXT_INPUT_MAX,
   type CityScreenView,
@@ -230,6 +230,7 @@ if (params.has("seed")) {
       difficulty: Number(params.get("difficulty") ?? 2),
       opponents: Number(params.get("opponents") ?? 6),
       ...(params.get("civ") ? { civ: params.get("civ")! } : {}),
+      ...(params.get("world") ? { world: params.get("world")!, historical: params.get("historical") !== "0" } : {}),
     },
     Number(params.get("seed")) || 2026,
   );
@@ -797,25 +798,29 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
 
 function setupKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "setup" }>): void {
   const m = setupMenu(sc.setup);
-  const civs = CIVS.filter((c) => c.id !== "barbarians");
-  const apply = (i: number) => {
-    if (sc.setup.step === "difficulty") { sc.setup.difficulty = i; sc.setup.step = "opponents"; }
-    else if (sc.setup.step === "opponents") { sc.setup.opponents = opponentsForChoice(i); sc.setup.step = "civ"; }
-    else { sc.setup.civ = civs[i]!.id; startGame({ difficulty: sc.setup.difficulty, opponents: sc.setup.opponents, civ: sc.setup.civ }); }
-  };
+  const apply = (i: number) => { if (setupChoose(sc.setup, i)) startGame(setupOptions(sc.setup)); };
   setupSelection = Math.min(setupSelection, m.items.length - 1);
   switch (e.code) {
     case "ArrowUp": case "Numpad8": setupSelection = (setupSelection + m.items.length - 1) % m.items.length; break;
     case "ArrowDown": case "Numpad2": setupSelection = (setupSelection + 1) % m.items.length; break;
-    case "Enter": case "NumpadEnter": case "Space": apply(setupSelection); setupSelection = setupMenu(sc.setup).selected; break;
+    case "Enter": case "NumpadEnter": case "Space": apply(setupSelection); if (screenState === sc) setupSelection = setupMenu(sc.setup).selected; break;
     case "Escape": screenState = { kind: "title" }; break;
   }
 }
 let setupSelection = 0;
 
+/** Begin the setup questions at `step`: a random world asks difficulty first, a premade one which world, a custom one the land. */
+function openSetup(step: SetupState["step"]): void {
+  const setup: SetupState = { step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" };
+  screenState = { kind: "setup", setup };
+  setupSelection = setupMenu(setup).selected;
+}
+
 function openTitleMenu(): void {
   const items: [string, () => void][] = [
-    ["Start a new game", () => { screenState = { kind: "setup", setup: { step: "difficulty", difficulty: 2, opponents: 6, civ: "romans" } }; setupSelection = 2; }],
+    ["Start a new game", () => openSetup("difficulty")],
+    ["Play on a premade world", () => openSetup("world")],
+    ["Customize world", () => openSetup("landMass")],
     ["Load a saved game", () => void openLoadMenu()],
     [`Visuals: ${renderer.id === "retro" ? "retro" : "modern"}`, () => { setRenderer(renderer.id === "retro" ? "modern" : "retro"); openTitleMenu(); }],
   ];

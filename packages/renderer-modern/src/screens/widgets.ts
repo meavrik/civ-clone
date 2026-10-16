@@ -10,7 +10,7 @@ const TITLE_H = 48;
 
 const BODY_LINE = 21;
 
-interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number }
+interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number }
 
 function menuLayout(ctx: Context2D, m: MenuState): MenuLayout {
   let widest = measure(ctx, m.title, 18, "600");
@@ -22,10 +22,12 @@ function menuLayout(ctx: Context2D, m: MenuState): MenuLayout {
   const w = Math.min(W - 80, Math.max(320, widest + 56));
   const lines = (m.body ?? []).flatMap((l) => wrap(ctx, l, w - 48, 15));
   const bodyH = lines.length ? lines.length * BODY_LINE + 14 : 0;
-  const h = TITLE_H + bodyH + m.items.length * ROW + 16;
+  // Long lists (every tribe, every build) tighten their rows to stay on screen.
+  const row = Math.max(20, Math.min(ROW, Math.floor((H - 32 - TITLE_H - bodyH - 16) / Math.max(1, m.items.length))));
+  const h = TITLE_H + bodyH + m.items.length * row + 16;
   const x = Math.round((W - w) / 2);
   const y = Math.round(Math.max(16, (H - h) / 2));
-  return { x, y, w, h, lines, itemsY: y + TITLE_H + bodyH };
+  return { x, y, w, h, lines, itemsY: y + TITLE_H + bodyH, row };
 }
 
 export function menuRect(ctx: Context2D, m: MenuState): { x: number; y: number; w: number; h: number } {
@@ -34,7 +36,7 @@ export function menuRect(ctx: Context2D, m: MenuState): { x: number; y: number; 
 }
 
 export function drawMenu(ctx: Context2D, m: MenuState): void {
-  const { x, y, w, h, lines, itemsY } = menuLayout(ctx, m);
+  const { x, y, w, h, lines, itemsY, row } = menuLayout(ctx, m);
   panel(ctx, x, y, w, h, 14, UI.card);
   text(ctx, x + 24, y + 14, m.title, { size: 18, weight: "600" });
   ctx.fillStyle = UI.panelEdge;
@@ -42,20 +44,20 @@ export function drawMenu(ctx: Context2D, m: MenuState): void {
   lines.forEach((line, i) => text(ctx, x + 24, y + TITLE_H + 2 + i * BODY_LINE, line, { size: 15, color: "#d5dde6" }));
   if (lines.length) { ctx.fillStyle = UI.panelEdge; ctx.fillRect(x + 16, itemsY - 7, w - 32, 1); }
   m.items.forEach((item, i) => {
-    const ry = itemsY + i * ROW;
+    const ry = itemsY + i * row;
     const sel = i === m.selected;
-    if (sel) fillRound(ctx, x + 10, ry + 1, w - 20, ROW - 2, 8, UI.selection);
-    text(ctx, x + 24, ry + 7, item, { size: 15, color: sel ? UI.ink : "#c9d3de", weight: sel ? "600" : "normal" });
+    if (sel) fillRound(ctx, x + 10, ry + 1, w - 20, row - 2, 8, UI.selection);
+    text(ctx, x + 24, ry + Math.round((row - 16) / 2), item, { size: 15, color: sel ? UI.ink : "#c9d3de", weight: sel ? "600" : "normal" });
     const r = m.right?.[i];
-    if (r) text(ctx, x + w - 24, ry + 8, r, { size: 13, color: sel ? UI.accent : UI.dim, align: "right" });
+    if (r) text(ctx, x + w - 24, ry + Math.round((row - 14) / 2), r, { size: 13, color: sel ? UI.accent : UI.dim, align: "right" });
   });
 }
 
 /** Row index under a screen point, or -1. */
 export function menuHit(ctx: Context2D, m: MenuState, px: number, py: number): number {
-  const { x, w, itemsY } = menuLayout(ctx, m);
+  const { x, w, itemsY, row } = menuLayout(ctx, m);
   if (px < x + 10 || px > x + w - 10) return -1;
-  const i = Math.floor((py - itemsY) / ROW);
+  const i = Math.floor((py - itemsY) / row);
   return i >= 0 && i < m.items.length ? i : -1;
 }
 

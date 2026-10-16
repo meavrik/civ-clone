@@ -1,0 +1,15 @@
+{
+  "name": "@civ/maps-tool",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/build.ts",
+  "types": "./src/build.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@civ/core": "*",
+    "@civ/sprites-tool": "*"
+  }
+}

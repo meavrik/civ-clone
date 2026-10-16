@@ -24,6 +24,9 @@
     },
     {
       "path": "tools/sprites"
+    },
+    {
+      "path": "tools/maps"
     }
   ]
 }

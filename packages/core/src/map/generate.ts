@@ -77,10 +77,7 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
   const hillsAt = pct(0.78);
   const mountainsAt = pct(0.91);
   const tiles: Tile[] = new Array(w * h);
-  const blank = (terrain: Terrain): Tile => ({
-    terrain, river: false, special: false, road: false, irrigation: false, mine: false, hut: false,
-    railroad: false, fortress: false, pollution: false, continent: 0,
-  });
+  const blank = blankTile;
   for (let y = 0; y < h; y++) {
     const lat = Math.abs(y - (h - 1) / 2) / ((h - 1) / 2); // 0 equator .. 1 pole
     // Temperature shifts the bands toward/away from the poles.
@@ -145,7 +142,29 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
     }
   }
 
-  // ---- 5. specials on a drifting lattice -----------------------------------
+  // ---- 5. specials and villages --------------------------------------------
+  scatterSpecials(map, rng);
+
+  labelContinents(map);
+  return map;
+}
+
+/** An unimproved tile of the given terrain. */
+export function blankTile(terrain: Terrain): Tile {
+  return {
+    terrain, river: false, special: false, road: false, irrigation: false, mine: false, hut: false,
+    railroad: false, fortress: false, pollution: false, continent: 0,
+  };
+}
+
+/**
+ * Specials on a drifting lattice (so they appear in the familiar spread) and
+ * minor-tribe villages, roughly one per 60 land tiles and never on the poles.
+ * Shared by generated and premade worlds; the lattice offset and the
+ * villages come from the game's RNG, so each seed scatters them anew.
+ */
+export function scatterSpecials(map: WorldMap, rng: RngState): void {
+  const { width: w, height: h, tiles } = map;
   const sx = nextInt(rng, 4);
   const sy = nextInt(rng, 4);
   for (let y = 1; y < h - 1; y++)
@@ -155,17 +174,12 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
       if (lattice) t.special = true;
       else if (t.terrain === Terrain.Ocean && (x * 7 + y * 3 + sx) % 29 === 0) t.special = true;
     }
-
-  // Huts: roughly one per 60 land tiles, never on the poles.
   for (let y = 2; y < h - 2; y++)
     for (let x = 0; x < w; x++) {
       const t = tiles[y * w + x]!;
       if (t.terrain === Terrain.Ocean || t.terrain === Terrain.Arctic) continue;
       if (nextInt(rng, 60) === 0) t.hut = true;
     }
-
-  labelContinents(map);
-  return map;
 }
 
 /** Flood-fill continent/ocean ids (1-based) so "same landmass" is a lookup. */

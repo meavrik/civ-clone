@@ -8,7 +8,8 @@
     "test": "vitest run",
     "typecheck": "tsc -b",
     "headless": "vite-node --script tools/headless/src/cli.ts",
-    "sprites": "vite-node --script tools/sprites/src/cli.ts"
+    "sprites": "vite-node --script tools/sprites/src/cli.ts",
+    "maps": "vite-node --script tools/maps/src/cli.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

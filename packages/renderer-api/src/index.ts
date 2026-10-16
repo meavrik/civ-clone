@@ -3,6 +3,9 @@ import {
   civ,
   CIV_COLORS,
   CIVS,
+  nativeCivs,
+  PREMADE_WORLDS,
+  premadeWorld,
   relation,
   Terrain,
   TERRAIN_NAMES,
@@ -12,6 +15,8 @@ import {
   unitType,
   wrapX,
   type GameState,
+  type MapGenOptions,
+  type NewGameOptions,
 } from "@civ/core";
 
 /**
@@ -67,7 +72,13 @@ export const TEXT_INPUT_MAX = 14;
 export type AdvisorKind = "domestic" | "military" | "foreign" | "score";
 
 export interface SetupState {
-  step: "difficulty" | "opponents" | "civ" | "done";
+  step: "world" | "starts" | "landMass" | "temperature" | "climate" | "age" | "difficulty" | "opponents" | "civ" | "done";
+  /** Premade world id, or null for a generated world. */
+  world: string | null;
+  /** On a premade world: civilizations start in their historical homelands. */
+  historical: boolean;
+  /** "Customize world" answers, 0..2 each (see MapGenOptions); null keeps the defaults. */
+  custom: { landMass: number; temperature: number; climate: number; age: number } | null;
   difficulty: number;
   opponents: number;
   civ: string;
@@ -121,24 +132,108 @@ export interface Renderer {
 
 export const DIFFICULTIES = ["Chieftain", "Warlord", "Prince", "King", "Emperor"];
 
+/** "Customize world" questions, in the original's order, with three answers each. */
+export const WORLD_QUESTIONS = [
+  { key: "landMass", title: "How much land?", items: ["Small continents", "Normal", "Large continents"] },
+  { key: "temperature", title: "Temperature?", items: ["Cool", "Temperate", "Warm"] },
+  { key: "climate", title: "Climate?", items: ["Arid", "Normal", "Wet"] },
+  { key: "age", title: "Age of the world?", items: ["3 billion years", "4 billion years", "5 billion years"] },
+] as const;
+
+export const START_CHOICES = ["In their historical homelands", "Anywhere on the map"];
+
+/** Tribes offered at setup: on a premade world with homelands, only the civilizations native to it. */
+export function setupCivs(setup: SetupState): string[] {
+  if (setup.world && setup.historical) return nativeCivs(premadeWorld(setup.world));
+  return CIVS.filter((c) => c.id !== "barbarians").map((c) => c.id);
+}
+
+/** Most civilizations the setup can seat, ours included: one per colour among those offered, at most 7 as in the original. */
+export function setupMaxCivs(setup: SetupState): number {
+  return Math.max(3, Math.min(7, new Set(setupCivs(setup).map((id) => civ(id).color)).size));
+}
+
 export function setupMenu(setup: SetupState): { title: string; items: string[]; selected: number } {
   switch (setup.step) {
+    case "world":
+      return { title: "Choose a world", items: PREMADE_WORLDS.map((w) => w.name), selected: Math.max(0, PREMADE_WORLDS.findIndex((w) => w.id === setup.world)) };
+    case "starts":
+      return { title: "Where do the civilizations begin?", items: START_CHOICES, selected: setup.historical ? 0 : 1 };
+    case "landMass": case "temperature": case "climate": case "age": {
+      const q = WORLD_QUESTIONS.find((w) => w.key === setup.step)!;
+      return { title: q.title, items: [...q.items], selected: setup.custom?.[q.key] ?? 1 };
+    }
     case "difficulty":
       return { title: "Choose your difficulty level", items: DIFFICULTIES, selected: setup.difficulty };
-    case "opponents":
+    case "opponents": {
       // Civilizations in play, ours included, as in the original: 3 to 7.
+      const counts: number[] = [];
+      for (let n = 3; n <= setupMaxCivs(setup); n++) counts.push(n);
       return {
         title: "How many civilizations?",
-        items: [3, 4, 5, 6, 7].map((n) => `${n} civilizations`),
-        selected: Math.max(0, Math.min(4, setup.opponents - 2)),
+        items: counts.map((n) => `${n} civilizations`),
+        selected: Math.max(0, Math.min(counts.length - 1, setup.opponents - 2)),
       };
+    }
     case "civ": {
-      const civs = CIVS.filter((c) => c.id !== "barbarians");
-      return { title: "Choose your tribe", items: civs.map((c) => c.name), selected: Math.max(0, civs.findIndex((c) => c.id === setup.civ)) };
+      const civs = setupCivs(setup);
+      return { title: "Choose your tribe", items: civs.map((id) => civ(id).name), selected: Math.max(0, civs.indexOf(setup.civ)) };
     }
     default:
       return { title: "", items: [], selected: 0 };
   }
+}
+
+/**
+ * Apply the choice at `index` to the setup and move to the next question.
+ * Returns true once every question is answered (`step` is then "done").
+ */
+export function setupChoose(setup: SetupState, index: number): boolean {
+  switch (setup.step) {
+    case "world":
+      setup.world = PREMADE_WORLDS[index]?.id ?? PREMADE_WORLDS[0]!.id;
+      setup.step = "starts";
+      break;
+    case "starts":
+      setup.historical = index === 0;
+      setup.step = "difficulty";
+      break;
+    case "landMass": case "temperature": case "climate": case "age": {
+      const order = WORLD_QUESTIONS.map((q) => q.key);
+      const at = order.indexOf(setup.step);
+      setup.custom = { landMass: 1, temperature: 1, climate: 1, age: 1, ...setup.custom, [setup.step]: Math.max(0, Math.min(2, index)) };
+      setup.step = order[at + 1] ?? "difficulty";
+      break;
+    }
+    case "difficulty":
+      setup.difficulty = index;
+      setup.step = "opponents";
+      break;
+    case "opponents":
+      setup.opponents = opponentsForChoice(index);
+      setup.step = "civ";
+      break;
+    case "civ": {
+      const civs = setupCivs(setup);
+      setup.civ = civs[index] ?? civs[0]!;
+      setup.step = "done";
+      break;
+    }
+    default:
+      break;
+  }
+  return setup.step === "done";
+}
+
+/** The new-game options a finished setup asks for. */
+export function setupOptions(setup: SetupState): NewGameOptions {
+  return {
+    difficulty: setup.difficulty,
+    opponents: setup.opponents,
+    civ: setup.civ,
+    ...(setup.world ? { world: setup.world, historical: setup.historical } : {}),
+    ...(setup.custom ? (setup.custom as MapGenOptions) : {}),
+  };
 }
 
 /** A leader's greeting line, by mood. */

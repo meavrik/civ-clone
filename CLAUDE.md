@@ -10,14 +10,18 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `npm test` — vitest, all packages (50+ tests; render tests dump PNGs to `packages/renderer-retro/tests/out/`)
 - `npm run typecheck` — `tsc -b` across the workspace (strict, exactOptionalPropertyTypes, noUncheckedIndexedAccess)
 - `npm run build` — typecheck + Vite build
-- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--verify] [--json out.json]` —
+- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--world earth [--historical]] [--verify] [--json out.json]` —
   seeded all-AI tournaments (`tools/headless`); `--verify` replays each game from its save and checks the state digest
+- `npm run maps [-- europe]` — rebuild the premade worlds from Natural Earth data (`tools/maps`, cached in `tools/maps/.cache`,
+  previews in `tools/maps/out/*.png`; look at them after any change)
 - npm and pnpm both work (`workspaces` + `*` deps, `.npmrc` links workspace packages for pnpm)
 
 ## Layout
 
 - `packages/core` — deterministic game engine, zero DOM. Rules as data in `src/rules/*`
-  (terrain, units, buildings, wonders, advances, governments, civs). Map gen, cities,
+  (terrain, units, buildings, wonders, advances, governments, civs). Map gen (`map/generate.ts`), premade
+  worlds (`map/premade.ts` + generated `map/worlds/*.ts`: 50 rows of 80 terrain chars, upper case = river,
+  and each native civ's homeland square), cities,
   combat, pathfinding, diplomacy, barbarians, save/score. Entry: `src/index.ts`.
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v2, shipped as `aiTurn`) and
   `baseline.ts` (v1, kept as the tournament yardstick). The planner is stateless between turns: it
@@ -42,6 +46,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   (canvas fitting: crisp integer scale for retro, DPR-aware for modern), `storage.ts` (IndexedDB saves).
 - `tools/headless` — tournament harness: `runGame(config)` plays an `allAi` game through `runAiPlayers`, samples
   per-civ stats, fingerprints the final state; `AIS` registry seats a named AI per civ. `cli.ts` prints tables.
+- `tools/maps` — premade-world builder: `frames.ts` (lon/lat → grid breakpoints per world, homelands),
+  `climate.ts` (Natural Earth regions and hand zones → terrain mixes), `build.ts` (rasterise, rivers, starts).
+  Regional worlds still wrap east-west; their column 0 is forced to sea so the wrap joins no coasts by land.
 - `scripts/mirror-test.sh` — for a Linux shell on a Mac checkout; not needed on macOS.
 
 ## Invariants (do not break)
@@ -65,7 +72,10 @@ turns, diplomacy, save/load, title/setup, advisors, end conditions, headless har
 Rules-completeness pass done (2026-10-16): data verified against FreeCiv civ1, all wonders bound,
 caravans, railroads/fortresses/pollution/global warming, spaceship, diplomats, nukes, in-game text
 prompt. Phase 8 done: modern-visuals renderer behind the shared `Renderer` API, switchable at
-runtime. Next: mobile/PWA + touch adapter.
+runtime. Premade worlds done: Earth, Europe, Middle East (title menu "Play on a premade world", optional
+historical homelands: only native tribes offered, rivals drawn from natives preferring non-overlapping
+homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperature/climate/age). 18 civs
+(the original's 14 plus Spanish, Vikings, Hittites, Persians). Next: mobile/PWA + touch adapter.
 
 ## Known gaps / next steps
 
