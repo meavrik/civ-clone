@@ -265,7 +265,7 @@ function findSites(state: GameState, me: number, continents: Set<number>, cities
 const GOALS = [
   "bronze_working", "alphabet", "ceremonial_burial", "code_of_laws", "monarchy", "currency", "writing", "pottery",
   "trade", "literacy", "masonry", "mathematics", "iron_working", "philosophy", "horseback_riding", "the_wheel",
-  "construction", "astronomy", "university", "the_republic", "feudalism", "chivalry", "banking", "monotheism", "medicine",
+  "construction", "astronomy", "university", "the_republic", "feudalism", "chivalry", "banking", "medicine",
   "navigation", "invention", "gunpowder", "physics", "theory_of_gravity", "engineering", "bridge_building", "metallurgy",
   "conscription", "magnetism", "democracy", "steam_engine", "railroad", "industrialization", "electricity",
   "the_corporation", "explosives", "chemistry", "refining", "combustion", "steel", "automobile", "electronics", "flight",
@@ -408,11 +408,11 @@ function bestUnit(options: Production[], stat: "attack" | "defense"): Production
 }
 
 /** Improvements worth having even when nothing calls for them; never barracks, walls or plants. */
-const FALLBACK_BUILDINGS = new Set(["temple", "library", "marketplace", "granary", "courthouse", "aqueduct", "university", "bank", "colosseum", "cathedral", "sewer_system", "stock_exchange"]);
+const FALLBACK_BUILDINGS = new Set(["temple", "library", "marketplace", "granary", "courthouse", "aqueduct", "university", "bank", "colosseum", "cathedral"]);
 
 const WONDER_ORDER = [
-  "hanging_gardens", "colossus", "great_library", "oracle", "michelangelos", "king_richards", "copernicus", "shakespeares",
-  "js_bachs", "isaac_newtons", "great_wall", "darwins_voyage", "adam_smiths", "womens_suffrage", "hoover_dam", "magellans",
+  "hanging_gardens", "colossus", "great_library", "oracle", "michelangelos", "copernicus", "shakespeares",
+  "js_bachs", "isaac_newtons", "great_wall", "darwins_voyage", "womens_suffrage", "hoover_dam", "seti_program", "magellans",
   "cure_for_cancer", "pyramids", "united_nations", "lighthouse",
 ];
 
@@ -434,8 +434,6 @@ function wantBuilding(state: GameState, ctx: Ctx, c: City, r: CityReport, id: st
     case "harbour": return 0;
     case "factory": return r.shields >= 10 ? 8 : 0;
     case "power_plant": case "hydro_plant": case "nuclear_plant": return r.shields >= 15 ? 4 : 0;
-    case "stock_exchange": return r.tax >= 12 ? 3 : 0;
-    case "sewer_system": return c.size >= 14 ? 5 : 0;
     default: return 0;
   }
 }

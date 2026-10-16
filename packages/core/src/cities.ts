@@ -223,37 +223,26 @@ export function computeCity(state: GameState, city: City): CityReport {
   const wonders = activeWonders(state, city.owner);
   let contentFromWonders = 0;
   let noUnhappy = false;
-  let shieldPerTile = false;
   let oceanTrade = 0;
+  let police = 0;
+  const sameContinent = (wc: City) => getTile(state.map, wc.x, wc.y)!.continent === getTile(state.map, city.x, city.y)!.continent;
+  const hasPlant = has("power_plant") || has("hydro_plant") || has("nuclear_plant");
   for (const { rule, city: wc } of wonders) {
     const e = rule.effect;
     switch (e.kind) {
       case "contentAll": contentFromWonders += e.amount; break;
       case "contentCity": if (wc.id === city.id) contentFromWonders += e.amount; break;
-      case "contentContinent": {
-        const here = getTile(state.map, city.x, city.y)!.continent;
-        if (getTile(state.map, wc.x, wc.y)!.continent === here) contentFromWonders += e.amount;
-        break;
-      }
+      case "contentContinent": if (sameContinent(wc)) contentFromWonders += e.amount; break;
       case "noUnhappyCity": if (wc.id === city.id) noUnhappy = true; break;
       case "sciencePct": if (wc.id === city.id) sciPct += e.amount; break;
-      case "shieldPerWorkedTile": shieldPerTile = true; break;
+      case "scienceAll": sciPct += e.amount; break;
       case "oceanTrade": if (wc.id === city.id) oceanTrade += e.amount; break;
       case "templeDouble": if (has("temple")) contentFromBuildings += building("temple").content ?? 0; break;
       case "cathedralEverywhere": if (!has("cathedral")) contentFromBuildings += building("cathedral").content ?? 0; break;
-      case "freeUpkeepCheap":
-        for (const id of city.buildings) if (building(id).upkeep === 1) buildingUpkeep -= 1;
-        break;
-      case "factoryBonus": if (has("factory")) shieldPct += e.amount; break;
+      case "powerPlantContinent": if (has("factory") && !hasPlant && sameContinent(wc)) shieldPct += building("power_plant").shieldsPct ?? 0; break;
+      case "policeEverywhere": police += 1; break;
       default: break;
     }
-  }
-  if (shieldPerTile) {
-    for (const slot of city.worked) {
-      const t = radiusTile(state, city, slot);
-      if (t && tileYield(state, t, false, player.government).shields > 0) shields += 1;
-    }
-    shields += 1; // centre always yields a shield
   }
   if (oceanTrade) {
     for (const slot of city.worked) {
@@ -300,12 +289,12 @@ export function computeCity(state: GameState, city: City): CityReport {
     let police = Math.min(3, state.units.filter((u) => u.x === city.x && u.y === city.y && unitType(u.type).attack > 0 && u.owner === city.owner).length);
     while (police > 0 && unhappy > 0) { unhappy--; content++; police--; }
   }
-  // War weariness: military units outside cities under Republic/Democracy.
+  // War weariness: military units outside cities under Republic/Democracy; a police effect excuses some.
   if (gov.warWeariness > 0) {
     const abroad = state.units.filter(
       (u) => u.homeCity === city.id && unitType(u.type).attack > 0 && !cityAt(state, u.x, u.y),
     ).length;
-    let weary = abroad * gov.warWeariness;
+    let weary = Math.max(0, abroad - police) * gov.warWeariness;
     while (weary > 0 && content > 0) { content--; unhappy++; weary--; }
   }
   if (noUnhappy) { content += unhappy; unhappy = 0; }

@@ -49,9 +49,9 @@ describe("tech tree", () => {
     }
   });
 
-  it("starts with six researchable advances", () => {
+  it("starts with the seven root advances", () => {
     expect(availableAdvances([]).map((a) => a.id).sort()).toEqual(
-      ["alphabet", "bronze_working", "ceremonial_burial", "horseback_riding", "masonry", "pottery"],
+      ["alphabet", "bronze_working", "ceremonial_burial", "horseback_riding", "masonry", "pottery", "the_wheel"],
     );
   });
 });
@@ -123,10 +123,12 @@ describe("governments", () => {
     const c = s.cities[0]!;
     c.size = 3;
     applyCommand(s, { type: "endTurn" });
+    s.map.tiles[10 * 80 + 10]!.river = true;
+    c.buildings.push("library");
     const before = computeCity(s, c);
-    c.wonders.push("king_richards");
+    c.wonders.push("seti_program");
     const after = computeCity(s, c);
-    expect(after.shields).toBeGreaterThan(before.shields);
+    expect(after.science).toBeGreaterThan(before.science);
     c.wonders.push("shakespeares");
     s.players[0]!.difficulty = 4;
     expect(computeCity(s, c).unhappy).toBe(0);

@@ -3,9 +3,9 @@ import { Terrain } from "../types.js";
 /**
  * Terrain ruleset. Yields are food/shields/trade per worked tile; move cost is
  * in whole movement points (stored internally in thirds); defense is a
- * multiplier applied to the defender. Values follow the commonly documented
- * 1991 rules and should be cross-checked against FreeCiv's civ1 ruleset when
- * combat and cities land (phases 3 and 5).
+ * multiplier applied to the defender. Values were checked against FreeCiv's
+ * civ1 ruleset: only forest, swamp and jungle change terrain under the
+ * plough, nothing is mined into forest, and mountains mine for +1.
  */
 export interface TerrainRule {
   food: number;
@@ -33,14 +33,12 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     // Grassland "resources" (the shield variant) are handled as a special.
     special: { name: "Resources", shields: 1 },
     irrigate: { food: 1, turns: 5 },
-    mine: { becomes: Terrain.Forest, turns: 10 },
     road: { trade: 1, turns: 2 },
   },
   [Terrain.Plains]: {
     food: 1, shields: 1, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Horses", shields: 2 },
     irrigate: { food: 1, turns: 5 },
-    mine: { becomes: Terrain.Forest, turns: 10 },
     road: { trade: 1, turns: 2 },
   },
   [Terrain.Forest]: {
@@ -59,7 +57,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Mountains]: {
     food: 0, shields: 1, trade: 0, moveCost: 3, defense: 3,
     special: { name: "Gold", trade: 6 },
-    mine: { shields: 2, turns: 10 },
+    mine: { shields: 1, turns: 10 },
     road: { trade: 0, turns: 6 },
   },
   [Terrain.Desert]: {
@@ -83,14 +81,12 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 1.5,
     special: { name: "Peat", shields: 4 },
     irrigate: { becomes: Terrain.Grassland, turns: 15 },
-    mine: { becomes: Terrain.Forest, turns: 15 },
     road: { trade: 0, turns: 4 },
   },
   [Terrain.Jungle]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 1.5,
     special: { name: "Gems", trade: 4 },
     irrigate: { becomes: Terrain.Grassland, turns: 15 },
-    mine: { becomes: Terrain.Forest, turns: 15 },
     road: { trade: 0, turns: 4 },
   },
 };

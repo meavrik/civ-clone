@@ -1,11 +1,11 @@
 import {
+  activeWonders,
   autoAssignWorkers,
   buildOptions,
   buyCost,
   canFoundCity,
   cityById,
   foundCity,
-  hasWonder,
   processCityTurn,
   productionCost,
   slotAvailable,
@@ -120,7 +120,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       const p = state.players[state.currentPlayer]!;
       if (p.government === "anarchy") return { ok: false, reason: "already in anarchy" };
       p.government = "anarchy";
-      p.anarchyTurns = hasWonder(state, p.id, "pyramids") ? 0 : 1 + nextInt(state.rng, 4);
+      p.anarchyTurns = noAnarchy(state, p.id) ? 0 : 1 + nextInt(state.rng, 4);
       p.pendingGovernment = null;
       clampRates(p);
       return { ok: true };
@@ -350,10 +350,15 @@ function openHut(state: GameState, u: Unit): HutResult {
   return { kind: "empty" };
 }
 
-/** Governments the player may choose: despotism always, others by advance (or all with the Pyramids). */
+/** A wonder that spares the owner anarchy (Pyramids, later the United Nations) also opens every government. */
+export function noAnarchy(state: GameState, owner: number): boolean {
+  return activeWonders(state, owner).some((w) => w.rule.effect.kind === "noAnarchy");
+}
+
+/** Governments the player may choose: despotism always, others by advance (or all with a no-anarchy wonder). */
 export function governmentsAvailable(state: GameState, owner: number): string[] {
   const p = state.players[owner]!;
-  if (hasWonder(state, owner, "pyramids")) return Object.keys(GOVERNMENTS).filter((g) => g !== "anarchy");
+  if (noAnarchy(state, owner)) return Object.keys(GOVERNMENTS).filter((g) => g !== "anarchy");
   return Object.keys(GOVERNMENTS).filter((g) => {
     if (g === "anarchy") return false;
     if (g === "despotism") return true;

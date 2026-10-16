@@ -50,8 +50,10 @@ turns + baseline AI, diplomacy, save/load, title/setup, advisors, end conditions
 
 ## Known gaps / next steps
 
-1. Verify the tech-tree edges (`rules/advances.ts`) and numeric tables against FreeCiv's
-   civ1 ruleset (read it, don't paste it; it's GPL). Data-only change.
+1. Rules data verified against FreeCiv's civ1 ruleset (2026-10-16): tech edges, unit/building/
+   wonder/terrain numbers. Deliberate departures: rivers give +1 trade, Michelangelo's acts as a
+   cathedral everywhere, Colossus boosts ocean tiles. Legion 3/1, Musketeers 2/3, Riflemen 3/5
+   follow the ruleset even though the 1991 manual is often quoted as 4/2, 3/3, 5/4.
 2. Phase 7 — AI v2 done: harness (`tools/headless`) + planner. At 300 turns / 4 civs the planner
    averages ~22 cities, ~43 techs, score ~200 vs the baseline's ~4 / ~8 / ~27. Open AI gaps: no naval
    expansion or transport (settlers never leave the home continent), no tech trading, wars rarely end
