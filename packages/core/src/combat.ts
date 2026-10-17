@@ -5,7 +5,7 @@ import { newSpaceship } from "./rules/spaceship.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { getTile, type City, type GameState, type Unit } from "./types.js";
-import { unitAt } from "./units.js";
+import { firepower, lastActions, maxHp, unitAt, type BattleSide, type UnitBattle } from "./units.js";
 
 export function attackStrength(u: Unit): number {
   let a = unitType(u.type).attack;
@@ -45,11 +45,38 @@ export interface CombatResult {
 }
 
 /**
+ * Chance of winning `need` rounds before losing `lives`, each round won with
+ * probability p (a negative-binomial sum).
+ */
+export function winProbability(p: number, need: number, lives: number): number {
+  if (need <= 0) return 1;
+  if (lives <= 0 || p <= 0) return 0;
+  let term = Math.pow(p, need);
+  let total = term;
+  for (let k = 1; k < lives; k++) {
+    term *= ((need - 1 + k) / k) * (1 - p);
+    total += term;
+  }
+  return Math.min(1, total);
+}
+
+/** Chance that `u` beats this defender, counting every round and both sides' hit points. */
+export function attackOdds(state: GameState, u: Unit, defender: Unit): number {
+  const a = attackStrength(u);
+  const d = defenseStrength(state, defender, u);
+  const need = Math.ceil(defender.hp / firepower(state, u.type));
+  const lives = Math.ceil(u.hp / firepower(state, defender.type));
+  return winProbability(a / (a + d), need, lives);
+}
+
+/**
  * Resolve an attack from `u` onto the tile at (u.x+dx, u.y+dy).
- * The original fights in rounds, each won with probability A/(A+D), until a
- * side is dead; with no hit points that collapses to one roll. When a stack
- * outside a city loses its defender the whole stack is lost; inside a city
- * only the defender dies.
+ * The fight goes in rounds, each won by the attacker with probability
+ * A/(A+D); the loser of a round loses the winner's firepower in hit points,
+ * until one side has none left. Survivors keep their damage. (With classic
+ * combat, 10 hp against firepower 10, one round decides, as in the original.)
+ * When a stack outside a city loses its defender the whole stack is lost;
+ * inside a city only the defender dies.
  */
 export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number): CombatResult | { error: string } {
   const type = unitType(u.type);
@@ -68,8 +95,17 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
 
   const a = attackStrength(u);
   const d = defenseStrength(state, defender, u);
-  const roll = nextFloat(state.rng);
-  const attackerWon = roll < a / (a + d);
+  const p = a / (a + d);
+  const side = (x: Unit): BattleSide => ({ unit: x.id, type: x.type, owner: x.owner, x: x.x, y: x.y, hp: x.hp, maxHp: maxHp(state, x.type), firepower: firepower(state, x.type) });
+  const battle: UnitBattle = { kind: "battle", attacker: side(u), defender: side(defender), rounds: [], attackerWon: false, alsoLost: [] };
+  const aFp = battle.attacker.firepower;
+  const dFp = battle.defender.firepower;
+  while (u.hp > 0 && defender.hp > 0) {
+    if (nextFloat(state.rng) < p) { defender.hp = Math.max(0, defender.hp - aFp); battle.rounds.push(true); }
+    else { u.hp = Math.max(0, u.hp - dFp); battle.rounds.push(false); }
+  }
+  const attackerWon = defender.hp === 0;
+  battle.attackerWon = attackerWon;
   const destroyed: number[] = [];
   const city = cityAt(state, tx, ty);
 
@@ -83,6 +119,8 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
   }
   // Units aboard a sunk ship go down with it.
   for (const id of [...destroyed]) for (const o of state.units) if (o.aboard === id) destroyed.push(o.id);
+  battle.alsoLost = destroyed.filter((id) => id !== (attackerWon ? defender.id : u.id));
+  lastActions.push(battle);
   state.units = state.units.filter((x) => !destroyed.includes(x.id));
   u.movesLeft = Math.max(0, u.movesLeft - 3);
   if (u.order.kind === "fortified" || u.order.kind === "sentry") u.order = { kind: "none" };

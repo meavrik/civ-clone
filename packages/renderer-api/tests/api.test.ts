@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, createUnit, getTile, newGame, revealAround, Terrain } from "@civ/core";
-import { MENU_BAR, MotionPlayer, opponentsForChoice, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
+import { applyCommand, createUnit, getTile, newGame, revealAround, Terrain, type UnitBattle } from "@civ/core";
+import { DEATH_MS, LUNGE_MS, MENU_BAR, MotionPlayer, opponentsForChoice, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
 const fresh = (step: SetupState["step"]): SetupState => ({ step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
 
@@ -124,17 +124,17 @@ describe("world reports", () => {
 
 describe("unit motion", () => {
   const step = (unit: number, fromX: number, fromY: number, toX: number, toY: number, aboard?: number) =>
-    ({ unit, type: "militia", owner: 0, fromX, fromY, toX, toY, ...(aboard !== undefined ? { aboard } : {}) });
+    ({ kind: "step" as const, unit, type: "militia", owner: 0, fromX, fromY, toX, toY, ...(aboard !== undefined ? { aboard } : {}) });
   const pace = { stepMs: 100, maxMs: 1000, width: 80 };
 
   it("slides one square at a time, each step after the one before", () => {
     const m = new MotionPlayer();
     m.play([step(1, 10, 10, 11, 10), step(1, 11, 10, 12, 11)], 0, pace);
-    expect(m.at(0)).toEqual([{ unit: 1, type: "militia", owner: 0, x: 10, y: 10 }]);
-    expect(m.at(50)[0]).toMatchObject({ x: 10.5, y: 10 });
-    expect(m.at(150)[0]).toMatchObject({ x: 11.5, y: 10.5 });
+    expect(m.at(0).moving).toEqual([{ unit: 1, type: "militia", owner: 0, x: 10, y: 10 }]);
+    expect(m.at(50).moving[0]).toMatchObject({ x: 10.5, y: 10 });
+    expect(m.at(150).moving[0]).toMatchObject({ x: 11.5, y: 10.5 });
     expect(m.busy(150)).toBe(true);
-    expect(m.at(200)).toEqual([]);
+    expect(m.at(200).moving).toEqual([]);
     expect(m.busy(200)).toBe(false);
   });
 
@@ -142,15 +142,15 @@ describe("unit motion", () => {
     const m = new MotionPlayer();
     m.play([step(1, 10, 10, 11, 10)], 0, pace);
     m.play([step(2, 20, 20, 20, 21)], 0, pace);
-    expect(m.at(50).find((u) => u.unit === 2)).toMatchObject({ x: 20, y: 20 });
-    expect(m.at(150).map((u) => u.unit)).toEqual([2]);
-    expect(m.at(150)[0]).toMatchObject({ y: 20.5 });
+    expect(m.at(50).moving.find((u) => u.unit === 2)).toMatchObject({ x: 20, y: 20 });
+    expect(m.at(150).moving.map((u) => u.unit)).toEqual([2]);
+    expect(m.at(150).moving[0]).toMatchObject({ y: 20.5 });
   });
 
   it("moves cargo in its ship's beat and marks it aboard", () => {
     const m = new MotionPlayer();
     m.play([step(5, 3, 3, 4, 3), step(6, 3, 3, 4, 3, 5), step(5, 4, 3, 5, 3), step(6, 4, 3, 5, 3, 5)], 0, pace);
-    const mid = m.at(50);
+    const mid = m.at(50).moving;
     expect(mid).toHaveLength(2);
     expect(mid.find((u) => u.unit === 6)).toMatchObject({ x: 3.5, aboard: 5 });
     expect(m.busy(199)).toBe(true);
@@ -160,8 +160,8 @@ describe("unit motion", () => {
   it("slides the short way across the seam", () => {
     const m = new MotionPlayer();
     m.play([step(1, 79, 5, 0, 5), step(2, 0, 6, 79, 6)], 0, pace);
-    expect(m.at(50).find((u) => u.unit === 1)!.x).toBeCloseTo(79.5);
-    expect(m.at(150).find((u) => u.unit === 2)!.x).toBeCloseTo(-0.5);
+    expect(m.at(50).moving.find((u) => u.unit === 1)!.x).toBeCloseTo(79.5);
+    expect(m.at(150).moving.find((u) => u.unit === 2)!.x).toBeCloseTo(-0.5);
   });
 
   it("fits a long chain into the time allowed, and clear() snaps everything home", () => {
@@ -171,6 +171,60 @@ describe("unit motion", () => {
     expect(m.busy(999)).toBe(true);
     expect(m.busy(1000)).toBe(false);
     m.clear();
-    expect(m.at(10)).toEqual([]);
+    expect(m.at(10).moving).toEqual([]);
+  });
+
+  it("plays a fight: the lunge, a blow per round draining hit points, then the loser's end", () => {
+    const m = new MotionPlayer();
+    const battle: UnitBattle = {
+      kind: "battle",
+      attacker: { unit: 1, type: "legion", owner: 0, x: 10, y: 10, hp: 10, maxHp: 10, firepower: 1 },
+      defender: { unit: 2, type: "phalanx", owner: 1, x: 11, y: 10, hp: 3, maxHp: 10, firepower: 1 },
+      rounds: [true, false, true, true],
+      attackerWon: true,
+      alsoLost: [3],
+    };
+    m.play([step(1, 9, 10, 10, 10), battle], 0, { ...pace, battleMs: 2000, battleTotalMs: 2000 });
+    // While the attacker walks up, the defender waits on its square as it was before the fight.
+    const walking = m.at(50);
+    expect(walking.battle).toBeUndefined();
+    expect(walking.moving.find((u) => u.unit === 2)).toMatchObject({ x: 11, y: 10, hp: 3, maxHp: 10, stacked: true });
+    const begin = 100;
+    const lunge = m.at(begin + LUNGE_MS / 2).battle!;
+    expect(lunge.attacker.x).toBeGreaterThan(10);
+    expect(lunge.attacker.x).toBeLessThan(10.31);
+    expect(lunge.defender).toMatchObject({ hp: 3, hit: 0, dying: 0, stacked: true });
+    const round = 110;
+    const first = m.at(begin + LUNGE_MS + 1).battle!;
+    expect(first.defender.hp).toBe(2);
+    expect(first.defender.hit).toBeGreaterThan(0.9);
+    expect(first.attacker.hit).toBe(0);
+    const second = m.at(begin + LUNGE_MS + round + 1).battle!;
+    expect(second.attacker.hp).toBe(9);
+    expect(second.attacker.hit).toBeGreaterThan(0.9);
+    const roundsEnd = begin + LUNGE_MS + 4 * round;
+    const end = m.at(roundsEnd + DEATH_MS / 2).battle!;
+    expect(end.defender.hp).toBe(0);
+    expect(end.defender.dying).toBeCloseTo(0.5, 1);
+    expect(end.attacker.dying).toBe(0);
+    expect(end.attacker.x).toBeLessThan(lunge.attacker.x + 0.2);
+    expect(m.busy(roundsEnd + DEATH_MS - 1)).toBe(true);
+    expect(m.busy(roundsEnd + DEATH_MS)).toBe(false);
+    expect(m.at(roundsEnd + DEATH_MS)).toEqual({ moving: [] });
+  });
+
+  it("keeps a run of fights within the time allowed for them", () => {
+    const m = new MotionPlayer();
+    const fight = (unit: number): UnitBattle => ({
+      kind: "battle",
+      attacker: { unit, type: "legion", owner: 1, x: 5, y: 5, hp: 10, maxHp: 10, firepower: 1 },
+      defender: { unit: 100 + unit, type: "militia", owner: 0, x: 6, y: 5, hp: 10, maxHp: 10, firepower: 1 },
+      rounds: Array.from({ length: 19 }, (_, i) => i % 2 === 0),
+      attackerWon: true,
+      alsoLost: [],
+    });
+    m.play([fight(1), fight(2), fight(3), fight(4)], 0, { ...pace, battleMs: 1600, battleTotalMs: 4000 });
+    expect(m.busy(4000)).toBe(true);
+    expect(m.busy(4000 + 4 * 30 * 19)).toBe(false);
   });
 });

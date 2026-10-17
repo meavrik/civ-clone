@@ -97,6 +97,16 @@ describe("modern renderer", () => {
     const before = ctx.texts.length;
     r.main(state, { ...view, message: undefined, moving: [{ unit: settler.id, type: settler.type, owner: 0, x: settler.x + 0.5, y: settler.y }] });
     expect(ctx.texts.length).toBeGreaterThan(before);
+    // A fight: both fighters with bars, a blow flashing, then the loser's burst; a wounded unit keeps its bar.
+    const side = (unit: number, x: number, extra: Partial<{ hit: number; dying: number }>) =>
+      ({ unit, type: "legion", owner: unit === settler.id ? 0 : 1, x, y: settler.y, hp: 4, maxHp: 10, stacked: false, hit: 0, dying: 0, ...extra });
+    const arcs = ctx.calls.get("arc") ?? 0;
+    r.main(state, { ...view, message: undefined, battle: { attacker: side(999, settler.x + 0.7, {}), defender: side(settler.id, settler.x, { hit: 0.8 }) } });
+    r.main(state, { ...view, message: undefined, battle: { attacker: side(999, settler.x + 0.8, {}), defender: side(settler.id, settler.x, { dying: 0.5 }) } });
+    expect(ctx.calls.get("arc")!).toBeGreaterThan(arcs + 10);
+    settler.hp = 3;
+    r.main(state, { ...view, message: undefined });
+    settler.hp = 10;
     r.menu({ title: "", items: ["City Status", "Military Advisor"], right: ["F1", "F2"], selected: 0, anchor: r.menuBarAnchor(2) });
     r.menu({ title: "Game", items: ["Save game", "Load game"], selected: 1, right: ["", "slot 2"] });
     r.textInput({ title: "Name the new city", text: "Rome", maxLength: 14 }, true);

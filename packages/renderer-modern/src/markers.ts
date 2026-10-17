@@ -1,7 +1,7 @@
 import { unitType, type City, type Unit } from "@civ/core";
 import type { Context2D } from "./context.js";
 import { circle, fillRound, measure, strokeRound, text } from "./draw.js";
-import { PLAYER_COLORS, PLAYER_DARK, TILE, UI } from "./theme.js";
+import { COMBAT, PLAYER_COLORS, PLAYER_DARK, TILE, UI } from "./theme.js";
 
 export const UNIT_ABBR: Record<string, string> = {
   settlers: "S", militia: "M", phalanx: "P", legion: "L", cavalry: "C", chariot: "Ch",
@@ -98,4 +98,42 @@ export function paintCityLabel(ctx: Context2D, x: number, y: number, name: strin
   const ly = y + TILE - 2;
   fillRound(ctx, lx, ly, w, 16, 8, "rgba(10, 14, 20, 0.78)");
   text(ctx, x + TILE / 2, ly + 1, name, { size: 12, weight: "600", color: playerColor(slot), align: "center" });
+}
+
+/** A unit's hit points as a slim bar under its badge: green, then amber, then red as they run out. */
+export function paintHpBar(ctx: Context2D, x: number, y: number, hp: number, max: number): void {
+  const ratio = Math.max(0, Math.min(1, hp / max));
+  const w = TILE - 16;
+  fillRound(ctx, x + 8, y + TILE - 8, w, 6, 3, COMBAT.hpBack);
+  if (ratio > 0) fillRound(ctx, x + 9, y + TILE - 7, Math.max(4, (w - 2) * ratio), 4, 2, ratio > 0.5 ? COMBAT.hpGood : ratio > 0.25 ? COMBAT.hpFair : COMBAT.hpPoor);
+}
+
+/** The flash of a blow landing: a white glow over the badge, `strength` 0..1. */
+export function paintHitFlash(ctx: Context2D, x: number, y: number, strength: number): void {
+  const alpha = ctx.globalAlpha;
+  ctx.globalAlpha = alpha * Math.min(1, strength) * 0.85;
+  fillRound(ctx, x + 6, y + 6, TILE - 12, TILE - 12, 10, COMBAT.flash);
+  ctx.globalAlpha = alpha;
+}
+
+/** The end of a beaten unit, centred on (cx, cy), t from 0 to 1: a fireball that swells and fades, embers, then smoke. */
+export function paintBurst(ctx: Context2D, cx: number, cy: number, t: number): void {
+  const alpha = ctx.globalAlpha;
+  const r = 8 + t * 28;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  g.addColorStop(0, COMBAT.burstCore);
+  g.addColorStop(0.45, COMBAT.burstMid);
+  g.addColorStop(1, COMBAT.burstEdge);
+  ctx.globalAlpha = alpha * (1 - t);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.globalAlpha = alpha * Math.min(1, 1.6 - t);
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * Math.PI * 2 + (k % 3) * 0.4;
+    const d = r * (0.6 + ((k * 7) % 5) * 0.12);
+    circle(ctx, cx + Math.cos(a) * d, cy + Math.sin(a) * d, (1 - t) * 3 + 1.5, k % 2 && t < 0.6 ? COMBAT.ember : COMBAT.smoke);
+  }
+  ctx.globalAlpha = alpha;
 }

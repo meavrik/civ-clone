@@ -31,9 +31,10 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`). The web app
   only talks to a `Renderer`. The main screen has a menu bar (`MENU_BAR`: Game, Orders, Advisors,
   World) above map and panel; a `MenuState` with an `anchor` and an empty title is a bar dropdown.
-  Unit animation: core's `applyMove` appends to `lastSteps` (a UI side channel like `lastTurnEvents`,
-  emptied by `endTurn`, never read by replays or AI); `MotionPlayer` (`renderer-api/src/motion.ts`)
-  times them into `view.moving`, and renderers draw those units at fractional squares.
+  Unit animation: core appends every step (`applyMove`) and fight (`resolveCombat`, round by round) to
+  `lastActions` (a UI side channel like `lastTurnEvents`, emptied by `endTurn`, never read by replays or
+  AI); `MotionPlayer` (`renderer-api/src/motion.ts`) times them into `view.moving` (slides) and
+  `view.battle` (lunge, blows, hp draining, the loser's burst), and renderers draw from those.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
   terrain, cities, villages and specials are pixel art in `src/art/*.art.ts` (text grids; legend
@@ -86,7 +87,11 @@ homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperatu
 
 1. Rules data verified against FreeCiv's civ1 ruleset (2026-10-16): tech edges, unit/building/
    wonder/terrain numbers. Deliberate departures: rivers give +1 trade, Michelangelo's acts as a
-   cathedral everywhere, Colossus boosts ocean tiles. Legion 3/1, Musketeers 2/3, Riflemen 3/5
+   cathedral everywhere, Colossus boosts ocean tiles. Units have hit points and firepower (`hp`,
+   `firepower` in `rules/units.ts`: 10 ancient, 20 gunpowder, 30-40 mechanised/steel; heavy guns hit
+   for 2): fights go in rounds won with A/(A+D), survivors keep wounds and heal by resting (`HEALING`).
+   `attackOdds` gives the exact chance. `classicCombat` (version 1 saves, `?combat=classic`) restores
+   the original one-roll fights with the same RNG use, so old saves replay unchanged. Legion 3/1, Musketeers 2/3, Riflemen 3/5
    follow the ruleset even though the 1991 manual is often quoted as 4/2, 3/3, 5/4.
 2. Phase 7 — AI v2 done: harness (`tools/headless`) + planner. At 300 turns / 4 civs the planner
    averages ~27 cities, ~40 techs, score ~255 vs the baseline's ~4 / ~8 / ~28. The planner explores by

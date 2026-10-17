@@ -1,6 +1,6 @@
-import type { UnitStep } from "@civ/core";
+import type { UnitAction, UnitBattle, UnitStep } from "@civ/core";
 
-/** A unit drawn between squares this frame instead of on its own square. */
+/** A unit drawn somewhere other than its square this frame: sliding, or waiting for its turn to move or fight. */
 export interface UnitMotion {
   unit: number;
   type: string;
@@ -10,6 +10,37 @@ export interface UnitMotion {
   y: number;
   /** Carried by this moving ship: not drawn on its own, the ship shows a stack. */
   aboard?: number;
+  /** Shown with a stack behind it (companions that will fall with it). */
+  stacked?: boolean;
+  /** Hit points to show, when they differ from the unit's current ones (before a fight still to come). */
+  hp?: number;
+  maxHp?: number;
+}
+
+/** One side of the fight being shown. */
+export interface BattleFighter {
+  unit: number;
+  type: string;
+  owner: number;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  stacked: boolean;
+  /** 1 the instant a blow lands on it, fading to 0. */
+  hit: number;
+  /** 0 while it stands; 0..1 as it is destroyed (a burst, then nothing). */
+  dying: number;
+}
+
+export interface BattleFrame {
+  attacker: BattleFighter;
+  defender: BattleFighter;
+}
+
+export interface MotionFrame {
+  moving: UnitMotion[];
+  battle?: BattleFrame;
 }
 
 export interface MotionTiming {
@@ -19,7 +50,17 @@ export interface MotionTiming {
   maxMs: number;
   /** Map width, to slide the short way across the seam. */
   width: number;
+  /** Longest a single fight takes; many fights share `battleTotalMs` and are sped up to fit. */
+  battleMs?: number;
+  battleTotalMs?: number;
 }
+
+/** Parts of a fight: the attacker closes in, the rounds, the loser's end. */
+export const LUNGE_MS = 150;
+export const DEATH_MS = 450;
+const ROUND_MS = { min: 30, max: 110 };
+/** How far toward the defender the attacker closes, in squares. */
+const LUNGE = 0.3;
 
 interface Slide {
   step: UnitStep;
@@ -27,65 +68,155 @@ interface Slide {
   dy: number;
 }
 
-interface Beat {
-  slides: Slide[];
-  start: number;
-  end: number;
-}
+type Beat =
+  | { kind: "slide"; slides: Slide[]; start: number; end: number }
+  | { kind: "battle"; battle: UnitBattle; dx: number; dy: number; roundMs: number; start: number; end: number };
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
 
+function seamDx(dx: number, width: number): number {
+  if (dx > width / 2) return dx - width;
+  if (dx < -width / 2) return dx + width;
+  return dx;
+}
+
+/** Hit points of both sides after the first `n` rounds. */
+function hpAfter(b: UnitBattle, n: number): [number, number] {
+  let a = b.attacker.hp;
+  let d = b.defender.hp;
+  for (let i = 0; i < n && i < b.rounds.length; i++) {
+    if (b.rounds[i]) d = Math.max(0, d - b.attacker.firepower);
+    else a = Math.max(0, a - b.defender.firepower);
+  }
+  return [a, d];
+}
+
 /**
- * Plays unit steps as slides from square to square, one after another, the
- * way the original walked units across the map. A ship's cargo travels in
- * the same beat as the ship. Pure timing: the game state has already moved.
+ * Plays unit steps and fights in order, the way the original walked units
+ * across the map: a step is a slide between squares (a ship's cargo travels
+ * in the ship's beat); a fight is a lunge, a blow per round with hit points
+ * draining, and a burst where the loser stood. Pure timing: the game state
+ * has already moved on.
  */
 export class MotionPlayer {
   private beats: Beat[] = [];
 
-  /** Queue steps after whatever is still playing. */
-  play(steps: readonly UnitStep[], now: number, timing: MotionTiming): void {
-    const groups: Slide[][] = [];
-    for (const step of steps) {
-      let dx = step.toX - step.fromX;
-      if (dx > timing.width / 2) dx -= timing.width;
-      if (dx < -timing.width / 2) dx += timing.width;
-      const slide = { step, dx, dy: step.toY - step.fromY };
+  /** Queue actions after whatever is still playing. */
+  play(actions: readonly UnitAction[], now: number, timing: MotionTiming): void {
+    type Group = { kind: "slide"; slides: Slide[] } | { kind: "battle"; battle: UnitBattle };
+    const groups: Group[] = [];
+    for (const act of actions) {
+      if (act.kind === "battle") { groups.push({ kind: "battle", battle: act }); continue; }
+      const slide = { step: act, dx: seamDx(act.toX - act.fromX, timing.width), dy: act.toY - act.fromY };
       const last = groups.at(-1);
-      if (step.aboard !== undefined && last && last[0]!.step.unit === step.aboard) last.push(slide);
-      else groups.push([slide]);
+      if (act.aboard !== undefined && last?.kind === "slide" && last.slides[0]!.step.unit === act.aboard) last.slides.push(slide);
+      else groups.push({ kind: "slide", slides: [slide] });
     }
     if (!groups.length) return;
-    const ms = Math.min(timing.stepMs, timing.maxMs / groups.length);
+    const slides = groups.filter((g) => g.kind === "slide").length;
+    const fights = groups.length - slides;
+    const stepMs = slides ? Math.min(timing.stepMs, timing.maxMs / slides) : timing.stepMs;
+    const fightMs = Math.min(timing.battleMs ?? 1600, Math.max(LUNGE_MS + DEATH_MS + ROUND_MS.min, (timing.battleTotalMs ?? 6000) / Math.max(1, fights)));
     let t = Math.max(now, this.beats.at(-1)?.end ?? now);
-    for (const slides of groups) {
-      this.beats.push({ slides, start: t, end: t + ms });
-      t += ms;
+    for (const g of groups) {
+      if (g.kind === "slide") {
+        this.beats.push({ kind: "slide", slides: g.slides, start: t, end: t + stepMs });
+        t += stepMs;
+        continue;
+      }
+      const b = g.battle;
+      const n = Math.max(1, b.rounds.length);
+      const roundMs = Math.max(ROUND_MS.min, Math.min(ROUND_MS.max, (fightMs - LUNGE_MS - DEATH_MS) / n));
+      const end = t + LUNGE_MS + n * roundMs + DEATH_MS;
+      this.beats.push({ kind: "battle", battle: b, dx: seamDx(b.defender.x - b.attacker.x, timing.width), dy: b.defender.y - b.attacker.y, roundMs, start: t, end });
+      t = end;
     }
   }
 
-  /** Where each unit with a slide still to come or under way is drawn at `now`. */
-  at(now: number): UnitMotion[] {
+  /** What to draw at `now`: units away from their squares, and the fight under way, if any. */
+  at(now: number): MotionFrame {
     while (this.beats.length && this.beats[0]!.end <= now) this.beats.shift();
     const seen = new Map<number, UnitMotion>();
+    let battle: BattleFrame | undefined;
     for (const beat of this.beats) {
-      const f = now <= beat.start ? 0 : ease(Math.min(1, (now - beat.start) / (beat.end - beat.start)));
-      for (const { step, dx, dy } of beat.slides) {
-        if (seen.has(step.unit)) continue;
-        const m: UnitMotion = { unit: step.unit, type: step.type, owner: step.owner, x: step.fromX + dx * f, y: step.fromY + dy * f };
-        if (step.aboard !== undefined) m.aboard = step.aboard;
-        seen.set(step.unit, m);
+      if (beat.kind === "slide") {
+        const f = now <= beat.start ? 0 : ease(Math.min(1, (now - beat.start) / (beat.end - beat.start)));
+        for (const { step, dx, dy } of beat.slides) {
+          if (seen.has(step.unit)) continue;
+          const m: UnitMotion = { unit: step.unit, type: step.type, owner: step.owner, x: step.fromX + dx * f, y: step.fromY + dy * f };
+          if (step.aboard !== undefined) m.aboard = step.aboard;
+          seen.set(step.unit, m);
+        }
+        continue;
+      }
+      const b = beat.battle;
+      const loserStacked = b.alsoLost.length > 0;
+      if (now >= beat.start && !battle && !seen.has(b.attacker.unit) && !seen.has(b.defender.unit)) {
+        battle = this.fight(beat, now, loserStacked);
+        // Both fighters belong to the fight now; neither is drawn anywhere else.
+        seen.set(b.attacker.unit, { unit: b.attacker.unit, type: b.attacker.type, owner: b.attacker.owner, x: NaN, y: NaN });
+        seen.set(b.defender.unit, { unit: b.defender.unit, type: b.defender.type, owner: b.defender.owner, x: NaN, y: NaN });
+        continue;
+      }
+      // A fight still to come: both sides stand where they will meet, as they were before it.
+      for (const [s, lost] of [[b.attacker, !b.attackerWon], [b.defender, b.attackerWon]] as const) {
+        if (seen.has(s.unit)) continue;
+        const m: UnitMotion = { unit: s.unit, type: s.type, owner: s.owner, x: s.x, y: s.y, hp: s.hp, maxHp: s.maxHp };
+        if (lost && loserStacked) m.stacked = true;
+        seen.set(s.unit, m);
       }
     }
-    return [...seen.values()];
+    const moving = [...seen.values()].filter((m) => !Number.isNaN(m.x));
+    const frame: MotionFrame = { moving };
+    if (battle) frame.battle = battle;
+    return frame;
   }
 
-  /** True while any slide has yet to finish. */
+  private fight(beat: Extract<Beat, { kind: "battle" }>, now: number, loserStacked: boolean): BattleFrame {
+    const b = beat.battle;
+    const e = now - beat.start;
+    const n = b.rounds.length;
+    const roundsEnd = LUNGE_MS + n * beat.roundMs;
+    let reach = LUNGE;
+    let rounds = 0;
+    let attackerHit = 0;
+    let defenderHit = 0;
+    let dying = 0;
+    if (e < LUNGE_MS) reach = LUNGE * ease(e / LUNGE_MS);
+    else if (e < roundsEnd) {
+      const i = Math.min(n - 1, Math.floor((e - LUNGE_MS) / beat.roundMs));
+      const f = (e - LUNGE_MS) / beat.roundMs - i;
+      rounds = i + 1; // each round's blow lands as it begins
+      if (b.rounds[i]) { defenderHit = 1 - f; reach = LUNGE + 0.12 * (1 - f); }
+      else { attackerHit = 1 - f; reach = LUNGE - 0.08 * (1 - f); }
+    } else {
+      rounds = n;
+      dying = Math.min(1, (e - roundsEnd) / DEATH_MS);
+      // The winning attacker steps back to its square while the loser goes up in smoke.
+      if (b.attackerWon) reach = LUNGE * (1 - ease(dying));
+    }
+    const [ahp, dhp] = hpAfter(b, rounds);
+    const attacker: BattleFighter = {
+      unit: b.attacker.unit, type: b.attacker.type, owner: b.attacker.owner,
+      x: b.attacker.x + beat.dx * reach, y: b.attacker.y + beat.dy * reach,
+      hp: ahp, maxHp: b.attacker.maxHp, stacked: !b.attackerWon && loserStacked,
+      hit: attackerHit, dying: b.attackerWon ? 0 : dying,
+    };
+    const defender: BattleFighter = {
+      unit: b.defender.unit, type: b.defender.type, owner: b.defender.owner,
+      x: b.defender.x, y: b.defender.y,
+      hp: dhp, maxHp: b.defender.maxHp, stacked: b.attackerWon && loserStacked,
+      hit: defenderHit, dying: b.attackerWon ? dying : 0,
+    };
+    return { attacker, defender };
+  }
+
+  /** True while any slide or fight has yet to finish. */
   busy(now: number): boolean {
     return (this.beats.at(-1)?.end ?? 0) > now;
   }
 
-  /** Drop every slide; units snap to their squares. */
+  /** Drop everything queued; units snap to their squares. */
   clear(): void {
     this.beats = [];
   }

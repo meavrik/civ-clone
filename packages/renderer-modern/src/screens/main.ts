@@ -5,6 +5,7 @@ import {
   formatYear,
   GOVERNMENTS,
   getTile,
+  maxHp,
   NEIGHBOURS,
   Terrain,
   TERRAIN_NAMES,
@@ -21,7 +22,7 @@ import {
 import { MENU_BAR, type MainScreenView } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
 import { fillRound, measure, panel, paragraph, strokeRound, text } from "../draw.js";
-import { paintBadge, paintCity, paintCityLabel, paintUnit, playerColor } from "../markers.js";
+import { paintBadge, paintBurst, paintCity, paintCityLabel, paintHitFlash, paintHpBar, paintUnit, playerColor } from "../markers.js";
 import { paintFog, paintFortress, paintHut, paintIrrigation, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
 import { BAR_H, H, PANEL_W, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, VIEW_Y, W } from "../theme.js";
 
@@ -156,8 +157,11 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
   }
 
   // A unit sliding between squares is drawn after the rest, where it is now.
+  // So is a fight under way: both fighters come from view.battle.
   const moving = view.moving ?? [];
+  const battle = view.battle;
   const slidingIds = new Set(moving.map((m) => m.unit));
+  if (battle) { slidingIds.add(battle.attacker.unit); slidingIds.add(battle.defender.unit); }
   const units = slidingIds.size ? state.units.filter((u) => !slidingIds.has(u.id)) : state.units;
   const drawn = new Set<number>();
   for (const u of units) {
@@ -172,17 +176,39 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
     if (isActive && !view.blink) continue;
     paintUnit(ctx, pos[0], pos[1], top, state.players[top.owner]!.color, { stacked: stack.length > 1, active: isActive });
+    const max = maxHp(state, top.type);
+    if (top.hp < max) paintHpBar(ctx, pos[0], pos[1], top.hp, max);
   }
   for (const m of moving) {
     if (m.aboard !== undefined) continue;
     const pos = tileToScreen(state, view, m.x, m.y);
     if (!pos) continue;
-    const veteran = state.units.find((u) => u.id === m.unit)?.veteran ?? false;
-    paintUnit(ctx, pos[0], pos[1], { type: m.type, order: { kind: "none" }, veteran }, state.players[m.owner]!.color, {
-      stacked: moving.some((o) => o.aboard === m.unit),
+    const real = state.units.find((u) => u.id === m.unit);
+    paintUnit(ctx, pos[0], pos[1], { type: m.type, order: { kind: "none" }, veteran: real?.veteran ?? false }, state.players[m.owner]!.color, {
+      stacked: m.stacked === true || moving.some((o) => o.aboard === m.unit),
       active: m.unit === state.activeUnit,
     });
+    const hp = m.hp ?? real?.hp;
+    const max = m.maxHp ?? maxHp(state, m.type);
+    if (hp !== undefined && hp < max) paintHpBar(ctx, pos[0], pos[1], hp, max);
   }
+  // The fight: the attacker lunges in, each blow flashes on the side it lands on, the loser bursts.
+  if (battle)
+    for (const f of [battle.defender, battle.attacker]) {
+      const pos = tileToScreen(state, view, f.x, f.y);
+      if (!pos) continue;
+      const fade = Math.max(0, 1 - f.dying * 2.5);
+      if (fade > 0) {
+        const alpha = ctx.globalAlpha;
+        ctx.globalAlpha = alpha * fade;
+        const veteran = state.units.find((u) => u.id === f.unit)?.veteran ?? false;
+        paintUnit(ctx, pos[0], pos[1], { type: f.type, order: { kind: "none" }, veteran }, state.players[f.owner]!.color, { stacked: f.stacked, active: false });
+        if (f.hit > 0) paintHitFlash(ctx, pos[0], pos[1], f.hit);
+        paintHpBar(ctx, pos[0], pos[1], f.hp, f.maxHp);
+        ctx.globalAlpha = alpha;
+      }
+      if (f.dying > 0) paintBurst(ctx, pos[0] + TILE / 2, pos[1] + TILE / 2, f.dying);
+    }
 
   for (const c of state.cities) {
     if (!me.explored[c.y * map.width + c.x]) continue;
@@ -308,7 +334,9 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
     const whole = Math.floor(active.movesLeft / 3);
     const frac = active.movesLeft % 3;
     const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
-    text(ctx, 66, y + 24, `Moves ${whole}${frac ? ` ${frac}/3` : ""}${home ? `  ·  ${home.name}` : ""}`, { size: 13, color: UI.dim });
+    const max = maxHp(state, active.type);
+    const hp = active.hp < max ? `  ·  ${active.hp}/${max} hp` : "";
+    text(ctx, 66, y + 24, `Moves ${whole}${frac ? ` ${frac}/3` : ""}${hp}${home ? `  ·  ${home.name}` : ""}`, { size: 13, color: UI.dim });
     y += 60;
     const t = getTile(map, active.x, active.y);
     if (t) {

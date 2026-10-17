@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, revealAround, Terrain, unitType } from "@civ/core";
-import { drawCityScreen, drawDiscoveryScreen, drawMainScreen, drawMenu, drawUnit, playerColor, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { C, drawCityScreen, drawDiscoveryScreen, drawMainScreen, drawMenu, drawUnit, playerColor, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -138,6 +138,42 @@ describe("retro renderer", () => {
     const py = 9 + (u.y - view.originY) * 16;
     drawUnit(expected, u, px - 8, py, playerColor(state, 0), false);
     for (let y = 9; y < 200; y++) for (let x = 80; x < 320; x++) expect(s.get(x, y), `pixel ${x},${y}`).toBe(expected.get(x, y));
+  });
+
+  it("draws a fight: hit point bars, the flash of a blow, the burst of the loser, and wounds afterwards", () => {
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    revealAround(state, 0, u.x, u.y, 9);
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) getTile(state.map, u.x + dx, u.y + dy)!.terrain = Terrain.Grassland;
+    state.activeUnit = null;
+    const enemy = createUnit(state, "legion", 1, u.x + 1, u.y);
+    state.players[0]!.visible[u.y * state.map.width + u.x + 1] = 1;
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true };
+    const px = 80 + (u.x - view.originX) * 16;
+    const py = 9 + (u.y - view.originY) * 16;
+    const count = (surf: Surface, x0: number, colors: number[]) => {
+      let n = 0;
+      for (let y = py; y < py + 16; y++) for (let x = x0; x < x0 + 16; x++) if (colors.includes(surf.get(x, y))) n++;
+      return n;
+    };
+    const fighter = (unit: number, type: string, owner: number, x: number, hp: number, extra: Partial<{ hit: number; dying: number }> = {}) =>
+      ({ unit, type, owner, x, y: u.y, hp, maxHp: 10, stacked: false, hit: 0, dying: 0, ...extra });
+    const s = Surface.screen();
+    // A blow lands on our settlers: they flash white, both bars show.
+    drawMainScreen(s, state, { ...view, battle: { attacker: fighter(enemy.id, "legion", 1, u.x + 1 - 0.3, 6), defender: fighter(u.id, "settlers", 0, u.x, 4, { hit: 1 }) } });
+    writeFileSync(new URL("./out/battle-blow.png", import.meta.url), encodePng(s, 3));
+    expect(count(s, px, [C.WHITE!])).toBeGreaterThan(60);
+    expect(count(s, px, [C.YELLOW!])).toBeGreaterThan(0); // the defender's bar, at 4 of 10
+    // The settlers lose: a burst where they stood.
+    drawMainScreen(s, state, { ...view, battle: { attacker: fighter(enemy.id, "legion", 1, u.x + 1 - 0.15, 6), defender: fighter(u.id, "settlers", 0, u.x, 0, { dying: 0.4 }) } });
+    writeFileSync(new URL("./out/battle-burst.png", import.meta.url), encodePng(s, 3));
+    expect(count(s, px, [C.ORANGE!, C.YELLOW!, C.LRED!])).toBeGreaterThan(10);
+    // Afterwards a wounded unit wears its bar on the map.
+    enemy.hp = 2;
+    state.units = state.units.filter((o) => o.id !== u.id);
+    drawMainScreen(s, state, view);
+    writeFileSync(new URL("./out/unit-wounded.png", import.meta.url), encodePng(s, 3));
+    expect(count(s, px + 16, [C.LRED!])).toBeGreaterThan(0);
   });
 
   it("draws the menu bar above the map, with dropdowns under their titles", async () => {

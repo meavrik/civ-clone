@@ -27,10 +27,10 @@ import { government, GOVERNMENTS } from "./rules/governments.js";
 import { WONDERS } from "./rules/wonders.js";
 import { newSpaceship, shipStats } from "./rules/spaceship.js";
 import { MOVE_FRAC, TERRAIN_RULES, WARMING_LIMIT, WARMING_THRESHOLD } from "./rules/terrain.js";
-import { unitType } from "./rules/units.js";
+import { HEALING, unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
 import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type GameState, type Player, type Production, type Specialist, type Unit, type WorkKind } from "./types.js";
-import { applyMove, cargo, checkMove, createUnit, fullMoves, lastSteps, unitById, workOptions } from "./units.js";
+import { applyMove, cargo, checkMove, createUnit, fullMoves, lastActions, maxHp, unitById, workOptions } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
 /**
@@ -110,6 +110,11 @@ export interface CombatReport {
   defenderOwner: number;
   x: number;
   y: number;
+  /** Hit points each side has left after the fight (0 for the loser). */
+  attackerHp: number;
+  defenderHp: number;
+  attackerMaxHp: number;
+  defenderMaxHp: number;
 }
 export let lastCombat: CombatReport | null = null;
 
@@ -305,6 +310,10 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
       defenderOwner: c.defender.owner,
       x: wrapX(state.map, u.x + dx),
       y: u.y + dy,
+      attackerHp: c.attacker.hp,
+      defenderHp: c.defender.hp,
+      attackerMaxHp: maxHp(state, c.attacker.type),
+      defenderMaxHp: maxHp(state, c.defender.type),
     };
     if (!c.attackerWon) lastTurnEvents.push({ kind: "unitLost", unit: unitType(u.type).name, by: c.defender.owner });
     recomputeVisibility(state, u.owner);
@@ -656,7 +665,10 @@ export function endTurn(state: GameState): void {
   const p = state.players[player]!;
   lastTurnEvents.length = 0;
   lastCombat = null;
-  lastSteps.length = 0;
+  lastActions.length = 0;
+
+  // Units that spent the whole turn without moving recover hit points.
+  for (const u of state.units) if (u.owner === player) heal(state, u);
 
   // Settler work progresses at the end of the owner's turn.
   for (const u of state.units) {
@@ -808,6 +820,17 @@ export function globalWarming(state: GameState): void {
 
 /** Begin a player's turn: restore moves, continue gotos, wake sentries, pick the first unit. */
 /** Movement points a unit starts its turn with: its type's, plus any wonder bonus for ships. */
+/** A rested unit recovers a share of its hit points: more in a fortress or a city, all of them with barracks. */
+function heal(state: GameState, u: Unit): void {
+  const max = maxHp(state, u.type);
+  if (u.hp >= max || u.movesLeft < moveAllowance(state, u)) return;
+  const city = cityAt(state, u.x, u.y);
+  let share: number = HEALING.field;
+  if (city) share = unitType(u.type).domain === "land" && city.buildings.some((b) => building(b).barracks) ? 1 : HEALING.city;
+  else if (getTile(state.map, u.x, u.y)?.fortress) share = HEALING.fortress;
+  u.hp = Math.min(max, u.hp + Math.max(1, Math.round(max * share)));
+}
+
 export function moveAllowance(state: GameState, u: Unit): number {
   let moves = fullMoves(u);
   if (unitType(u.type).domain === "sea")

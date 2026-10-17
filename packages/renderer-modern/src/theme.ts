@@ -40,6 +40,20 @@ export const UI = {
   fog: "rgba(6, 10, 18, 0.55)",
 };
 
+/** Hit point bars, the flash of a blow, and the burst of a beaten unit. */
+export const COMBAT = {
+  hpGood: "#7bd88f",
+  hpFair: "#f1c54f",
+  hpPoor: "#ff6b6b",
+  hpBack: "rgba(8, 11, 16, 0.85)",
+  flash: "#ffffff",
+  burstCore: "rgba(255, 248, 214, 1)",
+  burstMid: "rgba(255, 170, 60, 0.9)",
+  burstEdge: "rgba(200, 50, 30, 0)",
+  ember: "#ff8a3c",
+  smoke: "rgba(80, 84, 92, 0.75)",
+};
+
 /** Colour slots in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
 export const PLAYER_COLORS = ["#f4f6f8", "#4cd964", "#3a5ff0", "#f5e642", "#36d6e7", "#e15bd8", "#9aa5ad", "#ff8c00", "#d92b3a"];
 export const PLAYER_DARK = ["#9aa3ad", "#24944a", "#1f3ba8", "#b3a51a", "#168f9c", "#9b2f95", "#5e676e", "#b35f00", "#8f1520"];

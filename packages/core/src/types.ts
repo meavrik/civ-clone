@@ -79,6 +79,8 @@ export interface Unit {
   /** Movement points left this turn, in thirds. */
   movesLeft: number;
   veteran: boolean;
+  /** Hit points left; a unit that loses them all in a fight is destroyed. */
+  hp: number;
   order: UnitOrder;
   /** City paying this unit's upkeep; null for starting units. */
   homeCity: number | null;
@@ -167,6 +169,8 @@ export interface GameState {
   activeUnit: number | null;
   /** Pollution pressure accumulated toward the next bout of global warming. */
   warming: number;
+  /** The 1991 rules: every fight is one roll (no lasting damage). Set for old saves. */
+  classicCombat?: boolean;
 }
 
 export function wrapX(map: WorldMap, x: number): number {

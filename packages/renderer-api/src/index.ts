@@ -1,4 +1,4 @@
-import type { UnitMotion } from "./motion.js";
+import type { BattleFrame, UnitMotion } from "./motion.js";
 export * from "./motion.js";
 import {
   cityAt,
@@ -6,6 +6,7 @@ import {
   CIV_COLORS,
   CIVS,
   hasContact,
+  maxHp,
   WONDERS,
   nativeCivs,
   PREMADE_WORLDS,
@@ -52,6 +53,8 @@ export interface MainScreenView {
   menuOpen?: number | undefined;
   /** Units sliding between squares: each is drawn at its position here, not on its square. */
   moving?: UnitMotion[] | undefined;
+  /** The fight being shown: both fighters are drawn from here, with hit points, blows and the loser's end. */
+  battle?: BattleFrame | undefined;
 }
 
 export interface CityScreenView {
@@ -367,6 +370,8 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
       for (const u of units) counts.set(unitType(u.type).name, (counts.get(unitType(u.type).name) ?? 0) + 1);
       const names = [...counts].map(([n, k]) => (k > 1 ? `${k} ${n}` : n)).join(", ");
       lines.push(`Units (${owner.id === me.id ? "ours" : owner.name}): ${names}`);
+      const hurt = units.filter((u) => u.hp < maxHp(state, u.type));
+      if (hurt.length) lines.push(`Wounded: ${hurt.map((u) => `${unitType(u.type).name} ${u.hp}/${maxHp(state, u.type)} hp`).join(", ")}`);
     }
   }
   return { title: `${TERRAIN_NAMES[t.terrain]}${t.river ? " (River)" : ""}`, lines };

@@ -134,3 +134,37 @@ export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order">, dx: number
     s.hline(dx + 4, dy + 15, 8, C.WHITE!);
   }
 }
+
+/** A unit's hit points as a bar down its left edge: green, then yellow, then red as they run out. */
+export function drawHpBar(s: Surface, dx: number, dy: number, hp: number, max: number): void {
+  const ratio = Math.max(0, Math.min(1, hp / max));
+  const h = hp > 0 ? Math.max(1, Math.round(12 * ratio)) : 0;
+  s.rect(dx, dy + 1, 4, 14, C.BLACK!);
+  if (h > 0) s.rect(dx + 1, dy + 2 + (12 - h), 2, h, ratio > 0.5 ? C.LGREEN! : ratio > 0.25 ? C.YELLOW! : C.LRED!);
+}
+
+/** The unit as a white silhouette: the flash of a blow landing on it. */
+export function drawUnitFlash(s: Surface, type: string, color: number, dx: number, dy: number): void {
+  const sprite = unitSprite(type, color);
+  for (let y = 0; y < sprite.height; y++)
+    for (let x = 0; x < sprite.width; x++) if (sprite.get(x, y) !== SPRITE_CLEAR) s.set(dx + x, dy + y, C.WHITE!);
+}
+
+function disc(s: Surface, cx: number, cy: number, r: number, color: number): void {
+  for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r) s.set(cx + x, cy + y, color);
+}
+
+/** The end of a beaten unit, centred on (cx, cy), t from 0 to 1: a white-hot flash, flames flying out, then smoke. */
+export function drawBurst(s: Surface, cx: number, cy: number, t: number): void {
+  const core = Math.round((1 - t) * 6);
+  if (core > 0) disc(s, cx, cy, core, t < 0.2 ? C.WHITE! : t < 0.45 ? C.YELLOW! : C.ORANGE!);
+  const flame = t < 0.3 ? C.YELLOW! : t < 0.6 ? C.ORANGE! : t < 0.8 ? C.LRED! : C.DGREY!;
+  const ember = t < 0.5 ? C.LRED! : C.DGREY!;
+  const r = 2 + t * 10;
+  const size = t < 0.6 ? 2 : 1;
+  for (let k = 0; k < 14; k++) {
+    const a = (k / 14) * Math.PI * 2 + (k % 3) * 0.35;
+    const d = r * (0.5 + ((k * 7) % 5) * 0.12);
+    s.rect(Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d), size, size, k % 2 ? flame : ember);
+  }
+}

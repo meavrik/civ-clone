@@ -42,8 +42,13 @@ visuals, save/load, retire, new game) · **Orders** (the active unit's orders wi
 **Advisors** (city status, military, foreign, science) · **World** (wonders of the world, top 5 cities,
 score, world map, spaceships). Click a title or press `Alt+G`/`Alt+O`/`Alt+A`/`Alt+W`; `Left`/`Right` move between menus.
 With auto end turn on (the default) the turn ends by itself a moment after the last unit has its orders.
-Units slide from square to square (a goto walks its path); after the other civilizations' turns, the moves you
-could see on screen play back before the turn's news. `Enter` skips a playback.
+Units slide from square to square (a goto walks its path); after the other civilizations' turns, the moves and
+fights you could see on screen play back before the turn's news. `Enter` skips a playback.
+Units have hit points (10 for ancient units, 20 from gunpowder, 30-40 for armour and steel ships). A fight goes
+in rounds: the attacker lunges, each blow flashes on the side it lands on and drains its bar, and the loser
+bursts. Survivors keep their wounds (a bar on the unit) and heal by resting a turn: a tenth in the field, a
+quarter in a fortress, a third in a city, all of it in a city with Barracks. `&combat=classic` on the URL
+plays with the original one-roll fights; games saved before hit points load that way.
 Mouse: right-click an adjacent tile to move or attack · right-click any other square for its terrain window (yields, movement, specials, city, units, with "Send here") · right-click the active unit for its orders ·
 left-click an adjacent tile to move/attack · left-click a farther tile to inspect it (terrain, yields, what stands there), click it again to send the unit there ·
 the camera glides to each newly active unit ·

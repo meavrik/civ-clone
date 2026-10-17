@@ -1,6 +1,6 @@
 import { knows } from "./rules/advances.js";
 import { CLEAN_TURNS, FORTRESS_TURNS, MOVE_FRAC, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
-import { unitType } from "./rules/units.js";
+import { CLASSIC_FIREPOWER, CLASSIC_HP, unitType } from "./rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Unit, type WorkKind } from "./types.js";
 
 export function unitAt(state: GameState, x: number, y: number): Unit[] {
@@ -25,6 +25,7 @@ export function createUnit(state: GameState, type: string, owner: number, x: num
     y,
     movesLeft: 0,
     veteran: false,
+    hp: maxHp(state, type),
     order: { kind: "none" },
     homeCity,
     aboard: null,
@@ -125,12 +126,22 @@ export function checkMove(state: GameState, u: Unit, dx: number, dy: number): Mo
   return r;
 }
 
+/** Full hit points of a unit type under this game's rules. */
+export function maxHp(state: GameState, type: string): number {
+  return state.classicCombat ? CLASSIC_HP : unitType(type).hp;
+}
+
+/** Hit points a won round takes off the enemy under this game's rules. */
+export function firepower(state: GameState, type: string): number {
+  return state.classicCombat ? CLASSIC_FIREPOWER : unitType(type).firepower;
+}
+
 /**
  * One square a unit moved, for the UI to animate. `aboard` names the ship
- * that carried it along. Steps are not game state: replays and the AI never
- * read them.
+ * that carried it along.
  */
 export interface UnitStep {
+  kind: "step";
   unit: number;
   type: string;
   owner: number;
@@ -141,15 +152,44 @@ export interface UnitStep {
   aboard?: number;
 }
 
-/** Every step taken since the current player's turn began, in order; endTurn empties it. */
-export const lastSteps: UnitStep[] = [];
+/** One side of a fight, as it stood when the fight began. */
+export interface BattleSide {
+  unit: number;
+  type: string;
+  owner: number;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  firepower: number;
+}
+
+/** A fight, round by round, for the UI to animate. */
+export interface UnitBattle {
+  kind: "battle";
+  attacker: BattleSide;
+  defender: BattleSide;
+  /** Who won each round, in order: true for the attacker. */
+  rounds: boolean[];
+  attackerWon: boolean;
+  /** Units lost along with the loser: the rest of a stack in the open, a sunk ship's cargo. */
+  alsoLost: number[];
+}
+
+export type UnitAction = UnitStep | UnitBattle;
+
+/**
+ * Every step and fight since the current player's turn began, in order;
+ * endTurn empties it. Not game state: replays and the AI never read it.
+ */
+export const lastActions: UnitAction[] = [];
 
 export function applyMove(state: GameState, u: Unit, dx: number, dy: number, r: Extract<MoveResult, { ok: true }>): void {
   const fromX = u.x;
   const fromY = u.y;
   u.x = wrapX(state.map, u.x + dx);
   u.y += dy;
-  lastSteps.push({ unit: u.id, type: u.type, owner: u.owner, fromX, fromY, toX: u.x, toY: u.y });
+  lastActions.push({ kind: "step", unit: u.id, type: u.type, owner: u.owner, fromX, fromY, toX: u.x, toY: u.y });
   u.movesLeft = Math.max(0, u.movesLeft - r.cost);
   if (u.order.kind === "fortified" || u.order.kind === "fortifying" || u.order.kind === "sentry")
     u.order = { kind: "none" };
@@ -161,7 +201,7 @@ export function applyMove(state: GameState, u: Unit, dx: number, dy: number, r: 
   // A moving ship carries its cargo.
   if (unitType(u.type).domain === "sea")
     for (const c of cargo(state, u)) {
-      lastSteps.push({ unit: c.id, type: c.type, owner: c.owner, fromX: c.x, fromY: c.y, toX: u.x, toY: u.y, aboard: u.id });
+      lastActions.push({ kind: "step", unit: c.id, type: c.type, owner: c.owner, fromX: c.x, fromY: c.y, toX: u.x, toY: u.y, aboard: u.id });
       c.x = u.x;
       c.y = u.y;
     }

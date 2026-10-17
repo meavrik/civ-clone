@@ -24,6 +24,8 @@ export interface NewGameOptions extends MapGenOptions {
    * tournament harness; such a game has an empty command log.
    */
   allAi?: boolean;
+  /** The 1991 rules: every fight is one roll and units take no lasting damage. Old saves load with it. */
+  classicCombat?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -134,6 +136,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     currentPlayer: 0,
     activeUnit: null,
     warming: 0,
+    ...(opts.classicCombat ? { classicCombat: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

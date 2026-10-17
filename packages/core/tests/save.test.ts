@@ -26,6 +26,17 @@ describe("save/load", () => {
     expect(JSON.stringify(again.units)).toBe(JSON.stringify(state.units));
     expect(again.rng.s).toEqual(state.rng.s);
   });
+
+  it("replays a save from before hit points with one-roll fights", () => {
+    const opts = { opponents: 1 as const };
+    const state = newGame(321, opts);
+    const old = { ...makeSave(state, opts, [], "old"), version: 1 as const };
+    const loaded = loadSave(old, skipAll);
+    expect(loaded.options.classicCombat).toBe(true);
+    expect(loaded.state.classicCombat).toBe(true);
+    expect(loaded.state.units.every((u) => u.hp === 10)).toBe(true);
+    expect(loadSave(makeSave(state, opts, []), skipAll).state.classicCombat).toBeUndefined();
+  });
 });
 
 describe("score and end", () => {

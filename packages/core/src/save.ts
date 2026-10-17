@@ -10,7 +10,8 @@ import type { GameState } from "./types.js";
  * replay format for the AI tournament harness.
  */
 export interface SaveGame {
-  version: 1;
+  /** 1: saved before units had hit points; such a game replays with classic combat. */
+  version: 1 | 2;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -25,11 +26,11 @@ export interface SaveGame {
   label?: string;
 }
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
-    version: 1,
+    version: SAVE_VERSION,
     seed: state.seed,
     options,
     log: [...log],
@@ -45,9 +46,11 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
  * Rebuild a game from a save. `aiTurn` is injected so core stays free of the
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
-export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[] } {
-  if (save.version !== SAVE_VERSION) throw new Error(`unsupported save version ${save.version}`);
-  const state = newGame(save.seed, save.options);
+export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
+  if (save.version !== 1 && save.version !== SAVE_VERSION) throw new Error(`unsupported save version ${save.version}`);
+  // A game saved before hit points existed was played with one-roll fights; it must replay the same way.
+  const options: NewGameOptions = save.version === 1 ? { ...save.options, classicCombat: true } : save.options;
+  const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {
     const r = applyCommand(state, cmd);
@@ -56,11 +59,11 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
     if (cmd.type === "endTurn") runAiPlayers(state, aiTurn);
   }
   // No human seat: nothing is logged, so play the recorded number of rounds.
-  if (save.options.allAi) {
+  if (options.allAi) {
     let guard = 0;
     while (state.turn < save.turn && guard++ < 10000) runAiPlayers(state, aiTurn);
   }
-  return { state, log };
+  return { state, log, options };
 }
 
 /**

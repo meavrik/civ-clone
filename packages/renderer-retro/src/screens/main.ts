@@ -5,6 +5,7 @@ import {
   formatYear,
   GOVERNMENTS,
   getTile,
+  maxHp,
   NEIGHBOURS,
   Terrain,
   TERRAIN_NAMES,
@@ -19,7 +20,7 @@ import {
   type GameState,
 } from "@civ/core";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
-import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, unitSprite } from "../overlays.js";
+import { drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawRiver, drawSpecial, getTile as terrainTile, TILE } from "../tiles.js";
@@ -175,8 +176,11 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
 
   // Units: only those on tiles we currently see. Draw one per tile (top of stack).
   // A unit sliding between squares is drawn after the rest, where it is now.
+  // So is a fight under way: both fighters come from view.battle.
   const moving = view.moving ?? [];
+  const battle = view.battle;
   const slidingIds = new Set(moving.map((m) => m.unit));
+  if (battle) { slidingIds.add(battle.attacker.unit); slidingIds.add(battle.defender.unit); }
   const units = slidingIds.size ? state.units.filter((u) => !slidingIds.has(u.id)) : state.units;
   const drawn = new Set<number>();
   for (const u of units) {
@@ -192,12 +196,32 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
     if (isActive && !view.blink) continue;
     drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1);
+    const max = maxHp(state, top.type);
+    if (top.hp < max) drawHpBar(s, pos[0], pos[1], top.hp, max);
   }
   for (const m of moving) {
     if (m.aboard !== undefined) continue;
     const pos = tileToScreen(state, view, m.x, m.y);
-    if (pos) drawUnit(s, { type: m.type, order: { kind: "none" } }, pos[0], pos[1], playerColor(state, m.owner), moving.some((o) => o.aboard === m.unit));
+    if (!pos) continue;
+    drawUnit(s, { type: m.type, order: { kind: "none" } }, pos[0], pos[1], playerColor(state, m.owner), m.stacked === true || moving.some((o) => o.aboard === m.unit));
+    const hp = m.hp ?? state.units.find((u) => u.id === m.unit)?.hp;
+    const max = m.maxHp ?? maxHp(state, m.type);
+    if (hp !== undefined && hp < max) drawHpBar(s, pos[0], pos[1], hp, max);
   }
+  // The fight: the attacker lunges in, each blow flashes on the side it lands on, the loser bursts.
+  if (battle)
+    for (const f of [battle.defender, battle.attacker]) {
+      const pos = tileToScreen(state, view, f.x, f.y);
+      if (!pos) continue;
+      const color = playerColor(state, f.owner);
+      const gone = f.dying > 0.35 || (f.dying > 0 && Math.floor(f.dying * 24) % 2 === 1);
+      if (!gone) {
+        if (f.hit > 0.45) drawUnitFlash(s, f.type, color, pos[0], pos[1]);
+        else drawUnit(s, { type: f.type, order: { kind: "none" } }, pos[0], pos[1], color, f.stacked);
+        drawHpBar(s, pos[0], pos[1], f.hp, f.maxHp);
+      }
+      if (f.dying > 0) drawBurst(s, pos[0] + 8, pos[1] + 8, f.dying);
+    }
 
   // Goto destination of the active unit.
   const act = state.activeUnit !== null ? state.units.find((u) => u.id === state.activeUnit) : undefined;
@@ -309,6 +333,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     const whole = Math.floor(active.movesLeft / 3);
     const frac = active.movesLeft % 3;
     drawText(s, 24, y + 9, `Moves: ${whole}${frac ? ` ${frac}/3` : ""}`, dim);
+    const max = maxHp(state, active.type);
+    if (active.hp < max) drawHpBar(s, 4, y, active.hp, max);
     const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
     y += 18;
     if (home) { drawTextWrapped(s, TEXT_X, y, TEXT_W, home.name, dim, 1); y += FONT_HEIGHT; }

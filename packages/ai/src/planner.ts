@@ -2,6 +2,7 @@ import {
   advance,
   applyCommand,
   atWar,
+  attackOdds,
   attackStrength,
   availableAdvances,
   bestDefender,
@@ -870,9 +871,7 @@ function fixDisorder(state: GameState, ctx: Ctx, c: City): void {
 function winChance(state: GameState, u: Unit, x: number, y: number): number | null {
   const d = bestDefender(state, x, y, u);
   if (!d) return null;
-  const a = attackStrength(u);
-  const ds = defenseStrength(state, d, u);
-  return a / (a + ds);
+  return attackOdds(state, u, d);
 }
 
 function rebalanceGarrisons(state: GameState, ctx: Ctx): void {
