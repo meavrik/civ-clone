@@ -313,7 +313,7 @@ export function drawWorldMap(ctx: Context2D, state: GameState): void {
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
       if (!me.explored[y * map.width + x]) continue;
-      ctx.fillStyle = mapColor(map, x, y);
+      ctx.fillStyle = mapColor(map, x, y, me.explored);
       ctx.fillRect(ox + x * k, oy + y * k, k, k);
     }
   for (const u of state.units) {

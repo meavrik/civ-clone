@@ -19,7 +19,7 @@ import { drawText, drawTextCentered, textWidth } from "../font.js";
 import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawSpecial, terrainSquare, TILE } from "../tiles.js";
+import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { drawBox, drawPanel } from "../widgets.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
@@ -122,11 +122,17 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       const mx = city.x + dx;
       const my = city.y + dy;
       const tile = getTile(state.map, mx, my);
-      if (slot < 0 || !tile || !me.explored[my * state.map.width + ((mx + state.map.width) % state.map.width)]) {
+      if (slot < 0 || !tile) {
         s.rect(px, py, TILE, TILE, C.BLACK!);
         continue;
       }
-      s.blit(terrainSquare(state.map, (mx + state.map.width) % state.map.width, my), px, py);
+      const wx = (mx + state.map.width) % state.map.width;
+      const fog = fogSquare(state.map, me.explored, wx, my);
+      if (!me.explored[my * state.map.width + wx]) {
+        s.blit(fog!, px, py);
+        continue;
+      }
+      s.blit(terrainSquare(state.map, wx, my, me.explored), px, py);
       if (tile.irrigation) drawIrrigation(s, px, py);
       if (tile.mine) drawMine(s, px, py);
       if (tile.road) drawRoad(s, px, py, 0);
@@ -134,6 +140,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       if (tile.special) drawSpecial(s, px, py, tile.terrain);
       if (tile.fortress) drawFortress(s, px, py);
       if (tile.pollution) drawPollution(s, px, py);
+      if (fog) s.blit(fog, px, py, SPRITE_CLEAR);
       const worked = slot === 0 || city.worked.includes(slot);
       if (worked) {
         const y = tileYield(state, tile, slot === 0, player.government);

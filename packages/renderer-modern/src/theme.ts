@@ -108,6 +108,13 @@ export const TERRAIN: Record<Terrain, TerrainLook> = {
   [Terrain.Jungle]: { base: "#2f8a58", light: "#3fa56c", dark: "#226a42" },
 };
 
+/** Clouds over unexplored squares: the body, and soft light and dark billows over it (each fading out from its colour). */
+export const CLOUDS = {
+  base: "#181d26",
+  light: ["rgba(150, 164, 186, 0.22)", "rgba(150, 164, 186, 0)"],
+  dark: ["rgba(0, 0, 0, 0.32)", "rgba(0, 0, 0, 0)"],
+} as const;
+
 /** Water by depth: open sea away from land, the shallows along a shore (pale next to it, then a shelf), and the surf line on it. */
 export const SEA = {
   deep: { base: "#16416f", light: "#1d4f86", dark: "#0e2e52" } as TerrainLook,

@@ -3,6 +3,8 @@ export * from "./motion.js";
 export * from "./icons.js";
 export * from "./coast.js";
 export * from "./river.js";
+export * from "./fog.js";
+export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME } from "./icons.js";
 import {
   cityAt,

@@ -21,8 +21,9 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, isDeepWater, MENU_BAR, riverShape, shownActive, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, fogPatch, isDeepWater, knownSquare, MENU_BAR, riverShape, shownActive, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
+import { Clouds } from "../fog.js";
 import { drawIconLine, iconParagraph, paintIcon } from "../icons.js";
 import type { Context2D } from "../context.js";
 import { circle, fillRound, measure, panel, paragraph, strokeRound, text } from "../draw.js";
@@ -73,15 +74,16 @@ export function drawMenuBar(ctx: Context2D, open?: number): void {
 const MINIMAP_SCALE = 2;
 
 /** A square's colour on the minimap and the world map; open sea is darker than water along a coast. */
-export function mapColor(map: GameState["map"], x: number, y: number): string {
-  return isDeepWater(map, x, y) ? SEA.deep.base : TERRAIN[map.tiles[y * map.width + x]!.terrain].base;
+export function mapColor(map: GameState["map"], x: number, y: number, explored?: ArrayLike<number>): string {
+  return isDeepWater(map, x, y, explored) ? SEA.deep.base : TERRAIN[map.tiles[y * map.width + x]!.terrain].base;
 }
 
 function roadMask(state: GameState, x: number, y: number, rail: boolean): number {
+  const explored = state.players[state.currentPlayer]!.explored;
   let mask = 0;
   NEIGHBOURS.forEach(([dx, dy], i) => {
     const n = getTile(state.map, x + dx, y + dy);
-    if (n && (rail ? n.railroad : n.road)) mask |= 1 << i;
+    if (n && (rail ? n.railroad : n.road) && knownSquare(state.map, explored, x + dx, y + dy)) mask |= 1 << i;
   });
   return mask;
 }
@@ -123,20 +125,25 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
   ctx.rect(VIEW_X, VIEW_Y, W - VIEW_X, H - VIEW_Y);
   ctx.clip();
   const [ox, oy] = panOffset(view);
+  const clouds = new Clouds();
   for (let ty = 0; ty <= VIEW_TILES_Y; ty++) {
     const my = view.originY + ty;
     const dy = VIEW_Y + ty * TILE - oy;
     for (let tx = 0; tx <= VIEW_TILES_X; tx++) {
       const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
       const dx = VIEW_X + tx * TILE - ox;
-      if (my < 0 || my >= map.height || !me.explored[my * map.width + mx]) {
+      if (my < 0 || my >= map.height) {
         ctx.fillStyle = UI.bg;
         ctx.fillRect(dx, dy, TILE, TILE);
         continue;
       }
+      // Unexplored squares are clouds; fog drifts a little way into explored squares beside them.
+      const fog = fogPatch(map, me.explored, mx, my);
+      clouds.add(dx, dy, fog);
+      if (fog.unknown[4]) continue;
       const tile = map.tiles[my * map.width + mx]!;
-      const coast = coastPatch(map, mx, my);
-      const river = riverShape(map, mx, my);
+      const coast = coastPatch(map, mx, my, me.explored);
+      const river = riverShape(map, mx, my, me.explored);
       paintTile(ctx, dx, dy, tile, mx, my, coast.depth[4] === DEEP);
       // A river goes under the coast pass, so the sea covers it where it bites into the land.
       if (river && tile.terrain !== Terrain.Ocean) paintRiver(ctx, dx, dy, river);
@@ -152,6 +159,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
       if (!me.visible[my * map.width + mx]) paintFog(ctx, dx, dy);
     }
   }
+  clouds.paint(ctx);
 
   for (const c of state.cities) {
     if (!me.explored[c.y * map.width + c.x]) continue;
@@ -317,7 +325,7 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
       if (!me.explored[y * map.width + x]) continue;
-      ctx.fillStyle = mapColor(map, x, y);
+      ctx.fillStyle = mapColor(map, x, y, me.explored);
       ctx.fillRect(MINIMAP_X + x * MINIMAP_SCALE, MINIMAP_Y + y * MINIMAP_SCALE, MINIMAP_SCALE, MINIMAP_SCALE);
     }
   for (const u of state.units) {

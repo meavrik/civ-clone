@@ -245,6 +245,40 @@ describe("retro renderer", () => {
   });
 });
 
+describe("fog of war", () => {
+  it("draws clouds over unexplored squares, drifting into explored ones, and shows nothing of what lies beneath", () => {
+    const state = newGame(7);
+    const u = state.units[0]!;
+    // Explore a little more, along the coast, so the fog edge crosses land and sea.
+    revealAround(state, 0, u.x + 2, u.y + 1, 2);
+    const me = state.players[0]!;
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false };
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/fog.png", import.meta.url), encodePng(s, 3));
+
+    // An unexplored square is cloud through and through; an explored one keeps its middle clear.
+    const fogMin = C.FOG!;
+    const at = (mx: number, my: number, i: number, j: number) => s.data[(80 + (mx - view.originX) * 16 + i) + (9 + (my - view.originY) * 16 + j) * 320]!;
+    const hidden = { x: u.x - 6, y: u.y };
+    expect(me.explored[hidden.y * state.map.width + hidden.x]).toBe(0);
+    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) expect(at(hidden.x, hidden.y, i, j) - fogMin, `${i},${j}`).toBeLessThan(8);
+    expect(at(u.x, u.y, 8, 8) - fogMin < 0 || at(u.x, u.y, 8, 8) - fogMin >= 8).toBe(true);
+
+    // Rewrite every unexplored square: the picture does not change.
+    const before = s.data.slice();
+    state.map.tiles.forEach((t, i) => {
+      if (me.explored[i]) return;
+      t.terrain = t.terrain === Terrain.Ocean ? Terrain.Desert : Terrain.Ocean;
+      t.river = !t.river;
+      t.road = true;
+    });
+    drawMainScreen(s, state, view);
+    expect(s.data).toEqual(before);
+  });
+});
+
 describe("city screen", () => {
   it("renders a city with production menu", () => {
     const state = newGame(2026);

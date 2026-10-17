@@ -1,4 +1,5 @@
 import { getTile, Terrain, type WorldMap } from "@civ/core";
+import { knownSquare, type Explored } from "./coast.js";
 import { hash } from "./hash.js";
 
 /**
@@ -10,6 +11,8 @@ import { hash } from "./hash.js";
  * flows on without a kink; the wiggles fade out at both ends. A river widens
  * as it nears the sea, and the sea square beside it carries the mouth on
  * through whatever shore spills into it (renderers draw strokes on land only).
+ * Neighbours the player has not explored (`explored`, when given) are left
+ * out, so a river stops short of the fog instead of hinting at what lies there.
  */
 
 /** One run of river across a square: points in square units (0..1 from its north-west corner) and the width at each, 1 being a renderer's usual river. */
@@ -32,12 +35,12 @@ const MOUTH_END = 2.3;
 
 const isSea = (map: WorldMap, x: number, y: number) => getTile(map, x, y)?.terrain === Terrain.Ocean;
 
-/** Which of the four neighbours a river here flows to: other river squares and the sea, as N=1 E=2 S=4 W=8. */
-export function riverLinks(map: WorldMap, x: number, y: number): number {
+/** Which of the four (known) neighbours a river here flows to: other river squares and the sea, as N=1 E=2 S=4 W=8. */
+export function riverLinks(map: WorldMap, x: number, y: number, explored?: Explored): number {
   let mask = 0;
   DIRS.forEach(([dx, dy], d) => {
     const n = getTile(map, x + dx, y + dy);
-    if (n && (n.river || n.terrain === Terrain.Ocean)) mask |= 1 << d;
+    if (n && (n.river || n.terrain === Terrain.Ocean) && knownSquare(map, explored, x + dx, y + dy)) mask |= 1 << d;
   });
   return mask;
 }
@@ -98,7 +101,7 @@ function meander(from: [number, number], start: [number, number], to: [number, n
  * or the mouths a sea square carries for the rivers reaching it. Null when
  * there are none.
  */
-export function riverShape(map: WorldMap, x: number, y: number): RiverShape | null {
+export function riverShape(map: WorldMap, x: number, y: number, explored?: Explored): RiverShape | null {
   const tile = getTile(map, x, y);
   if (!tile) return null;
   const wx = (((x % map.width) + map.width) % map.width);
@@ -107,7 +110,7 @@ export function riverShape(map: WorldMap, x: number, y: number): RiverShape | nu
     let mask = 0;
     DIRS.forEach(([dx, dy], d) => {
       const n = getTile(map, x + dx, y + dy);
-      if (!n || n.terrain === Terrain.Ocean || !n.river) return;
+      if (!n || n.terrain === Terrain.Ocean || !n.river || !knownSquare(map, explored, x + dx, y + dy)) return;
       mask |= 1 << d;
       const c = riverCrossing(map, x, y, d);
       const inward: [number, number] = [-dx, -dy];
@@ -117,7 +120,7 @@ export function riverShape(map: WorldMap, x: number, y: number): RiverShape | nu
     return strokes.length ? { strokes, key: `m${mask}` } : null;
   }
   if (!tile.river) return null;
-  const links = riverLinks(map, x, y);
+  const links = riverLinks(map, x, y, explored);
   const node = meeting(wx, y);
   const ends = DIRS.map((_, d) => (links & (1 << d) ? riverCrossing(map, x, y, d) : null));
   const open = ends.flatMap((e, d) => (e ? [d] : []));

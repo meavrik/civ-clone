@@ -59,7 +59,7 @@ export function drawWorldMap(s: Surface, state: GameState): void {
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
       if (!me.explored[y * map.width + x]) continue;
-      s.rect(ox + x * k, oy + y * k, k, k, minimapColor(map, x, y));
+      s.rect(ox + x * k, oy + y * k, k, k, minimapColor(map, x, y, me.explored));
     }
   for (const u of state.units) {
     if (!me.visible[u.y * map.width + u.x]) continue;

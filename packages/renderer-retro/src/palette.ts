@@ -56,6 +56,7 @@ const RAMPS: Record<string, Rgb[]> = {
   flesh: ramp([120, 72, 40], [255, 212, 168], 8),
   ui: ramp([40, 32, 24], [224, 200, 160], 8), // parchment-ish panel ramp
   grey: ramp([16, 16, 16], [240, 240, 240], 8),
+  fog: ramp([12, 14, 20], [118, 126, 142], 8), // clouds over unexplored squares
 };
 
 export const PALETTE: Rgb[] = [...EGA];

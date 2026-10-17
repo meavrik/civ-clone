@@ -25,7 +25,7 @@ import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth, wr
 import { drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawHut, drawSpecial, terrainSquare, TILE } from "../tiles.js";
+import { drawHut, drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 
@@ -78,7 +78,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { isDeepWater, MENU_BAR, shownActive, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
+import { isDeepWater, knownSquare, MENU_BAR, shownActive, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, iconLineWidth } from "../icons.js";
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
@@ -106,15 +106,16 @@ export const MINIMAP_COLOR: Record<Terrain, () => number> = {
 };
 
 /** A square's minimap colour; open sea is darker than water along a coast. */
-export function minimapColor(map: GameState["map"], x: number, y: number): number {
-  return isDeepWater(map, x, y) ? shade("ocean", 1) : MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]();
+export function minimapColor(map: GameState["map"], x: number, y: number, explored?: ArrayLike<number>): number {
+  return isDeepWater(map, x, y, explored) ? shade("ocean", 1) : MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]();
 }
 
 function roadMask(state: GameState, x: number, y: number, rail = false): number {
+  const explored = state.players[state.currentPlayer]!.explored;
   let mask = 0;
   NEIGHBOURS.forEach(([dx, dy], i) => {
     const n = getTile(state.map, x + dx, y + dy);
-    if (n && (rail ? n.railroad : n.road)) mask |= 1 << i;
+    if (n && (rail ? n.railroad : n.road) && knownSquare(state.map, explored, x + dx, y + dy)) mask |= 1 << i;
   });
   return mask;
 }
@@ -145,12 +146,18 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     for (let tx = 0; tx <= VIEW_TILES_X; tx++) {
       const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
       const dx = VIEW_X + tx * TILE - ox;
-      if (my < 0 || my >= map.height || !me.explored[my * map.width + mx]) {
+      if (my < 0 || my >= map.height) {
         s.rect(dx, dy, TILE, TILE, C.BLACK!);
         continue;
       }
+      // Unexplored squares are clouds; fog drifts a little way into explored squares beside them.
+      const fog = fogSquare(map, me.explored, mx, my);
+      if (!me.explored[my * map.width + mx]) {
+        s.blit(fog!, dx, dy);
+        continue;
+      }
       const tile = map.tiles[my * map.width + mx]!;
-      s.blit(terrainSquare(map, mx, my), dx, dy);
+      s.blit(terrainSquare(map, mx, my, me.explored), dx, dy);
       if (tile.irrigation) drawIrrigation(s, dx, dy);
       if (tile.mine) drawMine(s, dx, dy);
       if (tile.road) drawRoad(s, dx, dy, roadMask(state, mx, my));
@@ -159,6 +166,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       if (tile.hut) drawHut(s, dx, dy);
       if (tile.fortress) drawFortress(s, dx, dy);
       if (tile.pollution) drawPollution(s, dx, dy);
+      if (fog) s.blit(fog, dx, dy, SPRITE_CLEAR);
     }
   }
 
@@ -313,7 +321,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
       if (!me.explored[y * map.width + x]) continue;
-      s.set(x, mmY + y, minimapColor(map, x, y));
+      s.set(x, mmY + y, minimapColor(map, x, y, me.explored));
     }
   for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(u.x, mmY + u.y, playerColor(state, u.owner));
   for (const c of state.cities) if (me.explored[c.y * map.width + c.x]) s.set(c.x, mmY + c.y, C.WHITE!);

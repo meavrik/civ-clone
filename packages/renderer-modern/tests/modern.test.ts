@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, CIV_COLORS, createUnit, newGame, revealAround } from "@civ/core";
-import { PLAYER_COLORS } from "../src/theme.js";
+import { applyCommand, CIV_COLORS, createUnit, newGame, revealAround, Terrain } from "@civ/core";
+import { CLOUDS, PLAYER_COLORS } from "../src/theme.js";
 import type { MainScreenView } from "@civ/renderer-api";
 import { createModernRenderer, MODERN_H, MODERN_TILE, MODERN_W, type Context2D, type Gradient } from "../src/index.js";
 import { paintIcon } from "../src/icons.js";
@@ -197,5 +197,41 @@ describe("modern renderer", () => {
     expect(r.citySlotAt(20 + 48 * 2 + 10, 92 + 48 * 2 + 10)).toBe(0);
     expect(r.citySlotAt(20 + 48 * 4 + 10, 92 + 10)).toBeNull();
     expect(r.cityExitHit(10, 590)).toBe(true);
+  });
+});
+
+describe("modern fog of war", () => {
+  it("covers unexplored squares in clouds and draws nothing of what lies beneath", () => {
+    const log: string[] = [];
+    const ctx = new Proxy(new FakeContext(), {
+      get(t, k) {
+        const v = (t as unknown as Record<string | symbol, unknown>)[k];
+        return typeof v === "function" ? (...a: unknown[]) => { log.push(`${String(k)}(${a.join(",")})`); return (v as (...x: unknown[]) => unknown).apply(t, a); } : v;
+      },
+      set(t, k, v) {
+        log.push(`${String(k)}=${typeof v === "string" || typeof v === "number" ? v : "gradient"}`);
+        (t as unknown as Record<string | symbol, unknown>)[k] = v;
+        return true;
+      },
+    }) as Context2D;
+    const state = newGame(7);
+    const u = state.units[0]!;
+    revealAround(state, 0, u.x + 2, u.y + 1, 2);
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false };
+    const r = createModernRenderer(ctx);
+    r.main(state, view); // a first frame warms the caches
+    log.length = 0;
+    r.main(state, view);
+    const before = log.splice(0);
+    expect(before).toContain(`fillStyle=${CLOUDS.base}`);
+    const me = state.players[0]!;
+    state.map.tiles.forEach((t, i) => {
+      if (me.explored[i]) return;
+      t.terrain = t.terrain === Terrain.Ocean ? Terrain.Desert : Terrain.Ocean;
+      t.river = !t.river;
+      t.road = true;
+    });
+    r.main(state, view);
+    expect(log).toEqual(before);
   });
 });

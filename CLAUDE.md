@@ -45,6 +45,10 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   widening toward the sea; the sea square carries the mouth on through spilled shore. Strokes show on
   land only. Retro blends coast and river per pixel (`terrainSquare` in `tiles.ts`, cached by
   neighbourhood); modern fills marching-squares paths (`renderer-modern/src/coast.ts`) and strokes rivers.
+  Fog of war (`fog.ts`): unexplored squares are clouds, and fog drifts into explored squares beside
+  them (solid at the border, clear before the centre). Retro: `fogSquare`, dithered `fog` ramp; modern:
+  `Clouds` gathers the view's fog and fills each layer as one path (per-square fills leave seams and
+  thousands of tiny polygons cost ~600 ms a frame), billows as cached radial gradients.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
   terrain, cities, villages and specials are pixel art in `src/art/*.art.ts` (text grids; legend
@@ -74,7 +78,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   Human input, AI and replays use the same `Command` union. Add new actions as commands.
 - Randomness only via `state.rng` (`nextInt`/`nextFloat`). Never `Math.random` in core/ai.
   Seed + command log must replay to an identical state (`save.ts`, test in `tests/save.test.ts`).
-- Renderers never touch `state.rng` and never change state. The retro renderer draws into
+- Renderers never touch `state.rng` and never change state, and draw nothing of a square the player
+  has not explored: coast, river, road and fog shapes take `player.explored` (tests rewrite the hidden
+  squares and expect the same picture). The retro renderer draws into
   `Surface` with palette indices only (no RGB in its code; use `shade(ramp, 0..7)` or `C.*`); the
   modern renderer keeps every colour in `theme.ts`.
 - Movement points are stored in thirds (`MOVE_FRAC = 3`). Map wraps east-west only (`wrapX`).

@@ -1,5 +1,5 @@
 import { Terrain, TERRAIN_RULES, type WorldMap } from "@civ/core";
-import { coastLevel, coastPatch, DEEP, DEEP_EDGE, landOwner, riverShape, SHORE, strokeDistance } from "@civ/renderer-api";
+import { cloudTone, coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, landOwner, riverShape, SHORE, strokeDistance, type Explored } from "@civ/renderer-api";
 import { FEATURE_SHEET, mirrored, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { C, shade } from "./palette.js";
@@ -78,10 +78,11 @@ const RIVER_HALF = 1;
  * square continues the neighbour's sprite, mirrored at the shared edge so the
  * seam does not show; next to the shore runs a line of surf, then a band of
  * shallows. Rivers show on land only, so a mouth runs on until it meets water.
+ * Squares the player has not explored (`explored`) are left out of the blend.
  */
-export function terrainSquare(map: WorldMap, x: number, y: number): Surface {
-  const p = coastPatch(map, x, y);
-  const river = riverShape(map, x, y);
+export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Explored): Surface {
+  const p = coastPatch(map, x, y, explored);
+  const river = riverShape(map, x, y, explored);
   const own = p.terrain[4]!;
   const plain = p.depth[4] === DEEP ? deepTile(x, y) : getTile(own, x, y);
   if (!p.mixed && !river) return plain;
@@ -123,6 +124,37 @@ export function terrainSquare(map: WorldMap, x: number, y: number): Surface {
     }
   if (squareCache.size > 4096) squareCache.clear();
   squareCache.set(key, out);
+  return out;
+}
+
+/** 4x4 ordered dither thresholds, for fading fog and blending cloud shades without colours in between. */
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((n) => (n + 0.5) / 16);
+
+const fogCache = new Map<string, Surface>();
+
+/**
+ * The fog drawn over square (x, y), or null when it has none: solid clouds on
+ * an unexplored square, and on an explored square beside one, clouds drifting
+ * in from that side, dithered out to clear pixels (SPRITE_CLEAR). The cloud
+ * texture follows world position, so it runs on across square borders.
+ */
+export function fogSquare(map: WorldMap, explored: Explored, x: number, y: number): Surface | null {
+  const p = fogPatch(map, explored, x, y);
+  if (!p.unknown[4] && !p.edge) return null;
+  const hit = fogCache.get(p.key);
+  if (hit) return hit;
+  const out = new Surface(TILE, TILE);
+  for (let j = 0; j < TILE; j++)
+    for (let i = 0; i < TILE; i++) {
+      const u = (i + 0.5) / TILE;
+      const v = (j + 0.5) / TILE;
+      const dither = BAYER[(j & 3) * 4 + (i & 3)]!;
+      if (fogLevel(p, u, v) <= dither) { out.data[j * TILE + i] = SPRITE_CLEAR; continue; }
+      const tone = 1 + cloudTone(x + u, y + v, map.width) * 3;
+      out.data[j * TILE + i] = shade("fog", Math.floor(tone) + (tone % 1 > dither ? 1 : 0));
+    }
+  if (fogCache.size > 4096) fogCache.clear();
+  fogCache.set(p.key, out);
   return out;
 }
 

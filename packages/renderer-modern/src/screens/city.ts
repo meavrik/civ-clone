@@ -13,8 +13,9 @@ import {
   wonder,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, riverShape, type CityScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, fogPatch, riverShape, type CityScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
+import { Clouds } from "../fog.js";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, panel, paragraph, strokeRound, text } from "../draw.js";
 import { paintBadge, paintCity, playerColor } from "../markers.js";
@@ -90,6 +91,9 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   // Resource map.
   const me = state.players[state.currentPlayer]!;
   fillRound(ctx, CITY_MAP_X - 4, CITY_MAP_Y - 4, TILE * 5 + 8, TILE * 5 + 8, 8, "#05080d");
+  // The city and its yields go on after the fog, so they show over it.
+  const clouds = new Clouds();
+  const marks: (() => void)[] = [];
   for (let ty = 0; ty < 5; ty++)
     for (let tx = 0; tx < 5; tx++) {
       const dx = tx - 2;
@@ -101,13 +105,16 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
       const my = city.y + dy;
       const tile = getTile(state.map, mx, my);
       const wx = ((mx % state.map.width) + state.map.width) % state.map.width;
-      if (slot < 0 || !tile || !me.explored[my * state.map.width + wx]) {
+      if (slot < 0 || !tile) {
         ctx.fillStyle = UI.bg;
         ctx.fillRect(px, py, TILE, TILE);
         continue;
       }
-      const coast = coastPatch(state.map, wx, my);
-      const river = riverShape(state.map, wx, my);
+      const fog = fogPatch(state.map, me.explored, wx, my);
+      clouds.add(px, py, fog);
+      if (fog.unknown[4]) continue;
+      const coast = coastPatch(state.map, wx, my, me.explored);
+      const river = riverShape(state.map, wx, my, me.explored);
       const sea = tile.terrain === Terrain.Ocean;
       paintTile(ctx, px, py, tile, wx, my, coast.depth[4] === DEEP);
       if (river && !sea) paintRiver(ctx, px, py, river);
@@ -119,19 +126,23 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
       if (tile.fortress) paintFortress(ctx, px, py);
       if (tile.pollution) paintPollution(ctx, px, py);
       const worked = slot === 0 || city.worked.includes(slot);
-      if (slot === 0) paintCity(ctx, px, py, city, player.color);
-      if (worked) {
-        const y = tileYield(state, tile, slot === 0, player.government);
-        fillRound(ctx, px + 2, py + TILE - 16, TILE - 4, 14, 4, "rgba(5, 8, 13, 0.8)");
-        let ix = px + 6;
-        for (let k = 0; k < y.food; k++, ix += 7) circle(ctx, ix + 2, py + TILE - 9, 3, UI.ok);
-        for (let k = 0; k < y.shields; k++, ix += 7) { ctx.fillStyle = "#cfd6dd"; ctx.fillRect(ix, py + TILE - 12, 5, 6); }
-        for (let k = 0; k < y.trade; k++, ix += 7) circle(ctx, ix + 2, py + TILE - 9, 3, UI.accent);
-      } else if (!slotAvailable(state, city, slot)) {
-        ctx.fillStyle = "rgba(255, 80, 80, 0.35)";
-        ctx.fillRect(px, py, TILE, TILE);
-      }
+      marks.push(() => {
+        if (slot === 0) paintCity(ctx, px, py, city, player.color);
+        if (worked) {
+          const y = tileYield(state, tile, slot === 0, player.government);
+          fillRound(ctx, px + 2, py + TILE - 16, TILE - 4, 14, 4, "rgba(5, 8, 13, 0.8)");
+          let ix = px + 6;
+          for (let k = 0; k < y.food; k++, ix += 7) circle(ctx, ix + 2, py + TILE - 9, 3, UI.ok);
+          for (let k = 0; k < y.shields; k++, ix += 7) { ctx.fillStyle = "#cfd6dd"; ctx.fillRect(ix, py + TILE - 12, 5, 6); }
+          for (let k = 0; k < y.trade; k++, ix += 7) circle(ctx, ix + 2, py + TILE - 9, 3, UI.accent);
+        } else if (!slotAvailable(state, city, slot)) {
+          ctx.fillStyle = "rgba(255, 80, 80, 0.35)";
+          ctx.fillRect(px, py, TILE, TILE);
+        }
+      });
     }
+  clouds.paint(ctx);
+  for (const mark of marks) mark();
   text(ctx, CITY_MAP_X, CITY_MAP_Y + TILE * 5 + 12, "Click a tile to work it", { size: 13, color: UI.dim });
   text(ctx, CITY_MAP_X, CITY_MAP_Y + TILE * 5 + 30, "Click the city for the best tiles", { size: 13, color: UI.dim });
 
