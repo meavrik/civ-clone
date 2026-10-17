@@ -1126,8 +1126,12 @@ canvas.addEventListener("mousedown", (e) => {
       if (sc.which === "foreign") openForeignTalkMenu(); else screenState = { kind: "map" };
       return;
     case "city": {
+      // A worked square frees its citizen; an unworked one takes a free citizen or the worker on the
+      // weakest square; the city's own square puts every citizen on the best squares.
       const slot = renderer.citySlotAt(px, py);
-      if (slot !== null && slot !== 0) dispatch({ type: "toggleTile", city: sc.view.city, slot });
+      const city = state.cities.find((c) => c.id === sc.view.city);
+      if (slot === 0) { if (dispatch({ type: "arrangeCity", city: sc.view.city })) say("Citizens moved to the best tiles"); }
+      else if (slot !== null && city) dispatch({ type: city.worked.includes(slot) ? "toggleTile" : "workTile", city: city.id, slot });
       else if (renderer.cityExitHit(px, py)) screenState = { kind: "map" };
       return;
     }

@@ -151,6 +151,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       }
     }
   drawText(s, CITY_MAP_X, CITY_MAP_Y + 84, "Click: work tile", shade("ui", 5));
+  drawText(s, CITY_MAP_X, CITY_MAP_Y + 93, "City: best tiles", shade("ui", 5));
 
   // Totals column.
   const ink = shade("ui", 7);

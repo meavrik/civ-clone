@@ -124,22 +124,50 @@ export function slotAvailable(state: GameState, city: City, slot: number): boole
   return true;
 }
 
+/** How much a worker on this square is worth to the city: food first, then shields, then trade. */
+export function slotScore(state: GameState, city: City, slot: number): number {
+  const t = radiusTile(state, city, slot);
+  if (!t) return -Infinity;
+  const y = tileYield(state, t, false, state.players[city.owner]!.government);
+  return y.food * 3 + y.shields * 2 + y.trade;
+}
+
 /** Greedy worker placement: food first, then shields, then trade. */
 export function autoAssignWorkers(state: GameState, city: City): void {
-  const gov = state.players[city.owner]!.government;
   city.worked = [];
   const wanted = city.size - city.specialists.length;
   const scored: { slot: number; score: number }[] = [];
   for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
     if (!slotAvailable(state, city, slot)) continue;
-    const t = radiusTile(state, city, slot)!;
-    const y = tileYield(state, t, false, gov);
-    scored.push({ slot, score: y.food * 3 + y.shields * 2 + y.trade });
+    scored.push({ slot, score: slotScore(state, city, slot) });
   }
   scored.sort((a, b) => b.score - a.score);
   city.worked = scored.slice(0, Math.max(0, wanted)).map((s) => s.slot);
   // Not enough tiles: surplus citizens become entertainers.
   while (city.worked.length + city.specialists.length < city.size) city.specialists.push("entertainer");
+}
+
+/** The worked square a city would give up first: the one worth least. */
+export function weakestWorked(state: GameState, city: City): number | undefined {
+  let worst: number | undefined;
+  for (const s of city.worked) if (worst === undefined || slotScore(state, city, s) < slotScore(state, city, worst)) worst = s;
+  return worst;
+}
+
+/**
+ * Every citizen on the best squares (ranked as autoAssignWorkers ranks them),
+ * keeping only as many entertainers as the city needs to stay out of
+ * disorder. Specialists are put back to work.
+ */
+export function arrangeCity(state: GameState, city: City): void {
+  city.specialists = [];
+  autoAssignWorkers(state, city);
+  let guard = 0;
+  while (computeCity(state, city).disorder && city.worked.length > 0 && guard++ < 40) {
+    const worst = weakestWorked(state, city)!;
+    city.worked.splice(city.worked.indexOf(worst), 1);
+    city.specialists.push("entertainer");
+  }
 }
 
 export interface CityReport {

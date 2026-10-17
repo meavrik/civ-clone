@@ -56,7 +56,7 @@ left-click an adjacent tile to move/attack · left-click a farther tile to inspe
 the camera glides to each newly active unit ·
 click your own unit to activate it · click the active unit to cycle the stack ·
 click a city to open it · right-click for the orders menu (caravans: help wonder / trade route; diplomats at a foreign city: steal / sabotage / incite) · click the minimap to scroll.
-City screen: click tiles to work them · `C` change production · `B` buy · `N` rename (in-game prompt) · `Esc`.
+City screen: click a worked tile to make its citizen an entertainer · click an unworked tile to work it (a free citizen, or the worker on the weakest tile moves there) · click the city square to put every citizen on the best tiles (keeping just enough entertainers for order) · `C` change production · `B` buy · `N` rename (in-game prompt) · `Esc`.
 Founding a city asks for its name (Enter accepts the suggested one).
 
 URL options skip the setup screens: `?seed=1234&difficulty=2&opponents=6&civ=greeks` (6 rivals = 7 civilizations, the default);

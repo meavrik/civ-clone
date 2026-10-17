@@ -127,6 +127,7 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
       }
     }
   text(ctx, CITY_MAP_X, CITY_MAP_Y + TILE * 5 + 12, "Click a tile to work it", { size: 13, color: UI.dim });
+  text(ctx, CITY_MAP_X, CITY_MAP_Y + TILE * 5 + 30, "Click the city for the best tiles", { size: 13, color: UI.dim });
 
   // Totals.
   let y = CITY_MAP_Y;

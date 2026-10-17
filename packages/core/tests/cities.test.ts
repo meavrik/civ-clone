@@ -8,6 +8,7 @@ import {
   getTile,
   lastTurnEvents,
   newGame,
+  slotScore,
   Terrain,
   tileYield,
   type GameState,
@@ -116,6 +117,56 @@ describe("cities", () => {
     expect(applyCommand(s, { type: "toggleTile", city: c.id, slot: 5 }).ok).toBe(true);
     expect(c.worked).toEqual([5]);
     expect(c.specialists).toEqual([]);
+  });
+
+  it("working an unworked tile takes a free citizen, else the worker on the weakest square", () => {
+    const s = flatWorld();
+    const u = createUnit(s, "settlers", 0, 10, 10);
+    applyCommand(s, { type: "found", unit: u.id });
+    const c = s.cities[0]!;
+    c.size = 2;
+    // Hills (slot 6, north) and plains (slot 10, west) are worked; forest at slot 11 (east) is not.
+    getTile(s.map, 10, 9)!.terrain = Terrain.Hills;
+    getTile(s.map, 9, 10)!.terrain = Terrain.Plains;
+    getTile(s.map, 11, 10)!.terrain = Terrain.Forest;
+    c.worked = [6, 10];
+    c.specialists = [];
+    expect(applyCommand(s, { type: "workTile", city: c.id, slot: 6 })).toEqual({ ok: false, reason: "already worked" });
+    expect(slotScore(s, c, 6)).toBeLessThan(slotScore(s, c, 10));
+    expect(applyCommand(s, { type: "workTile", city: c.id, slot: 11 }).ok).toBe(true);
+    expect(c.worked.sort()).toEqual([10, 11]); // the hills worker moved
+    // With a free citizen nobody has to move.
+    c.specialists = ["entertainer"];
+    c.size = 3;
+    expect(applyCommand(s, { type: "workTile", city: c.id, slot: 6 }).ok).toBe(true);
+    expect(c.worked.sort()).toEqual([10, 11, 6].sort());
+    expect(c.specialists).toEqual([]);
+  });
+
+  it("arranging a city puts every citizen on the best squares, keeping order with entertainers", () => {
+    const s = flatWorld();
+    const u = createUnit(s, "settlers", 0, 10, 10);
+    applyCommand(s, { type: "found", unit: u.id });
+    const c = s.cities[0]!;
+    getTile(s.map, 11, 10)!.terrain = Terrain.Hills;
+    getTile(s.map, 11, 10)!.river = true;
+    getTile(s.map, 9, 9)!.special = true;
+    c.size = 3;
+    c.worked = [];
+    c.specialists = ["scientist", "taxman", "entertainer"];
+    expect(applyCommand(s, { type: "arrangeCity", city: c.id }).ok).toBe(true);
+    expect(c.specialists).toEqual([]);
+    const best = Array.from({ length: 20 }, (_, i) => i + 1).sort((a, b) => slotScore(s, c, b) - slotScore(s, c, a));
+    expect(c.worked.map((x) => slotScore(s, c, x)).sort()).toEqual(best.slice(0, 3).map((x) => slotScore(s, c, x)).sort());
+    // A big city on Emperor needs entertainers: just enough of them to keep order.
+    s.players[0]!.difficulty = 4;
+    c.size = 6;
+    applyCommand(s, { type: "arrangeCity", city: c.id });
+    expect(computeCity(s, c).disorder).toBe(false);
+    expect(c.specialists.length).toBeGreaterThan(0);
+    expect(c.worked.length + c.specialists.length).toBe(6);
+    c.worked.push(...c.specialists.splice(0, 1).map(() => best.find((x) => !c.worked.includes(x))!));
+    expect(computeCity(s, c).disorder).toBe(true); // one more worker would have tipped it
   });
 
   it("falls into disorder when unhappy outnumber happy, and martial law helps", () => {

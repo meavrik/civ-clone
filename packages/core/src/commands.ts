@@ -15,6 +15,8 @@ import {
   productionCost,
   routeBonus,
   slotAvailable,
+  arrangeCity,
+  weakestWorked,
   type CityTurnEvent,
 } from "./cities.js";
 import { maybeSpawnBarbarians } from "./barbarians.js";
@@ -49,6 +51,8 @@ export type Command =
   | { type: "found"; unit: number; name?: string }
   | { type: "setProduction"; city: number; production: Production }
   | { type: "toggleTile"; city: number; slot: number }
+  | { type: "workTile"; city: number; slot: number } // a free citizen, else the worker on the weakest square, moves here
+  | { type: "arrangeCity"; city: number } // every citizen on the best squares
   | { type: "setSpecialist"; city: number; index: number; specialist: Specialist }
   | { type: "buy"; city: number }
   | { type: "renameCity"; city: number; name: string }
@@ -206,6 +210,8 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     }
     case "setProduction":
     case "toggleTile":
+    case "workTile":
+    case "arrangeCity":
     case "setSpecialist":
     case "buy":
     case "renameCity":
@@ -599,6 +605,22 @@ function applyCityCommand(
       city.worked.push(cmd.slot);
       return { ok: true };
     }
+    case "workTile": {
+      if (city.worked.includes(cmd.slot)) return { ok: false, reason: "already worked" };
+      if (!slotAvailable(state, city, cmd.slot)) return { ok: false, reason: "tile unavailable" };
+      if (city.specialists.length > 0) {
+        city.specialists.pop();
+        city.worked.push(cmd.slot);
+        return { ok: true };
+      }
+      const weakest = weakestWorked(state, city);
+      if (weakest === undefined) return { ok: false, reason: "no free citizen" };
+      city.worked[city.worked.indexOf(weakest)] = cmd.slot;
+      return { ok: true };
+    }
+    case "arrangeCity":
+      arrangeCity(state, city);
+      return { ok: true };
     case "setSpecialist": {
       if (cmd.index < 0 || cmd.index >= city.specialists.length) return { ok: false, reason: "no such specialist" };
       city.specialists[cmd.index] = cmd.specialist;
