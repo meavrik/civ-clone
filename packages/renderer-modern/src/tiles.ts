@@ -1,7 +1,7 @@
 import { Terrain, type Tile } from "@civ/core";
 import type { Context2D } from "./context.js";
 import { circle } from "./draw.js";
-import { IRRIGATION, RAIL, RIVER, ROAD, TERRAIN, TILE, UI } from "./theme.js";
+import { IRRIGATION, RAIL, RIVER, ROAD, SEA, TERRAIN, TILE, UI } from "./theme.js";
 
 /** Tiny deterministic hash for per-tile variation (never the game RNG). */
 function h(x: number, y: number, salt: number): number {
@@ -17,18 +17,15 @@ function tree(ctx: Context2D, x: number, y: number, r: number, canopy: string, t
 }
 
 /** Base terrain with a few soft features, drawn flat so the map reads at a glance. */
-export function paintTile(ctx: Context2D, x: number, y: number, tile: Tile, tx: number, ty: number): void {
-  const look = TERRAIN[tile.terrain];
+/** `deep` paints open sea, water with no land among its neighbours. */
+export function paintTile(ctx: Context2D, x: number, y: number, tile: Tile, tx: number, ty: number, deep = false): void {
+  const look = deep ? SEA.deep : TERRAIN[tile.terrain];
   ctx.fillStyle = look.base;
   ctx.fillRect(x, y, TILE, TILE);
   const v = h(tx, ty, tile.terrain);
   switch (tile.terrain) {
     case Terrain.Ocean: {
-      const g = ctx.createLinearGradient(x, y, x + TILE, y + TILE);
-      g.addColorStop(0, look.light);
-      g.addColorStop(1, look.dark);
-      ctx.fillStyle = g;
-      ctx.fillRect(x, y, TILE, TILE);
+      // Flat, so open water shows no square grid; depth comes from `deep` and the coast pass.
       ctx.strokeStyle = "rgba(255,255,255,0.22)";
       ctx.lineWidth = 1.5;
       for (let i = 0; i < 2; i++) {

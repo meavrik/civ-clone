@@ -3,7 +3,7 @@
 export default String.raw`
 # Terrain, 16x16, opaque. Shown as is or mirrored, so a stretch of land does not repeat.
 # Legend: k black  w white, 0-7 shades of ramp 1, a-h of ramp 2, A-H of ramp 3 (dark to light).
-# Every terrain names its ramps.
+# Every terrain names its ramps. deep_ocean is open sea, water with no land beside it.
 
 @ocean ramps=ocean
 3333333333333333
@@ -22,6 +22,24 @@ export default String.raw`
 3333333333335333
 3333333333333333
 3333333333333333
+
+@deep_ocean ramps=ocean
+1111111111111111
+1111111111111111
+1111111222211111
+1111112111121111
+1111111111111111
+1111111111111111
+1222211111111111
+2111121111111111
+1111111111111111
+1111111111111111
+1111111111222211
+1111111111211112
+1111111111111111
+1111111111111111
+1111112222111111
+1111121111211111
 
 @grassland ramps=grass
 4444444444444444

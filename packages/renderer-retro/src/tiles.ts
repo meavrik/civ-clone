@@ -1,4 +1,5 @@
-import { Terrain, TERRAIN_RULES } from "@civ/core";
+import { Terrain, TERRAIN_RULES, type WorldMap } from "@civ/core";
+import { coastLevel, coastPatch, DEEP, DEEP_EDGE, landOwner, SHORE } from "@civ/renderer-api";
 import { FEATURE_SHEET, mirrored, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { C, shade } from "./palette.js";
@@ -49,6 +50,66 @@ export function getTile(terrain: Terrain, x: number, y: number): Surface {
     cache.set(key, t);
   }
   return t;
+}
+
+/** Open sea, away from any land, mirrored on about half the squares like the rest. */
+function deepTile(x: number, y: number): Surface {
+  const variant = h(x, y, 1) < 0.5 ? 0 : 1;
+  const key = -1 - variant;
+  let t = cache.get(key);
+  if (!t) {
+    const base = spriteSurface(TERRAIN_SHEET, "deep_ocean");
+    if (!base) throw new Error("terrain sheet has no sprite for deep_ocean");
+    t = variant ? mirrored(base) : base;
+    cache.set(key, t);
+  }
+  return t;
+}
+
+const coastCache = new Map<string, Surface>();
+
+/**
+ * A map square as drawn: its terrain sprite, with the shore and the edge of
+ * deep water wandering across its borders (see `coastLevel`). Land that
+ * spills into a water square continues the neighbour's sprite, mirrored at
+ * the shared edge so the seam does not show; next to the shore runs a line
+ * of surf, then a band of shallows.
+ */
+export function terrainSquare(map: WorldMap, x: number, y: number): Surface {
+  const p = coastPatch(map, x, y);
+  const own = p.terrain[4]!;
+  if (!p.mixed) return p.depth[4] === DEEP ? deepTile(x, y) : getTile(own, x, y);
+  const hit = coastCache.get(p.key);
+  if (hit) return hit;
+  const out = new Surface(TILE, TILE);
+  const sea = getTile(Terrain.Ocean, x, y).data;
+  const deep = deepTile(x, y).data;
+  const surf = shade("ocean", 7);
+  const shallow = shade("ocean", 5);
+  const last = TILE - 1;
+  for (let j = 0; j < TILE; j++)
+    for (let i = 0; i < TILE; i++) {
+      const u = (i + 0.5) / TILE;
+      const v = (j + 0.5) / TILE;
+      const g = coastLevel(p, u, v);
+      const at = j * TILE + i;
+      const k = g < SHORE ? landOwner(p, u, v) : -1;
+      let c: number;
+      if (k >= 0) {
+        const dx = (k % 3) - 1;
+        const dy = Math.floor(k / 3) - 1;
+        const src = getTile(p.terrain[k]!, (((x + dx) % map.width) + map.width) % map.width, y + dy).data;
+        c = src[(dy ? last - j : j) * TILE + (dx ? last - i : i)]!;
+      } else if (g < SHORE + 0.07) c = surf;
+      else if (g < 0.8) c = shallow;
+      else if (g < DEEP_EDGE - 0.06) c = sea[at]!;
+      else if (g < DEEP_EDGE + 0.06) c = (i + j) & 1 ? sea[at]! : deep[at]!;
+      else c = deep[at]!;
+      out.data[at] = c;
+    }
+  if (coastCache.size > 4096) coastCache.clear();
+  coastCache.set(p.key, out);
+  return out;
 }
 
 /** River overlay — drawn on top of the base tile. Mask bits: N=1 E=2 S=4 W=8. */

@@ -108,6 +108,15 @@ export const TERRAIN: Record<Terrain, TerrainLook> = {
   [Terrain.Jungle]: { base: "#2f8a58", light: "#3fa56c", dark: "#226a42" },
 };
 
+/** Water by depth: open sea away from land, the shallows along a shore (pale next to it, then a shelf), and the surf line on it. */
+export const SEA = {
+  deep: { base: "#16416f", light: "#1d4f86", dark: "#0e2e52" } as TerrainLook,
+  shallow: "#3682c2",
+  shelf: "#296dab",
+  surf: "rgba(232, 244, 255, 0.6)",
+};
+
+
 export const RIVER = "#5aa9ff";
 export const ROAD = "#8a6a3a";
 export const RAIL = "#3a3f46";

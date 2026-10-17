@@ -12,7 +12,8 @@ import {
   wonder,
   type GameState,
 } from "@civ/core";
-import type { CityScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, type CityScreenView } from "@civ/renderer-api";
+import { paintCoast } from "../coast.js";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, panel, paragraph, strokeRound, text } from "../draw.js";
 import { paintBadge, paintCity, playerColor } from "../markers.js";
@@ -104,7 +105,9 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
         ctx.fillRect(px, py, TILE, TILE);
         continue;
       }
-      paintTile(ctx, px, py, tile, wx, my);
+      const coast = coastPatch(state.map, wx, my);
+      paintTile(ctx, px, py, tile, wx, my, coast.depth[4] === DEEP);
+      paintCoast(ctx, px, py, coast);
       if (tile.river) paintRiver(ctx, px, py, 0);
       if (tile.irrigation) paintIrrigation(ctx, px, py);
       if (tile.mine) paintMine(ctx, px, py);

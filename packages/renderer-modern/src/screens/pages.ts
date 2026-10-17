@@ -25,7 +25,8 @@ import type { AdvisorKind, ReportPage } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, page, panel, paragraph, text } from "../draw.js";
 import { paintBadge, playerColor } from "../markers.js";
-import { H, TERRAIN, UI, W } from "../theme.js";
+import { mapColor } from "./main.js";
+import { H, UI, W } from "../theme.js";
 
 /** The text pages: discovery, science, rates, the advisors, diplomacy and the spaceship. */
 
@@ -312,7 +313,7 @@ export function drawWorldMap(ctx: Context2D, state: GameState): void {
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
       if (!me.explored[y * map.width + x]) continue;
-      ctx.fillStyle = TERRAIN[map.tiles[y * map.width + x]!.terrain].base;
+      ctx.fillStyle = mapColor(map, x, y);
       ctx.fillRect(ox + x * k, oy + y * k, k, k);
     }
   for (const u of state.units) {

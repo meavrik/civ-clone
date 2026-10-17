@@ -21,13 +21,14 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { MENU_BAR, shownActive, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, isDeepWater, MENU_BAR, shownActive, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { paintCoast } from "../coast.js";
 import { drawIconLine, iconParagraph, paintIcon } from "../icons.js";
 import type { Context2D } from "../context.js";
 import { circle, fillRound, measure, panel, paragraph, strokeRound, text } from "../draw.js";
 import { paintBadge, paintBurst, paintCity, paintCityLabel, paintHitFlash, paintHpBar, paintUnit, playerColor } from "../markers.js";
 import { paintFog, paintFortress, paintHut, paintIrrigation, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
-import { BAR_H, COMBAT, H, ICON, PANEL_W, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, VIEW_Y, W } from "../theme.js";
+import { BAR_H, COMBAT, H, ICON, PANEL_W, SEA, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, VIEW_Y, W } from "../theme.js";
 
 /** The main map: a 48px-tile viewport right of a 240px panel, the same split as the retro layout. */
 
@@ -70,6 +71,11 @@ export function drawMenuBar(ctx: Context2D, open?: number): void {
   });
 }
 const MINIMAP_SCALE = 2;
+
+/** A square's colour on the minimap and the world map; open sea is darker than water along a coast. */
+export function mapColor(map: GameState["map"], x: number, y: number): string {
+  return isDeepWater(map, x, y) ? SEA.deep.base : TERRAIN[map.tiles[y * map.width + x]!.terrain].base;
+}
 
 function riverMask(state: GameState, x: number, y: number): number {
   let mask = 0;
@@ -139,7 +145,9 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
         continue;
       }
       const tile = map.tiles[my * map.width + mx]!;
-      paintTile(ctx, dx, dy, tile, mx, my);
+      const coast = coastPatch(map, mx, my);
+      paintTile(ctx, dx, dy, tile, mx, my, coast.depth[4] === DEEP);
+      paintCoast(ctx, dx, dy, coast);
       if (tile.river) paintRiver(ctx, dx, dy, riverMask(state, mx, my));
       if (tile.irrigation) paintIrrigation(ctx, dx, dy);
       if (tile.mine) paintMine(ctx, dx, dy);
@@ -317,7 +325,7 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
       if (!me.explored[y * map.width + x]) continue;
-      ctx.fillStyle = TERRAIN[map.tiles[y * map.width + x]!.terrain].base;
+      ctx.fillStyle = mapColor(map, x, y);
       ctx.fillRect(MINIMAP_X + x * MINIMAP_SCALE, MINIMAP_Y + y * MINIMAP_SCALE, MINIMAP_SCALE, MINIMAP_SCALE);
     }
   for (const u of state.units) {

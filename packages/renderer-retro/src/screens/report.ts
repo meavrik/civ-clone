@@ -4,7 +4,7 @@ import { drawText, drawTextCentered, textWidth } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawPanel } from "../widgets.js";
-import { MINIMAP_COLOR, playerColor, slotColor } from "./main.js";
+import { minimapColor, playerColor, slotColor } from "./main.js";
 
 const ROW = 9;
 
@@ -59,7 +59,7 @@ export function drawWorldMap(s: Surface, state: GameState): void {
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
       if (!me.explored[y * map.width + x]) continue;
-      s.rect(ox + x * k, oy + y * k, k, k, MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]());
+      s.rect(ox + x * k, oy + y * k, k, k, minimapColor(map, x, y));
     }
   for (const u of state.units) {
     if (!me.visible[u.y * map.width + u.x]) continue;

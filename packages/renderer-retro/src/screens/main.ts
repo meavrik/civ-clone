@@ -25,7 +25,7 @@ import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth, wr
 import { drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawHut, drawRiver, drawSpecial, getTile as terrainTile, TILE } from "../tiles.js";
+import { drawHut, drawRiver, drawSpecial, terrainSquare, TILE } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 
@@ -78,7 +78,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { MENU_BAR, shownActive, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
+import { isDeepWater, MENU_BAR, shownActive, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, iconLineWidth } from "../icons.js";
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
@@ -92,7 +92,7 @@ export function playerColor(state: GameState, owner: number): number {
 }
 
 export const MINIMAP_COLOR: Record<Terrain, () => number> = {
-  [Terrain.Ocean]: () => shade("ocean", 2),
+  [Terrain.Ocean]: () => shade("ocean", 3),
   [Terrain.Grassland]: () => shade("grass", 4),
   [Terrain.Plains]: () => shade("plains", 4),
   [Terrain.Forest]: () => shade("forest", 3),
@@ -104,6 +104,11 @@ export const MINIMAP_COLOR: Record<Terrain, () => number> = {
   [Terrain.Swamp]: () => shade("swamp", 3),
   [Terrain.Jungle]: () => shade("jungle", 3),
 };
+
+/** A square's minimap colour; open sea is darker than water along a coast. */
+export function minimapColor(map: GameState["map"], x: number, y: number): number {
+  return isDeepWater(map, x, y) ? shade("ocean", 1) : MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]();
+}
 
 function riverMask(state: GameState, x: number, y: number): number {
   const m = state.map;
@@ -156,8 +161,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
         continue;
       }
       const tile = map.tiles[my * map.width + mx]!;
-      const sprite = terrainTile(tile.terrain, mx, my);
-      s.blit(sprite, dx, dy);
+      s.blit(terrainSquare(map, mx, my), dx, dy);
       if (tile.river) drawRiver(s, dx, dy, riverMask(state, mx, my));
       if (tile.irrigation) drawIrrigation(s, dx, dy);
       if (tile.mine) drawMine(s, dx, dy);
@@ -321,7 +325,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
       if (!me.explored[y * map.width + x]) continue;
-      s.set(x, mmY + y, MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]());
+      s.set(x, mmY + y, minimapColor(map, x, y));
     }
   for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(u.x, mmY + u.y, playerColor(state, u.owner));
   for (const c of state.cities) if (me.explored[c.y * map.width + c.x]) s.set(c.x, mmY + c.y, C.WHITE!);

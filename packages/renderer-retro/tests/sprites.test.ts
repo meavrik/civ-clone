@@ -78,7 +78,6 @@ describe("sprite sheets", () => {
     const cols = 14;
     const units = UNIT_SHEET.sprites.map((s) => s.name);
     const unitRows = Math.ceil(units.length / cols);
-    const terrains = TERRAIN_SHEET.sprites.length;
     const features = FEATURE_SHEET.sprites.length;
     const height = 12 + unitRows * 2 * 18 + 12 + 18 + 12 + Math.ceil(features / cols) * 18 + 4;
     const s = new Surface(cols * 18 + 4, height);
@@ -93,7 +92,7 @@ describe("sprite sheets", () => {
     y += 2;
     drawText(s, 2, y, "Terrain", C.WHITE!);
     y += 10;
-    for (let t = 0; t < terrains; t++) s.blit(getTile(t as Terrain, 0, 0), 2 + t * 18, y);
+    TERRAIN_SHEET.sprites.forEach((t, i) => s.blit(spriteSurface(TERRAIN_SHEET, t.name)!, 2 + i * 18, y));
     y += 18 + 2;
     drawText(s, 2, y, "Features", C.WHITE!);
     y += 10;
