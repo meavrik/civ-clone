@@ -71,9 +71,16 @@ export type Command =
   | { type: "giveAdvance"; player: number; advance: string }
   | { type: "exchangeAdvances"; player: number; give: string; receive: string }
   | { type: "launch" } // the spaceship, once it can fly
+  | { type: "cheat"; cheat: Cheat } // the debug menu; logged like any order so saves still replay
   | { type: "endTurn" };
 
 export type DiplomatAction = "steal" | "sabotage" | "incite";
+
+/** Debug menu actions, for the current player. */
+export type Cheat = "revealMap" | "gold" | "research" | "allAdvances" | "production" | "moves" | "contact";
+
+/** Gold handed over by the "gold" cheat. */
+export const CHEAT_GOLD = 1000;
 
 export type CommandResult = { ok: true } | { ok: false; reason: string };
 
@@ -208,6 +215,8 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       discover(state, me.id, cmd.receive);
       return { ok: true };
     }
+    case "cheat":
+      return applyCheat(state, cmd.cheat);
     case "setProduction":
     case "toggleTile":
     case "workTile":
@@ -638,6 +647,46 @@ function applyCityCommand(
     case "renameCity":
       if (!cmd.name.trim()) return { ok: false, reason: "empty name" };
       city.name = cmd.name.trim().slice(0, 14);
+      return { ok: true };
+  }
+}
+
+function applyCheat(state: GameState, cheat: Cheat): CommandResult {
+  const p = state.players[state.currentPlayer]!;
+  switch (cheat) {
+    case "revealMap":
+      p.explored.fill(1);
+      return { ok: true };
+    case "gold":
+      p.gold += CHEAT_GOLD;
+      return { ok: true };
+    case "research": {
+      const id = p.researching ?? availableAdvances(p.advances)[0]?.id;
+      if (id === undefined) return { ok: false, reason: "nothing left to learn" };
+      discover(state, p.id, id);
+      p.researching = null;
+      lastTurnEvents.push({ kind: "chooseResearch" });
+      return { ok: true };
+    }
+    case "allAdvances":
+      // Straight into the list: one discovery screen per advance would be a long evening.
+      for (const a of ADVANCES) if (!p.advances.includes(a.id)) p.advances.push(a.id);
+      p.researching = null;
+      return { ok: true };
+    case "production":
+      for (const c of state.cities) if (c.owner === p.id) c.shields = Math.max(c.shields, productionCost(c.production));
+      return { ok: true };
+    case "moves":
+      for (const u of state.units) {
+        if (u.owner !== p.id) continue;
+        u.movesLeft = moveAllowance(state, u);
+        u.hp = maxHp(state, u.type);
+      }
+      if (state.activeUnit === null) selectNextUnit(state, null);
+      return { ok: true };
+    case "contact":
+      for (const o of state.players)
+        if (o.id !== p.id && o.alive && o.id !== state.barbarians && !hasContact(state, p.id, o.id)) setRelation(state, p.id, o.id, "peace");
       return { ok: true };
   }
 }

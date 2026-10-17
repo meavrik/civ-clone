@@ -9,6 +9,7 @@ import {
   canHelpWonder,
   canTradeRoute,
   checkGameEnd,
+  CHEAT_GOLD,
   cityAt,
   civ,
   computeScore,
@@ -37,6 +38,7 @@ import {
   unitById,
   unitType,
   workOptions,
+  type Cheat,
   type Command,
   type DiplomatAction,
   type GameState,
@@ -662,9 +664,31 @@ function barEntries(index: number): MenuEntry[] {
         ["World Map", "", () => { screenState = { kind: "worldMap" }; }],
         ["Spaceships", "F6", () => { screenState = { kind: "spaceship" }; }],
       ];
+    case "Debug":
+      return [
+        ["Reveal Map", "", () => cheat("revealMap", "The whole world is charted.")],
+        [`+${CHEAT_GOLD} Gold`, "", () => cheat("gold", `+${CHEAT_GOLD} gold`)],
+        ["Finish Research", "", () => cheat("research")],
+        ["Learn All Advances", "", () => cheat("allAdvances", "Every advance is ours.")],
+        ["Finish Production", "", () => cheat("production", "Cities finish their builds this turn.")],
+        ["Restore Units", "", () => { cheat("moves", "Units rested and ready."); followActive(true); }],
+        ["Meet Everyone", "", () => cheat("contact")],
+      ];
     default:
       return [];
   }
+}
+
+/** A debug menu action, then whatever it brought: a discovery and the research prompt (new neighbours come through `afterAction`). */
+function cheat(c: Cheat, message?: string): void {
+  if (!dispatch({ type: "cheat", cheat: c })) return;
+  if (message) say(message);
+  const events: TurnEvent[] = [];
+  for (let i = 0; i < lastTurnEvents.length; ) {
+    const ev = lastTurnEvents[i]!;
+    if (ev.kind === "discovered" || ev.kind === "chooseResearch") { events.push(ev); lastTurnEvents.splice(i, 1); } else i++;
+  }
+  if (events.length) presentEvents(events);
 }
 
 /** Open a menu bar dropdown over the map. */

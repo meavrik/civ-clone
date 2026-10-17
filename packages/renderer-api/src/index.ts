@@ -109,7 +109,7 @@ export const TEXT_INPUT_MAX = 14;
 export type AdvisorKind = "domestic" | "military" | "foreign" | "score";
 
 /** The menu bar across the top of the map screen, as in the original. */
-export const MENU_BAR = ["Game", "Orders", "Advisors", "World"] as const;
+export const MENU_BAR = ["Game", "Orders", "Advisors", "World", "Debug"] as const;
 
 /** A row of a report page; `slot` colours a civilization's marker. */
 export interface ReportLine {

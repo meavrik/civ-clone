@@ -223,7 +223,7 @@ describe("retro renderer", () => {
     // Titles left to right along the top rows; nothing of the map shows above the bar's edge.
     const titles: number[] = [];
     for (let x = 0; x < 320; x++) { const t = menuBarHit(x, 4); if (titles.at(-1) !== t) titles.push(t); }
-    expect(titles.filter((t) => t >= 0)).toEqual([0, 1, 2, 3]);
+    expect(titles.filter((t) => t >= 0)).toEqual([0, 1, 2, 3, 4]);
     expect(menuBarHit(10, VIEW_Y + 2)).toBe(-1);
     const bg = s.get(316, 2);
     for (let x = 300; x < 320; x++) expect(s.get(x, 2)).toBe(bg);

@@ -82,7 +82,7 @@ describe("terrain info", () => {
 
 describe("world reports", () => {
   it("names the bar's four menus in the original's order", () => {
-    expect([...MENU_BAR]).toEqual(["Game", "Orders", "Advisors", "World"]);
+    expect([...MENU_BAR]).toEqual(["Game", "Orders", "Advisors", "World", "Debug"]);
   });
 
   it("lists built wonders, hiding the city of a civilization we have not met", () => {

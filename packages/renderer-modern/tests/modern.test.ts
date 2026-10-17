@@ -165,13 +165,13 @@ describe("modern renderer", () => {
     const panned = r.tileAt(state, { ...view, panX: 0.5, panY: 0 }, 240 + 48 * 3 + 30, bar + 48 * 2 + 5);
     expect(panned).toEqual({ x: ((view.originX + 4) % 80 + 80) % 80, y: view.originY + 2 });
     expect(r.minimapAt(state, 40 + 2 * 10, bar + 14 + 2 * 20)).toEqual({ x: 10, y: 20 });
-    // The bar's four titles, left to right; each dropdown opens under its own title.
+    // The bar's five titles, left to right; each dropdown opens under its own title.
     const titles: number[] = [];
     for (let x = 0; x < 960; x += 4) { const t = r.menuBarHit(x, 15); if (titles.at(-1) !== t) titles.push(t); }
-    expect(titles.filter((t) => t >= 0)).toEqual([0, 1, 2, 3]);
+    expect(titles.filter((t) => t >= 0)).toEqual([0, 1, 2, 3, 4]);
     expect(r.menuBarHit(30, bar + 5)).toBe(-1);
-    const anchors = [0, 1, 2, 3].map((i) => r.menuBarAnchor(i));
-    for (let i = 1; i < 4; i++) expect(anchors[i]!.x).toBeGreaterThan(anchors[i - 1]!.x);
+    const anchors = [0, 1, 2, 3, 4].map((i) => r.menuBarAnchor(i));
+    for (let i = 1; i < 5; i++) expect(anchors[i]!.x).toBeGreaterThan(anchors[i - 1]!.x);
     expect(anchors[0]!.y).toBeGreaterThanOrEqual(bar);
     // An anchored dropdown's first row sits right under the bar, not in the middle of the screen.
     const drop = { title: "", items: ["a", "b"], selected: 0, anchor: anchors[1]! };
