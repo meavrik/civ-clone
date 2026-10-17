@@ -137,6 +137,8 @@ interface Ctx {
   staging: City | null;
   /** Enough attackers, and an escort, stand between the staging city and the target to march on it. */
   campaignReady: boolean;
+  /** Only foot soldiers can reach the target (rough ground without roads): wheeled units stay out of the march. */
+  campaignFoot: boolean;
   /** The square beside the target the army camps on: the best ground to hold while it storms the walls. */
   camp: [number, number] | null;
   /** Defenders marching with (or wanted for) the army, and how many it wants: one for every three attackers. */
@@ -271,6 +273,8 @@ function analyse(state: GameState, me: number): Ctx {
   let best = Infinity;
   const attackers = units.filter((u) => isAttacker(u) && unitType(u.type).domain === "land");
   const champion = attackers.reduce<Unit | null>((a, b) => (!a || attackStrength(b) > attackStrength(a) ? b : a), null);
+  // Wheels need roads over rough ground: when our best gun cannot get there, the best foot soldier may.
+  const footChampion = attackers.filter((u) => !needsRoads(state, unitType(u.type))).reduce<Unit | null>((a, b) => (!a || attackStrength(b) > attackStrength(a) ? b : a), null);
   // The army's own orders are the campaign's memory: a city our attackers already march on or stand
   // beside stays the target while it is still worth it, so they do not chase a new one every turn.
   const committed = new Map<number, number>();
@@ -298,13 +302,26 @@ function analyse(state: GameState, me: number): Ctx {
   }
   candidates.sort((a, b) => a.v - b.v);
   let need = 3;
-  // The army must be able to walk there from the staging city: rival cities and soldiers block the way.
+  let campaignFoot = false;
+  // The army must be able to walk there from the staging city: rival cities and soldiers block the
+  // way, and rough ground without roads stops wheels. If only foot soldiers get through, they go alone.
+  const walks = (u: Unit, cand: { c: City; mine: City }) => findPath(state, { ...u, x: cand.mine.x, y: cand.mine.y }, cand.c.x, cand.c.y) !== null;
   for (const cand of candidates.slice(0, 3)) {
-    if (champion && !findPath(state, { ...champion, x: cand.mine.x, y: cand.mine.y }, cand.c.x, cand.c.y)) continue;
-    warTarget = cand.c;
-    staging = cand.mine;
-    need = Math.min(10, Math.max(3, cand.need + 1));
-    break;
+    if (!champion || walks(champion, cand)) {
+      warTarget = cand.c;
+      staging = cand.mine;
+      need = Math.min(10, Math.max(3, cand.need + 1));
+      break;
+    }
+    if (footChampion && footChampion !== champion && walks(footChampion, cand)) {
+      const footNeed = attackersNeeded(state, footChampion, cand.c.x, cand.c.y);
+      if (footNeed > 10) continue;
+      warTarget = cand.c;
+      staging = cand.mine;
+      need = Math.min(10, Math.max(3, footNeed + 1));
+      campaignFoot = true;
+      break;
+    }
   }
   void best;
   let campaignReady = false;
@@ -314,11 +331,13 @@ function analyse(state: GameState, me: number): Ctx {
   if (warTarget && staging) {
     const t = warTarget;
     // Chariots, siege guns and vehicles in the army keep the camp off roadless rough ground.
-    const wheels = units.map((u) => unitType(u.type)).find((ty) => needsRoads(state, ty));
+    // In a foot-only campaign no wheeled unit marches, so the camp may stand on rough ground.
+    const marches = (u: Unit) => !campaignFoot || !needsRoads(state, unitType(u.type));
+    const wheels = campaignFoot ? undefined : units.map((u) => unitType(u.type)).find((ty) => needsRoads(state, ty));
     camp = campSquare(state, me, t, staging, wheels);
     const span = dist(state, staging.x, staging.y, t.x, t.y) + 2;
-    const gathered = attackers.filter((u) => u.aboard === null && dist(state, u.x, u.y, t.x, t.y) <= span).length;
-    escorts = units.filter((u) => isMilitary(u) && !isAttacker(u) && u.aboard === null && !cityAt(state, u.x, u.y) && dist(state, u.x, u.y, t.x, t.y) <= span).length;
+    const gathered = attackers.filter((u) => marches(u) && u.aboard === null && dist(state, u.x, u.y, t.x, t.y) <= span).length;
+    escorts = units.filter((u) => marches(u) && isMilitary(u) && !isAttacker(u) && u.aboard === null && !cityAt(state, u.x, u.y) && dist(state, u.x, u.y, t.x, t.y) <= span).length;
     escortsWanted = Math.max(1, Math.ceil(need / 3));
     campaignReady = gathered >= need && escorts >= 1;
   }
@@ -377,7 +396,7 @@ function analyse(state: GameState, me: number): Ctx {
     diplomats: units.filter((u) => unitType(u.type).flags?.includes("diplomat")).length,
     armyBuilding: cities.filter((c) => c.production.kind === "unit" && isAttacker({ type: c.production.id } as Unit)).length,
     caravans: units.filter((u) => unitType(u.type).flags?.includes("caravan")).length,
-    me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, staging, campaignReady, camp, escorts, escortsWanted, income, science, sites,
+    me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, staging, campaignReady, campaignFoot, camp, escorts, escortsWanted, income, science, sites,
     wantMoreCities: cities.length < 24,
     military: units.filter(isMilitary).length,
     militaryCap: Math.floor(cities.length * (atWarNow ? 4 : p.government === "republic" || p.government === "democracy" ? 1.5 : 2)) + 2,
@@ -722,9 +741,14 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
   for (const o of state.players) {
     if (o.id === me || o.id === state.barbarians || !o.alive || !hasContact(state, me, o.id)) continue;
     const theirCities = state.cities.filter((c) => c.owner === o.id);
-    const prize = theirCities.some((c) => ctx.continents.has(continentOf(state, c.x, c.y)) &&
-      ctx.cities.some((m) => dist(state, c.x, c.y, m.x, m.y) <= 12 && continentOf(state, m.x, m.y) === continentOf(state, c.x, c.y)) &&
-      attackersNeeded(state, champion, c.x, c.y) < attackers.length);
+    // A prize: a city of theirs near one of ours that our army could take, and walk to (wheels need roads on rough ground).
+    const prize = theirCities.some((c) => {
+      if (!ctx.continents.has(continentOf(state, c.x, c.y)) || attackersNeeded(state, champion, c.x, c.y) >= attackers.length) return false;
+      const from = ctx.cities.find((m) => dist(state, c.x, c.y, m.x, m.y) <= 12 && continentOf(state, m.x, m.y) === continentOf(state, c.x, c.y));
+      if (!from) return false;
+      const walker = needsRoads(state, unitType(champion.type)) ? attackers.find((u) => !needsRoads(state, unitType(u.type))) ?? champion : champion;
+      return findPath(state, { ...walker, x: from.x, y: from.y }, c.x, c.y) !== null;
+    });
     if (!prize || theirCities.length > ctx.cities.length + 3) continue;
     const r = mine / Math.max(1, strength(state, o.id));
     if (r > ratio) { ratio = r; victim = o; }
@@ -819,13 +843,15 @@ function civilian(t: { flags?: readonly string[] }): boolean {
   return t.flags?.some((f) => f === "settler" || f === "diplomat" || f === "caravan") ?? false;
 }
 
-function bestUnit(options: Production[], stat: "attack" | "defense"): Production | undefined {
+/** The best land unit to build for attack or defence; `footOnly` leaves out wheels (rough ground without roads stops them). */
+function bestUnit(options: Production[], stat: "attack" | "defense", footOnly: GameState | null = null): Production | undefined {
   let best: Production | undefined;
   let score = -1;
   for (const o of options) {
     if (o.kind !== "unit") continue;
     const t = unitType(o.id);
     if (t.domain !== "land" || t.attack === 0 || civilian(t)) continue;
+    if (footOnly && needsRoads(footOnly, t)) continue;
     const s = stat === "defense" ? t.defense * 10 - t.cost / 8 : t.attack * 10 + t.moves * 3 - t.cost / 8;
     if (s > score) { score = s; best = o; }
   }
@@ -950,13 +976,13 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     if (d) { ctx.escorts++; return d; }
   }
   if (ctx.atWarWith.length > 0 && army < ctx.armyWanted && military < ctx.militaryCap) {
-    const a = bestUnit(options, "attack");
+    const a = bestUnit(options, "attack", ctx.campaignFoot ? state : null);
     if (a) return a;
   }
   // Caravans carry shields to the wonder city, or open trade routes once the empire has spread out.
   // A standing army even in peacetime, raised by the cities that can afford it.
   if (army + ctx.armyBuilding < ctx.armyWanted && military < ctx.militaryCap && c.size >= 4 && r.shields >= 4) {
-    const a = bestUnit(options, "attack");
+    const a = bestUnit(options, "attack", ctx.campaignFoot ? state : null);
     if (a) { ctx.armyBuilding++; return a; }
   }
   if (ctx.spyTarget && ctx.diplomats < 1 && c.size >= 3 && r.shields >= 3 && threat === 0) {
@@ -994,7 +1020,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   }
   if (best) return best;
   if (army < ctx.armyWanted && military < ctx.militaryCap) {
-    const a = bestUnit(options, "attack");
+    const a = bestUnit(options, "attack", ctx.campaignFoot ? state : null);
     if (a) return a;
   }
   if (sitesLeft && r.foodSurplus >= 1) {
@@ -1696,7 +1722,8 @@ function orderMilitary(state: GameState, ctx: Ctx, u: Unit): void {
     const marching = attacker && ctx.warTarget !== null && others >= 1 && (ctx.threat.get(here.id) ?? 0) === 0;
     if (others < wanted && !marching) { applyCommand(state, { type: "fortify", unit: u.id }); return; }
   }
-  if (ctx.warTarget && attacker) {
+  const marches = !(ctx.campaignFoot && needsRoads(state, type));
+  if (ctx.warTarget && attacker && marches) {
     const t = ctx.warTarget;
     if (dist(state, u.x, u.y, t.x, t.y) <= 1) { applyCommand(state, { type: "skip", unit: u.id }); return; } // in position: the assault comes at the start of our next turn
     // Gather at the staging city until the army is big enough, then march together.
@@ -1710,7 +1737,7 @@ function orderMilitary(state: GameState, ctx: Ctx, u: Unit): void {
     if (goto(state, u, cx, cy) || nudge(state, u, cx, cy)) return;
   }
   // Escorts: spare defenders march with the army and hold the camp beside the target.
-  if (ctx.warTarget && !attacker && ctx.camp && (ctx.campaignReady || ctx.escorts < ctx.escortsWanted)) {
+  if (ctx.warTarget && !attacker && marches && ctx.camp && (ctx.campaignReady || ctx.escorts < ctx.escortsWanted)) {
     const spare = !inOwnCity || garrison(state, ctx, here).filter((o) => o.id !== u.id).length >= (ctx.wanted.get(here.id) ?? 1);
     if (spare) {
       const [cx, cy] = ctx.campaignReady ? ctx.camp : [ctx.staging!.x, ctx.staging!.y];
