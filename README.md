@@ -38,10 +38,11 @@ Controls (map): numpad/arrows move · `Space` skip · `W` wait · `F` fortify ·
 `Enter` end turn · `T` rates · `G` revolution · `Esc` orders menu (or the Game menu) ·
 `F1` cities · `F2` military · `F3` foreign (Enter to talk) · `F4` science · `F5` score · `F6` spaceship (Enter to launch) · `F10` Game menu.
 Menu bar above the map, as in the original: **Game** (tax rate, find city, revolution, auto end turn,
-visuals, save/load, retire, new game) · **Orders** (the active unit's orders with their keys, or End Turn) ·
+borders, visuals, save/load, retire, new game) · **Orders** (the active unit's orders with their keys, or End Turn) ·
 **Advisors** (city status, military, foreign, science) · **World** (wonders of the world, top 5 cities,
 score, world map, spaceships). Click a title or press `Alt+G`/`Alt+O`/`Alt+A`/`Alt+W`; `Left`/`Right` move between menus.
 With auto end turn on (the default) the turn ends by itself a moment after the last unit has its orders.
+Borders (on by default; the original has none) outline each civilization's land: the squares its known cities can work, the nearer city taking a square both reach.
 The side panel and the terrain window speak in icons: population, year, treasury and tax/luxury/science,
 government and research; the unit's moves as pips; a square's food, shields, trade, movement, defence and
 improvements; each order as its key and a picture of the job. A settler at work wears a badge of its job

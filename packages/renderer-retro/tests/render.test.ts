@@ -393,6 +393,14 @@ describe("world with opponents", () => {
     drawMainScreen(s, state, { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true });
     writeFileSync(new URL("./out/world.png", import.meta.url), encodePng(s, 3));
     expect(state.cities.length).toBeGreaterThan(1);
+
+    // Borders: the edge of what the cities reach, in their owners' colours.
+    const before = s.data.slice();
+    drawMainScreen(s, state, { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true, borders: true });
+    writeFileSync(new URL("./out/borders.png", import.meta.url), encodePng(s, 3));
+    const changed = s.data.filter((c, i) => c !== before[i]);
+    expect(changed.length).toBeGreaterThan(100);
+    expect(changed.some((c) => c === playerColor(state, enemy.owner))).toBe(true);
   });
 });
 

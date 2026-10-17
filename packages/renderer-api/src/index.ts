@@ -5,6 +5,7 @@ export * from "./icons.js";
 export * from "./coast.js";
 export * from "./river.js";
 export * from "./fog.js";
+export * from "./territory.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME } from "./icons.js";
 import {
@@ -64,6 +65,8 @@ export interface MainScreenView {
   battle?: BattleFrame | undefined;
   /** Fog still lifting off squares just explored (`FogLifter`): square index to fog left, 1 down to 0. */
   lifting?: Lifting | undefined;
+  /** Draw civilization borders: the edge of the squares known cities reach (`territory`). */
+  borders?: boolean | undefined;
   /**
    * The unit shown as the one in play, when it is not `state.activeUnit`: just after a unit has
    * moved or fought, the view stays with it a moment before the next unit takes over. null while

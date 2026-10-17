@@ -1,5 +1,6 @@
 export { baselineTurn } from "./baseline.js";
-export { plannerTurn, pickResearch, siteScore } from "./planner.js";
+export { describePlan, plannerTurn, pickResearch, siteScore } from "./planner.js";
+export { plannerV2Turn } from "./planner-v2.js";
 import { plannerTurn } from "./planner.js";
 import type { GameState } from "@civ/core";
 

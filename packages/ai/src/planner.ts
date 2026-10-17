@@ -54,11 +54,13 @@ import {
 import { baselineTurn } from "./baseline.js";
 
 /**
- * Planning opponent (AI v2). Once per turn it sizes up the empire — home
- * continent, free city sites, threats around each city, who is worth a
- * war — and then lets that picture drive research beelines, government,
- * tax rates, city production, purchases, and unit orders. Everything is
- * derived from `GameState` each turn (no memory between calls) and all
+ * Planning opponent (AI v3). Once per turn it sizes up the empire — home
+ * continent, free city sites at home and overseas, threats around each
+ * city, who is worth a war — and then lets that picture drive research
+ * beelines, government, tax rates, technology trades, city production,
+ * purchases, ferries, campaigns and unit orders. Everything is derived from
+ * `GameState` each turn (no memory between calls; a ship's or soldier's goto
+ * order is the only plan it keeps, and that is game state) and all
  * randomness comes from `state.rng`, so games replay exactly.
  */
 export function plannerTurn(state: GameState): void {
@@ -85,6 +87,12 @@ export function plannerTurn(state: GameState): void {
     const same = state.activeUnit === u.id && u.x === before.x && u.y === before.y && u.movesLeft === before.moves && u.order.kind === before.order;
     if (same) applyCommand(state, { type: "skip", unit: u.id });
   }
+}
+
+/** What the planner sees for one civ, for tests and the tournament harness: free sites at home and overseas, the colony plan. */
+export function describePlan(state: GameState, me: number): { sites: number; overseasSites: number; wantOverseas: boolean; ferries: number } {
+  const ctx = analyse(state, me);
+  return { sites: ctx.sites().length, overseasSites: ctx.overseasSites().length, wantOverseas: ctx.wantOverseas(), ferries: ctx.ferries };
 }
 
 // ---- empire picture ----------------------------------------------------------
@@ -145,6 +153,15 @@ interface Ctx {
   diplomats: number;
   /** Cities already producing an attacker this turn. */
   armyBuilding: number;
+  /** Fit coastal sites on continents where we have no city yet (computed on first use). */
+  overseasSites: () => Site[];
+  /** A coastal city of ours has no room left at home while land waits overseas: ferry settlers out. */
+  wantOverseas: () => boolean;
+  /** Ships that can carry settlers, alive or being built, and how many we want on ferry duty. */
+  ferries: number;
+  ferriesWanted: number;
+  /** Settlers waiting for (or riding) a ferry, or being built to. */
+  overseasSettlers: number;
 }
 
 function dist(state: GameState, x1: number, y1: number, x2: number, y2: number): number {
@@ -160,6 +177,20 @@ function isMilitary(u: Unit): boolean {
 function isAttacker(u: Unit): boolean {
   const t = unitType(u.type);
   return t.attack > t.defense || (t.attack >= 2 && t.moves >= 2);
+}
+
+function isSettler(u: Unit): boolean {
+  return unitType(u.type).flags?.includes("settler") === true;
+}
+
+/** A ship that can carry settlers (a carrier's deck is for aircraft). */
+function isFerry(u: Unit): boolean {
+  const t = unitType(u.type);
+  return t.domain === "sea" && (t.capacity ?? 0) >= 2 && u.type !== "carrier";
+}
+
+function continentOf(state: GameState, x: number, y: number): number {
+  return getTile(state.map, x, y)!.continent;
 }
 
 function analyse(state: GameState, me: number): Ctx {
@@ -253,7 +284,18 @@ function analyse(state: GameState, me: number): Ctx {
   };
   const coastFrontier = () => seaFrontiers().coast;
   const seaExplorersWanted = () => (seaFrontiers().open ? (cities.length >= 10 ? 2 : 1) : 0);
+  let overseas: Site[] | null = null;
+  const overseasSites = () => (overseas ??= findOverseasSites(state, me, continents));
+  let overseasWanted: boolean | null = null;
+  const wantOverseas = () => (overseasWanted ??=
+    cities.length > 0 && cities.length < 24 && p.advances.includes("map_making") &&
+    cities.some((c) => coastal(state, c) && !sitesOn(state, sites(), c.x, c.y)) &&
+    overseasSites().length > 0);
   return {
+    overseasSites, wantOverseas,
+    ferries: units.filter(isFerry).length + cities.filter((c) => c.production.kind === "unit" && isFerry({ type: c.production.id } as Unit)).length,
+    ferriesWanted: cities.length >= 12 ? 2 : 1,
+    overseasSettlers: 0,
     tileWorker, foreignUnitTiles, jobs: new Map(), wonderSite, spaceRace, spyTarget,
     diplomats: units.filter((u) => unitType(u.type).flags?.includes("diplomat")).length,
     armyBuilding: cities.filter((c) => c.production.kind === "unit" && isAttacker({ type: c.production.id } as Unit)).length,
@@ -303,6 +345,9 @@ function findSpyTarget(state: GameState, me: number, cities: City[], continents:
 
 const CENTRE_OK = new Set([Terrain.Grassland, Terrain.Plains, Terrain.Hills, Terrain.Desert, Terrain.Forest]);
 
+/** Sites farther than this from all our cities are not "home": settlers would have to cross rivals' land, so they go by sea. */
+const REACH = 10;
+
 /** Value of founding a city at (x, y): yields of the 21-tile radius plus terrain bonuses; null if unfit. */
 export function siteScore(state: GameState, x: number, y: number): number | null {
   const t = getTile(state.map, x, y);
@@ -346,10 +391,58 @@ function findSites(state: GameState, me: number, continents: Set<number>, cities
         if (c.owner === me && d < ownNear) ownNear = d;
       }
       if (tooClose || canFoundCity(state, x, y) !== null) continue;
+      if (cities.length > 0 && ownNear > REACH) continue;
       const s = siteScore(state, x, y);
       if (s === null) continue;
       const compact = cities.length === 0 ? 0 : ownNear <= 6 ? 6 : ownNear <= 8 ? 2 : -4;
       out.push({ x, y, score: s + compact });
+    }
+  }
+  return out;
+}
+
+/** Some free site lies on the same continent as (x, y). */
+function sitesOn(state: GameState, sites: Site[], x: number, y: number): boolean {
+  const cont = getTile(state.map, x, y)!.continent;
+  return sites.some((s) => getTile(state.map, s.x, s.y)!.continent === cont);
+}
+
+function hasOcean(state: GameState, x: number, y: number): boolean {
+  for (const [dx, dy] of NEIGHBOURS) if (getTile(state.map, x + dx, y + dy)?.terrain === Terrain.Ocean) return true;
+  return false;
+}
+
+/**
+ * Sites for a colony: known land by the sea (a ship puts the settlers
+ * straight onto it) on continents where we have no city, or on our own but
+ * beyond walking reach of our cities, clear of every city. Land a rival has
+ * already settled nearby scores lower.
+ */
+function findOverseasSites(state: GameState, me: number, continents: Set<number>): Site[] {
+  const p = state.players[me]!;
+  const { width: w, height: h } = state.map;
+  const out: Site[] = [];
+  for (let y = 2; y < h - 2; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (!p.explored[i]) continue;
+      const t = state.map.tiles[i]!;
+      if (t.terrain === Terrain.Ocean || !CENTRE_OK.has(t.terrain)) continue;
+      if (!hasOcean(state, x, y)) continue;
+      let tooClose = false;
+      let rivals = 0;
+      let ownNear = 99;
+      for (const c of state.cities) {
+        const d = dist(state, c.x, c.y, x, y);
+        if (d < 4) { tooClose = true; break; }
+        if (d <= 6 && c.owner !== me) rivals++;
+        if (c.owner === me && d < ownNear) ownNear = d;
+      }
+      if (tooClose || canFoundCity(state, x, y) !== null) continue;
+      if (continents.has(t.continent) && ownNear <= REACH) continue;
+      const s = siteScore(state, x, y);
+      if (s === null) continue;
+      out.push({ x, y, score: s - 8 * rivals });
     }
   }
   return out;
@@ -403,7 +496,9 @@ function manageResearch(state: GameState, ctx: Ctx): void {
   if (ctx.p.researching !== null) return;
   const threatened = ctx.atWarWith.length > 0 || [...ctx.threat.values()].some((t) => t > 0);
   const lonely = ctx.turn >= 50 && !state.players.some((o) => o.id !== ctx.me && o.id !== state.barbarians && o.alive && hasContact(state, ctx.me, o.id));
-  const seaward = ctx.cities.some((c) => coastal(state, c)) && (!ctx.landUnexplored || lonely);
+  // Out of room at home: ships are the way to new land.
+  const cramped = ctx.cities.length > 0 && ctx.sites().length < 2;
+  const seaward = ctx.cities.some((c) => coastal(state, c)) && (!ctx.landUnexplored || lonely || cramped);
   const pick = pickResearch(ctx.p.advances, threatened, seaward);
   if (pick) applyCommand(state, { type: "research", advance: pick });
 }
@@ -575,6 +670,19 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   const p = ctx.p;
 
   if (here < wanted) return bestUnit(options, "defense");
+  // A ship to carry settlers overseas, from a port with no room left at home.
+  const homeSites = ctx.wantMoreCities && sitesOn(state, ctx.sites(), c.x, c.y);
+  if (ctx.ferries < ctx.ferriesWanted && !homeSites && coastal(state, c) && r.shields >= 2 && (ctx.threat.get(c.id) ?? 0) === 0 && ctx.wantOverseas()) {
+    let ferry: Production | undefined;
+    let ferryScore = -Infinity;
+    for (const o of options) {
+      if (o.kind !== "unit" || !isFerry({ type: o.id } as Unit)) continue;
+      const t = unitType(o.id);
+      const v = (t.capacity ?? 0) * 3 + t.moves - t.cost / 20;
+      if (v > ferryScore) { ferryScore = v; ferry = o; }
+    }
+    if (ferry) { ctx.ferries++; return ferry; }
+  }
   if (r.shields >= 2 && ctx.ships < 2 && ctx.p.advances.includes("map_making") && (ctx.threat.get(c.id) ?? 0) === 0 && coastal(state, c) && ctx.ships < ctx.seaExplorersWanted()) {
     // The quickest, cheapest ship that can sail: a trireme early, sail and frigates later.
     let ship: Production | undefined;
@@ -603,7 +711,13 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   }
 
   const allowance = Math.max(1, Math.ceil(ctx.cities.length / 3)) + (ctx.cities.length < 3 ? 1 : 0);
-  const sitesLeft = ctx.wantMoreCities && ctx.sites().length > 0;
+  // Settlers for land this city can walk to, or (from a port) for a colony across the sea.
+  const colonists = !homeSites && coastal(state, c) && ctx.overseasSettlers < 2 && ctx.wantOverseas();
+  if (colonists && settlersOut < allowance + 1 && r.foodSurplus >= 1 && c.size >= 3) {
+    const s = pick("unit", "settlers");
+    if (s) { ctx.overseasSettlers++; return s; }
+  }
+  const sitesLeft = homeSites;
   if (sitesLeft && settlersOut < allowance && r.foodSurplus >= 1 && (c.size >= 2 || r.foodSurplus >= 2)) {
     const s = pick("unit", "settlers");
     if (s) return s;
@@ -722,6 +836,10 @@ function manageCities(state: GameState, ctx: Ctx): void {
     }
   }
   let settlersPlanned = settlersOut;
+  const sites = ctx.wantMoreCities ? ctx.sites() : [];
+  ctx.overseasSettlers =
+    ctx.units.filter((u) => isSettler(u) && u.order.kind === "none" && (u.aboard !== null || !sitesOn(state, sites, u.x, u.y))).length +
+    ctx.cities.filter((c) => c.production.kind === "unit" && c.production.id === "settlers" && coastal(state, c) && !sitesOn(state, sites, c.x, c.y)).length;
   for (const c of ctx.cities) {
     governCity(state, ctx, c);
     fixDisorder(state, ctx, c);
@@ -1070,15 +1188,167 @@ function seaFrontierTarget(state: GameState, u: Unit, coastOnly: boolean): [numb
   return seaFrontierFrom(state, u.owner, [u.y * state.map.width + u.x], coastOnly);
 }
 
-/** Ships chart the seas; with nothing left to find they go home and are let go. */
+// ---- ferries ---------------------------------------------------------------------------
+
+/** An ocean square next to a city for a ship to wait at while settlers step aboard; the ship's own square if it is one. */
+function berth(state: GameState, c: City, u: Unit): [number, number] | null {
+  let first: [number, number] | null = null;
+  for (const [dx, dy] of NEIGHBOURS) {
+    const x = wrapX(state.map, c.x + dx);
+    const y = c.y + dy;
+    const t = getTile(state.map, x, y);
+    if (!t || t.terrain !== Terrain.Ocean) continue;
+    if (state.units.some((o) => o.owner !== u.owner && o.x === x && o.y === y)) continue;
+    if (u.x === x && u.y === y) return [x, y];
+    first ??= [x, y];
+  }
+  return first;
+}
+
+/**
+ * Breadth-first over known water from a ship for the overseas site worth
+ * most for the voyage: returns the site and the ocean square beside it to
+ * sail to. A trireme keeps near the coast.
+ */
+function landingTarget(state: GameState, ctx: Ctx, u: Unit): { site: Site; x: number; y: number } | null {
+  const sites = ctx.overseasSites();
+  if (!sites.length) return null;
+  const { width: w, height: h } = state.map;
+  const bySquare = new Map<number, Site>();
+  for (const s of sites) bySquare.set(s.y * w + s.x, s);
+  // Sites another ferry is already making for are left to it.
+  for (const o of ctx.units) {
+    if (o.id === u.id || !isFerry(o) || o.order.kind !== "goto") continue;
+    for (const [dx, dy] of NEIGHBOURS) bySquare.delete((o.order.y + dy) * w + wrapX(state.map, o.order.x + dx));
+  }
+  const near = u.type === "trireme" ? nearLandMask(state) : null;
+  const start = u.y * w + u.x;
+  const steps = new Int32Array(w * h).fill(-1);
+  steps[start] = 0;
+  const queue = [start];
+  let best: { site: Site; x: number; y: number } | null = null;
+  let bestV = -Infinity;
+  for (let head = 0; head < queue.length && head < 5000; head++) {
+    const i = queue[head]!;
+    const x = i % w;
+    const y = Math.floor(i / w);
+    for (const [dx, dy] of NEIGHBOURS) {
+      const ny = y + dy;
+      if (ny < 1 || ny >= h - 1) continue;
+      const ni = ny * w + wrapX(state.map, x + dx);
+      const site = bySquare.get(ni);
+      if (site && (i !== start || state.map.tiles[i]!.terrain === Terrain.Ocean)) {
+        const v = site.score - 1.5 * steps[i]!;
+        if (v > bestV) { bestV = v; best = { site, x, y }; }
+      }
+      if (steps[ni]! >= 0) continue;
+      const t = state.map.tiles[ni]!;
+      if (t.terrain !== Terrain.Ocean || !ctx.p.explored[ni] || ctx.foreignUnitTiles.has(ni)) continue;
+      if (near && !near[ni]) continue;
+      steps[ni] = steps[i]! + 1;
+      queue.push(ni);
+    }
+  }
+  return best;
+}
+
+/** Put a ship's settlers and their escort ashore on a fit site next to it; true if they went. */
+function unloadAtSite(state: GameState, ctx: Ctx, u: Unit, load: Unit[]): boolean {
+  for (const [dx, dy] of NEIGHBOURS) {
+    const x = wrapX(state.map, u.x + dx);
+    const y = u.y + dy;
+    const t = getTile(state.map, x, y);
+    if (!t || t.terrain === Terrain.Ocean || state.units.some((o) => o.x === x && o.y === y) || cityAt(state, x, y)) continue;
+    const colony = !ctx.continents.has(t.continent) || sitesOn(state, ctx.sites(), x, y);
+    if (!colony || canFoundCity(state, x, y) !== null || siteScore(state, x, y) === null) continue;
+    let landed = false;
+    for (const c of [...load].sort((a, b) => Number(isSettler(b)) - Number(isSettler(a)))) {
+      if (c.movesLeft <= 0) continue;
+      applyCommand(state, { type: "activate", unit: c.id });
+      if (applyCommand(state, { type: "move", unit: c.id, dx, dy }).ok && isSettler(c)) landed = true;
+    }
+    if (landed) return true;
+  }
+  return false;
+}
+
+/**
+ * Ferry duty. A ship with settlers aboard sails for the best overseas site
+ * and puts them ashore beside it; an empty ferry waits next to a port where
+ * a settler has no room left at home, takes it aboard with one defender
+ * from the garrison as escort, and sets sail. Returns false when there is
+ * no ferrying to do, leaving the ship to explore.
+ */
+function orderFerry(state: GameState, ctx: Ctx, u: Unit, depth = 0): boolean {
+  const load = cargo(state, u);
+  if (load.some(isSettler)) {
+    if (unloadAtSite(state, ctx, u, load)) { applyCommand(state, { type: "skip", unit: u.id }); return true; }
+    const target = landingTarget(state, ctx, u);
+    if (target && u.movesLeft > 0 && (goto(state, u, target.x, target.y) || nudge(state, u, target.x, target.y))) return true;
+    applyCommand(state, { type: "skip", unit: u.id });
+    return true;
+  }
+  if (!ctx.wantOverseas()) return false;
+  const cap = unitType(u.type).capacity ?? 0;
+  const waiting = ctx.units.filter((s) => {
+    if (!isSettler(s) || s.order.kind !== "none" || s.aboard !== null) return false;
+    const c = cityAt(state, s.x, s.y);
+    return c !== undefined && c.owner === ctx.me && coastal(state, c) && !sitesOn(state, ctx.sites(), c.x, c.y);
+  });
+  let port: City | null = null;
+  let bestD = Infinity;
+  for (const s of waiting) {
+    const d = dist(state, u.x, u.y, s.x, s.y);
+    if (d < bestD) { bestD = d; port = cityAt(state, s.x, s.y)!; }
+  }
+  port ??= nearestCity(state, ctx, u, (c) => coastal(state, c) && !sitesOn(state, ctx.sites(), c.x, c.y));
+  if (!port) return false;
+  const b = berth(state, port, u);
+  if (!b) { applyCommand(state, { type: "skip", unit: u.id }); return true; }
+  if (u.x !== b[0] || u.y !== b[1]) {
+    if (u.movesLeft > 0 && (goto(state, u, b[0], b[1]) || nudge(state, u, b[0], b[1]))) return true;
+    applyCommand(state, { type: "skip", unit: u.id });
+    return true;
+  }
+  // At the berth: settlers step aboard, then one defender if the garrison can spare it.
+  let dx = b[0] - port.x;
+  if (dx > 1) dx -= state.map.width;
+  if (dx < -1) dx += state.map.width;
+  const dy = b[1] - port.y;
+  for (const s of waiting) {
+    if (s.x !== port.x || s.y !== port.y || s.movesLeft <= 0 || cargo(state, u).length >= cap) continue;
+    applyCommand(state, { type: "activate", unit: s.id });
+    applyCommand(state, { type: "move", unit: s.id, dx, dy });
+  }
+  const aboard = cargo(state, u);
+  if (aboard.some(isSettler) && aboard.length < cap && !aboard.some(isMilitary)) {
+    const guards = garrison(state, ctx, port).sort((a, b2) => unitType(b2.type).defense - unitType(a.type).defense);
+    const escort = guards.length >= 2 ? guards[1] : undefined;
+    if (escort && escort.movesLeft > 0) {
+      applyCommand(state, { type: "activate", unit: escort.id });
+      applyCommand(state, { type: "move", unit: escort.id, dx, dy });
+    }
+  }
+  if (cargo(state, u).some(isSettler) && depth === 0) return orderFerry(state, ctx, u, 1);
+  applyCommand(state, { type: "skip", unit: u.id });
+  return true;
+}
+
+/** Ships ferry settlers when there is land to settle overseas, otherwise chart the seas; with nothing left to find they go home and are let go. */
 function orderShip(state: GameState, ctx: Ctx, u: Unit): void {
+  if (isFerry(u)) {
+    const load = cargo(state, u);
+    const onDuty = load.length > 0 || ctx.units.filter(isFerry).sort((a, b) => a.id - b.id).indexOf(u) < ctx.ferriesWanted;
+    if (onDuty && orderFerry(state, ctx, u)) return;
+  }
   if (cargo(state, u).length > 0) { applyCommand(state, { type: "skip", unit: u.id }); return; }
   const target = seaFrontierTarget(state, u, u.type === "trireme");
   if (target && (goto(state, u, target[0], target[1]) || nudge(state, u, target[0], target[1]))) return;
   const here = cityAt(state, u.x, u.y);
   if (here && here.owner === ctx.me) {
     // Nothing left for this ship: let it go (a trireme that cannot reach open-sea work makes room for a seagoing ship).
-    if (!target && (ctx.seaExplorersWanted() === 0 || (u.type === "trireme" && !ctx.coastFrontier()))) { applyCommand(state, { type: "disband", unit: u.id }); ctx.ships--; return; }
+    const ferrying = isFerry(u) && ctx.wantOverseas();
+    if (!target && !ferrying && (ctx.seaExplorersWanted() === 0 || (u.type === "trireme" && !ctx.coastFrontier()))) { applyCommand(state, { type: "disband", unit: u.id }); ctx.ships--; return; }
     applyCommand(state, { type: "skip", unit: u.id });
     return;
   }
@@ -1305,8 +1575,11 @@ function orderSettler(state: GameState, ctx: Ctx, u: Unit): void {
   const home = (u.homeCity !== null ? ctx.cities.find((c) => c.id === u.homeCity) : undefined) ?? nearestCity(state, ctx, u);
   const jobs: Job[] = [];
   for (const c of ctx.cities) if (dist(state, u.x, u.y, c.x, c.y) <= 6) jobs.push(...cityJobs(state, ctx, c));
-  const sites = ctx.wantMoreCities ? ctx.sites() : [];
-  const wantWork = jobs.length > 0 && (sites.length === 0 || workers < ctx.workersWanted);
+  // Only sites a settler can walk to count; with none on its continent it may be bound for a colony.
+  const myContinent = continentOf(state, u.x, u.y);
+  const sites = ctx.wantMoreCities ? ctx.sites().filter((s) => continentOf(state, s.x, s.y) === myContinent) : [];
+  const overseasBound = sites.length === 0 && ctx.wantOverseas();
+  const wantWork = jobs.length > 0 && ((sites.length === 0 && !overseasBound) || workers < ctx.workersWanted);
 
   if (wantWork) {
     let best: Job | null = null;
@@ -1320,6 +1593,13 @@ function orderSettler(state: GameState, ctx: Ctx, u: Unit): void {
         if (applyCommand(state, { type: "work", unit: u.id, work: best.work }).ok) { takeJob(ctx, best); return; }
       } else if (goto(state, u, best.x, best.y) || nudge(state, u, best.x, best.y)) { takeJob(ctx, best); return; }
     }
+  }
+
+  // No room at home: wait in port for a ferry (a settler just put ashore founds where it stands).
+  if (overseasBound && hereScore === null) {
+    if (here && here.owner === ctx.me && coastal(state, here)) { applyCommand(state, { type: "skip", unit: u.id }); return; }
+    const port = nearestCity(state, ctx, u, (c) => coastal(state, c) && continentOf(state, c.x, c.y) === myContinent);
+    if (port && goto(state, u, port.x, port.y)) return;
   }
 
   // Found here when this tile is about as good as anything nearby.
@@ -1338,9 +1618,9 @@ function orderSettler(state: GameState, ctx: Ctx, u: Unit): void {
   if (ranked[0] && nudge(state, u, ranked[0].s.x, ranked[0].s.y)) return;
   if (hereScore !== null) { applyCommand(state, { type: "found", unit: u.id }); return; }
   // Nothing to do: look around for land we have not seen; a surplus of idle settlers is just mouths to feed.
-  if (ctx.sites().length === 0 && explore(state, u)) return;
+  if (sites.length === 0 && !overseasBound && explore(state, u)) return;
   const idle = ctx.units.filter((o) => unitType(o.type).flags?.includes("settler") && o.order.kind === "none").length;
-  if (jobs.length === 0 && sites.length === 0 && ctx.turn > 40 && idle > Math.ceil(ctx.cities.length / 4)) {
+  if (jobs.length === 0 && sites.length === 0 && !overseasBound && ctx.turn > 40 && idle > Math.ceil(ctx.cities.length / 4)) {
     applyCommand(state, { type: "disband", unit: u.id });
     return;
   }

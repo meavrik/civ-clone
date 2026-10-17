@@ -244,6 +244,13 @@ function setAutoEnd(on: boolean): void {
   try { localStorage.setItem("epochs.autoEnd", on ? "on" : "off"); } catch { /* private mode */ }
 }
 
+/** Civilization borders on the map (game menu toggles them; remembered per browser). The original has none. */
+let borders = (() => { try { return localStorage.getItem("epochs.borders") !== "off"; } catch { return true; } })();
+function setBorders(on: boolean): void {
+  borders = on;
+  try { localStorage.setItem("epochs.borders", on ? "on" : "off"); } catch { /* private mode */ }
+}
+
 /**
  * Civilizations already introduced to the player. Contact is read from the
  * relations after every action and every AI round (the turn's event list
@@ -628,6 +635,7 @@ function barEntries(index: number): MenuEntry[] {
         ["Find City", "", () => openFindCity()],
         ["Revolution!", "G", () => askRevolution()],
         [`Auto End Turn: ${autoEnd ? "On" : "Off"}`, "", () => { setAutoEnd(!autoEnd); say(`Auto end turn ${autoEnd ? "on" : "off"}`); }],
+        [`Borders: ${borders ? "On" : "Off"}`, "", () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
         [`Visuals: ${renderer.id === "retro" ? "Retro" : "Modern"}`, "", () => setRenderer(renderer.id === "retro" ? "modern" : "retro")],
         ["Save Game", "", () => void openSaveMenu()],
         ["Load Game", "", () => void openLoadMenu()],
@@ -1229,6 +1237,7 @@ function frame(t: number): void {
   if (t - lastBlink > 400) { blinkOn = !blinkOn; lastBlink = t; }
   view.blink = blinkOn;
   view.autoEnd = autoEnd;
+  view.borders = borders;
   if (screenState.kind !== "title" && screenState.kind !== "setup") stepCamera(t);
   if (status && t > statusUntil) status = undefined;
   const shown = motion.at(t);

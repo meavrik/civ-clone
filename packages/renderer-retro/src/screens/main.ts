@@ -22,11 +22,12 @@ import {
   type GameState,
 } from "@civ/core";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
-import { drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
+import { drawBorderSide, drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
+import { darker } from "../sprites/index.js";
 import { drawCity } from "./map-city.js";
 
 /**
@@ -78,7 +79,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { isDeepWater, knownSquare, MENU_BAR, shownActive, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
+import { borderSides, isDeepWater, knownSquare, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, iconLineWidth } from "../icons.js";
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
@@ -140,6 +141,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
   const [ox, oy] = panOffset(view);
+  // Fog goes on last, over the borders; borders over every square, as their corners reach into the next one.
+  const fogs: [Surface, number, number][] = [];
+  const terr = view.borders ? territory(state) : null;
   for (let ty = 0; ty <= VIEW_TILES_Y; ty++) {
     const my = view.originY + ty;
     const dy = VIEW_Y + ty * TILE - oy;
@@ -166,9 +170,21 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       if (tile.hut) drawHut(s, dx, dy);
       if (tile.fortress) drawFortress(s, dx, dy);
       if (tile.pollution) drawPollution(s, dx, dy);
-      if (fog) s.blit(fog, dx, dy, SPRITE_CLEAR);
+      if (fog) fogs.push([fog, dx, dy]);
     }
   }
+  if (terr)
+    for (let ty = 0; ty <= VIEW_TILES_Y; ty++)
+      for (let tx = 0; tx <= VIEW_TILES_X; tx++) {
+        const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
+        const my = view.originY + ty;
+        if (my < 0 || my >= map.height || !me.explored[my * map.width + mx]) continue;
+        const owner = ownerAt(terr, mx, my);
+        if (owner < 0) continue;
+        const color = playerColor(state, owner);
+        for (const b of borderSides(terr, mx, my)) drawBorderSide(s, VIEW_X + tx * TILE - ox, VIEW_Y + ty * TILE - oy, b.side, b.startOut, b.endOut, color, darker(color));
+      }
+  for (const [fog, dx, dy] of fogs) s.blit(fog, dx, dy, SPRITE_CLEAR);
 
   // Cities on explored tiles. Foreign cities and units wait for fog lifting off their square to thin.
   const fogged = (idx: number, owner: number) => owner !== state.currentPlayer && (view.lifting?.get(idx) ?? 0) >= 0.5;

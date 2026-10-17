@@ -53,6 +53,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   through the Bayer dither; modern: `Clouds` gathers the view's fog and fills each layer as one path
   (per-square fills leave seams, and thousands of tiny polygons cost ~600 ms a frame), lifting squares
   as alpha layers grouped by fog left, bodies before billows (else edges show).
+  Borders (`territory.ts`, drawing only, toggled in the Game menu): each known city claims its
+  `CITY_RADIUS`, the nearer then older city winning a shared square; `borderSides` gives the edges and
+  where a line must reach past an inner corner. Drawn after all squares, under the fog.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
   terrain, cities, villages and specials are pixel art in `src/art/*.art.ts` (text grids; legend

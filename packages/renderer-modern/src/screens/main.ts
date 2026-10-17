@@ -21,9 +21,10 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, fogPatch, isDeepWater, knownSquare, MENU_BAR, riverShape, shownActive, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, fogPatch, isDeepWater, knownSquare, MENU_BAR, riverShape, territory, shownActive, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
+import { paintBorders } from "../borders.js";
 import { drawIconLine, iconParagraph, paintIcon } from "../icons.js";
 import type { Context2D } from "../context.js";
 import { circle, fillRound, measure, panel, paragraph, strokeRound, text } from "../draw.js";
@@ -126,6 +127,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
   ctx.clip();
   const [ox, oy] = panOffset(view);
   const clouds = new Clouds();
+  const shown: { mx: number; my: number; x: number; y: number }[] = [];
   for (let ty = 0; ty <= VIEW_TILES_Y; ty++) {
     const my = view.originY + ty;
     const dy = VIEW_Y + ty * TILE - oy;
@@ -144,6 +146,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
       const left = view.lifting?.get(my * map.width + mx);
       if (left) clouds.lift(dx, dy, mx, my, left, map, me.explored, view.lifting!);
       const tile = map.tiles[my * map.width + mx]!;
+      shown.push({ mx, my, x: dx, y: dy });
       const coast = coastPatch(map, mx, my, me.explored);
       const river = riverShape(map, mx, my, me.explored);
       paintTile(ctx, dx, dy, tile, mx, my, coast.depth[4] === DEEP);
@@ -161,6 +164,8 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
       if (!me.visible[my * map.width + mx]) paintFog(ctx, dx, dy);
     }
   }
+  // Borders over every square (their corners reach into the next one), under the fog.
+  if (view.borders) paintBorders(ctx, territory(state), shown, (owner) => state.players[owner]!.color);
   clouds.paint(ctx);
 
   // Foreign cities and units wait for fog lifting off their square to thin.

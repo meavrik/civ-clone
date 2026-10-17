@@ -1,6 +1,8 @@
-import { aiTurn, baselineTurn, plannerTurn } from "@civ/ai";
+import { aiTurn, baselineTurn, plannerTurn, plannerV2Turn } from "@civ/ai";
 import {
   computeScore,
+  getTile,
+  lastTurnEvents,
   loadSave,
   makeSave,
   newGame,
@@ -23,6 +25,7 @@ export type AiFn = (state: GameState) => void;
 /** Named AI variants a seat can be given. */
 export const AIS: Record<string, AiFn> = {
   baseline: baselineTurn,
+  v2: plannerV2Turn,
   planner: plannerTurn,
 };
 
@@ -62,7 +65,15 @@ export interface PlayerStats {
   score: number;
   /** Explored tiles. */
   explored: number;
+  /** Cities on a continent other than the capital's (settled or taken overseas). */
+  overseas: number;
+  /** Cities this civ captured or razed so far, and cities it lost. */
+  captured: number;
+  lost: number;
 }
+
+/** Running tallies a game keeps per civ: conquests come from the turn events, which every end of turn clears. */
+export interface Tallies { captured: number[]; lost: number[] }
 
 export interface Sample {
   turn: number;
@@ -115,11 +126,19 @@ export function gameOptions(config: GameConfig): NewGameOptions {
   };
 }
 
-export function playerStats(state: GameState, id: number, ai: string): PlayerStats {
+export function playerStats(state: GameState, id: number, ai: string, tallies?: Tallies): PlayerStats {
   const p = state.players[id]!;
   let cities = 0;
   let pop = 0;
-  for (const c of state.cities) if (c.owner === id) { cities++; pop += c.size; }
+  const mine = state.cities.filter((c) => c.owner === id);
+  const capital = mine.find((c) => c.buildings.includes("palace")) ?? mine[0];
+  const home = capital ? getTile(state.map, capital.x, capital.y)!.continent : -1;
+  let overseas = 0;
+  for (const c of mine) {
+    cities++;
+    pop += c.size;
+    if (getTile(state.map, c.x, c.y)!.continent !== home) overseas++;
+  }
   let units = 0;
   let military = 0;
   let settlers = 0;
@@ -147,13 +166,16 @@ export function playerStats(state: GameState, id: number, ai: string): PlayerSta
     government: p.government,
     score: p.alive ? computeScore(state, id).total : 0,
     explored,
+    overseas,
+    captured: tallies?.captured[id] ?? 0,
+    lost: tallies?.lost[id] ?? 0,
   };
 }
 
-export function sample(state: GameState, config: GameConfig): Sample {
+export function sample(state: GameState, config: GameConfig, tallies?: Tallies): Sample {
   const seats = seatAis(config);
   const players: PlayerStats[] = [];
-  for (const p of state.players) if (p.id !== state.barbarians) players.push(playerStats(state, p.id, seats[p.id] ?? "baseline"));
+  for (const p of state.players) if (p.id !== state.barbarians) players.push(playerStats(state, p.id, seats[p.id] ?? "baseline", tallies));
   return { turn: state.turn, players };
 }
 
@@ -193,22 +215,34 @@ export function digest(state: GameState): string {
 /** Play one game to the turn limit or conquest. `onSample` fires at every sample point. */
 export function runGame(config: GameConfig, onSample?: (s: Sample) => void): GameResult {
   const options = gameOptions(config);
-  const router = makeRouter(config);
+  const route = makeRouter(config);
   const state = newGame(config.seed, options);
+  // Count conquests as they happen: each AI's own captures are in the events of its turn.
+  const tallies: Tallies = { captured: state.players.map(() => 0), lost: state.players.map(() => 0) };
+  const router: AiFn = (s) => {
+    const me = s.currentPlayer;
+    const from = lastTurnEvents.length;
+    route(s);
+    for (const ev of lastTurnEvents.slice(from)) {
+      if (ev.kind !== "cityCaptured" && ev.kind !== "cityLost") continue;
+      tallies.captured[me] = (tallies.captured[me] ?? 0) + 1;
+      tallies.lost[ev.player] = (tallies.lost[ev.player] ?? 0) + 1;
+    }
+  };
   const samples: Sample[] = [];
   const t0 = performance.now();
   let end: GameResult["end"] = "turns";
   while (state.turn < config.turns) {
     runAiPlayers(state, router);
     if (config.every > 0 && state.turn % config.every === 0 && state.turn < config.turns) {
-      const s = sample(state, config);
+      const s = sample(state, config, tallies);
       samples.push(s);
       onSample?.(s);
     }
     if (aliveCivs(state).length <= 1) { end = "conquest"; break; }
     if (state.players.some((p) => p.spaceship.arrived)) { end = "space"; break; }
   }
-  const final = sample(state, config);
+  const final = sample(state, config, tallies);
   samples.push(final);
   onSample?.(final);
   const alive = final.players.filter((p) => p.alive);

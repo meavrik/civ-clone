@@ -85,6 +85,9 @@ const COLS: [keyof PlayerStats | "name", string, number][] = [
   ["units", "units", 5],
   ["military", "mil", 4],
   ["techs", "techs", 5],
+  ["overseas", "ovsea", 5],
+  ["captured", "took", 4],
+  ["lost", "lost", 4],
   ["gold", "gold", 6],
   ["government", "gov", 10],
   ["score", "score", 5],
@@ -117,13 +120,13 @@ function printGame(index: number, r: GameResult, verified: boolean | null): void
   for (const p of r.players) console.log("  " + row(p));
 }
 
-interface Agg { games: number; wins: number; cities: number; pop: number; techs: number; score: number; alive: number }
+interface Agg { games: number; wins: number; cities: number; pop: number; techs: number; score: number; alive: number; overseas: number; captured: number; lost: number }
 
 function printSummary(results: GameResult[]): void {
   const byAi = new Map<string, Agg>();
   const bump = (ai: string): Agg => {
     let a = byAi.get(ai);
-    if (!a) { a = { games: 0, wins: 0, cities: 0, pop: 0, techs: 0, score: 0, alive: 0 }; byAi.set(ai, a); }
+    if (!a) { a = { games: 0, wins: 0, cities: 0, pop: 0, techs: 0, score: 0, alive: 0, overseas: 0, captured: 0, lost: 0 }; byAi.set(ai, a); }
     return a;
   };
   let mismatches = 0;
@@ -135,6 +138,9 @@ function printSummary(results: GameResult[]): void {
       a.pop += p.pop;
       a.techs += p.techs;
       a.score += p.score;
+      a.overseas += p.overseas;
+      a.captured += p.captured;
+      a.lost += p.lost;
       if (p.alive) a.alive++;
       if (p.id === r.winner) a.wins++;
     }
@@ -143,10 +149,10 @@ function printSummary(results: GameResult[]): void {
   const conquests = results.filter((r) => r.end === "conquest").length;
   const landings = results.filter((r) => r.end === "space").length;
   console.log(`\nsummary: ${results.length} game(s), ${conquests} by conquest, ${landings} by spaceship, ${(totalMs / 1000).toFixed(1)}s total`);
-  console.log("  ai            seats  wins  alive  cities    pop  techs  score   (means per seat)");
+  console.log("  ai            seats  wins  alive  cities    pop  techs  score  ovsea   took   lost   (means per seat)");
   for (const [ai, a] of byAi) {
     const m = (v: number) => (v / a.games).toFixed(1).padStart(6);
-    console.log(`  ${ai.padEnd(13)} ${String(a.games).padStart(5)} ${String(a.wins).padStart(5)} ${String(a.alive).padStart(6)} ${m(a.cities)}  ${m(a.pop)} ${m(a.techs)} ${m(a.score)}`);
+    console.log(`  ${ai.padEnd(13)} ${String(a.games).padStart(5)} ${String(a.wins).padStart(5)} ${String(a.alive).padStart(6)} ${m(a.cities)}  ${m(a.pop)} ${m(a.techs)} ${m(a.score)} ${m(a.overseas)} ${m(a.captured)} ${m(a.lost)}`);
   }
   void mismatches;
 }

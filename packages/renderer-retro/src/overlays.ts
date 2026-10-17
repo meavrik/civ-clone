@@ -174,3 +174,24 @@ export function drawBurst(s: Surface, cx: number, cy: number, t: number): void {
     s.rect(Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d), size, size, k % 2 ? flame : ember);
   }
 }
+
+/**
+ * One side of a civilization's border (see `borderSides`) along the square at
+ * (dx, dy): a line in the owner's colour on the square's edge pixels, reaching
+ * one pixel past the corner where it rounds an inner corner, and a dotted line
+ * of the darker shade just inside it.
+ */
+export function drawBorderSide(s: Surface, dx: number, dy: number, side: number, startOut: boolean, endOut: boolean, color: number, inner: number): void {
+  const a = startOut ? -1 : 0;
+  const b = endOut ? 16 : 15;
+  const across = side === 0 || side === 2;
+  const edge = side === 0 || side === 3 ? 0 : 15;
+  const inside = edge === 0 ? 1 : 14;
+  for (let t = a; t <= b; t++) {
+    if (across) s.set(dx + t, dy + edge, color);
+    else s.set(dx + edge, dy + t, color);
+    if (t < 1 || t > 14 || (t + inside) & 1) continue;
+    if (across) s.set(dx + t, dy + inside, inner);
+    else s.set(dx + inside, dy + t, inner);
+  }
+}
