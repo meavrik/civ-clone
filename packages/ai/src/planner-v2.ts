@@ -524,13 +524,22 @@ function shortOfGuards(state: GameState, ctx: Ctx, c: City): boolean {
   return garrison(state, ctx, c).length + incoming(ctx, c) < (ctx.wanted.get(c.id) ?? 1);
 }
 
+/**
+ * A unit kind made for peaceful work (settlers, diplomats, caravans). Tested by
+ * name rather than "has any flag", so a flag added to a fighting unit never
+ * quietly drops it from the build list.
+ */
+function civilian(t: { flags?: readonly string[] }): boolean {
+  return t.flags?.some((f) => f === "settler" || f === "diplomat" || f === "caravan") ?? false;
+}
+
 function bestUnit(options: Production[], stat: "attack" | "defense"): Production | undefined {
   let best: Production | undefined;
   let score = -1;
   for (const o of options) {
     if (o.kind !== "unit") continue;
     const t = unitType(o.id);
-    if (t.domain !== "land" || t.attack === 0 || t.flags?.length) continue;
+    if (t.domain !== "land" || t.attack === 0 || civilian(t)) continue;
     const s = stat === "defense" ? t.defense * 10 - t.cost / 8 : t.attack * 10 + t.moves * 3 - t.cost / 8;
     if (s > score) { score = s; best = o; }
   }
@@ -598,7 +607,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     for (const o of options) {
       if (o.kind !== "unit") continue;
       const t = unitType(o.id);
-      if (t.domain !== "land" || t.attack === 0 || t.flags?.length) continue;
+      if (t.domain !== "land" || t.attack === 0 || civilian(t)) continue;
       if (!scout) { scout = o; continue; }
       const s = unitType(scout.id);
       if (t.moves > s.moves || (t.moves === s.moves && t.cost < s.cost)) scout = o;
