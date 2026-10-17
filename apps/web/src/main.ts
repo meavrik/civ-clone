@@ -1252,7 +1252,8 @@ function frame(t: number): void {
   const shown = motion.at(t);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;
-  const lifting = screenState.kind !== "title" && screenState.kind !== "setup" ? lifter.update(state, t, shown.moving) : undefined;
+  // No game yet on the title screen and its menus.
+  const lifting = (state as GameState | undefined) ? lifter.update(state, t, shown.moving) : undefined;
   view.lifting = lifting?.size ? lifting : undefined;
   const animating = motion.busy(t);
   stepHandoff(t, animating);
