@@ -40,6 +40,25 @@ export const UI = {
   fog: "rgba(6, 10, 18, 0.55)",
 };
 
+/** The tech tree: an advance's box by where it stands, the one just found, the selection ring and the edges. */
+export const TECH = {
+  ground: "rgba(6, 9, 14, 0.55)",
+  known: { fill: "#1d3a28", edge: "#3f9a55", ink: "#c9f2d2" },
+  researching: { fill: "#163452", edge: "#6fc3ff", ink: "#dff1ff" },
+  available: { fill: "#36414f", edge: "#e9eef4", ink: "#ffffff" },
+  locked: { fill: "#141a22", edge: "#2a3440", ink: "#5f6d7d" },
+  fresh: { fill: "#f1c54f", edge: "#fff1c2", ink: "#0d1117" },
+  glow: "rgba(241, 197, 79, 0.75)",
+  ring: "#ffffff",
+  edge: "rgba(154, 168, 184, 0.22)",
+  needs: "#f1c54f",
+  leads: "#6fc3ff",
+  thumb: "rgba(255, 255, 255, 0.16)",
+  button: "#f1c54f",
+  buttonInk: "#0d1117",
+  arrow: "rgba(30, 39, 51, 0.92)",
+};
+
 /** Colours of the info panel icons. */
 export const ICON = {
   ink: "#e9eef4",

@@ -51,15 +51,24 @@ import {
   type UnitAction,
 } from "@civ/core";
 import {
+  canResearch,
+  clampTechScroll,
   DIFFICULTIES,
   leaderLine,
   FogLifter,
   MotionPlayer,
+  nextAvailable,
+  openTechTree,
   setupChoose,
   setupMenu,
   setupOptions,
+  techLayout,
+  techScrollCentring,
+  techScrollShowing,
+  techStep,
   terrainInfo,
   TEXT_INPUT_MAX,
+  type TechTreeView,
   type CityScreenView,
   type MainScreenView,
   type MenuState,
@@ -130,7 +139,7 @@ type Screen =
   | { kind: "setup"; setup: SetupState }
   | { kind: "map" }
   | { kind: "city"; view: CityScreenView }
-  | { kind: "discovery"; advance: string; then: () => void }
+  | { kind: "techTree"; tree: TechTreeView; target: number; back: Screen; then: () => void }
   | { kind: "science" }
   | { kind: "rates" }
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
@@ -437,7 +446,9 @@ function hutModal(r: HutResult, then: () => void): void {
     : r.kind === "unit" ? [`The village warriors swear allegiance: a unit of ${unitType(r.unit).name} joins you.`]
     : r.kind === "barbarians" ? ["The village was a trap!", "A horde of barbarians bursts from the huts."]
     : ["The village stands empty; its people are long gone."];
-  modal("A Tribal Village", body, ["OK"], () => then(), 0, then);
+  // Scrolls found go on to the tech tree, like any advance found.
+  const after = r.kind === "advance" ? () => showFound([r.advance], then) : then;
+  modal("A Tribal Village", body, ["OK"], () => after(), 0, after);
 }
 
 /** Right-click on the map: what is known about the square, with a few things to do about it. */
@@ -506,15 +517,99 @@ function openProductionMenu(cityId: number): void {
   };
 }
 
-function openResearchMenu(under: Screen, then?: () => void): void {
-  const opts = availableAdvances(state.players[0]!.advances);
-  if (opts.length === 0) { then?.(); return; }
-  screenState = {
-    kind: "menu",
-    under,
-    menu: { title: "Wise men ask: what shall we research?", items: opts.map((a) => a.name), selected: 0 },
-    onPick: (i) => { const a = opts[i]; if (a) dispatch({ type: "research", advance: a.id }); then?.(); },
-  };
+// ---- the tech tree ---------------------------------------------------------------
+type TreeScreen = Extract<Screen, { kind: "techTree" }>;
+
+/**
+ * Open the tech tree window. `then` runs once it closes (the next of the turn's
+ * events), and `back` is the screen it closes onto. When research is due it can
+ * only be left by picking the next advance, as the wise men insist.
+ */
+function openTree(opts: { discovered?: string[]; choosing: boolean; closable: boolean }, then: () => void = () => {}, back: Screen = { kind: "map" }): void {
+  const choosing = opts.choosing && availableAdvances(state.players[0]!.advances).length > 0;
+  const tree = openTechTree(state, renderer.techColumns, { ...opts, choosing, closable: opts.closable || !choosing });
+  screenState = { kind: "techTree", tree, target: tree.scroll, back, then };
+}
+
+/** Advances gained along the way (a village, a diplomat, a treaty): the tree shows them, and the research can be changed there. */
+function showFound(ids: string[], then: () => void = () => {}): void {
+  if (!ids.length) { then(); return; }
+  openTree({ discovered: ids, choosing: true, closable: true }, then, screenState);
+}
+
+/** The research is due: pick the next advance in the tree. */
+function askResearch(then: () => void = () => {}): void {
+  if (!availableAdvances(state.players[0]!.advances).length) { then(); return; }
+  openTree({ choosing: true, closable: false }, then);
+}
+
+function closeTree(sc: TreeScreen): void {
+  screenState = sc.back;
+  sc.then();
+}
+
+function pickResearch(sc: TreeScreen): void {
+  if (!canResearch(state, sc.tree)) return;
+  if (dispatch({ type: "research", advance: sc.tree.selected })) say(`Researching ${advance(sc.tree.selected).name}`);
+  closeTree(sc);
+}
+
+/** Select an advance, scrolling just enough to show it whole. */
+function treeSelect(sc: TreeScreen, id: string): void {
+  sc.tree.selected = id;
+  sc.target = techScrollShowing(sc.target, techLayout().byId.get(id)!.tier, renderer.techColumns);
+}
+
+function treeScroll(sc: TreeScreen, to: number): void {
+  sc.target = clampTechScroll(to, renderer.techColumns);
+}
+
+function treeKey(e: KeyboardEvent, sc: TreeScreen): void {
+  const t = sc.tree;
+  switch (e.code) {
+    case "ArrowLeft": case "Numpad4": treeSelect(sc, techStep(t.selected, -1, 0)); break;
+    case "ArrowRight": case "Numpad6": treeSelect(sc, techStep(t.selected, 1, 0)); break;
+    case "ArrowUp": case "Numpad8": treeSelect(sc, techStep(t.selected, 0, -1)); break;
+    case "ArrowDown": case "Numpad2": treeSelect(sc, techStep(t.selected, 0, 1)); break;
+    case "Tab": e.preventDefault(); if (t.choosing) treeSelect(sc, nextAvailable(state, t.selected, e.shiftKey ? -1 : 1)); break;
+    case "PageUp": treeScroll(sc, sc.target - Math.floor(renderer.techColumns)); break;
+    case "PageDown": treeScroll(sc, sc.target + Math.floor(renderer.techColumns)); break;
+    case "Enter": case "NumpadEnter": case "Space":
+      e.preventDefault();
+      if (canResearch(state, t)) pickResearch(sc);
+      else if (t.choosing) treeSelect(sc, nextAvailable(state, t.selected));
+      else closeTree(sc);
+      break;
+    case "Escape": if (t.closable) closeTree(sc); break;
+  }
+}
+
+/** A click on the tree: an advance shows what it brings, and a second click on one within reach picks it. */
+function treeClick(sc: TreeScreen, px: number, py: number): void {
+  const hit = renderer.techTreeHit(state, sc.tree, px, py);
+  if (!hit) return;
+  switch (hit.kind) {
+    case "advance":
+      if (hit.id === sc.tree.selected && canResearch(state, sc.tree)) pickResearch(sc);
+      else treeSelect(sc, hit.id);
+      break;
+    case "research": pickResearch(sc); break;
+    case "close": closeTree(sc); break;
+    case "scroll": treeScroll(sc, sc.target + hit.by); break;
+    case "scrollTo": sc.target = techScrollCentring(hit.tier, renderer.techColumns); break;
+  }
+}
+
+let treeFrameAt = 0;
+/** The tree's view glides to its scroll target; the visuals may have changed under it. */
+function stepTree(sc: TreeScreen, t: number): void {
+  const dt = Math.min(100, t - treeFrameAt);
+  treeFrameAt = t;
+  sc.target = clampTechScroll(sc.target, renderer.techColumns);
+  const tree = sc.tree;
+  const gap = sc.target - tree.scroll;
+  tree.scroll = Math.abs(gap) < 0.01 ? sc.target : tree.scroll + gap * Math.min(1, dt / 90);
+  tree.blink = blinkOn;
 }
 
 function openGovernmentMenu(under: Screen, then?: () => void): void {
@@ -548,7 +643,9 @@ function openDiplomatMenu(unit: number, cityId: number): void {
       const ev = lastTurnEvents.find((e) => e.kind === "spy");
       const m = ev && eventMessage(ev);
       if (m) say(m, 4000);
+      const stolen = lastTurnEvents.flatMap((e) => (e.kind === "discovered" ? [e.advance] : []));
       lastTurnEvents.length = 0;
+      showFound(stolen);
     }
   };
   const items: [string, () => void][] = [
@@ -655,6 +752,7 @@ function barEntries(index: number): MenuEntry[] {
         ["Military Advisor", "F2", () => { screenState = { kind: "advisor", which: "military" }; }],
         ["Foreign Minister", "F3", () => { screenState = { kind: "advisor", which: "foreign" }; }],
         ["Science Advisor", "F4", () => { screenState = { kind: "science" }; }],
+        ["Tech Tree", "", () => openTree({ choosing: true, closable: true })],
       ];
     case "World":
       return [
@@ -748,7 +846,7 @@ function openDiplomacy(player: number): void {
       const give = mineOnly[0]!;
       const receive = theirsOnly[0]!;
       menu(`Trade ${advance(give).name} for ${advance(receive).name}?`, ["Yes", "No"], (i) => {
-        if (i === 0 && dispatch({ type: "exchangeAdvances", player, give, receive })) say(`We learn ${advance(receive).name}.`, 3000);
+        if (i === 0 && dispatch({ type: "exchangeAdvances", player, give, receive })) { say(`We learn ${advance(receive).name}.`, 3000); showFound([receive]); }
       });
     }]);
   if (me.gold >= 50) items.push(["Give 50 gold as tribute", () => { dispatch({ type: "giveGold", player, amount: 50 }); say("The gift is accepted."); }]);
@@ -822,7 +920,18 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       done?.();
       return;
     }
-    if (ev.kind === "discovered") screenState = { kind: "discovery", advance: ev.advance, then: next };
+    if (ev.kind === "discovered") {
+      // Everything found this turn (research, Darwin's Voyage, the Great Library) shares one window,
+      // and when the research is due the next advance is picked there.
+      const found = [ev.advance];
+      for (let i = 0; i < events.length; ) {
+        const e = events[i]!;
+        if (e.kind === "discovered") { found.push(e.advance); events.splice(i, 1); } else i++;
+      }
+      const due = events.findIndex((e) => e.kind === "chooseResearch");
+      if (due >= 0) events.splice(due, 1);
+      openTree({ discovered: found, choosing: true, closable: due < 0 }, next);
+    }
     else if (ev.kind === "hut") hutModal(ev.result, next);
     else if (ev.kind === "contact") {
       const c = civ(state.players[ev.player]!.civ);
@@ -832,7 +941,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
         else dispatch({ type: "makePeace", player: ev.player });
         next();
       }, { onCancel: next });
-    } else if (ev.kind === "chooseResearch") openResearchMenu({ kind: "map" }, next);
+    } else if (ev.kind === "chooseResearch") askResearch(next);
     else if (ev.kind === "chooseGovernment") openGovernmentMenu({ kind: "map" }, next);
     else {
       const msg = eventMessage(ev);
@@ -1089,7 +1198,7 @@ addEventListener("keydown", (e) => {
     case "city": cityKey(e, sc.view); break;
     case "rates": ratesKey(e); break;
     case "science":
-      if (e.code === "KeyA") openResearchMenu(sc);
+      if (e.code === "KeyA") openTree({ choosing: true, closable: true }, undefined, sc);
       else if (e.code === "Escape" || e.code === "F4") screenState = { kind: "map" };
       else advisorHotkey(e);
       break;
@@ -1098,7 +1207,7 @@ addEventListener("keydown", (e) => {
       else if (sc.which === "foreign" && (e.code === "Enter" || e.code === "NumpadEnter")) openForeignTalkMenu();
       else advisorHotkey(e);
       break;
-    case "discovery": sc.then(); break;
+    case "techTree": treeKey(e, sc); break;
     case "diplomacy": screenState = { kind: "map" }; break;
     case "end": screenState = { kind: "title" }; break;
     case "spaceship":
@@ -1134,6 +1243,15 @@ function advisorHotkey(e: KeyboardEvent): void {
 
 // ---- input: mouse -----------------------------------------------------------
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+// The wheel (or a sideways swipe) scrolls the tech tree, about a tier a notch.
+canvas.addEventListener("wheel", (e) => {
+  const sc = screenState;
+  if (sc.kind !== "techTree") return;
+  e.preventDefault();
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  const tiers = e.deltaMode === 1 ? d / 3 : e.deltaMode === 2 ? d * renderer.techColumns : d / 100;
+  treeScroll(sc, sc.target + tiers);
+}, { passive: false });
 canvas.addEventListener("mousedown", (e) => {
   const [px, py] = toLogical(e);
   lastInput = performance.now();
@@ -1157,7 +1275,7 @@ canvas.addEventListener("mousedown", (e) => {
       return;
     }
     case "report": case "worldMap": screenState = { kind: "map" }; return;
-    case "discovery": sc.then(); return;
+    case "techTree": if (e.button === 0) treeClick(sc, px, py); return;
     case "end": screenState = { kind: "title" }; return;
     case "diplomacy": screenState = { kind: "map" }; return;
     case "rates": case "science": case "spaceship": screenState = { kind: "map" }; return;
@@ -1241,7 +1359,7 @@ function draw(sc: Screen): void {
     case "report": renderer.report(sc.page); break;
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
-    case "discovery": renderer.discovery(state, sc.advance); break;
+    case "techTree": renderer.techTree(state, sc.tree); break;
     case "science": renderer.science(state); break;
     case "rates": renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;
@@ -1267,6 +1385,7 @@ function frame(t: number): void {
   view.blink = blinkOn;
   view.autoEnd = autoEnd;
   view.borders = borders;
+  if (screenState.kind === "techTree") stepTree(screenState, t);
   if (screenState.kind !== "title" && screenState.kind !== "setup") stepCamera(t);
   if (status && t > statusUntil) status = undefined;
   const shown = motion.at(t);

@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, revealAround, Terrain, unitType } from "@civ/core";
-import { C, drawCityScreen, drawDiscoveryScreen, drawMainScreen, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { C, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -359,15 +359,53 @@ describe("city screen", () => {
 });
 
 describe("advisor screens", () => {
-  it("renders discovery, science and rates screens", () => {
+  it("renders the tech tree on a discovery, hit-testing its advances, buttons and scrolling", () => {
+    const state = newGame(2026);
+    const p = state.players[0]!;
+    p.advances.push("alphabet", "bronze_working", "ceremonial_burial", "code_of_laws");
+    const s = Surface.screen();
+    const tree = openTechTree(state, TECH_COLUMNS, { discovered: ["code_of_laws"], choosing: true, closable: false });
+    drawTechTree(s, state, tree);
+    writeFileSync(new URL("./out/techtree.png", import.meta.url), encodePng(s, 3));
+    // The advance just found is marked yellow; every advance hit at the left of the tree lies in the tiers on show.
+    expect(s.data.filter((c) => c === C.YELLOW).length).toBeGreaterThan(100);
+    const hits = new Map<string, TechTreeHit>();
+    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
+      const h = techTreeHit(state, tree, x, y);
+      if (h) hits.set(h.kind === "advance" ? h.id : h.kind, h);
+    }
+    const { byId } = techLayout();
+    const shown = [...hits.keys()].filter((k) => byId.has(k));
+    expect(shown).toContain("code_of_laws");
+    expect(shown).toContain("monarchy");
+    for (const id of shown) expect(byId.get(id)!.tier).toBeLessThan(tree.scroll + TECH_COLUMNS);
+    expect(hits.has("scroll")).toBe(true); // the arrow to the later tiers
+    expect(hits.has("scrollTo")).toBe(true); // the strip under the graph
+    expect(hits.has("close")).toBe(false); // research is due: no way out but a pick
+    expect(hits.has("research")).toBe(false); // the find itself is known
+    tree.selected = "monarchy";
+    drawTechTree(s, state, tree);
+    writeFileSync(new URL("./out/techtree-choice.png", import.meta.url), encodePng(s, 3));
+    let research = false;
+    for (let x = 0; x < 320; x++) if (techTreeHit(state, tree, x, 192)?.kind === "research") research = true;
+    expect(research).toBe(true);
+    // Far along the tree, browsing from the science advisor: locked advances, both arrows, a close button.
+    const late = { ...tree, selected: "fusion_power", discovered: [], closable: true, scroll: 9.3 };
+    drawTechTree(s, state, late);
+    writeFileSync(new URL("./out/techtree-late.png", import.meta.url), encodePng(s, 3));
+    const kinds = new Set<string>();
+    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) { const h = techTreeHit(state, late, x, y); if (h) kinds.add(h.kind === "scroll" ? `scroll${Math.sign(h.by)}` : h.kind); }
+    expect([...kinds]).toEqual(expect.arrayContaining(["scroll-1", "scroll1", "close", "advance"]));
+    expect(kinds.has("research")).toBe(false);
+  });
+
+  it("renders science and rates screens", () => {
     const state = newGame(2026);
     const p = state.players[0]!;
     p.advances.push("alphabet", "bronze_working");
     p.researching = "writing";
     p.science = 14;
     const s = Surface.screen();
-    drawDiscoveryScreen(s, state, "bronze_working");
-    writeFileSync(new URL("./out/discovery.png", import.meta.url), encodePng(s, 3));
     drawScienceScreen(s, state);
     writeFileSync(new URL("./out/science.png", import.meta.url), encodePng(s, 3));
     drawRatesScreen(s, state);

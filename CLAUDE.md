@@ -56,6 +56,12 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   through the Bayer dither; modern: `Clouds` gathers the view's fog and fills each layer as one path
   (per-square fills leave seams, and thousands of tiny polygons cost ~600 ms a frame), lifting squares
   as alpha layers grouped by fog left, bodies before billows (else edges show).
+  Tech tree (`techtree.ts`): `techLayout` puts each advance in a tier (its longest prerequisite chain)
+  and a row (barycentre sweeps), and edges that skip tiers run along the lanes between rows
+  (`techLane`) so they never pass behind an advance. `Renderer.techTree` draws a `TechTreeView` a few
+  tiers at a time (`techColumns`), `techTreeHit` hit-tests it. The web app opens it (`openTree`) on
+  every advance found (end of turn, village, diplomat, treaty) and wherever research is picked
+  (science advisor A, Advisors > Tech Tree); when research is due it closes only on a pick.
   Borders (`territory.ts`, drawing only, toggled in the Game menu): each known city claims its
   `CITY_RADIUS`, the nearer then older city winning a shared square; `borderSides` gives the edges and
   where a line must reach past an inner corner. Drawn after all squares, under the fog.

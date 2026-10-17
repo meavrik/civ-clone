@@ -1,13 +1,10 @@
 import {
   advance,
-  ADVANCES,
-  BUILDINGS,
   civ,
   computeCity,
   computeScore,
   formatYear,
   GOVERNMENTS,
-  government,
   hasContact,
   partCount,
   productionName,
@@ -16,9 +13,7 @@ import {
   shipStats,
   SPACE_PARTS,
   turnToYear,
-  UNIT_TYPES,
   unitType,
-  WONDERS,
   type GameState,
 } from "@civ/core";
 import type { AdvisorKind, ReportPage } from "@civ/renderer-api";
@@ -28,38 +23,13 @@ import { paintBadge, playerColor } from "../markers.js";
 import { mapColor } from "./main.js";
 import { H, UI, W } from "../theme.js";
 
-/** The text pages: discovery, science, rates, the advisors, diplomacy and the spaceship. */
+/** The text pages: science, rates, the advisors, diplomacy and the spaceship. */
 
 const ADVISOR_HINT = "F1 cities · F2 military · F3 foreign · F4 science · F5 score · F6 spaceship · Esc back";
 
-export function drawDiscoveryScreen(ctx: Context2D, state: GameState, advanceId: string): void {
-  const a = advance(advanceId);
-  const box = page(ctx, W, H, "Wise men discover", "Press any key");
-  text(ctx, W / 2, box.y, a.name, { size: 34, weight: "600", color: UI.accent, align: "center" });
-  const units = UNIT_TYPES.filter((u) => u.requires === advanceId).map((u) => u.name);
-  const buildings = BUILDINGS.filter((b) => b.requires === advanceId).map((b) => b.name);
-  const wonders = WONDERS.filter((w) => w.requires === advanceId).map((w) => w.name);
-  const obsolete = WONDERS.filter((w) => w.obsolete === advanceId).map((w) => w.name);
-  const next = ADVANCES.filter((n) => n.requires.includes(advanceId)).map((n) => n.name);
-  const lines: [string, string][] = [];
-  if (a.government) lines.push(["Government", government(a.government).name]);
-  if (units.length) lines.push(["Units", units.join(", ")]);
-  if (buildings.length) lines.push(["Improvements", buildings.join(", ")]);
-  if (wonders.length) lines.push(["Wonders", wonders.join(", ")]);
-  if (obsolete.length) lines.push(["Obsolete", obsolete.join(", ")]);
-  if (next.length) lines.push(["Leads to", next.join(", ")]);
-  let y = box.y + 70;
-  for (const [label, body] of lines) {
-    text(ctx, box.x + 40, y, label, { size: 14, color: UI.dim });
-    y += paragraph(ctx, box.x + 180, y, box.w - 220, body, { size: 16 }, 3) + 10;
-  }
-  const p = state.players[state.currentPlayer]!;
-  text(ctx, box.x + 40, H - 92, `${p.advances.length} advances known`, { size: 13, color: UI.dim });
-}
-
 export function drawScienceScreen(ctx: Context2D, state: GameState): void {
   const p = state.players[state.currentPlayer]!;
-  const box = page(ctx, W, H, "Science Advisor", "A choose research · Esc back");
+  const box = page(ctx, W, H, "Science Advisor", "A tech tree · Esc back");
   const cost = researchCost(p.advances.length, p.difficulty);
   text(ctx, box.x, box.y, `Researching: ${p.researching ? advance(p.researching).name : "nothing"}`, { size: 17, weight: "600" });
   bar(ctx, box.x, box.y + 32, 520, 12, p.science, cost, UI.info);

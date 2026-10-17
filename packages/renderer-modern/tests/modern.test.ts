@@ -4,7 +4,7 @@ import { CLOUDS, PLAYER_COLORS } from "../src/theme.js";
 import type { MainScreenView } from "@civ/renderer-api";
 import { createModernRenderer, MODERN_H, MODERN_TILE, MODERN_W, type Context2D, type Gradient } from "../src/index.js";
 import { paintIcon } from "../src/icons.js";
-import { ICONS } from "@civ/renderer-api";
+import { ICONS, openTechTree, techLayout } from "@civ/renderer-api";
 
 /** Records what the renderer asks of the canvas; width of text is a flat per-character estimate. */
 class FakeContext implements Context2D {
@@ -85,7 +85,9 @@ describe("modern renderer", () => {
     r.main(state, view);
     r.main(state, { ...view, inspect: { x: state.cities[0]!.x + 1, y: state.cities[0]!.y }, message: undefined, autoEnd: true });
     r.city(state, { city: state.cities[0]!.id });
-    r.discovery(state, "bronze_working");
+    const tree = openTechTree(state, r.techColumns, { discovered: ["bronze_working"], choosing: true, closable: false });
+    r.techTree(state, tree);
+    r.techTree(state, { ...tree, selected: "fusion_power", closable: true, scroll: 14.1 });
     r.science(state);
     r.rates(state);
     for (const which of ["domestic", "military", "foreign", "score"] as const) r.advisor(state, which);
@@ -201,6 +203,37 @@ describe("modern renderer", () => {
 });
 
 describe("modern fog of war", () => {
+  it("hit-tests the tech tree: advances on show, the research button, arrows and the strip", () => {
+    const ctx = new FakeContext();
+    const r = createModernRenderer(ctx);
+    const { state } = world();
+    state.players[0]!.advances.push("alphabet", "code_of_laws", "ceremonial_burial");
+    const tree = openTechTree(state, r.techColumns, { discovered: ["code_of_laws"], choosing: true, closable: false });
+    const scan = () => {
+      const found = new Map<string, number>();
+      for (let y = 0; y < MODERN_H; y += 3) for (let x = 0; x < MODERN_W; x += 3) {
+        const h = r.techTreeHit(state, tree, x, y);
+        if (h) found.set(h.kind === "advance" ? h.id : h.kind === "scroll" ? `scroll${Math.sign(h.by)}` : h.kind, 1);
+      }
+      return found;
+    };
+    let hits = scan();
+    const { byId } = techLayout();
+    for (const id of [...hits.keys()].filter((k) => byId.has(k))) expect(byId.get(id)!.tier).toBeLessThan(tree.scroll + r.techColumns);
+    expect(hits.has("code_of_laws")).toBe(true);
+    expect(hits.has("scroll1")).toBe(true);
+    expect(hits.has("scroll-1")).toBe(false);
+    expect(hits.has("scrollTo")).toBe(true);
+    expect(hits.has("research")).toBe(false);
+    expect(hits.has("close")).toBe(false);
+    tree.selected = "monarchy";
+    hits = scan();
+    expect(hits.has("research")).toBe(true);
+    r.techTree(state, tree);
+    expect(ctx.texts).toContain("Research Monarchy");
+    expect(ctx.texts).toContain("Wise men discover Code of Laws!");
+  });
+
   it("covers unexplored squares in clouds and draws nothing of what lies beneath", () => {
     const log: string[] = [];
     const ctx = new Proxy(new FakeContext(), {

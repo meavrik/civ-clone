@@ -3,7 +3,6 @@ import {
   citySlotAt,
   drawCityScreen,
   drawDiplomacyScreen,
-  drawDiscoveryScreen,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -15,6 +14,7 @@ import {
   drawScoreScreen,
   drawSpaceshipScreen,
   drawStatusLine,
+  drawTechTree,
   drawTextInput,
   drawTitleScreen,
   menuHit,
@@ -23,6 +23,8 @@ import {
   SCREEN_H,
   SCREEN_W,
   Surface,
+  TECH_COLUMNS,
+  techTreeHit,
   TILE,
   VIEW_TILES_X,
   VIEW_TILES_Y,
@@ -46,6 +48,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     height: SCREEN_H,
     viewTilesX: VIEW_TILES_X,
     viewTilesY: VIEW_TILES_Y,
+    techColumns: TECH_COLUMNS,
     beginFrame() {},
     present() {
       const px = image.data;
@@ -62,7 +65,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     title: (blink) => drawTitleScreen(screen, blink),
     main: (state, view) => drawMainScreen(screen, state, view),
     city: (state, view: CityScreenView) => drawCityScreen(screen, state, view),
-    discovery: (state, advance) => drawDiscoveryScreen(screen, state, advance),
+    techTree: (state, view) => drawTechTree(screen, state, view),
     science: (state) => drawScienceScreen(screen, state),
     rates: (state) => drawRatesScreen(screen, state),
     advisor(state, which: AdvisorKind) {
@@ -87,6 +90,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if (ty < 0 || ty >= state.map.height) return null;
       return { x: wrapX(state.map, view.originX + Math.floor((px - VIEW_X + ox) / TILE)), y: ty };
     },
+    techTreeHit: (state, view, px, py) => techTreeHit(state, view, px, py),
     minimapAt(state: GameState, px, py) {
       const top = VIEW_Y + 2;
       if (px >= VIEW_X || py < top || py >= top + state.map.height) return null;

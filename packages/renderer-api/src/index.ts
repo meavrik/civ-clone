@@ -1,11 +1,13 @@
 import type { BattleFrame, UnitMotion } from "./motion.js";
 import type { Lifting } from "./fog.js";
+import type { TechTreeHit, TechTreeView } from "./techtree.js";
 export * from "./motion.js";
 export * from "./icons.js";
 export * from "./coast.js";
 export * from "./river.js";
 export * from "./fog.js";
 export * from "./territory.js";
+export * from "./techtree.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME } from "./icons.js";
 import {
@@ -150,6 +152,8 @@ export interface Renderer {
   /** Map tiles that fit in the main screen's viewport. */
   readonly viewTilesX: number;
   readonly viewTilesY: number;
+  /** Tiers of the tech tree that fit across its window (may be fractional). */
+  readonly techColumns: number;
 
   /** Called once per frame before any screen is drawn. */
   beginFrame(): void;
@@ -159,7 +163,8 @@ export interface Renderer {
   title(blink: boolean): void;
   main(state: GameState, view: MainScreenView): void;
   city(state: GameState, view: CityScreenView): void;
-  discovery(state: GameState, advance: string): void;
+  /** The tech tree: shown when an advance is found and where the next research is picked. */
+  techTree(state: GameState, view: TechTreeView): void;
   science(state: GameState): void;
   rates(state: GameState): void;
   advisor(state: GameState, which: AdvisorKind): void;
@@ -181,6 +186,8 @@ export interface Renderer {
   tileAt(state: GameState, view: MainScreenView, px: number, py: number): { x: number; y: number } | null;
   /** Map tile under a point on the main screen's minimap, or null. */
   minimapAt(state: GameState, px: number, py: number): { x: number; y: number } | null;
+  /** What lies under a point of the tech tree: an advance, a button, a scroll arrow or the scroll strip. */
+  techTreeHit(state: GameState, view: TechTreeView, px: number, py: number): TechTreeHit | null;
 
   /** A report page (wonders, top cities...). */
   report(page: ReportPage): void;
