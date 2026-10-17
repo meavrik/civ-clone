@@ -142,7 +142,8 @@ homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperatu
    colonists sometimes wait long in port. A 7-civ round costs ~1.3-1.6x v2 (~55 ms late game);
    core's `findPath` (typed-array heap, results identical to the old search, see
    `tests/pathfind.test.ts`) is still the hot spot. Measure AI changes with
-   `npm run headless -- --ai planner,v2 --games 16 --verify` (8-game runs are too noisy to trust).
+   `npm run headless -- --ai planner,v2 --games 16 --turns 300 --verify` (8-game runs are too noisy to trust;
+   at the default 200 turns the two are close, 124 vs 120: v3 pulls ahead later, with colonies and campaigns).
 3. Every wonder is bound (Great Library, sea-move wonders, SETI, Hoover, Women's Suffrage, UN).
    Caravans done (help wonder, trade routes: mutual `City.routes`, bonus on opening, route trade in
    `computeCity`). Pollution (per-city chance from shields and industrial population, halved tile output, settler
