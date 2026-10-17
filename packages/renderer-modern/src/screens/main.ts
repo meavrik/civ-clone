@@ -19,7 +19,7 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { MENU_BAR, type MainScreenView } from "@civ/renderer-api";
+import { MENU_BAR, shownActive, type MainScreenView } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
 import { fillRound, measure, panel, paragraph, strokeRound, text } from "../draw.js";
 import { paintBadge, paintBurst, paintCity, paintCityLabel, paintHitFlash, paintHpBar, paintUnit, playerColor } from "../markers.js";
@@ -160,6 +160,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
   // So is a fight under way: both fighters come from view.battle.
   const moving = view.moving ?? [];
   const battle = view.battle;
+  const activeId = shownActive(state, view);
   const slidingIds = new Set(moving.map((m) => m.unit));
   if (battle) { slidingIds.add(battle.attacker.unit); slidingIds.add(battle.defender.unit); }
   const units = slidingIds.size ? state.units.filter((u) => !slidingIds.has(u.id)) : state.units;
@@ -170,9 +171,9 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
     const pos = tileToScreen(state, view, u.x, u.y);
     if (!pos) continue;
     const stack = units.filter((o) => o.x === u.x && o.y === u.y);
-    const top = stack.find((o) => o.id === state.activeUnit) ?? stack[0]!;
+    const top = stack.find((o) => o.id === activeId) ?? stack[0]!;
     drawn.add(idx);
-    const isActive = top.id === state.activeUnit;
+    const isActive = top.id === activeId;
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
     if (isActive && !view.blink) continue;
     paintUnit(ctx, pos[0], pos[1], top, state.players[top.owner]!.color, { stacked: stack.length > 1, active: isActive });
@@ -186,7 +187,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
     const real = state.units.find((u) => u.id === m.unit);
     paintUnit(ctx, pos[0], pos[1], { type: m.type, order: { kind: "none" }, veteran: real?.veteran ?? false }, state.players[m.owner]!.color, {
       stacked: m.stacked === true || moving.some((o) => o.aboard === m.unit),
-      active: m.unit === state.activeUnit,
+      active: m.unit === activeId,
     });
     const hp = m.hp ?? real?.hp;
     const max = m.maxHp ?? maxHp(state, m.type);
@@ -216,7 +217,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
     if (pos) paintCityLabel(ctx, pos[0], pos[1], c.name, state.players[c.owner]!.color);
   }
 
-  const act = state.activeUnit !== null ? state.units.find((u) => u.id === state.activeUnit) : undefined;
+  const act = activeId !== null ? state.units.find((u) => u.id === activeId) : undefined;
   if (act?.order.kind === "goto") {
     const pos = tileToScreen(state, view, act.order.x, act.order.y);
     if (pos) strokeRound(ctx, pos[0] + 2, pos[1] + 2, TILE - 4, TILE - 4, 6, UI.accent, 2);
@@ -325,7 +326,8 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   y += 10;
 
   // Unit card.
-  const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
+  const shown = shownActive(state, view);
+  const active = shown !== null ? unitById(state, shown) : undefined;
   if (active) {
     const type = unitType(active.type);
     fillRound(ctx, 12, y - 4, PANEL_W - 24, 56, 10, UI.panelLight);
@@ -353,7 +355,7 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
       w.fortress !== undefined && "F fort", w.clean !== undefined && "P clean",
     ].filter(Boolean) as string[];
     if (keys.length) y += paragraph(ctx, TEXT_X, y + 2, TEXT_W, keys.join("  "), { size: 12, color: UI.accent }, 2) + 2;
-  } else {
+  } else if (view.focus === undefined) {
     text(ctx, TEXT_X, y, "End of turn", { size: 16, weight: "600" });
     y += LINE + 2;
     text(ctx, TEXT_X, y, view.autoEnd ? "ending automatically" : "press Enter", { size: 13, color: UI.dim });

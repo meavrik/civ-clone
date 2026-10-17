@@ -76,7 +76,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { MENU_BAR, type MainScreenView } from "@civ/renderer-api";
+import { MENU_BAR, shownActive, type MainScreenView } from "@civ/renderer-api";
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
 export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LMAGENTA!, C.LGREY!, C.ORANGE!, C.LRED!];
@@ -179,6 +179,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // So is a fight under way: both fighters come from view.battle.
   const moving = view.moving ?? [];
   const battle = view.battle;
+  const activeId = shownActive(state, view);
   const slidingIds = new Set(moving.map((m) => m.unit));
   if (battle) { slidingIds.add(battle.attacker.unit); slidingIds.add(battle.defender.unit); }
   const units = slidingIds.size ? state.units.filter((u) => !slidingIds.has(u.id)) : state.units;
@@ -189,9 +190,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     const pos = tileToScreen(state, view, u.x, u.y);
     if (!pos) continue;
     const stack = units.filter((o) => o.x === u.x && o.y === u.y);
-    const top = stack.find((o) => o.id === state.activeUnit) ?? stack[0]!;
+    const top = stack.find((o) => o.id === activeId) ?? stack[0]!;
     drawn.add(idx);
-    const isActive = top.id === state.activeUnit;
+    const isActive = top.id === activeId;
     // Units inside a city are hidden behind it unless active, like the original.
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
     if (isActive && !view.blink) continue;
@@ -224,7 +225,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     }
 
   // Goto destination of the active unit.
-  const act = state.activeUnit !== null ? state.units.find((u) => u.id === state.activeUnit) : undefined;
+  const act = activeId !== null ? state.units.find((u) => u.id === activeId) : undefined;
   if (act?.order.kind === "goto") {
     const pos = tileToScreen(state, view, act.order.x, act.order.y);
     if (pos) s.frame(pos[0], pos[1], TILE, TILE, C.YELLOW!);
@@ -325,7 +326,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   y += 4;
 
   // Unit box: the unit awaiting orders, or the end of the turn.
-  const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
+  const shown = shownActive(state, view);
+  const active = shown !== null ? unitById(state, shown) : undefined;
   if (active) {
     const type = unitType(active.type);
     s.blit(unitSprite(active.type, playerColor(state, active.owner)), 4, y, SPRITE_CLEAR);
@@ -356,7 +358,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
       drawText(s, TEXT_X, y, `Orders: ${keys.join(" ")}`, dim);
       y += FONT_HEIGHT;
     }
-  } else {
+  } else if (view.focus === undefined) {
     drawText(s, TEXT_X, y, "End of Turn", ink);
     y += FONT_HEIGHT;
     drawText(s, TEXT_X, y, view.autoEnd ? "(auto)" : "Press Enter", dim);

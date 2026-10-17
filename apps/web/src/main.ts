@@ -164,6 +164,47 @@ function whenStill(fn: () => void): void {
 function resetMotion(): void {
   motion.clear();
   afterSlides.length = 0;
+  handoff = null;
+  view.focus = undefined;
+}
+
+/**
+ * When a unit moves or fights and another unit takes over, the view stays
+ * with the first one until its animation has played and a moment more, so
+ * the player sees where it went or how the fight ended. Only then does the
+ * camera glide to the next unit. A key or click in the meantime just ends
+ * the wait: it is never taken as an order for a unit not yet shown.
+ */
+const HANDOFF_MS = 450;
+let handoff: { from: number; idleSince: number | null } | null = null;
+
+function finishHandoff(): void {
+  if (!handoff) return;
+  handoff = null;
+  view.focus = undefined;
+  blinkOn = true;
+  lastBlink = performance.now();
+  followActive(true);
+}
+
+/** After a move or goto: linger on the unit if it moved or fought and the turn passed to another unit. */
+function afterUnitOrder(before: number | null, mark: number): void {
+  const acted = lastActions.length > mark;
+  if (acted && before !== null && state.activeUnit !== null && state.activeUnit !== before) {
+    handoff = { from: before, idleSince: null };
+    return;
+  }
+  followActive(state.activeUnit !== before);
+}
+
+/** Each frame: what the lingering view shows, and whether its wait is over. */
+function stepHandoff(now: number, animating: boolean): void {
+  if (!handoff) return;
+  if (animating || screenState.kind !== "map") handoff.idleSince = null;
+  else if (handoff.idleSince === null) handoff.idleSince = now;
+  else if (now - handoff.idleSince >= HANDOFF_MS) { finishHandoff(); return; }
+  const from = handoff.from;
+  view.focus = state.units.some((u) => u.id === from) ? from : null;
 }
 
 /** Show what our units just did: slides along their steps, and any fight. */
@@ -349,7 +390,7 @@ function stepCamera(now: number): void {
 }
 
 function followActive(force = false): void {
-  if (state.activeUnit === null) return;
+  if (handoff || state.activeUnit === null) return;
   const u = unitById(state, state.activeUnit);
   if (!u) return;
   const w = state.map.width;
@@ -395,8 +436,9 @@ function openTerrainInfo(tx: number, ty: number): void {
   if (active && !(active.x === tx && active.y === ty))
     items.push([`Send the ${unitType(active.type).name} here`, () => {
       const before = state.activeUnit;
+      const mark = lastActions.length;
       if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
-      followActive(state.activeUnit !== before);
+      afterUnitOrder(before, mark);
     }]);
   const city = cityAt(state, tx, ty);
   if (city && city.owner === 0) items.push(["Open the city", () => openCity(city.id)]);
@@ -788,6 +830,8 @@ function endTurn(): void {
   // Last turn's news has not been shown yet (slides still running): show it first.
   if (afterSlides.length) { motion.clear(); return; }
   motion.clear();
+  handoff = null;
+  view.focus = undefined;
   const watched: UnitAction[] = [];
   dispatch({ type: "endTurn" });
   // Our own end of turn (contacts come from the relations; other civs' villages are theirs).
@@ -851,10 +895,11 @@ function tryMove(unit: number, dx: number, dy: number): void {
   } else say(REASONS[r.reason] ?? r.reason);
   blinkOn = true;
   lastBlink = performance.now();
-  followActive(state.activeUnit !== before);
+  afterUnitOrder(before, mark);
 }
 
 function mapKey(e: KeyboardEvent): void {
+  if (handoff && !/^F\d+$/.test(e.code)) { e.preventDefault(); finishHandoff(); return; }
   const active = state.activeUnit;
   const mv = MOVES[e.code];
   if (mv) {
@@ -1093,6 +1138,7 @@ canvas.addEventListener("mousedown", (e) => {
   if (bar >= 0) { openBarMenu(bar); return; }
   const mm = renderer.minimapAt(state, px, py);
   if (mm) { centerOn(mm.x, mm.y); return; }
+  if (handoff) { finishHandoff(); return; }
   const hit = renderer.tileAt(state, view, px, py);
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
   if (!hit) {
@@ -1140,8 +1186,9 @@ canvas.addEventListener("mousedown", (e) => {
     // First click looks at the tile; a second click on the same tile sends the unit there.
     if (!(view.inspect && view.inspect.x === tx && view.inspect.y === ty)) { view.inspect = { x: tx, y: ty }; return; }
     const before = state.activeUnit;
+    const mark = lastActions.length;
     if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
-    followActive(state.activeUnit !== before);
+    afterUnitOrder(before, mark);
     return;
   }
   const own = unitAt(state, tx, ty).find((u) => u.owner === 0);
@@ -1199,9 +1246,11 @@ function frame(t: number): void {
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;
   const animating = motion.busy(t);
+  stepHandoff(t, animating);
+  if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
   if (!animating && afterSlides.length && screenState.kind === "map") for (const fn of afterSlides.splice(0)) fn();
   // Auto end turn: nothing to order, the player has been idle a moment, and the map is showing.
-  if (autoEnd && screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length
+  if (autoEnd && screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length && !handoff
     && t - lastInput > 900 && t - lastAutoEnd > 900) {
     lastAutoEnd = t;
     endTurn();
@@ -1213,4 +1262,4 @@ function frame(t: number): void {
 }
 requestAnimationFrame(frame);
 
-(window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return log; }, get moving() { return view.moving; }, get battle() { return view.battle; }, get screen() { return screenState.kind; }, dispatch, atWar, DIFFICULTIES };
+(window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return log; }, get moving() { return view.moving; }, get battle() { return view.battle; }, get view() { return view; }, get screen() { return screenState.kind; }, dispatch, atWar, DIFFICULTIES };

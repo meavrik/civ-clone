@@ -55,6 +55,17 @@ export interface MainScreenView {
   moving?: UnitMotion[] | undefined;
   /** The fight being shown: both fighters are drawn from here, with hit points, blows and the loser's end. */
   battle?: BattleFrame | undefined;
+  /**
+   * The unit shown as the one in play, when it is not `state.activeUnit`: just after a unit has
+   * moved or fought, the view stays with it a moment before the next unit takes over. null while
+   * that unit is gone (beaten): no unit is shown in play and the unit box stays empty.
+   */
+  focus?: number | null | undefined;
+}
+
+/** Which unit the main screen shows as in play: the focus while the view lingers, else the active unit. */
+export function shownActive(state: GameState, view: MainScreenView): number | null {
+  return view.focus !== undefined ? view.focus : state.activeUnit;
 }
 
 export interface CityScreenView {

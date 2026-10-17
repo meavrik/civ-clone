@@ -107,6 +107,21 @@ describe("modern renderer", () => {
     settler.hp = 3;
     r.main(state, { ...view, message: undefined });
     settler.hp = 10;
+    // While the view lingers on a unit that just acted, the panel shows it, not the next one;
+    // with that unit gone the unit box stays empty instead of announcing the end of the turn.
+    const trireme = state.units.find((u) => u.type === "trireme")!;
+    let from = ctx.texts.length;
+    r.main(state, { ...view, message: undefined, focus: trireme.id });
+    expect(ctx.texts.slice(from)).toContain("Trireme");
+    const active = state.activeUnit;
+    state.activeUnit = null;
+    from = ctx.texts.length;
+    r.main(state, { ...view, message: undefined, focus: null });
+    expect(ctx.texts.slice(from)).not.toContain("End of turn");
+    from = ctx.texts.length;
+    r.main(state, { ...view, message: undefined });
+    expect(ctx.texts.slice(from)).toContain("End of turn");
+    state.activeUnit = active;
     r.menu({ title: "", items: ["City Status", "Military Advisor"], right: ["F1", "F2"], selected: 0, anchor: r.menuBarAnchor(2) });
     r.menu({ title: "Game", items: ["Save game", "Load game"], selected: 1, right: ["", "slot 2"] });
     r.textInput({ title: "Name the new city", text: "Rome", maxLength: 14 }, true);

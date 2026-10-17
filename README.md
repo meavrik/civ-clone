@@ -44,6 +44,8 @@ score, world map, spaceships). Click a title or press `Alt+G`/`Alt+O`/`Alt+A`/`A
 With auto end turn on (the default) the turn ends by itself a moment after the last unit has its orders.
 Units slide from square to square (a goto walks its path); after the other civilizations' turns, the moves and
 fights you could see on screen play back before the turn's news. `Enter` skips a playback.
+When a unit has moved or fought and the next unit takes over, the view stays with the first one until its
+animation ends and a moment more, then glides on; a key or a click on the map in that moment only ends the wait.
 Units have hit points (10 for ancient units, 20 from gunpowder, 30-40 for armour and steel ships). A fight goes
 in rounds: the attacker lunges, each blow flashes on the side it lands on and drains its bar, and the loser
 bursts. Survivors keep their wounds (a bar on the unit) and heal by resting a turn: a tenth in the field, a
