@@ -11,6 +11,8 @@ export * from "./techtree.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME } from "./icons.js";
 import {
+  advance,
+  attrition,
   cityAt,
   civ,
   CIV_COLORS,
@@ -364,8 +366,9 @@ export function opponentsForChoice(index: number): number {
 /**
  * What the current player knows about a map square, for the terrain
  * information window: yields under their government, movement and
- * defence, specials and improvements, what settlers could do there, and
- * the city and units on it. Plain ASCII so every font can draw it.
+ * defence, specials and improvements, whether wheels need a road or the
+ * ground wears units down, what settlers could do there, and the city and
+ * units on it. Plain ASCII so every font can draw it.
  */
 export function terrainInfo(state: GameState, x: number, y: number): { title: string; lines: string[] } {
   const me = state.players[state.currentPlayer]!;
@@ -391,6 +394,9 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   if (features.length) lines.push(features.join("  "));
   if (t.pollution) lines.push("{pollution} Polluted: output halved until cleaned");
   if (t.hut) lines.push("{hut} A village of a minor tribe");
+  if (r.rough && !t.road && !state.classicTerrain) lines.push("{road} Wheeled units need a road");
+  const wear = attrition(state, me.id, x, y);
+  if (wear > 0 && r.attrition) lines.push(`{heart} Wears units down ${Math.round(wear * 100)}% a turn  until ${advance(r.attrition.until).name}`);
   if (t.terrain !== Terrain.Ocean) {
     const work: string[] = [];
     if (r.irrigate) work.push(r.irrigate.becomes !== undefined ? `{irrigate} into ${TERRAIN_NAMES[r.irrigate.becomes]}` : `{irrigate} +${r.irrigate.food ?? 0} {food}`);

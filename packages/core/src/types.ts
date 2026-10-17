@@ -171,6 +171,8 @@ export interface GameState {
   warming: number;
   /** The 1991 rules: every fight is one roll (no lasting damage). Set for old saves. */
   classicCombat?: boolean;
+  /** The 1991 terrain: every land unit enters every land square and no ground wears units down. Set for old saves. */
+  classicTerrain?: boolean;
 }
 
 export function wrapX(map: WorldMap, x: number): number {

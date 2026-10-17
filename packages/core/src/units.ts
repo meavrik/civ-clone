@@ -1,7 +1,7 @@
 import { knows } from "./rules/advances.js";
 import { CLEAN_TURNS, FORTRESS_TURNS, MOVE_FRAC, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
-import { CLASSIC_FIREPOWER, CLASSIC_HP, unitType } from "./rules/units.js";
-import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Unit, type WorkKind } from "./types.js";
+import { CLASSIC_FIREPOWER, CLASSIC_HP, unitType, type UnitTypeRule } from "./rules/units.js";
+import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Tile, type Unit, type WorkKind } from "./types.js";
 
 export function unitAt(state: GameState, x: number, y: number): Unit[] {
   const wx = wrapX(state.map, x);
@@ -63,7 +63,38 @@ export function shipWithRoom(state: GameState, owner: number, x: number, y: numb
 
 export type MoveResult =
   | { ok: true; cost: number; board?: number; disembark?: boolean; enemyCity?: boolean }
-  | { ok: false; reason: "no-moves" | "off-map" | "terrain" | "zoc" | "occupied" | "attack" | "full" };
+  | { ok: false; reason: "no-moves" | "off-map" | "terrain" | "rough" | "zoc" | "occupied" | "attack" | "full" };
+
+/** Does this unit type need a road onto rough ground in this game? */
+export function needsRoads(state: GameState, type: UnitTypeRule): boolean {
+  return !state.classicTerrain && type.domain === "land" && type.wheeled === true;
+}
+
+/** Can a land unit of this type enter this land square? Wheeled units take rough ground only along a road. */
+export function canEnter(state: GameState, type: UnitTypeRule, to: Tile): boolean {
+  return !needsRoads(state, type) || !TERRAIN_RULES[to.terrain].rough || to.road;
+}
+
+/**
+ * Share of full hit points a land unit of `owner` loses ending its turn on
+ * (x, y): harsh ground wears units down, except within reach of the owner's
+ * cities (the 21 squares a city works), on a river or a special, or once the
+ * owner knows the advance that ends it. 0 when the square is safe.
+ */
+export function attrition(state: GameState, owner: number, x: number, y: number): number {
+  if (state.classicTerrain) return 0;
+  const t = getTile(state.map, x, y);
+  const harsh = t && TERRAIN_RULES[t.terrain].attrition;
+  if (!t || !harsh || t.river || t.special || knows(state.players[owner]!.advances, harsh.until)) return 0;
+  const w = state.map.width;
+  const supplied = state.cities.some((c) => {
+    if (c.owner !== owner) return false;
+    const dx = Math.min(Math.abs(c.x - x), w - Math.abs(c.x - x));
+    const dy = Math.abs(c.y - y);
+    return dx <= 2 && dy <= 2 && dx + dy < 4;
+  });
+  return supplied ? 0 : harsh.share;
+}
 
 /**
  * Original movement rules:
@@ -71,6 +102,8 @@ export type MoveResult =
  *  - road-to-road or river-to-river moves cost 1/3
  *  - land units enter ocean only by boarding a friendly ship with room, and
  *    leave a ship only onto land; ships enter land only at a friendly city
+ *  - (ours) wheeled units enter rough ground only along a road; attacking
+ *    onto it is still allowed, since the attacker never moves in
  *  - zones of control: a land unit may not move from a tile adjacent to an
  *    enemy to another tile adjacent to an enemy, unless the destination
  *    holds a friendly unit or city
@@ -98,7 +131,10 @@ export function checkMove(state: GameState, u: Unit, dx: number, dy: number): Mo
       const ship = shipWithRoom(state, u.owner, nx, ny);
       if (!ship) return { ok: false, reason: occupants.length ? "full" : "terrain" };
       board = ship.id;
-    } else if (u.aboard !== null) disembark = true;
+    } else {
+      if (!canEnter(state, type, to)) return { ok: false, reason: "rough" };
+      if (u.aboard !== null) disembark = true;
+    }
   } else if (type.domain === "sea") {
     if (to.terrain !== Terrain.Ocean && !friendlyCity) return { ok: false, reason: "terrain" };
   }

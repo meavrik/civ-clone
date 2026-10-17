@@ -127,6 +127,7 @@ function say(text: string, ms = 2500): void {
 
 const REASONS: Record<string, string> = {
   terrain: "Can't go there",
+  rough: "Wheels need a road there",
   zoc: "Zone of control",
   "no-moves": "No moves left",
   full: "Ship is full",
@@ -357,6 +358,7 @@ if (params.has("seed")) {
       ...(params.get("civ") ? { civ: params.get("civ")! } : {}),
       ...(params.get("world") ? { world: params.get("world")!, historical: params.get("historical") !== "0" } : {}),
       ...(params.get("combat") === "classic" ? { classicCombat: true } : {}),
+      ...(params.get("terrain") === "classic" ? { classicTerrain: true } : {}),
     },
     Number(params.get("seed")) || 2026,
   );

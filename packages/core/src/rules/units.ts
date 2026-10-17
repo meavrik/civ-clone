@@ -20,6 +20,8 @@ export interface UnitTypeRule {
   hp: number;
   /** Hit points each round it wins takes off the enemy. */
   firepower: number;
+  /** Enters rough ground (mountains, jungle, swamp, arctic) only along a road. Not a flag: flags mark special roles. */
+  wheeled?: boolean;
   flags?: ("settler" | "diplomat" | "caravan" | "ignoreZoc" | "nuclear")[];
 }
 
@@ -39,7 +41,9 @@ const U = (
  * and firepower are our own departure: the 1991 game (and that ruleset, with
  * 10 hp and firepower 10) settles a fight in one roll, while here fights go
  * in rounds, so later units are tougher (10 hp ancient, 20 gunpowder, 30-40
- * mechanised and steel) and the heaviest guns hit for 2.
+ * mechanised and steel) and the heaviest guns hit for 2. Wheeled units
+ * (chariots, siege guns, vehicles) need roads over rough ground, another
+ * departure: in the original every land unit goes everywhere.
  */
 export const UNIT_TYPES: UnitTypeRule[] = [
   U("settlers", "Settlers", 0, 1, 1, 40, "land", { flags: ["settler"] }),
@@ -47,15 +51,15 @@ export const UNIT_TYPES: UnitTypeRule[] = [
   U("phalanx", "Phalanx", 1, 2, 1, 20, "land", { requires: "bronze_working" }),
   U("legion", "Legion", 3, 1, 1, 20, "land", { requires: "iron_working" }),
   U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding" }),
-  U("chariot", "Chariot", 4, 1, 2, 40, "land", { requires: "the_wheel" }),
-  U("catapult", "Catapult", 6, 1, 1, 40, "land", { requires: "mathematics" }),
+  U("chariot", "Chariot", 4, 1, 2, 40, "land", { requires: "the_wheel", wheeled: true }),
+  U("catapult", "Catapult", 6, 1, 1, 40, "land", { requires: "mathematics", wheeled: true }),
   U("knights", "Knights", 4, 2, 2, 40, "land", { requires: "chivalry" }),
   U("musketeers", "Musketeers", 2, 3, 1, 30, "land", { requires: "gunpowder", hp: 20 }),
-  U("cannon", "Cannon", 8, 1, 1, 40, "land", { requires: "metallurgy", hp: 20 }),
+  U("cannon", "Cannon", 8, 1, 1, 40, "land", { requires: "metallurgy", hp: 20, wheeled: true }),
   U("riflemen", "Riflemen", 3, 5, 1, 30, "land", { requires: "conscription", hp: 20 }),
-  U("mech_inf", "Mech. Inf.", 6, 6, 3, 50, "land", { requires: "labor_union", hp: 30 }),
-  U("armor", "Armor", 10, 5, 3, 80, "land", { requires: "automobile", hp: 30 }),
-  U("artillery", "Artillery", 12, 2, 2, 60, "land", { requires: "robotics", hp: 20, firepower: 2 }),
+  U("mech_inf", "Mech. Inf.", 6, 6, 3, 50, "land", { requires: "labor_union", hp: 30, wheeled: true }),
+  U("armor", "Armor", 10, 5, 3, 80, "land", { requires: "automobile", hp: 30, wheeled: true }),
+  U("artillery", "Artillery", 12, 2, 2, 60, "land", { requires: "robotics", hp: 20, firepower: 2, wheeled: true }),
   U("diplomat", "Diplomat", 0, 0, 2, 30, "land", { requires: "writing", flags: ["diplomat", "ignoreZoc"] }),
   U("caravan", "Caravan", 0, 1, 1, 50, "land", { requires: "trade", flags: ["caravan", "ignoreZoc"] }),
   U("trireme", "Trireme", 1, 0, 3, 40, "sea", { requires: "map_making", capacity: 2 }),

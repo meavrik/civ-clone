@@ -26,6 +26,8 @@ export interface NewGameOptions extends MapGenOptions {
   allAi?: boolean;
   /** The 1991 rules: every fight is one roll and units take no lasting damage. Old saves load with it. */
   classicCombat?: boolean;
+  /** The 1991 terrain: wheeled units cross rough ground and harsh ground wears nobody down. Old saves load with it. */
+  classicTerrain?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -137,6 +139,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     activeUnit: null,
     warming: 0,
     ...(opts.classicCombat ? { classicCombat: true } : {}),
+    ...(opts.classicTerrain ? { classicTerrain: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

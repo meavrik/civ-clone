@@ -32,7 +32,7 @@ import { MOVE_FRAC, TERRAIN_RULES, WARMING_LIMIT, WARMING_THRESHOLD } from "./ru
 import { HEALING, unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
 import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type GameState, type Player, type Production, type Specialist, type Unit, type WorkKind } from "./types.js";
-import { applyMove, cargo, checkMove, createUnit, fullMoves, lastActions, maxHp, unitById, workOptions } from "./units.js";
+import { applyMove, attrition, cargo, checkMove, createUnit, fullMoves, lastActions, maxHp, unitById, workOptions } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
 /**
@@ -738,8 +738,8 @@ export function endTurn(state: GameState): void {
   lastCombat = null;
   lastActions.length = 0;
 
-  // Units that spent the whole turn without moving recover hit points.
-  for (const u of state.units) if (u.owner === player) heal(state, u);
+  // Units that spent the whole turn without moving recover hit points; harsh ground away from home wears them down instead.
+  for (const u of state.units) if (u.owner === player && !wearDown(state, u)) heal(state, u);
 
   // Settler work progresses at the end of the owner's turn.
   for (const u of state.units) {
@@ -900,6 +900,15 @@ function heal(state: GameState, u: Unit): void {
   if (city) share = unitType(u.type).domain === "land" && city.buildings.some((b) => building(b).barracks) ? 1 : HEALING.city;
   else if (getTile(state.map, u.x, u.y)?.fortress) share = HEALING.fortress;
   u.hp = Math.min(max, u.hp + Math.max(1, Math.round(max * share)));
+}
+
+/** A land unit ending its turn on harsh ground loses hit points (never its last one); false where the ground is safe. */
+function wearDown(state: GameState, u: Unit): boolean {
+  if (unitType(u.type).domain !== "land" || u.aboard !== null) return false;
+  const share = attrition(state, u.owner, u.x, u.y);
+  if (share === 0) return false;
+  u.hp = Math.max(1, u.hp - Math.max(1, Math.round(maxHp(state, u.type) * share)));
+  return true;
 }
 
 export function moveAllowance(state: GameState, u: Unit): number {

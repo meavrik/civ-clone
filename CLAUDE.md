@@ -10,7 +10,7 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `npm test` — vitest, all packages (50+ tests; render tests dump PNGs to `packages/renderer-retro/tests/out/`)
 - `npm run typecheck` — `tsc -b` across the workspace (strict, exactOptionalPropertyTypes, noUncheckedIndexedAccess)
 - `npm run build` — typecheck + Vite build
-- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--world earth [--historical]] [--verify] [--json out.json]` —
+- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--world earth [--historical]] [--classic-terrain] [--verify] [--json out.json]` —
   seeded all-AI tournaments (`tools/headless`); `--verify` replays each game from its save and checks the state digest
 - `npm run maps [-- europe]` — rebuild the premade worlds from Natural Earth data (`tools/maps`, cached in `tools/maps/.cache`,
   previews in `tools/maps/out/*.png`; look at them after any change)
@@ -124,8 +124,15 @@ homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperatu
    `firepower` in `rules/units.ts`: 10 ancient, 20 gunpowder, 30-40 mechanised/steel; heavy guns hit
    for 2): fights go in rounds won with A/(A+D), survivors keep wounds and heal by resting (`HEALING`).
    `attackOdds` gives the exact chance. `classicCombat` (version 1 saves, `?combat=classic`) restores
-   the original one-roll fights with the same RNG use, so old saves replay unchanged. Legion 3/1, Musketeers 2/3, Riflemen 3/5
-   follow the ruleset even though the 1991 manual is often quoted as 4/2, 3/3, 5/4.
+   the original one-roll fights with the same RNG use, so old saves replay unchanged.
+   Ground: `wheeled` units (chariot, catapult, cannon, artillery, armor, mech inf) enter `rough`
+   terrain (mountains, jungle, swamp, arctic) only along a road (city squares have one; attacking onto it
+   is fine), via `canEnter`, which `checkMove`, `findPath` and the planner's camp all use. Terrain
+   `attrition` (desert 10% until Trade, arctic 20% until Medicine) takes hp instead of healing from land
+   units ending a turn outside their own cities' radius, never the last one; rivers and specials spare
+   them. `classicTerrain` (saves before version 3, `?terrain=classic`) turns both off.
+   Legion 3/1, Musketeers 2/3, Riflemen 3/5 follow the ruleset even though the 1991 manual is often
+   quoted as 4/2, 3/3, 5/4.
 2. AI v3 done (2026-10-17) on top of the Phase 7 harness and planner. New in v3: colonies (sites
    settlers cannot walk to, `landReach` 18 steps and never through a rival city, are "overseas":
    ferries berth beside a port, take settlers and an escort, land them on the site; Map Making then

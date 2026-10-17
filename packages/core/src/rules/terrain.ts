@@ -20,6 +20,15 @@ export interface TerrainRule {
   mine?: { shields?: number; becomes?: Terrain; turns: number };
   /** Roads add trade only on open terrain. Turns to build. */
   road: { trade: number; turns: number };
+  /** Rough ground: wheeled units enter only along a road (every city square has one). */
+  rough?: boolean;
+  /**
+   * Harsh ground: a land unit ending its turn here loses this share of its
+   * full hit points instead of healing (never its last one), until its owner
+   * knows `until`. Squares near the owner's cities, a river or a special
+   * (water, food) spare it.
+   */
+  attrition?: { share: number; until: string };
 }
 
 export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
@@ -59,6 +68,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     special: { name: "Gold", trade: 6 },
     mine: { shields: 1, turns: 10 },
     road: { trade: 0, turns: 6 },
+    rough: true,
   },
   [Terrain.Desert]: {
     food: 0, shields: 1, trade: 0, moveCost: 1, defense: 1,
@@ -66,6 +76,8 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     irrigate: { food: 1, turns: 5 },
     mine: { shields: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
+    // Caravans learned the water holes.
+    attrition: { share: 0.1, until: "trade" },
   },
   [Terrain.Tundra]: {
     food: 1, shields: 0, trade: 0, moveCost: 1, defense: 1,
@@ -76,18 +88,23 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     food: 0, shields: 0, trade: 0, moveCost: 2, defense: 1,
     special: { name: "Seals", food: 2 },
     road: { trade: 0, turns: 4 },
+    rough: true,
+    // Frostbite and scurvy, until physicians know better.
+    attrition: { share: 0.2, until: "medicine" },
   },
   [Terrain.Swamp]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 1.5,
     special: { name: "Peat", shields: 4 },
     irrigate: { becomes: Terrain.Grassland, turns: 15 },
     road: { trade: 0, turns: 4 },
+    rough: true,
   },
   [Terrain.Jungle]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 1.5,
     special: { name: "Gems", trade: 4 },
     irrigate: { becomes: Terrain.Grassland, turns: 15 },
     road: { trade: 0, turns: 4 },
+    rough: true,
   },
 };
 

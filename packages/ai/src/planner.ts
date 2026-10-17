@@ -4,11 +4,13 @@ import {
   atWar,
   attackOdds,
   attackStrength,
+  attrition,
   availableAdvances,
   bestDefender,
   building,
   buildOptions,
   buyCost,
+  canEnter,
   canFoundCity,
   canHelpWonder,
   canTradeRoute,
@@ -28,6 +30,7 @@ import {
   hasWaterNearby,
   MAX_TRADE_ROUTES,
   NEIGHBOURS,
+  needsRoads,
   nextInt,
   radiusTile,
   shipStats,
@@ -50,6 +53,7 @@ import {
   type SpacePart,
   type Spaceship,
   type Unit,
+  type UnitTypeRule,
   type WorkKind,
 } from "@civ/core";
 import { baselineTurn } from "./baseline.js";
@@ -309,7 +313,9 @@ function analyse(state: GameState, me: number): Ctx {
   let escortsWanted = 0;
   if (warTarget && staging) {
     const t = warTarget;
-    camp = campSquare(state, me, t, staging);
+    // Chariots, siege guns and vehicles in the army keep the camp off roadless rough ground.
+    const wheels = units.map((u) => unitType(u.type)).find((ty) => needsRoads(state, ty));
+    camp = campSquare(state, me, t, staging, wheels);
     const span = dist(state, staging.x, staging.y, t.x, t.y) + 2;
     const gathered = attackers.filter((u) => u.aboard === null && dist(state, u.x, u.y, t.x, t.y) <= span).length;
     escorts = units.filter((u) => isMilitary(u) && !isAttacker(u) && u.aboard === null && !cityAt(state, u.x, u.y) && dist(state, u.x, u.y, t.x, t.y) <= span).length;
@@ -387,10 +393,11 @@ function analyse(state: GameState, me: number): Ctx {
 
 /**
  * The square beside an enemy city to camp the army on: open land (no city,
- * no foreign unit), the best defence the terrain gives, on the side facing
- * the staging city.
+ * no foreign unit) that `wheels` can enter, the best defence the terrain
+ * gives, on the side facing the staging city, off ground that wears the
+ * waiting army down.
  */
-function campSquare(state: GameState, me: number, target: City, staging: City): [number, number] | null {
+function campSquare(state: GameState, me: number, target: City, staging: City, wheels: UnitTypeRule | undefined): [number, number] | null {
   let best: [number, number] | null = null;
   let bestV = -Infinity;
   for (const [dx, dy] of NEIGHBOURS) {
@@ -399,7 +406,8 @@ function campSquare(state: GameState, me: number, target: City, staging: City): 
     const t = getTile(state.map, x, y);
     if (!t || t.terrain === Terrain.Ocean || cityAt(state, x, y)) continue;
     if (state.units.some((o) => o.owner !== me && o.x === x && o.y === y)) continue;
-    const v = TERRAIN_RULES[t.terrain].defense * 10 + (t.river ? 3 : 0) + (t.fortress ? 10 : 0) - dist(state, x, y, staging.x, staging.y);
+    if (wheels && !canEnter(state, wheels, t)) continue;
+    const v = TERRAIN_RULES[t.terrain].defense * 10 + (t.river ? 3 : 0) + (t.fortress ? 10 : 0) - 100 * attrition(state, me, x, y) - dist(state, x, y, staging.x, staging.y);
     if (v > bestV) { bestV = v; best = [x, y]; }
   }
   return best;

@@ -45,6 +45,8 @@ export interface GameConfig {
   world?: string;
   /** On a premade world, civilizations start in their historical homelands. */
   historical?: boolean;
+  /** The 1991 terrain rules (no roads needed for wheels, no attrition), to measure the difference. */
+  classicTerrain?: boolean;
 }
 
 export interface PlayerStats {
@@ -123,6 +125,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     opponents: Math.max(1, Math.min(7, config.civs - 1)),
     difficulty: config.difficulty,
     ...(config.world ? { world: config.world, historical: config.historical === true } : {}),
+    ...(config.classicTerrain ? { classicTerrain: true } : {}),
   };
 }
 
