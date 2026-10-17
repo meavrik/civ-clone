@@ -9,7 +9,7 @@ modern-visuals renderer behind the same core.
 
 ```
 packages/core             deterministic game core: rules, map gen, units, cities, combat, research (no DOM)
-packages/ai               AI opponents (planner v2 shipped as aiTurn, baseline v1 as yardstick), same commands as a human
+packages/ai               AI opponents (planner v3 shipped as aiTurn; v2 and baseline v1 kept as yardsticks), same commands as a human
 packages/renderer-api     the Renderer interface and shared screen logic both renderers implement
 packages/renderer-retro   indexed 320x200 framebuffer, palette, bitmap font, tiles, screen layouts
 packages/renderer-modern  canvas-2D renderer: 960x600, soft colour, real fonts, same layout and controls
@@ -129,3 +129,7 @@ Change a frame, homeland or zone in `tools/maps/src` and rerun; hand edits to th
    routes, railroads, fortresses, pollution and global warming, spaceship, diplomats, nuclear
    strikes, in-game text prompt  ← done
 8. Modern-visuals renderer behind the same screen API, switchable from the title/game menu  ← done
+9. AI v3: settlers ferried to free land overseas (or beyond rivals by sea), advances traded between
+   computer civilizations, war campaigns (sticky targets, staging city, siege camp with an escort,
+   storming in order of the odds), wars of choice only against clearly weaker neighbours, peace by
+   agreement (a winning AI refuses it, from the player too)  ← done

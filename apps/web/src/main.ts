@@ -1,4 +1,4 @@
-import { aiTurn } from "@civ/ai";
+import { acceptsPeace, aiTurn } from "@civ/ai";
 import {
   advance,
   applyCommand,
@@ -733,7 +733,12 @@ function openDiplomacy(player: number): void {
   const them = state.players[player]!;
   const r = relation(state, 0, player);
   const items: [string, () => void][] = [];
-  if (r === "war") items.push(["Propose peace", () => { dispatch({ type: "makePeace", player }); say("Peace is agreed."); }]);
+  if (r === "war") items.push(["Propose peace", () => {
+    // A rival that is winning, with its armies at our gates, will not stop now.
+    if (!acceptsPeace(state, player, 0)) { say(`${civ(them.civ).leader} refuses: "Not while our armies stand at your gates."`, 4000); return; }
+    dispatch({ type: "makePeace", player });
+    say("Peace is agreed.");
+  }]);
   else items.push(["Declare war", () => openWarMenu(player)]);
   const theirsOnly = them.advances.filter((a) => !me.advances.includes(a));
   const mineOnly = me.advances.filter((a) => !them.advances.includes(a));

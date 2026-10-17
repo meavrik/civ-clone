@@ -20,6 +20,7 @@ import {
   defenseStrength,
   FINAL_TURN,
   findPath,
+  firepower,
   getTile,
   government,
   governmentsAvailable,
@@ -73,10 +74,12 @@ export function plannerTurn(state: GameState): void {
   manageResearch(state, ctx);
   manageGovernment(state, ctx);
   manageDiplomacy(state, ctx);
+  manageTrade(state, ctx);
   manageSpaceship(state, ctx);
   manageCities(state, ctx);
   manageRates(state, ctx);
   rebalanceGarrisons(state, ctx);
+  assault(state, ctx);
 
   let guard = 0;
   while (state.activeUnit !== null && guard++ < 600) {
@@ -90,9 +93,19 @@ export function plannerTurn(state: GameState): void {
 }
 
 /** What the planner sees for one civ, for tests and the tournament harness: free sites at home and overseas, the colony plan. */
-export function describePlan(state: GameState, me: number): { sites: number; overseasSites: number; wantOverseas: boolean; ferries: number } {
+export function describePlan(state: GameState, me: number): {
+  sites: number; overseasSites: number; wantOverseas: boolean; ferries: number;
+  atWarWith: number[]; warTarget: { x: number; y: number; owner: number } | null; staging: { x: number; y: number } | null; campaignReady: boolean; attackers: number;
+} {
   const ctx = analyse(state, me);
-  return { sites: ctx.sites().length, overseasSites: ctx.overseasSites().length, wantOverseas: ctx.wantOverseas(), ferries: ctx.ferries };
+  return {
+    sites: ctx.sites().length, overseasSites: ctx.overseasSites().length, wantOverseas: ctx.wantOverseas(), ferries: ctx.ferries,
+    atWarWith: ctx.atWarWith,
+    warTarget: ctx.warTarget ? { x: ctx.warTarget.x, y: ctx.warTarget.y, owner: ctx.warTarget.owner } : null,
+    staging: ctx.staging ? { x: ctx.staging.x, y: ctx.staging.y } : null,
+    campaignReady: ctx.campaignReady,
+    attackers: ctx.units.filter(isAttacker).length,
+  };
 }
 
 // ---- empire picture ----------------------------------------------------------
@@ -114,8 +127,17 @@ interface Ctx {
   /** Hostile land units within 3 tiles of each city. */
   threat: Map<number, number>;
   wanted: Map<number, number>;
-  /** Nearest enemy city reachable over land, if any. */
+  /** The enemy city the campaign is aimed at: reachable over land, near, lightly held, worth the odds. */
   warTarget: City | null;
+  /** Our city nearest the target, where attackers gather before they march. */
+  staging: City | null;
+  /** Enough attackers, and an escort, stand between the staging city and the target to march on it. */
+  campaignReady: boolean;
+  /** The square beside the target the army camps on: the best ground to hold while it storms the walls. */
+  camp: [number, number] | null;
+  /** Defenders marching with (or wanted for) the army, and how many it wants: one for every three attackers. */
+  escorts: number;
+  escortsWanted: number;
   income: number;
   /** Beakers per turn across the empire; zero means the civ is not getting any trade. */
   science: number;
@@ -238,18 +260,67 @@ function analyse(state: GameState, me: number): Ctx {
     wanted.set(c.id, Math.min(4, w));
   }
 
+  // Campaign target: the enemy city nearest our own, counting its defenders and walls, that our
+  // best attacker has a real chance against; and the city of ours where the army gathers for it.
   let warTarget: City | null = null;
-  let best = 15;
-  for (const c of state.cities) {
-    if (!atWarWith.includes(c.owner) || !continents.has(getTile(state.map, c.x, c.y)!.continent)) continue;
-    for (const mine of cities) {
-      const d = dist(state, c.x, c.y, mine.x, mine.y);
-      if (d < best) { best = d; warTarget = c; }
+  let staging: City | null = null;
+  let best = Infinity;
+  const attackers = units.filter((u) => isAttacker(u) && unitType(u.type).domain === "land");
+  const champion = attackers.reduce<Unit | null>((a, b) => (!a || attackStrength(b) > attackStrength(a) ? b : a), null);
+  // The army's own orders are the campaign's memory: a city our attackers already march on or stand
+  // beside stays the target while it is still worth it, so they do not chase a new one every turn.
+  const committed = new Map<number, number>();
+  for (const u of attackers) {
+    for (const c of state.cities) {
+      if (!atWarWith.includes(c.owner)) continue;
+      const marching = u.order.kind === "goto" && u.order.x === c.x && u.order.y === c.y;
+      if (marching || dist(state, u.x, u.y, c.x, c.y) <= 1) committed.set(c.id, (committed.get(c.id) ?? 0) + 1);
     }
   }
+  const candidates: { c: City; mine: City; v: number; need: number }[] = [];
+  for (const c of state.cities) {
+    if (!atWarWith.includes(c.owner) || !continents.has(getTile(state.map, c.x, c.y)!.continent)) continue;
+    // How many of our best attackers it takes to empty the city in one turn; beyond ten it is not worth it.
+    const need = champion ? attackersNeeded(state, champion, c.x, c.y) : 99;
+    if (need > 10) continue;
+    let near: City | null = null;
+    let nearD = 16;
+    for (const mine of cities) {
+      const d = dist(state, c.x, c.y, mine.x, mine.y);
+      if (d < nearD && continentOf(state, mine.x, mine.y) === continentOf(state, c.x, c.y)) { nearD = d; near = mine; }
+    }
+    if (!near) continue;
+    candidates.push({ c, mine: near, need, v: nearD + 2 * need - 6 * Math.min(4, committed.get(c.id) ?? 0) });
+  }
+  candidates.sort((a, b) => a.v - b.v);
+  let need = 3;
+  // The army must be able to walk there from the staging city: rival cities and soldiers block the way.
+  for (const cand of candidates.slice(0, 3)) {
+    if (champion && !findPath(state, { ...champion, x: cand.mine.x, y: cand.mine.y }, cand.c.x, cand.c.y)) continue;
+    warTarget = cand.c;
+    staging = cand.mine;
+    need = Math.min(10, Math.max(3, cand.need + 1));
+    break;
+  }
+  void best;
+  let campaignReady = false;
+  let camp: [number, number] | null = null;
+  let escorts = 0;
+  let escortsWanted = 0;
+  if (warTarget && staging) {
+    const t = warTarget;
+    camp = campSquare(state, me, t, staging);
+    const span = dist(state, staging.x, staging.y, t.x, t.y) + 2;
+    const gathered = attackers.filter((u) => u.aboard === null && dist(state, u.x, u.y, t.x, t.y) <= span).length;
+    escorts = units.filter((u) => isMilitary(u) && !isAttacker(u) && u.aboard === null && !cityAt(state, u.x, u.y) && dist(state, u.x, u.y, t.x, t.y) <= span).length;
+    escortsWanted = Math.max(1, Math.ceil(need / 3));
+    campaignReady = gathered >= need && escorts >= 1;
+  }
 
+  let reachMap: Uint8Array | null = null;
+  const reach = () => (reachMap ??= landReach(state, me, cities));
   let cached: Site[] | null = null;
-  const sites = () => (cached ??= findSites(state, me, continents, cities));
+  const sites = () => (cached ??= findSites(state, me, continents, cities, cities.length > 0 ? reach() : null));
   const atWarNow = atWarWith.length > 0;
   const tileWorker = new Map<number, number>();
   for (const c of state.cities) {
@@ -285,7 +356,7 @@ function analyse(state: GameState, me: number): Ctx {
   const coastFrontier = () => seaFrontiers().coast;
   const seaExplorersWanted = () => (seaFrontiers().open ? (cities.length >= 10 ? 2 : 1) : 0);
   let overseas: Site[] | null = null;
-  const overseasSites = () => (overseas ??= findOverseasSites(state, me, continents));
+  const overseasSites = () => (overseas ??= findOverseasSites(state, me, reach()));
   let overseasWanted: boolean | null = null;
   const wantOverseas = () => (overseasWanted ??=
     cities.length > 0 && cities.length < 24 && p.advances.includes("map_making") &&
@@ -300,7 +371,7 @@ function analyse(state: GameState, me: number): Ctx {
     diplomats: units.filter((u) => unitType(u.type).flags?.includes("diplomat")).length,
     armyBuilding: cities.filter((c) => c.production.kind === "unit" && isAttacker({ type: c.production.id } as Unit)).length,
     caravans: units.filter((u) => unitType(u.type).flags?.includes("caravan")).length,
-    me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, income, science, sites,
+    me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, staging, campaignReady, camp, escorts, escortsWanted, income, science, sites,
     wantMoreCities: cities.length < 24,
     military: units.filter(isMilitary).length,
     militaryCap: Math.floor(cities.length * (atWarNow ? 4 : p.government === "republic" || p.government === "democracy" ? 1.5 : 2)) + 2,
@@ -312,6 +383,26 @@ function analyse(state: GameState, me: number): Ctx {
     coastFrontier,
     ships: units.filter((u) => unitType(u.type).domain === "sea").length + cities.filter((c) => c.production.kind === "unit" && unitType(c.production.id).domain === "sea").length,
   };
+}
+
+/**
+ * The square beside an enemy city to camp the army on: open land (no city,
+ * no foreign unit), the best defence the terrain gives, on the side facing
+ * the staging city.
+ */
+function campSquare(state: GameState, me: number, target: City, staging: City): [number, number] | null {
+  let best: [number, number] | null = null;
+  let bestV = -Infinity;
+  for (const [dx, dy] of NEIGHBOURS) {
+    const x = wrapX(state.map, target.x + dx);
+    const y = target.y + dy;
+    const t = getTile(state.map, x, y);
+    if (!t || t.terrain === Terrain.Ocean || cityAt(state, x, y)) continue;
+    if (state.units.some((o) => o.owner !== me && o.x === x && o.y === y)) continue;
+    const v = TERRAIN_RULES[t.terrain].defense * 10 + (t.river ? 3 : 0) + (t.fortress ? 10 : 0) - dist(state, x, y, staging.x, staging.y);
+    if (v > bestV) { bestV = v; best = [x, y]; }
+  }
+  return best;
 }
 
 /**
@@ -345,8 +436,39 @@ function findSpyTarget(state: GameState, me: number, cities: City[], continents:
 
 const CENTRE_OK = new Set([Terrain.Grassland, Terrain.Plains, Terrain.Hills, Terrain.Desert, Terrain.Forest]);
 
-/** Sites farther than this from all our cities are not "home": settlers would have to cross rivals' land, so they go by sea. */
-const REACH = 10;
+/** How far (in steps over land) settlers are sent from our cities; land beyond, or behind rival cities, is reached by sea. */
+const REACH = 18;
+
+/**
+ * Land our settlers can walk to: breadth-first over land from every city of
+ * ours, up to REACH steps, never through a rival's city. 1 marks a square
+ * within reach.
+ */
+function landReach(state: GameState, me: number, cities: City[]): Uint8Array {
+  const { width: w, height: h } = state.map;
+  const reach = new Uint8Array(w * h);
+  const steps = new Int16Array(w * h).fill(-1);
+  const rival = new Uint8Array(w * h);
+  for (const c of state.cities) if (c.owner !== me) rival[c.y * w + c.x] = 1;
+  const queue: number[] = [];
+  for (const c of cities) { const i = c.y * w + c.x; steps[i] = 0; reach[i] = 1; queue.push(i); }
+  for (let head = 0; head < queue.length; head++) {
+    const i = queue[head]!;
+    if (steps[i]! >= REACH) continue;
+    const x = i % w;
+    const y = Math.floor(i / w);
+    for (const [dx, dy] of NEIGHBOURS) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= h) continue;
+      const ni = ny * w + wrapX(state.map, x + dx);
+      if (steps[ni]! >= 0 || rival[ni] || state.map.tiles[ni]!.terrain === Terrain.Ocean) continue;
+      steps[ni] = steps[i]! + 1;
+      reach[ni] = 1;
+      queue.push(ni);
+    }
+  }
+  return reach;
+}
 
 /** Value of founding a city at (x, y): yields of the 21-tile radius plus terrain bonuses; null if unfit. */
 export function siteScore(state: GameState, x: number, y: number): number | null {
@@ -373,7 +495,7 @@ export function siteScore(state: GameState, x: number, y: number): number | null
   return score;
 }
 
-function findSites(state: GameState, me: number, continents: Set<number>, cities: City[]): Site[] {
+function findSites(state: GameState, me: number, continents: Set<number>, cities: City[], reach: Uint8Array | null): Site[] {
   const p = state.players[me]!;
   const { width: w, height: h } = state.map;
   const out: Site[] = [];
@@ -391,7 +513,7 @@ function findSites(state: GameState, me: number, continents: Set<number>, cities
         if (c.owner === me && d < ownNear) ownNear = d;
       }
       if (tooClose || canFoundCity(state, x, y) !== null) continue;
-      if (cities.length > 0 && ownNear > REACH) continue;
+      if (reach && !reach[i]) continue;
       const s = siteScore(state, x, y);
       if (s === null) continue;
       const compact = cities.length === 0 ? 0 : ownNear <= 6 ? 6 : ownNear <= 8 ? 2 : -4;
@@ -418,7 +540,7 @@ function hasOcean(state: GameState, x: number, y: number): boolean {
  * beyond walking reach of our cities, clear of every city. Land a rival has
  * already settled nearby scores lower.
  */
-function findOverseasSites(state: GameState, me: number, continents: Set<number>): Site[] {
+function findOverseasSites(state: GameState, me: number, reach: Uint8Array): Site[] {
   const p = state.players[me]!;
   const { width: w, height: h } = state.map;
   const out: Site[] = [];
@@ -429,17 +551,15 @@ function findOverseasSites(state: GameState, me: number, continents: Set<number>
       const t = state.map.tiles[i]!;
       if (t.terrain === Terrain.Ocean || !CENTRE_OK.has(t.terrain)) continue;
       if (!hasOcean(state, x, y)) continue;
+      if (reach[i]) continue;
       let tooClose = false;
       let rivals = 0;
-      let ownNear = 99;
       for (const c of state.cities) {
         const d = dist(state, c.x, c.y, x, y);
         if (d < 4) { tooClose = true; break; }
         if (d <= 6 && c.owner !== me) rivals++;
-        if (c.owner === me && d < ownNear) ownNear = d;
       }
       if (tooClose || canFoundCity(state, x, y) !== null) continue;
-      if (continents.has(t.continent) && ownNear <= REACH) continue;
       const s = siteScore(state, x, y);
       if (s === null) continue;
       out.push({ x, y, score: s - 8 * rivals });
@@ -476,13 +596,15 @@ function closure(id: string): Set<string> {
 /**
  * The available advance that moves toward the first unmet goal. `seaward`
  * (a coastal civ that has run out of land to explore, or met nobody) puts
- * Map Making first so its ships can go and look.
+ * Map Making first so its ships can go and look; `oceanward` (a civ boxed
+ * in with no free coast in sight) puts Navigation next, for ships that can
+ * cross the open sea.
  */
-export function pickResearch(known: string[], atWar: boolean, seaward = false): string | null {
+export function pickResearch(known: string[], atWar: boolean, seaward = false, oceanward = false): string | null {
   const avail = availableAdvances(known);
   if (avail.length === 0) return null;
   const have = new Set(known);
-  const goals = [...(seaward ? ["map_making"] : []), ...(atWar ? WAR_GOALS : []), ...GOALS];
+  const goals = [...(seaward ? ["map_making"] : []), ...(oceanward ? ["navigation"] : []), ...(atWar ? WAR_GOALS : []), ...GOALS];
   for (const g of goals) {
     if (have.has(g)) continue;
     const need = closure(g);
@@ -499,7 +621,8 @@ function manageResearch(state: GameState, ctx: Ctx): void {
   // Out of room at home: ships are the way to new land.
   const cramped = ctx.cities.length > 0 && ctx.sites().length < 2;
   const seaward = ctx.cities.some((c) => coastal(state, c)) && (!ctx.landUnexplored || lonely || cramped);
-  const pick = pickResearch(ctx.p.advances, threatened, seaward);
+  const oceanward = seaward && cramped && ctx.p.advances.includes("map_making") && ctx.overseasSites().length === 0;
+  const pick = pickResearch(ctx.p.advances, threatened, seaward, oceanward);
   if (pick) applyCommand(state, { type: "research", advance: pick });
 }
 
@@ -552,6 +675,17 @@ function strength(state: GameState, owner: number): number {
   return s;
 }
 
+/**
+ * Would computer civilization `them` accept peace from `me` (another AI or
+ * the human player)? Not while it is clearly stronger and its attackers
+ * stand near our cities: it means to finish the war.
+ */
+export function acceptsPeace(state: GameState, them: number, me: number): boolean {
+  if (strength(state, them) < strength(state, me) * 1.4) return true;
+  const myCities = state.cities.filter((c) => c.owner === me);
+  return !state.units.some((u) => u.owner === them && isAttacker(u) && myCities.some((c) => dist(state, u.x, u.y, c.x, c.y) <= 8));
+}
+
 function manageDiplomacy(state: GameState, ctx: Ctx): void {
   const me = ctx.me;
   const mine = strength(state, me);
@@ -562,15 +696,68 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
     if (atWar(state, me, o.id)) {
       const reachable = state.cities.some((c) => c.owner === o.id && ctx.continents.has(getTile(state.map, c.x, c.y)!.continent));
       const pointless = !reachable && !state.units.some((u) => u.owner === o.id && ctx.continents.has(getTile(state.map, u.x, u.y)!.continent));
-      if ((mine < theirs * 0.7 || pointless) && nextInt(state.rng, 100) < 20) applyCommand(state, { type: "makePeace", player: o.id });
+      const stalled = ctx.warTarget === null || ctx.warTarget.owner !== o.id;
+      const wantPeace = ((mine < theirs * 0.7 || pointless) && nextInt(state.rng, 100) < 20) || (stalled && nextInt(state.rng, 100) < 8);
+      // Peace takes two: another computer civilization agrees only when it is not clearly winning.
+      if (wantPeace && (!o.isAi || acceptsPeace(state, o.id, me))) applyCommand(state, { type: "makePeace", player: o.id });
       continue;
     }
-    if (ctx.atWarWith.length > 0 || ctx.turn < 50 || ctx.cities.length < 4 || army < Math.max(2, ctx.armyWanted)) continue;
+  }
+  // A war of choice against the weakest neighbour we can reach over land: only once the army could
+  // already take one of its cities, and only against a clearly weaker civ (wars cost both sides dearly).
+  if (ctx.atWarWith.length > 0 || ctx.turn < 80 || ctx.cities.length < 3 || army < Math.max(3, ctx.armyWanted)) return;
+  const attackers = ctx.units.filter((u) => isAttacker(u) && unitType(u.type).domain === "land");
+  const champion = attackers.reduce<Unit | null>((a, b) => (!a || attackStrength(b) > attackStrength(a) ? b : a), null);
+  if (!champion) return;
+  let victim: Player | null = null;
+  let ratio = 0;
+  for (const o of state.players) {
+    if (o.id === me || o.id === state.barbarians || !o.alive || !hasContact(state, me, o.id)) continue;
     const theirCities = state.cities.filter((c) => c.owner === o.id);
-    const nearby = theirCities.some((c) => ctx.cities.some((m) => dist(state, c.x, c.y, m.x, m.y) <= 14) && ctx.continents.has(getTile(state.map, c.x, c.y)!.continent));
-    if (nearby && theirCities.length <= ctx.cities.length + 2 && mine >= theirs * 1.1 && nextInt(state.rng, 100) < 6) {
-      applyCommand(state, { type: "declareWar", player: o.id });
-      return;
+    const prize = theirCities.some((c) => ctx.continents.has(continentOf(state, c.x, c.y)) &&
+      ctx.cities.some((m) => dist(state, c.x, c.y, m.x, m.y) <= 12 && continentOf(state, m.x, m.y) === continentOf(state, c.x, c.y)) &&
+      attackersNeeded(state, champion, c.x, c.y) < attackers.length);
+    if (!prize || theirCities.length > ctx.cities.length + 3) continue;
+    const r = mine / Math.max(1, strength(state, o.id));
+    if (r > ratio) { ratio = r; victim = o; }
+  }
+  if (victim && ratio >= 2 && nextInt(state.rng, 100) < (ratio >= 3 ? 10 : 5)) applyCommand(state, { type: "declareWar", player: victim.id });
+}
+
+/** How much an advance is worth to us: earlier on our goal list is better; anything off it comes last. */
+function advanceRank(id: string, atWar: boolean): number {
+  const goals = atWar ? [...WAR_GOALS, ...GOALS] : GOALS;
+  const i = goals.indexOf(id);
+  return i < 0 ? goals.length : i;
+}
+
+/**
+ * Swap advances with other computer civilizations we are not at war with:
+ * one for one, asking for the advance our plans want most and giving the
+ * cheapest we have that they lack. Each pair deals at most every third
+ * turn, and a civ makes at most two deals a turn. Human players trade
+ * through the diplomacy screen instead.
+ */
+function manageTrade(state: GameState, ctx: Ctx): void {
+  const me = ctx.p;
+  let deals = 0;
+  const atWarNow = ctx.atWarWith.length > 0;
+  for (const o of state.players) {
+    if (deals >= 2) break;
+    if (o.id === me.id || o.id === state.barbarians || !o.alive || !o.isAi || !hasContact(state, me.id, o.id) || atWar(state, me.id, o.id)) continue;
+    if ((ctx.turn + me.id + o.id) % 3 !== 0) continue;
+    const want = o.advances.filter((a) => !me.advances.includes(a));
+    const spare = me.advances.filter((a) => !o.advances.includes(a));
+    if (!want.length || !spare.length) continue;
+    const receive = want.reduce((a, b) => (advanceRank(b, atWarNow) < advanceRank(a, atWarNow) ? b : a));
+    const give = spare.reduce((a, b) => (closure(b).size < closure(a).size ? b : a));
+    if (!applyCommand(state, { type: "exchangeAdvances", player: o.id, give, receive }).ok) continue;
+    deals++;
+    // Research already under way on what we were just given would be wasted: switch to the next goal.
+    if (me.researching !== null && me.advances.includes(me.researching)) {
+      const threatened = atWarNow || [...ctx.threat.values()].some((t) => t > 0);
+      const next = pickResearch(me.advances, threatened);
+      if (next) applyCommand(state, { type: "research", advance: next });
     }
   }
 }
@@ -710,7 +897,8 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     if (scout) return scout;
   }
 
-  const allowance = Math.max(1, Math.ceil(ctx.cities.length / 3)) + (ctx.cities.length < 3 ? 1 : 0);
+  // A young empire grabs land fast: up to half its city count in settlers at once, a third later.
+  const allowance = ctx.cities.length < 8 ? Math.max(2, Math.ceil(ctx.cities.length / 2)) : Math.ceil(ctx.cities.length / 3);
   // Settlers for land this city can walk to, or (from a port) for a colony across the sea.
   const colonists = !homeSites && coastal(state, c) && ctx.overseasSettlers < 2 && ctx.wantOverseas();
   if (colonists && settlersOut < allowance + 1 && r.foodSurplus >= 1 && c.size >= 3) {
@@ -739,6 +927,10 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   if (threat > 0 && !c.buildings.includes("city_walls") && c.size >= 3) {
     const w = pick("building", "city_walls");
     if (w) return w;
+  }
+  if (ctx.warTarget && ctx.escorts < ctx.escortsWanted && military < ctx.militaryCap && threat === 0 && r.shields >= 2) {
+    const d = bestUnit(options, "defense");
+    if (d) { ctx.escorts++; return d; }
   }
   if (ctx.atWarWith.length > 0 && army < ctx.armyWanted && military < ctx.militaryCap) {
     const a = bestUnit(options, "attack");
@@ -986,6 +1178,30 @@ function fixDisorder(state: GameState, ctx: Ctx, c: City): void {
 
 // ---- garrisons: sorties and excess -------------------------------------------------
 
+/**
+ * Hit points an attacker can expect to knock off a defender before the fight
+ * ends, win or lose: rounds won before it runs out of lives (the mean of a
+ * negative binomial), times its firepower, capped at what the defender has.
+ */
+function expectedDamage(state: GameState, a: Unit, d: Unit): number {
+  const as = attackStrength(a);
+  const ds = defenseStrength(state, d, a);
+  const p = as / (as + ds);
+  if (p >= 1) return d.hp;
+  const lives = Math.ceil(a.hp / firepower(state, d.type));
+  return Math.min(d.hp, ((lives * p) / (1 - p)) * firepower(state, a.type));
+}
+
+/** Attackers like `a` it takes to clear every defender from (x, y) in one turn (defenders heal between turns). */
+function attackersNeeded(state: GameState, a: Unit, x: number, y: number): number {
+  let need = 0;
+  for (const d of state.units) {
+    if (d.x !== x || d.y !== y || d.owner === a.owner) continue;
+    need += d.hp / Math.max(0.5, expectedDamage(state, a, d));
+  }
+  return Math.ceil(need);
+}
+
 function winChance(state: GameState, u: Unit, x: number, y: number): number | null {
   const d = bestDefender(state, x, y, u);
   if (!d) return null;
@@ -994,6 +1210,12 @@ function winChance(state: GameState, u: Unit, x: number, y: number): number | nu
 
 function rebalanceGarrisons(state: GameState, ctx: Ctx): void {
   const needy = ctx.cities.some((c) => shortOfGuards(state, ctx, c));
+  // Soldiers fortified out in the field (an old camp, a finished campaign) are woken to find new work.
+  for (const u of ctx.units) {
+    if (u.order.kind !== "fortified" || cityAt(state, u.x, u.y) || u.aboard !== null) continue;
+    const atCamp = ctx.camp !== null && u.x === ctx.camp[0] && u.y === ctx.camp[1];
+    if (!atCamp) applyCommand(state, { type: "activate", unit: u.id });
+  }
   for (const c of ctx.cities) {
     const g = garrison(state, ctx, c);
     const wanted = ctx.wanted.get(c.id) ?? 1;
@@ -1012,6 +1234,11 @@ function rebalanceGarrisons(state: GameState, ctx: Ctx): void {
         if (!state.units.some((o) => ctx.enemies.has(o.owner) && o.x === x && o.y === y)) break;
       }
     }
+    // In wartime the attackers in a quiet city join the campaign, as long as one soldier stays.
+    if (ctx.warTarget && (ctx.threat.get(c.id) ?? 0) === 0) {
+      const leave = g.filter((u) => isAttacker(u) && (u.order.kind === "fortified" || u.order.kind === "sentry"));
+      for (const u of leave.slice(0, Math.max(0, g.length - 1))) applyCommand(state, { type: "activate", unit: u.id });
+    }
     // Release surplus defenders when someone else needs them or there is a war to fight.
     const extra = g.length - wanted;
     if (extra <= 0) continue;
@@ -1025,6 +1252,51 @@ function rebalanceGarrisons(state: GameState, ctx: Ctx): void {
       const weakest = g.reduce((a, b) => (unitType(b.type).defense + unitType(b.type).attack < unitType(a.type).defense + unitType(a.type).attack ? b : a));
       applyCommand(state, { type: "disband", unit: weakest.id });
       ctx.military--;
+    }
+  }
+}
+
+/**
+ * Storm the enemy cities our soldiers stand next to: the attacker with the
+ * best odds goes first; a weaker one still goes when at least two more can
+ * follow up on the wounded defenders (or one more against a lone defender);
+ * the moment a city stands empty, a soldier walks in and takes it.
+ */
+function assault(state: GameState, ctx: Ctx): void {
+  const targets = state.cities.filter((c) => c.owner !== ctx.me && ctx.enemies.has(c.owner));
+  for (const target of targets) {
+    for (let guard = 0; guard < 16; guard++) {
+      if (target.owner === ctx.me || !state.cities.includes(target)) break;
+      const adjacent = state.units.filter((u) => u.owner === ctx.me && isMilitary(u) && u.aboard === null && u.movesLeft > 0 &&
+        dist(state, u.x, u.y, target.x, target.y) === 1 && !cityAt(state, u.x, u.y));
+      if (!adjacent.length) break;
+      const step = (u: Unit): [number, number] => {
+        let dx = target.x - u.x;
+        if (dx > 1) dx -= state.map.width;
+        if (dx < -1) dx += state.map.width;
+        return [dx, target.y - u.y];
+      };
+      const defenders = state.units.filter((o) => o.owner !== ctx.me && o.x === target.x && o.y === target.y);
+      if (!defenders.length) {
+        const walker = adjacent.sort((a, b) => unitType(b.type).defense - unitType(a.type).defense)[0]!;
+        const [dx, dy] = step(walker);
+        applyCommand(state, { type: "activate", unit: walker.id });
+        if (!applyCommand(state, { type: "move", unit: walker.id, dx, dy }).ok) break;
+        continue;
+      }
+      const scored = adjacent.map((u) => ({ u, p: winChance(state, u, target.x, target.y) ?? 0 })).sort((a, b) => b.p - a.p);
+      const { u, p } = scored[0]!;
+      const followers = scored.length - 1;
+      // All in when the soldiers here can be expected to wear every defender down this turn.
+      let damage = 0;
+      const top = bestDefender(state, target.x, target.y, u);
+      for (const a of adjacent) if (top) damage += expectedDamage(state, a, top);
+      const allIn = damage >= defenders.reduce((s, d) => s + d.hp, 0) * 1.15;
+      const go = allIn || p >= 0.55 || (p >= 0.2 && followers >= 2) || (p >= 0.35 && defenders.length === 1 && followers >= 1);
+      if (!go) break;
+      const [dx, dy] = step(u);
+      applyCommand(state, { type: "activate", unit: u.id });
+      if (!applyCommand(state, { type: "move", unit: u.id, dx, dy }).ok) break;
     }
   }
 }
@@ -1279,9 +1551,25 @@ function unloadAtSite(state: GameState, ctx: Ctx, u: Unit, load: Unit[]): boolea
  * from the garrison as escort, and sets sail. Returns false when there is
  * no ferrying to do, leaving the ship to explore.
  */
+/** Before sailing from beside a port, take one defender from its garrison along as escort, if it can spare one. */
+function takeEscort(state: GameState, ctx: Ctx, u: Unit): void {
+  const aboard = cargo(state, u);
+  if (!aboard.some(isSettler) || aboard.some(isMilitary) || aboard.length >= (unitType(u.type).capacity ?? 0)) return;
+  for (const [dx, dy] of NEIGHBOURS) {
+    const port = cityAt(state, u.x + dx, u.y + dy);
+    if (!port || port.owner !== ctx.me) continue;
+    const guards = garrison(state, ctx, port).sort((a, b) => unitType(b.type).defense - unitType(a.type).defense);
+    const escort = guards.length >= 2 ? guards[1] : undefined;
+    if (!escort || escort.movesLeft <= 0) continue;
+    applyCommand(state, { type: "activate", unit: escort.id });
+    if (applyCommand(state, { type: "move", unit: escort.id, dx: -dx, dy: -dy }).ok) return;
+  }
+}
+
 function orderFerry(state: GameState, ctx: Ctx, u: Unit, depth = 0): boolean {
   const load = cargo(state, u);
   if (load.some(isSettler)) {
+    takeEscort(state, ctx, u);
     if (unloadAtSite(state, ctx, u, load)) { applyCommand(state, { type: "skip", unit: u.id }); return true; }
     const target = landingTarget(state, ctx, u);
     if (target && u.movesLeft > 0 && (goto(state, u, target.x, target.y) || nudge(state, u, target.x, target.y))) return true;
@@ -1319,15 +1607,6 @@ function orderFerry(state: GameState, ctx: Ctx, u: Unit, depth = 0): boolean {
     if (s.x !== port.x || s.y !== port.y || s.movesLeft <= 0 || cargo(state, u).length >= cap) continue;
     applyCommand(state, { type: "activate", unit: s.id });
     applyCommand(state, { type: "move", unit: s.id, dx, dy });
-  }
-  const aboard = cargo(state, u);
-  if (aboard.some(isSettler) && aboard.length < cap && !aboard.some(isMilitary)) {
-    const guards = garrison(state, ctx, port).sort((a, b2) => unitType(b2.type).defense - unitType(a.type).defense);
-    const escort = guards.length >= 2 ? guards[1] : undefined;
-    if (escort && escort.movesLeft > 0) {
-      applyCommand(state, { type: "activate", unit: escort.id });
-      applyCommand(state, { type: "move", unit: escort.id, dx, dy });
-    }
   }
   if (cargo(state, u).some(isSettler) && depth === 0) return orderFerry(state, ctx, u, 1);
   applyCommand(state, { type: "skip", unit: u.id });
@@ -1392,17 +1671,35 @@ function orderMilitary(state: GameState, ctx: Ctx, u: Unit): void {
   }
   if (bestDir) { applyCommand(state, { type: "move", unit: u.id, dx: bestDir[0], dy: bestDir[1] }); return; }
 
-  // 2. Garrison duty.
+  // 2. Garrison duty (in wartime an attacker marches as long as someone else holds a quiet city).
+  const attacker = isAttacker(u);
   if (inOwnCity) {
     const others = garrison(state, ctx, here).filter((o) => o.id !== u.id).length;
     const wanted = ctx.wanted.get(here.id) ?? 1;
-    if (others < wanted) { applyCommand(state, { type: "fortify", unit: u.id }); return; }
+    const marching = attacker && ctx.warTarget !== null && others >= 1 && (ctx.threat.get(here.id) ?? 0) === 0;
+    if (others < wanted && !marching) { applyCommand(state, { type: "fortify", unit: u.id }); return; }
   }
-  const attacker = isAttacker(u);
   if (ctx.warTarget && attacker) {
     const t = ctx.warTarget;
-    if (dist(state, u.x, u.y, t.x, t.y) <= 1) { applyCommand(state, { type: "skip", unit: u.id }); return; } // siege: wait for better odds
-    if (goto(state, u, t.x, t.y) || nudge(state, u, t.x, t.y)) return;
+    if (dist(state, u.x, u.y, t.x, t.y) <= 1) { applyCommand(state, { type: "skip", unit: u.id }); return; } // in position: the assault comes at the start of our next turn
+    // Gather at the staging city until the army is big enough, then march together.
+    const s = ctx.staging;
+    if (!ctx.campaignReady && s) {
+      if (dist(state, u.x, u.y, s.x, s.y) > 1 && (goto(state, u, s.x, s.y) || nudge(state, u, s.x, s.y))) return;
+      applyCommand(state, { type: "skip", unit: u.id });
+      return;
+    }
+    const [cx, cy] = ctx.camp ?? [t.x, t.y];
+    if (goto(state, u, cx, cy) || nudge(state, u, cx, cy)) return;
+  }
+  // Escorts: spare defenders march with the army and hold the camp beside the target.
+  if (ctx.warTarget && !attacker && ctx.camp && (ctx.campaignReady || ctx.escorts < ctx.escortsWanted)) {
+    const spare = !inOwnCity || garrison(state, ctx, here).filter((o) => o.id !== u.id).length >= (ctx.wanted.get(here.id) ?? 1);
+    if (spare) {
+      const [cx, cy] = ctx.campaignReady ? ctx.camp : [ctx.staging!.x, ctx.staging!.y];
+      if (u.x === cx && u.y === cy) { applyCommand(state, { type: "fortify", unit: u.id }); return; }
+      if (goto(state, u, cx, cy) || nudge(state, u, cx, cy)) return;
+    }
   }
   const needy = nearestCity(state, ctx, u, (c) => shortOfGuards(state, ctx, c) && !(here && c.id === here.id));
   if (needy && goto(state, u, needy.x, needy.y)) return;
@@ -1595,9 +1892,18 @@ function orderSettler(state: GameState, ctx: Ctx, u: Unit): void {
     }
   }
 
-  // No room at home: wait in port for a ferry (a settler just put ashore founds where it stands).
+  // No room at home: wait in port for a ferry, stepping aboard one berthed alongside (a settler just put ashore founds where it stands).
   if (overseasBound && hereScore === null) {
-    if (here && here.owner === ctx.me && coastal(state, here)) { applyCommand(state, { type: "skip", unit: u.id }); return; }
+    if (here && here.owner === ctx.me && coastal(state, here)) {
+      for (const [dx, dy] of NEIGHBOURS) {
+        const x = wrapX(state.map, u.x + dx);
+        const y = u.y + dy;
+        const ship = ctx.units.find((o) => o.x === x && o.y === y && isFerry(o) && cargo(state, o).length < (unitType(o.type).capacity ?? 0));
+        if (ship && applyCommand(state, { type: "move", unit: u.id, dx, dy }).ok) return;
+      }
+      applyCommand(state, { type: "skip", unit: u.id });
+      return;
+    }
     const port = nearestCity(state, ctx, u, (c) => coastal(state, c) && continentOf(state, c.x, c.y) === myContinent);
     if (port && goto(state, u, port.x, port.y)) return;
   }

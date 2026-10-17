@@ -23,9 +23,11 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   worlds (`map/premade.ts` + generated `map/worlds/*.ts`: 50 rows of 80 terrain chars, upper case = river,
   and each native civ's homeland square), cities,
   combat, pathfinding, diplomacy, barbarians, save/score. Entry: `src/index.ts`.
-- `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v2, shipped as `aiTurn`) and
-  `baseline.ts` (v1, kept as the tournament yardstick). The planner is stateless between turns: it
-  re-derives the empire picture (`analyse`) from `GameState` every turn, so replays stay exact.
+- `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
+  `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it) and `baseline.ts`
+  (v1). The planner is stateless between turns: it re-derives the empire picture (`analyse`) from
+  `GameState` every turn (units' goto orders are its only memory, and they are game state), so
+  replays stay exact. `describePlan` exposes its view (sites, colony plan, campaign) for tests.
 - `packages/renderer-api` — the `Renderer` interface every renderer implements (draw each screen
   in its own logical size, hit-test menus/city map/tiles/minimap/menu bar), the shared view types and the
   DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`). The web app
@@ -118,13 +120,23 @@ homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperatu
    `attackOdds` gives the exact chance. `classicCombat` (version 1 saves, `?combat=classic`) restores
    the original one-roll fights with the same RNG use, so old saves replay unchanged. Legion 3/1, Musketeers 2/3, Riflemen 3/5
    follow the ruleset even though the 1991 manual is often quoted as 4/2, 3/3, 5/4.
-2. Phase 7 — AI v2 done: harness (`tools/headless`) + planner. At 300 turns / 4 civs the planner
-   averages ~27 cities, ~40 techs, score ~255 vs the baseline's ~4 / ~8 / ~28. The planner explores by
-   sea: Map Making first once its continent is charted (or it has met nobody by turn 50), triremes
-   within two squares of land, seagoing ships once only open sea is left. Open AI gaps: no naval
-   expansion or transport (settlers never leave the home continent), no tech trading, wars rarely end
-   in conquest. A 7-civ game costs ~35 ms per round; `findPath` (marching armies) is the hot spot.
-   Measure any AI change with `npm run headless -- --ai planner,baseline --games 8 --verify`.
+2. AI v3 done (2026-10-17) on top of the Phase 7 harness and planner. New in v3: colonies (sites
+   settlers cannot walk to, `landReach` 18 steps and never through a rival city, are "overseas":
+   ferries berth beside a port, take settlers and an escort, land them on the site; Map Making then
+   Navigation when boxed in), AI-to-AI technology swaps (`manageTrade`, one for one, every third
+   turn per pair), campaigns (target judged by `attackersNeeded` from expected damage and a land path
+   from the staging city; the army's own gotos keep the target; gather at the staging city with an
+   escort, camp on the best square beside the walls, `assault` storms in order of the odds and goes
+   all in when the group can clear the city this turn), wars of choice only at twice a rival's
+   strength with a city already within reach, and peace by agreement (`acceptsPeace`: a winning AI
+   refuses, the player's offers too). Head-to-head against frozen v2 (`--ai planner,v2`, 300 turns):
+   4 civs x16 games 10-6 wins, score 219 vs 199, techs 41 vs 38; 7 civs parity in score with more
+   techs. Every civ on v3 vs every civ on v2: Earth historical 7 civs score 160 vs 129, cities 17 vs
+   14. Open AI gaps: no amphibious invasions, no tribute or AI-initiated diplomacy with the player,
+   colonists sometimes wait long in port. A 7-civ round costs ~1.3-1.6x v2 (~55 ms late game);
+   core's `findPath` (typed-array heap, results identical to the old search, see
+   `tests/pathfind.test.ts`) is still the hot spot. Measure AI changes with
+   `npm run headless -- --ai planner,v2 --games 16 --verify` (8-game runs are too noisy to trust).
 3. Every wonder is bound (Great Library, sea-move wonders, SETI, Hoover, Women's Suffrage, UN).
    Caravans done (help wonder, trade routes: mutual `City.routes`, bonus on opening, route trade in
    `computeCity`). Pollution (per-city chance from shields and industrial population, halved tile output, settler
