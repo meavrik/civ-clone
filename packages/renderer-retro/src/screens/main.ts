@@ -151,7 +151,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
         continue;
       }
       // Unexplored squares are clouds; fog drifts a little way into explored squares beside them.
-      const fog = fogSquare(map, me.explored, mx, my);
+      const fog = fogSquare(map, me.explored, mx, my, view.lifting);
       if (!me.explored[my * map.width + mx]) {
         s.blit(fog!, dx, dy);
         continue;
@@ -170,9 +170,10 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     }
   }
 
-  // Cities on explored tiles.
+  // Cities on explored tiles. Foreign cities and units wait for fog lifting off their square to thin.
+  const fogged = (idx: number, owner: number) => owner !== state.currentPlayer && (view.lifting?.get(idx) ?? 0) >= 0.5;
   for (const c of state.cities) {
-    if (!me.explored[c.y * map.width + c.x]) continue;
+    if (!me.explored[c.y * map.width + c.x] || fogged(c.y * map.width + c.x, c.owner)) continue;
     const pos = tileToScreen(state, view, c.x, c.y);
     if (pos) drawCity(s, pos[0], pos[1], c, playerColor(state, c.owner));
   }
@@ -189,7 +190,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const drawn = new Set<number>();
   for (const u of units) {
     const idx = u.y * map.width + u.x;
-    if (!me.visible[idx] || drawn.has(idx)) continue;
+    if (!me.visible[idx] || drawn.has(idx) || fogged(idx, u.owner)) continue;
     const pos = tileToScreen(state, view, u.x, u.y);
     if (!pos) continue;
     const stack = units.filter((o) => o.x === u.x && o.y === u.y);

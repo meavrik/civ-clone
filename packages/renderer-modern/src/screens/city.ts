@@ -112,7 +112,7 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
       }
       const fog = fogPatch(state.map, me.explored, wx, my);
       clouds.add(px, py, fog);
-      if (fog.unknown[4]) continue;
+      if (fog.cover[4]! >= 1) continue;
       const coast = coastPatch(state.map, wx, my, me.explored);
       const river = riverShape(state.map, wx, my, me.explored);
       const sea = tile.terrain === Terrain.Ocean;

@@ -45,10 +45,14 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   widening toward the sea; the sea square carries the mouth on through spilled shore. Strokes show on
   land only. Retro blends coast and river per pixel (`terrainSquare` in `tiles.ts`, cached by
   neighbourhood); modern fills marching-squares paths (`renderer-modern/src/coast.ts`) and strokes rivers.
-  Fog of war (`fog.ts`): unexplored squares are clouds, and fog drifts into explored squares beside
-  them (solid at the border, clear before the centre). Retro: `fogSquare`, dithered `fog` ramp; modern:
-  `Clouds` gathers the view's fog and fills each layer as one path (per-square fills leave seams and
-  thousands of tiny polygons cost ~600 ms a frame), billows as cached radial gradients.
+  Fog of war (`fog.ts`): unexplored squares are dark clouds, and fog drifts into explored squares beside
+  them (solid at the border, clear before the centre). `FogLifter` (a UI side channel run by
+  `apps/web` each frame, like `MotionPlayer`) fades fog off newly explored squares over 700 ms, held
+  until a sliding unit of the viewer comes within reach, into `view.lifting`; foreign units and cities
+  wait for it to half clear. Retro: `fogSquare`, two shades of the `fog` ramp, lifting dissolves
+  through the Bayer dither; modern: `Clouds` gathers the view's fog and fills each layer as one path
+  (per-square fills leave seams, and thousands of tiny polygons cost ~600 ms a frame), lifting squares
+  as alpha layers grouped by fog left, bodies before billows (else edges show).
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
   terrain, cities, villages and specials are pixel art in `src/art/*.art.ts` (text grids; legend

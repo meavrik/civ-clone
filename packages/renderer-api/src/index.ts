@@ -1,4 +1,5 @@
 import type { BattleFrame, UnitMotion } from "./motion.js";
+import type { Lifting } from "./fog.js";
 export * from "./motion.js";
 export * from "./icons.js";
 export * from "./coast.js";
@@ -61,6 +62,8 @@ export interface MainScreenView {
   moving?: UnitMotion[] | undefined;
   /** The fight being shown: both fighters are drawn from here, with hit points, blows and the loser's end. */
   battle?: BattleFrame | undefined;
+  /** Fog still lifting off squares just explored (`FogLifter`): square index to fog left, 1 down to 0. */
+  lifting?: Lifting | undefined;
   /**
    * The unit shown as the one in play, when it is not `state.activeUnit`: just after a unit has
    * moved or fought, the view stays with it a moment before the next unit takes over. null while

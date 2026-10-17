@@ -250,12 +250,30 @@ describe("fog of war", () => {
     const state = newGame(7);
     const u = state.units[0]!;
     // Explore a little more, along the coast, so the fog edge crosses land and sea.
-    revealAround(state, 0, u.x + 2, u.y + 1, 2);
     const me = state.players[0]!;
+    const was = me.explored.slice();
+    revealAround(state, 0, u.x + 2, u.y + 1, 2);
     const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false };
     const s = Surface.screen();
-    drawMainScreen(s, state, view);
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+
+    // Halfway through lifting off the squares just found, the fog over them is dissolving.
+    const found = [...me.explored.keys()].filter((i) => me.explored[i] && !was[i]);
+    expect(found.length).toBeGreaterThan(0);
+    drawMainScreen(s, state, { ...view, lifting: new Map(found.map((i) => [i, 0.5])) });
+    writeFileSync(new URL("./out/fog-lifting.png", import.meta.url), encodePng(s, 3));
+    const i0 = found.find((i) => [-1, 0, 1].every((d) => me.explored[i + d]))!;
+    const sq = { x: i0 % state.map.width, y: Math.floor(i0 / state.map.width) };
+    let fogPx = 0;
+    for (let j = 4; j < 12; j++)
+      for (let i = 4; i < 12; i++) {
+        const c = s.data[(80 + (sq.x - view.originX) * 16 + i) + (9 + (sq.y - view.originY) * 16 + j) * 320]! - C.FOG!;
+        if (c >= 0 && c < 8) fogPx++;
+      }
+    expect(fogPx).toBeGreaterThan(16);
+    expect(fogPx).toBeLessThan(48);
+
+    drawMainScreen(s, state, view);
     writeFileSync(new URL("./out/fog.png", import.meta.url), encodePng(s, 3));
 
     // An unexplored square is cloud through and through; an explored one keeps its middle clear.

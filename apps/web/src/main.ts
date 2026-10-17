@@ -51,6 +51,7 @@ import {
 import {
   DIFFICULTIES,
   leaderLine,
+  FogLifter,
   MotionPlayer,
   setupChoose,
   setupMenu,
@@ -152,6 +153,8 @@ const CAMERA_MS = 280;
  * civilizations' turns, the moves we could see on screen play back in order.
  */
 const motion = new MotionPlayer();
+/** Fog lifting off squares as they are explored. */
+const lifter = new FogLifter();
 const OWN_PACE = { stepMs: 120, maxMs: 1000, battleMs: 1600, battleTotalMs: 1600 };
 const OTHERS_PACE = { stepMs: 110, maxMs: 2500, battleMs: 1400, battleTotalMs: 6000 };
 /** Things to show once every slide has landed (a village's gift, an audience, the turn's news). */
@@ -1249,6 +1252,8 @@ function frame(t: number): void {
   const shown = motion.at(t);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;
+  const lifting = screenState.kind !== "title" && screenState.kind !== "setup" ? lifter.update(state, t, shown.moving) : undefined;
+  view.lifting = lifting?.size ? lifting : undefined;
   const animating = motion.busy(t);
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers

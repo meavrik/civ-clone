@@ -140,7 +140,9 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
       // Unexplored squares are clouds; fog drifts a little way into explored squares beside them.
       const fog = fogPatch(map, me.explored, mx, my);
       clouds.add(dx, dy, fog);
-      if (fog.unknown[4]) continue;
+      if (fog.cover[4]! >= 1) continue;
+      const left = view.lifting?.get(my * map.width + mx);
+      if (left) clouds.lift(dx, dy, mx, my, left, map, me.explored, view.lifting!);
       const tile = map.tiles[my * map.width + mx]!;
       const coast = coastPatch(map, mx, my, me.explored);
       const river = riverShape(map, mx, my, me.explored);
@@ -161,8 +163,10 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
   }
   clouds.paint(ctx);
 
+  // Foreign cities and units wait for fog lifting off their square to thin.
+  const fogged = (idx: number, owner: number) => owner !== state.currentPlayer && (view.lifting?.get(idx) ?? 0) >= 0.5;
   for (const c of state.cities) {
-    if (!me.explored[c.y * map.width + c.x]) continue;
+    if (!me.explored[c.y * map.width + c.x] || fogged(c.y * map.width + c.x, c.owner)) continue;
     const pos = tileToScreen(state, view, c.x, c.y);
     if (pos) paintCity(ctx, pos[0], pos[1], c, state.players[c.owner]!.color);
   }
@@ -178,7 +182,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
   const drawn = new Set<number>();
   for (const u of units) {
     const idx = u.y * map.width + u.x;
-    if (!me.visible[idx] || drawn.has(idx)) continue;
+    if (!me.visible[idx] || drawn.has(idx) || fogged(idx, u.owner)) continue;
     const pos = tileToScreen(state, view, u.x, u.y);
     if (!pos) continue;
     const stack = units.filter((o) => o.x === u.x && o.y === u.y);
