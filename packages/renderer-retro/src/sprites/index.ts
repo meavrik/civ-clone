@@ -1,15 +1,18 @@
 import featuresArt from "../art/features.art.js";
+import iconsArt from "../art/icons.art.js";
 import terrainArt from "../art/terrain.art.js";
 import unitsArt from "../art/units.art.js";
 import { C } from "../palette.js";
 import { Surface } from "../surface.js";
 import { CLEAR, OWNER, OWNER_DARK, parseSheet, SPRITE_CLEAR, spriteIndices, type Sheet } from "./sheet.js";
 
-/** The three sheets the retro renderer draws from; each parses (and validates) once, at load. */
+/** The sheets the retro renderer draws from; each parses (and validates) once, at load. */
 export const UNIT_SHEET = parseSheet("units", 16, unitsArt, ["flesh", "earth", "grey"]);
 export const TERRAIN_SHEET = parseSheet("terrain", 16, terrainArt, ["grass", "earth", "stone"]);
 export const FEATURE_SHEET = parseSheet("features", 16, featuresArt, ["earth", "stone", "grey"]);
-export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRAIN_SHEET, features: FEATURE_SHEET };
+/** 8x8 pictures for the info panels and the badges on working units. */
+export const ICON_SHEET = parseSheet("icons", 8, iconsArt, ["grey", "earth", "stone"]);
+export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRAIN_SHEET, features: FEATURE_SHEET, icons: ICON_SHEET };
 
 /** An owner colour's darker partner in the EGA set, for shading the box and `p` pixels. */
 const DARKER: Record<number, number> = {

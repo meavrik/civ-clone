@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, createUnit, getTile, newGame, revealAround, Terrain, type UnitBattle } from "@civ/core";
-import { DEATH_MS, LUNGE_MS, MENU_BAR, MotionPlayer, opponentsForChoice, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
+import { DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
 const fresh = (step: SetupState["step"]): SetupState => ({ step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
 
@@ -62,17 +62,20 @@ describe("terrain info", () => {
     t.special = true;
     createUnit(s, "militia", 0, u.x + 1, u.y);
     createUnit(s, "militia", 0, u.x + 1, u.y);
+    const working = createUnit(s, "settlers", 0, u.x + 1, u.y);
+    working.order = { kind: "work", work: "road", turnsLeft: 2 };
     const info = terrainInfo(s, u.x + 1, u.y);
     expect(info.title).toBe("Grassland (River)");
-    expect(info.lines[0]).toMatch(/^Food \d+, shields \d+, trade \d+$/);
-    expect(info.lines).toContain("Movement cost 1, defence normal");
-    expect(info.lines).toContain("Special resource: Resources");
-    expect(info.lines).toContain("Improvements: Road");
-    expect(info.lines.some((l) => l.startsWith("Settlers can irrigate +1 food"))).toBe(true);
-    expect(info.lines).toContain("Units (ours): 2 Militia");
+    // Pictures stand in for the words: yields and movement on one line, features with their names.
+    expect(info.lines[0]).toMatch(/^\{food\} \d+  \{shield\} \d+  \{trade\} \d+  \{boot\} 1$/);
+    expect(info.lines).toContain("{star} Resources  {river} River  {road} Road");
+    expect(info.lines.some((l) => l.startsWith("Settlers:  {irrigate} +1 {food}"))).toBe(true);
+    expect(info.lines).toContain("{swords} 2 Militia, Settlers (ours)");
+    expect(info.lines).toContain("{road} Settlers: building a road, 2 turns left");
+    for (const line of info.lines) for (const seg of iconSegments(line)) if ("icon" in seg) expect(ICONS).toContain(seg.icon);
 
     applyCommand(s, { type: "found", unit: u.id });
-    expect(terrainInfo(s, u.x, u.y).lines.some((l) => l.startsWith(`City: ${s.cities[0]!.name} (Romans), size 1`))).toBe(true);
+    expect(terrainInfo(s, u.x, u.y).lines.some((l) => l.startsWith(`{city} ${s.cities[0]!.name} (Romans), size 1`))).toBe(true);
     expect(terrainInfo(s, (u.x + 40) % 80, u.y)).toEqual({ title: "Unexplored", lines: ["Our explorers have not seen this land."] });
   });
 });
@@ -226,5 +229,18 @@ describe("unit motion", () => {
     m.play([fight(1), fight(2), fight(3), fight(4)], 0, { ...pace, battleMs: 1600, battleTotalMs: 4000 });
     expect(m.busy(4000)).toBe(true);
     expect(m.busy(4000 + 4 * 30 * 19)).toBe(false);
+  });
+});
+
+describe("icon lines", () => {
+  it("splits {icon} tokens from text, keeps unknown tokens as text, and wraps between groups", () => {
+    expect(iconSegments("{food} 2  {shield}1")).toEqual([{ icon: "food" }, { text: " 2  " }, { icon: "shield" }, { text: "1" }]);
+    expect(iconSegments("{nope} x")).toEqual([{ text: "{nope}" }, { text: " x" }]);
+    expect(hasIcons("plain words")).toBe(false);
+    expect(hasIcons("{nope}")).toBe(false);
+    expect(hasIcons("{coin}5")).toBe(true);
+    const width = (s: string) => s.length;
+    expect(wrapIconLine("aaa  bbb  ccc", 8, width)).toEqual(["aaa  bbb", "ccc"]);
+    expect(wrapIconLine("aaaaaaaaaa  b", 4, width)).toEqual(["aaaaaaaaaa", "b"]);
   });
 });

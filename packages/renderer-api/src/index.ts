@@ -1,5 +1,7 @@
 import type { BattleFrame, UnitMotion } from "./motion.js";
 export * from "./motion.js";
+export * from "./icons.js";
+import { WORK_ICON, WORK_NAME } from "./icons.js";
 import {
   cityAt,
   civ,
@@ -357,22 +359,29 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   const r = TERRAIN_RULES[t.terrain];
   const city = cityAt(state, x, y);
   const yld = tileYield(state, t, city !== undefined, me.government);
+  // Lines with {icon} tokens are drawn with pictures; "  " separates groups that may wrap apart.
   const lines: string[] = [];
-  lines.push(`Food ${yld.food}, shields ${yld.shields}, trade ${yld.trade}`);
-  lines.push(`Movement cost ${r.moveCost}, defence ${r.defense === 1 ? "normal" : `+${Math.round((r.defense - 1) * 100)}%`}`);
-  if (t.special && r.special) lines.push(`Special resource: ${r.special.name}`);
-  const improved = [t.railroad ? "Railroad" : t.road && "Road", t.irrigation && "Irrigation", t.mine && "Mine", t.fortress && "Fortress"].filter(Boolean);
-  if (improved.length) lines.push(`Improvements: ${improved.join(", ")}`);
-  if (t.pollution) lines.push("Polluted: output halved until cleaned.");
-  if (t.hut) lines.push("A village of a minor tribe stands here.");
+  const defence = r.defense === 1 ? "" : `  {tower} +${Math.round((r.defense - 1) * 100)}%`;
+  lines.push(`{food} ${yld.food}  {shield} ${yld.shields}  {trade} ${yld.trade}  {boot} ${r.moveCost}${defence}`);
+  const features = [
+    t.special && r.special && `{star} ${r.special.name}`,
+    t.river && "{river} River",
+    t.railroad ? "{railroad} Railroad" : t.road && "{road} Road",
+    t.irrigation && "{irrigate} Irrigation",
+    t.mine && "{mine} Mine",
+    t.fortress && "{fortress} Fortress",
+  ].filter(Boolean);
+  if (features.length) lines.push(features.join("  "));
+  if (t.pollution) lines.push("{pollution} Polluted: output halved until cleaned");
+  if (t.hut) lines.push("{hut} A village of a minor tribe");
   if (t.terrain !== Terrain.Ocean) {
     const work: string[] = [];
-    if (r.irrigate) work.push(r.irrigate.becomes !== undefined ? `irrigate into ${TERRAIN_NAMES[r.irrigate.becomes]}` : `irrigate +${r.irrigate.food ?? 0} food`);
-    if (r.mine) work.push(r.mine.becomes !== undefined ? `mine into ${TERRAIN_NAMES[r.mine.becomes]}` : `mine +${r.mine.shields ?? 0} shields`);
-    if (r.road.trade > 0) work.push(`road +${r.road.trade} trade`);
-    if (work.length) lines.push(`Settlers can ${work.join(", ")}.`);
+    if (r.irrigate) work.push(r.irrigate.becomes !== undefined ? `{irrigate} into ${TERRAIN_NAMES[r.irrigate.becomes]}` : `{irrigate} +${r.irrigate.food ?? 0} {food}`);
+    if (r.mine) work.push(r.mine.becomes !== undefined ? `{mine} into ${TERRAIN_NAMES[r.mine.becomes]}` : `{mine} +${r.mine.shields ?? 0} {shield}`);
+    if (r.road.trade > 0) work.push(`{road} +${r.road.trade} {trade}`);
+    if (work.length) lines.push(`Settlers:  ${work.join("  ")}`);
   }
-  if (city) lines.push(`City: ${city.name} (${state.players[city.owner]!.name}), size ${city.size}`);
+  if (city) lines.push(`{city} ${city.name} (${state.players[city.owner]!.name}), size ${city.size}`);
   if (me.visible[idx]) {
     const units = unitAt(state, x, y);
     if (units.length) {
@@ -380,9 +389,11 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
       const counts = new Map<string, number>();
       for (const u of units) counts.set(unitType(u.type).name, (counts.get(unitType(u.type).name) ?? 0) + 1);
       const names = [...counts].map(([n, k]) => (k > 1 ? `${k} ${n}` : n)).join(", ");
-      lines.push(`Units (${owner.id === me.id ? "ours" : owner.name}): ${names}`);
+      lines.push(`{swords} ${names} (${owner.id === me.id ? "ours" : owner.name})`);
+      for (const u of units) if (u.order.kind === "work")
+        lines.push(`{${WORK_ICON[u.order.work]}} ${unitType(u.type).name}: ${WORK_NAME[u.order.work]}, ${u.order.turnsLeft} turn${u.order.turnsLeft === 1 ? "" : "s"} left`);
       const hurt = units.filter((u) => u.hp < maxHp(state, u.type));
-      if (hurt.length) lines.push(`Wounded: ${hurt.map((u) => `${unitType(u.type).name} ${u.hp}/${maxHp(state, u.type)} hp`).join(", ")}`);
+      if (hurt.length) lines.push(hurt.map((u) => `{heart} ${unitType(u.type).name} ${u.hp}/${maxHp(state, u.type)}`).join("  "));
     }
   }
   return { title: `${TERRAIN_NAMES[t.terrain]}${t.river ? " (River)" : ""}`, lines };

@@ -1,7 +1,9 @@
 import { unitType, type City, type Unit } from "@civ/core";
 import type { Context2D } from "./context.js";
 import { circle, fillRound, measure, strokeRound, text } from "./draw.js";
-import { COMBAT, PLAYER_COLORS, PLAYER_DARK, TILE, UI } from "./theme.js";
+import { COMBAT, ICON, PLAYER_COLORS, PLAYER_DARK, TILE, UI } from "./theme.js";
+import { WORK_ICON } from "@civ/renderer-api";
+import { paintIcon } from "./icons.js";
 
 export const UNIT_ABBR: Record<string, string> = {
   settlers: "S", militia: "M", phalanx: "P", legion: "L", cavalry: "C", chariot: "Ch",
@@ -61,6 +63,16 @@ export function paintUnit(ctx: Context2D, x: number, y: number, u: Pick<Unit, "t
   if (u.order.kind === "fortified") strokeRound(ctx, x + 9, y + 9, TILE - 18, TILE - 18, 7, "rgba(255,255,255,0.85)", 2);
   else if (u.order.kind === "sentry") text(ctx, x + TILE - 6, y + 2, "z", { size: 12, weight: "bold", color: "#fff", align: "right", shadow: true });
   if (u.veteran) circle(ctx, x + 9, y + 9, 4, UI.accent);
+  if (u.order.kind === "work") {
+    // A settler at work wears a badge of its job and the turns it still needs.
+    const label = String(u.order.turnsLeft);
+    const w = 26 + measure(ctx, label, 11, "bold");
+    const bx = x + TILE - w - 1;
+    fillRound(ctx, bx, y + 1, w, 19, 9.5, ICON.badge);
+    strokeRound(ctx, bx + 0.5, y + 1.5, w - 1, 18, 9, UI.accent, 1.2);
+    paintIcon(ctx, WORK_ICON[u.order.work], bx + 3, y + 2.5, 16);
+    text(ctx, bx + 21, y + 4, label, { size: 11, weight: "bold", color: UI.ink });
+  }
 }
 
 /** City marker: a dark block in the owner's colour frame with a cluster of buildings and the size badge. */

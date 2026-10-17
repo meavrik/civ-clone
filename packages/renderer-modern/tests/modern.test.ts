@@ -3,6 +3,8 @@ import { applyCommand, CIV_COLORS, createUnit, newGame, revealAround } from "@ci
 import { PLAYER_COLORS } from "../src/theme.js";
 import type { MainScreenView } from "@civ/renderer-api";
 import { createModernRenderer, MODERN_H, MODERN_TILE, MODERN_W, type Context2D, type Gradient } from "../src/index.js";
+import { paintIcon } from "../src/icons.js";
+import { ICONS } from "@civ/renderer-api";
 
 /** Records what the renderer asks of the canvas; width of text is a flat per-character estimate. */
 class FakeContext implements Context2D {
@@ -107,20 +109,32 @@ describe("modern renderer", () => {
     settler.hp = 3;
     r.main(state, { ...view, message: undefined });
     settler.hp = 10;
+    let from = 0;
+    // Every panel icon draws; a settler at work shows its job and the turns it still needs.
+    for (const name of ICONS) paintIcon(ctx, name, 10, 10, 16);
+    const home = state.cities[0]!;
+    const worker = createUnit(state, "settlers", 0, home.x + 1, home.y);
+    state.players[0]!.visible[worker.y * state.map.width + worker.x] = 1;
+    worker.order = { kind: "work", work: "mine", turnsLeft: 7 };
+    from = ctx.texts.length;
+    r.main(state, { ...view, message: undefined, inspect: { x: worker.x, y: worker.y } });
+    expect(ctx.texts.slice(from)).toContain("7");
+    expect(ctx.texts.slice(from).some((t) => t.includes(" 7"))).toBe(true); // the job in the inspect box
+    state.units = state.units.filter((u) => u.id !== worker.id);
     // While the view lingers on a unit that just acted, the panel shows it, not the next one;
     // with that unit gone the unit box stays empty instead of announcing the end of the turn.
     const trireme = state.units.find((u) => u.type === "trireme")!;
-    let from = ctx.texts.length;
+    from = ctx.texts.length;
     r.main(state, { ...view, message: undefined, focus: trireme.id });
     expect(ctx.texts.slice(from)).toContain("Trireme");
     const active = state.activeUnit;
     state.activeUnit = null;
     from = ctx.texts.length;
     r.main(state, { ...view, message: undefined, focus: null });
-    expect(ctx.texts.slice(from)).not.toContain("End of turn");
+    expect(ctx.texts.slice(from).some((t) => t.includes("End of turn"))).toBe(false);
     from = ctx.texts.length;
     r.main(state, { ...view, message: undefined });
-    expect(ctx.texts.slice(from)).toContain("End of turn");
+    expect(ctx.texts.slice(from).some((t) => t.includes("End of turn"))).toBe(true);
     state.activeUnit = active;
     r.menu({ title: "", items: ["City Status", "Military Advisor"], right: ["F1", "F2"], selected: 0, anchor: r.menuBarAnchor(2) });
     r.menu({ title: "Game", items: ["Save game", "Load game"], selected: 1, right: ["", "slot 2"] });

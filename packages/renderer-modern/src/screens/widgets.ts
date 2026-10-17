@@ -2,6 +2,7 @@ import type { MenuState, TextInputState } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
 import { fillRound, measure, panel, text, wrap } from "../draw.js";
 import { H, UI, VIEW_X, W } from "../theme.js";
+import { drawIconLine, iconLineWidth, wrapIcons } from "../icons.js";
 
 /** Menus, the text prompt and the status line: overlays drawn on top of any screen. */
 
@@ -18,9 +19,9 @@ function menuLayout(ctx: Context2D, m: MenuState): MenuLayout {
     const right = m.right?.[i];
     widest = Math.max(widest, measure(ctx, item, 15) + (right ? measure(ctx, right, 13) + 32 : 0));
   });
-  for (const l of m.body ?? []) widest = Math.max(widest, Math.min(measure(ctx, l, 15), 520));
+  for (const l of m.body ?? []) widest = Math.max(widest, Math.min(iconLineWidth(ctx, l, 15), 520));
   const w = Math.min(W - 80, Math.max(m.anchor ? 240 : 320, widest + 56));
-  const lines = (m.body ?? []).flatMap((l) => wrap(ctx, l, w - 48, 15));
+  const lines = (m.body ?? []).flatMap((l) => wrapIcons(ctx, l, w - 48, 15));
   const bodyH = lines.length ? lines.length * BODY_LINE + 14 : 0;
   // A dropdown (no title) has no header row.
   const head = m.title ? TITLE_H : 10;
@@ -46,7 +47,7 @@ export function drawMenu(ctx: Context2D, m: MenuState): void {
     ctx.fillStyle = UI.panelEdge;
     ctx.fillRect(x + 16, y + TITLE_H - 6, w - 32, 1);
   }
-  lines.forEach((line, i) => text(ctx, x + 24, y + (m.title ? TITLE_H + 2 : 12) + i * BODY_LINE, line, { size: 15, color: "#d5dde6" }));
+  lines.forEach((line, i) => drawIconLine(ctx, x + 24, y + (m.title ? TITLE_H + 2 : 12) + i * BODY_LINE, line, { size: 15, color: "#d5dde6" }));
   if (lines.length) { ctx.fillStyle = UI.panelEdge; ctx.fillRect(x + 16, itemsY - 7, w - 32, 1); }
   m.items.forEach((item, i) => {
     const ry = itemsY + i * row;

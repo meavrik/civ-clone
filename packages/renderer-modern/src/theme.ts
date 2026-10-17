@@ -40,6 +40,36 @@ export const UI = {
   fog: "rgba(6, 10, 18, 0.55)",
 };
 
+/** Colours of the info panel icons. */
+export const ICON = {
+  ink: "#e9eef4",
+  dark: "#0d1117",
+  gold: "#f1c54f",
+  goldDark: "#a8791f",
+  gem: "#6fe3ff",
+  gemDark: "#2a9fc0",
+  bulb: "#ffe27a",
+  metal: "#9aa8b8",
+  food: "#7bd88f",
+  foodDark: "#3f9a55",
+  foodShine: "#c9f2d2",
+  wood: "#a8743f",
+  stone: "#b9c3cf",
+  stoneDark: "#6d7886",
+  heart: "#ff6b6b",
+  roof: "#e0614f",
+  wall: "#f4f6f8",
+  water: "#5fb4ff",
+  waterShine: "#cfe9ff",
+  road: "#a7b0ba",
+  smoke: "#8c96a3",
+  straw: "#e2b45a",
+  hut: "#c08a4a",
+  keycap: "rgba(255,255,255,0.12)",
+  badge: "rgba(10, 14, 20, 0.88)",
+  keyEdge: "rgba(255,255,255,0.28)",
+};
+
 /** Hit point bars, the flash of a blow, and the burst of a beaten unit. */
 export const COMBAT = {
   hpGood: "#7bd88f",

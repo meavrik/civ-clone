@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, revealAround, Terrain, unitType } from "@civ/core";
-import { C, drawCityScreen, drawDiscoveryScreen, drawMainScreen, drawMenu, drawUnit, playerColor, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { C, drawCityScreen, drawDiscoveryScreen, drawMainScreen, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -174,6 +174,40 @@ describe("retro renderer", () => {
     drawMainScreen(s, state, view);
     writeFileSync(new URL("./out/unit-wounded.png", import.meta.url), encodePng(s, 3));
     expect(count(s, px + 16, [C.LRED!])).toBeGreaterThan(0);
+  });
+
+  it("shows the panel as icons, and a badge of its job on a working settler", () => {
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    revealAround(state, 0, u.x, u.y, 9);
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) getTile(state.map, u.x + dx, u.y + dy)!.terrain = Terrain.Grassland;
+    getTile(state.map, u.x, u.y)!.road = true;
+    getTile(state.map, u.x, u.y)!.river = true;
+    state.players[0]!.researching = "alphabet";
+    state.players[0]!.science = 5;
+    state.players[0]!.gold = 123;
+    const worker = createUnit(state, "settlers", 0, u.x + 1, u.y);
+    worker.order = { kind: "work", work: "irrigate", turnsLeft: 3 };
+    const legion = createUnit(state, "legion", 0, u.x, u.y);
+    legion.veteran = true;
+    legion.hp = 6;
+    state.activeUnit = legion.id;
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true, inspect: { x: u.x + 1, y: u.y } };
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    writeFileSync(new URL("./out/panel-icons.png", import.meta.url), encodePng(s, 3));
+    // The working settler's badge: a black square in its top right corner with the blue drop inside.
+    const bx = 80 + (u.x + 1 - view.originX) * 16 + 7;
+    const by = 9 + (u.y - view.originY) * 16;
+    let black = 0;
+    let blue = 0;
+    for (let y = by; y < by + 9; y++) for (let x = bx; x < bx + 9; x++) { const c = s.get(x, y); if (c === C.BLACK!) black++; if (c === C.LBLUE!) blue++; }
+    expect(black).toBeGreaterThan(20);
+    expect(blue).toBeGreaterThan(8);
+    // The terrain window speaks in the same pictures.
+    const info = terrainInfo(state, worker.x, worker.y);
+    drawMenu(s, { title: info.title, body: info.lines, items: ["Center the map here", "Close"], selected: 1 });
+    writeFileSync(new URL("./out/terrain-window.png", import.meta.url), encodePng(s, 3));
   });
 
   it("draws the menu bar above the map, with dropdowns under their titles", async () => {

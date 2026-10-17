@@ -1,4 +1,5 @@
-import { drawText, FONT_HEIGHT, textWidth, wrapText } from "./font.js";
+import { drawText, FONT_HEIGHT, textWidth } from "./font.js";
+import { drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
 import { C, shade } from "./palette.js";
 import type { Surface } from "./surface.js";
 
@@ -36,9 +37,9 @@ interface MenuLayout { x: number; y: number; w: number; h: number; lines: string
 
 function menuLayout(m: MenuState): MenuLayout {
   const maxItem = Math.max(textWidth(m.title), ...m.items.map((i, k) => textWidth(i) + (m.right?.[k] ? textWidth(m.right[k]!) + 12 : 0)));
-  const bodyW = m.body?.length ? Math.max(...m.body.map((l) => textWidth(l))) : 0;
+  const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) : 0;
   const w = Math.min(300, Math.max(maxItem, Math.min(bodyW, 276)) + 24);
-  const lines = (m.body ?? []).flatMap((l) => wrapText(l, w - 20));
+  const lines = (m.body ?? []).flatMap((l) => wrapIcons(l, w - 20));
   const bodyH = lines.length ? lines.length * FONT_HEIGHT + 5 : 0;
   const head = m.title ? 16 : 3;
   const h = head + bodyH + m.items.length * MENU_ROW + (m.title ? 6 : 3);
@@ -59,7 +60,7 @@ export function drawMenu(s: Surface, m: MenuState): void {
     drawText(s, x + 8, y + 4, m.title, shade("ui", 7));
     s.hline(x + 4, y + 13, w - 8, shade("ui", 0));
   }
-  lines.forEach((line, i) => drawText(s, x + 10, y + (m.title ? 17 : 4) + i * FONT_HEIGHT, line, shade("ui", 6)));
+  lines.forEach((line, i) => drawIconLine(s, x + 10, y + (m.title ? 17 : 4) + i * FONT_HEIGHT, line, shade("ui", 6)));
   if (lines.length) s.hline(x + 4, itemsY - 3, w - 8, shade("ui", 1));
   m.items.forEach((item, i) => {
     const ry = itemsY + i * MENU_ROW;

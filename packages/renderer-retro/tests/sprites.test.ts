@@ -22,6 +22,7 @@ import {
   unitSprite,
 } from "../src/index.js";
 import { encodePng } from "./png.js";
+import { ICON_SHEET, ICONS } from "../src/index.js";
 
 describe("sprite sheets", () => {
   it("cover every unit, terrain and special resource, plus cities, walls and villages", () => {
@@ -30,6 +31,9 @@ describe("sprite sheets", () => {
       expect(TERRAIN_SHEET.byName.has(name), name).toBe(true);
     for (const rule of Object.values(TERRAIN_RULES)) if (rule.special) expect(FEATURE_SHEET.byName.has(rule.special.name.toLowerCase()), rule.special.name).toBe(true);
     for (const name of ["city", "walls", "hut"]) expect(FEATURE_SHEET.byName.has(name), name).toBe(true);
+    // Every panel icon, at 8x8 so it sits in a line of text.
+    expect(ICON_SHEET.size).toBe(8);
+    for (const name of ICONS) expect(ICON_SHEET.byName.has(name), name).toBe(true);
   });
 
   it("round-trip through an image unchanged", () => {

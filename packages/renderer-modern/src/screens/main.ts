@@ -6,7 +6,9 @@ import {
   GOVERNMENTS,
   getTile,
   maxHp,
+  moveAllowance,
   NEIGHBOURS,
+  researchCost,
   Terrain,
   TERRAIN_NAMES,
   TERRAIN_RULES,
@@ -19,12 +21,13 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { MENU_BAR, shownActive, type MainScreenView } from "@civ/renderer-api";
+import { MENU_BAR, shownActive, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { drawIconLine, iconParagraph, paintIcon } from "../icons.js";
 import type { Context2D } from "../context.js";
-import { fillRound, measure, panel, paragraph, strokeRound, text } from "../draw.js";
+import { circle, fillRound, measure, panel, paragraph, strokeRound, text } from "../draw.js";
 import { paintBadge, paintBurst, paintCity, paintCityLabel, paintHitFlash, paintHpBar, paintUnit, playerColor } from "../markers.js";
 import { paintFog, paintFortress, paintHut, paintIrrigation, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
-import { BAR_H, H, PANEL_W, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, VIEW_Y, W } from "../theme.js";
+import { BAR_H, COMBAT, H, ICON, PANEL_W, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, VIEW_Y, W } from "../theme.js";
 
 /** The main map: a 48px-tile viewport right of a 240px panel, the same split as the retro layout. */
 
@@ -236,6 +239,16 @@ const TEXT_X = 16;
 const TEXT_W = PANEL_W - 32;
 const LINE = 19;
 
+/** A square's yields and what stands on it, as one icon line: food, shields, trade, then features. */
+function tileIconLine(state: GameState, x: number, y: number, extra = ""): string {
+  const t = getTile(state.map, x, y)!;
+  const yld = tileYield(state, t, cityAt(state, x, y) !== undefined, state.players[state.currentPlayer]!.government);
+  const features = tileIcons(t).map((i) => `{${i}}`);
+  if (t.special) features.unshift("{star}");
+  return [`{food} ${yld.food}`, `{shield} ${yld.shields}`, `{trade} ${yld.trade}`, ...(extra ? [extra] : []), features.join(" ")].filter(Boolean).join("  ");
+}
+
+/** The inspected square: terrain, then yields, movement and features as icons, its city and units. */
 function tileInfo(ctx: Context2D, state: GameState, tx: number, ty: number, y: number, bottom: number): number {
   const me = state.players[state.currentPlayer]!;
   const idx = ty * state.map.width + wrapX(state.map, tx);
@@ -245,33 +258,48 @@ function tileInfo(ctx: Context2D, state: GameState, tx: number, ty: number, y: n
   }
   const t = state.map.tiles[idx]!;
   const r = TERRAIN_RULES[t.terrain];
-  const city = cityAt(state, tx, ty);
   fillRound(ctx, TEXT_X, y + 2, 14, 14, 3, TERRAIN[t.terrain].base);
-  text(ctx, TEXT_X + 22, y, TERRAIN_NAMES[t.terrain], { weight: "600" });
-  y += LINE;
-  const yld = tileYield(state, t, city !== undefined, me.government);
-  text(ctx, TEXT_X, y, `Food ${yld.food}  Shields ${yld.shields}  Trade ${yld.trade}`, { size: 13, color: UI.dim });
-  y += LINE - 3;
-  text(ctx, TEXT_X, y, `Move ${r.moveCost}${r.defense !== 1 ? `   Defence x${r.defense}` : ""}`, { size: 13, color: UI.dim });
-  y += LINE;
-  const extras = [
-    t.special && r.special?.name, t.river && "River", t.railroad ? "Railroad" : t.road && "Road", t.irrigation && "Irrigation",
-    t.mine && "Mine", t.fortress && "Fortress", t.pollution && "Pollution", t.hut && "Village",
-  ].filter(Boolean).join(", ");
-  if (extras && y < bottom) y += paragraph(ctx, TEXT_X, y, TEXT_W, extras, { size: 13, color: UI.ink }, Math.max(1, Math.floor((bottom - y) / 17)));
+  text(ctx, TEXT_X + 22, y, t.special && r.special ? `${TERRAIN_NAMES[t.terrain]} · ${r.special.name}` : TERRAIN_NAMES[t.terrain], { weight: "600" });
+  y += LINE + 2;
+  const move = `{boot} ${r.moveCost}${r.defense !== 1 ? `  {tower} +${Math.round((r.defense - 1) * 100)}%` : ""}`;
+  y += iconParagraph(ctx, TEXT_X, y, TEXT_W, tileIconLine(state, tx, ty, move), { size: 14, color: UI.ink }, Math.max(1, Math.floor((bottom - y) / 20)));
+  const city = cityAt(state, tx, ty);
   if (city && y < bottom) {
-    y += 4;
-    y += paragraph(ctx, TEXT_X, y, TEXT_W, `${city.name} (${state.players[city.owner]!.name})`, { size: 14, weight: "600", color: playerColor(state.players[city.owner]!.color) }, 2);
+    y += 2;
+    drawIconLine(ctx, TEXT_X, y, `{city} ${city.name}`, { size: 14, weight: "600", color: playerColor(state.players[city.owner]!.color) });
+    y += LINE;
   }
   const units = me.visible[idx] ? unitAt(state, tx, ty) : [];
   if (units.length && y < bottom) {
     const top = units[0]!;
-    const who = top.owner === me.id ? "ours" : state.players[top.owner]!.name;
-    const label = units.length === 1 ? `${unitType(top.type).name} (${who})` : `${units.length} units: ${unitType(top.type).name} (${who})`;
-    y += 4;
+    const who = top.owner === me.id ? "" : ` (${state.players[top.owner]!.name})`;
+    const label = units.length === 1 ? `${unitType(top.type).name}${who}` : `${units.length}× ${unitType(top.type).name}${who}`;
+    y += 2;
     y += paragraph(ctx, TEXT_X, y, TEXT_W, label, { size: 14, color: playerColor(state.players[top.owner]!.color) }, 2);
+    const jobs = units.flatMap((u) => (u.order.kind === "work" ? [`{${WORK_ICON[u.order.work]}} ${u.order.turnsLeft}`] : []));
+    if (jobs.length && y < bottom) y += iconParagraph(ctx, TEXT_X, y, TEXT_W, jobs.join("  "), { size: 13, color: UI.dim }, 1);
   }
   return y;
+}
+
+/** Moves left as pips: bright for each whole move, half-lit for thirds, dark for spent. */
+function movePips(ctx: Context2D, x: number, y: number, left: number, allowance: number): void {
+  const total = Math.ceil(allowance / 3);
+  if (total > 10) { drawIconLine(ctx, x, y - 3, `{boot} ${Math.floor(left / 3)}${left % 3 ? ` ${left % 3}/3` : ""}`, { size: 13, color: UI.dim }); return; }
+  for (let i = 0; i < total; i++) {
+    const have = left - i * 3;
+    const cx = x + 6 + i * 15;
+    circle(ctx, cx, y + 6, 5.5, UI.panelEdge);
+    if (have >= 3) circle(ctx, cx, y + 6, 5.5, UI.accent);
+    else if (have > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cx - 6, y + 6, 12, 6);
+      ctx.clip();
+      circle(ctx, cx, y + 6, 5.5, UI.accent);
+      ctx.restore();
+    }
+  }
 }
 
 function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void {
@@ -310,22 +338,31 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   ctx.strokeRect(MINIMAP_X + vx * MINIMAP_SCALE + 0.5, MINIMAP_Y + vy * MINIMAP_SCALE + 0.5, rw, Math.min(VIEW_TILES_Y, map.height - vy) * MINIMAP_SCALE);
   if (vx + VIEW_TILES_X > map.width) ctx.strokeRect(MINIMAP_X + 0.5, MINIMAP_Y + vy * MINIMAP_SCALE + 0.5, (vx + VIEW_TILES_X - map.width) * MINIMAP_SCALE, Math.min(VIEW_TILES_Y, map.height - vy) * MINIMAP_SCALE);
 
-  // Empire line.
+  // Empire: population and year, treasury and tax/luxury/science, government and research, as icons.
   let y = MINIMAP_Y + mh + 14;
   const pop = state.cities.filter((c) => c.owner === state.currentPlayer).reduce((n, c) => n + c.size * (c.size + 1) * 5000, 0);
-  text(ctx, PANEL_W / 2, y, pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M people` : `${pop.toLocaleString("en-US")} people`, { size: 14, align: "center" });
-  y += LINE;
-  text(ctx, PANEL_W / 2, y, formatYear(turnToYear(state.turn)), { size: 18, weight: "600", align: "center" });
+  const half = PANEL_W / 2 + 4;
+  drawIconLine(ctx, TEXT_X, y, `{people} ${pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : pop.toLocaleString("en-US")}`, { size: 14 });
+  drawIconLine(ctx, half, y, `{calendar} ${formatYear(turnToYear(state.turn))}`, { size: 14, weight: "600" });
   y += LINE + 4;
-  text(ctx, PANEL_W / 2, y, `${me.gold} gold   tax ${me.taxRate * 10}%  lux ${me.luxRate * 10}%  sci ${me.sciRate * 10}%`, { size: 12, color: UI.dim, align: "center" });
-  y += LINE - 2;
-  text(ctx, PANEL_W / 2, y, GOVERNMENTS[me.government]?.name ?? me.government, { size: 13, color: UI.accent, align: "center" });
+  drawIconLine(ctx, TEXT_X, y, `{purse} ${me.gold}`, { size: 14 });
+  drawIconLine(ctx, half - 26, y, `{coin}${me.taxRate * 10}  {gem}${me.luxRate * 10}  {bulb}${me.sciRate * 10}`, { size: 12, color: UI.dim });
+  y += LINE + 4;
+  drawIconLine(ctx, TEXT_X, y, `{crown} ${GOVERNMENTS[me.government]?.name ?? me.government}`, { size: 13, color: UI.accent });
+  if (me.researching) {
+    const cost = researchCost(me.advances.length, me.difficulty);
+    paintIcon(ctx, "bulb", half, y, 16);
+    const bx = half + 22;
+    const bw = PANEL_W - 16 - bx;
+    fillRound(ctx, bx, y + 5, bw, 7, 3.5, UI.panelEdge);
+    fillRound(ctx, bx, y + 5, Math.max(7, (bw * Math.min(me.science, cost)) / cost), 7, 3.5, UI.info);
+  }
   y += LINE + 2;
   ctx.fillStyle = UI.panelEdge;
   ctx.fillRect(12, y, PANEL_W - 24, 1);
   y += 10;
 
-  // Unit card.
+  // Unit card: badge, name, moves as pips; then its square and its orders as icons.
   const shown = shownActive(state, view);
   const active = shown !== null ? unitById(state, shown) : undefined;
   if (active) {
@@ -333,31 +370,51 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
     fillRound(ctx, 12, y - 4, PANEL_W - 24, 56, 10, UI.panelLight);
     paintBadge(ctx, 10, y - 4, active.type, state.players[active.owner]!.color, 40);
     text(ctx, 66, y + 2, type.name, { size: 16, weight: "600" });
-    const whole = Math.floor(active.movesLeft / 3);
-    const frac = active.movesLeft % 3;
-    const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
+    if (active.veteran) paintIcon(ctx, "star", 66 + measure(ctx, type.name, 16, "600") + 6, y + 3, 15);
+    movePips(ctx, 66, y + 25, active.movesLeft, moveAllowance(state, active));
     const max = maxHp(state, active.type);
-    const hp = active.hp < max ? `  ·  ${active.hp}/${max} hp` : "";
-    text(ctx, 66, y + 24, `Moves ${whole}${frac ? ` ${frac}/3` : ""}${hp}${home ? `  ·  ${home.name}` : ""}`, { size: 13, color: UI.dim });
+    if (active.hp < max) {
+      const bw = 56;
+      const bx = PANEL_W - 24 - bw;
+      paintIcon(ctx, "heart", bx - 18, y + 24, 13);
+      fillRound(ctx, bx, y + 28, bw, 6, 3, COMBAT.hpBack);
+      const ratio = active.hp / max;
+      fillRound(ctx, bx, y + 28, Math.max(6, bw * ratio), 6, 3, ratio > 0.5 ? COMBAT.hpGood : ratio > 0.25 ? COMBAT.hpFair : COMBAT.hpPoor);
+    }
     y += 60;
+    const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
+    if (home) { drawIconLine(ctx, TEXT_X, y, `{house} ${home.name}`, { size: 13, color: UI.dim }); y += LINE; }
     const t = getTile(map, active.x, active.y);
     if (t) {
-      const r = TERRAIN_RULES[t.terrain];
-      const extras = [t.river && "River", t.railroad ? "Railroad" : t.road && "Road", t.irrigation && "Irrigation", t.mine && "Mine", t.fortress && "Fortress", t.pollution && "Pollution", t.special && r.special?.name]
-        .filter(Boolean)
-        .join(", ");
-      y += paragraph(ctx, TEXT_X, y, TEXT_W, `${TERRAIN_NAMES[t.terrain]}${extras ? ` · ${extras}` : ""}`, { size: 13, color: UI.dim }, 2);
+      fillRound(ctx, TEXT_X, y + 2, 14, 14, 3, TERRAIN[t.terrain].base);
+      text(ctx, TEXT_X + 22, y, TERRAIN_NAMES[t.terrain], { size: 14, color: UI.dim });
+      y += LINE + 2;
+      y += iconParagraph(ctx, TEXT_X, y, TEXT_W, tileIconLine(state, active.x, active.y), { size: 14, color: UI.ink }, 2);
     }
+    // Orders this unit can take here: a keycap, then a picture of the job.
     const w = workOptions(state, active);
-    const keys = [
-      unitType(active.type).flags?.includes("settler") && !canFoundCity(state, active.x, active.y) && "B found",
-      w.irrigate !== undefined && "I irrigate", w.mine !== undefined && "M mine", w.road !== undefined && "R road", w.railroad !== undefined && "R rail",
-      w.fortress !== undefined && "F fort", w.clean !== undefined && "P clean",
-    ].filter(Boolean) as string[];
-    if (keys.length) y += paragraph(ctx, TEXT_X, y + 2, TEXT_W, keys.join("  "), { size: 12, color: UI.accent }, 2) + 2;
+    const keys: [string, IconName][] = [];
+    if (type.flags?.includes("settler") && !canFoundCity(state, active.x, active.y)) keys.push(["B", "city"]);
+    if (w.irrigate !== undefined) keys.push(["I", "irrigate"]);
+    if (w.mine !== undefined) keys.push(["M", "mine"]);
+    if (w.road !== undefined) keys.push(["R", "road"]);
+    else if (w.railroad !== undefined) keys.push(["R", "railroad"]);
+    if (w.fortress !== undefined) keys.push(["F", "fortress"]);
+    if (w.clean !== undefined) keys.push(["P", "clean"]);
+    let kx = TEXT_X;
+    if (keys.length) y += 4;
+    for (const [key, icon] of keys) {
+      if (kx + 44 > PANEL_W - 12) { kx = TEXT_X; y += 26; }
+      fillRound(ctx, kx, y, 20, 20, 5, ICON.keycap);
+      strokeRound(ctx, kx + 0.5, y + 0.5, 19, 19, 5, ICON.keyEdge, 1);
+      text(ctx, kx + 10, y + 3, key, { size: 13, weight: "600", align: "center" });
+      paintIcon(ctx, icon, kx + 23, y + 2, 16);
+      kx += 46;
+    }
+    if (keys.length) y += 22;
   } else if (view.focus === undefined) {
-    text(ctx, TEXT_X, y, "End of turn", { size: 16, weight: "600" });
-    y += LINE + 2;
+    drawIconLine(ctx, TEXT_X, y, "{hourglass} End of turn", { size: 16, weight: "600" });
+    y += LINE + 4;
     text(ctx, TEXT_X, y, view.autoEnd ? "ending automatically" : "press Enter", { size: 13, color: UI.dim });
     y += LINE;
   }
@@ -372,8 +429,8 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   if (enemies.length) {
     const lines = Math.min(2, Math.ceil(enemies.length / 2));
     bottom = H - 14 - lines * 17 - LINE;
-    text(ctx, TEXT_X, bottom + 2, "At war with", { size: 12, color: UI.danger });
-    paragraph(ctx, TEXT_X, bottom + LINE, TEXT_W, enemies.map((p) => p.name).join(", "), { size: 13, color: UI.danger }, lines);
+    paintIcon(ctx, "swords", TEXT_X, bottom + LINE, 16);
+    paragraph(ctx, TEXT_X + 24, bottom + LINE, TEXT_W - 24, enemies.map((p) => p.name).join(", "), { size: 13, color: UI.danger }, lines);
   }
 
   // Info area: inspected tile or the latest message.

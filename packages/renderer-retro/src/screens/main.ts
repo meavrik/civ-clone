@@ -6,7 +6,9 @@ import {
   GOVERNMENTS,
   getTile,
   maxHp,
+  moveAllowance,
   NEIGHBOURS,
+  researchCost,
   Terrain,
   TERRAIN_NAMES,
   TERRAIN_RULES,
@@ -76,7 +78,8 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { MENU_BAR, shownActive, type MainScreenView } from "@civ/renderer-api";
+import { MENU_BAR, shownActive, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
+import { drawIcon, drawIconLine, drawIconsWrapped, iconLineWidth } from "../icons.js";
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
 export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LMAGENTA!, C.LGREY!, C.ORANGE!, C.LRED!];
@@ -243,7 +246,23 @@ function linesLeft(y: number): number {
   return Math.max(0, Math.floor((PANEL_BOTTOM - y) / FONT_HEIGHT));
 }
 
-/** What a tile holds, for the inspect box: terrain and yields, improvements, city, units. Returns the next y. */
+/** A small square of the terrain's colour, standing in for its name where space is short. */
+function terrainSwatch(s: Surface, terrain: Terrain, x: number, y: number): void {
+  s.rect(x, y, 8, 7, C.BLACK!);
+  s.rect(x + 1, y + 1, 6, 5, MINIMAP_COLOR[terrain]());
+}
+
+/** A square's yields and what stands on it, as one icon line: food, shields, trade, then features. */
+function tileIconLine(state: GameState, x: number, y: number, extra = ""): string {
+  const t = getTile(state.map, x, y)!;
+  const yld = tileYield(state, t, cityAt(state, x, y) !== undefined, state.players[state.currentPlayer]!.government);
+  const features = tileIcons(t).map((i) => `{${i}}`);
+  if (t.special) features.unshift("{star}");
+  // Yields stay together, then the extra (movement) and the features, each a group that may wrap.
+  return [`{food}${yld.food} {shield}${yld.shields} {trade}${yld.trade}`, extra, features.join("")].filter(Boolean).join("  ");
+}
+
+/** What a tile holds, for the inspect box: terrain, yields and features as icons, city, units. Returns the next y. */
 export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: number, x: number, y: number): number {
   const me = state.players[state.currentPlayer]!;
   const ink = shade("ui", 7);
@@ -255,28 +274,40 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
   }
   const t = state.map.tiles[idx]!;
   const r = TERRAIN_RULES[t.terrain];
+  terrainSwatch(s, t.terrain, x, y);
+  drawTextWrapped(s, x + 10, y, TEXT_W - 10, r.special && t.special ? `${TERRAIN_NAMES[t.terrain]}: ${r.special.name}` : TERRAIN_NAMES[t.terrain], ink, 1);
+  y += 9;
+  const move = `{boot}${r.moveCost}${r.defense !== 1 ? ` {tower}+${Math.round((r.defense - 1) * 100)}%` : ""}`;
+  y += 9 * drawIconsWrapped(s, x, y, TEXT_W, tileIconLine(state, tx, ty, move), ink, Math.min(3, linesLeft(y)));
   const city = cityAt(state, tx, ty);
-  drawText(s, x, y, TERRAIN_NAMES[t.terrain], ink);
-  y += FONT_HEIGHT;
-  const yld = tileYield(state, t, city !== undefined, me.government);
-  drawText(s, x, y, `F${yld.food} S${yld.shields} T${yld.trade}  mv ${r.moveCost}${r.defense !== 1 ? ` x${r.defense}` : ""}`, ink);
-  y += FONT_HEIGHT;
-  const extras = [
-    t.special && r.special?.name, t.river && "River", t.railroad ? "Railroad" : t.road && "Road", t.irrigation && "Irrigation",
-    t.mine && "Mine", t.fortress && "Fortress", t.pollution && "Pollution", t.hut && "Village",
-  ].filter(Boolean).join(", ");
-  if (extras) y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, extras, dim, Math.min(2, linesLeft(y)));
-  if (city) {
-    y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, `${city.name} (${state.players[city.owner]!.name})`, playerColor(state, city.owner), Math.min(2, linesLeft(y)));
+  if (city && linesLeft(y) > 0) {
+    drawIcon(s, "city", x, y);
+    drawTextWrapped(s, x + 9, y, TEXT_W - 9, city.name, playerColor(state, city.owner), 1);
+    y += 9;
   }
   const units = me.visible[idx] ? unitAt(state, tx, ty) : [];
-  if (units.length) {
+  if (units.length && linesLeft(y) > 0) {
     const top = units[0]!;
-    const who = top.owner === me.id ? "ours" : state.players[top.owner]!.name;
-    const label = units.length === 1 ? `${unitType(top.type).name} (${who})` : `${units.length} units: ${unitType(top.type).name} (${who})`;
-    y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, label, playerColor(state, top.owner), Math.min(2, linesLeft(y)));
+    const label = units.length === 1 ? unitType(top.type).name : `${units.length}x ${unitType(top.type).name}`;
+    y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, label, playerColor(state, top.owner), 1);
+    const jobs = units.flatMap((u) => (u.order.kind === "work" ? [`{${WORK_ICON[u.order.work]}}${u.order.turnsLeft}`] : []));
+    if (jobs.length && linesLeft(y) > 0) y += 9 * drawIconsWrapped(s, x, y, TEXT_W, jobs.join("  "), dim, 1);
   }
   return y;
+}
+
+/** Moves left as pips: bright for each whole move, half-lit for thirds, dark for spent. Returns the x after them. */
+function drawMovePips(s: Surface, x: number, y: number, left: number, allowance: number): number {
+  const total = Math.ceil(allowance / 3);
+  if (total > 10) return drawIconLine(s, x, y, `{boot}${Math.floor(left / 3)}${left % 3 ? `.${left % 3}` : ""}`, shade("ui", 7));
+  for (let i = 0; i < total; i++) {
+    const have = left - i * 3;
+    const px = x + i * 5;
+    s.rect(px, y + 2, 4, 4, shade("ui", 0));
+    if (have >= 3) s.rect(px, y + 2, 4, 4, C.YELLOW!);
+    else if (have > 0) s.rect(px, y + 4, 4, 2, C.YELLOW!);
+  }
+  return x + total * 5;
 }
 
 export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenView): void {
@@ -308,59 +339,71 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   }
   s.hline(0, mmY + map.height, PANEL_W, shade("ui", 0));
 
-  // Empire line: population, year, treasury and rates, government.
+  // Empire: population, year, treasury and tax/luxury/science, government and research, as icons.
   let y = mmY + map.height + 4;
   const ink = shade("ui", 7);
   const dim = shade("ui", 5);
   const pop = state.cities.filter((c) => c.owner === state.currentPlayer).reduce((n, c) => n + c.size * (c.size + 1) * 5000, 0);
-  drawTextCentered(s, PANEL_W / 2, y, pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : pop >= 1000 ? `${Math.floor(pop / 1000)},000` : String(pop), ink);
+  let x = drawIconLine(s, TEXT_X, y, `{people}${pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : pop >= 1000 ? `${Math.floor(pop / 1000)},000` : String(pop)}`, ink) + 3;
+  // Research: a bulb and a bar filling toward the next advance, at the end of the population row.
+  if (me.researching && x + 17 <= PANEL_W - 3) {
+    drawIcon(s, "bulb", x, y);
+    const bw = PANEL_W - 4 - (x + 9);
+    const cost = researchCost(me.advances.length, me.difficulty);
+    s.rect(x + 9, y + 2, bw, 4, shade("ui", 0));
+    s.rect(x + 9, y + 2, Math.round((bw * Math.min(me.science, cost)) / cost), 4, C.LBLUE!);
+  }
   y += 9;
-  drawTextCentered(s, PANEL_W / 2, y, formatYear(turnToYear(state.turn)), ink);
+  drawIconLine(s, TEXT_X, y, `{calendar} ${formatYear(turnToYear(state.turn))}`, ink);
   y += 9;
-  drawTextCentered(s, PANEL_W / 2, y, `${me.gold}$ ${me.taxRate}.${me.luxRate}.${me.sciRate}`, ink);
+  x = drawIconLine(s, TEXT_X, y, `{purse}${me.gold}`, ink) + 2;
+  const rates = `{coin}${me.taxRate}{gem}${me.luxRate}{bulb}${me.sciRate}`;
+  if (x + iconLineWidth(rates) > PANEL_W - 2) { y += 9; x = TEXT_X; }
+  drawIconLine(s, x, y, rates, dim);
   y += 9;
-  const govName = GOVERNMENTS[me.government]?.name ?? me.government;
-  drawTextCentered(s, PANEL_W / 2, y, govName, dim);
+  drawIconLine(s, TEXT_X, y, `{crown}${GOVERNMENTS[me.government]?.name ?? me.government}`, dim);
   y += 11;
   s.hline(2, y, PANEL_W - 4, shade("ui", 0));
   y += 4;
 
-  // Unit box: the unit awaiting orders, or the end of the turn.
+  // Unit box: the unit awaiting orders (moves as pips, its square and orders as icons), or the end of the turn.
   const shown = shownActive(state, view);
   const active = shown !== null ? unitById(state, shown) : undefined;
   if (active) {
     const type = unitType(active.type);
     s.blit(unitSprite(active.type, playerColor(state, active.owner)), 4, y, SPRITE_CLEAR);
-    drawTextWrapped(s, 24, y, PANEL_W - 26, type.name, ink, 1);
-    const whole = Math.floor(active.movesLeft / 3);
-    const frac = active.movesLeft % 3;
-    drawText(s, 24, y + 9, `Moves: ${whole}${frac ? ` ${frac}/3` : ""}`, dim);
     const max = maxHp(state, active.type);
     if (active.hp < max) drawHpBar(s, 4, y, active.hp, max);
-    const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
+    const nameW = PANEL_W - 26 - (active.veteran ? 9 : 0);
+    drawTextWrapped(s, 24, y, nameW, type.name, ink, 1);
+    if (active.veteran) drawIcon(s, "star", Math.min(24 + textWidth(type.name) + 2, PANEL_W - 11), y);
+    drawMovePips(s, 24, y + 9, active.movesLeft, moveAllowance(state, active));
     y += 18;
-    if (home) { drawTextWrapped(s, TEXT_X, y, TEXT_W, home.name, dim, 1); y += FONT_HEIGHT; }
+    const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
+    if (home) {
+      drawIcon(s, "house", TEXT_X, y);
+      drawTextWrapped(s, TEXT_X + 9, y, TEXT_W - 9, home.name, dim, 1);
+      y += 9;
+    }
     const t = getTile(map, active.x, active.y);
     if (t) {
-      const r = TERRAIN_RULES[t.terrain];
-      const extras = [t.river && "River", t.railroad ? "Railroad" : t.road && "Road", t.irrigation && "Irrigation", t.mine && "Mine", t.fortress && "Fortress", t.pollution && "Pollution", t.special && r.special?.name]
-        .filter(Boolean)
-        .join(", ");
-      y += FONT_HEIGHT * drawTextWrapped(s, TEXT_X, y, TEXT_W, `(${TERRAIN_NAMES[t.terrain]}${extras ? `: ${extras}` : ""})`, dim, Math.min(2, linesLeft(y)));
+      terrainSwatch(s, t.terrain, TEXT_X, y);
+      drawTextWrapped(s, TEXT_X + 10, y, TEXT_W - 10, TERRAIN_NAMES[t.terrain], dim, 1);
+      y += 9;
+      y += 9 * drawIconsWrapped(s, TEXT_X, y, TEXT_W, tileIconLine(state, active.x, active.y), ink, Math.min(2, linesLeft(y)));
     }
+    // Orders this unit can take here: its key, then a picture of the job.
     const w = workOptions(state, active);
     const keys = [
-      unitType(active.type).flags?.includes("settler") && !canFoundCity(state, active.x, active.y) && "B",
-      w.irrigate !== undefined && "I", w.mine !== undefined && "M", (w.road ?? w.railroad) !== undefined && "R",
-      w.fortress !== undefined && "F", w.clean !== undefined && "P",
-    ].filter(Boolean);
-    if (keys.length) {
-      drawText(s, TEXT_X, y, `Orders: ${keys.join(" ")}`, dim);
-      y += FONT_HEIGHT;
-    }
+      type.flags?.includes("settler") && !canFoundCity(state, active.x, active.y) && "B{city}",
+      w.irrigate !== undefined && "I{irrigate}", w.mine !== undefined && "M{mine}",
+      w.road !== undefined ? "R{road}" : w.railroad !== undefined && "R{railroad}",
+      w.fortress !== undefined && "F{fortress}", w.clean !== undefined && "P{clean}",
+    ].filter(Boolean) as string[];
+    if (keys.length) y += 9 * drawIconsWrapped(s, TEXT_X, y, TEXT_W, keys.join("  "), ink, Math.min(2, linesLeft(y)));
   } else if (view.focus === undefined) {
-    drawText(s, TEXT_X, y, "End of Turn", ink);
-    y += FONT_HEIGHT;
+    drawIconLine(s, TEXT_X, y, "{hourglass} End of Turn", ink);
+    y += FONT_HEIGHT + 1;
     drawText(s, TEXT_X, y, view.autoEnd ? "(auto)" : "Press Enter", dim);
     y += FONT_HEIGHT;
   }
@@ -372,9 +415,17 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   const enemies = state.players.filter((p) => p.id !== me.id && p.alive && p.id !== state.barbarians && atWar(state, me.id, p.id));
   let bottom = PANEL_BOTTOM;
   if (enemies.length) {
-    const lines = wrapText(`At war: ${enemies.map((p) => p.name).join(", ")}`, TEXT_W).slice(0, 2);
+    // Whole names per line, so a comma never starts one.
+    const lines: string[] = [];
+    for (const p of enemies) {
+      const last = lines.at(-1);
+      if (last !== undefined && textWidth(`${last}, ${p.name}`) <= TEXT_W - 10) lines[lines.length - 1] = `${last}, ${p.name}`;
+      else lines.push(p.name);
+    }
+    lines.splice(2);
     bottom = PANEL_BOTTOM - lines.length * FONT_HEIGHT - 2;
-    lines.forEach((line, i) => drawText(s, TEXT_X, bottom + 2 + i * FONT_HEIGHT, line, C.LRED!));
+    drawIcon(s, "swords", TEXT_X, bottom + 2);
+    lines.forEach((line, i) => drawText(s, TEXT_X + 10, bottom + 2 + i * FONT_HEIGHT, line, C.LRED!));
   }
 
   // Info area: the tile under inspection, else the latest message.

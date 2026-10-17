@@ -42,6 +42,10 @@ visuals, save/load, retire, new game) · **Orders** (the active unit's orders wi
 **Advisors** (city status, military, foreign, science) · **World** (wonders of the world, top 5 cities,
 score, world map, spaceships). Click a title or press `Alt+G`/`Alt+O`/`Alt+A`/`Alt+W`; `Left`/`Right` move between menus.
 With auto end turn on (the default) the turn ends by itself a moment after the last unit has its orders.
+The side panel and the terrain window speak in icons: population, year, treasury and tax/luxury/science,
+government and research; the unit's moves as pips; a square's food, shields, trade, movement, defence and
+improvements; each order as its key and a picture of the job. A settler at work wears a badge of its job
+on the map (with the turns left in the modern visuals).
 Units slide from square to square (a goto walks its path); after the other civilizations' turns, the moves and
 fights you could see on screen play back before the turn's news. `Enter` skips a playback.
 When a unit has moved or fought and the next unit takes over, the view stays with the first one until its

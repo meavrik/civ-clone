@@ -1,4 +1,6 @@
 import { unitType, type Unit } from "@civ/core";
+import { WORK_ICON } from "@civ/renderer-api";
+import { drawIcon } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, shade } from "./palette.js";
 import { Surface } from "./surface.js";
@@ -132,6 +134,10 @@ export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order">, dx: number
     s.frame(dx, dy, TILE, TILE, shade("stone", 6));
   } else if (u.order.kind === "sentry") {
     s.hline(dx + 4, dy + 15, 8, C.WHITE!);
+  } else if (u.order.kind === "work") {
+    // A settler at work wears a badge of its job in the top right corner.
+    s.rect(dx + 7, dy, 9, 9, C.BLACK!);
+    drawIcon(s, WORK_ICON[u.order.work], dx + 8, dy);
   }
 }
 
