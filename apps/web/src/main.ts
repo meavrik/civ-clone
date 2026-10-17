@@ -1168,43 +1168,25 @@ canvas.addEventListener("mousedown", (e) => {
     openTerrainInfo(tx, ty);
     return;
   }
+  // Left-click centres the map on the square and shows it in the panel. It opens your city there,
+  // or picks your unit there (the next of a stack on the active unit's square), but never moves a
+  // unit: moves are the keys, right-click and the terrain window.
+  centerOn(tx, ty);
   const city = cityAt(state, tx, ty);
-  if (city && city.owner === 0 && !(active && isAdjacent(active, tx, ty) && !(active.x === tx && active.y === ty))) {
-    openCity(city.id);
+  if (city && city.owner === 0) { openCity(city.id); return; }
+  const mine = unitAt(state, tx, ty).filter((u) => u.owner === 0);
+  if (active && active.x === tx && active.y === ty) {
+    const ready = mine.filter((u) => u.movesLeft > 0);
+    const nextUnit = ready[(ready.findIndex((u) => u.id === active.id) + 1) % ready.length];
+    if (nextUnit && nextUnit.id !== active.id) dispatch({ type: "activate", unit: nextUnit.id });
     return;
   }
-  if (active) {
-    if (active.x === tx && active.y === ty) {
-      const stack = unitAt(state, tx, ty).filter((u) => u.owner === 0 && u.movesLeft > 0);
-      const i = stack.findIndex((u) => u.id === active.id);
-      const nextUnit = stack[(i + 1) % stack.length];
-      if (nextUnit && nextUnit.id !== active.id) dispatch({ type: "activate", unit: nextUnit.id });
-      return;
-    }
-    if (isAdjacent(active, tx, ty)) {
-      let dx = tx - active.x;
-      if (dx > 1) dx -= state.map.width;
-      if (dx < -1) dx += state.map.width;
-      tryMove(active.id, dx, ty - active.y);
-      return;
-    }
-    const own = unitAt(state, tx, ty).find((u) => u.owner === 0 && u.movesLeft > 0);
-    if (own) { dispatch({ type: "activate", unit: own.id }); return; }
-    // First click looks at the tile; a second click on the same tile sends the unit there.
-    if (!(view.inspect && view.inspect.x === tx && view.inspect.y === ty)) { view.inspect = { x: tx, y: ty }; return; }
-    const before = state.activeUnit;
-    const mark = lastActions.length;
-    if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
-    afterUnitOrder(before, mark);
-    return;
-  }
-  const own = unitAt(state, tx, ty).find((u) => u.owner === 0);
+  const own = mine.find((u) => u.movesLeft > 0) ?? mine[0];
   if (own) {
     dispatch({ type: "activate", unit: own.id });
     if (state.activeUnit !== own.id) say("No moves left this turn");
     return;
   }
-  if (view.inspect && view.inspect.x === tx && view.inspect.y === ty) { centerOn(tx, ty); return; }
   view.inspect = { x: tx, y: ty };
 });
 

@@ -56,10 +56,10 @@ bursts. Survivors keep their wounds (a bar on the unit) and heal by resting a tu
 quarter in a fortress, a third in a city, all of it in a city with Barracks. `&combat=classic` on the URL
 plays with the original one-roll fights; games saved before hit points load that way.
 Mouse: right-click an adjacent tile to move or attack · right-click any other square for its terrain window (yields, movement, specials, city, units, with "Send here") · right-click the active unit for its orders ·
-left-click an adjacent tile to move/attack · left-click a farther tile to inspect it (terrain, yields, what stands there), click it again to send the unit there ·
+left-click a square to centre the map on it and see it in the panel (terrain, yields, what stands there); left-click never moves a unit ·
 the camera glides to each newly active unit ·
 click your own unit to activate it · click the active unit to cycle the stack ·
-click a city to open it · right-click for the orders menu (caravans: help wonder / trade route; diplomats at a foreign city: steal / sabotage / incite) · click the minimap to scroll.
+click your city to open it · right-click for the orders menu (caravans: help wonder / trade route; diplomats at a foreign city: steal / sabotage / incite) · click the minimap to scroll.
 City screen: click a worked tile to make its citizen an entertainer · click an unworked tile to work it (a free citizen, or the worker on the weakest tile moves there) · click the city square to put every citizen on the best tiles (keeping just enough entertainers for order) · `C` change production · `B` buy · `N` rename (in-game prompt) · `Esc`.
 Founding a city asks for its name (Enter accepts the suggested one).
 
