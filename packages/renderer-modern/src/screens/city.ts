@@ -7,12 +7,13 @@ import {
   getTile,
   productionName,
   slotAvailable,
+  Terrain,
   tileYield,
   turnToYear,
   wonder,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, type CityScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, riverShape, type CityScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, panel, paragraph, strokeRound, text } from "../draw.js";
@@ -106,9 +107,11 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
         continue;
       }
       const coast = coastPatch(state.map, wx, my);
+      const river = riverShape(state.map, wx, my);
+      const sea = tile.terrain === Terrain.Ocean;
       paintTile(ctx, px, py, tile, wx, my, coast.depth[4] === DEEP);
-      paintCoast(ctx, px, py, coast);
-      if (tile.river) paintRiver(ctx, px, py, 0);
+      if (river && !sea) paintRiver(ctx, px, py, river);
+      paintCoast(ctx, px, py, coast, sea ? river : null);
       if (tile.irrigation) paintIrrigation(ctx, px, py);
       if (tile.mine) paintMine(ctx, px, py);
       if (tile.road) paintRoad(ctx, px, py, 0, tile.railroad);

@@ -1,4 +1,5 @@
 import { getTile, NEIGHBOURS, Terrain, type WorldMap } from "@civ/core";
+import { hash } from "./hash.js";
 
 /**
  * Shorelines that wander across square borders instead of following them.
@@ -64,13 +65,6 @@ export function coastPatch(map: WorldMap, x: number, y: number): CoastPatch {
   const own = depth[4]!;
   const mixed = depth.some((d) => d !== own);
   return { x, y, width: map.width, depth, terrain, mixed, key: `${map.width}:${x},${y}:${depth.join("")}:${terrain.join(",")}` };
-}
-
-/** Tiny deterministic hash for lattice values (never the game RNG). */
-function hash(x: number, y: number, salt: number): number {
-  let n = (x * 374761393 + y * 668265263 + salt * 1274126177) | 0;
-  n = (n ^ (n >>> 13)) * 1274126177;
-  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
 }
 
 /** Smooth value noise in -1..1 with `f` lattice points per square, wrapping every `width` squares. */

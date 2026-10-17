@@ -2,6 +2,7 @@ import type { BattleFrame, UnitMotion } from "./motion.js";
 export * from "./motion.js";
 export * from "./icons.js";
 export * from "./coast.js";
+export * from "./river.js";
 import { WORK_ICON, WORK_NAME } from "./icons.js";
 import {
   cityAt,

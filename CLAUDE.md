@@ -40,8 +40,11 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   Coasts: `coast.ts` gives both renderers one shoreline field (square depth 0 land / 1 water touching
   land / 2 open sea, interpolated between square centres plus noise that wraps with the map), so shores
   and the edge of deep water wander across square borders while every square's centre keeps its kind.
-  Retro blends per pixel (`terrainSquare` in `tiles.ts`, cached by neighbourhood); modern fills
-  marching-squares paths (`renderer-modern/src/coast.ts`).
+  Rivers (`river.ts`): curves from a meeting point near each square's centre to a crossing point
+  picked per border (both squares agree, the curve leaves square to the border), meandering between,
+  widening toward the sea; the sea square carries the mouth on through spilled shore. Strokes show on
+  land only. Retro blends coast and river per pixel (`terrainSquare` in `tiles.ts`, cached by
+  neighbourhood); modern fills marching-squares paths (`renderer-modern/src/coast.ts`) and strokes rivers.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
   terrain, cities, villages and specials are pixel art in `src/art/*.art.ts` (text grids; legend

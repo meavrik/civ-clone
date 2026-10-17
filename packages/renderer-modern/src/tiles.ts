@@ -1,4 +1,5 @@
 import { Terrain, type Tile } from "@civ/core";
+import type { RiverShape } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { circle } from "./draw.js";
 import { IRRIGATION, RAIL, RIVER, ROAD, SEA, TERRAIN, TILE, UI } from "./theme.js";
@@ -171,25 +172,32 @@ export function paintTile(ctx: Context2D, x: number, y: number, tile: Tile, tx: 
 }
 
 const CENTRE = TILE / 2;
+const RIVER_WIDTH = 6;
 
-/** Rivers run from the centre to each neighbouring river or sea edge; bits N=1 E=2 S=4 W=8. */
-export function paintRiver(ctx: Context2D, x: number, y: number, mask: number): void {
+/** A river's strokes across a square (see `riverShape`): six pixels wide, widening toward the sea. */
+export function paintRiver(ctx: Context2D, x: number, y: number, river: RiverShape): void {
   ctx.strokeStyle = RIVER;
-  ctx.lineWidth = 6;
   ctx.lineCap = "round";
-  const cx = x + CENTRE;
-  const cy = y + CENTRE;
-  const ends: [number, number, number][] = [[0, -CENTRE, 1], [CENTRE, 0, 2], [0, CENTRE, 4], [-CENTRE, 0, 8]];
-  let any = false;
-  for (const [dx, dy, bit] of ends) {
-    if (!(mask & bit)) continue;
-    any = true;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.quadraticCurveTo(cx + dx * 0.5 + dy * 0.2, cy + dy * 0.5 + dx * 0.2, cx + dx, cy + dy);
-    ctx.stroke();
+  ctx.lineJoin = "round";
+  for (const st of river.strokes) {
+    const even = st.widths.every((w) => w === st.widths[0]);
+    const pts = st.pts;
+    if (even) {
+      ctx.lineWidth = RIVER_WIDTH * st.widths[0]!;
+      ctx.beginPath();
+      ctx.moveTo(x + pts[0]! * TILE, y + pts[1]! * TILE);
+      for (let k = 2; k < pts.length; k += 2) ctx.lineTo(x + pts[k]! * TILE, y + pts[k + 1]! * TILE);
+      ctx.stroke();
+      continue;
+    }
+    for (let k = 0; k + 3 < pts.length; k += 2) {
+      ctx.lineWidth = RIVER_WIDTH * (st.widths[k / 2]! + st.widths[k / 2 + 1]!) / 2;
+      ctx.beginPath();
+      ctx.moveTo(x + pts[k]! * TILE, y + pts[k + 1]! * TILE);
+      ctx.lineTo(x + pts[k + 2]! * TILE, y + pts[k + 3]! * TILE);
+      ctx.stroke();
+    }
   }
-  if (!any) circle(ctx, cx, cy, 5, RIVER);
 }
 
 /** Roads and rails toward connected neighbours; mask bits follow NEIGHBOURS order. */

@@ -1,6 +1,7 @@
 import { Terrain } from "@civ/core";
-import { coastLevel, COASTAL, DEEP_EDGE, LAND, SHORE, type CoastPatch } from "@civ/renderer-api";
+import { coastLevel, COASTAL, DEEP_EDGE, LAND, SHORE, type CoastPatch, type RiverShape } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
+import { paintRiver } from "./tiles.js";
 import { SEA, TERRAIN, TILE } from "./theme.js";
 
 /**
@@ -25,6 +26,8 @@ interface Layer {
 
 interface Shapes {
   fills: Layer[];
+  /** Land in the square, for drawing river mouths on it only. */
+  land: number[][];
   /** The shore line, as x0,y0,x1,y1 segments in square units. */
   surf: number[];
 }
@@ -126,6 +129,7 @@ function shapes(p: CoastPatch): Shapes {
   const g = sample(p);
   const own = p.depth[4]!;
   const fills: Layer[] = [];
+  const land = own === LAND ? [] : region(g, SHORE, true);
   if (own === LAND) {
     fills.push({ color: SEA.shallow, polys: region(g, SHORE, false) });
     fills.push({ color: SEA.shelf, polys: region(g, SURF_BAND, false) });
@@ -135,13 +139,12 @@ function shapes(p: CoastPatch): Shapes {
     fills.push({ color: SEA.shelf, polys: region(g, SHALLOWS, true) });
     fills.push({ color: SEA.shallow, polys: region(g, SURF_BAND, true) });
     // Land spilling in from the neighbours: the largest share is laid first and whole, the others over it inside their own parts.
-    const land = region(g, SHORE, true);
     const owners = [...landRegions(p)].sort((m, n) => n[1].length - m[1].length);
     owners.forEach(([k, clip], i) => fills.push({ color: TERRAIN[p.terrain[k]!].base, polys: land, ...(i ? { clip } : {}) }));
   } else {
     fills.push({ color: TERRAIN[Terrain.Ocean].base, polys: region(g, DEEP_EDGE, true) });
   }
-  const out = { fills: fills.filter((f) => f.polys.length), surf: own === LAND || own === COASTAL ? contour(g, SHORE) : [] };
+  const out = { fills: fills.filter((f) => f.polys.length), land, surf: own === LAND || own === COASTAL ? contour(g, SHORE) : [] };
   if (cache.size > 4096) cache.clear();
   cache.set(p.key, out);
   return out;
@@ -156,10 +159,14 @@ function tracePolys(ctx: Context2D, x: number, y: number, polys: number[][]): vo
   }
 }
 
-/** Blend a square's shore and the edge of deep water across its borders, over its base terrain. */
-export function paintCoast(ctx: Context2D, x: number, y: number, p: CoastPatch): void {
+/**
+ * Blend a square's shore and the edge of deep water across its borders, over
+ * its base terrain. On a water square, `mouths` are the rivers reaching it,
+ * drawn over the land that spills in and under the surf.
+ */
+export function paintCoast(ctx: Context2D, x: number, y: number, p: CoastPatch, mouths?: RiverShape | null): void {
   if (!p.mixed) return;
-  const { fills, surf } = shapes(p);
+  const { fills, land, surf } = shapes(p);
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, TILE, TILE);
@@ -174,6 +181,13 @@ export function paintCoast(ctx: Context2D, x: number, y: number, p: CoastPatch):
     ctx.fillStyle = f.color;
     ctx.fill();
     if (f.clip) ctx.restore();
+  }
+  if (mouths && land.length) {
+    ctx.save();
+    tracePolys(ctx, x, y, land);
+    ctx.clip();
+    paintRiver(ctx, x, y, mouths);
+    ctx.restore();
   }
   if (surf.length) {
     ctx.beginPath();

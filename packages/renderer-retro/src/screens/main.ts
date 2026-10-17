@@ -25,7 +25,7 @@ import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth, wr
 import { drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawHut, drawRiver, drawSpecial, terrainSquare, TILE } from "../tiles.js";
+import { drawHut, drawSpecial, terrainSquare, TILE } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 
@@ -110,17 +110,6 @@ export function minimapColor(map: GameState["map"], x: number, y: number): numbe
   return isDeepWater(map, x, y) ? shade("ocean", 1) : MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]();
 }
 
-function riverMask(state: GameState, x: number, y: number): number {
-  const m = state.map;
-  let mask = 0;
-  const dirs = [[0, -1, 1], [1, 0, 2], [0, 1, 4], [-1, 0, 8]] as const;
-  for (const [dx, dy, bit] of dirs) {
-    const t = getTile(m, x + dx, y + dy);
-    if (t && (t.river || t.terrain === Terrain.Ocean)) mask |= bit;
-  }
-  return mask;
-}
-
 function roadMask(state: GameState, x: number, y: number, rail = false): number {
   let mask = 0;
   NEIGHBOURS.forEach(([dx, dy], i) => {
@@ -162,7 +151,6 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       }
       const tile = map.tiles[my * map.width + mx]!;
       s.blit(terrainSquare(map, mx, my), dx, dy);
-      if (tile.river) drawRiver(s, dx, dy, riverMask(state, mx, my));
       if (tile.irrigation) drawIrrigation(s, dx, dy);
       if (tile.mine) drawMine(s, dx, dy);
       if (tile.road) drawRoad(s, dx, dy, roadMask(state, mx, my));

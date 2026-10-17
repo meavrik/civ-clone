@@ -21,7 +21,7 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, isDeepWater, MENU_BAR, shownActive, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, isDeepWater, MENU_BAR, riverShape, shownActive, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { drawIconLine, iconParagraph, paintIcon } from "../icons.js";
 import type { Context2D } from "../context.js";
@@ -75,16 +75,6 @@ const MINIMAP_SCALE = 2;
 /** A square's colour on the minimap and the world map; open sea is darker than water along a coast. */
 export function mapColor(map: GameState["map"], x: number, y: number): string {
   return isDeepWater(map, x, y) ? SEA.deep.base : TERRAIN[map.tiles[y * map.width + x]!.terrain].base;
-}
-
-function riverMask(state: GameState, x: number, y: number): number {
-  let mask = 0;
-  const dirs = [[0, -1, 1], [1, 0, 2], [0, 1, 4], [-1, 0, 8]] as const;
-  for (const [dx, dy, bit] of dirs) {
-    const t = getTile(state.map, x + dx, y + dy);
-    if (t && (t.river || t.terrain === Terrain.Ocean)) mask |= bit;
-  }
-  return mask;
 }
 
 function roadMask(state: GameState, x: number, y: number, rail: boolean): number {
@@ -146,9 +136,11 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
       }
       const tile = map.tiles[my * map.width + mx]!;
       const coast = coastPatch(map, mx, my);
+      const river = riverShape(map, mx, my);
       paintTile(ctx, dx, dy, tile, mx, my, coast.depth[4] === DEEP);
-      paintCoast(ctx, dx, dy, coast);
-      if (tile.river) paintRiver(ctx, dx, dy, riverMask(state, mx, my));
+      // A river goes under the coast pass, so the sea covers it where it bites into the land.
+      if (river && tile.terrain !== Terrain.Ocean) paintRiver(ctx, dx, dy, river);
+      paintCoast(ctx, dx, dy, coast, tile.terrain === Terrain.Ocean ? river : null);
       if (tile.irrigation) paintIrrigation(ctx, dx, dy);
       if (tile.mine) paintMine(ctx, dx, dy);
       if (tile.road) paintRoad(ctx, dx, dy, roadMask(state, mx, my, false), false);

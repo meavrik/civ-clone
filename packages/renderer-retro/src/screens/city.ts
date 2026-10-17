@@ -19,7 +19,7 @@ import { drawText, drawTextCentered, textWidth } from "../font.js";
 import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawRiver, drawSpecial, terrainSquare, TILE } from "../tiles.js";
+import { drawSpecial, terrainSquare, TILE } from "../tiles.js";
 import { drawBox, drawPanel } from "../widgets.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
@@ -127,7 +127,6 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
         continue;
       }
       s.blit(terrainSquare(state.map, (mx + state.map.width) % state.map.width, my), px, py);
-      if (tile.river) s.rect(px + 6, py + 6, 4, 4, shade("ocean", 4));
       if (tile.irrigation) drawIrrigation(s, px, py);
       if (tile.mine) drawMine(s, px, py);
       if (tile.road) drawRoad(s, px, py, 0);

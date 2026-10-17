@@ -1,5 +1,5 @@
 import { Terrain, TERRAIN_RULES, type WorldMap } from "@civ/core";
-import { coastLevel, coastPatch, DEEP, DEEP_EDGE, landOwner, SHORE } from "@civ/renderer-api";
+import { coastLevel, coastPatch, DEEP, DEEP_EDGE, landOwner, riverShape, SHORE, strokeDistance } from "@civ/renderer-api";
 import { FEATURE_SHEET, mirrored, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { C, shade } from "./palette.js";
@@ -66,36 +66,45 @@ function deepTile(x: number, y: number): Surface {
   return t;
 }
 
-const coastCache = new Map<string, Surface>();
+const squareCache = new Map<string, Surface>();
+
+/** Half a river's width in pixels at width 1: rivers are two pixels wide, more toward the sea. */
+const RIVER_HALF = 1;
 
 /**
  * A map square as drawn: its terrain sprite, with the shore and the edge of
- * deep water wandering across its borders (see `coastLevel`). Land that
- * spills into a water square continues the neighbour's sprite, mirrored at
- * the shared edge so the seam does not show; next to the shore runs a line
- * of surf, then a band of shallows.
+ * deep water wandering across its borders (see `coastLevel`), and its river
+ * meandering through (see `riverShape`). Land that spills into a water
+ * square continues the neighbour's sprite, mirrored at the shared edge so the
+ * seam does not show; next to the shore runs a line of surf, then a band of
+ * shallows. Rivers show on land only, so a mouth runs on until it meets water.
  */
 export function terrainSquare(map: WorldMap, x: number, y: number): Surface {
   const p = coastPatch(map, x, y);
+  const river = riverShape(map, x, y);
   const own = p.terrain[4]!;
-  if (!p.mixed) return p.depth[4] === DEEP ? deepTile(x, y) : getTile(own, x, y);
-  const hit = coastCache.get(p.key);
+  const plain = p.depth[4] === DEEP ? deepTile(x, y) : getTile(own, x, y);
+  if (!p.mixed && !river) return plain;
+  const key = river ? `${p.key}|${river.key}` : p.key;
+  const hit = squareCache.get(key);
   if (hit) return hit;
   const out = new Surface(TILE, TILE);
   const sea = getTile(Terrain.Ocean, x, y).data;
   const deep = deepTile(x, y).data;
   const surf = shade("ocean", 7);
   const shallow = shade("ocean", 5);
+  const water = shade("ocean", 4);
   const last = TILE - 1;
   for (let j = 0; j < TILE; j++)
     for (let i = 0; i < TILE; i++) {
       const u = (i + 0.5) / TILE;
       const v = (j + 0.5) / TILE;
-      const g = coastLevel(p, u, v);
       const at = j * TILE + i;
+      const g = p.mixed ? coastLevel(p, u, v) : p.depth[4]!;
       const k = g < SHORE ? landOwner(p, u, v) : -1;
       let c: number;
-      if (k >= 0) {
+      if (!p.mixed) c = plain.data[at]!;
+      else if (k >= 0) {
         const dx = (k % 3) - 1;
         const dy = Math.floor(k / 3) - 1;
         const src = getTile(p.terrain[k]!, (((x + dx) % map.width) + map.width) % map.width, y + dy).data;
@@ -105,24 +114,16 @@ export function terrainSquare(map: WorldMap, x: number, y: number): Surface {
       else if (g < DEEP_EDGE - 0.06) c = sea[at]!;
       else if (g < DEEP_EDGE + 0.06) c = (i + j) & 1 ? sea[at]! : deep[at]!;
       else c = deep[at]!;
+      if (river && k >= 0)
+        for (const st of river.strokes) {
+          const { dist, width } = strokeDistance(st, u, v);
+          if (dist * TILE < width * RIVER_HALF) { c = water; break; }
+        }
       out.data[at] = c;
     }
-  if (coastCache.size > 4096) coastCache.clear();
-  coastCache.set(p.key, out);
+  if (squareCache.size > 4096) squareCache.clear();
+  squareCache.set(key, out);
   return out;
-}
-
-/** River overlay — drawn on top of the base tile. Mask bits: N=1 E=2 S=4 W=8. */
-export function drawRiver(s: Surface, dx: number, dy: number, mask: number): void {
-  const c = shade("ocean", 4);
-  const cx = dx + 7;
-  const cy = dy + 7;
-  s.rect(cx, cy, 2, 2, c);
-  if (mask & 1) s.rect(cx, dy, 2, 8, c);
-  if (mask & 4) s.rect(cx, cy, 2, 9, c);
-  if (mask & 8) s.rect(dx, cy, 8, 2, c);
-  if (mask & 2) s.rect(cx, cy, 9, 2, c);
-  if (mask === 0) s.rect(cx - 2, cy - 1, 6, 3, c);
 }
 
 /** A special resource: its icon from the features sheet (named after the resource). */
