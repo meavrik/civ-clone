@@ -100,7 +100,7 @@ describe("tech tree state", () => {
     expect(down.tier).toBe(0);
     expect(down.row).toBeGreaterThan(byId.get("alphabet")!.row);
 
-    const state = newGame(2026);
+    const state = newGame(2026, { classicCivs: true });
     state.players[0]!.advances.push("alphabet");
     const open = new Set<string>();
     let at = "alphabet";

@@ -4,6 +4,7 @@ import {
   buildOptions,
   buyCost,
   canFoundCity,
+  costFor,
   canHelpWonder,
   canTradeRoute,
   cityAt,
@@ -12,7 +13,6 @@ import {
   foundCity,
   inciteCost,
   processCityTurn,
-  productionCost,
   routeBonus,
   slotAvailable,
   arrangeCity,
@@ -33,6 +33,7 @@ import { HEALING, unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
 import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type GameState, type Player, type Production, type Specialist, type Unit, type WorkKind } from "./types.js";
 import { applyMove, attrition, cargo, checkMove, createUnit, fullMoves, lastActions, maxHp, unitById, workOptions } from "./units.js";
+import { traitAnarchyCap, traitFriendlyVillages, traitMoves } from "./traits.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
 /**
@@ -159,7 +160,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       const p = state.players[state.currentPlayer]!;
       if (p.government === "anarchy") return { ok: false, reason: "already in anarchy" };
       p.government = "anarchy";
-      p.anarchyTurns = noAnarchy(state, p.id) ? 0 : 1 + nextInt(state.rng, 4);
+      p.anarchyTurns = noAnarchy(state, p.id) ? 0 : Math.min(traitAnarchyCap(state, p.id), 1 + nextInt(state.rng, 4));
       p.pendingGovernment = null;
       clampRates(p);
       return { ok: true };
@@ -553,7 +554,7 @@ function openHut(state: GameState, u: Unit): HutResult {
   const roll = nextInt(state.rng, 100);
   const nearCity = state.cities.some((c) => Math.abs(c.y - u.y) <= 3 && Math.min(Math.abs(c.x - u.x), state.map.width - Math.abs(c.x - u.x)) <= 3);
   if (roll < 40) {
-    const amount = 25 + nextInt(state.rng, 4) * 25;
+    const amount = (25 + nextInt(state.rng, 4) * 25) * (traitFriendlyVillages(state, u.owner) ? 2 : 1);
     p.gold += amount;
     return { kind: "gold", amount };
   }
@@ -570,7 +571,7 @@ function openHut(state: GameState, u: Unit): HutResult {
     createUnit(state, type, u.owner, u.x, u.y, u.homeCity);
     return { kind: "unit", unit: type };
   }
-  if (roll < 90 && !nearCity && u.owner !== state.barbarians) {
+  if (roll < 90 && !nearCity && u.owner !== state.barbarians && !traitFriendlyVillages(state, u.owner)) {
     for (const [dx, dy] of NEIGHBOURS) {
       const t = getTile(state.map, u.x + dx, u.y + dy);
       if (!t || t.terrain === Terrain.Ocean) continue;
@@ -663,11 +664,11 @@ function applyCityCommand(
     }
     case "buy": {
       const p = state.players[city.owner]!;
-      const cost = buyCost(city);
+      const cost = buyCost(state, city);
       if (cost === 0) return { ok: false, reason: "already complete" };
       if (p.gold < cost) return { ok: false, reason: "not enough gold" };
       p.gold -= cost;
-      city.shields = productionCost(city.production);
+      city.shields = costFor(state, city.owner, city.production);
       return { ok: true };
     }
     case "renameCity":
@@ -700,7 +701,7 @@ function applyCheat(state: GameState, cheat: Cheat): CommandResult {
       p.researching = null;
       return { ok: true };
     case "production":
-      for (const c of state.cities) if (c.owner === p.id) c.shields = Math.max(c.shields, productionCost(c.production));
+      for (const c of state.cities) if (c.owner === p.id) c.shields = Math.max(c.shields, costFor(state, c.owner, c.production));
       return { ok: true };
     case "moves":
       for (const u of state.units) {
@@ -939,7 +940,7 @@ function wearDown(state: GameState, u: Unit): boolean {
 }
 
 export function moveAllowance(state: GameState, u: Unit): number {
-  let moves = fullMoves(u);
+  let moves = fullMoves(u) + traitMoves(state, u.owner, u.type) * MOVE_FRAC;
   if (unitType(u.type).domain === "sea")
     for (const w of activeWonders(state, u.owner)) if (w.rule.effect.kind === "seaMoves") moves += w.rule.effect.amount * MOVE_FRAC;
   return moves;

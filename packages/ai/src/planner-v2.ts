@@ -753,7 +753,7 @@ function manageCities(state: GameState, ctx: Ctx): void {
     if (c.production.kind === "unit" && c.production.id === "diplomat") ctx.diplomats++;
 
     // Spend gold where it changes the game: empty cities, threatened cities, early settlers, riots.
-    const cost = buyCost(c);
+    const cost = buyCost(state, c);
     if (cost === 0) continue;
     const here = garrison(state, ctx, c).length;
     const threat = ctx.threat.get(c.id) ?? 0;

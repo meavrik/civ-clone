@@ -1,4 +1,5 @@
 import { knows } from "./rules/advances.js";
+import { traitFastWork } from "./traits.js";
 import { CLEAN_TURNS, FORTRESS_TURNS, MOVE_FRAC, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
 import { CLASSIC_FIREPOWER, CLASSIC_HP, unitType, type UnitTypeRule } from "./rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Tile, type Unit, type WorkKind } from "./types.js";
@@ -260,6 +261,8 @@ export function workOptions(state: GameState, u: Unit): Partial<Record<WorkKind,
   if (!t.fortress && t.terrain !== Terrain.Ocean && knows(known, "construction") && !state.cities.some((c) => c.x === u.x && c.y === u.y))
     out.fortress = FORTRESS_TURNS;
   if (t.pollution) out.clean = CLEAN_TURNS;
+  // A civilization quick at a job finishes it in half the turns.
+  for (const work of Object.keys(out) as WorkKind[]) if (traitFastWork(state, u.owner, work)) out[work] = Math.max(1, Math.ceil(out[work]! / 2));
   return out;
 }
 

@@ -32,6 +32,8 @@ export interface NewGameOptions extends MapGenOptions {
   simpleBarbarians?: boolean;
   /** Zones of control reach a soldier stepping off a ship. Old saves load with it. */
   zocAtSea?: boolean;
+  /** The 1991 civilizations: no traits, no starting advance. Old saves load with it. */
+  classicCivs?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -146,11 +148,15 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.classicTerrain ? { classicTerrain: true } : {}),
     ...(opts.simpleBarbarians ? { simpleBarbarians: true } : {}),
     ...(opts.zocAtSea ? { zocAtSea: true } : {}),
+    ...(opts.classicCivs ? { classicCivs: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {
     p.difficulty = difficulty;
     p.gold = [100, 50, 0, 0, 0][difficulty] ?? 0;
+    // Each civilization begins with the advance of its trait.
+    const start = civ(p.civ).trait?.start;
+    if (start && !state.classicCivs) p.advances.push(start);
   }
 
   // Starting positions: open land on decent continents, spread apart.

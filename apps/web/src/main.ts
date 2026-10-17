@@ -9,6 +9,7 @@ import {
   canHelpWonder,
   canTradeRoute,
   checkGameEnd,
+  costFor,
   CHEAT_GOLD,
   cityAt,
   civ,
@@ -27,13 +28,13 @@ import {
   makeSave,
   newGame,
   pillageTarget,
-  productionCost,
   productionName,
   rankTitle,
   relation,
   routeBonus,
   runAiPlayers,
   shipStats,
+  traitMoves,
   turnToYear,
   unitAt,
   unitById,
@@ -77,6 +78,7 @@ import {
   type ReportPage,
   MENU_BAR,
   topCitiesReport,
+  civilizationsReport,
   wondersReport,
   type SetupState,
   type TextInputState,
@@ -331,6 +333,9 @@ function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0
   cam.ready = false;
   followActive(true);
   say(`${civ(state.players[0]!.civ).leader}, lead the ${state.players[0]!.name} to glory.`, 4000);
+  // Our strength, once, as the reign begins.
+  const t = civ(state.players[0]!.civ).trait;
+  if (t && !state.classicCivs) modal(`The ${state.players[0]!.name}`, [`${t.name}: ${t.text}`, `We begin knowing ${advance(t.start).name}.`], ["OK"], () => { screenState = { kind: "map" }; }, 0, () => { screenState = { kind: "map" }; });
 }
 
 function resumeGame(save: SaveGame): void {
@@ -361,6 +366,7 @@ if (params.has("seed")) {
       ...(params.get("world") ? { world: params.get("world")!, historical: params.get("historical") !== "0" } : {}),
       ...(params.get("combat") === "classic" ? { classicCombat: true } : {}),
       ...(params.get("terrain") === "classic" ? { classicTerrain: true } : {}),
+      ...(params.get("civs") === "classic" ? { classicCivs: true } : {}),
     },
     Number(params.get("seed")) || 2026,
   );
@@ -510,7 +516,8 @@ function openProductionMenu(cityId: number): void {
       items: opts.map((p) => productionName(p)),
       right: opts.map((p) => {
         const t = p.kind === "unit" ? unitType(p.id) : null;
-        return t ? `${t.attack}/${t.defense}/${t.moves} ${productionCost(p)}` : `${productionCost(p)}`;
+        const cost = costFor(state, city.owner, p);
+        return t ? `${t.attack}/${t.defense}/${t.moves + traitMoves(state, city.owner, p.id)} ${cost}` : `${cost}`;
       }),
       selected: Math.max(0, opts.findIndex((p) => p.kind === city.production.kind && p.id === city.production.id)),
     },
@@ -764,6 +771,7 @@ function barEntries(index: number): MenuEntry[] {
       return [
         ["Wonders of the World", "", () => { screenState = { kind: "report", page: wondersReport(state) }; }],
         ["Top 5 Cities", "", () => { screenState = { kind: "report", page: topCitiesReport(state) }; }],
+        ["Civilizations", "", () => { screenState = { kind: "report", page: civilizationsReport(state) }; }],
         ["Civilization Score", "F5", () => { screenState = { kind: "advisor", which: "score" }; }],
         ["World Map", "", () => { screenState = { kind: "worldMap" }; }],
         ["Spaceships", "F6", () => { screenState = { kind: "spaceship" }; }],

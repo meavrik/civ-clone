@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, revealAround, Terrain, unitType } from "@civ/core";
+import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, revealAround, Terrain, unitType } from "@civ/core";
 import { C, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
@@ -349,8 +349,8 @@ describe("city screen", () => {
     const opts = buildOptions(state, city);
     drawMenu(s, {
       title: `${city.name}: build what?`,
-      items: opts.map((p) => (p.kind === "unit" ? unitType(p.id).name : building(p.id).name)),
-      right: opts.map((p) => String(p.kind === "unit" ? unitType(p.id).cost : building(p.id).cost)),
+      items: opts.map(productionName),
+      right: opts.map((p) => String(productionCost(p))),
       selected: 2,
     });
     writeFileSync(new URL("./out/city-menu.png", import.meta.url), encodePng(s, 3));
@@ -439,6 +439,30 @@ describe("world with opponents", () => {
     const changed = s.data.filter((c, i) => c !== before[i]);
     expect(changed.length).toBeGreaterThan(100);
     expect(changed.some((c) => c === playerColor(state, enemy.owner))).toBe(true);
+  });
+});
+
+describe("civilization traits", () => {
+  it("shows each tribe's strength beside its name, and the civilizations met with theirs", async () => {
+    const { drawTitleScreen, drawReportScreen } = await import("../src/index.js");
+    const { civilizationsReport, setupMenu } = await import("@civ/renderer-api");
+    const s = Surface.screen();
+    drawTitleScreen(s, false);
+    const m = setupMenu({ step: "civ", world: null, historical: false, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
+    expect(m.items).toHaveLength(18);
+    expect(m.right![0]).toBe("Fast roads");
+    drawMenu(s, m);
+    // Every tribe can still be picked: each row answers to a click.
+    const rows = new Set<number>();
+    for (let y = 0; y < 200; y++) rows.add(menuHit(m, 160, y));
+    for (let i = 0; i < m.items.length; i++) expect(rows.has(i), m.items[i]).toBe(true);
+    writeFileSync(new URL("./out/setup-civ.png", import.meta.url), encodePng(s, 3));
+    const state = newGame(4, { opponents: 3 });
+    applyCommand(state, { type: "cheat", cheat: "contact" });
+    const page = civilizationsReport(state);
+    expect(page.lines.filter((l) => !l.dim)).toHaveLength(4);
+    drawReportScreen(s, page);
+    writeFileSync(new URL("./out/report-civs.png", import.meta.url), encodePng(s, 3));
   });
 });
 

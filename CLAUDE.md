@@ -32,6 +32,13 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   (razing size 1) and build soldiers there; the `pillage` command wrecks one improvement a turn.
   Stepping off a ship ignores zones of control. Saves before version 4 load with `simpleBarbarians`
   (the old coastal parties that razed everything) and `zocAtSea`.
+  Civilization traits (our departure, asked for: the original's civs were alike): each `CivRule.trait`
+  in `rules/civs.ts` has a name, a few words for the tribe choice (`short`), a line of text, an
+  advance it starts with (a root advance) and `TraitEffect`s (cheaper builds, faster settler jobs,
+  science/tax/corruption, content, growth (food kept, smaller food box), veterans, moves, short
+  anarchy, friendly villages). `traits.ts` answers each kind; `costFor` is a production's cost for its owner (use it, not
+  `productionCost`, for anything a city pays). `classicCivs` (old saves before version 5,
+  `?civs=classic`, `--classic-civs`) turns them all off. Tests of base rules play classic civs.
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
   `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it), `baseline.ts`
   (v1) and `barbarian.ts` (the barbarians, reached through `baselineTurn` so every AI seat shares it:
@@ -128,7 +135,9 @@ runtime. Premade worlds done: Earth, Europe, Middle East (title menu "Play on a 
 historical homelands: only native tribes offered, rivals drawn from natives preferring non-overlapping
 homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperature/climate/age). 18 civs
 (the original's 14 plus Spanish, Vikings, Hittites, Persians). Barbarians done (2026-10-17): uprisings and
-sea raids with leaders and ransom, barbarian-held cities, pillage. Next: mobile/PWA + touch adapter.
+sea raids with leaders and ransom, barbarian-held cities, pillage. Civilization traits done (2026-10-17):
+one ability and one starting advance per civ, shown at the tribe choice, the opening and World >
+Civilizations. Next: mobile/PWA + touch adapter.
 
 ## Known gaps / next steps
 

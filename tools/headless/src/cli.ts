@@ -22,6 +22,7 @@ interface Options {
   world: string | null;
   historical: boolean;
   classicTerrain: boolean;
+  classicCivs: boolean;
 }
 
 const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
@@ -37,12 +38,13 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --world W        play on a premade world (${PREMADE_WORLDS.map((w) => w.id).join(", ")})
   --historical     on a premade world, start each civ in its historical homeland
   --classic-terrain  the 1991 terrain: wheels need no roads, no ground wears units down
+  --classic-civs     the 1991 civilizations: no traits, no starting advance
   --verify         replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, historical: false, classicTerrain: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, historical: false, classicTerrain: false, classicCivs: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -68,6 +70,7 @@ function parseArgs(argv: string[]): Options {
       case "world": o.world = takes() ?? null; break;
       case "historical": o.historical = true; break;
       case "classic-terrain": o.classicTerrain = true; break;
+      case "classic-civs": o.classicCivs = true; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
       default: throw new Error(`unknown option --${key}\n\n${HELP}`);
@@ -176,6 +179,7 @@ function main(argv: string[]): number {
       civs: o.civs, difficulty: o.difficulty, turns: o.turns, ais: o.ais, every: o.every,
       ...(o.world ? { world: o.world, historical: o.historical } : {}),
       ...(o.classicTerrain ? { classicTerrain: true } : {}),
+      ...(o.classicCivs ? { classicCivs: true } : {}),
     });
     if (!o.quiet && o.every > 0) {
       console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).join(", ")}`);

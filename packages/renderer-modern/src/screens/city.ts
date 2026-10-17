@@ -182,7 +182,7 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   text(ctx, COL3_X, CITY_MAP_Y + 78, `${city.shields} / ${r.productionCost} shields`, { size: 13, color: UI.dim });
   const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
   text(ctx, COL3_X, CITY_MAP_Y + 98, turns === null ? "never at this rate" : `${turns} turn${turns === 1 ? "" : "s"}`, { size: 13, color: UI.dim });
-  const cost = buyCost(city);
+  const cost = buyCost(state, city);
   text(ctx, COL3_X, CITY_MAP_Y + 124, cost ? `Buy for ${cost} gold` : "Complete", { size: 15, weight: "600", color: player.gold >= cost ? UI.accent : UI.faint });
 
   // Supported units.

@@ -19,7 +19,7 @@ import {
 } from "../src/index.js";
 
 function flatWorld(terrain = Terrain.Grassland): GameState {
-  const s = newGame(1, { opponents: 1 });
+  const s = newGame(1, { opponents: 1, classicCivs: true });
   for (const t of s.map.tiles) {
     t.terrain = terrain;
     t.river = false; t.road = false; t.irrigation = false; t.mine = false; t.special = false; t.hut = false;

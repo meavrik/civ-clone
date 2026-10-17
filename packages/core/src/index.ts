@@ -15,6 +15,7 @@ export * from "./diplomacy.js";
 export * from "./pathfind.js";
 export * from "./combat.js";
 export * from "./barbarians.js";
+export * from "./traits.js";
 export * from "./map/generate.js";
 export * from "./map/premade.js";
 export * from "./units.js";

@@ -226,7 +226,7 @@ export function setupMaxCivs(setup: SetupState): number {
   return Math.max(3, Math.min(7, new Set(setupCivs(setup).map((id) => civ(id).color)).size));
 }
 
-export function setupMenu(setup: SetupState): { title: string; items: string[]; selected: number } {
+export function setupMenu(setup: SetupState): { title: string; items: string[]; selected: number; right?: string[] } {
   switch (setup.step) {
     case "world":
       return { title: "Choose a world", items: PREMADE_WORLDS.map((w) => w.name), selected: Math.max(0, PREMADE_WORLDS.findIndex((w) => w.id === setup.world)) };
@@ -250,7 +250,8 @@ export function setupMenu(setup: SetupState): { title: string; items: string[]; 
     }
     case "civ": {
       const civs = setupCivs(setup);
-      return { title: "Choose your tribe", items: civs.map((id) => civ(id).name), selected: Math.max(0, civs.indexOf(setup.civ)) };
+      // Each tribe's strength beside its name.
+      return { title: "Choose your tribe", items: civs.map((id) => civ(id).name), right: civs.map((id) => civ(id).trait?.short ?? ""), selected: Math.max(0, civs.indexOf(setup.civ)) };
     }
     default:
       return { title: "", items: [], selected: 0 };
@@ -342,6 +343,24 @@ export function wondersReport(state: GameState): ReportPage {
   }
   if (!lines.length) lines.push({ text: "No wonder has been built yet.", dim: true });
   return { title: "Wonders of the World", lines, hint: `${lines.length && !lines[0]!.dim ? lines.length : 0} of ${WONDERS.length} built` };
+}
+
+/**
+ * Civilizations: ours and every one we have met, each with its trait's name
+ * and what it does. Without traits (classic civilizations) the page says so.
+ */
+export function civilizationsReport(state: GameState): ReportPage {
+  const me = state.currentPlayer;
+  if (state.classicCivs) return { title: "Civilizations", lines: [{ text: "In this game every civilization is alike.", dim: true }] };
+  const lines: ReportLine[] = [];
+  for (const p of state.players) {
+    if (p.id === state.barbarians || !p.alive || (p.id !== me && !hasContact(state, me, p.id))) continue;
+    const t = civ(p.civ).trait;
+    if (!t) continue;
+    lines.push({ text: p.name, right: t.name, slot: p.color });
+    lines.push({ text: `  ${t.text}`, dim: true });
+  }
+  return { title: "Civilizations", lines, hint: "Ours and those we have met" };
 }
 
 /** Top 5 Cities: the largest cities the current player knows of, by size. */

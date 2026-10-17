@@ -1,3 +1,6 @@
+import type { WorkKind } from "../types.js";
+import type { UnitDomain } from "./units.js";
+
 /**
  * Colour slots, in this order everywhere. Each civilization has a fixed one,
  * as in the original: civilizations that share a colour are never in the same
@@ -14,6 +17,47 @@ export function colorSlot(color: CivColor): number {
   return CIV_COLORS.indexOf(color);
 }
 
+/**
+ * What a civilization's trait does. Each kind is applied in one place in the
+ * engine; `pct` values are percentages added to (or, negative, taken from)
+ * the base.
+ */
+export type TraitEffect =
+  /** Settlers finish these jobs in half the turns. */
+  | { kind: "fastWork"; work: WorkKind[] }
+  /** Production costs: every wonder, these buildings or units, or every soldier (a land unit that can attack). */
+  | { kind: "cost"; pct: number; wonders?: true; buildings?: string[]; units?: string[]; soldiers?: true }
+  | { kind: "sciencePct"; pct: number }
+  | { kind: "taxPct"; pct: number }
+  /** Trade lost to corruption. */
+  | { kind: "corruptionPct"; pct: number }
+  /** More unhappy citizens made content in every city. */
+  | { kind: "content"; amount: number }
+  /** Share of the food box a city keeps when it grows (a granary keeps half; the better one counts). */
+  | { kind: "growth"; keep: number }
+  /** Size of the food box a city must fill to grow. */
+  | { kind: "foodBoxPct"; pct: number }
+  /** New units of these types, or of this domain, come out veterans. */
+  | { kind: "veteran"; units?: string[]; domain?: UnitDomain }
+  /** More movement for units of these types or this domain, in whole squares. */
+  | { kind: "moves"; amount: number; units?: string[]; domain?: UnitDomain }
+  /** A revolution's anarchy lasts at most this many turns. */
+  | { kind: "anarchy"; turns: number }
+  /** Villages never hide barbarians and give twice the gold. */
+  | { kind: "friendlyVillages" };
+
+/** A civilization's own strengths: a named ability and an advance it begins with. Our departure: the original's civilizations were all alike. */
+export interface CivTrait {
+  name: string;
+  /** A few words for the tribe choice. */
+  short: string;
+  /** One line for the reports and the opening message. */
+  text: string;
+  /** Known from the first turn (an advance with no prerequisites). */
+  start: string;
+  effects: TraitEffect[];
+}
+
 /** Playable civilizations: historical nations with a short list of their historical cities. */
 export interface CivRule {
   id: string;
@@ -23,7 +67,34 @@ export interface CivRule {
   /** Colour of its units and cities; civilizations sharing one never meet in a game. */
   color: CivColor;
   cities: string[];
+  /** Absent only for the barbarians. */
+  trait?: CivTrait;
 }
+
+const FOOT = ["militia", "phalanx", "legion", "musketeers", "riflemen", "mech_inf"];
+const MOUNTED = ["cavalry", "chariot", "knights"];
+
+/** Each playable civilization's trait, by id. */
+const TRAITS: Record<string, CivTrait> = {
+  romans: { name: "Roads of Empire", short: "Fast roads", text: "Settlers build roads and railroads in half the time.", start: "bronze_working", effects: [{ kind: "fastWork", work: ["road", "railroad"] }] },
+  babylonians: { name: "House of Tablets", short: "Cheap libraries", text: "Libraries and universities cost a third less.", start: "alphabet", effects: [{ kind: "cost", pct: -33, buildings: ["library", "university"] }] },
+  egyptians: { name: "Pyramid Builders", short: "Cheaper wonders", text: "Wonders cost a fifth less.", start: "masonry", effects: [{ kind: "cost", pct: -20, wonders: true }] },
+  greeks: { name: "Academies", short: "+25% science", text: "A quarter more science in every city.", start: "alphabet", effects: [{ kind: "sciencePct", pct: 25 }] },
+  chinese: { name: "Granaries of the Realm", short: "Growth keeps food", text: "A growing city keeps a third of its food.", start: "pottery", effects: [{ kind: "growth", keep: 1 / 3 }] },
+  indians: { name: "Peaceful Hearts", short: "+1 content", text: "One more content citizen in every city.", start: "ceremonial_burial", effects: [{ kind: "content", amount: 1 }] },
+  aztecs: { name: "Floating Gardens", short: "Fast growth", text: "Cities need a fifth less food to grow.", start: "ceremonial_burial", effects: [{ kind: "foodBoxPct", pct: -20 }] },
+  zulus: { name: "Impi", short: "Veteran infantry", text: "Foot soldiers are trained as veterans.", start: "bronze_working", effects: [{ kind: "veteran", units: FOOT }] },
+  germans: { name: "Diligent Farmers", short: "Fast mines, farms", text: "Settlers mine and irrigate in half the time.", start: "masonry", effects: [{ kind: "fastWork", work: ["mine", "irrigate"] }] },
+  americans: { name: "Constitution", short: "Short anarchy", text: "A revolution brings one turn of anarchy at most.", start: "the_wheel", effects: [{ kind: "anarchy", turns: 1 }] },
+  russians: { name: "Vast Lands", short: "Half corruption", text: "Corruption takes half as much trade.", start: "horseback_riding", effects: [{ kind: "corruptionPct", pct: -50 }] },
+  french: { name: "Cathedral Masons", short: "Cheap temples", text: "Temples, cathedrals and colosseums cost half.", start: "ceremonial_burial", effects: [{ kind: "cost", pct: -50, buildings: ["temple", "cathedral", "colosseum"] }] },
+  english: { name: "Rule the Waves", short: "Faster ships", text: "Ships move one square further.", start: "alphabet", effects: [{ kind: "moves", amount: 1, domain: "sea" }] },
+  mongols: { name: "Horse Lords", short: "Faster horsemen", text: "Mounted units move one square further.", start: "horseback_riding", effects: [{ kind: "moves", amount: 1, units: MOUNTED }] },
+  spanish: { name: "Conquistadors", short: "Friendly villages", text: "Villages never hide barbarians and give twice the gold.", start: "horseback_riding", effects: [{ kind: "friendlyVillages" }] },
+  vikings: { name: "Longships", short: "Veteran ships", text: "Ships are built as veterans.", start: "bronze_working", effects: [{ kind: "veteran", domain: "sea" }] },
+  hittites: { name: "Iron and Chariots", short: "Cheap soldiers", text: "Soldiers cost a fifth less.", start: "the_wheel", effects: [{ kind: "cost", pct: -20, soldiers: true }] },
+  persians: { name: "Satrapies", short: "+25% tax", text: "A quarter more tax in every city.", start: "pottery", effects: [{ kind: "taxPct", pct: 25 }] },
+};
 
 export const CIVS: CivRule[] = [
   { id: "romans", name: "Romans", adjective: "Roman", leader: "Caesar", color: "white", cities: ["Rome", "Capua", "Ravenna", "Pompeii", "Neapolis", "Brundisium", "Syracuse", "Verona"] },
@@ -46,6 +117,11 @@ export const CIVS: CivRule[] = [
   { id: "persians", name: "Persians", adjective: "Persian", leader: "Cyrus", color: "blue", cities: ["Persepolis", "Pasargadae", "Susa", "Ecbatana", "Rhagae", "Bactra", "Hecatompylos", "Arbela"] },
   { id: "barbarians", name: "Barbarians", adjective: "Barbarian", leader: "Attila", color: "red", cities: [] },
 ];
+
+for (const c of CIVS) {
+  const t = TRAITS[c.id];
+  if (t) c.trait = t;
+}
 
 export const CIV_BY_ID: Record<string, CivRule> = Object.fromEntries(CIVS.map((c) => [c.id, c]));
 

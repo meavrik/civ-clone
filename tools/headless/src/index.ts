@@ -47,6 +47,8 @@ export interface GameConfig {
   historical?: boolean;
   /** The 1991 terrain rules (no roads needed for wheels, no attrition), to measure the difference. */
   classicTerrain?: boolean;
+  /** The 1991 civilizations, all alike (no traits or starting advances), to measure the difference. */
+  classicCivs?: boolean;
 }
 
 export interface PlayerStats {
@@ -126,6 +128,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     difficulty: config.difficulty,
     ...(config.world ? { world: config.world, historical: config.historical === true } : {}),
     ...(config.classicTerrain ? { classicTerrain: true } : {}),
+    ...(config.classicCivs ? { classicCivs: true } : {}),
   };
 }
 

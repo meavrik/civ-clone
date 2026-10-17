@@ -4,7 +4,7 @@ import { CLOUDS, PLAYER_COLORS } from "../src/theme.js";
 import type { MainScreenView } from "@civ/renderer-api";
 import { createModernRenderer, MODERN_H, MODERN_TILE, MODERN_W, type Context2D, type Gradient } from "../src/index.js";
 import { paintIcon } from "../src/icons.js";
-import { ICONS, openTechTree, techLayout } from "@civ/renderer-api";
+import { civilizationsReport, ICONS, openTechTree, setupMenu, techLayout } from "@civ/renderer-api";
 
 /** Records what the renderer asks of the canvas; width of text is a flat per-character estimate. */
 class FakeContext implements Context2D {
@@ -95,6 +95,8 @@ describe("modern renderer", () => {
     r.end(["Citizens: 3", "Total score: 12"], "Modest");
     r.spaceship(state);
     r.report({ title: "Wonders of the World", lines: [{ text: "Pyramids", right: "Rome (Romans)", slot: 0 }], hint: "1 of 21 built" });
+    r.report(civilizationsReport(state));
+    r.menu(setupMenu({ step: "civ", world: null, historical: false, custom: null, difficulty: 2, opponents: 6, civ: "romans" }));
     r.worldMap(state);
     r.main(state, { ...view, menuOpen: 2 });
     const settler = state.units.find((u) => u.type === "settlers") ?? state.units[0]!;

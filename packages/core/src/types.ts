@@ -177,6 +177,8 @@ export interface GameState {
   simpleBarbarians?: boolean;
   /** Our first landings: a soldier stepping off a ship minds zones of control as on land. Set for old saves. */
   zocAtSea?: boolean;
+  /** The 1991 civilizations: all alike, no traits or starting advances. Set for old saves. */
+  classicCivs?: boolean;
 }
 
 export function wrapX(map: WorldMap, x: number): number {

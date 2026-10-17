@@ -12,7 +12,7 @@ import {
 
 /** Flat test world: all grassland except the poles, one unit placed by caller. */
 function flatWorld(): GameState {
-  const s = newGame(1, { opponents: 0 });
+  const s = newGame(1, { opponents: 0, classicCivs: true });
   for (const t of s.map.tiles) {
     t.terrain = Terrain.Grassland;
     t.river = false;

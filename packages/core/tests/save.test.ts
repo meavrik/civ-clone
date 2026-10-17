@@ -41,7 +41,7 @@ describe("save/load", () => {
 
 describe("score and end", () => {
   it("scores citizens, techs and peace; detects defeat and time", () => {
-    const state = newGame(5, { opponents: 1 });
+    const state = newGame(5, { opponents: 1, classicCivs: true });
     applyCommand(state, { type: "found", unit: state.units[0]!.id });
     state.players[0]!.advances.push("alphabet", "pottery");
     const s = computeScore(state, 0);

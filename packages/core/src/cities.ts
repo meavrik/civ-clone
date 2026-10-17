@@ -1,4 +1,5 @@
 import { barbarianUnits } from "./barbarians.js";
+import { traitContent, traitEffects, traitFoodBoxPct, traitGrowthKeep, traitPct, traitVeteran } from "./traits.js";
 import { knows } from "./rules/advances.js";
 import { addPart, partCount, SPACE_PARTS, spacePart } from "./rules/spaceship.js";
 import { building, BUILDINGS } from "./rules/buildings.js";
@@ -201,8 +202,27 @@ export function foodBox(city: City): number {
   return (city.size + 1) * 10;
 }
 
+/** The food a city must store to grow, after its owner's trait. */
+export function cityFoodBox(state: GameState, city: City): number {
+  const pct = traitFoodBoxPct(state, city.owner);
+  return pct === 0 ? foodBox(city) : Math.max(1, Math.round((foodBox(city) * (100 + pct)) / 100));
+}
+
+/** The rules' cost of a production, before any civilization's trait. */
 export function productionCost(p: Production): number {
   return p.kind === "unit" ? unitType(p.id).cost : p.kind === "wonder" ? wonder(p.id).cost : p.kind === "spaceship" ? spacePart(p.id).cost : building(p.id).cost;
+}
+
+/** What a production costs `owner`: the rules' cost, less any discount of its civilization's trait. */
+export function costFor(state: GameState, owner: number, p: Production): number {
+  let pct = 0;
+  for (const e of traitEffects(state, owner)) {
+    if (e.kind !== "cost") continue;
+    const soldier = p.kind === "unit" && unitType(p.id).domain === "land" && unitType(p.id).attack > 0;
+    if ((p.kind === "wonder" && e.wonders) || (p.kind === "building" && e.buildings?.includes(p.id)) || (p.kind === "unit" && e.units?.includes(p.id)) || (soldier && e.soldiers)) pct += e.pct;
+  }
+  const base = productionCost(p);
+  return pct === 0 ? base : Math.max(1, Math.round((base * (100 + pct)) / 100));
 }
 
 export function productionName(p: Production): string {
@@ -337,10 +357,10 @@ export function computeCity(state: GameState, city: City): CityReport {
 
   const has = (id: string) => city.buildings.includes(id);
   let shieldPct = 0;
-  let taxPct = 0;
+  let taxPct = traitPct(state, city.owner, "taxPct");
   let luxPct = 0;
-  let sciPct = 0;
-  let contentFromBuildings = 0;
+  let sciPct = traitPct(state, city.owner, "sciencePct");
+  let contentFromBuildings = traitContent(state, city.owner);
   let buildingUpkeep = 0;
   for (const id of city.buildings) {
     const b = building(id);
@@ -386,6 +406,8 @@ export function computeCity(state: GameState, city: City): CityReport {
 
   // Corruption: trade lost to distance from the palace.
   let corruptionPct = Math.min(90, gov.corruptionPerDistance * distanceToCapital(state, city) * 2);
+  const corruptionTrait = traitPct(state, city.owner, "corruptionPct");
+  if (corruptionTrait) corruptionPct = (corruptionPct * (100 + corruptionTrait)) / 100;
   if (has("courthouse")) corruptionPct = Math.floor(corruptionPct / 2);
   if (has("palace")) corruptionPct = 0;
   const corruption = Math.floor((trade * corruptionPct) / 100);
@@ -458,8 +480,8 @@ export function computeCity(state: GameState, city: City): CityReport {
     science: disorder ? 0 : science,
     buildingUpkeep,
     happy, content, unhappy, disorder,
-    foodBox: foodBox(city),
-    productionCost: productionCost(city.production),
+    foodBox: cityFoodBox(state, city),
+    productionCost: costFor(state, city.owner, city.production),
   };
 }
 
@@ -511,8 +533,8 @@ export function foundCity(state: GameState, owner: number, x: number, y: number,
 }
 
 /** Gold to complete current production, the original's escalating price. */
-export function buyCost(city: City): number {
-  const cost = productionCost(city.production);
+export function buyCost(state: GameState, city: City): number {
+  const cost = costFor(state, city.owner, city.production);
   const remaining = Math.max(0, cost - city.shields);
   if (remaining === 0) return 0;
   const base = city.production.kind === "unit" ? 2 * remaining + (remaining * remaining) / 20 : 2 * remaining;
@@ -565,7 +587,8 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
     const cap = city.buildings.includes("aqueduct") ? 99 : 10;
     if (city.size < cap) {
       city.size++;
-      city.food = city.buildings.includes("granary") ? Math.floor(r.foodBox / 2) : 0;
+      const keep = Math.max(city.buildings.includes("granary") ? 1 / 2 : 0, traitGrowthKeep(state, city.owner));
+      city.food = Math.floor(r.foodBox * keep);
       events.push({ city: city.id, kind: "grew" });
       autoAssignWorkers(state, city);
     } else {
@@ -583,12 +606,12 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
     if (victim) state.units = state.units.filter((u) => u.id !== victim.id);
     city.shields = 0;
   }
-  const cost = productionCost(city.production);
+  const cost = costFor(state, city.owner, city.production);
   if (city.shields >= cost) {
     const p = city.production;
     if (p.kind === "unit") {
       const u = createUnit(state, p.id, city.owner, city.x, city.y, city.id);
-      if (city.buildings.includes("barracks") && unitType(p.id).domain === "land") u.veteran = true;
+      if ((city.buildings.includes("barracks") && unitType(p.id).domain === "land") || traitVeteran(state, city.owner, p.id)) u.veteran = true;
       if (unitType(p.id).flags?.includes("settler")) {
         if (city.size > 1) city.size--;
         else {

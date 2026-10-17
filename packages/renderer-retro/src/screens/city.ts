@@ -201,7 +201,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawText(s, COL3_X, CITY_MAP_Y + 32, `${city.shields}/${r.productionCost} shields`, dim);
   const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
   drawText(s, COL3_X, CITY_MAP_Y + 41, turns === null ? "never" : `${turns} turn${turns === 1 ? "" : "s"}`, dim);
-  const cost = buyCost(city);
+  const cost = buyCost(state, city);
   drawText(s, COL3_X, CITY_MAP_Y + 52, cost ? `Buy: ${cost}$` : "Complete", player.gold >= cost ? ink : dim);
 
   // Supported units.

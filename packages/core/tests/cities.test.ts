@@ -15,7 +15,7 @@ import {
 } from "../src/index.js";
 
 function flatWorld(): GameState {
-  const s = newGame(1, { opponents: 0 });
+  const s = newGame(1, { opponents: 0, classicCivs: true });
   for (const t of s.map.tiles) {
     t.terrain = Terrain.Grassland;
     t.river = false; t.road = false; t.irrigation = false; t.mine = false; t.special = false; t.hut = false;
@@ -97,7 +97,7 @@ describe("cities", () => {
     applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
     expect(c.shields).toBe(4);
     s.players[0]!.gold = 1000;
-    const cost = buyCost(c);
+    const cost = buyCost(s, c);
     expect(cost).toBe(2 * 56);
     expect(applyCommand(s, { type: "buy", city: c.id }).ok).toBe(true);
     expect(s.players[0]!.gold).toBe(1000 - cost);
