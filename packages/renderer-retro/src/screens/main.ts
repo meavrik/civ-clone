@@ -172,10 +172,13 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
 
   // Cities on explored tiles. Foreign cities and units wait for fog lifting off their square to thin.
   const fogged = (idx: number, owner: number) => owner !== state.currentPlayer && (view.lifting?.get(idx) ?? 0) >= 0.5;
+  // A city with units inside shows a shield: always on our own, on others' while we see the square.
+  const held = new Set(state.units.map((u) => u.y * map.width + u.x));
   for (const c of state.cities) {
-    if (!me.explored[c.y * map.width + c.x] || fogged(c.y * map.width + c.x, c.owner)) continue;
+    const idx = c.y * map.width + c.x;
+    if (!me.explored[idx] || fogged(idx, c.owner)) continue;
     const pos = tileToScreen(state, view, c.x, c.y);
-    if (pos) drawCity(s, pos[0], pos[1], c, playerColor(state, c.owner));
+    if (pos) drawCity(s, pos[0], pos[1], c, playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1));
   }
 
   // Units: only those on tiles we currently see. Draw one per tile (top of stack).

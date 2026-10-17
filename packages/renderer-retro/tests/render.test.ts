@@ -245,6 +245,39 @@ describe("retro renderer", () => {
   });
 });
 
+describe("garrisons", () => {
+  it("marks a city with units inside with a shield: ours always, others' while we see the square", () => {
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    revealAround(state, 0, u.x, u.y, 9);
+    applyCommand(state, { type: "found", unit: u.id });
+    const city = state.cities[0]!;
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false };
+    const s = Surface.screen();
+    // The shield's white field sits in the city square's top-left corner.
+    const shieldAt = (cx: number, cy: number) => s.get(80 + (cx - view.originX) * 16 + 2, 9 + (cy - view.originY) * 16 + 1) === C.WHITE!;
+
+    drawMainScreen(s, state, view);
+    expect(shieldAt(city.x, city.y)).toBe(false);
+
+    const guard = createUnit(state, "militia", 0, city.x, city.y);
+    drawMainScreen(s, state, view);
+    expect(shieldAt(city.x, city.y)).toBe(true);
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/city-garrison.png", import.meta.url), encodePng(s, 3));
+
+    // A foreign city: a shield while we see it, none once it is out of sight.
+    city.owner = 1;
+    guard.owner = 1;
+    state.players[0]!.visible[city.y * state.map.width + city.x] = 1;
+    drawMainScreen(s, state, view);
+    expect(shieldAt(city.x, city.y)).toBe(true);
+    state.players[0]!.visible[city.y * state.map.width + city.x] = 0;
+    drawMainScreen(s, state, view);
+    expect(shieldAt(city.x, city.y)).toBe(false);
+  });
+});
+
 describe("fog of war", () => {
   it("draws clouds over unexplored squares, drifting into explored ones, and shows nothing of what lies beneath", () => {
     const state = newGame(7);

@@ -76,7 +76,8 @@ export function paintUnit(ctx: Context2D, x: number, y: number, u: Pick<Unit, "t
 }
 
 /** City marker: a dark block in the owner's colour frame with a cluster of buildings and the size badge. */
-export function paintCity(ctx: Context2D, x: number, y: number, city: City, slot: number): void {
+/** A city on the map: the owner's ring and skyline, walls, the population, a red flag in disorder and a shield in the corner when units are inside (`garrisoned`). */
+export function paintCity(ctx: Context2D, x: number, y: number, city: City, slot: number, garrisoned = false): void {
   const color = playerColor(slot);
   const walled = city.buildings.includes("city_walls");
   fillRound(ctx, x + 3, y + 3, TILE - 6, TILE - 6, 8, "#1c2430");
@@ -100,6 +101,25 @@ export function paintCity(ctx: Context2D, x: number, y: number, city: City, slot
     ctx.fillRect(x + 6, y + 4, 8, 6);
     ctx.fillStyle = "#fff";
     ctx.fillRect(x + 5, y + 4, 2, 14);
+  }
+  if (garrisoned) {
+    // A small white shield at the top right, clear of the disorder flag.
+    const sx = x + TILE - 17;
+    const sy = y + 1;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + 14, sy);
+    ctx.lineTo(sx + 14, sy + 8);
+    ctx.quadraticCurveTo(sx + 14, sy + 13, sx + 7, sy + 16);
+    ctx.quadraticCurveTo(sx, sy + 13, sx, sy + 8);
+    ctx.closePath();
+    ctx.fillStyle = "#f4f6f8";
+    ctx.fill();
+    ctx.strokeStyle = "#111820";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = "#8a96a3";
+    ctx.fillRect(sx + 4, sy + 4, 6, 3);
   }
 }
 
