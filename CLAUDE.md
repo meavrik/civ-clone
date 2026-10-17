@@ -23,11 +23,24 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   worlds (`map/premade.ts` + generated `map/worlds/*.ts`: 50 rows of 80 terrain chars, upper case = river,
   and each native civ's homeland square), cities,
   combat, pathfinding, diplomacy, barbarians, save/score. Entry: `src/index.ts`.
+  Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
+  FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
+  starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail
+  of raiders near land), more often and bigger against big empires. Units come by role (`barbarian.as`),
+  the advanced ones once any civ knows their advance. Each band has a Barbarian Leader (`leader` flag:
+  never built, 100 gold ransom to a land unit that catches it alone). They hold cities they take
+  (razing size 1) and build soldiers there; the `pillage` command wrecks one improvement a turn.
+  Stepping off a ship ignores zones of control. Saves before version 4 load with `simpleBarbarians`
+  (the old coastal parties that razed everything) and `zocAtSea`.
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
-  `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it) and `baseline.ts`
-  (v1). The planner is stateless between turns: it re-derives the empire picture (`analyse`) from
-  `GameState` every turn (units' goto orders are its only memory, and they are game state), so
-  replays stay exact. `describePlan` exposes its view (sites, colony plan, campaign) for tests.
+  `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it), `baseline.ts`
+  (v1) and `barbarian.ts` (the barbarians, reached through `baselineTurn` so every AI seat shares it:
+  boats land raiders beside the nearest city, soldiers storm cities at long odds, loot farms and mines
+  on the way and keep their best defender home, the leader keeps to its band and slips away alone).
+  The planner treats a barbarian-held city on its continent as a war to win back. The planner is
+  stateless between turns: it re-derives the empire picture (`analyse`) from `GameState` every turn
+  (units' goto orders are its only memory, and they are game state), so replays stay exact.
+  `describePlan` exposes its view (sites, colony plan, campaign) for tests.
 - `packages/renderer-api` — the `Renderer` interface every renderer implements (draw each screen
   in its own logical size, hit-test menus/city map/tiles/minimap/menu bar), the shared view types and the
   DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`). The web app
@@ -114,7 +127,8 @@ prompt. Phase 8 done: modern-visuals renderer behind the shared `Renderer` API, 
 runtime. Premade worlds done: Earth, Europe, Middle East (title menu "Play on a premade world", optional
 historical homelands: only native tribes offered, rivals drawn from natives preferring non-overlapping
 homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperature/climate/age). 18 civs
-(the original's 14 plus Spanish, Vikings, Hittites, Persians). Next: mobile/PWA + touch adapter.
+(the original's 14 plus Spanish, Vikings, Hittites, Persians). Barbarians done (2026-10-17): uprisings and
+sea raids with leaders and ransom, barbarian-held cities, pillage. Next: mobile/PWA + touch adapter.
 
 ## Known gaps / next steps
 

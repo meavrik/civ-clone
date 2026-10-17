@@ -19,6 +19,7 @@ import {
   type Production,
   type Unit,
 } from "@civ/core";
+import { barbarianTurn } from "./barbarian.js";
 
 /**
  * Baseline opponent: enough to settle, defend, explore and raid. It issues
@@ -30,6 +31,7 @@ export function baselineTurn(state: GameState): void {
   const me = state.currentPlayer;
   const p = state.players[me]!;
   if (!p.isAi) return;
+  if (me === state.barbarians && !state.simpleBarbarians) { barbarianTurn(state); return; }
 
   if (me !== state.barbarians) {
     manageDiplomacy(state, me);

@@ -26,6 +26,7 @@ import {
   loadSave,
   makeSave,
   newGame,
+  pillageTarget,
   productionCost,
   productionName,
   rankTitle,
@@ -133,6 +134,7 @@ const REASONS: Record<string, string> = {
   full: "Ship is full",
   treaty: "We have a treaty",
   "no route": "No route there",
+  "nothing to pillage": "Nothing to pillage here",
 };
 
 type Screen =
@@ -676,6 +678,8 @@ function unitOrders(unit: number): MenuEntry[] {
   if (w.railroad !== undefined) items.push([`Railroad (${w.railroad} turns)`, "R", () => dispatch({ type: "work", unit, work: "railroad" })]);
   if (w.fortress !== undefined) items.push([`Fortress (${w.fortress} turns)`, "F", () => dispatch({ type: "work", unit, work: "fortress" })]);
   if (w.clean !== undefined) items.push([`Clean pollution (${w.clean} turns)`, "P", () => dispatch({ type: "work", unit, work: "clean" })]);
+  const loot = pillageTarget(state, u);
+  if (loot) items.push([`Pillage ${loot}`, "P", () => dispatch({ type: "pillage", unit })]);
   if (type.flags?.includes("caravan")) {
     const c = cityAt(state, u.x, u.y);
     if (c && canHelpWonder(state, u, c) === null) items.push(["Help build wonder", "", () => dispatch({ type: "helpWonder", unit })]);
@@ -873,10 +877,14 @@ function eventMessage(ev: TurnEvent): string | null {
   if (!("city" in ev)) {
     switch (ev.kind) {
       case "warDeclared": return `The ${state.players[ev.player]?.name} declare war!`;
-      case "cityLost": return `${ev.name} has been destroyed!`;
-      case "cityCaptured": return `${ev.name} captured!`;
+      case "cityLost": return ev.by === state.barbarians ? `Barbarians sack ${ev.name}!` : `${ev.name} has been destroyed!`;
+      case "cityCaptured":
+        return ev.by === state.barbarians ? `Barbarians capture ${ev.name}!`
+          : ev.player === state.barbarians ? `${ev.name} is freed from the barbarians!`
+          : `${ev.name} captured!`;
       case "unitLost": return `${ev.unit} lost to the ${state.players[ev.by]?.name}`;
-      case "barbarians": return "Barbarians have landed!";
+      case "barbarians": return ev.sea ? `Barbarian ships sighted off ${ev.near}!` : `Barbarians rise up near ${ev.near}!`;
+      case "ransom": return `Barbarian leader captured! ${ev.amount} gold ransom.`;
       case "eliminated": return `The ${state.players[ev.player]?.name} civilization has been destroyed.`;
       case "tradeRoute": return `Trade route ${ev.from}-${ev.to}: +${ev.bonus} gold and science`;
       case "globalWarming": return "Global warming! Fields wither and forests turn to jungle.";
@@ -972,8 +980,8 @@ function endGame(end: NonNullable<ReturnType<typeof checkGameEnd>>): void {
 
 /** Events from another civilization's turn that the player should hear about. */
 function concernsUs(ev: TurnEvent): boolean {
-  if (ev.kind === "cityLost" || ev.kind === "cityCaptured") return ev.player === 0;
-  return ev.kind === "eliminated" || ev.kind === "barbarians" || ev.kind === "globalWarming" || ev.kind === "nuked"
+  if (ev.kind === "cityLost" || ev.kind === "cityCaptured" || ev.kind === "barbarians") return ev.player === 0;
+  return ev.kind === "eliminated" || ev.kind === "globalWarming" || ev.kind === "nuked"
     || ev.kind === "spaceLaunched" || ev.kind === "spaceArrived" || ev.kind === "spaceLost";
 }
 
@@ -1031,7 +1039,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
     slideOwn(lastActions.slice(mark));
     if (lastCombat) reportCombat(lastCombat);
     afterAction();
-    const ev = lastTurnEvents.find((e) => e.kind === "cityCaptured" || e.kind === "cityLost" || e.kind === "tradeRoute" || e.kind === "nuked");
+    const ev = lastTurnEvents.find((e) => e.kind === "cityCaptured" || e.kind === "cityLost" || e.kind === "tradeRoute" || e.kind === "nuked" || e.kind === "ransom");
     if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
   } else if (r.reason === "treaty") {
     const u = unitById(state, unit)!;
@@ -1079,7 +1087,11 @@ function mapKey(e: KeyboardEvent): void {
       order({ type: "work", unit: active!, work: u && workOptions(state, u).road === undefined ? "railroad" : "road" });
       break;
     }
-    case "KeyP": order({ type: "work", unit: active!, work: "clean" }); break;
+    case "KeyP": {
+      const u = active !== null ? unitById(state, active) : undefined;
+      order(u && workOptions(state, u).clean !== undefined ? { type: "work", unit: active!, work: "clean" } : { type: "pillage", unit: active! });
+      break;
+    }
     case "KeyB": if (active !== null) foundWithName(active); break;
     case "KeyD": if (e.shiftKey) order({ type: "disband", unit: active! }); break;
     case "KeyC": followActive(true); break;

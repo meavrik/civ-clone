@@ -8,7 +8,7 @@ import { paintIcon } from "./icons.js";
 export const UNIT_ABBR: Record<string, string> = {
   settlers: "S", militia: "M", phalanx: "P", legion: "L", cavalry: "C", chariot: "Ch",
   catapult: "Ca", knights: "K", musketeers: "Mu", cannon: "Cn", riflemen: "R", mech_inf: "MI",
-  armor: "A", artillery: "Ar", diplomat: "D", caravan: "Cv", trireme: "T", sail: "Sl",
+  armor: "A", artillery: "Ar", diplomat: "D", caravan: "Cv", barbarian_leader: "BL", trireme: "T", sail: "Sl",
   frigate: "F", ironclad: "I", cruiser: "Cr", battleship: "B", submarine: "Su", carrier: "CV",
   transport: "Tr", fighter: "Ft", bomber: "Bo", nuclear: "N",
 };

@@ -1,3 +1,4 @@
+import { barbarianUnits } from "./barbarians.js";
 import { knows } from "./rules/advances.js";
 import { addPart, partCount, SPACE_PARTS, spacePart } from "./rules/spaceship.js";
 import { building, BUILDINGS } from "./rules/buildings.js";
@@ -627,9 +628,12 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
 
 /** What a city may build right now, gated by the owner's advances. */
 export function buildOptions(state: GameState, city: City): Production[] {
+  // A barbarian city raises soldiers, nothing else.
+  if (city.owner === state.barbarians) return barbarianUnits(state, "build").map((id) => ({ kind: "unit", id }));
   const p = state.players[city.owner]!;
   const out: Production[] = [];
   for (const t of UNIT_TYPES) {
+    if (t.flags?.includes("leader")) continue;
     if (t.requires && !knows(p.advances, t.requires)) continue;
     if (t.domain === "sea" && !coastal(state, city)) continue;
     if (t.flags?.includes("nuclear") && !hasWonder(state, city.owner, "manhattan_project")) continue;

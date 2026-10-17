@@ -13,8 +13,10 @@ export interface SaveGame {
   /**
    * 1: saved before units had hit points; such a game replays with classic combat.
    * 2: saved before wheeled units needed roads over rough ground and harsh ground wore units down; classic terrain.
+   * 3: saved before barbarians came with leaders and boats, rose inland and held cities (simple barbarians),
+   *    and while zones of control still held soldiers stepping off ships.
    */
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -29,7 +31,7 @@ export interface SaveGame {
   label?: string;
 }
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -50,11 +52,15 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
 export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
-  if (save.version !== 1 && save.version !== 2 && save.version !== SAVE_VERSION) throw new Error(`unsupported save version ${save.version}`);
-  // Older games were played under older rules (one-roll fights, open terrain); they must replay the same way.
+  if (![1, 2, 3, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  // Older games were played under older rules (one-roll fights, open terrain, simple barbarians); they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
   if (save.version < 3) options.classicTerrain = true;
+  if (save.version < 4) {
+    options.simpleBarbarians = true;
+    options.zocAtSea = true;
+  }
   const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {

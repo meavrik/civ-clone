@@ -173,10 +173,20 @@ export interface GameState {
   classicCombat?: boolean;
   /** The 1991 terrain: every land unit enters every land square and no ground wears units down. Set for old saves. */
   classicTerrain?: boolean;
+  /** Our first barbarians: parties that step ashore near any city and raze what they take, no leader. Set for old saves. */
+  simpleBarbarians?: boolean;
+  /** Our first landings: a soldier stepping off a ship minds zones of control as on land. Set for old saves. */
+  zocAtSea?: boolean;
 }
 
 export function wrapX(map: WorldMap, x: number): number {
   return ((x % map.width) + map.width) % map.width;
+}
+
+/** Squares between two points: the longer axis, east-west the short way round the wrap. */
+export function mapDistance(map: WorldMap, ax: number, ay: number, bx: number, by: number): number {
+  const dx = Math.abs(wrapX(map, ax) - wrapX(map, bx));
+  return Math.max(Math.min(dx, map.width - dx), Math.abs(ay - by));
 }
 
 export function tileIndex(map: WorldMap, x: number, y: number): number {

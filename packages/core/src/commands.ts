@@ -48,6 +48,7 @@ export type Command =
   | { type: "wait"; unit: number } // w: come back to it later
   | { type: "work"; unit: number; work: WorkKind }
   | { type: "disband"; unit: number }
+  | { type: "pillage"; unit: number } // wreck the best improvement on the unit's square
   | { type: "found"; unit: number; name?: string }
   | { type: "setProduction"; city: number; production: Production }
   | { type: "toggleTile"; city: number; slot: number }
@@ -92,10 +93,11 @@ export type TurnEvent =
   | { kind: "chooseGovernment" }
   | { kind: "contact"; player: number }
   | { kind: "warDeclared"; player: number }
-  | { kind: "cityLost"; name: string; player: number }
-  | { kind: "cityCaptured"; name: string; player: number }
+  | { kind: "cityLost"; name: string; player: number; by: number }
+  | { kind: "cityCaptured"; name: string; player: number; by: number }
   | { kind: "unitLost"; unit: string; by: number }
-  | { kind: "barbarians" }
+  | { kind: "barbarians"; x: number; y: number; sea: boolean; near: string; player: number } // a band appeared near `player`'s city `near`
+  | { kind: "ransom"; amount: number; player: number } // a barbarian leader caught alone
   | { kind: "eliminated"; player: number }
   | { kind: "hut"; result: HutResult; player: number }
   | { kind: "tradeRoute"; from: string; to: string; bonus: number }
@@ -275,6 +277,16 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       recomputeVisibility(state, u.owner);
       selectNextUnit(state, u.id);
       return { ok: true };
+    case "pillage": {
+      const what = pillageTarget(state, u);
+      if (!what) return { ok: false, reason: "nothing to pillage" };
+      if (u.movesLeft <= 0) return { ok: false, reason: "no-moves" };
+      getTile(state.map, u.x, u.y)![what] = false;
+      u.movesLeft = 0;
+      u.order = { kind: "none" };
+      selectNextUnit(state, u.id);
+      return { ok: true };
+    }
     case "helpWonder": {
       const city = cityAt(state, u.x, u.y);
       if (!city) return { ok: false, reason: "not in a city" };
@@ -331,6 +343,7 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
       defenderMaxHp: maxHp(state, c.defender.type),
     };
     if (!c.attackerWon) lastTurnEvents.push({ kind: "unitLost", unit: unitType(u.type).name, by: c.defender.owner });
+    if (c.ransom) lastTurnEvents.push({ kind: "ransom", amount: c.ransom, player: u.owner });
     recomputeVisibility(state, u.owner);
     for (const id of c.destroyed) if (id === state.activeUnit) state.activeUnit = null;
     if (!state.units.includes(u) || u.movesLeft === 0) selectNextUnit(state, u.id);
@@ -350,7 +363,7 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
     const prevOwner = city.owner;
     const name = city.name;
     const cap = captureCity(state, u, city);
-    lastTurnEvents.push(cap.captured ? { kind: "cityCaptured", name, player: prevOwner } : { kind: "cityLost", name, player: prevOwner });
+    lastTurnEvents.push({ kind: cap.captured ? "cityCaptured" : "cityLost", name, player: prevOwner, by: u.owner });
     if (cap.shipLost) lastTurnEvents.push({ kind: "spaceLost", player: prevOwner });
     for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
   }
@@ -478,6 +491,19 @@ function detonate(state: GameState, u: Unit, x: number, y: number): CommandResul
   if (state.activeUnit !== null && !state.units.some((o) => o.id === state.activeUnit)) state.activeUnit = null;
   selectNextUnit(state, u.id);
   return { ok: true };
+}
+
+/** What a pillage order would wreck on a land soldier's square, the most valuable first; null when nothing is there or it stands in a city. */
+export function pillageTarget(state: GameState, u: Unit): "irrigation" | "mine" | "railroad" | "road" | "fortress" | null {
+  const type = unitType(u.type);
+  if (type.domain !== "land" || type.attack === 0 || u.aboard !== null || cityAt(state, u.x, u.y)) return null;
+  const t = getTile(state.map, u.x, u.y)!;
+  if (t.irrigation) return "irrigation";
+  if (t.mine) return "mine";
+  if (t.railroad) return "railroad";
+  if (t.road) return "road";
+  if (t.fortress) return "fortress";
+  return null;
 }
 
 /** A unit is spent (disbanded, consumed): drop it and move on to the next one. */
@@ -815,18 +841,19 @@ export function endTurn(state: GameState): void {
   for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
 
   // Next living player; a full round advances the calendar.
-  // Barbarians only get a turn while they have units on the map.
+  // Barbarians only get a turn while they have units or cities on the map.
   const takesTurn = (id: number) =>
-    state.players[id]!.alive && (id !== state.barbarians || state.units.some((u) => u.owner === id));
+    state.players[id]!.alive && (id !== state.barbarians || state.units.some((u) => u.owner === id) || state.cities.some((c) => c.owner === id));
   let next = player;
   let guard = 0;
   do next = (next + 1) % state.players.length;
   while (!takesTurn(next) && ++guard < state.players.length);
   if (next <= player) {
     state.turn++;
-    const before = state.units.length;
-    maybeSpawnBarbarians(state);
-    if (state.units.length > before) lastTurnEvents.push({ kind: "barbarians" });
+    for (const band of maybeSpawnBarbarians(state)) {
+      const near = cityById(state, band.city)!;
+      lastTurnEvents.push({ kind: "barbarians", x: band.x, y: band.y, sea: band.sea, near: near.name, player: band.victim });
+    }
     if (updateWarming(state)) lastTurnEvents.push({ kind: "globalWarming" });
     for (const pl of state.players) {
       const ship = pl.spaceship;

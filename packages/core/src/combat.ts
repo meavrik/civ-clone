@@ -1,5 +1,7 @@
 import { cityAt, hasWonder } from "./cities.js";
+import { barbarianUnits } from "./barbarians.js";
 import { atWar } from "./diplomacy.js";
+import { BARBARIANS } from "./rules/barbarians.js";
 import { nextFloat } from "./rng.js";
 import { newSpaceship } from "./rules/spaceship.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
@@ -42,6 +44,8 @@ export interface CombatResult {
   destroyed: number[];
   cityCaptured?: City;
   cityDestroyed?: string;
+  /** Gold paid to the attacker for a barbarian leader caught alone. */
+  ransom?: number;
 }
 
 /**
@@ -126,6 +130,11 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
   if (u.order.kind === "fortified" || u.order.kind === "sentry") u.order = { kind: "none" };
 
   const result: CombatResult = { attackerWon, attacker: u, defender, destroyed };
+  // A leader caught with no one to defend it is held for ransom, if a land unit takes it.
+  if (attackerWon && type.domain === "land" && unitType(defender.type).flags?.includes("leader")) {
+    state.players[u.owner]!.gold += BARBARIANS.ransom;
+    result.ransom = BARBARIANS.ransom;
+  }
   return result;
 }
 
@@ -144,7 +153,7 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
     Object.assign(loser.spaceship, newSpaceship());
     shipLost = true;
   }
-  if (city.size <= 1 || u.owner === state.barbarians) {
+  if (city.size <= 1 || (u.owner === state.barbarians && state.simpleBarbarians)) {
     for (const o of state.cities) o.routes = o.routes.filter((id) => id !== city.id);
     state.cities = state.cities.filter((c) => c.id !== city.id);
     return { captured: false, destroyed: true, plunder, shipLost };
@@ -156,7 +165,7 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
   city.specialists = [];
   city.food = 0;
   city.shields = 0;
-  city.production = { kind: "unit", id: "militia" };
+  city.production = { kind: "unit", id: u.owner === state.barbarians ? barbarianUnits(state, "build")[0] ?? "militia" : "militia" };
   city.disorder = false;
   return { captured: true, destroyed: false, plunder, shipLost };
 }

@@ -29,6 +29,8 @@ export interface TerrainRule {
    * (water, food) spare it.
    */
   attrition?: { share: number; until: string };
+  /** No barbarian uprising or raid starts here (FreeCiv civ1: tundra and arctic). */
+  noBarbarians?: boolean;
 }
 
 export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
@@ -83,12 +85,14 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     food: 1, shields: 0, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Game", food: 2 },
     road: { trade: 0, turns: 2 },
+    noBarbarians: true,
   },
   [Terrain.Arctic]: {
     food: 0, shields: 0, trade: 0, moveCost: 2, defense: 1,
     special: { name: "Seals", food: 2 },
     road: { trade: 0, turns: 4 },
     rough: true,
+    noBarbarians: true,
     // Frostbite and scurvy, until physicians know better.
     attrition: { share: 0.2, until: "medicine" },
   },

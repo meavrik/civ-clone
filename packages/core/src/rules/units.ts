@@ -1,5 +1,12 @@
 export type UnitDomain = "land" | "sea" | "air";
 
+/**
+ * How barbarians field a unit, after FreeCiv's civ1 roles: in an uprising on
+ * land, as a raider carried by sea, as a barbarian city's build, or as the
+ * raiders' boat.
+ */
+export type BarbarianRole = "land" | "sea" | "build" | "boat";
+
 export interface UnitTypeRule {
   id: string;
   name: string;
@@ -22,7 +29,10 @@ export interface UnitTypeRule {
   firepower: number;
   /** Enters rough ground (mountains, jungle, swamp, arctic) only along a road. Not a flag: flags mark special roles. */
   wheeled?: boolean;
-  flags?: ("settler" | "diplomat" | "caravan" | "ignoreZoc" | "nuclear")[];
+  /** Barbarians field it in these roles; with `needsTech`, only once some civilization knows `requires`. */
+  barbarian?: { as: BarbarianRole[]; needsTech?: true };
+  /** `leader`: the barbarians' chief, never built; caught alone by a land unit, it pays a ransom. */
+  flags?: ("settler" | "diplomat" | "caravan" | "ignoreZoc" | "nuclear" | "leader")[];
 }
 
 const U = (
@@ -43,27 +53,29 @@ const U = (
  * in rounds, so later units are tougher (10 hp ancient, 20 gunpowder, 30-40
  * mechanised and steel) and the heaviest guns hit for 2. Wheeled units
  * (chariots, siege guns, vehicles) need roads over rough ground, another
- * departure: in the original every land unit goes everywhere.
+ * departure: in the original every land unit goes everywhere. Barbarian
+ * roles and the Barbarian Leader follow the same ruleset.
  */
 export const UNIT_TYPES: UnitTypeRule[] = [
   U("settlers", "Settlers", 0, 1, 1, 40, "land", { flags: ["settler"] }),
   U("militia", "Militia", 1, 1, 1, 10),
   U("phalanx", "Phalanx", 1, 2, 1, 20, "land", { requires: "bronze_working" }),
-  U("legion", "Legion", 3, 1, 1, 20, "land", { requires: "iron_working" }),
-  U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding" }),
+  U("legion", "Legion", 3, 1, 1, 20, "land", { requires: "iron_working", barbarian: { as: ["sea", "build"] } }),
+  U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding", barbarian: { as: ["land"] } }),
   U("chariot", "Chariot", 4, 1, 2, 40, "land", { requires: "the_wheel", wheeled: true }),
   U("catapult", "Catapult", 6, 1, 1, 40, "land", { requires: "mathematics", wheeled: true }),
-  U("knights", "Knights", 4, 2, 2, 40, "land", { requires: "chivalry" }),
-  U("musketeers", "Musketeers", 2, 3, 1, 30, "land", { requires: "gunpowder", hp: 20 }),
-  U("cannon", "Cannon", 8, 1, 1, 40, "land", { requires: "metallurgy", hp: 20, wheeled: true }),
+  U("knights", "Knights", 4, 2, 2, 40, "land", { requires: "chivalry", barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
+  U("musketeers", "Musketeers", 2, 3, 1, 30, "land", { requires: "gunpowder", hp: 20, barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
+  U("cannon", "Cannon", 8, 1, 1, 40, "land", { requires: "metallurgy", hp: 20, wheeled: true, barbarian: { as: ["land", "build"], needsTech: true } }),
   U("riflemen", "Riflemen", 3, 5, 1, 30, "land", { requires: "conscription", hp: 20 }),
   U("mech_inf", "Mech. Inf.", 6, 6, 3, 50, "land", { requires: "labor_union", hp: 30, wheeled: true }),
   U("armor", "Armor", 10, 5, 3, 80, "land", { requires: "automobile", hp: 30, wheeled: true }),
   U("artillery", "Artillery", 12, 2, 2, 60, "land", { requires: "robotics", hp: 20, firepower: 2, wheeled: true }),
   U("diplomat", "Diplomat", 0, 0, 2, 30, "land", { requires: "writing", flags: ["diplomat", "ignoreZoc"] }),
   U("caravan", "Caravan", 0, 1, 1, 50, "land", { requires: "trade", flags: ["caravan", "ignoreZoc"] }),
+  U("barbarian_leader", "Barbarian Leader", 0, 0, 2, 40, "land", { flags: ["leader", "ignoreZoc"] }),
   U("trireme", "Trireme", 1, 0, 3, 40, "sea", { requires: "map_making", capacity: 2 }),
-  U("sail", "Sail", 1, 1, 3, 40, "sea", { requires: "navigation", capacity: 3 }),
+  U("sail", "Sail", 1, 1, 3, 40, "sea", { requires: "navigation", capacity: 3, barbarian: { as: ["boat"] } }),
   U("frigate", "Frigate", 2, 2, 3, 40, "sea", { requires: "magnetism", capacity: 4, hp: 20 }),
   U("ironclad", "Ironclad", 4, 4, 4, 60, "sea", { requires: "steam_engine", hp: 30 }),
   U("cruiser", "Cruiser", 6, 6, 6, 80, "sea", { requires: "combustion", sight: 2, hp: 30, firepower: 2 }),

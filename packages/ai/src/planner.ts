@@ -243,11 +243,13 @@ function analyse(state: GameState, me: number): Ctx {
   const continents = new Set<number>();
   for (const c of cities) continents.add(getTile(state.map, c.x, c.y)!.continent);
   if (continents.size === 0) for (const u of units) continents.add(getTile(state.map, u.x, u.y)!.continent);
+  // A city the barbarians hold on our own land is a war to win back, like any other.
+  if (state.cities.some((c) => c.owner === state.barbarians && continents.has(getTile(state.map, c.x, c.y)!.continent))) atWarWith.push(state.barbarians);
 
   const hostile = state.units.filter((u) => enemies.has(u.owner) && isMilitary(u) && u.aboard === null);
   const threat = new Map<number, number>();
   const wanted = new Map<number, number>();
-  const foreignCities = state.cities.filter((c) => c.owner !== me && c.owner !== state.barbarians);
+  const foreignCities = state.cities.filter((c) => c.owner !== me);
   for (const c of cities) {
     let near = 0;
     for (const h of hostile) if (dist(state, h.x, h.y, c.x, c.y) <= 3) near++;
@@ -1702,7 +1704,7 @@ function orderMilitary(state: GameState, ctx: Ctx, u: Unit): void {
     const hostileCity = city !== undefined && city.owner !== ctx.me && ctx.enemies.has(city.owner);
     const occupied = state.units.some((o) => o.owner !== ctx.me && o.x === x && o.y === y);
     if (!occupied) {
-      if (hostileCity && city.owner !== state.barbarians) { applyCommand(state, { type: "move", unit: u.id, dx, dy }); return; }
+      if (hostileCity) { applyCommand(state, { type: "move", unit: u.id, dx, dy }); return; }
       continue;
     }
     if (!state.units.some((o) => ctx.enemies.has(o.owner) && o.x === x && o.y === y)) continue;

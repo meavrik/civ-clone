@@ -28,6 +28,10 @@ export interface NewGameOptions extends MapGenOptions {
   classicCombat?: boolean;
   /** The 1991 terrain: wheeled units cross rough ground and harsh ground wears nobody down. Old saves load with it. */
   classicTerrain?: boolean;
+  /** Our first barbarians (coastal parties, no leaders, razing what they take). Old saves load with it. */
+  simpleBarbarians?: boolean;
+  /** Zones of control reach a soldier stepping off a ship. Old saves load with it. */
+  zocAtSea?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -140,6 +144,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     warming: 0,
     ...(opts.classicCombat ? { classicCombat: true } : {}),
     ...(opts.classicTerrain ? { classicTerrain: true } : {}),
+    ...(opts.simpleBarbarians ? { simpleBarbarians: true } : {}),
+    ...(opts.zocAtSea ? { zocAtSea: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

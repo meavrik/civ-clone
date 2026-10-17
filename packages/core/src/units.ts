@@ -106,7 +106,8 @@ export function attrition(state: GameState, owner: number, x: number, y: number)
  *    onto it is still allowed, since the attacker never moves in
  *  - zones of control: a land unit may not move from a tile adjacent to an
  *    enemy to another tile adjacent to an enemy, unless the destination
- *    holds a friendly unit or city
+ *    holds a friendly unit or city; the sea has none, so stepping off a
+ *    ship ignores them (old saves: `zocAtSea`)
  *  - an enemy-occupied destination is an attack (resolved by the caller)
  */
 export function checkMove(state: GameState, u: Unit, dx: number, dy: number): MoveResult {
@@ -144,6 +145,7 @@ export function checkMove(state: GameState, u: Unit, dx: number, dy: number): Mo
     !type.flags?.includes("ignoreZoc") &&
     !friendlyThere &&
     !enemyCity &&
+    (from.terrain !== Terrain.Ocean || state.zocAtSea) &&
     enemyAdjacent(state, u.owner, u.x, u.y) &&
     enemyAdjacent(state, u.owner, nx, ny)
   )

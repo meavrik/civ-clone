@@ -1,4 +1,5 @@
 export { baselineTurn } from "./baseline.js";
+export { barbarianTurn } from "./barbarian.js";
 export { acceptsPeace, describePlan, plannerTurn, pickResearch, siteScore } from "./planner.js";
 export { plannerV2Turn } from "./planner-v2.js";
 import { plannerTurn } from "./planner.js";

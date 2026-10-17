@@ -9,6 +9,7 @@ export * from "./rules/advances.js";
 export * from "./rules/wonders.js";
 export * from "./rules/civs.js";
 export * from "./rules/spaceship.js";
+export * from "./rules/barbarians.js";
 export * from "./cities.js";
 export * from "./diplomacy.js";
 export * from "./pathfind.js";
