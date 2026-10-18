@@ -7,8 +7,13 @@ export interface GovernmentRule {
   name: string;
   /** Tiles already yielding 3+ of a resource lose 1 (the despotism penalty). */
   tilePenalty: boolean;
-  /** Units a city supports for free before paying shields. */
-  freeUnits: number;
+  /**
+   * Units a city supports for free before paying shields: as many as the city's
+   * size under Anarchy and Despotism, none under the others, as in the original.
+   */
+  freeUnits: number | "size";
+  /** Free units per city in saves before version 8 (`looseUpkeep`). */
+  looseFreeUnits: number;
   /** Shield upkeep per unit beyond the free ones. */
   unitUpkeep: number;
   /** Settlers eat this much food. */
@@ -29,27 +34,27 @@ export interface GovernmentRule {
 
 export const GOVERNMENTS: Record<string, GovernmentRule> = {
   anarchy: {
-    id: "anarchy", name: "Anarchy", tilePenalty: true, freeUnits: 3, unitUpkeep: 1, settlerFood: 1,
+    id: "anarchy", name: "Anarchy", tilePenalty: true, freeUnits: "size", looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
     martialLaw: true, warWeariness: 0, corruptionPerDistance: 3, maxRate: 6, tradeBonus: 0, sciencePct: 0,
   },
   despotism: {
-    id: "despotism", name: "Despotism", tilePenalty: true, freeUnits: 3, unitUpkeep: 1, settlerFood: 1,
+    id: "despotism", name: "Despotism", tilePenalty: true, freeUnits: "size", looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
     martialLaw: true, warWeariness: 0, corruptionPerDistance: 2, maxRate: 6, tradeBonus: 0, sciencePct: 100,
   },
   monarchy: {
-    id: "monarchy", name: "Monarchy", tilePenalty: false, freeUnits: 3, unitUpkeep: 1, settlerFood: 1,
+    id: "monarchy", name: "Monarchy", tilePenalty: false, freeUnits: 0, looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
     martialLaw: true, warWeariness: 0, corruptionPerDistance: 1, maxRate: 7, tradeBonus: 0, sciencePct: 100,
   },
   communism: {
-    id: "communism", name: "Communism", tilePenalty: false, freeUnits: 3, unitUpkeep: 1, settlerFood: 1,
+    id: "communism", name: "Communism", tilePenalty: false, freeUnits: 0, looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
     martialLaw: true, warWeariness: 0, corruptionPerDistance: 0, maxRate: 8, tradeBonus: 0, sciencePct: 100,
   },
   republic: {
-    id: "republic", name: "Republic", tilePenalty: false, freeUnits: 0, unitUpkeep: 1, settlerFood: 2,
+    id: "republic", name: "Republic", tilePenalty: false, freeUnits: 0, looseFreeUnits: 0, unitUpkeep: 1, settlerFood: 2,
     martialLaw: false, warWeariness: 1, corruptionPerDistance: 1, maxRate: 8, tradeBonus: 1, sciencePct: 100,
   },
   democracy: {
-    id: "democracy", name: "Democracy", tilePenalty: false, freeUnits: 0, unitUpkeep: 1, settlerFood: 2,
+    id: "democracy", name: "Democracy", tilePenalty: false, freeUnits: 0, looseFreeUnits: 0, unitUpkeep: 1, settlerFood: 2,
     martialLaw: false, warWeariness: 2, corruptionPerDistance: 0, maxRate: 10, tradeBonus: 1, sciencePct: 100,
   },
 };

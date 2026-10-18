@@ -22,7 +22,7 @@ import {
   type Unit,
 } from "./types.js";
 import { createUnit } from "./units.js";
-import { revealAround } from "./visibility.js";
+import { recomputeVisibility, revealAround } from "./visibility.js";
 
 export interface Yield {
   food: number;
@@ -89,6 +89,34 @@ export function pollutionChance(state: GameState, city: City, shields: number): 
   const techs = POLLUTING_ADVANCES.filter((a) => knows(p.advances, a)).length;
   const pop = transit ? 0 : Math.floor((city.size * techs * 25) / 100);
   return Math.max(0, prod + pop - 20);
+}
+
+/** Units a city supports without paying shields under its owner's government. */
+export function freeUnits(state: GameState, city: City): number {
+  const gov = government(state.players[city.owner]!.government);
+  return state.looseUpkeep ? gov.looseFreeUnits : gov.freeUnits === "size" ? city.size : gov.freeUnits;
+}
+
+/**
+ * What each unit a city supports costs it a turn, oldest first: the oldest ride on the
+ * government's free units, the rest pay shields, and settlers eat food besides.
+ */
+export function unitSupport(state: GameState, city: City): { unit: Unit; shields: number; food: number }[] {
+  const gov = government(state.players[city.owner]!.government);
+  let free = freeUnits(state, city);
+  return state.units.filter((u) => u.homeCity === city.id).map((unit) => {
+    const food = unitType(unit.type).flags?.includes("settler") ? gov.settlerFood : 0;
+    if (free > 0) { free--; return { unit, shields: 0, food }; }
+    return { unit, shields: gov.unitUpkeep, food };
+  });
+}
+
+/** A unit its city can no longer pay for leaves the game; what it carries steps ashore in port and sinks with it at sea. */
+function disbandForUpkeep(state: GameState, unit: Unit): void {
+  const atSea = getTile(state.map, unit.x, unit.y)?.terrain === Terrain.Ocean;
+  const gone = new Set([unit.id]);
+  for (const o of state.units) if (o.aboard === unit.id) { if (atSea) gone.add(o.id); else o.aboard = null; }
+  state.units = state.units.filter((u) => !gone.has(u.id));
 }
 
 export function cityById(state: GameState, id: number): City | undefined {
@@ -456,14 +484,11 @@ export function computeCity(state: GameState, city: City): CityReport {
   const disorder = unhappy > happy;
 
   // Unit upkeep.
-  const supported = state.units.filter((u) => u.homeCity === city.id);
   let unitShields = 0;
   let unitFood = 0;
-  let free = gov.freeUnits;
-  for (const u of supported) {
-    if (unitType(u.type).flags?.includes("settler")) unitFood += gov.settlerFood;
-    if (free > 0) free--;
-    else unitShields += gov.unitUpkeep;
+  for (const s of unitSupport(state, city)) {
+    unitShields += s.shields;
+    unitFood += s.food;
   }
 
   shields = Math.floor((shields * (100 + shieldPct)) / 100);
@@ -543,7 +568,7 @@ export function buyCost(state: GameState, city: City): number {
 
 export interface CityTurnEvent {
   city: number;
-  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine" | "sold" | "pollution";
+  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine" | "sold" | "pollution" | "disbanded";
   detail?: string;
   /** What was finished ("built", "wonder"). */
   production?: Production;
@@ -601,12 +626,32 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
   }
 
   // Shields.
-  city.shields += r.shieldSurplus;
-  if (city.shields < 0) {
-    // Can't support units: disband the newest supported unit.
-    const victim = state.units.filter((u) => u.homeCity === city.id).pop();
-    if (victim) state.units = state.units.filter((u) => u.id !== victim.id);
-    city.shields = 0;
+  if (state.looseUpkeep) {
+    // Old saves: upkeep beyond the surplus came out of the shield box; once that was empty the newest unit went.
+    city.shields += r.shieldSurplus;
+    if (city.shields < 0) {
+      const victim = state.units.filter((u) => u.homeCity === city.id).pop();
+      if (victim) state.units = state.units.filter((u) => u.id !== victim.id);
+      city.shields = 0;
+    }
+  } else {
+    // A city that cannot pay its units' upkeep disbands them, newest first, until it can.
+    // Settlers go last: they carry a citizen.
+    let surplus = r.shieldSurplus;
+    if (surplus < 0) {
+      const paying = unitSupport(state, city).filter((s) => s.shields > 0).reverse();
+      const order = [...paying.filter((s) => s.food === 0), ...paying.filter((s) => s.food > 0)];
+      let disbanded = false;
+      for (const s of order) {
+        if (surplus >= 0) break;
+        disbandForUpkeep(state, s.unit);
+        surplus += s.shields;
+        disbanded = true;
+        events.push({ city: city.id, kind: "disbanded", detail: unitType(s.unit.type).name });
+      }
+      if (disbanded) recomputeVisibility(state, city.owner);
+    }
+    city.shields += Math.max(0, surplus);
   }
   const cost = costFor(state, city.owner, city.production);
   if (city.shields >= cost) {

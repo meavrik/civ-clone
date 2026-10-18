@@ -169,6 +169,14 @@ Civilizations. Next: mobile/PWA + touch adapter.
    them. `classicTerrain` (saves before version 3, `?terrain=classic`) turns both off.
    Legion 3/1, Musketeers 2/3, Riflemen 3/5 follow the ruleset even though the 1991 manual is often
    quoted as 4/2, 3/3, 5/4.
+   Unit upkeep follows the original (`unitSupport`, `freeUnits` in `cities.ts`, `freeUnits` per
+   government in `rules/governments.ts`): Despotism and Anarchy support as many units free as a city's
+   size, every other government pays a shield for each unit; settlers eat 1 food (2 under Republic and
+   Democracy). A city that cannot pay disbands units at once, newest first and settlers last (cargo of a
+   ship at sea sinks with it), without touching its shield box; the `home` command (H) moves a unit's
+   support to the city it stands in. Both city screens mark each supported unit's cost. `looseUpkeep`
+   (saves before version 8, headless `--loose-upkeep`) keeps our first upkeep: 3 free units a city
+   under Monarchy and Communism too, debts paid from the shield box.
 2. AI v3 done (2026-10-17) on top of the Phase 7 harness and planner. New in v3: colonies (sites
    settlers cannot walk to, `landReach` 18 steps and never through a rival city, are "overseas":
    ferries berth beside a port, take settlers and an escort, land them on the site; Map Making then
@@ -183,7 +191,12 @@ Civilizations. Next: mobile/PWA + touch adapter.
    wins, score 207 vs 183, cities 21 vs 16, techs 45 vs 37; on the older scattered-terrain worlds it
    was 10-6, score 219 vs 199 (numbers from before and after ef8be01 do not compare: every seed gives
    a different world). Every civ on v3 vs every civ on v2, old worlds: Earth historical 7 civs score
-   160 vs 129, cities 17 vs 14. Open AI gaps: no amphibious invasions, no tribute or AI-initiated diplomacy with the player,
+   160 vs 129, cities 17 vs 14. Under the original's upkeep (version 8) the planner sizes garrisons
+   by what a unit costs, builds units only where the city can pay for them, rehomes soldiers to cities
+   with free units and disbands its least useful units before the rules take the newest, and goes from
+   Despotism straight to the Republic (Monarchy pays for every unit; head to head that won more):
+   10-6 wins, score 153 vs 125, cities 20.5 vs 9.6, techs 30.5 vs 29.3 (with `--loose-upkeep` 10-6,
+   210 vs 184). Open AI gaps: no amphibious invasions, no tribute or AI-initiated diplomacy with the player,
    colonists sometimes wait long in port. A 7-civ round costs ~1.3-1.6x v2 (~55 ms late game);
    core's `findPath` (typed-array heap, results identical to the old search, see
    `tests/pathfind.test.ts`) is still the hot spot. Measure AI changes with

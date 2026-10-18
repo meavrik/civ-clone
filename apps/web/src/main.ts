@@ -131,6 +131,8 @@ function say(text: string, ms = 2500): void {
 }
 
 const REASONS: Record<string, string> = {
+  "not in our city": "Only in one of our cities",
+  "already home": "This city already supports it",
   terrain: "Can't go there",
   rough: "Wheels need a road there",
   steep: "Only settlers climb there without a road",
@@ -739,10 +741,19 @@ function unitOrders(unit: number): MenuEntry[] {
   }
   if (type.domain === "land") items.push(["Fortify", "F", () => dispatch({ type: "fortify", unit })]);
   items.push(["Sentry", "S", () => dispatch({ type: "sentry", unit })]);
+  const here = cityAt(state, u.x, u.y);
+  if (here && here.owner === u.owner && u.homeCity !== here.id) items.push([`Home city: ${here.name}`, "H", () => setHome(unit)]);
   items.push(["Wait", "W", () => dispatch({ type: "wait", unit })]);
   items.push(["Skip turn", "Space", () => dispatch({ type: "skip", unit })]);
   items.push(["Disband", "Shift+D", () => dispatch({ type: "disband", unit })]);
   return items;
+}
+
+/** The city the unit stands in pays its upkeep from now on (H), as in the original. */
+function setHome(unit: number): void {
+  const u = unitById(state, unit);
+  const c = u && cityAt(state, u.x, u.y);
+  if (u && c && dispatch({ type: "home", unit })) say(`${unitType(u.type).name} now supported by ${c.name}`);
 }
 
 function openActionMenu(unit: number): void {
@@ -963,6 +974,7 @@ function eventMessage(ev: TurnEvent): string | null {
     case "famine": return `Famine in ${name}: ${ev.detail} lost`;
     case "sold": return `${name} sells its ${ev.detail} to pay the bills`;
     case "pollution": return `Pollution near ${name}!`;
+    case "disbanded": return `${name} cannot support ${ev.detail}: disbanded`;
   }
 }
 
@@ -989,6 +1001,16 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       openTree({ discovered: found, choosing: true, closable: due < 0 }, next);
     }
     else if (ev.kind === "hut") hutModal(ev.result, next);
+    else if (ev.kind === "disbanded") {
+      // Every unit lost to upkeep this turn, in one window.
+      const lost = [ev];
+      for (let i = 0; i < events.length; ) {
+        const e = events[i]!;
+        if (e.kind === "disbanded") { lost.push(e); events.splice(i, 1); } else i++;
+      }
+      const lines = lost.map((e) => `{shield} ${state.cities.find((c) => c.id === e.city)?.name ?? "A city"} cannot support its ${e.detail}`);
+      modal(lost.length > 1 ? "Units disbanded" : "Unit disbanded", [...lines, "Each unit beyond a city's free ones costs a shield a turn."], ["OK"], () => next(), 0, next);
+    }
     else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && ev.production.kind !== "unit") builtWindow(ev.city, ev.production, next);
     else if (ev.kind === "contact") {
       const c = civ(state.players[ev.player]!.civ);
@@ -1141,6 +1163,7 @@ function mapKey(e: KeyboardEvent): void {
     }
     case "KeyB": if (active !== null) foundWithName(active); break;
     case "KeyD": if (e.shiftKey) order({ type: "disband", unit: active! }); break;
+    case "KeyH": if (active !== null) setHome(active); break;
     case "KeyC": followActive(true); break;
     case "KeyT": screenState = { kind: "rates" }; break;
     case "KeyA": screenState = { kind: "science" }; break;

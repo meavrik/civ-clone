@@ -10,6 +10,7 @@ import {
   Terrain,
   tileYield,
   turnToYear,
+  unitSupport,
   wonder,
   type GameState,
 } from "@civ/core";
@@ -19,6 +20,7 @@ import { Clouds } from "../fog.js";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, panel, paragraph, strokeRound, text } from "../draw.js";
 import { paintBadge, paintCity, playerColor } from "../markers.js";
+import { paintIcon } from "../icons.js";
 import { paintFortress, paintIrrigation, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
 import { BUTTON, H, TILE, UI, W } from "../theme.js";
 
@@ -207,10 +209,18 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   button(ctx, CITY_BUTTONS.change, "plain");
   button(ctx, CITY_BUTTONS.buy, cost > 0 && player.gold >= cost ? "primary" : "off");
 
-  // Supported units.
-  const supported = state.units.filter((u) => u.homeCity === city.id);
-  text(ctx, COL3_X, CITY_MAP_Y + 226, `Units supported: ${supported.length}`, { size: 13, color: UI.dim });
-  supported.slice(0, 10).forEach((u, i) => paintBadge(ctx, COL3_X - 8 + (i % 5) * 50, CITY_MAP_Y + 242 + Math.floor(i / 5) * 50, u.type, player.color, 34));
+  // Supported units, each with what it costs the city: a shield beyond the free ones, food for settlers.
+  const support = unitSupport(state, city);
+  const upkeep = support.reduce((n, s) => n + s.shields, 0);
+  text(ctx, COL3_X, CITY_MAP_Y + 226, `Units supported: ${support.length}${upkeep ? ` · ${upkeep} shield${upkeep > 1 ? "s" : ""} a turn` : ""}`, { size: 13, color: UI.dim });
+  support.slice(0, 10).forEach(({ unit, shields, food }, i) => {
+    const ux = COL3_X - 8 + (i % 5) * 50;
+    const uy = CITY_MAP_Y + 242 + Math.floor(i / 5) * 62;
+    paintBadge(ctx, ux, uy, unit.type, player.color, 34);
+    const icons = [...(shields ? (["shield"] as const) : []), ...(food ? (["food"] as const) : [])];
+    let ix = ux + TILE / 2 - (icons.length * 16 - 2) / 2;
+    for (const icon of icons) { paintIcon(ctx, icon, ix, uy + 44, 14); ix += 16; }
+  });
 
   // Exit bar.
   ctx.fillStyle = UI.panel;

@@ -383,6 +383,27 @@ describe("city screen", () => {
     expect(citySlotAt(change.x0, change.y0)).toBeNull();
     expect(buy.y1).toBeLessThan(188);
   });
+
+  it("marks what each supported unit costs: nothing for the free ones, a shield beyond, food for settlers", () => {
+    const state = newGame(2026);
+    applyCommand(state, { type: "found", unit: state.units[0]!.id });
+    const city = state.cities[0]!;
+    for (const t of ["militia", "militia", "settlers", "phalanx", "militia", "militia"]) createUnit(state, t, 0, city.x, city.y, city.id);
+    const s = Surface.screen();
+    drawCityScreen(s, state, { city: city.id });
+    writeFileSync(new URL("./out/city-upkeep.png", import.meta.url), encodePng(s, 3));
+    // Under each unit's sprite: a size-1 city under Despotism keeps its first unit free.
+    const under = (i: number) => {
+      const x = 214 + (i % 5) * 18;
+      const y = 30 + 94 + Math.floor(i / 5) * 27 + 17;
+      let painted = 0;
+      for (let dy = 0; dy < 8; dy++) for (let dx = 0; dx < 16; dx++) if (s.get(x + dx, y + dy) !== s.get(300, 180)) painted++;
+      return painted;
+    };
+    expect(under(0)).toBe(0);
+    expect(under(1)).toBeGreaterThan(0);
+    expect(under(2)).toBeGreaterThan(under(1)); // settlers: a shield and food
+  });
 });
 
 describe("advisor screens", () => {

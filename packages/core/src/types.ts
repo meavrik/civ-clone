@@ -181,6 +181,8 @@ export interface GameState {
   zocAtSea?: boolean;
   /** The 1991 civilizations: all alike, no traits or starting advances. Set for old saves. */
   classicCivs?: boolean;
+  /** Our first unit upkeep: 3 free units a city under Monarchy and Communism too, debts paid from the shield box. Set for saves before version 8. */
+  looseUpkeep?: boolean;
 }
 
 export function wrapX(map: WorldMap, x: number): number {

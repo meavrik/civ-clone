@@ -10,6 +10,7 @@ import {
   slotAvailable,
   tileYield,
   turnToYear,
+  unitSupport,
   unitType,
   wonder,
   type City,
@@ -21,6 +22,7 @@ import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { drawBox, drawButton, drawPanel } from "../widgets.js";
+import { drawIcon, ICON } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
@@ -219,11 +221,16 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawButton(s, change.x, change.y, change.w, change.h, change.label);
   drawButton(s, buy.x, buy.y, buy.w, buy.h, buy.label, cost > 0 && player.gold >= cost);
 
-  // Supported units.
-  const supported = state.units.filter((u) => u.homeCity === city.id);
-  drawText(s, COL3_X, CITY_MAP_Y + 84, `Units: ${supported.length}`, dim);
-  supported.slice(0, 10).forEach((u, i) => {
-    s.blit(unitSprite(u.type, playerColorOf(state, u.owner)), COL3_X + (i % 5) * 18, CITY_MAP_Y + 94 + Math.floor(i / 5) * 18, SPRITE_CLEAR);
+  // Supported units, each with what it costs the city: a shield beyond the free ones, food for settlers.
+  const support = unitSupport(state, city);
+  drawText(s, COL3_X, CITY_MAP_Y + 84, `Units: ${support.length}`, dim);
+  support.slice(0, 10).forEach(({ unit, shields, food }, i) => {
+    const ux = COL3_X + (i % 5) * 18;
+    const uy = CITY_MAP_Y + 94 + Math.floor(i / 5) * 27;
+    s.blit(unitSprite(unit.type, playerColorOf(state, unit.owner)), ux, uy, SPRITE_CLEAR);
+    let ix = ux;
+    if (shields) { drawIcon(s, "shield", ix, uy + 17); ix += ICON; }
+    if (food) drawIcon(s, "food", ix, uy + 17);
   });
 
   // Hints.

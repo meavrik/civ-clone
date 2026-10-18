@@ -37,6 +37,13 @@ describe("save/load", () => {
     expect(loaded.state.units.every((u) => u.hp === 10)).toBe(true);
     expect(loadSave(makeSave(state, opts, []), skipAll).state.classicCombat).toBeUndefined();
   });
+
+  it("replays a save from before the original's unit upkeep with the loose upkeep", () => {
+    const opts = { opponents: 1 as const };
+    const state = newGame(321, opts);
+    expect(loadSave({ ...makeSave(state, opts, []), version: 7 as const }, skipAll).state.looseUpkeep).toBe(true);
+    expect(loadSave(makeSave(state, opts, []), skipAll).state.looseUpkeep).toBeUndefined();
+  });
 });
 
 describe("score and end", () => {

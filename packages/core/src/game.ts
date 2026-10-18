@@ -36,6 +36,8 @@ export interface NewGameOptions extends MapGenOptions {
   zocAtSea?: boolean;
   /** The 1991 civilizations: no traits, no starting advance. Old saves load with it. */
   classicCivs?: boolean;
+  /** Our first unit upkeep (3 free units a city under Monarchy and Communism, debts paid from the shield box). Old saves load with it. */
+  looseUpkeep?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -152,6 +154,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.simpleBarbarians ? { simpleBarbarians: true } : {}),
     ...(opts.zocAtSea ? { zocAtSea: true } : {}),
     ...(opts.classicCivs ? { classicCivs: true } : {}),
+    ...(opts.looseUpkeep ? { looseUpkeep: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

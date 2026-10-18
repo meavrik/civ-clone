@@ -49,6 +49,7 @@ export type Command =
   | { type: "wait"; unit: number } // w: come back to it later
   | { type: "work"; unit: number; work: WorkKind }
   | { type: "disband"; unit: number }
+  | { type: "home"; unit: number } // the city the unit stands in supports it from now on
   | { type: "pillage"; unit: number } // wreck the best improvement on the unit's square
   | { type: "found"; unit: number; name?: string }
   | { type: "setProduction"; city: number; production: Production }
@@ -257,6 +258,13 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       u.order = { kind: "sentry" };
       selectNextUnit(state, u.id);
       return { ok: true };
+    case "home": {
+      const c = cityAt(state, u.x, u.y);
+      if (!c || c.owner !== u.owner) return { ok: false, reason: "not in our city" };
+      if (u.homeCity === c.id) return { ok: false, reason: "already home" };
+      u.homeCity = c.id;
+      return { ok: true };
+    }
     case "skip":
       u.movesLeft = 0;
       selectNextUnit(state, u.id);

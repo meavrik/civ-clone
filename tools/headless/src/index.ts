@@ -51,6 +51,8 @@ export interface GameConfig {
   openMountains?: boolean;
   /** The 1991 civilizations, all alike (no traits or starting advances), to measure the difference. */
   classicCivs?: boolean;
+  /** Our first unit upkeep (3 free units a city under Monarchy and Communism, debts from the shield box). */
+  looseUpkeep?: boolean;
 }
 
 export interface PlayerStats {
@@ -132,6 +134,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.classicTerrain ? { classicTerrain: true } : {}),
     ...(config.openMountains ? { openMountains: true } : {}),
     ...(config.classicCivs ? { classicCivs: true } : {}),
+    ...(config.looseUpkeep ? { looseUpkeep: true } : {}),
   };
 }
 

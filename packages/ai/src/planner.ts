@@ -23,6 +23,7 @@ import {
   FINAL_TURN,
   findPath,
   firepower,
+  freeUnits,
   getTile,
   government,
   governmentsAvailable,
@@ -41,6 +42,7 @@ import {
   tileYield,
   TRADE_ROUTE_MIN_DIST,
   unitById,
+  unitSupport,
   unitType,
   wonder,
   wonderBuilt,
@@ -81,6 +83,7 @@ export function plannerTurn(state: GameState): void {
   manageTrade(state, ctx);
   manageSpaceship(state, ctx);
   manageCities(state, ctx);
+  manageUpkeep(state, ctx);
   manageRates(state, ctx);
   rebalanceGarrisons(state, ctx);
   assault(state, ctx);
@@ -254,15 +257,18 @@ function analyse(state: GameState, me: number): Ctx {
     let near = 0;
     for (const h of hostile) if (dist(state, h.x, h.y, c.x, c.y) <= 3) near++;
     threat.set(c.id, near);
-    // Republics pay a shield for every unit, so they keep lean garrisons unless trouble is near.
-    const lean = p.government === "republic" || p.government === "democracy";
+    // Where every unit costs a shield (no free units under the government) garrisons stay lean unless
+    // trouble is near; elsewhere peacetime guards fill the free units the city has.
+    const free = freeUnits(state, c);
     let w = 1;
     if (near > 0) w++;
     if (near >= 3) w++;
-    if (!lean) {
-      if (c.size >= 5) w++;
-      if (state.turn >= 120 && coastal(state, c)) w++;
-      if (foreignCities.some((f) => dist(state, f.x, f.y, c.x, c.y) <= 6)) w++;
+    if (free > 0) {
+      let extra = 0;
+      if (c.size >= 5) extra++;
+      if (state.turn >= 120 && coastal(state, c)) extra++;
+      if (foreignCities.some((f) => dist(state, f.x, f.y, c.x, c.y) <= 6)) extra++;
+      w += Math.min(extra, Math.max(0, free - w));
     }
     if (state.turn < 20) w = 1;
     wanted.set(c.id, Math.min(4, w));
@@ -401,7 +407,7 @@ function analyse(state: GameState, me: number): Ctx {
     me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, staging, campaignReady, campaignFoot, camp, escorts, escortsWanted, income, science, sites,
     wantMoreCities: cities.length < 24,
     military: units.filter(isMilitary).length,
-    militaryCap: Math.floor(cities.length * (atWarNow ? 4 : p.government === "republic" || p.government === "democracy" ? 1.5 : 2)) + 2,
+    militaryCap: Math.floor(cities.length * (atWarNow ? 4 : cities.every((c) => freeUnits(state, c) === 0) ? 1.5 : 2)) + 2,
     armyWanted: atWarNow ? 2 + cities.length : Math.ceil(cities.length / 3),
     workersWanted: cities.length >= 3 ? Math.floor(cities.length / 3) : 0,
     scoutsWanted: Math.max(0, (state.turn < 150 ? Math.min(2, 1 + Math.floor(cities.length / 4)) : landUnexplored ? 1 : 0) - units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length),
@@ -661,7 +667,9 @@ function bestGovernment(state: GameState, ctx: Ctx): string {
   const avail = governmentsAvailable(state, ctx.me);
   const abroad = ctx.units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length;
   if (avail.includes("republic") && ctx.atWarWith.length === 0 && ctx.cities.length >= 6 && abroad <= 1 && ctx.turn >= 100 && ctx.military <= ctx.cities.length * 1.5) return "republic";
-  if (avail.includes("monarchy")) return "monarchy";
+  // Under the original's upkeep Monarchy pays a shield for every unit, while Despotism keeps as many free as
+  // each city's size: head to head, going from Despotism straight to the Republic won more. Old saves keep Monarchy.
+  if (avail.includes("monarchy") && state.looseUpkeep) return "monarchy";
   return "despotism";
 }
 
@@ -900,11 +908,14 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   const here = garrison(state, ctx, c).length;
   const wanted = ctx.wanted.get(c.id) ?? 1;
   const p = ctx.p;
+  // One more unit rides on a free unit or costs a shield a turn: only build it where `keep` shields are left over.
+  const upkeepNext = state.units.filter((u) => u.homeCity === c.id).length < freeUnits(state, c) ? 0 : government(p.government).unitUpkeep;
+  const affords = (keep: number) => r.shieldSurplus - upkeepNext >= keep;
 
   if (here < wanted) return bestUnit(options, "defense");
   // A ship to carry settlers overseas, from a port with no room left at home.
   const homeSites = ctx.wantMoreCities && sitesOn(state, ctx.sites(), c.x, c.y);
-  if (ctx.ferries < ctx.ferriesWanted && !homeSites && coastal(state, c) && r.shields >= 2 && (ctx.threat.get(c.id) ?? 0) === 0 && ctx.wantOverseas()) {
+  if (ctx.ferries < ctx.ferriesWanted && !homeSites && coastal(state, c) && r.shields >= 2 && affords(2) && (ctx.threat.get(c.id) ?? 0) === 0 && ctx.wantOverseas()) {
     let ferry: Production | undefined;
     let ferryScore = -Infinity;
     for (const o of options) {
@@ -915,7 +926,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     }
     if (ferry) { ctx.ferries++; return ferry; }
   }
-  if (r.shields >= 2 && ctx.ships < 2 && ctx.p.advances.includes("map_making") && (ctx.threat.get(c.id) ?? 0) === 0 && coastal(state, c) && ctx.ships < ctx.seaExplorersWanted()) {
+  if (r.shields >= 2 && affords(2) && ctx.ships < 2 && ctx.p.advances.includes("map_making") && (ctx.threat.get(c.id) ?? 0) === 0 && coastal(state, c) && ctx.ships < ctx.seaExplorersWanted()) {
     // The quickest, cheapest ship that can sail: a trireme early, sail and frigates later.
     let ship: Production | undefined;
     for (const o of options) {
@@ -929,7 +940,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     }
     if (ship) { ctx.ships++; return ship; }
   }
-  if (ctx.scoutsWanted > 0 && c === ctx.cities[0] && here <= wanted) {
+  if (ctx.scoutsWanted > 0 && c === ctx.cities[0] && here <= wanted && affords(1)) {
     let scout: Production | undefined;
     for (const o of options) {
       if (o.kind !== "unit") continue;
@@ -946,12 +957,13 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   const allowance = ctx.cities.length < 8 ? Math.max(2, Math.ceil(ctx.cities.length / 2)) : Math.ceil(ctx.cities.length / 3);
   // Settlers for land this city can walk to, or (from a port) for a colony across the sea.
   const colonists = !homeSites && coastal(state, c) && ctx.overseasSettlers < 2 && ctx.wantOverseas();
-  if (colonists && settlersOut < allowance + 1 && r.foodSurplus >= 1 && c.size >= 3) {
+  if (colonists && settlersOut < allowance + 1 && r.foodSurplus >= 1 && c.size >= 3 && affords(0)) {
     const s = pick("unit", "settlers");
     if (s) { ctx.overseasSettlers++; return s; }
   }
   const sitesLeft = homeSites;
-  if (sitesLeft && settlersOut < allowance && r.foodSurplus >= 1 && (c.size >= 2 || r.foodSurplus >= 2)) {
+  // Settlers off to found a city pay upkeep only until they do.
+  if (sitesLeft && settlersOut < allowance && r.foodSurplus >= 1 && (c.size >= 2 || r.foodSurplus >= 2) && affords(0)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -960,7 +972,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     if (t) return t;
   }
   const workers = ctx.units.filter((u) => unitType(u.type).flags?.includes("settler") && u.order.kind === "work").length;
-  if (workers < ctx.workersWanted && c.size >= 3 && r.foodSurplus >= 2 && settlersOut <= allowance) {
+  if (workers < ctx.workersWanted && c.size >= 3 && r.foodSurplus >= 2 && settlersOut <= allowance && affords(1)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -973,25 +985,25 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     const w = pick("building", "city_walls");
     if (w) return w;
   }
-  if (ctx.warTarget && ctx.escorts < ctx.escortsWanted && military < ctx.militaryCap && threat === 0 && r.shields >= 2) {
+  if (ctx.warTarget && ctx.escorts < ctx.escortsWanted && military < ctx.militaryCap && threat === 0 && r.shields >= 2 && affords(1)) {
     const d = bestUnit(options, "defense");
     if (d) { ctx.escorts++; return d; }
   }
-  if (ctx.atWarWith.length > 0 && army < ctx.armyWanted && military < ctx.militaryCap) {
+  if (ctx.atWarWith.length > 0 && army < ctx.armyWanted && military < ctx.militaryCap && affords(1)) {
     const a = bestUnit(options, "attack", ctx.campaignFoot ? state : null);
     if (a) return a;
   }
   // Caravans carry shields to the wonder city, or open trade routes once the empire has spread out.
   // A standing army even in peacetime, raised by the cities that can afford it.
-  if (army + ctx.armyBuilding < ctx.armyWanted && military < ctx.militaryCap && c.size >= 4 && r.shields >= 4) {
+  if (army + ctx.armyBuilding < ctx.armyWanted && military < ctx.militaryCap && c.size >= 4 && r.shields >= 4 && affords(2)) {
     const a = bestUnit(options, "attack", ctx.campaignFoot ? state : null);
     if (a) { ctx.armyBuilding++; return a; }
   }
-  if (ctx.spyTarget && ctx.diplomats < 1 && c.size >= 3 && r.shields >= 3 && threat === 0) {
+  if (ctx.spyTarget && ctx.diplomats < 1 && c.size >= 3 && r.shields >= 3 && threat === 0 && affords(2)) {
     const d = pick("unit", "diplomat");
     if (d) return d;
   }
-  if (c.size >= 3 && r.shields >= 3 && threat === 0) {
+  if (c.size >= 3 && r.shields >= 3 && threat === 0 && affords(1)) {
     const toWonder = ctx.wonderSite !== null && ctx.wonderSite.id !== c.id && ctx.caravans < 3;
     const toTrade = ctx.wonderSite === null && ctx.cities.length >= 6 && c.size >= 5 && c.routes.length < MAX_TRADE_ROUTES && ctx.caravans < 2 && tradePartner(state, ctx, c) !== null;
     if (toWonder || toTrade) {
@@ -1021,11 +1033,11 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     if (s > bestScore) { bestScore = s; best = o; }
   }
   if (best) return best;
-  if (army < ctx.armyWanted && military < ctx.militaryCap) {
+  if (army < ctx.armyWanted && military < ctx.militaryCap && affords(2)) {
     const a = bestUnit(options, "attack", ctx.campaignFoot ? state : null);
     if (a) return a;
   }
-  if (sitesLeft && r.foodSurplus >= 1) {
+  if (sitesLeft && r.foodSurplus >= 1 && affords(0)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -1045,11 +1057,11 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     }
     if (cheapest) return cheapest;
   }
-  if (r.foodSurplus >= 2 && settlersOut + workers < ctx.workersWanted + (sitesLeft ? allowance : 0)) {
+  if (r.foodSurplus >= 2 && settlersOut + workers < ctx.workersWanted + (sitesLeft ? allowance : 0) && affords(1)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
-  if (military < ctx.militaryCap) return bestUnit(options, "defense");
+  if (military < ctx.militaryCap && affords(2)) return bestUnit(options, "defense");
   return undefined;
 }
 
@@ -1109,6 +1121,44 @@ function manageCities(state: GameState, ctx: Ctx): void {
     else if (prod.kind !== "unit" && (c.shields > 0 || cost <= 60) && p.gold - cost >= 150 + 20 * ctx.cities.length) buy = true;
     else if (prod.kind === "unit" && prod.id === "settlers" && c.size >= 2 && p.gold - cost >= 200 + 20 * ctx.cities.length) buy = true;
     if (buy) applyCommand(state, { type: "buy", city: c.id });
+  }
+}
+
+/**
+ * Keep every city able to pay for its units. A soldier or ship stationed in another of our cities
+ * moves its support there when that city has a free unit to spare, or shields to spare while its
+ * home is short. A city still short lets its least useful units go itself (never settlers, caravans,
+ * a city's last guard or a loaded ship) rather than leave the choice to the rules, which take the newest.
+ */
+function manageUpkeep(state: GameState, ctx: Ctx): void {
+  const upkeep = government(ctx.p.government).unitUpkeep;
+  const surplus = (c: City) => computeCity(state, c).shieldSurplus;
+  const pays = (c: City, u: Unit) => unitSupport(state, c).some((s) => s.unit.id === u.id && s.shields > 0);
+  for (const u of ctx.units) {
+    if (u.aboard !== null || civilian(unitType(u.type)) || u.homeCity === null) continue;
+    const here = cityAt(state, u.x, u.y);
+    if (!here || here.owner !== ctx.me || u.homeCity === here.id) continue;
+    const home = ctx.cities.find((c) => c.id === u.homeCity);
+    if (!home || !pays(home, u)) continue;
+    const spareHere = state.units.filter((o) => o.homeCity === here.id).length < freeUnits(state, here);
+    if (spareHere || (surplus(home) < 0 && surplus(here) >= 2 + upkeep)) applyCommand(state, { type: "home", unit: u.id });
+  }
+  for (const c of ctx.cities) {
+    let short = -surplus(c);
+    if (short <= 0) continue;
+    const worth = (u: Unit) => unitType(u.type).attack + unitType(u.type).defense + (u.veteran ? 1 : 0);
+    const spare = unitSupport(state, c)
+      .filter((s) => s.shields > 0 && !civilian(unitType(s.unit.type)) && s.unit.aboard === null && cargo(state, s.unit).length === 0)
+      .map((s) => s.unit)
+      .filter((u) => { const at = cityAt(state, u.x, u.y); return !at || at.owner !== ctx.me || garrison(state, ctx, at).length > 1; })
+      .sort((a, b) => worth(a) - worth(b));
+    for (const u of spare) {
+      if (short <= 0) break;
+      if (!applyCommand(state, { type: "disband", unit: u.id }).ok) continue;
+      ctx.units = ctx.units.filter((o) => o.id !== u.id);
+      if (isMilitary(u)) ctx.military--;
+      short -= upkeep;
+    }
   }
 }
 
@@ -1394,14 +1444,12 @@ function nearestCity(state: GameState, ctx: Ctx, u: Unit, pred: (c: City) => boo
 }
 
 /**
- * Breadth-first over land the unit can enter for the nearest unexplored
- * tile (a visible hut wins); an unexplored tile it cannot enter (a mountain
- * off the road) is seen from the tile beside it, so that tile is the target. Like the original's opponents it walks the real map, so it heads
+ * Breadth-first over land for the nearest unexplored tile (a visible hut
+ * wins). Like the original's opponents it walks the real map, so it heads
  * for land it has not seen rather than feeling along the edge of the known.
  */
 function frontierTarget(state: GameState, u: Unit, limit = 900): [number, number] | null {
   const p = state.players[u.owner]!;
-  const type = unitType(u.type);
   const { width: w, height: h } = state.map;
   const start = u.y * w + u.x;
   const seen = new Uint8Array(w * h);
@@ -1430,10 +1478,6 @@ function frontierTarget(state: GameState, u: Unit, limit = 900): [number, number
       seen[ni] = 1;
       const n = state.map.tiles[ni]!;
       if (n.terrain === Terrain.Ocean) continue;
-      if (!canEnter(state, type, n)) {
-        if (fallback === null && !p.explored[ni] && i !== start) fallback = [x, y];
-        continue;
-      }
       if (blocked.has(ni)) continue;
       queue.push(ni);
     }

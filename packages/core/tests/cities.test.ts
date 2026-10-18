@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyCommand,
   autoAssignWorkers,
+  CITY_RADIUS,
   buyCost,
   computeCity,
   createUnit,
@@ -11,6 +12,8 @@ import {
   slotScore,
   Terrain,
   tileYield,
+  unitSupport,
+  type City,
   type GameState,
 } from "../src/index.js";
 
@@ -199,12 +202,98 @@ describe("cities", () => {
     applyCommand(s, { type: "found", unit: u.id });
     const c = s.cities[0]!;
     for (let i = 0; i < 5; i++) createUnit(s, "militia", 0, 10, 10, c.id);
+    // Despotism: a size-1 city supports one unit free, the other four cost a shield each.
     const r = computeCity(s, c);
-    expect(r.unitShields).toBe(2);
+    expect(r.unitShields).toBe(4);
     c.buildings.push("temple");
     const gold = s.players[0]!.gold;
     applyCommand(s, { type: "endTurn" });
     expect(s.players[0]!.gold).toBe(gold + computeCity(s, c).tax - 1);
+  });
+});
+
+describe("unit upkeep", () => {
+  function cityWith(units: string[], gov = "despotism", opts: { looseUpkeep?: boolean } = {}): { s: GameState; c: City } {
+    const s = flatWorld();
+    if (opts.looseUpkeep) s.looseUpkeep = true;
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    s.players[0]!.government = gov;
+    for (const t of units) createUnit(s, t, 0, 10, 10, c.id);
+    return { s, c };
+  }
+
+  it("lets a city support as many units free as its size under Despotism, none under Monarchy, as in the original", () => {
+    const { s, c } = cityWith(["militia", "militia", "militia", "settlers"]);
+    c.size = 3;
+    expect(unitSupport(s, c).map((x) => [x.shields, x.food])).toEqual([[0, 0], [0, 0], [0, 0], [1, 1]]);
+    s.players[0]!.government = "monarchy";
+    expect(unitSupport(s, c).map((x) => x.shields)).toEqual([1, 1, 1, 1]);
+    s.players[0]!.government = "republic";
+    expect(unitSupport(s, c).map((x) => x.food)).toEqual([0, 0, 0, 2]);
+    // Saves before version 8 keep three free units under every government but Republic and Democracy.
+    s.looseUpkeep = true;
+    s.players[0]!.government = "monarchy";
+    expect(computeCity(s, c).unitShields).toBe(1);
+  });
+
+  it("disbands units its city cannot pay for at once, newest first and settlers last, keeping the shield box", () => {
+    const { s, c } = cityWith(["settlers", "militia", "militia", "militia", "militia"], "monarchy");
+    // Forest all round: the city works one square of 2 shields beside its own 1, and owes 5.
+    for (const [dx, dy] of CITY_RADIUS) if (dx || dy) getTile(s.map, c.x + dx, c.y + dy)!.terrain = Terrain.Forest;
+    autoAssignWorkers(s, c);
+    c.shields = 7;
+    const militia = s.units.filter((u) => u.homeCity === c.id && u.type === "militia").map((u) => u.id);
+    const r = computeCity(s, c);
+    expect(r.unitShields - r.shields).toBe(2);
+    applyCommand(s, { type: "endTurn" });
+    const left = s.units.filter((u) => u.homeCity === c.id).map((u) => u.type === "settlers" ? "settlers" : u.id);
+    expect(left).toEqual(["settlers", militia[0], militia[1]]);
+    expect(lastTurnEvents.filter((e) => e.kind === "disbanded")).toEqual([
+      { city: c.id, kind: "disbanded", detail: "Militia" },
+      { city: c.id, kind: "disbanded", detail: "Militia" },
+    ]);
+    expect(c.shields).toBe(7);
+  });
+
+  it("before version 8, paid upkeep debts from the shield box first", () => {
+    const { s, c } = cityWith(["militia", "militia", "militia", "militia", "militia", "militia"], "despotism", { looseUpkeep: true });
+    c.shields = 7;
+    const r = computeCity(s, c);
+    expect(r.shieldSurplus).toBeLessThan(0);
+    applyCommand(s, { type: "endTurn" });
+    expect(s.units.filter((u) => u.homeCity === c.id)).toHaveLength(6);
+    expect(c.shields).toBe(7 + r.shieldSurplus);
+  });
+
+  it("sinks a disbanded ship's cargo at sea and sets it ashore in port", () => {
+    for (const atSea of [true, false]) {
+      // Monarchy pays for every unit: the city cannot keep all four, and the ship is the newest.
+      const { s, c } = cityWith(["militia", "militia", "militia"], "monarchy");
+      getTile(s.map, c.x + 1, c.y)!.terrain = Terrain.Ocean;
+      const [x, y] = atSea ? [c.x + 1, c.y] : [c.x, c.y];
+      const ship = createUnit(s, "trireme", 0, x, y, c.id);
+      const rider = createUnit(s, "militia", 0, x, y);
+      rider.aboard = ship.id;
+      applyCommand(s, { type: "endTurn" });
+      expect(s.units.some((u) => u.id === ship.id)).toBe(false);
+      const still = s.units.find((u) => u.id === rider.id);
+      if (atSea) expect(still).toBeUndefined();
+      else expect(still?.aboard).toBeNull();
+    }
+  });
+
+  it("moves a unit's support to the city it stands in (Home City)", () => {
+    const s = flatWorld();
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 20, 10).id });
+    const [a, b] = s.cities;
+    const u = createUnit(s, "militia", 0, b!.x, b!.y, a!.id);
+    expect(applyCommand(s, { type: "home", unit: u.id })).toEqual({ ok: true });
+    expect(u.homeCity).toBe(b!.id);
+    expect(applyCommand(s, { type: "home", unit: u.id }).ok).toBe(false);
+    u.x = 30;
+    expect(applyCommand(s, { type: "home", unit: u.id })).toEqual({ ok: false, reason: "not in our city" });
   });
 });
 

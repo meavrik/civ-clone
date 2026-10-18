@@ -24,6 +24,7 @@ interface Options {
   classicTerrain: boolean;
   classicCivs: boolean;
   openMountains: boolean;
+  looseUpkeep: boolean;
 }
 
 const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
@@ -41,12 +42,13 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --classic-terrain  the 1991 terrain: wheels need no roads, no ground wears units down
   --classic-civs     the 1991 civilizations: no traits, no starting advance
   --open-mountains   every land unit climbs mountains, not only settlers
+  --loose-upkeep     our first unit upkeep: 3 free units a city under Monarchy and Communism too
   --verify         replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -74,6 +76,7 @@ function parseArgs(argv: string[]): Options {
       case "classic-terrain": o.classicTerrain = true; break;
       case "classic-civs": o.classicCivs = true; break;
       case "open-mountains": o.openMountains = true; break;
+      case "loose-upkeep": o.looseUpkeep = true; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
       default: throw new Error(`unknown option --${key}\n\n${HELP}`);
@@ -184,6 +187,7 @@ function main(argv: string[]): number {
       ...(o.classicTerrain ? { classicTerrain: true } : {}),
       ...(o.classicCivs ? { classicCivs: true } : {}),
       ...(o.openMountains ? { openMountains: true } : {}),
+      ...(o.looseUpkeep ? { looseUpkeep: true } : {}),
     });
     if (!o.quiet && o.every > 0) {
       console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).join(", ")}`);
