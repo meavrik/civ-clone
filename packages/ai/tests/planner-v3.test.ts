@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, createUnit, foundCity, getTile, labelContinents, newGame, setRelation, Terrain, type GameState } from "@civ/core";
-import { describePlan, plannerTurn } from "../src/index.js";
+import { applyCommand, createUnit, foundCity, getTile, labelContinents, lastTurnEvents, newGame, relation, setBordersOpen, setRelation, Terrain, trespassRecord, type GameState } from "@civ/core";
+import { acceptsMapSwap, attitude, bordersAnswer, describePlan, plannerTurn, tributeOffer } from "../src/index.js";
 
 /** Player 0 plays (AI); everyone else just ends the turn. */
 function round(state: GameState): void {
@@ -75,5 +75,73 @@ describe("planner AI v3", () => {
     s.currentPlayer = 0;
     plannerTurn(s);
     expect(target.owner).toBe(0);
+  });
+});
+
+describe("planner AI v3 borders", () => {
+  /** Computer civ 1 has a city at (30, 10) and two phalanxes; our militia stands on its land, at peace. */
+  function trespassed(): { s: GameState; unit: number } {
+    const s = newGame(6, { opponents: 1 });
+    for (const t of s.map.tiles) Object.assign(t, { terrain: Terrain.Grassland, river: false, special: false, hut: false, road: false, irrigation: false, mine: false });
+    labelContinents(s.map);
+    s.units = [];
+    s.cities = [];
+    foundCity(s, 0, 10, 10);
+    foundCity(s, 1, 30, 10);
+    createUnit(s, "phalanx", 1, 30, 10);
+    createUnit(s, "phalanx", 1, 30, 10);
+    const u = createUnit(s, "militia", 0, 29, 11);
+    u.order = { kind: "fortified" };
+    setRelation(s, 0, 1, "peace");
+    s.currentPlayer = 1;
+    return { s, unit: u.id };
+  }
+
+  it("asks a human civilization off its land, warns once more, then goes to war", () => {
+    const { s } = trespassed();
+    plannerTurn(s);
+    expect(trespassRecord(s, 1, 0)?.warnings).toBe(1);
+    expect(lastTurnEvents).toContainEqual({ kind: "leaveDemand", player: 1, to: 0, warnings: 1 });
+    plannerTurn(s); // the same turn: no second word
+    expect(trespassRecord(s, 1, 0)?.warnings).toBe(1);
+    s.turn++;
+    plannerTurn(s);
+    expect(trespassRecord(s, 1, 0)?.warnings).toBe(2);
+    expect(relation(s, 0, 1)).toBe("peace");
+    s.turn++;
+    plannerTurn(s);
+    expect(relation(s, 0, 1)).toBe("war");
+    expect(lastTurnEvents).toContainEqual({ kind: "warDeclared", player: 1, on: 0, reason: "trespass" });
+  });
+
+  it("only complains when far the weaker, and says nothing once borders are open", () => {
+    const { s } = trespassed();
+    s.units = s.units.filter((u) => u.owner !== 1);
+    for (let i = 0; i < 4; i++) createUnit(s, "legion", 0, 10, 10);
+    for (let t = 0; t < 4; t++, s.turn++) plannerTurn(s);
+    expect(relation(s, 0, 1)).toBe("peace");
+    setBordersOpen(s, 0, 1, true);
+    lastTurnEvents.length = 0;
+    s.turn += 10;
+    plannerTurn(s);
+    expect(lastTurnEvents.some((e) => e.kind === "leaveDemand")).toBe(false);
+  });
+
+  it("answers the player's proposals by how it regards them", () => {
+    const { s } = trespassed();
+    expect(attitude(s, 1, 0)).toBe("wary"); // four phalanx points against our militia's two: proud
+    expect(bordersAnswer(s, 1, 0)).toBe("for gold");
+    expect(acceptsMapSwap(s, 1, 0)).toBe(true);
+    expect(tributeOffer(s, 1, 0)).toBe(0); // the stronger never pays
+    s.units = s.units.filter((u) => u.owner !== 1);
+    for (let i = 0; i < 3; i++) createUnit(s, "legion", 0, 10, 10);
+    s.players[1]!.gold = 120;
+    expect(attitude(s, 1, 0)).toBe("friendly");
+    expect(tributeOffer(s, 1, 0)).toBe(30);
+    s.tributePaid = { "1>0": s.turn };
+    expect(tributeOffer(s, 1, 0)).toBe(0);
+    s.trespass = { "1>0": { turn: s.turn, warnings: 2 } };
+    expect(attitude(s, 1, 0)).toBe("hostile");
+    expect(bordersAnswer(s, 1, 0)).toBe("no");
   });
 });

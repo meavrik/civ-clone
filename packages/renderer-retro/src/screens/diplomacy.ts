@@ -1,5 +1,5 @@
-import { civ, GOVERNMENTS, relation, type GameState } from "@civ/core";
-import { drawText, drawTextCentered } from "../font.js";
+import { bordersOpen, civ, GOVERNMENTS, relation, type GameState } from "@civ/core";
+import { drawTextCentered, drawTextWrapped } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawWindow, INK } from "../widgets.js";
@@ -29,8 +29,9 @@ export function drawDiplomacyScreen(s: Surface, state: GameState, player: number
   s.rect(cx - 6, 76, 12, 6, shade("flesh", 4)); // neck
   drawTextCentered(s, cx, 126, `${c.leader} of the ${c.name} (${GOVERNMENTS[p.government]?.name ?? ""})`, C.WHITE!, C.BLACK!);
   const r = relation(state, state.currentPlayer, player);
-  drawTextCentered(s, cx, 136, r === "war" ? "We are at WAR" : "We are at peace", r === "war" ? C.LRED! : C.LGREEN!, C.BLACK!);
+  const standing = r === "war" ? "We are at WAR" : bordersOpen(state, state.currentPlayer, player) ? "At peace, our borders open" : "We are at peace";
+  drawTextCentered(s, cx, 136, standing, r === "war" ? C.LRED! : C.LGREEN!, C.BLACK!);
   drawWindow(s, 16, 146, SCREEN_W - 32, 40, "");
-  drawText(s, 22, 150, `"${line}"`, INK);
+  drawTextWrapped(s, 22, 150, SCREEN_W - 44, `"${line}"`, INK, 4);
   void SCREEN_H;
 }

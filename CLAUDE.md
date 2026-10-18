@@ -44,12 +44,28 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   anarchy, friendly villages). `traits.ts` answers each kind; `costFor` is a production's cost for its owner (use it, not
   `productionCost`, for anything a city pays). `classicCivs` (old saves before version 5,
   `?civs=classic`, `--classic-civs`) turns them all off. Tests of base rules play classic civs.
+  Diplomacy (`diplomacy.ts`): civilizations meet face to face (`contactRange` 1, as the original), and
+  the unit that walked into the meeting stops for the turn, on a goto too (`meetAround`), so each side
+  sees whom it met; cities see the squares next to them. Land (`territory.ts`: `claims`, `landOwner`):
+  each city its `CITY_RADIUS`, the nearer then older city winning. At peace without open borders
+  (`openBorders`/`closeBorders` commands, `state.openBorders`) a civilization minds land units on its
+  land (`trespassOn`: not diplomats, caravans or units aboard): stepping in records its first demand
+  to leave (`state.trespass`, a `trespass` event), `demandLeave` adds one, a gift (`giveGold`) forgives,
+  and the record drops at the owner's turn once the units are gone. Other deals: `shareMaps`,
+  `tribute` (`tributePaid`). `warDeclared` says who declared on whom (`on`) and why (`reason`).
+  Saves before version 10 load with `farContact` and `noTrespass` (meeting at two squares, no stop).
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
   `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it), `baseline.ts`
   (v1) and `barbarian.ts` (the barbarians, reached through `baselineTurn` so every AI seat shares it:
   boats land raiders beside the nearest city, soldiers storm cities at long odds, loot farms and mines
   on the way and keep their best defender home, the leader keeps to its band and slips away alone).
-  The planner treats a barbarian-held city on its continent as a war to win back. The planner is
+  The planner treats a barbarian-held city on its continent as a war to win back. Borders
+  (`guardBorders`): a human civ's units on its land are asked off (stepping in was the first request),
+  warned once more a turn later, then war (`reason: "trespass"`) unless the planner is under 0.6x the
+  intruder's strength (then it complains every 5 turns); computer civs do not mind each other. The
+  player's audience asks pure functions of the state: `attitude` (friendly, wary when proud or
+  aggrieved, hostile at war or after a last warning), `bordersAnswer` (wary: for `BORDERS_PRICE`
+  gold), `acceptsMapSwap`, `tributeOffer` (only far weaker civs, once in 20 turns), `tradeAsk`. The planner is
   stateless between turns: it re-derives the empire picture (`analyse`) from `GameState` every turn
   (units' goto orders are its only memory, and they are game state), so replays stay exact.
   `describePlan` exposes its view (sites, colony plan, campaign) for tests.
@@ -99,8 +115,8 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   tiers at a time (`techColumns`), `techTreeHit` hit-tests it. The web app opens it (`openTree`) on
   every advance found (end of turn, village, diplomat, treaty) and wherever research is picked
   (science advisor A, Advisors > Tech Tree); when research is due it closes only on a pick.
-  Borders (`territory.ts`, drawing only, toggled in the Game menu): each known city claims its
-  `CITY_RADIUS`, the nearer then older city winning a shared square; `borderSides` gives the edges and
+  Borders (`territory.ts`, toggled in the Game menu, which hides only the drawing): core's `claims`
+  from the cities the viewer knows, the same land the rules read for trespass; `borderSides` gives the edges and
   where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimaps
   follow the same toggle: a line of the owner's colour round each civ's explored land; cities are
   marked in their owner's colour either way (retro: a white dot in a cross, darker inside a border).
@@ -133,6 +149,13 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `apps/web` — `main.ts` (screen stack + input, picks the renderer: `?renderer=modern|retro`, the
   "Visuals" menu entry, remembered in localStorage), `retro-renderer.ts` (adapter), `display.ts`
   (canvas fitting: crisp integer scale for retro, DPR-aware for modern), `storage.ts` (IndexedDB saves).
+  Diplomacy: a meeting first holds the map on whom we met (the `beat` screen:
+  a callout, 1.6 s or any key), then their leader receives us (`audience`: open or close borders,
+  exchange maps, trade knowledge (pick theirs, they name ours), give gold, demand tribute, declare war;
+  each once a talk, the answer becomes the leader's words). Stepping onto land that minds us (once a
+  civ a turn, later steps get a callout) and the AI's demands after its turn show our unit, then the
+  leader asks us out (`askToLeave`: leave = gotos to the nearest square outside, open borders, a gift,
+  or stay); an AI declaring war on us says so in an audience.
 - `tools/headless` — tournament harness: `runGame(config)` plays an `allAi` game through `runAiPlayers`, samples
   per-civ stats, fingerprints the final state; `AIS` registry seats a named AI per civ. `cli.ts` prints tables.
 - `tools/maps` — premade-world builder: `frames.ts` (lon/lat → grid breakpoints per world, homelands),
@@ -176,7 +199,11 @@ Mobile Phones, Renewable Energy, Artificial Intelligence, Quantum Computing), ea
 improvement built from existing effects (Data Center, Cell Tower, Solar Plant, Automated Office,
 Quantum Lab). `ADVANCES` is that tree; `CLASSIC_ADVANCES` the 1991 one, kept by saves before version 9
 (`classicAdvances`); reach the right one with `advancesFor(state)`, never `ADVANCES` directly in rules
-code. `tileYield` takes the working civ (`owner`) for the pasture food. Next: mobile/PWA + touch adapter.
+code. `tileYield` takes the working civ (`owner`) for the pasture food. Borders and contact done (2026-10-18,
+asked for): civs meet face to face and the map shows whom we met before the audience; the audience
+offers open borders, maps, knowledge, gifts, tribute and war; civs at peace without open borders ask
+the player's units off their land, warn once more, then go to war (our departure: the original had no
+borders). Next: mobile/PWA + touch adapter.
 
 ## Known gaps / next steps
 
@@ -227,7 +254,7 @@ code. `tileYield` takes the working civ (`owner`) for the pasture food. Next: mo
    10-6 wins, score 153 vs 125, cities 20.5 vs 9.6, techs 30.5 vs 29.3 (with `--loose-upkeep` 10-6,
    210 vs 184). On the extended tech tree (version 9; the planner also seeks Weaving after Medicine,
    the modern advances after Fusion Power, and values their improvements): 11-5, score 160 vs 124,
-   cities 20.9 vs 10.3, techs 30.0 vs 29.4. Open AI gaps: no amphibious invasions, no tribute or AI-initiated diplomacy with the player,
+   cities 20.9 vs 10.3, techs 30.0 vs 29.4. Open AI gaps: no amphibious invasions, no tribute demands or treaty offers to the player (it only asks the player off its land), its units ignore the player's borders,
    colonists sometimes wait long in port. A 7-civ round costs ~1.3-1.6x v2 (~55 ms late game);
    core's `findPath` (typed-array heap, results identical to the old search, see
    `tests/pathfind.test.ts`) is still the hot spot. Measure AI changes with
@@ -244,7 +271,8 @@ code. `tileYield` takes the working civ (`owner`) for the pasture food. Next: mo
    war). Nuclear units detonate: everything within a tile dies, the city is halved, fallout is
    left; SDI Defense within three tiles stops them. No embassies, city investigation, air fuel or
    trireme loss at sea yet.
-4. Diplomacy exchange offers first-for-first only; no embassies or AI-to-AI tech trading.
+4. Diplomacy: no embassies; computer civilizations mind neither each other's land nor the player's
+   (only the player is asked to leave), and a refused tribute demand costs nothing.
 5. Modern renderer polish: real sprites/icons for units and specials, animation, hover states.
 6. Mobile: PWA + touch adapter in apps/web (input is already centralised in main.ts).
 

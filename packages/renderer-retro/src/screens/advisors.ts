@@ -1,5 +1,6 @@
 import {
   advance,
+  bordersOpen,
   civ,
   computeCity,
   computeScore,
@@ -88,7 +89,7 @@ export function drawForeignAdvisor(s: Surface, state: GameState): void {
     const color = PLAYER_COLORS[p.color % PLAYER_COLORS.length]!;
     drawSwatch(s, 12, y - 1, color);
     drawText(s, 22, y, `${c.leader} of the ${c.name}`, p.alive ? ink : dim);
-    drawText(s, 200, y, p.alive ? (r === "war" ? "WAR" : "Peace") : "destroyed", r === "war" ? BAD : dim);
+    drawText(s, 200, y, p.alive ? (r === "war" ? "WAR" : bordersOpen(state, me, p.id) ? "Open borders" : "Peace") : "destroyed", r === "war" ? BAD : dim);
     y += 9;
     const cities = state.cities.filter((x) => x.owner === p.id).length;
     drawText(s, 22, y, `${GOVERNMENTS[p.government]?.name ?? p.government}, ${cities} cities, ${p.advances.length} advances, ${p.gold}$`, dim);

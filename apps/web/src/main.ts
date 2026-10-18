@@ -1,10 +1,11 @@
-import { acceptsPeace, aiTurn } from "@civ/ai";
+import { acceptsMapSwap, acceptsPeace, aiTurn, attitude, bordersAnswer, BORDERS_PRICE, tradeAsk, tributeOffer } from "@civ/ai";
 import {
   advance,
   applyCommand,
   atWar,
   advancesFor,
   availableAdvances,
+  bordersOpen,
   buildOptions,
   buyCost,
   canFoundCity,
@@ -18,7 +19,9 @@ import {
   computeScore,
   defaultCityName,
   FINAL_TURN,
+  findPath,
   formatYear,
+  getTile,
   government,
   governmentsAvailable,
   hasContact,
@@ -26,8 +29,11 @@ import {
   lastCombat,
   lastActions,
   lastTurnEvents,
+  landOwner,
   loadSave,
   makeSave,
+  mapDistance,
+  mindsTrespass,
   newGame,
   pillageTarget,
   productionName,
@@ -36,7 +42,9 @@ import {
   routeBonus,
   runAiPlayers,
   shipStats,
+  Terrain,
   traitMoves,
+  trespassers,
   turnToYear,
   unitAt,
   unitById,
@@ -170,6 +178,7 @@ type Screen =
   | { kind: "rates" }
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
   | { kind: "diplomacy"; player: number; line: string }
+  | { kind: "beat"; until: number; then: () => void } // the map, held a moment on something about to be talked of
   | { kind: "end"; lines: string[]; rank: string }
   | { kind: "spaceship" }
   | { kind: "input"; input: TextInputState; onSubmit: (text: string) => void; under: Screen }
@@ -306,14 +315,25 @@ function newContacts(): TurnEvent[] {
   return out;
 }
 
-/** After one of our actions: villages our units entered and civilizations we just met, each in its own window. */
+/** Civilizations that have asked us off their land this turn: a unit stepping onto it again only gets a note. */
+const askedLeave = new Set<number>();
+
+/** After one of our actions: villages our units entered, civilizations we just met, and land we stepped onto uninvited, each in its own window. */
 function afterAction(): void {
   const events: TurnEvent[] = [];
   for (let i = 0; i < lastTurnEvents.length; ) {
     const ev = lastTurnEvents[i]!;
-    if (ev.kind === "hut" && ev.player === 0) { events.push(ev); lastTurnEvents.splice(i, 1); } else i++;
+    if (ev.kind === "hut" && ev.player === 0) { events.push(ev); lastTurnEvents.splice(i, 1); }
+    else if (ev.kind === "trespass" && ev.intruder === 0) {
+      lastTurnEvents.splice(i, 1);
+      if (!askedLeave.has(ev.player) && !events.some((e) => e.kind === "trespass" && e.player === ev.player)) events.push(ev);
+      else {
+        view.callout = { x: ev.x, y: ev.y, text: `Land of the ${state.players[ev.player]!.name}` };
+        calloutUntil = performance.now() + CALLOUT_MS;
+      }
+    } else i++;
   }
-  events.push(...newContacts());
+  events.unshift(...newContacts());
   if (events.length) whenStill(() => presentEvents(events));
 }
 
@@ -917,39 +937,248 @@ async function openLoadMenu(): Promise<void> {
   });
 }
 
-function openDiplomacy(player: number): void {
-  screenState = { kind: "diplomacy", player, line: leaderLine(state, player) };
+// ---- diplomacy ----------------------------------------------------------------
+
+/** How long the map holds on whom we met, or on our unit asked to leave, before the leader speaks. */
+const BEAT_MS = 1600;
+
+/** Show square (x, y) with a note beside it for a moment, then go on (a key or click goes on at once). */
+function beat(x: number, y: number, text: string, then: () => void): void {
+  screenState = { kind: "map" };
+  centerOn(x, y);
+  const now = performance.now();
+  view.callout = { x, y, text };
+  calloutUntil = now + BEAT_MS;
+  screenState = { kind: "beat", until: now + BEAT_MS, then };
+}
+
+function endBeat(sc: Extract<Screen, { kind: "beat" }>): void {
+  screenState = { kind: "map" };
+  view.callout = undefined;
+  sc.then();
+}
+
+/** A menu on the audience screen, top left, clear of the leader and their words. */
+function talkMenu(title: string, items: string[], onPick: (i: number) => void, onCancel: () => void): void {
+  const anchor = { x: Math.round(renderer.width * 0.02), y: Math.round(renderer.height * 0.03) };
+  screenState = { kind: "menu", under: screenState, menu: { title, items, selected: 0, anchor }, onPick, onCancel };
+}
+
+/** Where we met civilization `player`: the unit (one we can see) or city of theirs nearest one of ours. */
+function meetingPlace(player: number): { x: number; y: number } | null {
   const me = state.players[0]!;
+  const w = state.map.width;
+  const ours = [...state.units.filter((u) => u.owner === 0), ...state.cities.filter((c) => c.owner === 0)];
+  const theirs = [
+    ...state.units.filter((u) => u.owner === player && me.visible[u.y * w + u.x] === 1),
+    ...state.cities.filter((c) => c.owner === player && me.explored[c.y * w + c.x] === 1),
+  ];
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (const t of theirs) {
+    const d = Math.min(...ours.map((o) => mapDistance(state.map, t.x, t.y, o.x, o.y)));
+    if (d < bestD) { best = { x: t.x, y: t.y }; bestD = d; }
+  }
+  return best;
+}
+
+/** A leader's first words, by how they regard us. */
+function greeting(player: number): string {
+  const c = civ(state.players[player]!.civ);
+  switch (attitude(state, player, 0)) {
+    case "friendly": return `I am ${c.leader} of the ${c.name}. May our peoples prosper side by side.`;
+    case "wary": return `I am ${c.leader} of the ${c.name}. Our armies are many; walk softly near our lands.`;
+    default: return leaderLine(state, player);
+  }
+}
+
+/** First contact: the map shows whom we met, then their leader receives us. */
+function meet(player: number, then: () => void): void {
+  const place = meetingPlace(player);
+  const talk = () => audience(player, greeting(player), then, true);
+  if (place) beat(place.x, place.y, `The ${state.players[player]!.name}`, talk);
+  else talk();
+}
+
+/**
+ * An audience with a foreign leader: the throne room, their words and our
+ * proposals. Each proposal is made once an audience; the leader's answer
+ * becomes their words and the talk goes on until Farewell.
+ */
+function audience(player: number, line: string, done: () => void = () => { screenState = { kind: "map" }; }, first = false): void {
   const them = state.players[player]!;
-  const r = relation(state, 0, player);
-  const items: [string, () => void][] = [];
-  if (r === "war") items.push(["Propose peace", () => {
-    // A rival that is winning, with its armies at our gates, will not stop now.
-    if (!acceptsPeace(state, player, 0)) { say(`${civ(them.civ).leader} refuses: "Not while our armies stand at your gates."`, 4000); return; }
-    dispatch({ type: "makePeace", player });
-    say("Peace is agreed.");
-  }]);
-  else items.push(["Declare war", () => openWarMenu(player)]);
-  const theirsOnly = them.advances.filter((a) => !me.advances.includes(a));
-  const mineOnly = me.advances.filter((a) => !them.advances.includes(a));
-  if (r !== "war" && theirsOnly.length && mineOnly.length)
-    items.push(["Exchange knowledge", () => {
-      // Offer our first unique advance for their first; good enough until a bargaining screen.
-      const give = mineOnly[0]!;
-      const receive = theirsOnly[0]!;
-      menu(`Trade ${advance(give).name} for ${advance(receive).name}?`, ["Yes", "No"], (i) => {
-        if (i === 0 && dispatch({ type: "exchangeAdvances", player, give, receive })) { say(`We learn ${advance(receive).name}.`, 3000); showFound([receive]); }
+  const tried = new Set<string>();
+  const talk = (words: string): void => {
+    screenState = { kind: "diplomacy", player, line: words };
+    const me = state.players[0]!;
+    const items: [string, () => void][] = [];
+    const offer = (label: string, fn: () => void) => { if (!tried.has(label)) items.push([label, () => { tried.add(label); fn(); }]); };
+    if (atWar(state, 0, player)) {
+      offer("Propose peace", () => {
+        // A rival that is winning, with its armies at our gates, will not stop now.
+        if (!acceptsPeace(state, player, 0)) { talk("Not while our armies stand at your gates."); return; }
+        dispatch({ type: "makePeace", player });
+        talk("Peace, then. Let the dead rest.");
       });
-    }]);
-  if (me.gold >= 50) items.push(["Give 50 gold as tribute", () => { dispatch({ type: "giveGold", player, amount: 50 }); say("The gift is accepted."); }]);
-  items.push(["Farewell", () => {}]);
-  screenState = {
-    kind: "menu",
-    under: screenState,
-    menu: { title: "Your proposal?", items: items.map((i) => i[0]), selected: 0 },
-    onPick: (i) => { items[i]?.[1](); if (screenState.kind === "diplomacy") screenState = { kind: "map" }; },
-    onCancel: () => { screenState = { kind: "map" }; },
+    } else {
+      if (bordersOpen(state, 0, player)) offer("Close borders", () => { dispatch({ type: "closeBorders", player }); talk("As you wish. Keep to your lands, and we to ours."); });
+      else offer("Open borders", () => proposeBorders(player, talk, () => talk("Our lands are open to your people, and yours to ours.")));
+      offer("Exchange maps", () => {
+        if (!acceptsMapSwap(state, player, 0)) { talk("Our maps are not for your eyes."); return; }
+        dispatch({ type: "shareMaps", player });
+        talk("Our scribes copy your maps, and yours ours.");
+      });
+      if (them.advances.some((a) => !me.advances.includes(a)) && tradeAsk(state, player, 0)) offer("Trade knowledge", () => tradeKnowledge(player, talk));
+      if (me.gold >= 50) offer("Give 50 gold", () => { dispatch({ type: "giveGold", player, amount: 50 }); talk("Your generosity will be remembered."); });
+      offer("Demand tribute", () => {
+        const gold = tributeOffer(state, player, 0);
+        if (gold > 0) { dispatch({ type: "tribute", player, amount: gold }); talk(`Take these ${gold} gold, and leave us in peace.`); return; }
+        const paid = state.tributePaid?.[`${player}>0`];
+        talk(paid !== undefined && state.turn - paid < 20 ? "We paid you not long ago. Do not ask again so soon."
+          : them.gold < 10 ? "Our treasury is bare; there is nothing to give."
+          : "We pay tribute to no one. Come and take it, if you dare.");
+      });
+      items.push(["Declare war", () => talkMenu(`Declare war on the ${them.name}?`, ["No, keep the peace", "Yes, declare war!"], (i) => {
+        if (i !== 1) { talk(words); return; }
+        dispatch({ type: "declareWar", player });
+        tried.add("Propose peace");
+        talk("So be it. Our armies will answer you.");
+      }, () => talk(words))]);
+    }
+    items.push([first ? "Part in peace" : "Farewell", done]);
+    talkMenu("Your proposal?", items.map((i) => i[0]), (i) => items[i]?.[1](), done);
   };
+  talk(line);
+}
+
+/**
+ * Ask `player` to open borders: a friendly civilization agrees, a wary one
+ * asks a gift first, a hostile one refuses. `talk` carries the answer;
+ * `agreed` runs once borders are open.
+ */
+function proposeBorders(player: number, talk: (words: string) => void, agreed: () => void): void {
+  const answer = bordersAnswer(state, player, 0);
+  if (answer === "no") { talk("We will not have your soldiers roam our lands."); return; }
+  if (answer === "yes") { dispatch({ type: "openBorders", player }); agreed(); return; }
+  if (state.players[0]!.gold < BORDERS_PRICE) { talk(`For ${BORDERS_PRICE} gold we might. You have not so much.`); return; }
+  screenState = { kind: "diplomacy", player, line: `For a gift of ${BORDERS_PRICE} gold, our lands are open to you.` };
+  talkMenu(`Pay ${BORDERS_PRICE} gold for open borders?`, ["Yes, pay", "No"], (i) => {
+    if (i !== 0) { talk("Then our borders stay closed."); return; }
+    dispatch({ type: "giveGold", player, amount: BORDERS_PRICE });
+    dispatch({ type: "openBorders", player });
+    agreed();
+  }, () => talk("Then our borders stay closed."));
+}
+
+/** Pick one of their advances; they name the one of ours they want for it. */
+function tradeKnowledge(player: number, talk: (words: string) => void): void {
+  const me = state.players[0]!;
+  const theirs = state.players[player]!.advances.filter((a) => !me.advances.includes(a)).slice(-12);
+  const give = tradeAsk(state, player, 0);
+  if (!give || !theirs.length) { talk("We have nothing to trade with you."); return; }
+  talkMenu("Which of their advances?", [...theirs.map((a) => advance(a).name), "Never mind"], (i) => {
+    const receive = theirs[i];
+    if (!receive) { talk("As you wish."); return; }
+    screenState = { kind: "diplomacy", player, line: `For ${advance(receive).name}, we ask ${advance(give).name}.` };
+    talkMenu(`Trade ${advance(give).name} for ${advance(receive).name}?`, ["Yes", "No"], (k) => {
+      if (k !== 0 || !dispatch({ type: "exchangeAdvances", player, give, receive })) { talk("As you wish."); return; }
+      showFound([receive], () => talk("Knowledge for knowledge: a fair trade."));
+    }, () => talk("As you wish."));
+  }, () => talk("As you wish."));
+}
+
+/** The leader's words when our units stand on their land: a request, then the last warning. */
+function leaveWords(warnings: number): string {
+  return warnings >= 2 ? "We will not ask again. Take your units off our land, or it is war."
+    : "Your units stand on our land without leave. Take them home.";
+}
+
+/**
+ * `owner` asks us to take our units off its land (a unit just stepped in,
+ * or its leader asks at its turn): the map shows one of them, then the
+ * leader speaks. We leave (each unit walks to the nearest square outside),
+ * ask for open borders, pay them to look away, or stay.
+ */
+function askToLeave(owner: number, warnings: number, then: () => void, at?: { x: number; y: number }): void {
+  const ours = trespassers(state, owner, 0);
+  if (!ours.length) { then(); return; }
+  askedLeave.add(owner);
+  const them = state.players[owner]!;
+  const leader = civ(them.civ).leader;
+  const where = at ?? ours[0]!;
+  beat(where.x, where.y, `Land of the ${them.name}`, () => {
+    const tried = new Set<string>();
+    const talk = (words: string): void => {
+      screenState = { kind: "diplomacy", player: owner, line: words };
+      const items: [string, () => void][] = [];
+      items.push(["We will leave", () => {
+        const n = withdraw(owner);
+        then();
+        say(n ? `Our units leave the land of the ${them.name}.` : "Our units find no way out.", 3000);
+      }]);
+      if (!tried.has("borders") && bordersAnswer(state, owner, 0) !== "no")
+        items.push(["Open borders?", () => {
+          tried.add("borders");
+          proposeBorders(owner, talk, () => { then(); say(`The ${them.name} open their lands to us.`, 3000); });
+        }]);
+      if (state.players[0]!.gold >= 50)
+        items.push(["Give 50 gold", () => {
+          dispatch({ type: "giveGold", player: owner, amount: 50 });
+          then();
+          say(`${leader} takes the gold and looks away, for now.`, 3500);
+        }]);
+      items.push(["We stay", () => { then(); say(`${leader}: "Then you have been warned."`, 3500); }]);
+      talkMenu("Your answer?", items.map((i) => i[0]), (i) => items[i]?.[1](), then);
+    };
+    talk(leaveWords(warnings));
+  });
+}
+
+/** Send each of our units on `owner`'s land to the nearest square it can reach outside it; how many set off. */
+function withdraw(owner: number): number {
+  let sent = 0;
+  for (const u of trespassers(state, owner, 0)) {
+    const exit = nearestExit(u, owner);
+    if (exit && dispatch({ type: "goto", unit: u.id, x: exit.x, y: exit.y })) sent++;
+  }
+  return sent;
+}
+
+/** The nearest land square outside `owner`'s land (and any other land that minds us) that unit `u` can walk to. */
+function nearestExit(u: { id: number; x: number; y: number }, owner: number): { x: number; y: number } | null {
+  const unit = unitById(state, u.id);
+  if (!unit) return null;
+  const w = state.map.width;
+  for (let r = 1; r <= 8; r++) {
+    let best: { x: number; y: number } | null = null;
+    let steps = Infinity;
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = (((u.x + dx) % w) + w) % w;
+        const y = u.y + dy;
+        const t = getTile(state.map, x, y);
+        if (!t || t.terrain === Terrain.Ocean) continue;
+        const land = landOwner(state, x, y);
+        if (land === owner || (land >= 0 && mindsTrespass(state, land, 0))) continue;
+        const city = cityAt(state, x, y);
+        if ((city && city.owner !== 0) || unitAt(state, x, y).some((o) => o.owner !== 0)) continue;
+        const path = findPath(state, unit, x, y);
+        if (path && path.length < steps) { best = { x, y }; steps = path.length; }
+      }
+    if (best) return best;
+  }
+  return null;
+}
+
+/** A civilization declares war on us: its leader says so. */
+function warAudience(player: number, reason: "trespass" | undefined, then: () => void): void {
+  screenState = { kind: "diplomacy", player, line: reason === "trespass" ? "You were warned. Now our armies will drive you from our land." : "Enough words. Our armies march against you." };
+  talkMenu(`The ${state.players[player]!.name} declare war!`, ["So be it"], () => then(), then);
+}
+
+function openDiplomacy(player: number): void {
+  audience(player, leaderLine(state, player));
 }
 
 function openForeignTalkMenu(): void {
@@ -1041,15 +1270,18 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       modal(lost.length > 1 ? "Units disbanded" : "Unit disbanded", [...lines, "Each unit beyond a city's free ones costs a shield a turn."], ["OK"], () => next(), 0, next);
     }
     else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && ev.production.kind !== "unit") builtWindow(ev.city, ev.production, next);
-    else if (ev.kind === "contact") {
-      const c = civ(state.players[ev.player]!.civ);
-      screenState = { kind: "diplomacy", player: ev.player, line: `${c.leader} of the ${c.name} greets you.` };
-      menu("Your reply?", ["Exchange peace treaty", "Declare war"], (i) => {
-        if (i === 1) dispatch({ type: "declareWar", player: ev.player });
-        else dispatch({ type: "makePeace", player: ev.player });
-        next();
-      }, { onCancel: next });
-    } else if (ev.kind === "chooseResearch") askResearch(next);
+    else if (ev.kind === "contact") meet(ev.player, next);
+    else if (ev.kind === "trespass" || ev.kind === "leaveDemand") {
+      // One request a civilization at a time: the latest says how far it has gone.
+      let warnings = ev.warnings;
+      for (let i = 0; i < events.length; ) {
+        const e = events[i]!;
+        if ((e.kind === "trespass" || e.kind === "leaveDemand") && e.player === ev.player) { warnings = Math.max(warnings, e.warnings); events.splice(i, 1); } else i++;
+      }
+      askToLeave(ev.player, warnings, next, ev.kind === "trespass" ? { x: ev.x, y: ev.y } : undefined);
+    }
+    else if (ev.kind === "warDeclared" && ev.on === 0) warAudience(ev.player, ev.reason, next);
+    else if (ev.kind === "chooseResearch") askResearch(next);
     else if (ev.kind === "chooseGovernment") openGovernmentMenu({ kind: "map" }, next);
     else {
       const msg = eventMessage(ev);
@@ -1079,6 +1311,9 @@ function endGame(end: NonNullable<ReturnType<typeof checkGameEnd>>): void {
 /** Events from another civilization's turn that the player should hear about. */
 function concernsUs(ev: TurnEvent): boolean {
   if (ev.kind === "cityLost" || ev.kind === "cityCaptured" || ev.kind === "barbarians") return ev.player === 0;
+  if (ev.kind === "warDeclared") return ev.on === 0;
+  if (ev.kind === "leaveDemand") return ev.to === 0;
+  if (ev.kind === "trespass") return ev.intruder === 0; // our gotos, walked as our turn began
   return ev.kind === "eliminated" || ev.kind === "globalWarming" || ev.kind === "nuked"
     || ev.kind === "spaceLaunched" || ev.kind === "spaceArrived" || ev.kind === "spaceLost";
 }
@@ -1090,6 +1325,7 @@ function endTurn(): void {
   handoff = null;
   view.focus = undefined;
   const watched: UnitAction[] = [];
+  askedLeave.clear();
   dispatch({ type: "endTurn" });
   // Our own end of turn (contacts come from the relations; other civs' villages are theirs).
   const events: TurnEvent[] = lastTurnEvents.filter((ev) => ev.kind !== "contact" && !(ev.kind === "hut" && ev.player !== 0));
@@ -1105,7 +1341,8 @@ function endTurn(): void {
   }
   // The last civ's end of turn and the start of ours (a goto may have reached a village).
   for (const ev of lastTurnEvents) if (concernsUs(ev) || (ev.kind === "hut" && ev.player === 0)) events.push(ev);
-  events.push(...newContacts());
+  // Whom we met comes first: a new neighbour's other words make sense only after the greeting.
+  events.unshift(...newContacts());
   void runAiPlayers; // replay helper lives in core; here the loop above also harvests events
   // Autosave every 5 turns.
   if (state.turn % 5 === 0) void writeSlot(0, makeSave(state, options, log)).catch(() => {});
@@ -1324,6 +1561,7 @@ addEventListener("keydown", (e) => {
       break;
     case "techTree": treeKey(e, sc); break;
     case "diplomacy": screenState = { kind: "map" }; break;
+    case "beat": e.preventDefault(); endBeat(sc); break;
     case "end": screenState = { kind: "title" }; break;
     case "spaceship":
       if (e.code === "Escape" || e.code === "F6") screenState = { kind: "map" };
@@ -1394,6 +1632,7 @@ canvas.addEventListener("mousedown", (e) => {
     case "techTree": if (e.button === 0) treeClick(sc, px, py); return;
     case "end": screenState = { kind: "title" }; return;
     case "diplomacy": screenState = { kind: "map" }; return;
+    case "beat": endBeat(sc); return;
     case "rates": case "science": case "spaceship": screenState = { kind: "map" }; return;
     case "input": return;
     case "advisor":
@@ -1474,7 +1713,7 @@ function draw(sc: Screen): void {
       renderer.menu({ ...m, selected: setupSelection });
       break;
     }
-    case "map": view.message = status; renderer.main(state, view); break;
+    case "map": case "beat": view.message = status; renderer.main(state, view); break;
     case "report": renderer.report(sc.page); break;
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
@@ -1508,6 +1747,7 @@ function frame(t: number): void {
   if (screenState.kind !== "title" && screenState.kind !== "setup") stepCamera(t);
   if (status && t > statusUntil) status = undefined;
   if (view.callout && t > calloutUntil) view.callout = undefined;
+  if (screenState.kind === "beat" && t >= screenState.until) endBeat(screenState);
   const shown = motion.at(t);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;

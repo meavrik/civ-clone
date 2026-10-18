@@ -21,7 +21,23 @@ import {
 } from "./cities.js";
 import { maybeSpawnBarbarians } from "./barbarians.js";
 import { captureCity, checkElimination, resolveCombat } from "./combat.js";
-import { atWar, detectContacts, hasContact, setRelation } from "./diplomacy.js";
+import {
+  atWar,
+  bordersOpen,
+  clearTrespass,
+  detectContacts,
+  forgiveTrespass,
+  hasContact,
+  meetAround,
+  mindsTrespass,
+  relation,
+  setBordersOpen,
+  setRelation,
+  trespassers,
+  trespassOn,
+  trespassRecord,
+  warnTrespass,
+} from "./diplomacy.js";
 import { findPath, stepDir } from "./pathfind.js";
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, researchCost } from "./rules/advances.js";
 import { building } from "./rules/buildings.js";
@@ -68,9 +84,14 @@ export type Command =
   | { type: "helpWonder"; unit: number } // caravan in a city building a wonder
   | { type: "tradeRoute"; unit: number } // caravan in a city far from its home
   | { type: "diplomat"; unit: number; action: DiplomatAction; x: number; y: number } // against the foreign city at (x, y) next door
-  | { type: "declareWar"; player: number }
+  | { type: "declareWar"; player: number; reason?: "trespass" }
   | { type: "makePeace"; player: number }
-  | { type: "giveGold"; player: number; amount: number }
+  | { type: "openBorders"; player: number } // both civilizations' units may cross each other's land
+  | { type: "closeBorders"; player: number }
+  | { type: "shareMaps"; player: number } // each side learns the land the other has explored
+  | { type: "tribute"; player: number; amount: number } // `player` gives in to a demand and pays the current player
+  | { type: "demandLeave"; player: number } // ask `player` to take its units off the current player's land
+  | { type: "giveGold"; player: number; amount: number } // a gift; it also forgives their trespass so far
   | { type: "giveAdvance"; player: number; advance: string }
   | { type: "exchangeAdvances"; player: number; give: string; receive: string }
   | { type: "launch" } // the spaceship, once it can fly
@@ -94,7 +115,9 @@ export type TurnEvent =
   | { kind: "anarchyOver" }
   | { kind: "chooseGovernment" }
   | { kind: "contact"; player: number }
-  | { kind: "warDeclared"; player: number }
+  | { kind: "warDeclared"; player: number; on: number; reason?: "trespass" } // `player` declares war on `on`
+  | { kind: "trespass"; player: number; intruder: number; unit: number; x: number; y: number; warnings: number } // `intruder`'s unit stepped onto `player`'s land
+  | { kind: "leaveDemand"; player: number; to: number; warnings: number } // `player` asks `to` to leave its land
   | { kind: "cityLost"; name: string; player: number; by: number }
   | { kind: "cityCaptured"; name: string; player: number; by: number }
   | { kind: "unitLost"; unit: string; by: number }
@@ -184,13 +207,61 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       return { ok: true };
     }
     case "declareWar": {
-      if (cmd.player === state.currentPlayer || !state.players[cmd.player]) return { ok: false, reason: "no such player" };
-      setRelation(state, state.currentPlayer, cmd.player, "war");
+      const me = state.currentPlayer;
+      if (cmd.player === me || !state.players[cmd.player]) return { ok: false, reason: "no such player" };
+      const already = atWar(state, me, cmd.player);
+      setRelation(state, me, cmd.player, "war");
+      setBordersOpen(state, me, cmd.player, false);
+      forgiveTrespass(state, me, cmd.player);
+      forgiveTrespass(state, cmd.player, me);
+      if (!already) lastTurnEvents.push({ kind: "warDeclared", player: me, on: cmd.player, ...(cmd.reason ? { reason: cmd.reason } : {}) });
       return { ok: true };
     }
     case "makePeace": {
       if (!hasContact(state, state.currentPlayer, cmd.player)) return { ok: false, reason: "no contact" };
       setRelation(state, state.currentPlayer, cmd.player, "peace");
+      return { ok: true };
+    }
+    case "openBorders": {
+      const me = state.currentPlayer;
+      if (cmd.player === me || relation(state, me, cmd.player) !== "peace" || cmd.player === state.barbarians) return { ok: false, reason: "not at peace" };
+      if (bordersOpen(state, me, cmd.player)) return { ok: false, reason: "borders already open" };
+      setBordersOpen(state, me, cmd.player, true);
+      forgiveTrespass(state, me, cmd.player);
+      forgiveTrespass(state, cmd.player, me);
+      return { ok: true };
+    }
+    case "closeBorders": {
+      if (!bordersOpen(state, state.currentPlayer, cmd.player)) return { ok: false, reason: "borders not open" };
+      setBordersOpen(state, state.currentPlayer, cmd.player, false);
+      return { ok: true };
+    }
+    case "shareMaps": {
+      const me = state.players[state.currentPlayer]!;
+      const them = state.players[cmd.player];
+      if (!them || them.id === me.id || relation(state, me.id, them.id) !== "peace") return { ok: false, reason: "not at peace" };
+      for (let i = 0; i < me.explored.length; i++) {
+        if (!me.explored[i] && !them.explored[i]) continue;
+        me.explored[i] = 1;
+        them.explored[i] = 1;
+      }
+      return { ok: true };
+    }
+    case "tribute": {
+      const me = state.players[state.currentPlayer]!;
+      const them = state.players[cmd.player];
+      if (!them || them.id === me.id || !hasContact(state, me.id, them.id)) return { ok: false, reason: "no contact" };
+      if (cmd.amount <= 0 || cmd.amount > them.gold) return { ok: false, reason: "they cannot pay that" };
+      them.gold -= cmd.amount;
+      me.gold += cmd.amount;
+      (state.tributePaid ??= {})[`${them.id}>${me.id}`] = state.turn;
+      return { ok: true };
+    }
+    case "demandLeave": {
+      const me = state.currentPlayer;
+      if (!trespassers(state, me, cmd.player).length) return { ok: false, reason: "no one trespasses" };
+      const rec = warnTrespass(state, me, cmd.player);
+      lastTurnEvents.push({ kind: "leaveDemand", player: me, to: cmd.player, warnings: rec.warnings });
       return { ok: true };
     }
     case "giveGold": {
@@ -200,6 +271,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       if (cmd.amount <= 0 || cmd.amount > me.gold) return { ok: false, reason: "not enough gold" };
       me.gold -= cmd.amount;
       them.gold += cmd.amount;
+      forgiveTrespass(state, them.id, me.id);
       return { ok: true };
     }
     case "giveAdvance": {
@@ -376,14 +448,31 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
     if (cap.shipLost) lastTurnEvents.push({ kind: "spaceLost", player: prevOwner });
     for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
   }
+  const wasOn = trespassOn(state, u);
   applyMove(state, u, dx, dy, r);
   revealAround(state, u.owner, u.x, u.y, unitType(u.type).sight);
   for (const c of cargo(state, u)) revealAround(state, u.owner, c.x, c.y, 1);
   enterHut(state, u);
   recomputeVisibility(state, u.owner);
-  for (const met of detectContacts(state, u.owner)) lastTurnEvents.push({ kind: "contact", player: met });
+  noteTrespass(state, u, wasOn);
+  const met = detectContacts(state, u.owner);
+  for (const id of met) lastTurnEvents.push({ kind: "contact", player: id });
+  // Meeting a new civilization stops the unit there for the turn, so both sides see whom they met.
+  if (met.length && !state.farContact) u.movesLeft = 0;
   if (u.movesLeft === 0 || r.board !== undefined) selectNextUnit(state, u.id);
   return { ok: true };
+}
+
+/**
+ * A unit just stepped onto the land of a civilization that minds it (at peace,
+ * no open borders): that civilization asks its owner to leave. The first
+ * step in counts as their first warning; the UI hears of every entry.
+ */
+function noteTrespass(state: GameState, u: Unit, wasOn: number): void {
+  const on = trespassOn(state, u);
+  if (on < 0 || on === wasOn) return;
+  const rec = trespassRecord(state, on, u.owner) ?? warnTrespass(state, on, u.owner);
+  lastTurnEvents.push({ kind: "trespass", player: on, intruder: u.owner, unit: u.id, x: u.x, y: u.y, warnings: rec.warnings });
 }
 
 /** Open a route from the caravan's home city to `city`, paying the one-off bonus; the caravan is spent. */
@@ -453,7 +542,10 @@ function spy(state: GameState, u: Unit, action: DiplomatAction, x: number, y: nu
   }
   if (victim.alive && !atWar(state, me.id, victim.id)) {
     setRelation(state, me.id, victim.id, "war");
-    lastTurnEvents.push({ kind: "warDeclared", player: victim.id });
+    setBordersOpen(state, me.id, victim.id, false);
+    forgiveTrespass(state, me.id, victim.id);
+    forgiveTrespass(state, victim.id, me.id);
+    lastTurnEvents.push({ kind: "warDeclared", player: victim.id, on: me.id });
   }
   lastTurnEvents.push({ kind: "spy", action, detail, target: city.name });
   removeUnit(state, u);
@@ -538,12 +630,17 @@ export function runGoto(state: GameState, u: Unit, planned?: [number, number][])
     // An enemy unit or a foreign city in the way: stop and ask the player (an attack or a capture is their call).
     if (!r.ok || r.enemyCity) { u.order = { kind: "none" }; return; }
     const goal: Unit["order"] = u.order;
+    const wasOn = trespassOn(state, u);
     applyMove(state, u, dx, dy, r);
     revealAround(state, u.owner, u.x, u.y, unitType(u.type).sight);
     enterHut(state, u);
     if (r.board !== undefined) return; // boarded: stay sentried on the ship
     u.order = goal; // applyMove clears standing orders
+    noteTrespass(state, u, wasOn);
+    const met = state.farContact ? [] : meetAround(state, u);
+    for (const id of met) lastTurnEvents.push({ kind: "contact", player: id });
     if (u.x === x && u.y === y) { u.order = { kind: "none" }; break; }
+    if (met.length) { u.movesLeft = 0; break; } // the meeting stops it here; the walk goes on next turn
   }
   recomputeVisibility(state, u.owner);
 }
@@ -960,6 +1057,7 @@ export function startTurn(state: GameState, player: number): void {
   for (const u of state.units) if (u.owner === player && u.order.kind === "goto") runGoto(state, u);
   recomputeVisibility(state, player);
   for (const met of detectContacts(state, player)) lastTurnEvents.push({ kind: "contact", player: met });
+  clearTrespass(state, player);
   selectNextUnit(state, null);
 }
 

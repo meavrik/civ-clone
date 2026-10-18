@@ -31,6 +31,8 @@ import {
   governmentsAvailable,
   hasContact,
   hasWaterNearby,
+  trespassers,
+  trespassRecord,
   MAX_TRADE_ROUTES,
   NEIGHBOURS,
   needsRoads,
@@ -82,6 +84,7 @@ export function plannerTurn(state: GameState): void {
   manageResearch(state, ctx);
   manageGovernment(state, ctx);
   manageDiplomacy(state, ctx);
+  guardBorders(state, ctx);
   manageTrade(state, ctx);
   manageSpaceship(state, ctx);
   manageCities(state, ctx);
@@ -728,6 +731,83 @@ export function acceptsPeace(state: GameState, them: number, me: number): boolea
   if (strength(state, them) < strength(state, me) * 1.4) return true;
   const myCities = state.cities.filter((c) => c.owner === me);
   return !state.units.some((u) => u.owner === them && isAttacker(u) && myCities.some((c) => dist(state, u.x, u.y, c.x, c.y) <= 8));
+}
+
+/**
+ * How computer civilization `them` regards `me`: hostile at war or once it
+ * has warned `me` off its land twice, wary while it holds a grievance or is
+ * far the stronger (proud), friendly otherwise. Read from the state alone, so
+ * the player's audience can ask without touching the game.
+ */
+export type Attitude = "friendly" | "wary" | "hostile";
+
+export function attitude(state: GameState, them: number, me: number): Attitude {
+  if (atWar(state, them, me)) return "hostile";
+  const grievance = trespassRecord(state, them, me);
+  if (grievance && grievance.warnings >= 2) return "hostile";
+  if (grievance || strength(state, them) > strength(state, me) * 1.5) return "wary";
+  return "friendly";
+}
+
+/** The gift a wary civilization asks before it opens its borders. */
+export const BORDERS_PRICE = 50;
+
+/** Would `them` open borders with `me`? Friendly: yes; wary: for a gift of `BORDERS_PRICE` gold; hostile: no. */
+export function bordersAnswer(state: GameState, them: number, me: number): "yes" | "for gold" | "no" {
+  const a = attitude(state, them, me);
+  return a === "friendly" ? "yes" : a === "wary" ? "for gold" : "no";
+}
+
+/** Would `them` swap maps with `me`? Unless hostile. */
+export function acceptsMapSwap(state: GameState, them: number, me: number): boolean {
+  return attitude(state, them, me) !== "hostile";
+}
+
+/**
+ * The gold `them` pays when `me` demands tribute: a quarter of its treasury
+ * (in tens, at least ten), and only when it is far the weaker (under half
+ * `me`'s strength) and has not paid `me` in the last 20 turns. 0 is a refusal.
+ */
+export function tributeOffer(state: GameState, them: number, me: number): number {
+  const paid = state.tributePaid?.[`${them}>${me}`];
+  if (paid !== undefined && state.turn - paid < 20) return 0;
+  if (strength(state, them) * 2 >= strength(state, me)) return 0;
+  const gold = state.players[them]!.gold;
+  return gold < 10 ? 0 : Math.max(10, Math.floor(gold / 40) * 10);
+}
+
+/** The advance of `me`'s that `them` asks for in a swap: the one its plans want most, then the deepest. */
+export function tradeAsk(state: GameState, them: number, me: number): string | null {
+  const theirs = state.players[them]!.advances;
+  const offer = state.players[me]!.advances.filter((a) => !theirs.includes(a));
+  if (!offer.length) return null;
+  const war = state.players.some((o) => o.id !== them && o.id !== state.barbarians && atWar(state, them, o.id));
+  const tree = advancesFor(state);
+  const worth = (id: string) => [advanceRank(id, war), -closure(id, tree).size] as const;
+  return offer.reduce((a, b) => {
+    const [ra, da] = worth(a);
+    const [rb, db] = worth(b);
+    return rb < ra || (rb === ra && db < da) ? b : a;
+  });
+}
+
+/**
+ * A human civilization's units on our land, at peace and without open
+ * borders: ask them to leave (stepping in counted as the first request), ask
+ * once more, then go to war, unless we are far the weaker, when we only
+ * complain now and then. Computer civilizations do not mind each other.
+ */
+function guardBorders(state: GameState, ctx: Ctx): void {
+  if (state.noTrespass) return;
+  const me = ctx.me;
+  for (const o of state.players) {
+    if (o.isAi || !o.alive || !trespassers(state, me, o.id).length) continue;
+    const rec = trespassRecord(state, me, o.id);
+    if (rec && rec.turn === state.turn) continue; // asked this very turn
+    if (!rec || rec.warnings < 2) applyCommand(state, { type: "demandLeave", player: o.id });
+    else if (strength(state, me) >= strength(state, o.id) * 0.6) applyCommand(state, { type: "declareWar", player: o.id, reason: "trespass" });
+    else if (state.turn - rec.turn >= 5) applyCommand(state, { type: "demandLeave", player: o.id });
+  }
 }
 
 function manageDiplomacy(state: GameState, ctx: Ctx): void {

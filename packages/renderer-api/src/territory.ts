@@ -1,11 +1,11 @@
-import { CITY_RADIUS, type GameState } from "@civ/core";
+import { claims, type GameState } from "@civ/core";
 
 /**
- * Civilization borders, for drawing only (the original has none, and the
- * rules never read them). Each city claims the squares it can work (the
- * 21-square `CITY_RADIUS`); where cities of two civilizations reach the same
- * square, the nearer city takes it, then the older. Only cities the viewer
- * has explored count, so borders show nothing that lies under the fog.
+ * Civilization borders, as drawn: the land each civilization claims (core's
+ * `claims`: each city the 21 squares of its `CITY_RADIUS`, the nearer then
+ * the older city winning a shared square). The rules read the same claims
+ * for trespass. Only cities the viewer has explored count, so borders show
+ * nothing that lies under the fog.
  */
 export interface Territory {
   width: number;
@@ -16,23 +16,8 @@ export interface Territory {
 
 export function territory(state: GameState, viewer = state.currentPlayer): Territory {
   const { width, height } = state.map;
-  const owner = new Int16Array(width * height).fill(-1);
-  const near = new Float64Array(width * height).fill(Infinity);
   const explored = state.players[viewer]?.explored;
-  // Older cities first, so on a tie the first claim stands.
-  const cities = [...state.cities].sort((a, b) => a.id - b.id);
-  for (const c of cities) {
-    if (explored && !explored[c.y * width + c.x]) continue;
-    for (const [dx, dy] of CITY_RADIUS) {
-      const y = c.y + dy;
-      if (y < 0 || y >= height) continue;
-      const i = y * width + (((c.x + dx) % width) + width) % width;
-      const d = dx * dx + dy * dy;
-      if (d >= near[i]!) continue;
-      near[i] = d;
-      owner[i] = c.owner;
-    }
-  }
+  const owner = claims(state, (c) => !explored || explored[c.y * width + c.x] === 1);
   return { width, height, owner };
 }
 

@@ -1,5 +1,6 @@
 import {
   advance,
+  bordersOpen,
   civ,
   computeCity,
   computeScore,
@@ -121,7 +122,7 @@ function drawForeign(ctx: Context2D, state: GameState): void {
     const r = relation(state, me, p.id);
     fillRound(ctx, box.x, y + 3, 12, 12, 3, playerColor(p.color));
     text(ctx, box.x + 22, y, `${c.leader} of the ${c.name}`, { size: 16, weight: "600", color: p.alive ? UI.ink : UI.dim });
-    text(ctx, box.x + box.w, y, p.alive ? (r === "war" ? "WAR" : "Peace") : "destroyed", { size: 14, color: r === "war" ? UI.danger : UI.dim, align: "right" });
+    text(ctx, box.x + box.w, y, p.alive ? (r === "war" ? "WAR" : bordersOpen(state, me, p.id) ? "Peace · open borders" : "Peace") : "destroyed", { size: 14, color: r === "war" ? UI.danger : UI.dim, align: "right" });
     y += 22;
     const cities = state.cities.filter((x) => x.owner === p.id).length;
     text(ctx, box.x + 22, y, `${GOVERNMENTS[p.government]?.name ?? p.government} · ${cities} cities · ${p.advances.length} advances · ${p.gold} gold`, { size: 13, color: UI.dim });
@@ -195,9 +196,10 @@ export function drawDiplomacyScreen(ctx: Context2D, state: GameState, player: nu
   text(ctx, cx, 366, `${c.leader} of the ${c.name}`, { size: 26, weight: "600", align: "center", shadow: true });
   text(ctx, cx, 400, GOVERNMENTS[p.government]?.name ?? "", { size: 15, color: UI.dim, align: "center" });
   const r = relation(state, state.currentPlayer, player);
-  text(ctx, cx, 424, r === "war" ? "We are at WAR" : "We are at peace", { size: 15, weight: "600", color: r === "war" ? UI.danger : UI.ok, align: "center" });
-  panel(ctx, 120, 460, W - 240, 80, 14, UI.card);
-  paragraph(ctx, 144, 480, W - 288, `“${line}”`, { size: 18 }, 2);
+  const standing = r === "war" ? "We are at WAR" : bordersOpen(state, state.currentPlayer, player) ? "At peace, our borders open" : "We are at peace";
+  text(ctx, cx, 424, standing, { size: 15, weight: "600", color: r === "war" ? UI.danger : UI.ok, align: "center" });
+  panel(ctx, 120, 460, W - 240, 92, 14, UI.card);
+  paragraph(ctx, 144, 476, W - 288, `“${line}”`, { size: 18 }, 3);
 }
 
 export function drawSpaceshipScreen(ctx: Context2D, state: GameState): void {

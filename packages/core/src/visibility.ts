@@ -16,7 +16,7 @@ export function revealAround(state: GameState, player: number, cx: number, cy: n
   }
 }
 
-/** Recompute the "currently seen" layer for a player from its units. */
+/** Recompute the "currently seen" layer for a player from its units, and its cities (the squares next to them; not in saves before version 10). */
 export function recomputeVisibility(state: GameState, player: number): void {
   const p = state.players[player]!;
   p.visible.fill(0);
@@ -24,4 +24,6 @@ export function recomputeVisibility(state: GameState, player: number): void {
     if (u.owner !== player) continue;
     revealAround(state, player, u.x, u.y, unitType(u.type).sight);
   }
+  if (state.farContact) return;
+  for (const c of state.cities) if (c.owner === player) revealAround(state, player, c.x, c.y, 1);
 }

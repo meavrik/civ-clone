@@ -185,6 +185,23 @@ export interface GameState {
   looseUpkeep?: boolean;
   /** The 1991 tech tree (Future Tech. last, no Weaving, Animal Husbandry or modern advances). Set for saves before version 9. */
   classicAdvances?: boolean;
+  /** Our first contact: civilizations meet two squares apart, the meeting stops no one, and cities see nothing round them. Set for saves before version 10. */
+  farContact?: boolean;
+  /** No civilization minds foreign units on its land (no demands to leave, no wars over it). Set for saves before version 10. */
+  noTrespass?: boolean;
+  /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
+  openBorders?: Record<string, true>;
+  /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */
+  trespass?: Record<string, Trespass>;
+  /** "payer>receiver": the turn tribute was last paid. */
+  tributePaid?: Record<string, number>;
+}
+
+export interface Trespass {
+  /** Turn of the latest demand. */
+  turn: number;
+  /** Demands so far; the second is the last before war. */
+  warnings: number;
 }
 
 export function wrapX(map: WorldMap, x: number): number {

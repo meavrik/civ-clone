@@ -41,6 +41,10 @@ export interface NewGameOptions extends MapGenOptions {
   looseUpkeep?: boolean;
   /** The 1991 tech tree, before Weaving, Animal Husbandry and the modern advances. Old saves load with it. */
   classicAdvances?: boolean;
+  /** Our first contact (two squares apart, nobody stops, cities see nothing round them). Old saves load with it. */
+  farContact?: boolean;
+  /** Nobody minds foreign units on their land. Old saves load with it. */
+  noTrespass?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -159,6 +163,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.classicCivs ? { classicCivs: true } : {}),
     ...(opts.looseUpkeep ? { looseUpkeep: true } : {}),
     ...(opts.classicAdvances ? { classicAdvances: true } : {}),
+    ...(opts.farContact ? { farContact: true } : {}),
+    ...(opts.noTrespass ? { noTrespass: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

@@ -12,6 +12,7 @@ export * from "./rules/spaceship.js";
 export * from "./rules/barbarians.js";
 export * from "./cities.js";
 export * from "./diplomacy.js";
+export * from "./territory.js";
 export * from "./pathfind.js";
 export * from "./combat.js";
 export * from "./barbarians.js";
