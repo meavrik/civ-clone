@@ -4,7 +4,7 @@ import { CLOUDS, PLAYER_COLORS } from "../src/theme.js";
 import type { MainScreenView } from "@civ/renderer-api";
 import { createModernRenderer, MODERN_H, MODERN_TILE, MODERN_W, type Context2D, type Gradient } from "../src/index.js";
 import { paintIcon } from "../src/icons.js";
-import { civilizationsReport, ICONS, openTechTree, setupMenu, techLayout } from "@civ/renderer-api";
+import { cityScene, civilizationsReport, ICONS, openTechTree, setupMenu, techLayout } from "@civ/renderer-api";
 
 /** Records what the renderer asks of the canvas; width of text is a flat per-character estimate. */
 class FakeContext implements Context2D {
@@ -86,6 +86,8 @@ describe("modern renderer", () => {
     r.main(state, view);
     r.main(state, { ...view, inspect: { x: state.cities[0]!.x + 1, y: state.cities[0]!.y }, message: undefined, autoEnd: true });
     r.city(state, { city: state.cities[0]!.id });
+    r.cityView(state, { city: state.cities[0]!.id });
+    r.cityView(state, { city: state.cities[0]!.id, picked: "palace" });
     const tree = openTechTree(state, r.techColumns, { discovered: ["bronze_working"], choosing: true, closable: false });
     r.techTree(state, tree);
     // Far along: a player who knows all but the last few, the tree scrolled toward its end.
@@ -240,6 +242,13 @@ describe("modern renderer", () => {
     expect(r.cityButtonAt(800 + 60, 92 + 150 + 17)).toBe("buy");
     expect(r.cityButtonAt(660 + 60, 92 + 124)).toBeNull();
     expect(r.cityButtonAt(10, 590)).toBeNull();
+    // The city's picture under the resource map is the View button; in the city view a click names a building.
+    expect(r.cityButtonAt(20 + 120, 92 + 292 + 60)).toBe("view");
+    const named = state.cities[0]!;
+    named.buildings = ["palace"];
+    const palace = cityScene(state, named).items.find((it) => it.id === "palace")!;
+    expect(r.cityViewAt(state, { city: named.id }, 6 + (palace.x + palace.pic.w / 2) * 3, 40 + (palace.y - 4) * 3)).toBe("palace");
+    expect(r.cityViewAt(state, { city: named.id }, 480, 590)).toBeNull();
     // The city's units under the production card: those in the city first, each picked by its badge.
     const city = state.cities[0]!;
     createUnit(state, "phalanx", 0, city.x, city.y, city.id);

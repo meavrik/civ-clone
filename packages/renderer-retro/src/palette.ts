@@ -102,7 +102,24 @@ for (const [name, colors] of Object.entries(CHROME)) {
 // Deep brown skin for the city screen's citizens, darker than the flesh ramp reaches.
 C.SKIN = PALETTE.length;
 PALETTE.push(...ramp([52, 30, 20], [136, 86, 56], 8));
+// The city view's buildings and sky: warm marble, brick and tile, weathered copper, a day sky.
+const BUILT: Record<string, Rgb[]> = {
+  marble: ramp([96, 88, 80], [252, 248, 236], 8),
+  brick: ramp([64, 20, 14], [236, 140, 96], 8),
+  copper: ramp([18, 64, 58], [138, 218, 190], 8),
+  sky: ramp([64, 112, 196], [214, 232, 250], 8),
+};
+for (const [name, colors] of Object.entries(BUILT)) {
+  C[name.toUpperCase()] = PALETTE.length;
+  PALETTE.push(...colors);
+}
 while (PALETTE.length < 256) PALETTE.push([0, 0, 0]);
+
+/** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
+export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LMAGENTA!, C.LGREY!, C.ORANGE!, C.LRED!];
+export function slotColor(slot: number): number {
+  return PLAYER_COLORS[((slot % PLAYER_COLORS.length) + PLAYER_COLORS.length) % PLAYER_COLORS.length]!;
+}
 
 /** Index of shade `n` (0 dark .. 7 light) within a named ramp. */
 export function shade(rampName: string, n: number): number {

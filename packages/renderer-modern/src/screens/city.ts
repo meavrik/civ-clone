@@ -13,7 +13,7 @@ import {
   wonder,
   type GameState,
 } from "@civ/core";
-import { citizenLook, cityUnits, coastPatch, DEEP, fieldSides, fogPatch, riverShape, type CityButton, type CityScreenView } from "@civ/renderer-api";
+import { citizenLook, cityScene, cityUnits, coastPatch, DEEP, fieldSides, fogPatch, riverShape, SCENE_H, SCENE_W, type CityButton, type CityScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import type { Context2D } from "../context.js";
@@ -23,6 +23,7 @@ import { paintCitizen } from "../citizens.js";
 import { paintIcon } from "../icons.js";
 import { paintFortress, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
 import { BUTTON, H, TILE, UI, W } from "../theme.js";
+import { paintCityScene } from "./cityview.js";
 
 /**
  * City screen, 960x600: title bar, citizens row, the 5x5 resource map on
@@ -47,11 +48,14 @@ export function cityExitHit(_px: number, py: number): boolean {
   return py > H - HINT_H;
 }
 
-/** The production card's buttons, under the price. */
+/** The production card's buttons, under the price, and the city's picture under the resource map (View). */
 const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: number; label: string }> = {
   change: { x: COL3_X, y: CITY_MAP_Y + 150, w: 128, h: 34, label: "Change" },
   buy: { x: COL3_X + 140, y: CITY_MAP_Y + 150, w: 128, h: 34, label: "Buy" },
+  view: { x: CITY_MAP_X, y: CITY_MAP_Y + 292, w: TILE * 5, h: 170, label: "View city" },
 };
+/** The city's picture on the View button: the scene at this many canvas units to a retro pixel. */
+const PREVIEW_K = (TILE * 5) / SCENE_W;
 
 export function cityButtonAt(px: number, py: number): CityButton | null {
   for (const [id, b] of Object.entries(CITY_BUTTONS) as [CityButton, (typeof CITY_BUTTONS)[CityButton]][])
@@ -208,6 +212,12 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   button(ctx, CITY_BUTTONS.change, "plain");
   button(ctx, CITY_BUTTONS.buy, cost > 0 && player.gold >= cost ? "primary" : "off");
 
+  // The city as a picture, small: the way to the city view.
+  const v = CITY_BUTTONS.view;
+  fillRound(ctx, v.x - 4, v.y - 4, v.w + 8, v.h + 8, 8, "#05080d");
+  paintCityScene(ctx, cityScene(state, city), v.x, v.y, PREVIEW_K, playerColor(player.color));
+  text(ctx, v.x + v.w / 2, v.y + SCENE_H * PREVIEW_K + 8, `${v.label}  (V)`, { size: 14, weight: "600", color: BUTTON.label, align: "center" });
+
   // Units in the city, then those it supports elsewhere (faded), each with what it costs the city:
   // a shield beyond the free ones, food for settlers.
   const units = cityUnits(state, city);
@@ -231,5 +241,4 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   ctx.fillRect(0, H - HINT_H, W, HINT_H);
   const hint = view.message ?? "Esc exit   ·   C change production   ·   B buy   ·   N rename   ·   click a unit to give it orders";
   paragraph(ctx, 24, H - HINT_H + 10, W - 48, hint, { size: 14, color: view.message ? UI.accent : UI.dim }, 1);
-  void playerColor;
 }

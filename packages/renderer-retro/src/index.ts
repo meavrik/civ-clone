@@ -9,6 +9,8 @@ export * from "./widgets.js";
 export * from "./sprites/sheet.js";
 export * from "./sprites/index.js";
 export * from "./screens/city.js";
+export * from "./pictures.js";
+export * from "./screens/cityview.js";
 export * from "./screens/map-city.js";
 export * from "./screens/discovery.js";
 export * from "./screens/techtree.js";

@@ -4,7 +4,9 @@ import {
   cityExitHit,
   citySlotAt,
   cityUnitAt,
+  cityViewAt,
   drawCityScreen,
+  drawCityView,
   drawDiplomacyScreen,
   drawDomesticAdvisor,
   drawEndScreen,
@@ -68,6 +70,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     title: (blink) => drawTitleScreen(screen, blink),
     main: (state, view) => drawMainScreen(screen, state, view),
     city: (state, view: CityScreenView) => drawCityScreen(screen, state, view),
+    cityView: (state, view) => drawCityView(screen, state, view),
     techTree: (state, view) => drawTechTree(screen, state, view),
     science: (state) => drawScienceScreen(screen, state),
     rates: (state) => drawRatesScreen(screen, state),
@@ -88,6 +91,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityExitHit: (px, py) => cityExitHit(px, py),
     cityButtonAt: (px, py) => cityButtonAt(px, py),
     cityUnitAt: (state, view, px, py) => cityUnitAt(state, view, px, py),
+    cityViewAt: (state, view, px, py) => cityViewAt(state, view, px, py),
     tileAt(state: GameState, view: MainScreenView, px, py) {
       if (px < VIEW_X || py < VIEW_Y) return null;
       const [ox, oy] = panOffset(view);

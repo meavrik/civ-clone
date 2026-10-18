@@ -1,4 +1,5 @@
 import { Terrain } from "@civ/core";
+import type { Material } from "@civ/renderer-api";
 
 /**
  * The modern look: one logical 960x600 canvas (three times the retro
@@ -211,4 +212,48 @@ export const MINE = {
   timberLight: "#c99858",
   rail: "#c9cfd5",
   sleeper: "#4a3420",
+};
+
+/**
+ * The city view: each building material as a face, a lit edge and a shaded edge (the owner's
+ * colour stands in for "owner"), the sky from overhead to the horizon, streets, the far country.
+ */
+export const CITY_VIEW = {
+  materials: {
+    stone: ["#b4b7c0", "#d6d8df", "#7b7f8a"],
+    marble: ["#efe9de", "#fffcf4", "#b9b0a1"],
+    sandstone: ["#d8bb79", "#ecd59c", "#a68c50"],
+    brick: ["#a4503a", "#c46c52", "#6c2f22"],
+    roof: ["#cf6f4e", "#e98f6b", "#923e29"],
+    slate: ["#5c6371", "#79818f", "#3c424d"],
+    wood: ["#8a6136", "#a87c4b", "#5d3e20"],
+    thatch: ["#cdb159", "#e2ca77", "#9a8236"],
+    gold: ["#efc449", "#ffe07c", "#b28b22"],
+    glass: ["#8fb5e3", "#b9d4f4", "#5c84ba"],
+    deep: ["#2f5b92", "#4072ad", "#1d3c65"],
+    dark: ["#23272e", "#2e333b", "#181b20"],
+    steel: ["#8e959f", "#b0b6be", "#5f656e"],
+    concrete: ["#b5b8bc", "#d2d4d7", "#85898e"],
+    green: ["#5e9d44", "#7bb95e", "#3f7230"],
+    leaf: ["#2e6a38", "#418a4b", "#1c4824"],
+    copper: ["#4f9f89", "#70bea6", "#2f7161"],
+    water: ["#3c7fc4", "#5c9bdc", "#285d96"],
+    white: ["#f5f5f1", "#ffffff", "#c6c8c5"],
+    light: ["#ffe35a", "#fff3a6", "#e0b92e"],
+    smoke: ["#d8dce1", "#eef1f4", "#a9afb7"],
+    owner: ["#ffffff", "#ffffff", "#ffffff"],
+  } as Record<Material, [string, string, string]>,
+  /** Materials drawn in one colour, without light and shade. */
+  flat: ["dark", "light", "owner"] as Material[],
+  outline: "rgba(18, 20, 26, 0.8)",
+  sky: ["#4a82d4", "#9fc2ec", "#e3eef9"] as const,
+  cloud: "#ffffff",
+  cloudShade: "#d3e0ef",
+  haze: ["rgba(227, 238, 249, 0.55)", "rgba(227, 238, 249, 0)"] as const,
+  mountain: { lit: "#9aa2ae", shade: "#686f7c", snow: "#f4f8fb" },
+  hill: { lit: "#78b25c", shade: "#5a9142" },
+  wood: { lit: "#3f8549", shade: "#2a5f33" },
+  river: "#4b98e6",
+  street: { dirt: "#a07f50", stone: "#aeb2b9", asphalt: "#3d4249", line: "#e9eef4", edge: "rgba(0, 0, 0, 0.22)" },
+  tag: { fill: "rgba(13, 17, 23, 0.88)", ink: "#f1c54f" },
 };

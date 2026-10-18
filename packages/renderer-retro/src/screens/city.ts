@@ -49,13 +49,14 @@ export const CITY_MAP_Y = ROW1.y + 2;
 
 import type { CityButton, CityScreenView } from "@civ/renderer-api";
 
-/** The production box's buttons, under its title strip. */
+const EXIT = { x: SCREEN_W - 34, y: BAR_Y + 1, w: 33, h: 11 };
+
+/** The production box's buttons, under its title strip, and View on the bottom bar beside Exit. */
 const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: number; label: string }> = {
   change: { x: RIGHT.x + 3, y: ROW2.y + BOX_HEAD + 2, w: 50, h: 11, label: "Change" },
   buy: { x: RIGHT.x + RIGHT.w - 51, y: ROW2.y + BOX_HEAD + 2, w: 48, h: 11, label: "Buy" },
+  view: { x: EXIT.x - 36, y: BAR_Y + 1, w: 33, h: 11, label: "View" },
 };
-
-const EXIT = { x: SCREEN_W - 34, y: BAR_Y + 1, w: 33, h: 11 };
 
 export function cityButtonAt(px: number, py: number): CityButton | null {
   for (const [id, b] of Object.entries(CITY_BUTTONS) as [CityButton, (typeof CITY_BUTTONS)[CityButton]][])
@@ -326,8 +327,10 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
 
   // Hints, or the latest word, and the way out.
   drawStone(s, 0, BAR_Y, SCREEN_W, SCREEN_H - BAR_Y);
-  if (view.message) drawTextWrapped(s, 4, BAR_Y + 3, EXIT.x - 8, view.message, C.BLUE!, 1);
-  else drawText(s, 4, BAR_Y + 3, "Esc Exit   C Change   B Buy   N Rename", DIM);
+  const { view: viewButton } = CITY_BUTTONS;
+  if (view.message) drawTextWrapped(s, 4, BAR_Y + 3, viewButton.x - 8, view.message, C.BLUE!, 1);
+  else drawText(s, 4, BAR_Y + 3, "Esc Exit  C Change  B Buy  N Rename  V View", DIM);
+  drawButton(s, viewButton.x, viewButton.y, viewButton.w, viewButton.h, viewButton.label);
   s.rect(EXIT.x, EXIT.y, EXIT.w, EXIT.h, C.RED!);
   s.hline(EXIT.x, EXIT.y, EXIT.w, C.LRED!);
   s.vline(EXIT.x, EXIT.y, EXIT.h, C.LRED!);

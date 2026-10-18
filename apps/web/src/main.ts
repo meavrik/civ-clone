@@ -73,6 +73,7 @@ import {
   moveRefusal,
   nextAvailable,
   openTechTree,
+  PICTURES,
   setupChoose,
   setupMenu,
   setupOptions,
@@ -84,6 +85,7 @@ import {
   TEXT_INPUT_MAX,
   type TechTreeView,
   type CityScreenView,
+  type CityViewState,
   type MainScreenView,
   type MenuState,
   type Renderer,
@@ -173,6 +175,7 @@ type Screen =
   | { kind: "setup"; setup: SetupState }
   | { kind: "map" }
   | { kind: "city"; view: CityScreenView; then?: () => void } // `then`: the turn's news that waits for the city to close
+  | { kind: "cityView"; view: CityViewState; city: Extract<Screen, { kind: "city" }> } // the city as a picture, over its city screen
   | { kind: "techTree"; tree: TechTreeView; target: number; back: Screen; then: () => void }
   | { kind: "science" }
   | { kind: "rates" }
@@ -486,6 +489,11 @@ function openCity(id: number, then?: () => void): void {
   screenState = { kind: "city", view: { city: id }, ...(then ? { then } : {}) };
 }
 
+/** The city as a picture (the original's View); a click names a building, anything else goes back to the city. */
+function openCityView(sc: Extract<Screen, { kind: "city" }>): void {
+  screenState = { kind: "cityView", view: { city: sc.view.city }, city: sc };
+}
+
 /** Back to the map; a city opened by the turn's news goes on with the rest of it. */
 function leaveCity(sc: Extract<Screen, { kind: "city" }>): void {
   screenState = { kind: "map" };
@@ -517,6 +525,8 @@ function builtWindow(cityId: number, p: Production, then: () => void): void {
   if (!city || city.owner !== 0 || !notice) { then(); return; }
   openCity(cityId, then);
   modal(notice.title, notice.lines, ["Build next..."], () => openProductionMenu(cityId));
+  // An improvement or wonder shows its picture, as it will stand in the city view.
+  if (screenState.kind === "menu" && p.kind !== "spaceship" && PICTURES[p.id]) screenState.menu.picture = { id: p.id, slot: state.players[city.owner]!.color };
 }
 
 /** Buy what a city is building once the price is seen against the treasury, as the original asks. */
@@ -1481,6 +1491,7 @@ function cityKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "city" }>): void 
     case "Escape": leaveCity(sc); break;
     case "KeyC": openProductionMenu(cv.city); break;
     case "KeyB": askBuy(cv.city); break;
+    case "KeyV": openCityView(sc); break;
     case "KeyN": {
       const city = state.cities.find((c) => c.id === cv.city);
       if (city) askText("Rename the city", city.name, (name) => dispatch({ type: "renameCity", city: cv.city, name }));
@@ -1562,6 +1573,7 @@ addEventListener("keydown", (e) => {
     case "setup": setupKey(e, sc); break;
     case "map": mapKey(e); break;
     case "city": cityKey(e, sc); break;
+    case "cityView": screenState = sc.city; break;
     case "rates": ratesKey(e); break;
     case "science":
       if (e.code === "KeyA") openTree({ choosing: true, closable: true }, undefined, sc);
@@ -1656,6 +1668,7 @@ canvas.addEventListener("mousedown", (e) => {
       const button = renderer.cityButtonAt(px, py);
       if (button === "change") { openProductionMenu(sc.view.city); return; }
       if (button === "buy") { askBuy(sc.view.city); return; }
+      if (button === "view") { openCityView(sc); return; }
       const unit = renderer.cityUnitAt(state, sc.view, px, py);
       if (unit !== null) { activateFromCity(sc, unit); return; }
       // A worked square frees its citizen; an unworked one takes a free citizen or the worker on the
@@ -1665,6 +1678,12 @@ canvas.addEventListener("mousedown", (e) => {
       if (slot === 0) { if (dispatch({ type: "arrangeCity", city: sc.view.city })) say("Citizens moved to the best tiles"); }
       else if (slot !== null && city) dispatch({ type: city.worked.includes(slot) ? "toggleTile" : "workTile", city: city.id, slot });
       else if (renderer.cityExitHit(px, py)) leaveCity(sc);
+      return;
+    }
+    case "cityView": {
+      const picked = renderer.cityViewAt(state, sc.view, px, py);
+      if (picked) sc.view.picked = picked;
+      else screenState = sc.city;
       return;
     }
     case "map": break;
@@ -1733,6 +1752,7 @@ function draw(sc: Screen): void {
     case "report": renderer.report(sc.page); break;
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
+    case "cityView": renderer.cityView(state, sc.view); break;
     case "techTree": renderer.techTree(state, sc.tree); break;
     case "science": renderer.science(state); break;
     case "rates": renderer.rates(state); break;

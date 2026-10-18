@@ -1,6 +1,7 @@
 import { drawText, FONT_HEIGHT, textWidth } from "./font.js";
 import { drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
-import { C, shade } from "./palette.js";
+import { C, shade, slotColor } from "./palette.js";
+import { drawPicture } from "./pictures.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "./surface.js";
 
 /**
@@ -119,7 +120,7 @@ export function drawBox(s: Surface, x: number, y: number, w: number, h: number, 
     }
 }
 
-import { menuButtons, MODAL_MAX_SHARE, type MenuState, type TextInputState } from "@civ/renderer-api";
+import { menuButtons, MODAL_MAX_SHARE, PICTURES, type MenuState, type TextInputState } from "@civ/renderer-api";
 
 export const MENU_ROW = FONT_HEIGHT + 1;
 /** A modal's choices as buttons (see `menuButtons`): this tall, this far apart, at least this wide. */
@@ -129,7 +130,7 @@ const BUTTON_MIN_W = 56;
 /** A titled window is at least this wide; its text wraps rather than widen it past MODAL_MAX_SHARE of the screen. */
 const MODAL_MIN_W = 112;
 
-interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number }
+interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number; picH: number }
 
 function menuLayout(m: MenuState): MenuLayout {
   const buttons = menuButtons(m);
@@ -137,19 +138,21 @@ function menuLayout(m: MenuState): MenuLayout {
   const bw = buttons ? Math.max(BUTTON_MIN_W, itemW + 16) : 0;
   const need = Math.max(textWidth(m.title) + 16, buttons ? bw + 24 : itemW + 24);
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) + 20 : 0;
-  const w = Math.min(300, Math.max(need, Math.min(bodyW, Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0));
+  const pic = m.picture ? PICTURES[m.picture.id] : undefined;
+  const picH = pic ? pic.h + 8 : 0;
+  const w = Math.min(300, Math.max(need, Math.min(bodyW, Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0, pic ? pic.w + 24 : 0));
   const lines = (m.body ?? []).flatMap((l) => wrapIcons(l, w - 20));
   const bodyH = lines.length ? lines.length * FONT_HEIGHT + 5 : 0;
   const head = m.title ? 16 : 3;
   const foot = m.title ? 6 : 3;
   // Long lists (every tribe) close up their rows to stay on screen.
-  const room = 200 - (m.anchor?.y ?? 0) - head - bodyH - foot;
+  const room = 200 - (m.anchor?.y ?? 0) - head - picH - bodyH - foot;
   const row = Math.max(FONT_HEIGHT, Math.min(MENU_ROW, Math.floor(room / Math.max(1, m.items.length))));
   const itemsH = buttons ? m.items.length * BUTTON_ROW + 1 : m.items.length * row;
-  const h = head + bodyH + itemsH + foot;
+  const h = head + picH + bodyH + itemsH + foot;
   const x = m.anchor ? Math.max(0, Math.min(320 - w, m.anchor.x)) : Math.floor((320 - w) / 2);
   const y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
-  return { x, y, w, h, lines, itemsY: y + head + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw };
+  return { x, y, w, h, lines, itemsY: y + head + picH + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, picH };
 }
 
 export function menuRect(m: MenuState): { x: number; y: number; w: number; h: number } {
@@ -158,9 +161,17 @@ export function menuRect(m: MenuState): { x: number; y: number; w: number; h: nu
 }
 
 export function drawMenu(s: Surface, m: MenuState): void {
-  const { x, y, w, h, lines, itemsY, row, buttons, bx, bw } = menuLayout(m);
+  const { x, y, w, h, lines, itemsY, row, buttons, bx, bw, picH } = menuLayout(m);
   drawWindow(s, x, y, w, h, m.title);
-  lines.forEach((line, i) => drawIconLine(s, x + 10, y + (m.title ? 17 : 4) + i * FONT_HEIGHT, line, C.BLACK!));
+  const pic = m.picture ? PICTURES[m.picture.id] : undefined;
+  if (pic && m.picture) {
+    // The building on a strip of grass, as it stands in the city view.
+    const px = x + Math.floor((w - pic.w) / 2);
+    const ground = y + (m.title ? 16 : 3) + pic.h + 3;
+    s.rect(px - 4, ground, pic.w + 8, 2, shade("grass", 4));
+    drawPicture(s, pic, px, ground, slotColor(m.picture.slot));
+  }
+  lines.forEach((line, i) => drawIconLine(s, x + 10, y + (m.title ? 17 : 4) + picH + i * FONT_HEIGHT, line, C.BLACK!));
   if (lines.length) {
     s.hline(x + 4, itemsY - 4, w - 8, shade("panel", 2));
     s.hline(x + 4, itemsY - 3, w - 8, shade("panel", 7));

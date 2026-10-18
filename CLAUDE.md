@@ -78,7 +78,15 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
   over its city screen with a window saying what it does (`text` on each rule in `rules/buildings.ts`,
   `wonders.ts`, `spaceship.ts`), then asks what to build next; leaving the city goes on with the turn's news
-  (the city `Screen`'s `then`). Finished units say nothing: the city goes on building them. The web app
+  (the city `Screen`'s `then`). Finished units say nothing: the city goes on building them. That window
+  is headed by the building's picture (`MenuState.picture`). City view (`cityview.ts`, the original's View:
+  the city screen's View button or V; the modern city screen shows it small as the button): every improvement
+  and wonder has a `PICTURES` entry made of shapes (`Part`: rect, poly, oval, line, each of a `Material`) on a
+  grid of retro pixels; `cityScene` lays a city out (wonders on the back row, the palace in the middle, then
+  improvements and homes of the owner's age filling the middle rows outward, trees beyond, walls before the
+  front row, the land to the north on the horizon, a river if the city has one), hashed, never the RNG. Retro
+  fills the shapes pixel by pixel (`pictures.ts`: lit left, shaded right, outlined in black); modern paints
+  them as paths three times larger. A click names a building (`cityViewAt`), anything else goes back. The web app
   only talks to a `Renderer`. Info panels prefer icons to words: `ICONS` (`renderer-api/src/icons.ts`)
   names them, every renderer draws all of them, and text may carry `{icon}` tokens (modal bodies and
   panel lines; groups separated by two spaces wrap apart). The main screen has a menu bar (`MENU_BAR`: Game, Orders, Advisors,

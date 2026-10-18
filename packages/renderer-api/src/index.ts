@@ -12,6 +12,7 @@ export * from "./territory.js";
 export * from "./techtree.js";
 export * from "./refusal.js";
 export * from "./works.js";
+export * from "./cityview.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
@@ -106,8 +107,14 @@ export interface CityScreenView {
   message?: string | undefined;
 }
 
-/** The buttons on the city screen's production box: change what is built, or buy it now. */
-export type CityButton = "change" | "buy";
+/** The city screen's buttons: change what is built or buy it now (the production box), and view the city. */
+export type CityButton = "change" | "buy" | "view";
+
+/** The city view, a picture of the city (`cityScene`); `picked` is the improvement or wonder last clicked. */
+export interface CityViewState {
+  city: number;
+  picked?: string | undefined;
+}
 
 /** A unit on the city screen: in the city (`here`) or supported by it elsewhere, with what it costs the city. */
 export interface CityUnit {
@@ -140,6 +147,8 @@ export interface MenuState {
   anchor?: { x: number; y: number };
   /** Paragraphs shown between the title and the choices (a modal message); renderers wrap them. */
   body?: string[];
+  /** An improvement or wonder whose picture (`PICTURES`) heads the body, flags in this colour slot. */
+  picture?: { id: string; slot: number };
   items: string[];
   selected: number;
   /** Optional second column per row (cost, turns...). */
@@ -221,6 +230,8 @@ export interface Renderer {
   title(blink: boolean): void;
   main(state: GameState, view: MainScreenView): void;
   city(state: GameState, view: CityScreenView): void;
+  /** The city as a picture: its improvements, wonders and homes on its own ground. */
+  cityView(state: GameState, view: CityViewState): void;
   /** The tech tree: shown when an advance is found and where the next research is picked. */
   techTree(state: GameState, view: TechTreeView): void;
   science(state: GameState): void;
@@ -244,6 +255,8 @@ export interface Renderer {
   cityButtonAt(px: number, py: number): CityButton | null;
   /** The unit (id) under a point in the city screen's units (`cityUnits`), or null. */
   cityUnitAt(state: GameState, view: CityScreenView, px: number, py: number): number | null;
+  /** The improvement or wonder (id) under a point of the city view, or null. */
+  cityViewAt(state: GameState, view: CityViewState, px: number, py: number): string | null;
   /** Map tile under a point in the main screen's viewport, or null. */
   tileAt(state: GameState, view: MainScreenView, px: number, py: number): { x: number; y: number } | null;
   /** Map tile under a point on the main screen's minimap, or null. */
