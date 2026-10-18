@@ -185,8 +185,8 @@ export const SEA = {
 
 export const RIVER = "#5aa9ff";
 
-/** A road: packed earth between darker verges, with wheel ruts along it and pebbles at its edges. */
-export const ROAD = { verge: "#5e4426", surface: "#a88452", rut: "rgba(94, 66, 34, 0.45)", pebble: "#d9c39a" };
+/** A road: a narrow track of beaten earth between soft, see-through verges, a pebble here and there. */
+export const ROAD = { verge: "rgba(78, 56, 30, 0.55)", surface: "#b39064", pebble: "#d9c39a" };
 /** A railroad over its road: gravel, dark sleepers across it and bright rails. */
 export const RAIL = { ballast: "#6c6f73", sleeper: "#4a3420", rail: "#dfe5ea" };
 

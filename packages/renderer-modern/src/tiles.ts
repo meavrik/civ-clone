@@ -211,11 +211,11 @@ export function paintRiver(ctx: Context2D, x: number, y: number, river: RiverSha
   }
 }
 
-/** Half-widths of a road: its verges, and the packed earth between them; its ruts lie this far off the middle. */
-const ROAD_VERGE = 4.5;
-const ROAD_SURFACE = 3;
-const RUT = 1.6;
-/** A railroad: rails this far either side of the middle, sleepers across about this far apart. */
+/** Half-widths of a road: its soft verges, and the beaten earth between them. */
+const ROAD_VERGE = 2.4;
+const ROAD_SURFACE = 1.5;
+/** A railroad: its gravel bed, rails this far either side of the middle, sleepers across about this far apart. */
+const RAIL_BED = 4.5;
 const RAIL_GAUGE = 2.5;
 const SLEEPER_GAP = 6;
 
@@ -274,7 +274,7 @@ function stations(pts: number[], gap: number): [number, number, number, number][
  * The road (or the railroad, over its road) across square (x, y) as the viewer
  * knows it (see `roadWays`): each course wanders to the next square's meeting
  * point, clipped to this square, so the halves meet at the border. A road is
- * packed earth between dark verges, with two wheel ruts and a few pebbles; a
+ * a narrow track of beaten earth between soft verges, a pebble here and there; a
  * railroad lays sleepers (spaced evenly along each course, so they meet the next
  * square's) and two rails on gravel. A road square with no links is a round patch.
  */
@@ -283,8 +283,8 @@ export function paintRoad(ctx: Context2D, x: number, y: number, map: WorldMap, e
   if (!ways) return;
   if (ways.patch) {
     const [px, py] = [x + ways.patch[0] * TILE, y + ways.patch[1] * TILE];
-    circle(ctx, px, py, ROAD_VERGE + 2, rail ? RAIL.ballast : ROAD.verge);
-    circle(ctx, px, py, ROAD_SURFACE + 2, rail ? RAIL.sleeper : ROAD.surface);
+    circle(ctx, px, py, (rail ? RAIL_BED : ROAD_VERGE) + 2, rail ? RAIL.ballast : ROAD.verge);
+    circle(ctx, px, py, (rail ? RAIL_BED - 1.5 : ROAD_SURFACE) + 2, rail ? RAIL.sleeper : ROAD.surface);
     return;
   }
   const courses = ways.courses.map((c) => coursePixels(x, y, c));
@@ -304,8 +304,6 @@ export function paintRoad(ctx: Context2D, x: number, y: number, map: WorldMap, e
   if (!rail) {
     pass(ROAD_VERGE * 2, ROAD.verge);
     pass(ROAD_SURFACE * 2, ROAD.surface);
-    pass(1, ROAD.rut, RUT);
-    pass(1, ROAD.rut, -RUT);
     // Pebbles at the edges, a few to a course, placed by the squares at its ends so both squares agree.
     const at = (u: number, v: number) => Math.floor(my + v) * map.width + ((Math.floor(mx + u) % map.width) + map.width) % map.width;
     ways.courses.forEach((c, i) => {
@@ -313,21 +311,21 @@ export function paintRoad(ctx: Context2D, x: number, y: number, map: WorldMap, e
       const to = at(c[c.length - 2]!, c[c.length - 1]!);
       for (const [k, [px, py, dx, dy]] of stations(courses[i]!, 9).entries()) {
         const r = hash(from, to, 420 + k);
-        if (r > 0.35) continue;
-        const side = r < 0.17 ? 1 : -1;
-        circle(ctx, px - dy * ROAD_SURFACE * side, py + dx * ROAD_SURFACE * side, 1, ROAD.pebble);
+        if (r > 0.25) continue;
+        const side = r < 0.125 ? 1 : -1;
+        circle(ctx, px - dy * ROAD_VERGE * side, py + dx * ROAD_VERGE * side, 0.7, ROAD.pebble);
       }
     });
   } else {
-    pass(ROAD_VERGE * 2, RAIL.ballast);
+    pass(RAIL_BED * 2, RAIL.ballast);
     ctx.lineCap = "butt";
     ctx.strokeStyle = RAIL.sleeper;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     for (const c of courses)
       for (const [px, py, dx, dy] of stations(c, SLEEPER_GAP)) {
-        ctx.moveTo(px + dy * ROAD_VERGE, py - dx * ROAD_VERGE);
-        ctx.lineTo(px - dy * ROAD_VERGE, py + dx * ROAD_VERGE);
+        ctx.moveTo(px + dy * RAIL_BED, py - dx * RAIL_BED);
+        ctx.lineTo(px - dy * RAIL_BED, py + dx * RAIL_BED);
       }
     ctx.stroke();
     ctx.lineCap = "round";

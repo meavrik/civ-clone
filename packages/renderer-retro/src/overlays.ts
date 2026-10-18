@@ -8,9 +8,12 @@ import { TILE } from "./tiles.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sprites/index.js";
 
-/** Half-widths of a road in pixels: its packed-earth surface, and the dark verge either side. */
-const ROAD_CORE = 1;
-const ROAD_VERGE = 2;
+/** Half-widths of a road in pixels: its beaten track, and the worn edge the grass breaks into. */
+const ROAD_CORE = 0.6;
+const ROAD_EDGE = 1.25;
+/** Half-widths of a railroad: its sleepers on gravel, and the rails either side. */
+const RAIL_CORE = 1;
+const RAIL_EDGE = 2;
 /** A railroad's sleepers lie across the road this many pixels apart (as near as fits along each course). */
 const SLEEPER_GAP = 3;
 
@@ -24,9 +27,9 @@ const wayCache = new Map<string, Surface>();
 
 /**
  * A road or railroad across one square (see `roadWays`), as a sprite keyed by
- * SPRITE_CLEAR. A road is a band of packed earth, worn here and there, between
- * dark verges that grass breaks into; a railroad lays bright rails on the
- * verges with dark sleepers on gravel between, spaced evenly along each course
+ * SPRITE_CLEAR. A road is a narrow track of beaten earth, worn here and there,
+ * its edge broken by the grass; a railroad lays bright rails either side of
+ * dark sleepers on gravel, spaced evenly along each course
  * so they meet the next square's. A road square with no links is a small
  * round patch.
  */
@@ -38,7 +41,7 @@ function waySurface(ways: RoadWays, x: number, y: number, rail: boolean): Surfac
   out.fill(SPRITE_CLEAR);
   const surface = shade("earth", 6);
   const worn = shade("earth", 5);
-  const verge = shade("earth", 2);
+  const edge = shade("earth", 2);
   const steel = shade("stone", 6);
   const ballast = shade("stone", 3);
   const sleeper = shade("earth", 1);
@@ -60,10 +63,10 @@ function waySurface(ways: RoadWays, x: number, y: number, rail: boolean): Surfac
       const grain = hash(x * TILE + i, y * TILE + j, 7);
       let c = -1;
       if (rail) {
-        if (d >= ROAD_CORE && d < ROAD_VERGE) c = steel;
-        else if (d < ROAD_CORE) c = Math.abs(along / gap - Math.round(along / gap)) * gap < 0.5 ? sleeper : ballast;
+        if (d >= RAIL_CORE && d < RAIL_EDGE) c = steel;
+        else if (d < RAIL_CORE) c = Math.abs(along / gap - Math.round(along / gap)) * gap < 0.5 ? sleeper : ballast;
       } else if (d < ROAD_CORE) c = grain < 0.25 ? worn : surface;
-      else if (d < ROAD_VERGE && grain > 0.15) c = verge;
+      else if (d < ROAD_EDGE && grain > 0.6) c = edge;
       if (c >= 0) out.set(i, j, c);
     }
   if (wayCache.size > 4096) wayCache.clear();
