@@ -49,8 +49,13 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   (units' goto orders are its only memory, and they are game state), so replays stay exact.
   `describePlan` exposes its view (sites, colony plan, campaign) for tests.
 - `packages/renderer-api` — the `Renderer` interface every renderer implements (draw each screen
-  in its own logical size, hit-test menus/city map/tiles/minimap/menu bar), the shared view types and the
-  DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`). The web app
+  in its own logical size, hit-test menus/city map/city buttons/tiles/minimap/menu bar), the shared view types and the
+  DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`, `builtNotice`).
+  City screen: Change and Buy buttons in the production box (`cityButtonAt`); Buy (button or B) shows the
+  price against the treasury first. A city that finishes an improvement, wonder or spaceship part opens
+  over its city screen with a window saying what it does (`text` on each rule in `rules/buildings.ts`,
+  `wonders.ts`, `spaceship.ts`), then asks what to build next; leaving the city goes on with the turn's news
+  (the city `Screen`'s `then`). Finished units say nothing: the city goes on building them. The web app
   only talks to a `Renderer`. Info panels prefer icons to words: `ICONS` (`renderer-api/src/icons.ts`)
   names them, every renderer draws all of them, and text may carry `{icon}` tokens (modal bodies and
   panel lines; groups separated by two spaces wrap apart). The main screen has a menu bar (`MENU_BAR`: Game, Orders, Advisors,

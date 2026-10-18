@@ -201,6 +201,11 @@ describe("modern renderer", () => {
     expect(r.citySlotAt(20 + 48 * 2 + 10, 92 + 48 * 2 + 10)).toBe(0);
     expect(r.citySlotAt(20 + 48 * 4 + 10, 92 + 10)).toBeNull();
     expect(r.cityExitHit(10, 590)).toBe(true);
+    // The production card's Change and Buy buttons sit side by side under the price.
+    expect(r.cityButtonAt(660 + 60, 92 + 150 + 17)).toBe("change");
+    expect(r.cityButtonAt(800 + 60, 92 + 150 + 17)).toBe("buy");
+    expect(r.cityButtonAt(660 + 60, 92 + 124)).toBeNull();
+    expect(r.cityButtonAt(10, 590)).toBeNull();
   });
 });
 

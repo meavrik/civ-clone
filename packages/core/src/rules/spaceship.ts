@@ -11,15 +11,17 @@ export type SpacePart = "structural" | "component" | "module";
 export interface SpacePartRule {
   id: SpacePart;
   name: string;
+  /** What it does, in a line: shown when a city finishes one. */
+  text: string;
   cost: number;
   requires: string;
   max: number;
 }
 
 export const SPACE_PARTS: SpacePartRule[] = [
-  { id: "structural", name: "Space Structural", cost: 80, requires: "space_flight", max: 32 },
-  { id: "component", name: "Space Component", cost: 160, requires: "plastics", max: 16 },
-  { id: "module", name: "Space Module", cost: 320, requires: "robotics", max: 12 },
+  { id: "structural", name: "Space Structural", text: "Holds the ship together: every module and component must be joined to one.", cost: 80, requires: "space_flight", max: 32 },
+  { id: "component", name: "Space Component", text: "Drives the ship: the more it carries, the shorter the flight.", cost: 160, requires: "plastics", max: 16 },
+  { id: "module", name: "Space Module", text: "Keeps the colonists alive: every three make a habitat.", cost: 320, requires: "robotics", max: 12 },
 ];
 
 export const SPACE_PART_BY_ID: Record<SpacePart, SpacePartRule> = Object.fromEntries(SPACE_PARTS.map((p) => [p.id, p])) as Record<SpacePart, SpacePartRule>;

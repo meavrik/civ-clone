@@ -14,6 +14,16 @@ export function drawPanel(s: Surface, x: number, y: number, w: number, h: number
   s.vline(x + w - 1, y, h, lo);
 }
 
+/** A raised button with its label centred; a disabled one keeps its place with a faded label. */
+export function drawButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true): void {
+  s.rect(x, y, w, h, shade("ui", 3));
+  s.hline(x, y, w, shade("ui", 6));
+  s.vline(x, y, h, shade("ui", 6));
+  s.hline(x, y + h - 1, w, shade("ui", 0));
+  s.vline(x + w - 1, y, h, shade("ui", 0));
+  drawText(s, x + Math.floor((w - textWidth(label)) / 2), y + Math.floor((h - FONT_HEIGHT) / 2) + 1, label, enabled ? shade("ui", 7) : shade("ui", 1));
+}
+
 /** Horizontal progress box with segment ticks (food box, shield box). */
 export function drawBox(s: Surface, x: number, y: number, w: number, h: number, value: number, max: number, fill: number): void {
   s.rect(x, y, w, h, shade("ui", 0));

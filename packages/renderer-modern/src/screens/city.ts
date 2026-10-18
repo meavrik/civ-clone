@@ -13,14 +13,14 @@ import {
   wonder,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, fogPatch, riverShape, type CityScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, fogPatch, riverShape, type CityButton, type CityScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, panel, paragraph, strokeRound, text } from "../draw.js";
 import { paintBadge, paintCity, playerColor } from "../markers.js";
 import { paintFortress, paintIrrigation, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
-import { H, TILE, UI, W } from "../theme.js";
+import { BUTTON, H, TILE, UI, W } from "../theme.js";
 
 /**
  * City screen, 960x600: title bar, citizens row, the 5x5 resource map on
@@ -43,6 +43,26 @@ export function citySlotAt(px: number, py: number): number | null {
 
 export function cityExitHit(_px: number, py: number): boolean {
   return py > H - HINT_H;
+}
+
+/** The production card's buttons, under the price. */
+const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: number; label: string }> = {
+  change: { x: COL3_X, y: CITY_MAP_Y + 150, w: 128, h: 34, label: "Change" },
+  buy: { x: COL3_X + 140, y: CITY_MAP_Y + 150, w: 128, h: 34, label: "Buy" },
+};
+
+export function cityButtonAt(px: number, py: number): CityButton | null {
+  for (const [id, b] of Object.entries(CITY_BUTTONS) as [CityButton, (typeof CITY_BUTTONS)[CityButton]][])
+    if (px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h) return id;
+  return null;
+}
+
+/** A pill button: filled when it is the one to press, outlined otherwise, faded when it cannot be pressed. */
+function button(ctx: Context2D, b: (typeof CITY_BUTTONS)[CityButton], style: "primary" | "plain" | "off"): void {
+  if (style === "primary") fillRound(ctx, b.x, b.y, b.w, b.h, 10, BUTTON.fill);
+  else strokeRound(ctx, b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1, 10, BUTTON.edge, 1.5);
+  const color = style === "primary" ? BUTTON.ink : style === "plain" ? BUTTON.label : BUTTON.off;
+  text(ctx, b.x + b.w / 2, b.y + 9, b.label, { size: 15, weight: "600", color, align: "center" });
 }
 
 function citizen(ctx: Context2D, x: number, y: number, mood: "happy" | "content" | "unhappy" | "entertainer" | "taxman" | "scientist"): void {
@@ -173,7 +193,7 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   });
 
   // Production card.
-  panel(ctx, COL3_X - 12, CITY_MAP_Y - 8, W - COL3_X - 8, 170, 12, UI.card);
+  panel(ctx, COL3_X - 12, CITY_MAP_Y - 8, W - COL3_X - 8, 206, 12, UI.card);
   const p = city.production;
   text(ctx, COL3_X, CITY_MAP_Y + 2, "Building", { size: 13, color: UI.dim });
   text(ctx, COL3_X, CITY_MAP_Y + 22, productionName(p), { size: 17, weight: "600" });
@@ -184,17 +204,18 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   text(ctx, COL3_X, CITY_MAP_Y + 98, turns === null ? "never at this rate" : `${turns} turn${turns === 1 ? "" : "s"}`, { size: 13, color: UI.dim });
   const cost = buyCost(state, city);
   text(ctx, COL3_X, CITY_MAP_Y + 124, cost ? `Buy for ${cost} gold` : "Complete", { size: 15, weight: "600", color: player.gold >= cost ? UI.accent : UI.faint });
+  button(ctx, CITY_BUTTONS.change, "plain");
+  button(ctx, CITY_BUTTONS.buy, cost > 0 && player.gold >= cost ? "primary" : "off");
 
   // Supported units.
   const supported = state.units.filter((u) => u.homeCity === city.id);
-  text(ctx, COL3_X, CITY_MAP_Y + 190, `Units supported: ${supported.length}`, { size: 13, color: UI.dim });
-  supported.slice(0, 10).forEach((u, i) => paintBadge(ctx, COL3_X - 8 + (i % 5) * 50, CITY_MAP_Y + 206 + Math.floor(i / 5) * 50, u.type, player.color, 34));
+  text(ctx, COL3_X, CITY_MAP_Y + 226, `Units supported: ${supported.length}`, { size: 13, color: UI.dim });
+  supported.slice(0, 10).forEach((u, i) => paintBadge(ctx, COL3_X - 8 + (i % 5) * 50, CITY_MAP_Y + 242 + Math.floor(i / 5) * 50, u.type, player.color, 34));
 
   // Exit bar.
   ctx.fillStyle = UI.panel;
   ctx.fillRect(0, H - HINT_H, W, HINT_H);
   const hint = view.message ?? "Esc exit   ·   C change production   ·   B buy   ·   N rename";
   paragraph(ctx, 24, H - HINT_H + 10, W - 48, hint, { size: 14, color: view.message ? UI.accent : UI.dim }, 1);
-  void strokeRound;
   void playerColor;
 }

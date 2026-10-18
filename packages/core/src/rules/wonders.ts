@@ -7,6 +7,8 @@
 export interface WonderRule {
   id: string;
   name: string;
+  /** What it does, in a line: shown when a city completes it. */
+  text: string;
   cost: number;
   requires: string;
   obsolete?: string;
@@ -31,31 +33,31 @@ export interface WonderRule {
     | { kind: "powerPlantContinent" }; // factories on the continent get a power plant's bonus and less pollution
 }
 
-const W = (id: string, name: string, cost: number, requires: string, effect: WonderRule["effect"], obsolete?: string): WonderRule =>
-  obsolete ? { id, name, cost, requires, effect, obsolete } : { id, name, cost, requires, effect };
+const W = (id: string, name: string, text: string, cost: number, requires: string, effect: WonderRule["effect"], obsolete?: string): WonderRule =>
+  obsolete ? { id, name, text, cost, requires, effect, obsolete } : { id, name, text, cost, requires, effect };
 
 export const WONDERS: WonderRule[] = [
-  W("pyramids", "Pyramids", 300, "masonry", { kind: "noAnarchy" }, "communism"),
-  W("hanging_gardens", "Hanging Gardens", 300, "pottery", { kind: "contentAll", amount: 1 }, "invention"),
-  W("colossus", "Colossus", 200, "bronze_working", { kind: "oceanTrade", amount: 1 }, "electricity"),
-  W("lighthouse", "Lighthouse", 200, "map_making", { kind: "seaMoves", amount: 1 }, "magnetism"),
-  W("great_library", "Great Library", 300, "literacy", { kind: "greatLibrary" }, "electronics"),
-  W("oracle", "Oracle", 300, "mysticism", { kind: "templeDouble" }, "religion"),
-  W("great_wall", "Great Wall", 300, "masonry", { kind: "wallsEverywhere" }, "gunpowder"),
-  W("copernicus", "Copernicus' Observatory", 300, "astronomy", { kind: "sciencePct", amount: 100 }, "automobile"),
-  W("magellans", "Magellan's Expedition", 400, "navigation", { kind: "seaMoves", amount: 1 }),
-  W("michelangelos", "Michelangelo's Chapel", 300, "religion", { kind: "cathedralEverywhere" }, "communism"),
-  W("shakespeares", "Shakespeare's Theatre", 400, "medicine", { kind: "noUnhappyCity" }, "electronics"),
-  W("isaac_newtons", "Isaac Newton's College", 400, "theory_of_gravity", { kind: "sciencePct", amount: 100 }, "nuclear_fission"),
-  W("js_bachs", "J.S. Bach's Cathedral", 400, "religion", { kind: "contentContinent", amount: 2 }),
-  W("darwins_voyage", "Darwin's Voyage", 300, "railroad", { kind: "freeAdvances", amount: 2 }),
-  W("womens_suffrage", "Women's Suffrage", 600, "industrialization", { kind: "policeEverywhere" }),
-  W("hoover_dam", "Hoover Dam", 600, "electronics", { kind: "powerPlantContinent" }),
-  W("manhattan_project", "Manhattan Project", 600, "nuclear_fission", { kind: "allowNuclear" }),
-  W("united_nations", "United Nations", 600, "communism", { kind: "noAnarchy" }),
-  W("seti_program", "SETI Program", 600, "computers", { kind: "scienceAll", amount: 50 }),
-  W("apollo_program", "Apollo Program", 600, "space_flight", { kind: "revealMap" }),
-  W("cure_for_cancer", "Cure for Cancer", 600, "genetic_engineering", { kind: "contentAll", amount: 1 }),
+  W("pyramids", "Pyramids", "Governments change without anarchy, and any government may be chosen.", 300, "masonry", { kind: "noAnarchy" }, "communism"),
+  W("hanging_gardens", "Hanging Gardens", "Calms one unhappy citizen in every city.", 300, "pottery", { kind: "contentAll", amount: 1 }, "invention"),
+  W("colossus", "Colossus", "Every ocean square the city works yields one more trade.", 200, "bronze_working", { kind: "oceanTrade", amount: 1 }, "electricity"),
+  W("lighthouse", "Lighthouse", "Our ships sail one square farther each turn.", 200, "map_making", { kind: "seaMoves", amount: 1 }, "magnetism"),
+  W("great_library", "Great Library", "Teaches us any advance that two other civilizations know.", 300, "literacy", { kind: "greatLibrary" }, "electronics"),
+  W("oracle", "Oracle", "Our temples calm twice as many citizens.", 300, "mysticism", { kind: "templeDouble" }, "religion"),
+  W("great_wall", "Great Wall", "Every one of our cities defends as if walled.", 300, "masonry", { kind: "wallsEverywhere" }, "gunpowder"),
+  W("copernicus", "Copernicus' Observatory", "Doubles the science of its city.", 300, "astronomy", { kind: "sciencePct", amount: 100 }, "automobile"),
+  W("magellans", "Magellan's Expedition", "Our ships sail one square farther each turn.", 400, "navigation", { kind: "seaMoves", amount: 1 }),
+  W("michelangelos", "Michelangelo's Chapel", "Acts as a cathedral in every one of our cities.", 300, "religion", { kind: "cathedralEverywhere" }, "communism"),
+  W("shakespeares", "Shakespeare's Theatre", "No citizen of its city is ever unhappy.", 400, "medicine", { kind: "noUnhappyCity" }, "electronics"),
+  W("isaac_newtons", "Isaac Newton's College", "Doubles the science of its city.", 400, "theory_of_gravity", { kind: "sciencePct", amount: 100 }, "nuclear_fission"),
+  W("js_bachs", "J.S. Bach's Cathedral", "Calms two unhappy citizens in every city on its continent.", 400, "religion", { kind: "contentContinent", amount: 2 }),
+  W("darwins_voyage", "Darwin's Voyage", "Brings two advances at once.", 300, "railroad", { kind: "freeAdvances", amount: 2 }),
+  W("womens_suffrage", "Women's Suffrage", "One unit abroad from each city causes no unhappiness.", 600, "industrialization", { kind: "policeEverywhere" }),
+  W("hoover_dam", "Hoover Dam", "Factories on its continent work as if they had a power plant.", 600, "electronics", { kind: "powerPlantContinent" }),
+  W("manhattan_project", "Manhattan Project", "Opens the way to nuclear weapons.", 600, "nuclear_fission", { kind: "allowNuclear" }),
+  W("united_nations", "United Nations", "Governments change without anarchy, and any government may be chosen.", 600, "communism", { kind: "noAnarchy" }),
+  W("seti_program", "SETI Program", "Adds half again to the science of all our cities.", 600, "computers", { kind: "scienceAll", amount: 50 }),
+  W("apollo_program", "Apollo Program", "Shows the whole world and opens the race to the stars.", 600, "space_flight", { kind: "revealMap" }),
+  W("cure_for_cancer", "Cure for Cancer", "Calms one unhappy citizen in every city.", 600, "genetic_engineering", { kind: "contentAll", amount: 1 }),
 ];
 
 export const WONDER_BY_ID: Record<string, WonderRule> = Object.fromEntries(WONDERS.map((w) => [w.id, w]));

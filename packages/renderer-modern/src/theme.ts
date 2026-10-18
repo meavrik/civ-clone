@@ -40,6 +40,15 @@ export const UI = {
   fog: "rgba(6, 10, 18, 0.55)",
 };
 
+/** Buttons on a screen (the city's Change and Buy): a filled one is the one to press, an outlined one a choice, a faded one unavailable. */
+export const BUTTON = {
+  fill: "#f1c54f",
+  ink: "#0d1117",
+  edge: "#3a4858",
+  label: "#e9eef4",
+  off: "#5f6d7d",
+};
+
 /** The tech tree: an advance's box by where it stands, the one just found, the selection ring and the edges. */
 export const TECH = {
   ground: "rgba(6, 9, 14, 0.55)",

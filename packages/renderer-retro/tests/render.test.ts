@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, revealAround, Terrain, unitType } from "@civ/core";
-import { C, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { C, cityButtonAt, citySlotAt, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -355,6 +355,33 @@ describe("city screen", () => {
     });
     writeFileSync(new URL("./out/city-menu.png", import.meta.url), encodePng(s, 3));
     expect(s.data.some((c) => c !== 0)).toBe(true);
+  });
+
+  it("draws Change and Buy buttons in the production box and hit-tests them", () => {
+    const state = newGame(2026);
+    applyCommand(state, { type: "found", unit: state.units[0]!.id });
+    const city = state.cities[0]!;
+    state.players[0]!.gold = 500;
+    const s = Surface.screen();
+    drawCityScreen(s, state, { city: city.id });
+    writeFileSync(new URL("./out/city-buttons.png", import.meta.url), encodePng(s, 3));
+    const hits = new Map<string, { x0: number; x1: number; y0: number; y1: number }>();
+    for (let y = 0; y < 200; y++)
+      for (let x = 0; x < 320; x++) {
+        const b = cityButtonAt(x, y);
+        if (!b) continue;
+        const r = hits.get(b) ?? { x0: x, x1: x, y0: y, y1: y };
+        hits.set(b, { x0: Math.min(r.x0, x), x1: Math.max(r.x1, x), y0: Math.min(r.y0, y), y1: Math.max(r.y1, y) });
+      }
+    const change = hits.get("change")!;
+    const buy = hits.get("buy")!;
+    expect(change.x1).toBeLessThan(buy.x0);
+    expect(change.y0).toBe(buy.y0);
+    // Each button is drawn where it is hit: its top-left corner is the light bevel, not the panel behind.
+    for (const r of [change, buy]) expect(s.get(r.x0, r.y0)).not.toBe(s.get(r.x0 - 1, r.y0 - 1));
+    // Neither covers the resource map or the exit bar.
+    expect(citySlotAt(change.x0, change.y0)).toBeNull();
+    expect(buy.y1).toBeLessThan(188);
   });
 });
 

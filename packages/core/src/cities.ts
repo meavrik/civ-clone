@@ -545,6 +545,8 @@ export interface CityTurnEvent {
   city: number;
   kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine" | "sold" | "pollution";
   detail?: string;
+  /** What was finished ("built", "wonder"). */
+  production?: Production;
 }
 
 /** End-of-turn pass for one city. Returns events for the UI. */
@@ -622,11 +624,11 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
         autoAssignWorkers(state, city);
       }
       city.shields -= cost;
-      events.push({ city: city.id, kind: "built", detail: unitType(p.id).name });
+      events.push({ city: city.id, kind: "built", detail: unitType(p.id).name, production: { ...p } });
     } else if (p.kind === "spaceship") {
       addPart(player.spaceship, p.id);
       city.shields -= cost;
-      events.push({ city: city.id, kind: "built", detail: spacePart(p.id).name });
+      events.push({ city: city.id, kind: "built", detail: spacePart(p.id).name, production: { ...p } });
       city.production = { kind: "unit", id: "militia" };
     } else if (p.kind === "wonder") {
       if (wonderBuilt(state, p.id)) {
@@ -636,12 +638,12 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
       }
       city.wonders.push(p.id);
       city.shields -= cost;
-      events.push({ city: city.id, kind: "wonder", detail: wonder(p.id).name });
+      events.push({ city: city.id, kind: "wonder", detail: wonder(p.id).name, production: { ...p } });
       city.production = { kind: "unit", id: "militia" };
     } else {
       if (!city.buildings.includes(p.id)) city.buildings.push(p.id);
       city.shields -= cost;
-      events.push({ city: city.id, kind: "built", detail: building(p.id).name });
+      events.push({ city: city.id, kind: "built", detail: building(p.id).name, production: { ...p } });
       // Move on to something sensible rather than rebuilding.
       city.production = { kind: "unit", id: "militia" };
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, createUnit, getTile, newGame, revealAround, Terrain, type UnitBattle } from "@civ/core";
-import { DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
+import { applyCommand, building, BUILDINGS, createUnit, getTile, newGame, revealAround, SPACE_PARTS, Terrain, wonder, WONDERS, type UnitBattle } from "@civ/core";
+import { builtNotice, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
 const fresh = (step: SetupState["step"]): SetupState => ({ step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
 
@@ -137,6 +137,38 @@ describe("world reports", () => {
     const page = topCitiesReport(s);
     expect(page.lines.map((l) => l.text)).toEqual(["1. Town5", "2. Town4", "3. Town3", "4. Town2", "5. Town1"]);
     expect(page.lines[0]!.right).toBe(`size 9 (${s.players[0]!.name})`);
+  });
+});
+
+describe("finished builds", () => {
+  it("says what a finished improvement, wonder or spaceship part does; units open no window", () => {
+    const s = newGame(2026, { opponents: 2 });
+    applyCommand(s, { type: "found", unit: s.units[0]!.id });
+    const c = s.cities[0]!;
+    expect(builtNotice(s, c.id, { kind: "unit", id: "militia" })).toBeNull();
+    expect(builtNotice(s, 9999, { kind: "building", id: "granary" })).toBeNull();
+    expect(builtNotice(s, c.id, { kind: "building", id: "granary" })).toEqual({
+      title: `${c.name} builds Granary`,
+      lines: [`{food} ${building("granary").text}`, "{purse} Upkeep 1 gold a turn"],
+    });
+    // The palace costs nothing to keep, so it says no upkeep.
+    expect(builtNotice(s, c.id, { kind: "building", id: "palace" })!.lines).toEqual([`{crown} ${building("palace").text}`]);
+    expect(builtNotice(s, c.id, { kind: "wonder", id: "pyramids" })).toEqual({
+      title: `${c.name} completes Pyramids`,
+      lines: ["{star} A Wonder of the World!", wonder("pyramids").text, "{hourglass} Its power ends with Communism"],
+    });
+    expect(builtNotice(s, c.id, { kind: "wonder", id: "magellans" })!.lines).toHaveLength(2);
+    s.players[0]!.spaceship.structurals = 3;
+    expect(builtNotice(s, c.id, { kind: "spaceship", id: "structural" })!.lines.at(-1)).toBe("{star} 3 of 32 built");
+  });
+
+  it("has a line of text for every improvement, wonder and spaceship part, with icons it can draw", () => {
+    for (const r of [...BUILDINGS, ...WONDERS, ...SPACE_PARTS]) expect(r.text.length, r.id).toBeGreaterThan(15);
+    const s = newGame(2026, { opponents: 2 });
+    applyCommand(s, { type: "found", unit: s.units[0]!.id });
+    const c = s.cities[0]!;
+    for (const b of BUILDINGS)
+      for (const line of builtNotice(s, c.id, { kind: "building", id: b.id })!.lines) expect(iconSegments(line).every((seg) => "icon" in seg || !/\{[a-z]+\}/.test(seg.text)), line).toBe(true);
   });
 });
 

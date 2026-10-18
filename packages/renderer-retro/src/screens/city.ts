@@ -20,7 +20,7 @@ import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, dr
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
-import { drawBox, drawPanel } from "../widgets.js";
+import { drawBox, drawButton, drawPanel } from "../widgets.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
@@ -40,7 +40,19 @@ export const CITY_MAP_Y = 30;
 const COL2_X = 96;
 const COL3_X = 214;
 
-import type { CityScreenView } from "@civ/renderer-api";
+import type { CityButton, CityScreenView } from "@civ/renderer-api";
+
+/** The production box's buttons, under its shield count. */
+const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: number; label: string }> = {
+  change: { x: COL3_X, y: CITY_MAP_Y + 63, w: 48, h: 11, label: "Change" },
+  buy: { x: COL3_X + 52, y: CITY_MAP_Y + 63, w: 46, h: 11, label: "Buy" },
+};
+
+export function cityButtonAt(px: number, py: number): CityButton | null {
+  for (const [id, b] of Object.entries(CITY_BUTTONS) as [CityButton, (typeof CITY_BUTTONS)[CityButton]][])
+    if (px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h) return id;
+  return null;
+}
 
 export function citySlotAt(px: number, py: number): number | null {
   const tx = Math.floor((px - CITY_MAP_X) / TILE);
@@ -191,7 +203,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   }
 
   // Production column.
-  drawPanel(s, COL3_X - 4, CITY_MAP_Y - 2, SCREEN_W - COL3_X, 70);
+  drawPanel(s, COL3_X - 4, CITY_MAP_Y - 2, SCREEN_W - COL3_X, 81);
   const p = city.production;
   const pname = productionName(p);
   drawText(s, COL3_X, CITY_MAP_Y + 2, "Building:", dim);
@@ -203,12 +215,15 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawText(s, COL3_X, CITY_MAP_Y + 41, turns === null ? "never" : `${turns} turn${turns === 1 ? "" : "s"}`, dim);
   const cost = buyCost(state, city);
   drawText(s, COL3_X, CITY_MAP_Y + 52, cost ? `Buy: ${cost}$` : "Complete", player.gold >= cost ? ink : dim);
+  const { change, buy } = CITY_BUTTONS;
+  drawButton(s, change.x, change.y, change.w, change.h, change.label);
+  drawButton(s, buy.x, buy.y, buy.w, buy.h, buy.label, cost > 0 && player.gold >= cost);
 
   // Supported units.
   const supported = state.units.filter((u) => u.homeCity === city.id);
-  drawText(s, COL3_X, CITY_MAP_Y + 74, `Units: ${supported.length}`, dim);
+  drawText(s, COL3_X, CITY_MAP_Y + 84, `Units: ${supported.length}`, dim);
   supported.slice(0, 10).forEach((u, i) => {
-    s.blit(unitSprite(u.type, playerColorOf(state, u.owner)), COL3_X + (i % 5) * 18, CITY_MAP_Y + 84 + Math.floor(i / 5) * 18, SPRITE_CLEAR);
+    s.blit(unitSprite(u.type, playerColorOf(state, u.owner)), COL3_X + (i % 5) * 18, CITY_MAP_Y + 94 + Math.floor(i / 5) * 18, SPRITE_CLEAR);
   });
 
   // Hints.

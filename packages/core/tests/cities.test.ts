@@ -103,6 +103,9 @@ describe("cities", () => {
     expect(s.players[0]!.gold).toBe(1000 - cost);
     applyCommand(s, { type: "endTurn" });
     expect(c.buildings).toContain("granary");
+    // The event names what was finished, for the window that asks what comes next.
+    expect(lastTurnEvents).toContainEqual({ city: c.id, kind: "built", detail: "Granary", production: { kind: "building", id: "granary" } });
+    expect(c.production).toEqual({ kind: "unit", id: "militia" });
   });
 
   it("toggling a worked tile makes an entertainer and back", () => {

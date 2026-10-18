@@ -9,10 +9,11 @@ export * from "./fog.js";
 export * from "./territory.js";
 export * from "./techtree.js";
 export { hash } from "./hash.js";
-import { WORK_ICON, WORK_NAME } from "./icons.js";
+import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
   advance,
   attrition,
+  building,
   cityAt,
   civ,
   CIV_COLORS,
@@ -21,19 +22,24 @@ import {
   maxHp,
   WONDERS,
   nativeCivs,
+  partCount,
   PREMADE_WORLDS,
   premadeWorld,
   relation,
+  spacePart,
   Terrain,
   TERRAIN_NAMES,
   TERRAIN_RULES,
   tileYield,
   unitAt,
   unitType,
+  wonder,
   wrapX,
+  type BuildingRule,
   type GameState,
   type MapGenOptions,
   type NewGameOptions,
+  type Production,
 } from "@civ/core";
 
 /**
@@ -88,6 +94,9 @@ export interface CityScreenView {
   city: number;
   message?: string | undefined;
 }
+
+/** The buttons on the city screen's production box: change what is built, or buy it now. */
+export type CityButton = "change" | "buy";
 
 export interface MenuState {
   /** Shown in a header row; an empty title (a dropdown) has no header. */
@@ -184,6 +193,8 @@ export interface Renderer {
   citySlotAt(px: number, py: number): number | null;
   /** True when the point is on the city screen's exit bar. */
   cityExitHit(px: number, py: number): boolean;
+  /** The production box button under a point on the city screen, or null. */
+  cityButtonAt(px: number, py: number): CityButton | null;
   /** Map tile under a point in the main screen's viewport, or null. */
   tileAt(state: GameState, view: MainScreenView, px: number, py: number): { x: number; y: number } | null;
   /** Map tile under a point on the main screen's minimap, or null. */
@@ -375,6 +386,49 @@ export function topCitiesReport(state: GameState): ReportPage {
   }));
   if (!lines.length) lines.push({ text: "We know of no cities yet.", dim: true });
   return { title: "Top 5 Cities", lines };
+}
+
+function buildingIcon(b: BuildingRule): IconName {
+  if (b.id === "palace") return "crown";
+  if (b.content) return "heart";
+  if (b.sciencePct) return "bulb";
+  if (b.taxPct) return "coin";
+  if (b.shieldsPct) return "shield";
+  if (b.granary || b.aqueduct) return "food";
+  if (b.wallsPct) return "tower";
+  if (b.barracks) return "swords";
+  if (b.pollutionPct) return "clean";
+  return "house";
+}
+
+/**
+ * The window a city opens when it finishes an improvement, a wonder or a
+ * spaceship part: what it made and what that does. Its builders then ask
+ * what comes next. Units open none: their city goes on building them.
+ */
+export function builtNotice(state: GameState, cityId: number, p: Production): { title: string; lines: string[] } | null {
+  const city = state.cities.find((c) => c.id === cityId);
+  if (!city) return null;
+  switch (p.kind) {
+    case "unit": return null;
+    case "building": {
+      const b = building(p.id);
+      const lines = [`{${buildingIcon(b)}} ${b.text}`];
+      if (b.upkeep) lines.push(`{purse} Upkeep ${b.upkeep} gold a turn`);
+      return { title: `${city.name} builds ${b.name}`, lines };
+    }
+    case "wonder": {
+      const w = wonder(p.id);
+      const lines = ["{star} A Wonder of the World!", w.text];
+      if (w.obsolete) lines.push(`{hourglass} Its power ends with ${advance(w.obsolete).name}`);
+      return { title: `${city.name} completes ${w.name}`, lines };
+    }
+    case "spaceship": {
+      const part = spacePart(p.id);
+      const ship = state.players[city.owner]!.spaceship;
+      return { title: `${city.name} builds ${part.name}`, lines: [part.text, `{star} ${partCount(ship, p.id)} of ${part.max} built`] };
+    }
+  }
 }
 
 /** Rival civilizations for the n-th choice of the "How many civilizations?" menu. */

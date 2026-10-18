@@ -5,6 +5,7 @@ import {
   atWar,
   availableAdvances,
   buildOptions,
+  buyCost,
   canFoundCity,
   canHelpWonder,
   canTradeRoute,
@@ -53,6 +54,7 @@ import {
   type UnitAction,
 } from "@civ/core";
 import {
+  builtNotice,
   canResearch,
   clampTechScroll,
   DIFFICULTIES,
@@ -143,7 +145,7 @@ type Screen =
   | { kind: "title" }
   | { kind: "setup"; setup: SetupState }
   | { kind: "map" }
-  | { kind: "city"; view: CityScreenView }
+  | { kind: "city"; view: CityScreenView; then?: () => void } // `then`: the turn's news that waits for the city to close
   | { kind: "techTree"; tree: TechTreeView; target: number; back: Screen; then: () => void }
   | { kind: "science" }
   | { kind: "rates" }
@@ -440,8 +442,42 @@ function menu(title: string, items: string[], onPick: (i: number) => void, extra
   screenState = { kind: "menu", under: screenState, menu: { title, items, selected: 0 }, onPick, ...extra };
 }
 
-function openCity(id: number): void {
-  screenState = { kind: "city", view: { city: id } };
+function openCity(id: number, then?: () => void): void {
+  screenState = { kind: "city", view: { city: id }, ...(then ? { then } : {}) };
+}
+
+/** Back to the map; a city opened by the turn's news goes on with the rest of it. */
+function leaveCity(sc: Extract<Screen, { kind: "city" }>): void {
+  screenState = { kind: "map" };
+  sc.then?.();
+}
+
+/**
+ * A city finished an improvement, a wonder or a spaceship part: a window over the city
+ * says what it does, then the city's builders ask what comes next. Leaving the city goes
+ * on with the turn's news.
+ */
+function builtWindow(cityId: number, p: Production, then: () => void): void {
+  const city = state.cities.find((c) => c.id === cityId);
+  const notice = builtNotice(state, cityId, p);
+  if (!city || city.owner !== 0 || !notice) { then(); return; }
+  openCity(cityId, then);
+  modal(notice.title, notice.lines, ["Choose what to build next"], () => openProductionMenu(cityId));
+}
+
+/** Buy what a city is building once the price is seen against the treasury, as the original asks. */
+function askBuy(cityId: number): void {
+  const city = state.cities.find((c) => c.id === cityId);
+  if (!city) return;
+  const cost = buyCost(state, city);
+  const gold = state.players[city.owner]!.gold;
+  const name = productionName(city.production);
+  if (cost === 0) { say(`${name} is already paid for`); return; }
+  const price = `{purse} Cost ${cost} gold  {coin} Treasury ${gold} gold`;
+  if (gold < cost) { modal(`Buy ${name}?`, [price, "We cannot afford it yet."], ["OK"], () => {}); return; }
+  modal(`Buy ${name}?`, [price], ["Yes, buy it", "No"], (i) => {
+    if (i === 0 && dispatch({ type: "buy", city: cityId })) say(`${name} will be ready next turn`);
+  });
 }
 
 /** A modal window: a title, a few paragraphs, and choices (just "OK" for a message). */
@@ -951,6 +987,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       openTree({ discovered: found, choosing: true, closable: due < 0 }, next);
     }
     else if (ev.kind === "hut") hutModal(ev.result, next);
+    else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && ev.production.kind !== "unit") builtWindow(ev.city, ev.production, next);
     else if (ev.kind === "contact") {
       const c = civ(state.players[ev.player]!.civ);
       screenState = { kind: "diplomacy", player: ev.player, line: `${c.leader} of the ${c.name} greets you.` };
@@ -1133,11 +1170,12 @@ function ratesKey(e: KeyboardEvent): void {
   }
 }
 
-function cityKey(e: KeyboardEvent, cv: CityScreenView): void {
+function cityKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "city" }>): void {
+  const cv = sc.view;
   switch (e.code) {
-    case "Escape": screenState = { kind: "map" }; break;
+    case "Escape": leaveCity(sc); break;
     case "KeyC": openProductionMenu(cv.city); break;
-    case "KeyB": dispatch({ type: "buy", city: cv.city }); break;
+    case "KeyB": askBuy(cv.city); break;
     case "KeyN": {
       const city = state.cities.find((c) => c.id === cv.city);
       if (city) askText("Rename the city", city.name, (name) => dispatch({ type: "renameCity", city: cv.city, name }));
@@ -1217,7 +1255,7 @@ addEventListener("keydown", (e) => {
     case "title": openTitleMenu(); break;
     case "setup": setupKey(e, sc); break;
     case "map": mapKey(e); break;
-    case "city": cityKey(e, sc.view); break;
+    case "city": cityKey(e, sc); break;
     case "rates": ratesKey(e); break;
     case "science":
       if (e.code === "KeyA") openTree({ choosing: true, closable: true }, undefined, sc);
@@ -1306,13 +1344,16 @@ canvas.addEventListener("mousedown", (e) => {
       if (sc.which === "foreign") openForeignTalkMenu(); else screenState = { kind: "map" };
       return;
     case "city": {
+      const button = renderer.cityButtonAt(px, py);
+      if (button === "change") { openProductionMenu(sc.view.city); return; }
+      if (button === "buy") { askBuy(sc.view.city); return; }
       // A worked square frees its citizen; an unworked one takes a free citizen or the worker on the
       // weakest square; the city's own square puts every citizen on the best squares.
       const slot = renderer.citySlotAt(px, py);
       const city = state.cities.find((c) => c.id === sc.view.city);
       if (slot === 0) { if (dispatch({ type: "arrangeCity", city: sc.view.city })) say("Citizens moved to the best tiles"); }
       else if (slot !== null && city) dispatch({ type: city.worked.includes(slot) ? "toggleTile" : "workTile", city: city.id, slot });
-      else if (renderer.cityExitHit(px, py)) screenState = { kind: "map" };
+      else if (renderer.cityExitHit(px, py)) leaveCity(sc);
       return;
     }
     case "map": break;
