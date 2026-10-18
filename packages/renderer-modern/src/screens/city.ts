@@ -13,12 +13,13 @@ import {
   wonder,
   type GameState,
 } from "@civ/core";
-import { cityUnits, coastPatch, DEEP, fieldSides, fogPatch, riverShape, type CityButton, type CityScreenView } from "@civ/renderer-api";
+import { citizenLook, cityUnits, coastPatch, DEEP, fieldSides, fogPatch, riverShape, type CityButton, type CityScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, panel, paragraph, strokeRound, text } from "../draw.js";
 import { paintBadge, paintCity, playerColor } from "../markers.js";
+import { paintCitizen } from "../citizens.js";
 import { paintIcon } from "../icons.js";
 import { paintFortress, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
 import { BUTTON, H, TILE, UI, W } from "../theme.js";
@@ -84,27 +85,6 @@ function button(ctx: Context2D, b: (typeof CITY_BUTTONS)[CityButton], style: "pr
   text(ctx, b.x + b.w / 2, b.y + 9, b.label, { size: 15, weight: "600", color, align: "center" });
 }
 
-function citizen(ctx: Context2D, x: number, y: number, mood: "happy" | "content" | "unhappy" | "entertainer" | "taxman" | "scientist"): void {
-  const skin = mood === "unhappy" ? "#e9a08a" : "#f1c9a5";
-  circle(ctx, x, y, 11, skin);
-  ctx.strokeStyle = "#2a1d14";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(x, y, 11, 0, Math.PI * 2);
-  ctx.stroke();
-  circle(ctx, x - 4, y - 2, 1.5, "#2a1d14");
-  circle(ctx, x + 4, y - 2, 1.5, "#2a1d14");
-  ctx.beginPath();
-  if (mood === "happy") ctx.arc(x, y + 2, 5, 0.15 * Math.PI, 0.85 * Math.PI);
-  else if (mood === "unhappy") ctx.arc(x, y + 8, 5, 1.15 * Math.PI, 1.85 * Math.PI);
-  else { ctx.moveTo(x - 4, y + 5); ctx.lineTo(x + 4, y + 5); }
-  ctx.stroke();
-  if (mood === "entertainer" || mood === "taxman" || mood === "scientist") {
-    const hat = mood === "entertainer" ? UI.lux : mood === "taxman" ? UI.accent : UI.info;
-    fillRound(ctx, x - 11, y - 16, 22, 7, 3, hat);
-  }
-}
-
 export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScreenView): void {
   const city = state.cities.find((c) => c.id === view.city);
   if (!city) return;
@@ -118,13 +98,15 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   ctx.fillRect(0, 0, W, 40);
   text(ctx, W / 2, 9, `${city.name}  ·  population ${city.size}  ·  ${formatYear(turnToYear(state.turn))}`, { size: 18, weight: "600", align: "center" });
 
-  // Citizens.
+  // Citizens, each a person of their own (`citizenLook`).
   let cx = 30;
-  for (let i = 0; i < r.happy; i++, cx += 28) citizen(ctx, cx, 62, "happy");
-  for (let i = 0; i < r.content; i++, cx += 28) citizen(ctx, cx, 62, "content");
-  for (let i = 0; i < r.unhappy; i++, cx += 28) citizen(ctx, cx, 62, "unhappy");
+  let n = 0;
+  const cy = 43;
+  for (let i = 0; i < r.happy; i++, cx += 28) paintCitizen(ctx, cx, cy, "happy", citizenLook(city.id, n++));
+  for (let i = 0; i < r.content; i++, cx += 28) paintCitizen(ctx, cx, cy, "content", citizenLook(city.id, n++));
+  for (let i = 0; i < r.unhappy; i++, cx += 28) paintCitizen(ctx, cx, cy, "unhappy", citizenLook(city.id, n++));
   cx += 10;
-  for (const sp of city.specialists) { citizen(ctx, cx, 62, sp); cx += 28; }
+  for (const sp of city.specialists) { paintCitizen(ctx, cx, cy, sp, citizenLook(city.id, n++)); cx += 28; }
   if (r.disorder) text(ctx, W - 24, 52, "CIVIL DISORDER", { size: 16, weight: "bold", color: UI.danger, align: "right" });
 
   // Resource map.

@@ -137,8 +137,14 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
   terrain, cities, villages, specials and mines are pixel art in `src/art/*.art.ts` (text grids; legend
   and parser in `src/sprites/sheet.ts`, compiled surfaces in `src/sprites/index.ts`; 8x8 panel icons
-  in `icons.art.ts`, drawn with `src/icons.ts`, outlined in black so they read on every background); roads,
+  in `icons.art.ts`, drawn with `src/icons.ts`, outlined in black so they read on every background: food
+  is an ear of wheat, `shield` (production) a hammer, `people` a man and a woman); roads,
   rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.
+  Citizens (city screen) are whole figures, 7x13: `citizens.art.ts` holds a man and a woman to a 16x16
+  sprite, one per mood or trade, plus a "-2" look (beard, headscarf); `citizens.ts` swaps the sheet's
+  stand-in skin, hair, trouser and clothes colours for each person's (`skin` ramp for deep skin tones).
+  Who stands where is `citizenLook(city, i)` in renderer-api (a hash, so the same people every frame);
+  the modern renderer paints the same people in `renderer-modern/src/citizens.ts`.
   Chrome, as the original's main screen: every panel, window, page and button is the same light
   speckled stone (`panel` ramp, `drawStone`/`drawPanel`, `drawWindow`, `drawPage`; `stipple` by screen
   position) with a blue title strip and selection (`azure` ramp), on black. Text on it uses the inks in

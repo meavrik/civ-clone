@@ -99,6 +99,9 @@ for (const [name, colors] of Object.entries(CHROME)) {
   C[name.toUpperCase()] = PALETTE.length;
   PALETTE.push(...colors);
 }
+// Deep brown skin for the city screen's citizens, darker than the flesh ramp reaches.
+C.SKIN = PALETTE.length;
+PALETTE.push(...ramp([52, 30, 20], [136, 86, 56], 8));
 while (PALETTE.length < 256) PALETTE.push([0, 0, 0]);
 
 /** Index of shade `n` (0 dark .. 7 light) within a named ramp. */

@@ -20,6 +20,7 @@ import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, GOLD, GOOD, INK, stipple, TITLE_H } from "../widgets.js";
+import { CITIZEN_H, drawCitizen } from "../citizens.js";
 import { drawIcon, ICON } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
@@ -164,46 +165,6 @@ function storeGrid(s: Surface, x: number, y: number, w: number, maxRows: number,
   return rows * (ICON + 1) + 1;
 }
 
-type Mood = "happy" | "content" | "unhappy" | "entertainer" | "taxman" | "scientist";
-
-/** A citizen as a small bust: the face shows the mood, the shirt and hat the job. */
-const CITIZEN_FACE = ["..kkk..", ".kfffk.", "kfkfkfk", "kfffffk", "kf...fk", "kf...fk", ".kfffk."];
-const MOUTH: Record<"happy" | "content" | "unhappy", [string, string]> = {
-  happy: ["k.k", ".k."],
-  content: ["...", "kkk"],
-  unhappy: [".k.", "k.k"],
-};
-const SHIRT: Record<Mood, () => number> = {
-  happy: () => C.YELLOW!,
-  content: () => shade("grey", 6),
-  unhappy: () => C.RED!,
-  entertainer: () => C.LMAGENTA!,
-  taxman: () => C.ORANGE!,
-  scientist: () => C.LCYAN!,
-};
-
-function citizen(s: Surface, x: number, y: number, mood: Mood): void {
-  const skin = shade("flesh", 5);
-  const mouth = MOUTH[mood === "happy" || mood === "unhappy" ? mood : mood === "content" ? "content" : "happy"];
-  CITIZEN_FACE.forEach((row, r) => {
-    for (let c = 0; c < 7; c++) {
-      let ch = row[c]!;
-      if (ch === "." && (r === 4 || r === 5) && c >= 2 && c <= 4) ch = mouth[r - 4]![c - 2] === "k" ? "k" : "f";
-      if (ch === "k") s.set(x + c, y + r, C.BLACK!);
-      else if (ch === "f") s.set(x + c, y + r, skin);
-    }
-  });
-  // Shoulders and shirt.
-  const shirt = SHIRT[mood]();
-  s.rect(x, y + 7, 7, 4, C.BLACK!);
-  s.rect(x + 1, y + 7, 5, 3, shirt);
-  s.set(x + 3, y + 7, skin);
-  if (mood === "entertainer" || mood === "taxman" || mood === "scientist") {
-    s.rect(x + 1, y - 2, 5, 3, C.BLACK!);
-    s.rect(x + 2, y - 2, 3, 2, shirt);
-  }
-}
-
 export function drawCityScreen(s: Surface, state: GameState, view: CityScreenView): void {
   const city = state.cities.find((c) => c.id === view.city);
   if (!city) return;
@@ -214,14 +175,16 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   // Title and citizens; the strip turns red while the city riots.
   drawBox(s, LEFT.x, TOP.y, SCREEN_W - 2, TOP.h);
   drawTitleStrip(s, LEFT.x + 2, TOP.y + 2, SCREEN_W - 6, `${city.name} (Pop ${city.size})   ${formatYear(turnToYear(state.turn))}`, { centred: true, ...(r.disorder ? { color: C.RED! } : {}) });
+  // Each citizen a person of their own (`citizenLook`), standing on the window's bottom edge.
   let cx = 5;
-  const cy = TOP.y + BOX_HEAD + 3;
-  for (let i = 0; i < r.happy; i++, cx += 8) citizen(s, cx, cy, "happy");
-  for (let i = 0; i < r.content; i++, cx += 8) citizen(s, cx, cy, "content");
-  for (let i = 0; i < r.unhappy; i++, cx += 8) citizen(s, cx, cy, "unhappy");
+  let n = 0;
+  const cy = TOP.y + TOP.h - 1 - CITIZEN_H;
+  for (let i = 0; i < r.happy; i++, cx += 8) drawCitizen(s, cx, cy, "happy", city.id, n++);
+  for (let i = 0; i < r.content; i++, cx += 8) drawCitizen(s, cx, cy, "content", city.id, n++);
+  for (let i = 0; i < r.unhappy; i++, cx += 8) drawCitizen(s, cx, cy, "unhappy", city.id, n++);
   cx += 4;
-  for (const sp of city.specialists) { citizen(s, cx, cy, sp); cx += 8; }
-  if (r.disorder) say(s, SCREEN_W - 6 - textWidth("CIVIL DISORDER"), cy + 1, "CIVIL DISORDER", BAD);
+  for (const sp of city.specialists) { drawCitizen(s, cx, cy, sp, city.id, n++); cx += 8; }
+  if (r.disorder) say(s, SCREEN_W - 6 - textWidth("CIVIL DISORDER"), TOP.y + BOX_HEAD + 4, "CIVIL DISORDER", BAD);
 
   // Resources: food, shields and trade as rows of icons with what is left or lost, then where the trade goes.
   drawBox(s, LEFT.x, ROW1.y, LEFT.w, ROW1.h, "City Resources");

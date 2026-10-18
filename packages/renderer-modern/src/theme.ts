@@ -81,9 +81,10 @@ export const ICON = {
   gemDark: "#2a9fc0",
   bulb: "#ffe27a",
   metal: "#9aa8b8",
-  food: "#7bd88f",
-  foodDark: "#3f9a55",
-  foodShine: "#c9f2d2",
+  wheat: "#ecc15c",
+  wheatDark: "#a87a2a",
+  shirt: "#5f8fe0",
+  dress: "#e0614f",
   wood: "#a8743f",
   stone: "#b9c3cf",
   stoneDark: "#6d7886",
@@ -99,6 +100,32 @@ export const ICON = {
   keycap: "rgba(255,255,255,0.12)",
   badge: "rgba(10, 14, 20, 0.88)",
   keyEdge: "rgba(255,255,255,0.28)",
+};
+
+/**
+ * The city screen's citizens: clothes by mood (yellow happy, white content, red unhappy) or trade,
+ * then each person's skin, hair and trousers in the order `citizenLook` counts them.
+ */
+export const CITIZEN = {
+  line: "#14100c",
+  clothes: {
+    happy: ["#f7dc4a", "#c4a521"],
+    content: ["#eef1f4", "#aab4bf"],
+    unhappy: ["#ff6b6b", "#c23b3b"],
+    entertainer: ["#e08cff", "#a457c4"],
+    taxman: ["#ff9f43", "#c46a17"],
+    scientist: ["#6fd8ff", "#2b98c2"],
+  } as const,
+  skin: ["#fbe0c8", "#efc39d", "#d49d70", "#a9744b", "#7a4e30", "#53331f"],
+  hair: ["#1c1918", "#3d2617", "#6f4b2b", "#9c4a1d", "#e2c27c", "#bdbdbd"],
+  legs: ["#34558f", "#6d4b2c", "#4d5761", "#416c3b"],
+  shoe: "#2a2420",
+  hat: "#3b4049",
+  bell: "#f7dc4a",
+  glass: "#eaf8ff",
+  flask: "#6fd8ff",
+  coin: "#f1c54f",
+  coinDark: "#a8791f",
 };
 
 /** Hit point bars, the flash of a blow, and the burst of a beaten unit. */

@@ -3,19 +3,20 @@
 export default String.raw`
 # Icons, 8x8, for the info panels and the badges on working units. Outlined in black so each reads
 # on the main screen's grey, the city screen's blue, the dialogs' brown and a unit badge's black.
+# people: a man and a woman; food: an ear of wheat; shield (production, the rules' shields): a hammer.
 # Legend: . clear  k black  w white  P/p owner colour/dark
 #   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey (EGA)
 #   0-7 shades of ramp 1, a-h of ramp 2, A-H of ramp 3. Default ramps: grey, earth, stone.
 
-@people ramps=flesh,ocean
-..kkkk..
-.k6776k.
-.k6666k.
-..k55k..
-.kggffk.
-kgghgffk
-kgggfffk
-kkkkkkkk
+@people ramps=flesh,earth
+.bb..kk.
+k22kkddk
+k22kd66d
+.kk.dkkd
+kUUkkRRk
+kUUkRRRk
+kYYkRRRk
+kk.kkkkk
 
 @calendar
 .kk..kk.
@@ -87,25 +88,25 @@ kkkkkkkk
 .kyyyyk.
 kkkkkkkk
 
-@food
-....k...
-...kYnn.
-.kkkYkk.
-kNwNNNNk
-kNNNNNNk
-kNNNNNnk
-.knNNnk.
-..kkkk..
+@food ramps=plains,earth
+.k..k..k
+.k7kk7k.
+k75k75kk
+.k7k7k..
+k75k75k.
+.kk7kk..
+..kck...
+..kck...
 
-@shield
-kkkkkkkk
-kZZZZZzk
-kZwZZZzk
-kZZZZZzk
-kZZZZZzk
-.kZZZzk.
-..kZzk..
-...kk...
+@shield ramps=stone,earth
+.kkkkkk.
+k776665k
+k665554k
+.kkkdkk.
+...kdk..
+...kdk..
+...kck..
+...kkk..
 
 @trade
 ....kk..
