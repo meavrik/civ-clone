@@ -25,7 +25,8 @@ function world(): GameState {
 describe("diplomats", () => {
   it("steal an advance, are spent, and start a war when the victim was at peace", () => {
     const s = world();
-    s.players[1]!.advances.push("alphabet");
+    // Alphabet is the one advance to steal, whatever the civilizations started with.
+    s.players[1]!.advances = [...s.players[0]!.advances, "alphabet"];
     const d = createUnit(s, "diplomat", 0, 29, 20);
     expect(applyCommand(s, { type: "move", unit: d.id, dx: 1, dy: 0 }).ok).toBe(false);
     expect(applyCommand(s, { type: "diplomat", unit: d.id, action: "steal", x: 30, y: 20 }).ok).toBe(true);

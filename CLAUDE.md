@@ -23,6 +23,11 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   worlds (`map/premade.ts` + generated `map/worlds/*.ts`: 50 rows of 80 terrain chars, upper case = river,
   and each native civ's homeland square), cities,
   combat, pathfinding, diplomacy, barbarians, save/score. Entry: `src/index.ts`.
+  Generated worlds: land from random-walk chunks, terrain from the climate (`climateWorld`): smooth
+  heat and rain fields that wrap east-west, rain in latitude belts and on prevailing winds that dry out
+  over land and mountains (rain shadows), ranked so biome shares stay steady; mountains on noise ridges
+  with hills as foothills; lone squares join their neighbours; rivers rise in wet highlands and run
+  to the sea. `scatteredTerrain` keeps the first per-square generator for saves before version 6.
   Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
   FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
   starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail
