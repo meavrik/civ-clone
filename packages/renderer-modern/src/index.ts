@@ -1,6 +1,6 @@
 import type { Renderer } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
-import { drawCityScreen, cityButtonAt, citySlotAt, cityExitHit } from "./screens/city.js";
+import { drawCityScreen, cityButtonAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { drawMainScreen, menuBarAnchor, menuBarHit, minimapAt, tileAt } from "./screens/main.js";
 import { drawAdvisor, drawDiplomacyScreen, drawRatesScreen, drawReport, drawScienceScreen, drawSpaceshipScreen, drawWorldMap } from "./screens/pages.js";
 import { drawTechTree, TECH_COLUMNS, techTreeHit } from "./screens/techtree.js";
@@ -48,6 +48,7 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     citySlotAt: (px, py) => citySlotAt(px, py),
     cityExitHit: (px, py) => cityExitHit(px, py),
     cityButtonAt: (px, py) => cityButtonAt(px, py),
+    cityUnitAt: (state, view, px, py) => cityUnitAt(state, view, px, py),
     tileAt: (state, view, px, py) => tileAt(state, view, px, py),
     minimapAt: (state, px, py) => minimapAt(state, px, py),
     techTreeHit: (state, view, px, py) => techTreeHit(ctx, state, view, px, py),

@@ -37,14 +37,17 @@ import {
   TERRAIN_RULES,
   tileYield,
   unitAt,
+  unitSupport,
   unitType,
   wonder,
   wrapX,
   type BuildingRule,
+  type City,
   type GameState,
   type MapGenOptions,
   type NewGameOptions,
   type Production,
+  type Unit,
 } from "@civ/core";
 
 /**
@@ -104,6 +107,30 @@ export interface CityScreenView {
 
 /** The buttons on the city screen's production box: change what is built, or buy it now. */
 export type CityButton = "change" | "buy";
+
+/** A unit on the city screen: in the city (`here`) or supported by it elsewhere, with what it costs the city. */
+export interface CityUnit {
+  unit: Unit;
+  here: boolean;
+  shields: number;
+  food: number;
+}
+
+/**
+ * The units a city screen shows, as the original's: those standing in the city first (from any
+ * home, so the garrison can be picked and woken), then those the city supports elsewhere.
+ * Costs are what each one takes from this city: nothing for a unit another city supports.
+ */
+export function cityUnits(state: GameState, city: City): CityUnit[] {
+  const support = new Map(unitSupport(state, city).map((s) => [s.unit.id, s]));
+  const here = unitAt(state, city.x, city.y).filter((u) => u.owner === city.owner);
+  const at = new Set(here.map((u) => u.id));
+  const cost = (u: Unit) => ({ shields: support.get(u.id)?.shields ?? 0, food: support.get(u.id)?.food ?? 0 });
+  return [
+    ...here.map((unit) => ({ unit, here: true, ...cost(unit) })),
+    ...[...support.values()].filter((s) => !at.has(s.unit.id)).map((s) => ({ ...s, here: false })),
+  ];
+}
 
 export interface MenuState {
   /** Shown in a header row; an empty title (a dropdown) has no header. */
@@ -214,6 +241,8 @@ export interface Renderer {
   cityExitHit(px: number, py: number): boolean;
   /** The production box button under a point on the city screen, or null. */
   cityButtonAt(px: number, py: number): CityButton | null;
+  /** The unit (id) under a point in the city screen's units (`cityUnits`), or null. */
+  cityUnitAt(state: GameState, view: CityScreenView, px: number, py: number): number | null;
   /** Map tile under a point in the main screen's viewport, or null. */
   tileAt(state: GameState, view: MainScreenView, px: number, py: number): { x: number; y: number } | null;
   /** Map tile under a point on the main screen's minimap, or null. */

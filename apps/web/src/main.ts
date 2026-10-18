@@ -493,6 +493,20 @@ function leaveCity(sc: Extract<Screen, { kind: "city" }>): void {
 }
 
 /**
+ * A unit picked on the city screen wakes (fortified or sentried, it gives up those orders) and
+ * the map takes it up, as in the original. One with no moves left keeps its orders.
+ */
+function activateFromCity(sc: Extract<Screen, { kind: "city" }>, unit: number): void {
+  const u = unitById(state, unit);
+  if (!u) return;
+  if (u.movesLeft === 0) { say(`${unitType(u.type).name}: no moves left this turn`); return; }
+  if (!dispatch({ type: "activate", unit })) return;
+  leaveCity(sc);
+  finishHandoff();
+  followActive(true);
+}
+
+/**
  * A city finished an improvement, a wonder or a spaceship part: a window over the city
  * says what it does, then the city's builders ask what comes next. Leaving the city goes
  * on with the turn's news.
@@ -1642,6 +1656,8 @@ canvas.addEventListener("mousedown", (e) => {
       const button = renderer.cityButtonAt(px, py);
       if (button === "change") { openProductionMenu(sc.view.city); return; }
       if (button === "buy") { askBuy(sc.view.city); return; }
+      const unit = renderer.cityUnitAt(state, sc.view, px, py);
+      if (unit !== null) { activateFromCity(sc, unit); return; }
       // A worked square frees its citizen; an unworked one takes a free citizen or the worker on the
       // weakest square; the city's own square puts every citizen on the best squares.
       const slot = renderer.citySlotAt(px, py);

@@ -9,18 +9,17 @@ import {
   slotAvailable,
   tileYield,
   turnToYear,
-  unitSupport,
   wonder,
   type City,
   type GameState,
 } from "@civ/core";
-import { fieldSides, type IconName } from "@civ/renderer-api";
+import { cityUnits, fieldSides, type IconName } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
-import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, GOLD, GOOD, INK, TITLE_H } from "../widgets.js";
+import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, GOLD, GOOD, INK, stipple, TITLE_H } from "../widgets.js";
 import { drawIcon, ICON } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
@@ -78,11 +77,28 @@ export function citySlotAt(px: number, py: number): number | null {
   return slot >= 0 ? slot : null;
 }
 
-/** Top-left of the i-th supported unit's sprite in the units box; what it costs is drawn under it. */
+/** Top-left of the i-th unit's sprite in the units box (`cityUnits`); what it costs is drawn under it. */
 export function cityUnitSlot(i: number): { x: number; y: number } {
   return { x: MID.x + 3 + (i % 4) * 20, y: ROW2.y + BOX_HEAD + 3 + Math.floor(i / 4) * 27 };
 }
 const UNIT_SLOTS = 8;
+
+/** The unit under a point in the units box, sprite or cost: clicking it wakes it and takes it to the map. */
+export function cityUnitAt(state: GameState, view: CityScreenView, px: number, py: number): number | null {
+  const city = state.cities.find((c) => c.id === view.city);
+  if (!city) return null;
+  const units = cityUnits(state, city).slice(0, UNIT_SLOTS);
+  for (let i = 0; i < units.length; i++) {
+    const { x, y } = cityUnitSlot(i);
+    if (px >= x - 1 && px < x + 19 && py >= y - 1 && py < y + 26) return units[i]!.unit.id;
+  }
+  return null;
+}
+
+/** A unit away from the city: every other pixel of its square goes back to stone. */
+function ghost(s: Surface, x: number, y: number): void {
+  for (let dy = 0; dy < TILE; dy++) for (let dx = dy & 1; dx < TILE; dx += 2) stipple(s, x + dx, y + dy, 1, 1, "panel");
+}
 
 function say(s: Surface, x: number, y: number, text: string, color: number): number {
   return drawText(s, x, y, text, color);
@@ -311,17 +327,19 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const grow = r.foodSurplus > 0 ? Math.ceil(Math.max(0, r.foodBox - city.food) / r.foodSurplus) : null;
   say(s, LEFT.x + 3, ROW2.y + ROW2.h - 10, r.foodSurplus < 0 ? "Starving!" : grow === null ? "Not growing" : `Grows in ${grow} turn${grow === 1 ? "" : "s"}`, r.foodSurplus < 0 ? BAD : LABEL);
 
-  // Supported units, each with what it costs the city: a shield beyond the free ones, food for settlers.
-  const support = unitSupport(state, city);
-  drawBox(s, MID.x, ROW2.y, MID.w, ROW2.h, "Units", String(support.length));
-  support.slice(0, UNIT_SLOTS).forEach(({ unit, shields, food }, i) => {
+  // Units in the city, then those it supports elsewhere (half hidden in the stone), each with what
+  // it costs the city: a shield beyond the free ones, food for settlers.
+  const units = cityUnits(state, city);
+  drawBox(s, MID.x, ROW2.y, MID.w, ROW2.h, "Units", String(units.length));
+  units.slice(0, UNIT_SLOTS).forEach(({ unit, here, shields, food }, i) => {
     const { x: ux, y: uy } = cityUnitSlot(i);
     s.blit(unitSprite(unit.type, playerColor(state, unit.owner)), ux, uy, SPRITE_CLEAR);
+    if (!here) ghost(s, ux, uy);
     let ix = ux;
     if (shields) { drawIcon(s, "shield", ix, uy + 17); ix += ICON; }
     if (food) drawIcon(s, "food", ix, uy + 17);
   });
-  if (support.length > UNIT_SLOTS) say(s, MID.x + MID.w - 4 - textWidth(`+${support.length - UNIT_SLOTS}`), ROW2.y + ROW2.h - 10, `+${support.length - UNIT_SLOTS}`, LABEL);
+  if (units.length > UNIT_SLOTS) say(s, MID.x + MID.w - 4 - textWidth(`+${units.length - UNIT_SLOTS}`), ROW2.y + ROW2.h - 10, `+${units.length - UNIT_SLOTS}`, LABEL);
 
   // Production: what is being built, its shields as icons, how long, and the price to buy it now.
   const p = city.production;

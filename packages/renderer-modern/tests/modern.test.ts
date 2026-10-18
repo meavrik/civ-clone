@@ -240,6 +240,12 @@ describe("modern renderer", () => {
     expect(r.cityButtonAt(800 + 60, 92 + 150 + 17)).toBe("buy");
     expect(r.cityButtonAt(660 + 60, 92 + 124)).toBeNull();
     expect(r.cityButtonAt(10, 590)).toBeNull();
+    // The city's units under the production card: those in the city first, each picked by its badge.
+    const city = state.cities[0]!;
+    createUnit(state, "phalanx", 0, city.x, city.y, city.id);
+    const first = state.units.find((u) => u.owner === 0 && u.x === city.x && u.y === city.y)!;
+    expect(r.cityUnitAt(state, { city: city.id }, 660 - 8 + 24, 92 + 242 + 24)).toBe(first.id);
+    expect(r.cityUnitAt(state, { city: city.id }, 660 + 60, 92 + 150 + 17)).toBeNull();
   });
 });
 

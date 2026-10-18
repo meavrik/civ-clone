@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, building, BUILDINGS, createUnit, getTile, newGame, revealAround, SPACE_PARTS, Terrain, wonder, WONDERS, type UnitBattle } from "@civ/core";
-import { builtNotice, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, moveRefusal, NUDGE_MS, researchOutlook, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
+import { builtNotice, cityUnits, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, moveRefusal, NUDGE_MS, researchOutlook, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
 const fresh = (step: SetupState["step"]): SetupState => ({ step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
 
@@ -172,6 +172,24 @@ describe("finished builds", () => {
     const c = s.cities[0]!;
     for (const b of BUILDINGS)
       for (const line of builtNotice(s, c.id, { kind: "building", id: b.id })!.lines) expect(iconSegments(line).every((seg) => "icon" in seg || !/\{[a-z]+\}/.test(seg.text)), line).toBe(true);
+  });
+});
+
+describe("city units", () => {
+  it("lists the units in the city first, from any home, then those it supports elsewhere, with what each costs it", () => {
+    const s = newGame(2026, { opponents: 2 });
+    applyCommand(s, { type: "found", unit: s.units[0]!.id });
+    const c = s.cities[0]!;
+    s.units = s.units.filter((u) => u.owner !== 0);
+    const away = createUnit(s, "militia", 0, c.x, c.y + 2, c.id);
+    const home = createUnit(s, "settlers", 0, c.x, c.y, c.id);
+    const guest = createUnit(s, "phalanx", 0, c.x, c.y, null);
+    // Size 1 under Despotism: the first unit it supports (the one away) is free, the settlers pay a shield and eat.
+    expect(cityUnits(s, c).map(({ unit, here, shields, food }) => [unit.id, here, shields, food])).toEqual([
+      [home.id, true, 1, 1],
+      [guest.id, true, 0, 0],
+      [away.id, false, 0, 0],
+    ]);
   });
 });
 

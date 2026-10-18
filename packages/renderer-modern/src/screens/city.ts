@@ -10,11 +10,10 @@ import {
   Terrain,
   tileYield,
   turnToYear,
-  unitSupport,
   wonder,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, fieldSides, fogPatch, riverShape, type CityButton, type CityScreenView } from "@civ/renderer-api";
+import { cityUnits, coastPatch, DEEP, fieldSides, fogPatch, riverShape, type CityButton, type CityScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import type { Context2D } from "../context.js";
@@ -27,7 +26,7 @@ import { BUTTON, H, TILE, UI, W } from "../theme.js";
 /**
  * City screen, 960x600: title bar, citizens row, the 5x5 resource map on
  * the left, totals and improvements in the middle, production and
- * supported units on the right, an exit bar at the bottom.
+ * the city's units on the right, an exit bar at the bottom.
  */
 export const CITY_MAP_X = 20;
 export const CITY_MAP_Y = 92;
@@ -56,6 +55,24 @@ const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: num
 export function cityButtonAt(px: number, py: number): CityButton | null {
   for (const [id, b] of Object.entries(CITY_BUTTONS) as [CityButton, (typeof CITY_BUTTONS)[CityButton]][])
     if (px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h) return id;
+  return null;
+}
+
+/** Top-left of the i-th unit's badge under the production card (`cityUnits`); its cost goes under it. */
+function unitSlot(i: number): { x: number; y: number } {
+  return { x: COL3_X - 8 + (i % 5) * 50, y: CITY_MAP_Y + 242 + Math.floor(i / 5) * 62 };
+}
+const UNIT_SLOTS = 15;
+
+/** The unit under a point among the city's units: clicking it wakes it and takes it to the map. */
+export function cityUnitAt(state: GameState, view: CityScreenView, px: number, py: number): number | null {
+  const city = state.cities.find((c) => c.id === view.city);
+  if (!city) return null;
+  const units = cityUnits(state, city).slice(0, UNIT_SLOTS);
+  for (let i = 0; i < units.length; i++) {
+    const { x, y } = unitSlot(i);
+    if (px >= x && px < x + TILE && py >= y && py < y + 60) return units[i]!.unit.id;
+  }
   return null;
 }
 
@@ -209,14 +226,19 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   button(ctx, CITY_BUTTONS.change, "plain");
   button(ctx, CITY_BUTTONS.buy, cost > 0 && player.gold >= cost ? "primary" : "off");
 
-  // Supported units, each with what it costs the city: a shield beyond the free ones, food for settlers.
-  const support = unitSupport(state, city);
-  const upkeep = support.reduce((n, s) => n + s.shields, 0);
-  text(ctx, COL3_X, CITY_MAP_Y + 226, `Units supported: ${support.length}${upkeep ? ` · ${upkeep} shield${upkeep > 1 ? "s" : ""} a turn` : ""}`, { size: 13, color: UI.dim });
-  support.slice(0, 10).forEach(({ unit, shields, food }, i) => {
-    const ux = COL3_X - 8 + (i % 5) * 50;
-    const uy = CITY_MAP_Y + 242 + Math.floor(i / 5) * 62;
+  // Units in the city, then those it supports elsewhere (faded), each with what it costs the city:
+  // a shield beyond the free ones, food for settlers.
+  const units = cityUnits(state, city);
+  const present = units.filter((u) => u.here).length;
+  const upkeep = units.reduce((n, s) => n + s.shields, 0);
+  const counts = `Units: ${present} here${units.length > present ? `, ${units.length - present} away` : ""}${upkeep ? ` · ${upkeep} shield${upkeep > 1 ? "s" : ""} a turn` : ""}`;
+  text(ctx, COL3_X, CITY_MAP_Y + 226, units.length > UNIT_SLOTS ? `${counts} · ${units.length - UNIT_SLOTS} more` : counts, { size: 13, color: UI.dim });
+  units.slice(0, UNIT_SLOTS).forEach(({ unit, here, shields, food }, i) => {
+    const { x: ux, y: uy } = unitSlot(i);
+    const alpha = ctx.globalAlpha;
+    if (!here) ctx.globalAlpha = alpha * 0.4;
     paintBadge(ctx, ux, uy, unit.type, player.color, 34);
+    ctx.globalAlpha = alpha;
     const icons = [...(shields ? (["shield"] as const) : []), ...(food ? (["food"] as const) : [])];
     let ix = ux + TILE / 2 - (icons.length * 16 - 2) / 2;
     for (const icon of icons) { paintIcon(ctx, icon, ix, uy + 44, 14); ix += 16; }
@@ -225,7 +247,7 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   // Exit bar.
   ctx.fillStyle = UI.panel;
   ctx.fillRect(0, H - HINT_H, W, HINT_H);
-  const hint = view.message ?? "Esc exit   ·   C change production   ·   B buy   ·   N rename";
+  const hint = view.message ?? "Esc exit   ·   C change production   ·   B buy   ·   N rename   ·   click a unit to give it orders";
   paragraph(ctx, 24, H - HINT_H + 10, W - 48, hint, { size: 14, color: view.message ? UI.accent : UI.dim }, 1);
   void playerColor;
 }

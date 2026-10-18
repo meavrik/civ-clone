@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, Terrain, unitType } from "@civ/core";
-import { borderSides, C, cityButtonAt, citySlotAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, cityButtonAt, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -546,6 +546,35 @@ describe("city screen", () => {
     expect(under(0)).toBe(0);
     expect(under(1)).toBeGreaterThan(0);
     expect(under(2)).toBeGreaterThan(under(1)); // settlers: a shield and food
+  });
+
+  it("shows the units in the city, then those away faded, and picks a unit by its sprite or cost", () => {
+    const state = newGame(2026);
+    applyCommand(state, { type: "found", unit: state.units[0]!.id });
+    const city = state.cities[0]!;
+    state.units = state.units.filter((u) => u.owner !== 0);
+    const away = createUnit(state, "militia", 0, city.x, city.y + 2, city.id);
+    const here = createUnit(state, "militia", 0, city.x, city.y, city.id);
+    const guest = createUnit(state, "phalanx", 0, city.x, city.y, null);
+    here.order = { kind: "fortified" };
+    const s = Surface.screen();
+    drawCityScreen(s, state, { city: city.id });
+    writeFileSync(new URL("./out/city-units.png", import.meta.url), encodePng(s, 3));
+    const view = { city: city.id };
+    const ids = [0, 1, 2, 3].map((i) => { const { x, y } = cityUnitSlot(i); return cityUnitAt(state, view, x + 8, y + 8); });
+    expect(ids).toEqual([here.id, guest.id, away.id, null]);
+    // The cost under a sprite picks its unit too.
+    expect(cityUnitAt(state, view, cityUnitSlot(0).x + 4, cityUnitSlot(0).y + 20)).toBe(here.id);
+    expect(cityUnitAt(state, view, 4, 4)).toBeNull();
+    // The militia away shows about half the pixels of the one in the city.
+    const sprite = (i: number) => {
+      const { x, y } = cityUnitSlot(i);
+      let painted = 0;
+      for (let dy = 0; dy < 16; dy++) for (let dx = 0; dx < 16; dx++) if (!isStone(s.get(x + dx, y + dy))) painted++;
+      return painted;
+    };
+    expect(sprite(2)).toBeLessThan(sprite(0) * 0.7);
+    expect(sprite(2)).toBeGreaterThan(sprite(0) * 0.3);
   });
 });
 

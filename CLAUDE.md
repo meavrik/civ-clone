@@ -73,7 +73,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   in its own logical size, hit-test menus/city map/city buttons/tiles/minimap/menu bar), the shared view types and the
   DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`, `builtNotice`).
   City screen: Change and Buy buttons in the production box (`cityButtonAt`); Buy (button or B) shows the
-  price against the treasury first. A city that finishes an improvement, wonder or spaceship part opens
+  price against the treasury first. Its units (`cityUnits`: those in the city from any home, then those it
+  supports elsewhere, faded, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
+  sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
   over its city screen with a window saying what it does (`text` on each rule in `rules/buildings.ts`,
   `wonders.ts`, `spaceship.ts`), then asks what to build next; leaving the city goes on with the turn's news
   (the city `Screen`'s `then`). Finished units say nothing: the city goes on building them. The web app
