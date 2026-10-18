@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, CIV_COLORS, createUnit, newGame, revealAround, Terrain } from "@civ/core";
+import { ADVANCES, applyCommand, CIV_COLORS, createUnit, newGame, revealAround, Terrain } from "@civ/core";
 import { CLOUDS, PLAYER_COLORS } from "../src/theme.js";
 import type { MainScreenView } from "@civ/renderer-api";
 import { createModernRenderer, MODERN_H, MODERN_TILE, MODERN_W, type Context2D, type Gradient } from "../src/index.js";
@@ -88,7 +88,11 @@ describe("modern renderer", () => {
     r.city(state, { city: state.cities[0]!.id });
     const tree = openTechTree(state, r.techColumns, { discovered: ["bronze_working"], choosing: true, closable: false });
     r.techTree(state, tree);
+    // Far along: a player who knows all but the last few, the tree scrolled toward its end.
+    const known = state.players[0]!.advances;
+    state.players[0]!.advances = ADVANCES.map((a) => a.id).filter((id) => !["fusion_power", "quantum_computing"].includes(id));
     r.techTree(state, { ...tree, selected: "fusion_power", closable: true, scroll: 14.1 });
+    state.players[0]!.advances = known;
     r.science(state);
     r.rates(state);
     for (const which of ["domestic", "military", "foreign", "score"] as const) r.advisor(state, which);
@@ -255,10 +259,11 @@ describe("modern fog of war", () => {
       return found;
     };
     let hits = scan();
-    const { byId } = techLayout();
+    const { byId } = techLayout(state);
     for (const id of [...hits.keys()].filter((k) => byId.has(k))) expect(byId.get(id)!.tier).toBeLessThan(tree.scroll + r.techColumns);
     expect(hits.has("code_of_laws")).toBe(true);
-    expect(hits.has("scroll1")).toBe(true);
+    expect(hits.has("literacy")).toBe(false); // beyond reach: not in the tree yet
+    expect(hits.has("scroll1")).toBe(false); // the next phase fits the window
     expect(hits.has("scroll-1")).toBe(false);
     expect(hits.has("scrollTo")).toBe(true);
     expect(hits.has("research")).toBe(false);
@@ -269,6 +274,10 @@ describe("modern fog of war", () => {
     r.techTree(state, tree);
     expect(ctx.texts).toContain("Research Monarchy");
     expect(ctx.texts).toContain("Wise men discover Code of Laws!");
+    // A long tree scrolls: the arrow to the later tiers.
+    state.players[0]!.advances = ADVANCES.map((a) => a.id).filter((id) => id !== "quantum_computing");
+    tree.scroll = 0;
+    expect(scan().has("scroll1")).toBe(true);
   });
 
   it("covers unexplored squares in clouds and draws nothing of what lies beneath", () => {

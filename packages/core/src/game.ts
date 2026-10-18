@@ -2,6 +2,7 @@ import { selectNextUnit } from "./commands.js";
 import { generateMap, type MapGenOptions } from "./map/generate.js";
 import { premadeMap, premadeWorld, type PremadeWorld } from "./map/premade.js";
 import { createRng, nextInt } from "./rng.js";
+import { advancesFor } from "./rules/advances.js";
 import { civ, CIVS, colorSlot } from "./rules/civs.js";
 import { newSpaceship } from "./rules/spaceship.js";
 import { MAP_HEIGHT, MAP_WIDTH, Terrain, type GameState, type Player, type WorldMap } from "./types.js";
@@ -38,6 +39,8 @@ export interface NewGameOptions extends MapGenOptions {
   classicCivs?: boolean;
   /** Our first unit upkeep (3 free units a city under Monarchy and Communism, debts paid from the shield box). Old saves load with it. */
   looseUpkeep?: boolean;
+  /** The 1991 tech tree, before Weaving, Animal Husbandry and the modern advances. Old saves load with it. */
+  classicAdvances?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -155,14 +158,22 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.zocAtSea ? { zocAtSea: true } : {}),
     ...(opts.classicCivs ? { classicCivs: true } : {}),
     ...(opts.looseUpkeep ? { looseUpkeep: true } : {}),
+    ...(opts.classicAdvances ? { classicAdvances: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {
     p.difficulty = difficulty;
     p.gold = [100, 50, 0, 0, 0][difficulty] ?? 0;
-    // Each civilization begins with the advance of its trait.
+    // Each civilization begins with the advance of its trait, and whatever it needs (Horseback Riding: Animal Husbandry).
     const start = civ(p.civ).trait?.start;
-    if (start && !state.classicCivs) p.advances.push(start);
+    if (start && !state.classicCivs) {
+      const tree = advancesFor(state);
+      const grant = (id: string): void => {
+        for (const r of tree.find((a) => a.id === id)?.requires ?? []) grant(r);
+        if (!p.advances.includes(id)) p.advances.push(id);
+      };
+      grant(start);
+    }
   }
 
   // Starting positions: open land on decent continents, spread apart.

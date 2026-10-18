@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   ADVANCES,
   ADVANCE_BY_ID,
+  advancesFor,
   applyCommand,
+  CLASSIC_ADVANCES,
   availableAdvances,
   buildOptions,
   BUILDINGS,
@@ -29,15 +31,46 @@ function flatWorld(): GameState {
 }
 
 describe("tech tree", () => {
-  it("is a DAG whose prerequisites all exist and is fully reachable", () => {
-    for (const a of ADVANCES) for (const r of a.requires) expect(ADVANCE_BY_ID[r], `${a.id} requires ${r}`).toBeDefined();
-    const known: string[] = [];
-    while (true) {
-      const next = availableAdvances(known);
-      if (next.length === 0) break;
-      known.push(next[0]!.id);
+  it("is a DAG whose prerequisites all exist and is fully reachable, in both trees", () => {
+    for (const tree of [ADVANCES, CLASSIC_ADVANCES]) {
+      const ids = new Set(tree.map((a) => a.id));
+      for (const a of tree) for (const r of a.requires) expect(ids.has(r), `${a.id} requires ${r}`).toBe(true);
+      const known: string[] = [];
+      while (true) {
+        const next = availableAdvances(known, tree);
+        if (next.length === 0) break;
+        known.push(next[0]!.id);
+      }
+      expect(known.length).toBe(tree.length);
     }
-    expect(known.length).toBe(ADVANCES.length);
+  });
+
+  it("extends the 1991 tree for new games, and old saves keep the 1991 one", () => {
+    expect(CLASSIC_ADVANCES).toHaveLength(68);
+    expect(CLASSIC_ADVANCES.at(-1)!.id).toBe("future_tech");
+    const ours = new Set(ADVANCES.map((a) => a.id));
+    expect(ours.has("future_tech")).toBe(false);
+    for (const id of ["weaving", "animal_husbandry", "the_internet", "mobile_phones", "renewable_energy", "artificial_intelligence", "quantum_computing"])
+      expect(ours.has(id), id).toBe(true);
+    expect(ADVANCES.find((a) => a.id === "horseback_riding")!.requires).toEqual(["animal_husbandry"]);
+    expect(CLASSIC_ADVANCES.find((a) => a.id === "horseback_riding")!.requires).toEqual([]);
+    // Every advance shared with the 1991 tree keeps its prerequisites, but Horseback Riding.
+    for (const a of CLASSIC_ADVANCES) {
+      const b = ADVANCES.find((x) => x.id === a.id);
+      if (b && a.id !== "horseback_riding") expect(b.requires, a.id).toEqual(a.requires);
+    }
+    expect(advancesFor(newGame(1, { opponents: 1 }))).toBe(ADVANCES);
+    expect(advancesFor(newGame(1, { opponents: 1, classicAdvances: true }))).toBe(CLASSIC_ADVANCES);
+  });
+
+  it("gives every modern advance an improvement, built on what came before", () => {
+    const unlocks = (id: string) => BUILDINGS.filter((b) => b.requires === id).map((b) => b.id);
+    expect(unlocks("the_internet")).toEqual(["data_center"]);
+    expect(unlocks("mobile_phones")).toEqual(["cell_tower"]);
+    expect(unlocks("renewable_energy")).toEqual(["solar_plant"]);
+    expect(unlocks("artificial_intelligence")).toEqual(["automated_office"]);
+    expect(unlocks("quantum_computing")).toEqual(["quantum_lab"]);
+    expect(BUILDINGS.find((b) => b.id === "quantum_lab")!.needs).toBe("data_center");
   });
 
   it("every unit, building and wonder prerequisite is a real advance", () => {
@@ -49,8 +82,11 @@ describe("tech tree", () => {
     }
   });
 
-  it("starts with the seven root advances", () => {
-    expect(availableAdvances([]).map((a) => a.id).sort()).toEqual(
+  it("starts with seven root advances: Animal Husbandry in place of Horseback Riding", () => {
+    expect(availableAdvances([], ADVANCES).map((a) => a.id).sort()).toEqual(
+      ["alphabet", "animal_husbandry", "bronze_working", "ceremonial_burial", "masonry", "pottery", "the_wheel"],
+    );
+    expect(availableAdvances([], CLASSIC_ADVANCES).map((a) => a.id).sort()).toEqual(
       ["alphabet", "bronze_working", "ceremonial_burial", "horseback_riding", "masonry", "pottery", "the_wheel"],
     );
   });

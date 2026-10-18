@@ -3,6 +3,7 @@ import {
   advance,
   applyCommand,
   atWar,
+  advancesFor,
   availableAdvances,
   buildOptions,
   buyCost,
@@ -592,7 +593,7 @@ type TreeScreen = Extract<Screen, { kind: "techTree" }>;
  * only be left by picking the next advance, as the wise men insist.
  */
 function openTree(opts: { discovered?: string[]; choosing: boolean; closable: boolean }, then: () => void = () => {}, back: Screen = { kind: "map" }): void {
-  const choosing = opts.choosing && availableAdvances(state.players[0]!.advances).length > 0;
+  const choosing = opts.choosing && availableAdvances(state.players[0]!.advances, advancesFor(state)).length > 0;
   const tree = openTechTree(state, renderer.techColumns, { ...opts, choosing, closable: opts.closable || !choosing });
   screenState = { kind: "techTree", tree, target: tree.scroll, back, then };
 }
@@ -605,7 +606,7 @@ function showFound(ids: string[], then: () => void = () => {}): void {
 
 /** The research is due: pick the next advance in the tree. */
 function askResearch(then: () => void = () => {}): void {
-  if (!availableAdvances(state.players[0]!.advances).length) { then(); return; }
+  if (!availableAdvances(state.players[0]!.advances, advancesFor(state)).length) { then(); return; }
   openTree({ choosing: true, closable: false }, then);
 }
 
@@ -623,20 +624,21 @@ function pickResearch(sc: TreeScreen): void {
 /** Select an advance, scrolling just enough to show it whole. */
 function treeSelect(sc: TreeScreen, id: string): void {
   sc.tree.selected = id;
-  sc.target = techScrollShowing(sc.target, techLayout().byId.get(id)!.tier, renderer.techColumns);
+  const layout = techLayout(state);
+  sc.target = techScrollShowing(layout.tiers, sc.target, layout.byId.get(id)?.tier ?? 0, renderer.techColumns);
 }
 
 function treeScroll(sc: TreeScreen, to: number): void {
-  sc.target = clampTechScroll(to, renderer.techColumns);
+  sc.target = clampTechScroll(techLayout(state).tiers, to, renderer.techColumns);
 }
 
 function treeKey(e: KeyboardEvent, sc: TreeScreen): void {
   const t = sc.tree;
   switch (e.code) {
-    case "ArrowLeft": case "Numpad4": treeSelect(sc, techStep(t.selected, -1, 0)); break;
-    case "ArrowRight": case "Numpad6": treeSelect(sc, techStep(t.selected, 1, 0)); break;
-    case "ArrowUp": case "Numpad8": treeSelect(sc, techStep(t.selected, 0, -1)); break;
-    case "ArrowDown": case "Numpad2": treeSelect(sc, techStep(t.selected, 0, 1)); break;
+    case "ArrowLeft": case "Numpad4": treeSelect(sc, techStep(state, t.selected, -1, 0)); break;
+    case "ArrowRight": case "Numpad6": treeSelect(sc, techStep(state, t.selected, 1, 0)); break;
+    case "ArrowUp": case "Numpad8": treeSelect(sc, techStep(state, t.selected, 0, -1)); break;
+    case "ArrowDown": case "Numpad2": treeSelect(sc, techStep(state, t.selected, 0, 1)); break;
     case "Tab": e.preventDefault(); if (t.choosing) treeSelect(sc, nextAvailable(state, t.selected, e.shiftKey ? -1 : 1)); break;
     case "PageUp": treeScroll(sc, sc.target - Math.floor(renderer.techColumns)); break;
     case "PageDown": treeScroll(sc, sc.target + Math.floor(renderer.techColumns)); break;
@@ -662,7 +664,7 @@ function treeClick(sc: TreeScreen, px: number, py: number): void {
     case "research": pickResearch(sc); break;
     case "close": closeTree(sc); break;
     case "scroll": treeScroll(sc, sc.target + hit.by); break;
-    case "scrollTo": sc.target = techScrollCentring(hit.tier, renderer.techColumns); break;
+    case "scrollTo": sc.target = techScrollCentring(techLayout(state).tiers, hit.tier, renderer.techColumns); break;
   }
 }
 
@@ -671,7 +673,7 @@ let treeFrameAt = 0;
 function stepTree(sc: TreeScreen, t: number): void {
   const dt = Math.min(100, t - treeFrameAt);
   treeFrameAt = t;
-  sc.target = clampTechScroll(sc.target, renderer.techColumns);
+  sc.target = clampTechScroll(techLayout(state).tiers, sc.target, renderer.techColumns);
   const tree = sc.tree;
   const gap = sc.target - tree.scroll;
   tree.scroll = Math.abs(gap) < 0.01 ? sc.target : tree.scroll + gap * Math.min(1, dt / 90);

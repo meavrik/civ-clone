@@ -151,7 +151,7 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
       marks.push(() => {
         if (slot === 0) paintCity(ctx, px, py, city, player.color);
         if (worked) {
-          const y = tileYield(state, tile, slot === 0, player.government);
+          const y = tileYield(state, tile, slot === 0, player.government, city.owner);
           fillRound(ctx, px + 2, py + TILE - 16, TILE - 4, 14, 4, "rgba(5, 8, 13, 0.8)");
           let ix = px + 6;
           for (let k = 0; k < y.food; k++, ix += 7) circle(ctx, ix + 2, py + TILE - 9, 3, UI.ok);

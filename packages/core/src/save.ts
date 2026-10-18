@@ -20,8 +20,10 @@ export interface SaveGame {
    * 6: saved before only settlers climbed mountains off the road; open mountains.
    * 7: saved before units cost upkeep as in the original (free units only up to a city's size under
    *    Despotism and Anarchy, units disbanded as soon as their city cannot pay); loose upkeep.
+   * 8: saved before the extended tech tree (Weaving, Animal Husbandry, the modern advances); the
+   *    1991 tree.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -36,7 +38,7 @@ export interface SaveGame {
   label?: string;
 }
 
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -57,7 +59,7 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
 export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
-  if (![1, 2, 3, 4, 5, 6, 7, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
@@ -70,6 +72,7 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
   if (save.version < 6) options.scatteredTerrain = true;
   if (save.version < 7) options.openMountains = true;
   if (save.version < 8) options.looseUpkeep = true;
+  if (save.version < 9) options.classicAdvances = true;
   const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {

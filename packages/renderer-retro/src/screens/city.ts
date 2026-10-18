@@ -276,7 +276,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       if (fog) s.blit(fog, px, py, SPRITE_CLEAR);
       const worked = slot === 0 || city.worked.includes(slot);
       if (worked) {
-        const y = tileYield(state, tile, slot === 0, player.government);
+        const y = tileYield(state, tile, slot === 0, player.government, city.owner);
         if (slot === 0) drawCity(s, px, py - 1, city, playerColor(state, city.owner));
         s.rect(px, py + 8, TILE, 8, C.BLACK!);
         yieldIcons(s, px, py + 8, y.food, y.shields, y.trade);

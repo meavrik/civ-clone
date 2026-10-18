@@ -31,7 +31,11 @@ export interface Yield {
 }
 
 /** Yield of one tile for a city of `owner`, with improvements and the government's tile penalty. */
-export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId: string): Yield {
+/**
+ * What a worked square yields under a government. `owner`, the civilization working it, adds
+ * what its advances bring (pastures from Animal Husbandry); leave it out for a square nobody works.
+ */
+export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId: string, owner?: number): Yield {
   const r = TERRAIN_RULES[tile.terrain];
   let food = r.food;
   let shields = r.shields;
@@ -40,6 +44,8 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
     food += r.special.food ?? 0;
     shields += r.special.shields ?? 0;
     trade += r.special.trade ?? 0;
+    const learned = r.special.learned;
+    if (learned && owner !== undefined && knows(state.players[owner]?.advances ?? [], learned.advance)) food += learned.food;
   }
   if (tile.river) trade += 1;
   if (tile.road) trade += r.road.trade;
@@ -158,7 +164,7 @@ export function slotAvailable(state: GameState, city: City, slot: number): boole
 export function slotScore(state: GameState, city: City, slot: number): number {
   const t = radiusTile(state, city, slot);
   if (!t) return -Infinity;
-  const y = tileYield(state, t, false, state.players[city.owner]!.government);
+  const y = tileYield(state, t, false, state.players[city.owner]!.government, city.owner);
   return y.food * 3 + y.shields * 2 + y.trade;
 }
 
@@ -300,10 +306,10 @@ export const MAX_TRADE_ROUTES = 3;
 /** Trade from the centre and worked tiles alone, so route values never recurse. */
 export function tileTrade(state: GameState, city: City): number {
   const gov = state.players[city.owner]!.government;
-  let trade = tileYield(state, getTile(state.map, city.x, city.y)!, true, gov).trade;
+  let trade = tileYield(state, getTile(state.map, city.x, city.y)!, true, gov, city.owner).trade;
   for (const slot of city.worked) {
     const t = radiusTile(state, city, slot);
-    if (t) trade += tileYield(state, t, false, gov).trade;
+    if (t) trade += tileYield(state, t, false, gov, city.owner).trade;
   }
   return trade;
 }
@@ -364,14 +370,14 @@ export function computeCity(state: GameState, city: City): CityReport {
   let food = 0;
   let shields = 0;
   let trade = 0;
-  const c = tileYield(state, centre, true, player.government);
+  const c = tileYield(state, centre, true, player.government, city.owner);
   food += c.food;
   shields += c.shields;
   trade += c.trade;
   for (const slot of city.worked) {
     const t = radiusTile(state, city, slot);
     if (!t) continue;
-    const y = tileYield(state, t, false, player.government);
+    const y = tileYield(state, t, false, player.government, city.owner);
     food += y.food;
     shields += y.shields;
     trade += y.trade;
@@ -436,7 +442,7 @@ export function computeCity(state: GameState, city: City): CityReport {
   let corruptionPct = Math.min(90, gov.corruptionPerDistance * distanceToCapital(state, city) * 2);
   const corruptionTrait = traitPct(state, city.owner, "corruptionPct");
   if (corruptionTrait) corruptionPct = (corruptionPct * (100 + corruptionTrait)) / 100;
-  if (has("courthouse")) corruptionPct = Math.floor(corruptionPct / 2);
+  for (const id of city.buildings) if (building(id).halveCorruption) corruptionPct = Math.floor(corruptionPct / 2);
   if (has("palace")) corruptionPct = 0;
   const corruption = Math.floor((trade * corruptionPct) / 100);
   const netTrade = trade - corruption;

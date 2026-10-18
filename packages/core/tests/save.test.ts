@@ -38,6 +38,13 @@ describe("save/load", () => {
     expect(loadSave(makeSave(state, opts, []), skipAll).state.classicCombat).toBeUndefined();
   });
 
+  it("replays a save from before the extended tech tree on the 1991 tree", () => {
+    const opts = { opponents: 1 as const };
+    const state = newGame(4242, opts);
+    expect(loadSave({ ...makeSave(state, opts, []), version: 8 as const }, skipAll).state.classicAdvances).toBe(true);
+    expect(loadSave(makeSave(state, opts, []), skipAll).state.classicAdvances).toBeUndefined();
+  });
+
   it("replays a save from before the original's unit upkeep with the loose upkeep", () => {
     const opts = { opponents: 1 as const };
     const state = newGame(321, opts);

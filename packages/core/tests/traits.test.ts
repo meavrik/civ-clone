@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ADVANCE_BY_ID,
+  CLASSIC_ADVANCES,
   applyCommand,
   autoAssignWorkers,
   BUILDINGS,
@@ -45,13 +46,13 @@ function withAndWithout<T>(s: GameState, ask: () => T): [T, T] {
 }
 
 describe("civilization traits", () => {
-  it("every playable civilization has one, starting from an advance with no prerequisites", () => {
+  it("every playable civilization has one, starting from a root advance of the 1991 tree", () => {
     const names = new Set<string>();
     for (const c of CIVS) {
       if (c.id === "barbarians") { expect(c.trait).toBeUndefined(); continue; }
       const t = c.trait!;
       expect(t, c.id).toBeDefined();
-      expect(ADVANCE_BY_ID[t.start]?.requires, c.id).toEqual([]);
+      expect(CLASSIC_ADVANCES.find((a) => a.id === t.start)?.requires, c.id).toEqual([]);
       expect(t.short.length, c.id).toBeLessThanOrEqual(18);
       expect(t.effects.length, c.id).toBeGreaterThan(0);
       names.add(t.name);
@@ -66,12 +67,18 @@ describe("civilization traits", () => {
     expect(names.size).toBe(CIVS.length - 1);
   });
 
-  it("each civilization begins knowing its trait's advance, unless the civilizations are classic", () => {
+  it("each civilization begins knowing its trait's advance and what it needs, unless the civilizations are classic", () => {
     const s = newGame(7, { civ: "greeks", opponents: 3 });
     for (const p of s.players) {
       if (p.id === s.barbarians) expect(p.advances).toEqual([]);
-      else expect(p.advances).toEqual([CIVS.find((c) => c.id === p.civ)!.trait!.start]);
+      else {
+        const start = CIVS.find((c) => c.id === p.civ)!.trait!.start;
+        expect(p.advances).toEqual(start === "horseback_riding" ? ["animal_husbandry", start] : [start]);
+      }
     }
+    // Horseback Riding needs Animal Husbandry now: the horse peoples know both, and only Horseback on the 1991 tree.
+    expect(newGame(7, { civ: "mongols", opponents: 1 }).players[0]!.advances).toEqual(["animal_husbandry", "horseback_riding"]);
+    expect(newGame(7, { civ: "mongols", opponents: 1, classicAdvances: true }).players[0]!.advances).toEqual(["horseback_riding"]);
     expect(newGame(7, { civ: "greeks", opponents: 3, classicCivs: true }).players.every((p) => p.advances.length === 0)).toBe(true);
   });
 

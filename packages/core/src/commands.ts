@@ -23,7 +23,7 @@ import { maybeSpawnBarbarians } from "./barbarians.js";
 import { captureCity, checkElimination, resolveCombat } from "./combat.js";
 import { atWar, detectContacts, hasContact, setRelation } from "./diplomacy.js";
 import { findPath, stepDir } from "./pathfind.js";
-import { ADVANCE_BY_ID, ADVANCES, advance, availableAdvances, researchCost } from "./rules/advances.js";
+import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, researchCost } from "./rules/advances.js";
 import { building } from "./rules/buildings.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
 import { WONDERS } from "./rules/wonders.js";
@@ -153,7 +153,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     }
     case "research": {
       const p = state.players[state.currentPlayer]!;
-      if (!availableAdvances(p.advances).some((a) => a.id === cmd.advance)) return { ok: false, reason: "cannot research that yet" };
+      if (!availableAdvances(p.advances, advancesFor(state)).some((a) => a.id === cmd.advance)) return { ok: false, reason: "cannot research that yet" };
       p.researching = cmd.advance;
       return { ok: true };
     }
@@ -567,7 +567,7 @@ function openHut(state: GameState, u: Unit): HutResult {
     return { kind: "gold", amount };
   }
   if (roll < 60) {
-    const options = availableAdvances(p.advances);
+    const options = availableAdvances(p.advances, advancesFor(state));
     if (options.length) {
       const a = options[nextInt(state.rng, options.length)]!.id;
       discover(state, u.owner, a);
@@ -696,7 +696,7 @@ function applyCheat(state: GameState, cheat: Cheat): CommandResult {
       p.gold += CHEAT_GOLD;
       return { ok: true };
     case "research": {
-      const id = p.researching ?? availableAdvances(p.advances)[0]?.id;
+      const id = p.researching ?? availableAdvances(p.advances, advancesFor(state))[0]?.id;
       if (id === undefined) return { ok: false, reason: "nothing left to learn" };
       discover(state, p.id, id);
       p.researching = null;
@@ -705,7 +705,7 @@ function applyCheat(state: GameState, cheat: Cheat): CommandResult {
     }
     case "allAdvances":
       // Straight into the list: one discovery screen per advance would be a long evening.
-      for (const a of ADVANCES) if (!p.advances.includes(a.id)) p.advances.push(a.id);
+      for (const a of advancesFor(state)) if (!p.advances.includes(a.id)) p.advances.push(a.id);
       p.researching = null;
       return { ok: true };
     case "production":
@@ -815,7 +815,7 @@ export function endTurn(state: GameState): void {
     const w = WONDERS.find((x) => x.name === ev.detail);
     if (w?.effect.kind === "freeAdvances") {
       for (let i = 0; i < w.effect.amount; i++) {
-        const next = p.researching && availableAdvances(p.advances).some((a) => a.id === p.researching) ? p.researching : availableAdvances(p.advances)[0]?.id;
+        const next = p.researching && availableAdvances(p.advances, advancesFor(state)).some((a) => a.id === p.researching) ? p.researching : availableAdvances(p.advances, advancesFor(state))[0]?.id;
         if (!next) break;
         discover(state, player, next);
         if (p.researching === next) p.researching = null;
@@ -826,14 +826,14 @@ export function endTurn(state: GameState): void {
   // The Great Library hands over anything two other civilizations already know.
   if (activeWonders(state, player).some((w) => w.rule.effect.kind === "greatLibrary")) {
     const others = state.players.filter((o) => o.id !== player && o.alive && o.id !== state.barbarians);
-    for (const a of ADVANCES) {
+    for (const a of advancesFor(state)) {
       if (p.advances.includes(a.id)) continue;
       if (others.filter((o) => o.advances.includes(a.id)).length < 2) continue;
       discover(state, player, a.id);
       if (p.researching === a.id) p.researching = null;
     }
   }
-  if (p.researching === null && p.science > 0 && availableAdvances(p.advances).length > 0) lastTurnEvents.push({ kind: "chooseResearch" });
+  if (p.researching === null && p.science > 0 && availableAdvances(p.advances, advancesFor(state)).length > 0) lastTurnEvents.push({ kind: "chooseResearch" });
   else if (p.researching !== null) {
     const cost = researchCost(p.advances.length, p.difficulty);
     if (p.science >= cost) {

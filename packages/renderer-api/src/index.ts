@@ -15,6 +15,7 @@ import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
   advance,
   attrition,
+  attritionCure,
   building,
   cityAt,
   civ,
@@ -456,7 +457,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   const t = map.tiles[idx]!;
   const r = TERRAIN_RULES[t.terrain];
   const city = cityAt(state, x, y);
-  const yld = tileYield(state, t, city !== undefined, me.government);
+  const yld = tileYield(state, t, city !== undefined, me.government, me.id);
   // Lines with {icon} tokens are drawn with pictures; "  " separates groups that may wrap apart.
   const lines: string[] = [];
   const defence = r.defense === 1 ? "" : `  {tower} +${Math.round((r.defense - 1) * 100)}%`;
@@ -475,7 +476,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   if (roadOnly(state, t) && !t.road) lines.push("{road} Only settlers climb it without a road");
   else if (r.rough && !t.road && !state.classicTerrain) lines.push("{road} Wheeled units need a road");
   const wear = attrition(state, me.id, x, y);
-  if (wear > 0 && r.attrition) lines.push(`{heart} Wears units down ${Math.round(wear * 100)}% a turn  until ${advance(r.attrition.until).name}`);
+  if (wear > 0 && r.attrition) lines.push(`{heart} Wears units down ${Math.round(wear * 100)}% a turn  until ${advance(attritionCure(state, r.attrition)).name}`);
   if (t.terrain !== Terrain.Ocean) {
     const work: string[] = [];
     if (r.irrigate) work.push(r.irrigate.becomes !== undefined ? `{irrigate} into ${TERRAIN_NAMES[r.irrigate.becomes]}` : `{irrigate} +${r.irrigate.food ?? 0} {food}`);

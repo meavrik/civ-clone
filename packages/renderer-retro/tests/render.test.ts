@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, Terrain, unitType } from "@civ/core";
+import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, Terrain, unitType } from "@civ/core";
 import { borderSides, C, cityButtonAt, citySlotAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
@@ -466,12 +466,13 @@ describe("advisor screens", () => {
       const h = techTreeHit(state, tree, x, y);
       if (h) hits.set(h.kind === "advance" ? h.id : h.kind, h);
     }
-    const { byId } = techLayout();
+    const { byId } = techLayout(state);
     const shown = [...hits.keys()].filter((k) => byId.has(k));
     expect(shown).toContain("code_of_laws");
     expect(shown).toContain("monarchy");
+    expect(hits.has("literacy")).toBe(false); // beyond reach: not in the tree yet
     for (const id of shown) expect(byId.get(id)!.tier).toBeLessThan(tree.scroll + TECH_COLUMNS);
-    expect(hits.has("scroll")).toBe(true); // the arrow to the later tiers
+    expect(hits.has("scroll")).toBe(false); // the next phase fits the window: nothing to scroll to
     expect(hits.has("scrollTo")).toBe(true); // the strip under the graph
     expect(hits.has("close")).toBe(false); // research is due: no way out but a pick
     expect(hits.has("research")).toBe(false); // the find itself is known
@@ -481,8 +482,9 @@ describe("advisor screens", () => {
     let research = false;
     for (let x = 0; x < 320; x++) if (techTreeHit(state, tree, x, 192)?.kind === "research") research = true;
     expect(research).toBe(true);
-    // Far along the tree, browsing from the science advisor: locked advances, both arrows, a close button.
-    const late = { ...tree, selected: "fusion_power", discovered: [], closable: true, scroll: 9.3 };
+    // Far along the tree, browsing from the science advisor: the last few within reach, both arrows, a close button.
+    p.advances = ADVANCES.map((a) => a.id).filter((id) => !["fusion_power", "artificial_intelligence", "quantum_computing"].includes(id));
+    const late = { ...tree, selected: "fusion_power", discovered: [], choosing: false, closable: true, scroll: 9.3 };
     drawTechTree(s, state, late);
     writeFileSync(new URL("./out/techtree-late.png", import.meta.url), encodePng(s, 3));
     const kinds = new Set<string>();

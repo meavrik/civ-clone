@@ -91,9 +91,11 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   through the Bayer dither; modern: `Clouds` gathers the view's fog and fills each layer as one path
   (per-square fills leave seams, and thousands of tiny polygons cost ~600 ms a frame), lifting squares
   as alpha layers grouped by fog left, bodies before billows (else edges show).
-  Tech tree (`techtree.ts`): `techLayout` puts each advance in a tier (its longest prerequisite chain)
-  and a row (barycentre sweeps), and edges that skip tiers run along the lanes between rows
-  (`techLane`) so they never pass behind an advance. `Renderer.techTree` draws a `TechTreeView` a few
+  Tech tree (`techtree.ts`): `techLayout(state)` lays out only what the player knows and what is
+  within reach (the next phase, `techShown`); further advances stay hidden until they come within
+  reach (the details still name what an advance leads to). Each shown advance gets a tier (its
+  longest chain of shown prerequisites) and a row (barycentre sweeps), nine rows at most, and edges
+  that skip tiers run along the lanes between rows (`techLane`) so they never pass behind an advance. `Renderer.techTree` draws a `TechTreeView` a few
   tiers at a time (`techColumns`), `techTreeHit` hit-tests it. The web app opens it (`openTree`) on
   every advance found (end of turn, village, diplomat, treaty) and wherever research is picked
   (science advisor A, Advisors > Tech Tree); when research is due it closes only on a pick.
@@ -160,7 +162,14 @@ homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperatu
 (the original's 14 plus Spanish, Vikings, Hittites, Persians). Barbarians done (2026-10-17): uprisings and
 sea raids with leaders and ransom, barbarian-held cities, pillage. Civilization traits done (2026-10-17):
 one ability and one starting advance per civ, shown at the tribe choice, the opening and World >
-Civilizations. Next: mobile/PWA + touch adapter.
+Civilizations. Extended tech tree done (2026-10-18, asked for): Weaving (after Pottery; ends arctic wear in
+place of Medicine), Animal Husbandry (a root; Horseback Riding needs it; +1 food from Horses, Game and
+Seals for its owner, `special.learned`), and five modern advances in place of Future Tech. (The Internet,
+Mobile Phones, Renewable Energy, Artificial Intelligence, Quantum Computing), each unlocking an
+improvement built from existing effects (Data Center, Cell Tower, Solar Plant, Automated Office,
+Quantum Lab). `ADVANCES` is that tree; `CLASSIC_ADVANCES` the 1991 one, kept by saves before version 9
+(`classicAdvances`); reach the right one with `advancesFor(state)`, never `ADVANCES` directly in rules
+code. `tileYield` takes the working civ (`owner`) for the pasture food. Next: mobile/PWA + touch adapter.
 
 ## Known gaps / next steps
 
@@ -209,7 +218,9 @@ Civilizations. Next: mobile/PWA + touch adapter.
    with free units and disbands its least useful units before the rules take the newest, and goes from
    Despotism straight to the Republic (Monarchy pays for every unit; head to head that won more):
    10-6 wins, score 153 vs 125, cities 20.5 vs 9.6, techs 30.5 vs 29.3 (with `--loose-upkeep` 10-6,
-   210 vs 184). Open AI gaps: no amphibious invasions, no tribute or AI-initiated diplomacy with the player,
+   210 vs 184). On the extended tech tree (version 9; the planner also seeks Weaving after Medicine,
+   the modern advances after Fusion Power, and values their improvements): 11-5, score 160 vs 124,
+   cities 20.9 vs 10.3, techs 30.0 vs 29.4. Open AI gaps: no amphibious invasions, no tribute or AI-initiated diplomacy with the player,
    colonists sometimes wait long in port. A 7-civ round costs ~1.3-1.6x v2 (~55 ms late game);
    core's `findPath` (typed-array heap, results identical to the old search, see
    `tests/pathfind.test.ts`) is still the hot spot. Measure AI changes with

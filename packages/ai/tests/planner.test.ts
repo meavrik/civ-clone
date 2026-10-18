@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, newGame, Terrain, getTile } from "@civ/core";
+import { ADVANCES } from "@civ/core";
 import { pickResearch, plannerTurn, siteScore } from "../src/index.js";
 
 /** Human skips everything; the planner plays the rest. */
@@ -30,12 +31,12 @@ describe("planner AI", () => {
   });
 
   it("beelines bronze working, then the path to monarchy", () => {
-    expect(pickResearch([], false)).toBe("bronze_working");
-    expect(pickResearch(["bronze_working"], false)).toBe("alphabet");
-    expect(pickResearch(["bronze_working", "alphabet", "ceremonial_burial"], false)).toBe("code_of_laws");
-    expect(pickResearch(["bronze_working", "alphabet", "ceremonial_burial", "code_of_laws"], false)).toBe("monarchy");
+    expect(pickResearch([], ADVANCES, false)).toBe("bronze_working");
+    expect(pickResearch(["bronze_working"], ADVANCES, false)).toBe("alphabet");
+    expect(pickResearch(["bronze_working", "alphabet", "ceremonial_burial"], ADVANCES, false)).toBe("code_of_laws");
+    expect(pickResearch(["bronze_working", "alphabet", "ceremonial_burial", "code_of_laws"], ADVANCES, false)).toBe("monarchy");
     // At war, iron working jumps the queue once bronze is known.
-    expect(pickResearch(["bronze_working"], true)).toBe("iron_working");
+    expect(pickResearch(["bronze_working"], ADVANCES, true)).toBe("iron_working");
   });
 
   it("scores city sites by their radius and refuses the sea", () => {

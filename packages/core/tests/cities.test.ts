@@ -49,6 +49,39 @@ describe("tile yields", () => {
     const t = getTile(s.map, 10, 10)!;
     expect(tileYield(s, t, true, "despotism")).toEqual({ food: 2, shields: 1, trade: 0 });
   });
+
+  it("feeds more from animal specials once their worker's civilization knows Animal Husbandry", () => {
+    const s = flatWorld();
+    const t = getTile(s.map, 10, 10)!;
+    t.terrain = Terrain.Plains;
+    t.special = true; // Horses
+    expect(tileYield(s, t, false, "monarchy", 0).food).toBe(1);
+    s.players[0]!.advances.push("animal_husbandry");
+    expect(tileYield(s, t, false, "monarchy", 0).food).toBe(2);
+    expect(tileYield(s, t, false, "monarchy").food).toBe(1); // a square nobody works
+    t.terrain = Terrain.Forest; // Game
+    expect(tileYield(s, t, false, "monarchy", 0).food).toBe(4);
+    t.terrain = Terrain.Grassland; // Resources: no animals
+    expect(tileYield(s, t, false, "monarchy", 0).food).toBe(2);
+  });
+});
+
+describe("modern improvements", () => {
+  it("an Automated Office halves corruption again, on top of a courthouse", () => {
+    const s = flatWorld();
+    for (const [x, y] of [[10, 10], [40, 10]] as const) applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, x, y).id });
+    for (const t of s.map.tiles) t.river = true;
+    const far = s.cities[1]!;
+    far.size = 6;
+    autoAssignWorkers(s, far);
+    far.buildings.push("courthouse");
+    const once = computeCity(s, far).corruption;
+    far.buildings.push("automated_office");
+    const twice = computeCity(s, far).corruption;
+    expect(once).toBeGreaterThan(1);
+    expect(twice).toBeLessThan(once);
+    expect(twice).toBeLessThanOrEqual(Math.ceil(once / 2));
+  });
 });
 
 describe("cities", () => {

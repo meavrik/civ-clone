@@ -196,11 +196,16 @@ describe("harsh ground", () => {
     const traders = flatWorld(Terrain.Desert);
     traders.players[0]!.advances.push("trade");
     expect(rest(traders, "militia", 5)).toBe(6);
+    // Cloth keeps the cold out: Weaving ends arctic wear (Medicine did, and still does on the 1991 tree).
     const arctic = flatWorld(Terrain.Arctic);
-    arctic.players[0]!.advances.push("trade");
+    arctic.players[0]!.advances.push("trade", "medicine");
     expect(attrition(arctic, 0, 30, 10)).toBe(0.2);
-    arctic.players[0]!.advances.push("medicine");
+    arctic.players[0]!.advances.push("weaving");
     expect(rest(arctic, "militia", 5)).toBe(6);
+    const old = flatWorld(Terrain.Arctic, { classicAdvances: true });
+    expect(attrition(old, 0, 30, 10)).toBe(0.2);
+    old.players[0]!.advances.push("medicine");
+    expect(attrition(old, 0, 30, 10)).toBe(0);
   });
 
   it("wears nobody down under the 1991 terrain rules", () => {

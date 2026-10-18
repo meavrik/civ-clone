@@ -93,11 +93,16 @@ export function canEnter(state: GameState, type: UnitTypeRule, to: Tile): boolea
  * cities (the 21 squares a city works), on a river or a special, or once the
  * owner knows the advance that ends it. 0 when the square is safe.
  */
+/** The advance that ends a harsh terrain's wear in this game (the 1991 tree keeps its own). */
+export function attritionCure(state: GameState, harsh: { until: string; classicUntil?: string }): string {
+  return state.classicAdvances && harsh.classicUntil ? harsh.classicUntil : harsh.until;
+}
+
 export function attrition(state: GameState, owner: number, x: number, y: number): number {
   if (state.classicTerrain) return 0;
   const t = getTile(state.map, x, y);
   const harsh = t && TERRAIN_RULES[t.terrain].attrition;
-  if (!t || !harsh || t.river || t.special || knows(state.players[owner]!.advances, harsh.until)) return 0;
+  if (!t || !harsh || t.river || t.special || knows(state.players[owner]!.advances, attritionCure(state, harsh))) return 0;
   const w = state.map.width;
   const supplied = state.cities.some((c) => {
     if (c.owner !== owner) return false;

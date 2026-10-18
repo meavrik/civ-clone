@@ -1,24 +1,32 @@
 import {
-  ADVANCES,
+  advance,
+  advancesFor,
+  attritionCure,
   availableAdvances,
   BUILDINGS,
   computeCity,
   government,
   researchCost,
   SPACE_PARTS,
+  Terrain,
+  TERRAIN_NAMES,
+  TERRAIN_RULES,
   UNIT_TYPES,
   WONDERS,
+  type AdvanceRule,
   type GameState,
 } from "@civ/core";
 import type { IconName } from "./icons.js";
 
 /**
  * The tech tree as a graph, shown when an advance is found and whenever the
- * next research is chosen. Every advance sits in a column, its tier (the
- * longest chain of prerequisites beneath it), and a row; the layout is made
- * once from the rules, so both renderers draw the same tree, a few columns at
- * a time, scrolled by the web app. Rows are ordered so that an advance sits
- * near the ones it needs and the ones it leads to, which keeps edges short.
+ * next research is chosen. It holds only what the player knows and what is
+ * within reach (the next phase); everything further on stays hidden until it
+ * comes within reach. Every advance shown sits in a column, its tier (the
+ * longest chain of shown prerequisites beneath it), and a row; both renderers
+ * draw the same layout, a few columns at a time, scrolled by the web app. Rows
+ * are ordered so that an advance sits near the ones it needs and the ones it
+ * leads to, which keeps edges short.
  */
 
 export interface TechNode {
@@ -26,6 +34,7 @@ export interface TechNode {
   name: string;
   tier: number;
   row: number;
+  /** Prerequisites and successors among the advances shown. */
   requires: string[];
   leadsTo: string[];
 }
@@ -39,24 +48,44 @@ export interface TechLayout {
   rows: number;
 }
 
-let layoutCache: TechLayout | null = null;
+/** True while an advance shows in the tree: known, under study, or within reach. */
+export function techShown(state: GameState, id: string): boolean {
+  return techStatus(state, id) !== "locked";
+}
 
-export function techLayout(): TechLayout {
-  if (layoutCache) return layoutCache;
+const layoutCache = new Map<string, TechLayout>();
+
+/** The tree as the current player sees it: the advances shown, laid out in tiers and rows. */
+export function techLayout(state: GameState): TechLayout {
+  const tree = advancesFor(state);
+  const shown = tree.filter((a) => techShown(state, a.id));
+  const key = `${state.classicAdvances ? "1991" : "ours"}:${shown.map((a) => a.id).join(",")}`;
+  const cached = layoutCache.get(key);
+  if (cached) return cached;
+  const layout = layOut(shown);
+  if (layoutCache.size > 32) layoutCache.clear();
+  layoutCache.set(key, layout);
+  return layout;
+}
+
+function layOut(shown: readonly AdvanceRule[]): TechLayout {
+  const ids = new Set(shown.map((a) => a.id));
+  const needs = (a: AdvanceRule) => a.requires.filter((r) => ids.has(r));
   const tierOf = new Map<string, number>();
   const tier = (id: string): number => {
     const known = tierOf.get(id);
     if (known !== undefined) return known;
-    const a = ADVANCES.find((x) => x.id === id)!;
-    const t = a.requires.length ? 1 + Math.max(...a.requires.map(tier)) : 0;
+    const req = needs(shown.find((x) => x.id === id)!);
+    const t = req.length ? 1 + Math.max(...req.map(tier)) : 0;
     tierOf.set(id, t);
     return t;
   };
-  const nodes: TechNode[] = ADVANCES.map((a) => ({
-    id: a.id, name: a.name, tier: tier(a.id), row: 0, requires: [...a.requires],
-    leadsTo: ADVANCES.filter((n) => n.requires.includes(a.id)).map((n) => n.id),
+  const nodes: TechNode[] = shown.map((a) => ({
+    id: a.id, name: a.name, tier: tier(a.id), row: 0, requires: needs(a),
+    leadsTo: shown.filter((n) => n.requires.includes(a.id)).map((n) => n.id),
   }));
   const byId = new Map(nodes.map((n) => [n.id, n]));
+  if (!nodes.length) return { nodes, byId, tiers: 1, rows: 1 };
   const tiers = Math.max(...nodes.map((n) => n.tier)) + 1;
   const columns: TechNode[][] = Array.from({ length: tiers }, (_, t) => nodes.filter((n) => n.tier === t));
   const rows = Math.max(...columns.map((c) => c.length));
@@ -76,15 +105,14 @@ export function techLayout(): TechLayout {
     });
     col.sort((a, b) => a.row - b.row);
   };
-  const mean = (ids: string[], fallback: number): number =>
-    ids.length ? ids.reduce((s, id) => s + byId.get(id)!.row, 0) / ids.length : fallback;
+  const mean = (list: string[], fallback: number): number =>
+    list.length ? list.reduce((s, id) => s + byId.get(id)!.row, 0) / list.length : fallback;
   for (const col of columns) place(col, (n) => col.indexOf(n) + (rows - col.length) / 2);
   for (let pass = 0; pass < 4; pass++) {
     for (let t = tiers - 2; t >= 0; t--) place(columns[t]!, (n) => mean(n.leadsTo, n.row));
     for (let t = 1; t < tiers; t++) place(columns[t]!, (n) => mean(n.requires, n.row));
   }
-  layoutCache = { nodes, byId, tiers, rows };
-  return layoutCache;
+  return { nodes, byId, tiers, rows };
 }
 
 /**
@@ -93,9 +121,9 @@ export function techLayout(): TechLayout {
  * passes between the advances of the tiers it crosses instead of behind them,
  * where it would seem to lead to them. An edge to the next tier needs no lane.
  */
-export function techLane(from: TechNode, to: TechNode): number | null {
+export function techLane(layout: TechLayout, from: TechNode, to: TechNode): number | null {
   if (to.tier - from.tier <= 1) return null;
-  return Math.max(-1, Math.min(techLayout().rows - 1, Math.round((from.row + to.row - 1) / 2)));
+  return Math.max(-1, Math.min(layout.rows - 1, Math.round((from.row + to.row - 1) / 2)));
 }
 
 // ---- where each advance stands for the current player ------------------------------
@@ -106,8 +134,8 @@ export function techStatus(state: GameState, id: string): TechStatus {
   const p = state.players[state.currentPlayer]!;
   if (p.advances.includes(id)) return "known";
   if (p.researching === id) return "researching";
-  const n = techLayout().byId.get(id);
-  return n && n.requires.every((r) => p.advances.includes(r)) ? "available" : "locked";
+  const a = advancesFor(state).find((x) => x.id === id);
+  return a && a.requires.every((r) => p.advances.includes(r)) ? "available" : "locked";
 }
 
 /** Beakers the current player's cities make each turn. */
@@ -135,21 +163,23 @@ export function researchOutlook(state: GameState): ResearchOutlook {
   const perTurn = sciencePerTurn(state);
   const turns = perTurn > 0 ? Math.max(1, Math.ceil((cost - p.science) / perTurn)) : null;
   const id = p.researching;
-  return { id, name: id ? techLayout().byId.get(id)?.name ?? id : "", have: p.science, cost, turns };
+  return { id, name: id ? advance(id).name : "", have: p.science, cost, turns };
 }
 
 /** Unknown advances that must come first, the advance itself last, in tree order. */
 export function techPath(state: GameState, id: string): string[] {
   const known = new Set(state.players[state.currentPlayer]!.advances);
-  const { byId } = techLayout();
+  const tree = advancesFor(state);
+  const rule = (a: string) => tree.find((x) => x.id === a);
+  const depth = (a: string): number => Math.max(0, ...(rule(a)?.requires ?? []).map((r) => 1 + depth(r)));
   const need = new Set<string>();
   const visit = (a: string): void => {
     if (known.has(a) || need.has(a)) return;
     need.add(a);
-    for (const r of byId.get(a)?.requires ?? []) visit(r);
+    for (const r of rule(a)?.requires ?? []) visit(r);
   };
   visit(id);
-  return [...need].sort((a, b) => byId.get(a)!.tier - byId.get(b)!.tier || byId.get(a)!.row - byId.get(b)!.row);
+  return [...need].sort((a, b) => depth(a) - depth(b) || tree.indexOf(rule(a)!) - tree.indexOf(rule(b)!));
 }
 
 export interface TechDetails {
@@ -169,8 +199,8 @@ const and = (names: string[]): string =>
 
 /** What an advance gives and how near it is, for the details panel of the tech tree. */
 export function techDetails(state: GameState, id: string): TechDetails {
-  const { byId } = techLayout();
-  const node = byId.get(id)!;
+  const tree = advancesFor(state);
+  const a = tree.find((x) => x.id === id) ?? advance(id);
   const p = state.players[state.currentPlayer]!;
   const status = techStatus(state, id);
   const cost = researchCost(p.advances.length, p.difficulty);
@@ -182,12 +212,11 @@ export function techDetails(state: GameState, id: string): TechDetails {
   else if (status === "researching") standing = `Researching: ${p.science}/${cost} beakers, ${eta}`;
   else if (status === "available") standing = `Within reach: ${eta}`;
   else {
-    const missing = node.requires.filter((r) => !p.advances.includes(r)).map((r) => byId.get(r)!.name);
+    const missing = a.requires.filter((r) => !p.advances.includes(r)).map((r) => advance(r).name);
     standing = `Needs ${and(missing)}, ${techPath(state, id).length} advances away`;
   }
   const rows: TechDetails["rows"] = [];
   const add = (icon: IconName, label: string, items: string[]): void => { if (items.length) rows.push({ icon, label, items }); };
-  const a = ADVANCES.find((x) => x.id === id)!;
   add("crown", "Government", a.government ? [government(a.government).name] : []);
   add("swords", "Units", UNIT_TYPES.filter((u) => u.requires === id).map((u) => `${u.name} ${u.attack}/${u.defense}/${u.moves}`));
   add("house", "Improvements", [
@@ -196,9 +225,15 @@ export function techDetails(state: GameState, id: string): TechDetails {
   ]);
   add("star", "Wonders", WONDERS.filter((w) => w.requires === id).map((w) => w.name));
   add(id === "railroad" ? "railroad" : "fortress", "Settlers", SETTLER_WORK[id] ? [SETTLER_WORK[id]!] : []);
+  // What it does to the land: food it adds to specials (pastures), wear it ends.
+  const terrains = Object.entries(TERRAIN_RULES).map(([t, r]) => ({ name: TERRAIN_NAMES[Number(t) as Terrain], r }));
+  const fed = terrains.filter(({ r }) => r.special?.learned?.advance === id).map(({ r }) => `${r.special!.name} +${r.special!.learned!.food}`);
+  add("food", "Food", [...new Set(fed)]);
+  add("heart", "Ends wear", terrains.filter(({ r }) => r.attrition && attritionCure(state, r.attrition) === id).map(({ name }) => name));
   add("hourglass", "Ends", WONDERS.filter((w) => w.obsolete === id).map((w) => w.name));
-  add("bulb", "Leads to", node.leadsTo.map((n) => byId.get(n)!.name));
-  return { name: node.name, status, standing, rows };
+  // What it leads to, even beyond what the tree shows yet: worth knowing when choosing.
+  add("bulb", "Leads to", tree.filter((n) => n.requires.includes(id)).map((n) => n.name));
+  return { name: a.name, status, standing, rows };
 }
 
 // ---- the window's view state and its navigation ---------------------------------------
@@ -230,20 +265,20 @@ export function canResearch(state: GameState, view: TechTreeView): boolean {
   return view.choosing && techStatus(state, view.selected) === "available";
 }
 
-/** Keep the scroll within the tree for a window `columns` tiers wide. */
-export function clampTechScroll(scroll: number, columns: number): number {
-  return Math.max(0, Math.min(techLayout().tiers - columns, scroll));
+/** Keep the scroll within a tree `tiers` wide, for a window `columns` tiers wide. */
+export function clampTechScroll(tiers: number, scroll: number, columns: number): number {
+  return Math.max(0, Math.min(tiers - columns, scroll));
 }
 
 /** Scroll that puts a tier near the middle of the window (just left of it when the count is even). */
-export function techScrollCentring(tier: number, columns: number): number {
-  return clampTechScroll(tier - Math.floor((columns - 1) / 2), columns);
+export function techScrollCentring(tiers: number, tier: number, columns: number): number {
+  return clampTechScroll(tiers, tier - Math.floor((columns - 1) / 2), columns);
 }
 
 /** The least change of scroll that shows a tier whole. */
-export function techScrollShowing(scroll: number, tier: number, columns: number): number {
-  if (tier < scroll) return clampTechScroll(tier, columns);
-  if (tier > scroll + columns - 1) return clampTechScroll(tier - columns + 1, columns);
+export function techScrollShowing(tiers: number, scroll: number, tier: number, columns: number): number {
+  if (tier < scroll) return clampTechScroll(tiers, tier, columns);
+  if (tier > scroll + columns - 1) return clampTechScroll(tiers, tier - columns + 1, columns);
   return scroll;
 }
 
@@ -251,9 +286,11 @@ export function techScrollShowing(scroll: number, tier: number, columns: number)
 export function openTechTree(state: GameState, columns: number, opts: { discovered?: string[]; choosing: boolean; closable: boolean }): TechTreeView {
   const p = state.players[state.currentPlayer]!;
   const discovered = opts.discovered ?? [];
-  const selected = discovered[0] ?? p.researching ?? availableAdvances(p.advances)[0]?.id ?? p.advances[p.advances.length - 1] ?? ADVANCES[0]!.id;
-  const tier = techLayout().byId.get(selected)!.tier;
-  return { selected, discovered, choosing: opts.choosing, closable: opts.closable, scroll: techScrollCentring(tier, columns), blink: true };
+  const tree = advancesFor(state);
+  const layout = techLayout(state);
+  const selected = discovered[0] ?? p.researching ?? availableAdvances(p.advances, tree)[0]?.id ?? p.advances[p.advances.length - 1] ?? layout.nodes[0]!.id;
+  const tier = layout.byId.get(selected)?.tier ?? 0;
+  return { selected, discovered, choosing: opts.choosing, closable: opts.closable, scroll: techScrollCentring(layout.tiers, tier, columns), blink: true };
 }
 
 /**
@@ -261,9 +298,10 @@ export function openTechTree(state: GameState, columns: number, opts: { discover
  * nearest row in the next tier that has advances; up or down, the next row in
  * the same tier. Returns `id` when there is nothing that way.
  */
-export function techStep(id: string, dTier: number, dRow: number): string {
-  const { nodes, byId, tiers } = techLayout();
-  const at = byId.get(id)!;
+export function techStep(state: GameState, id: string, dTier: number, dRow: number): string {
+  const { nodes, byId, tiers } = techLayout(state);
+  const at = byId.get(id);
+  if (!at) return id;
   if (dTier !== 0) {
     for (let t = at.tier + Math.sign(dTier); t >= 0 && t < tiers; t += Math.sign(dTier)) {
       const col = nodes.filter((n) => n.tier === t);
@@ -279,7 +317,7 @@ export function techStep(id: string, dTier: number, dRow: number): string {
 
 /** The next advance within reach after `id` (before it when `dir` is -1), in tree order, wrapping round. */
 export function nextAvailable(state: GameState, id: string, dir = 1): string {
-  const { nodes } = techLayout();
+  const { nodes } = techLayout(state);
   const order = [...nodes].sort((a, b) => a.tier - b.tier || a.row - b.row);
   const open = order.filter((n) => techStatus(state, n.id) === "available");
   if (!open.length) return id;
@@ -290,8 +328,7 @@ export function nextAvailable(state: GameState, id: string, dir = 1): string {
 
 /** The title of the window: what was just found, or the question asked. */
 export function techTreeTitle(view: TechTreeView): string {
-  const { byId } = techLayout();
-  const found = view.discovered.map((d) => byId.get(d)?.name ?? d);
+  const found = view.discovered.map((d) => advance(d).name);
   if (found.length) return `Wise men discover ${and(found)}!`;
   return view.choosing ? "Wise men ask: what shall we research?" : "The tree of knowledge";
 }

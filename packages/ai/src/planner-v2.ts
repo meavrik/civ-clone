@@ -4,6 +4,8 @@ import {
   atWar,
   attackOdds,
   attackStrength,
+  advancesFor,
+  type AdvanceRule,
   availableAdvances,
   bestDefender,
   building,
@@ -389,8 +391,8 @@ function closure(id: string): Set<string> {
  * (a coastal civ that has run out of land to explore, or met nobody) puts
  * Map Making first so its ships can go and look.
  */
-function pickResearch(known: string[], atWar: boolean, seaward = false): string | null {
-  const avail = availableAdvances(known);
+function pickResearch(known: string[], tree: readonly AdvanceRule[], atWar: boolean, seaward = false): string | null {
+  const avail = availableAdvances(known, tree);
   if (avail.length === 0) return null;
   const have = new Set(known);
   const goals = [...(seaward ? ["map_making"] : []), ...(atWar ? WAR_GOALS : []), ...GOALS];
@@ -408,7 +410,7 @@ function manageResearch(state: GameState, ctx: Ctx): void {
   const threatened = ctx.atWarWith.length > 0 || [...ctx.threat.values()].some((t) => t > 0);
   const lonely = ctx.turn >= 50 && !state.players.some((o) => o.id !== ctx.me && o.id !== state.barbarians && o.alive && hasContact(state, ctx.me, o.id));
   const seaward = ctx.cities.some((c) => coastal(state, c)) && (!ctx.landUnexplored || lonely);
-  const pick = pickResearch(ctx.p.advances, threatened, seaward);
+  const pick = pickResearch(ctx.p.advances, advancesFor(state), threatened, seaward);
   if (pick) applyCommand(state, { type: "research", advance: pick });
 }
 

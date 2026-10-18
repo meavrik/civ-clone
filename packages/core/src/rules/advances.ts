@@ -1,10 +1,11 @@
 /**
  * The tech tree. Each advance has at most two prerequisites, as in the
- * original. Names are the historical concepts; the dependency graph was
- * checked edge by edge against FreeCiv's civ1 ruleset (67 advances; Future
- * Tech. is our own cap). The Wheel and Mysticism have a single root, and
- * there is no Monotheism in this era. Changing data here needs no code
- * changes.
+ * original. Names are the historical concepts; the 1991 graph was checked
+ * edge by edge against FreeCiv's civ1 ruleset (67 advances; Future Tech. is
+ * our own cap). The Wheel and Mysticism have a single root, and there is no
+ * Monotheism in this era. New games play an extended tree (`ADVANCES`);
+ * games saved before version 9 keep the 1991 one (`CLASSIC_ADVANCES`, the
+ * `classicAdvances` flag). Code reaches the right one with `advancesFor`.
  */
 export interface AdvanceRule {
   id: string;
@@ -18,7 +19,7 @@ const A = (id: string, name: string, requires: string[], extra: Partial<AdvanceR
   id, name, requires, ...extra,
 });
 
-export const ADVANCES: AdvanceRule[] = [
+export const CLASSIC_ADVANCES: AdvanceRule[] = [
   // ---- no prerequisites -----------------------------------------------------
   A("alphabet", "Alphabet", []),
   A("bronze_working", "Bronze Working", []),
@@ -91,7 +92,36 @@ export const ADVANCES: AdvanceRule[] = [
   A("future_tech", "Future Tech.", ["fusion_power", "genetic_engineering"]),
 ];
 
-export const ADVANCE_BY_ID: Record<string, AdvanceRule> = Object.fromEntries(ADVANCES.map((a) => [a.id, a]));
+/**
+ * The tree new games play, our additions to the 1991 one (asked for): Weaving (cloth for
+ * the cold: arctic squares stop wearing units down) and Animal Husbandry (pastures: more food
+ * from Horses, Game and Seals; Horseback Riding now needs it) at the start, and in place of
+ * Future Tech. the advances the original never saw, each with an improvement of its own.
+ */
+export const ADVANCES: AdvanceRule[] = (() => {
+  const tree = CLASSIC_ADVANCES
+    .filter((a) => a.id !== "future_tech")
+    .map((a) => (a.id === "horseback_riding" ? { ...a, requires: ["animal_husbandry"] } : a));
+  const at = (id: string) => tree.findIndex((a) => a.id === id);
+  tree.splice(at("horseback_riding"), 0, A("animal_husbandry", "Animal Husbandry", []));
+  tree.splice(at("writing"), 0, A("weaving", "Weaving", ["pottery"]));
+  tree.push(
+    A("the_internet", "The Internet", ["computers", "the_corporation"]),
+    A("mobile_phones", "Mobile Phones", ["the_internet", "plastics"]),
+    A("renewable_energy", "Renewable Energy", ["recycling", "superconductor"]),
+    A("artificial_intelligence", "Artificial Intelligence", ["robotics", "the_internet"]),
+    A("quantum_computing", "Quantum Computing", ["superconductor", "artificial_intelligence"]),
+  );
+  return tree;
+})();
+
+/** The tree a game plays: the 1991 one for old saves, else ours. */
+export function advancesFor(state: { classicAdvances?: boolean | undefined }): AdvanceRule[] {
+  return state.classicAdvances ? CLASSIC_ADVANCES : ADVANCES;
+}
+
+/** Every advance of either tree by id, for names; prerequisites differ between the trees, so read those from `advancesFor`. */
+export const ADVANCE_BY_ID: Record<string, AdvanceRule> = Object.fromEntries([...CLASSIC_ADVANCES, ...ADVANCES].map((a) => [a.id, a]));
 
 export function advance(id: string): AdvanceRule {
   const a = ADVANCE_BY_ID[id];
@@ -103,10 +133,10 @@ export function knows(known: ReadonlySet<string> | string[], id: string): boolea
   return Array.isArray(known) ? known.includes(id) : known.has(id);
 }
 
-/** Advances researchable now: all prerequisites known, not yet known. */
-export function availableAdvances(known: string[]): AdvanceRule[] {
+/** Advances researchable now in a tree (`advancesFor(state)`): all prerequisites known, not yet known. */
+export function availableAdvances(known: string[], tree: readonly AdvanceRule[]): AdvanceRule[] {
   const k = new Set(known);
-  return ADVANCES.filter((a) => !k.has(a.id) && a.requires.every((r) => k.has(r)));
+  return tree.filter((a) => !k.has(a.id) && a.requires.every((r) => k.has(r)));
 }
 
 /** Beakers needed for the next advance: grows with each advance known. */

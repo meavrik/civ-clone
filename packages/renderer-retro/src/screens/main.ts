@@ -80,7 +80,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, isDeepWater, researchOutlook, techLayout, type Callout, knownSquare, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
+import { borderSides, isDeepWater, researchOutlook, type Callout, knownSquare, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, ICON, iconLineWidth } from "../icons.js";
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
@@ -315,7 +315,7 @@ function terrainSwatch(s: Surface, terrain: Terrain, x: number, y: number): void
 /** A square's yields and what stands on it, as one icon line: food, shields, trade, then features. */
 function tileIconLine(state: GameState, x: number, y: number, extra = ""): string {
   const t = getTile(state.map, x, y)!;
-  const yld = tileYield(state, t, cityAt(state, x, y) !== undefined, state.players[state.currentPlayer]!.government);
+  const yld = tileYield(state, t, cityAt(state, x, y) !== undefined, state.players[state.currentPlayer]!.government, state.currentPlayer);
   const features = tileIcons(t).map((i) => `{${i}}`);
   if (t.special) features.unshift("{star}");
   // Yields stay together, then the extra (movement) and the features, each a group that may wrap.
@@ -365,11 +365,11 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
 function drawResearch(s: Surface, state: GameState, y: number): number {
   const r = researchOutlook(state);
   if (!r.id) return y + 1;
-  const node = techLayout().byId.get(r.id);
+  const node = { id: r.id, name: r.name };
   const turns = `{hourglass}${r.turns === null ? "-" : r.turns}`;
   const tw = iconLineWidth(turns);
   drawIcon(s, "bulb", TEXT_X, y);
-  drawTextWrapped(s, TEXT_X + ICON + 1, y, TEXT_W - ICON - tw - 3, node ? techLabel(node) : r.name, INK, 1);
+  drawTextWrapped(s, TEXT_X + ICON + 1, y, TEXT_W - ICON - tw - 3, techLabel(node), INK, 1);
   drawIconLine(s, TEXT_X + TEXT_W - tw, y, turns, DIM);
   s.rect(TEXT_X, y + 9, TEXT_W, 4, C.BLACK!);
   const fill = Math.round(((TEXT_W - 2) * Math.min(r.have, r.cost)) / r.cost);

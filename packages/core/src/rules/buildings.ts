@@ -62,6 +62,12 @@ export const BUILDINGS: BuildingRule[] = [
   B("power_plant", "Power Plant", 160, 4, "Adds half again to the shields of the factory.", { requires: "refining", shieldsPct: 50, needs: "factory" }),
   B("hydro_plant", "Hydro Plant", 240, 4, "Adds half again to the shields of the factory and halves its pollution.", { requires: "electronics", shieldsPct: 50, needs: "factory", pollutionPct: 50 }),
   B("nuclear_plant", "Nuclear Plant", 240, 2, "Adds half again to the shields of the factory and halves its pollution.", { requires: "nuclear_power", shieldsPct: 50, needs: "factory", pollutionPct: 50 }),
+  // Our own, from the modern advances of the extended tree (games on the 1991 tree never reach them).
+  B("data_center", "Data Center", 160, 3, "Adds half again to the city's science, on top of the library.", { requires: "the_internet", sciencePct: 50, needs: "library" }),
+  B("cell_tower", "Cell Tower", 60, 1, "Calms one unhappy citizen: friends and news are a call away.", { requires: "mobile_phones", content: 1 }),
+  B("solar_plant", "Solar Plant", 200, 2, "Adds a quarter to the shields of the factory and halves its pollution.", { requires: "renewable_energy", shieldsPct: 25, needs: "factory", pollutionPct: 50 }),
+  B("automated_office", "Automated Office", 120, 2, "Halves the trade lost to corruption, on top of a courthouse.", { requires: "artificial_intelligence", halveCorruption: true }),
+  B("quantum_lab", "Quantum Lab", 240, 4, "Adds half again to science, on top of the data center.", { requires: "quantum_computing", sciencePct: 50, needs: "data_center" }),
 ];
 
 export const BUILDING_BY_ID: Record<string, BuildingRule> = Object.fromEntries(BUILDINGS.map((b) => [b.id, b]));

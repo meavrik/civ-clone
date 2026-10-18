@@ -13,8 +13,11 @@ export interface TerrainRule {
   trade: number;
   moveCost: number;
   defense: number;
-  /** Special resource found on this terrain and its bonus. */
-  special?: { name: string; food?: number; shields?: number; trade?: number };
+  /**
+   * Special resource found on this terrain and its bonus; `learned` adds more for a worker whose
+   * civilization knows an advance (Animal Husbandry: pastures for Horses, Game and Seals).
+   */
+  special?: { name: string; food?: number; shields?: number; trade?: number; learned?: { advance: string; food: number } };
   /** Irrigation result: yield bonus, or a terrain change. Turns = settler-turns. */
   irrigate?: { food?: number; becomes?: Terrain; turns: number };
   mine?: { shields?: number; becomes?: Terrain; turns: number };
@@ -27,10 +30,10 @@ export interface TerrainRule {
   /**
    * Harsh ground: a land unit ending its turn here loses this share of its
    * full hit points instead of healing (never its last one), until its owner
-   * knows `until`. Squares near the owner's cities, a river or a special
-   * (water, food) spare it.
+   * knows `until` (`classicUntil` in games on the 1991 tech tree). Squares near the
+   * owner's cities, a river or a special (water, food) spare it.
    */
-  attrition?: { share: number; until: string };
+  attrition?: { share: number; until: string; classicUntil?: string };
   /** No barbarian uprising or raid starts here (FreeCiv civ1: tundra and arctic). */
   noBarbarians?: boolean;
 }
@@ -50,13 +53,13 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   },
   [Terrain.Plains]: {
     food: 1, shields: 1, trade: 0, moveCost: 1, defense: 1,
-    special: { name: "Horses", shields: 2 },
+    special: { name: "Horses", shields: 2, learned: { advance: "animal_husbandry", food: 1 } },
     irrigate: { food: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
   },
   [Terrain.Forest]: {
     food: 1, shields: 2, trade: 0, moveCost: 2, defense: 1.5,
-    special: { name: "Game", food: 2 },
+    special: { name: "Game", food: 2, learned: { advance: "animal_husbandry", food: 1 } },
     irrigate: { becomes: Terrain.Plains, turns: 5 },
     road: { trade: 0, turns: 4 },
   },
@@ -86,18 +89,18 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   },
   [Terrain.Tundra]: {
     food: 1, shields: 0, trade: 0, moveCost: 1, defense: 1,
-    special: { name: "Game", food: 2 },
+    special: { name: "Game", food: 2, learned: { advance: "animal_husbandry", food: 1 } },
     road: { trade: 0, turns: 2 },
     noBarbarians: true,
   },
   [Terrain.Arctic]: {
     food: 0, shields: 0, trade: 0, moveCost: 2, defense: 1,
-    special: { name: "Seals", food: 2 },
+    special: { name: "Seals", food: 2, learned: { advance: "animal_husbandry", food: 1 } },
     road: { trade: 0, turns: 4 },
     rough: true,
     noBarbarians: true,
-    // Frostbite and scurvy, until physicians know better.
-    attrition: { share: 0.2, until: "medicine" },
+    // Frostbite, until cloth keeps the cold out (until physicians know better, on the 1991 tree).
+    attrition: { share: 0.2, until: "weaving", classicUntil: "medicine" },
   },
   [Terrain.Swamp]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 1.5,

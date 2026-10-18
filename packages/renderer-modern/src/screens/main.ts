@@ -299,7 +299,7 @@ function fitText(ctx: Context2D, s: string, width: number, size: number): string
 /** A square's yields and what stands on it, as one icon line: food, shields, trade, then features. */
 function tileIconLine(state: GameState, x: number, y: number, extra = ""): string {
   const t = getTile(state.map, x, y)!;
-  const yld = tileYield(state, t, cityAt(state, x, y) !== undefined, state.players[state.currentPlayer]!.government);
+  const yld = tileYield(state, t, cityAt(state, x, y) !== undefined, state.players[state.currentPlayer]!.government, state.currentPlayer);
   const features = tileIcons(t).map((i) => `{${i}}`);
   if (t.special) features.unshift("{star}");
   return [`{food} ${yld.food}`, `{shield} ${yld.shields}`, `{trade} ${yld.trade}`, ...(extra ? [extra] : []), features.join(" ")].filter(Boolean).join("  ");

@@ -1,4 +1,4 @@
-import type { GameState } from "@civ/core";
+import { advancesFor, type GameState } from "@civ/core";
 import {
   canResearch,
   techDetails,
@@ -6,6 +6,7 @@ import {
   techLayout,
   techStatus,
   techTreeTitle,
+  type TechLayout,
   type TechNode,
   type TechStatus,
   type TechTreeHit,
@@ -27,12 +28,12 @@ const GRAPH = { x: 4, y: 13, w: SCREEN_W - 8, h: 104 };
 const NODE_W = 76;
 const NODE_H = 10;
 const PITCH_X = 88;
-/** Two pixels between rows: the lane that edges skipping tiers run along. */
-const PITCH_Y = 12;
-const TOP = GRAPH.y + 4;
+/** A pixel between rows: the lane that edges skipping tiers run along (nine rows fit). */
+const PITCH_Y = 11;
+const TOP = GRAPH.y + 1;
 /** Tiers that fit across the window (three and a half). */
 export const TECH_COLUMNS = GRAPH.w / PITCH_X;
-const STRIP = { x: GRAPH.x + 10, y: GRAPH.y + GRAPH.h - 5, w: GRAPH.w - 20, h: 3 };
+const STRIP = { x: GRAPH.x + 10, y: GRAPH.y + GRAPH.h - 4, w: GRAPH.w - 20, h: 3 };
 const ARROW_W = 8;
 const DETAILS_Y = GRAPH.y + GRAPH.h + 2;
 const BUTTON_Y = SCREEN_H - 13;
@@ -53,9 +54,13 @@ const SHORT: Record<string, string> = {
   bronze_working: "Bronze",
   atomic_theory: "Atomic Th.",
   nuclear_power: "Nuclear Pwr",
+  animal_husbandry: "Husbandry",
+  renewable_energy: "Renewables",
+  artificial_intelligence: "A.I.",
+  quantum_computing: "Quantum",
 };
 
-export function techLabel(node: TechNode): string {
+export function techLabel(node: Pick<TechNode, "id" | "name">): string {
   return SHORT[node.id] ?? node.name;
 }
 
@@ -63,8 +68,13 @@ function nodeX(node: TechNode, scroll: number): number {
   return Math.round(GRAPH.x + 6 + (node.tier - scroll) * PITCH_X);
 }
 
-function nodeY(node: TechNode): number {
-  return TOP + node.row * PITCH_Y;
+/** Rows sit PITCH_Y apart, closer when a tier holds more than the window fits. */
+function pitchY(layout: TechLayout): number {
+  return layout.rows <= 1 ? PITCH_Y : Math.min(PITCH_Y, Math.floor((STRIP.y - 1 - TOP - NODE_H) / (layout.rows - 1)));
+}
+
+function nodeY(layout: TechLayout, node: TechNode): number {
+  return TOP + node.row * pitchY(layout);
 }
 
 const LOOK: Record<TechStatus, { fill: number; ink: number; edge: number }> = {
@@ -99,12 +109,12 @@ function line(s: Surface, x0: number, y0: number, x1: number, y1: number, color:
  * An edge from a prerequisite's right side to the left side of what it leads to: level ends, an
  * easy S between. Long edges that pass behind other tiers are dotted unless they are lit.
  */
-function edge(s: Surface, from: TechNode, to: TechNode, scroll: number, color: number, lit = false): void {
+function edge(s: Surface, layout: TechLayout, from: TechNode, to: TechNode, scroll: number, color: number, lit = false): void {
   const dotted = !lit && to.tier - from.tier > 1;
   const x0 = nodeX(from, scroll) + NODE_W;
-  const y0 = nodeY(from) + (NODE_H >> 1);
+  const y0 = nodeY(layout, from) + (NODE_H >> 1);
   const x1 = nodeX(to, scroll) - 1;
-  const y1 = nodeY(to) + (NODE_H >> 1);
+  const y1 = nodeY(layout, to) + (NODE_H >> 1);
   if (Math.max(x0, x1) < GRAPH.x || Math.min(x0, x1) > GRAPH.x + GRAPH.w) return;
   const curve = (xa: number, ya: number, xb: number, yb: number): void => {
     const steps = Math.max(2, Math.ceil(Math.abs(xb - xa) / 6));
@@ -119,19 +129,19 @@ function edge(s: Surface, from: TechNode, to: TechNode, scroll: number, color: n
       py = ny;
     }
   };
-  const lane = techLane(from, to);
+  const lane = techLane(layout, from, to);
   if (lane === null) { curve(x0, y0, x1, y1); return; }
   // Into the gap below a row, along it past the tiers between, and out to the advance.
   const gap = PITCH_X - NODE_W - 1;
-  const yl = TOP + lane * PITCH_Y + NODE_H;
+  const yl = TOP + lane * pitchY(layout) + NODE_H;
   curve(x0, y0, x0 + gap, yl);
   line(s, x0 + gap, yl, x1 - gap, yl, color, dotted);
   curve(x1 - gap, yl, x1, y1);
 }
 
-function drawNode(s: Surface, state: GameState, view: TechTreeView, node: TechNode): void {
+function drawNode(s: Surface, state: GameState, view: TechTreeView, layout: TechLayout, node: TechNode): void {
   const x = nodeX(node, view.scroll);
-  const y = nodeY(node);
+  const y = nodeY(layout, node);
   if (x + NODE_W < GRAPH.x || x > GRAPH.x + GRAPH.w) return;
   const fresh = view.discovered.includes(node.id);
   const look = LOOK[techStatus(state, node.id)];
@@ -169,12 +179,12 @@ function moreLeft(view: TechTreeView): boolean {
   return view.scroll > 0.01;
 }
 
-function moreRight(view: TechTreeView): boolean {
-  return view.scroll + TECH_COLUMNS < techLayout().tiers - 0.01;
+function moreRight(layout: TechLayout, view: TechTreeView): boolean {
+  return view.scroll + TECH_COLUMNS < layout.tiers - 0.01;
 }
 
-function drawStrip(s: Surface, state: GameState, view: TechTreeView): void {
-  const { tiers, nodes } = techLayout();
+function drawStrip(s: Surface, state: GameState, layout: TechLayout, view: TechTreeView): void {
+  const { tiers, nodes } = layout;
   const per = STRIP.w / tiers;
   s.rect(STRIP.x, STRIP.y, STRIP.w, STRIP.h, shade("panel", 1));
   // Marks for the tiers holding a choice (cyan) or the advance just found (yellow).
@@ -184,7 +194,7 @@ function drawStrip(s: Surface, state: GameState, view: TechTreeView): void {
     if (mark >= 0) s.rect(Math.round(STRIP.x + (n.tier + 0.5) * per) - 1, STRIP.y, 2, STRIP.h, mark);
   }
   const tx = Math.round(STRIP.x + view.scroll * per);
-  const tw = Math.round(TECH_COLUMNS * per);
+  const tw = Math.round(Math.min(TECH_COLUMNS, tiers) * per);
   s.frame(tx, STRIP.y - 1, tw, STRIP.h + 2, C.WHITE!);
 }
 
@@ -205,27 +215,28 @@ function buttons(state: GameState, view: TechTreeView): Button[] {
 }
 
 export function drawTechTree(s: Surface, state: GameState, view: TechTreeView): void {
-  const { nodes, byId } = techLayout();
+  const layout = techLayout(state);
+  const { nodes, byId } = layout;
   s.fill(C.BLACK!);
   const known = state.players[state.currentPlayer]!.advances.length;
-  drawTitleStrip(s, 0, 0, SCREEN_W, "", { right: `${known}/${nodes.length}` });
+  drawTitleStrip(s, 0, 0, SCREEN_W, "", { right: `${known}/${advancesFor(state).length}` });
   drawText(s, 4, 2, techTreeTitle(view), view.discovered.length ? C.YELLOW! : C.WHITE!);
 
   // The graph lies on a flat, darker grey sunk into the stone, so the speckle never breaks an edge.
   drawPanel(s, 0, GRAPH.y - 1, SCREEN_W, GRAPH.h + 2);
   drawPanel(s, GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h, true);
   s.rect(GRAPH.x + 1, GRAPH.y + 1, GRAPH.w - 2, GRAPH.h - 2, shade("panel", 3));
-  const sel = byId.get(view.selected)!;
+  const sel = byId.get(view.selected);
   for (const n of nodes) for (const r of n.requires) {
     if (n.id === view.selected || r === view.selected) continue;
-    edge(s, byId.get(r)!, n, view.scroll, shade("panel", 1));
+    edge(s, layout, byId.get(r)!, n, view.scroll, shade("panel", 1));
   }
-  for (const r of sel.requires) edge(s, byId.get(r)!, sel, view.scroll, C.WHITE!, true);
-  for (const n of sel.leadsTo) edge(s, sel, byId.get(n)!, view.scroll, C.LCYAN!, true);
-  for (const n of nodes) drawNode(s, state, view, n);
+  for (const r of sel?.requires ?? []) edge(s, layout, byId.get(r)!, sel!, view.scroll, C.WHITE!, true);
+  for (const n of sel?.leadsTo ?? []) edge(s, layout, sel!, byId.get(n)!, view.scroll, C.LCYAN!, true);
+  for (const n of nodes) drawNode(s, state, view, layout, n);
   if (moreLeft(view)) arrow(s, GRAPH.x + 1, -1);
-  if (moreRight(view)) arrow(s, GRAPH.x + GRAPH.w - 1 - ARROW_W, 1);
-  drawStrip(s, state, view);
+  if (moreRight(layout, view)) arrow(s, GRAPH.x + GRAPH.w - 1 - ARROW_W, 1);
+  drawStrip(s, state, layout, view);
 
   // What the selected advance gives.
   const d = techDetails(state, view.selected);
@@ -247,7 +258,7 @@ export function drawTechTree(s: Surface, state: GameState, view: TechTreeView): 
     const room = Math.max(1, Math.floor((BUTTON_Y - 1 - y) / FONT_HEIGHT));
     y += drawTextWrapped(s, 8 + ICON + labelW, y, SCREEN_W - 16 - ICON - labelW, row.items.join(", "), INK, Math.min(2, room)) * FONT_HEIGHT + 1;
   }
-  if (!d.rows.length) drawText(s, 6, y, "The last advance of the tree.", DIM);
+  if (!d.rows.length) drawText(s, 6, y, "It leads to no further advance.", DIM);
 
   const bs = buttons(state, view);
   for (const b of bs) {
@@ -262,13 +273,14 @@ export function drawTechTree(s: Surface, state: GameState, view: TechTreeView): 
 export function techTreeHit(state: GameState, view: TechTreeView, px: number, py: number): TechTreeHit | null {
   for (const b of buttons(state, view)) if (px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + 11) return b.hit;
   if (px < GRAPH.x || px >= GRAPH.x + GRAPH.w || py < GRAPH.y || py >= GRAPH.y + GRAPH.h) return null;
+  const layout = techLayout(state);
   if (py >= STRIP.y - 2 && py < STRIP.y + STRIP.h + 2 && px >= STRIP.x && px < STRIP.x + STRIP.w)
-    return { kind: "scrollTo", tier: Math.floor(((px - STRIP.x) / STRIP.w) * techLayout().tiers) };
+    return { kind: "scrollTo", tier: Math.floor(((px - STRIP.x) / STRIP.w) * layout.tiers) };
   if (moreLeft(view) && px < GRAPH.x + 1 + ARROW_W) return { kind: "scroll", by: -2 };
-  if (moreRight(view) && px >= GRAPH.x + GRAPH.w - 1 - ARROW_W) return { kind: "scroll", by: 2 };
-  for (const n of techLayout().nodes) {
+  if (moreRight(layout, view) && px >= GRAPH.x + GRAPH.w - 1 - ARROW_W) return { kind: "scroll", by: 2 };
+  for (const n of layout.nodes) {
     const x = nodeX(n, view.scroll);
-    const y = nodeY(n);
+    const y = nodeY(layout, n);
     if (px >= x && px < x + NODE_W && py >= y && py < y + NODE_H) return { kind: "advance", id: n.id };
   }
   return null;

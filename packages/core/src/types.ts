@@ -183,6 +183,8 @@ export interface GameState {
   classicCivs?: boolean;
   /** Our first unit upkeep: 3 free units a city under Monarchy and Communism too, debts paid from the shield box. Set for saves before version 8. */
   looseUpkeep?: boolean;
+  /** The 1991 tech tree (Future Tech. last, no Weaving, Animal Husbandry or modern advances). Set for saves before version 9. */
+  classicAdvances?: boolean;
 }
 
 export function wrapX(map: WorldMap, x: number): number {

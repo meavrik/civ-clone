@@ -5,6 +5,8 @@ import {
   attackOdds,
   attackStrength,
   attrition,
+  advancesFor,
+  type AdvanceRule,
   availableAdvances,
   bestDefender,
   building,
@@ -608,23 +610,28 @@ function findOverseasSites(state: GameState, me: number, reach: Uint8Array): Sit
 const GOALS = [
   "bronze_working", "alphabet", "ceremonial_burial", "code_of_laws", "monarchy", "currency", "writing", "pottery",
   "trade", "literacy", "masonry", "mathematics", "iron_working", "philosophy", "horseback_riding", "the_wheel",
-  "construction", "astronomy", "university", "the_republic", "feudalism", "chivalry", "banking", "medicine",
+  "construction", "astronomy", "university", "the_republic", "feudalism", "chivalry", "banking", "medicine", "weaving",
   "navigation", "invention", "gunpowder", "physics", "theory_of_gravity", "engineering", "bridge_building", "metallurgy",
   "conscription", "magnetism", "democracy", "steam_engine", "railroad", "industrialization", "electricity",
   "the_corporation", "explosives", "chemistry", "refining", "combustion", "steel", "automobile", "electronics", "flight",
   "mass_production", "advanced_flight", "communism", "labor_union", "computers", "rocketry", "atomic_theory",
   "nuclear_fission", "nuclear_power", "space_flight", "plastics", "superconductor", "robotics", "recycling",
-  "genetic_engineering", "fusion_power", "future_tech",
+  "genetic_engineering", "fusion_power",
+  // The extended tree's modern advances (a 1991-tree game has none of them, and reaches Future Tech. instead).
+  "the_internet", "renewable_energy", "mobile_phones", "artificial_intelligence", "quantum_computing", "future_tech",
 ];
 const WAR_GOALS = ["bronze_working", "iron_working", "mathematics", "feudalism", "chivalry", "gunpowder"];
 
-const CLOSURE = new Map<string, Set<string>>();
-function closure(id: string): Set<string> {
-  let s = CLOSURE.get(id);
+/** An advance and everything beneath it in a tree (an advance the tree lacks stands alone). */
+const CLOSURES = new Map<readonly AdvanceRule[], Map<string, Set<string>>>();
+function closure(id: string, tree: readonly AdvanceRule[]): Set<string> {
+  let memo = CLOSURES.get(tree);
+  if (!memo) CLOSURES.set(tree, (memo = new Map()));
+  let s = memo.get(id);
   if (s) return s;
   s = new Set([id]);
-  for (const r of advance(id).requires) for (const x of closure(r)) s.add(x);
-  CLOSURE.set(id, s);
+  for (const r of tree.find((a) => a.id === id)?.requires ?? []) for (const x of closure(r, tree)) s.add(x);
+  memo.set(id, s);
   return s;
 }
 
@@ -635,14 +642,14 @@ function closure(id: string): Set<string> {
  * in with no free coast in sight) puts Navigation next, for ships that can
  * cross the open sea.
  */
-export function pickResearch(known: string[], atWar: boolean, seaward = false, oceanward = false): string | null {
-  const avail = availableAdvances(known);
+export function pickResearch(known: string[], tree: readonly AdvanceRule[], atWar: boolean, seaward = false, oceanward = false): string | null {
+  const avail = availableAdvances(known, tree);
   if (avail.length === 0) return null;
   const have = new Set(known);
   const goals = [...(seaward ? ["map_making"] : []), ...(oceanward ? ["navigation"] : []), ...(atWar ? WAR_GOALS : []), ...GOALS];
   for (const g of goals) {
     if (have.has(g)) continue;
-    const need = closure(g);
+    const need = closure(g, tree);
     const pick = avail.find((a) => need.has(a.id));
     if (pick) return pick.id;
   }
@@ -657,7 +664,7 @@ function manageResearch(state: GameState, ctx: Ctx): void {
   const cramped = ctx.cities.length > 0 && ctx.sites().length < 2;
   const seaward = ctx.cities.some((c) => coastal(state, c)) && (!ctx.landUnexplored || lonely || cramped);
   const oceanward = seaward && cramped && ctx.p.advances.includes("map_making") && ctx.overseasSites().length === 0;
-  const pick = pickResearch(ctx.p.advances, threatened, seaward, oceanward);
+  const pick = pickResearch(ctx.p.advances, advancesFor(state), threatened, seaward, oceanward);
   if (pick) applyCommand(state, { type: "research", advance: pick });
 }
 
@@ -792,13 +799,14 @@ function manageTrade(state: GameState, ctx: Ctx): void {
     const spare = me.advances.filter((a) => !o.advances.includes(a));
     if (!want.length || !spare.length) continue;
     const receive = want.reduce((a, b) => (advanceRank(b, atWarNow) < advanceRank(a, atWarNow) ? b : a));
-    const give = spare.reduce((a, b) => (closure(b).size < closure(a).size ? b : a));
+    const tree = advancesFor(state);
+    const give = spare.reduce((a, b) => (closure(b, tree).size < closure(a, tree).size ? b : a));
     if (!applyCommand(state, { type: "exchangeAdvances", player: o.id, give, receive }).ok) continue;
     deals++;
     // Research already under way on what we were just given would be wasted: switch to the next goal.
     if (me.researching !== null && me.advances.includes(me.researching)) {
       const threatened = atWarNow || [...ctx.threat.values()].some((t) => t > 0);
-      const next = pickResearch(me.advances, threatened);
+      const next = pickResearch(me.advances, advancesFor(state), threatened);
       if (next) applyCommand(state, { type: "research", advance: next });
     }
   }
@@ -892,10 +900,14 @@ function wantBuilding(state: GameState, ctx: Ctx, c: City, r: CityReport, id: st
     case "colosseum": return r.unhappy >= 2 && has("temple") ? 7 : 0;
     case "cathedral": return r.unhappy >= 3 ? 6 : 0;
     case "university": return r.science >= 8 ? 6 : 0;
+    case "data_center": return r.science >= 8 ? 6 : 0;
+    case "quantum_lab": return r.science >= 12 ? 5 : 0;
+    case "cell_tower": return r.unhappy > 0 ? 6 + r.unhappy * 2 : 0;
+    case "automated_office": return r.corruption >= 3 ? 2 + r.corruption : 0;
     case "bank": return r.tax >= 8 ? 4 : 0;
     case "harbour": return 0;
     case "factory": return r.shields >= 10 ? 8 : 0;
-    case "power_plant": case "hydro_plant": case "nuclear_plant": return r.shields >= 15 ? 4 + (r.pollution >= 10 ? 4 : 0) : 0;
+    case "power_plant": case "hydro_plant": case "nuclear_plant": case "solar_plant": return r.shields >= 15 ? 4 + (r.pollution >= 10 ? 4 : 0) : 0;
     case "mass_transit": return r.pollution >= 8 && c.size >= 8 ? 10 : 0;
     case "recycling_center": return r.pollution >= 8 ? 9 : 0;
     default: return 0;
@@ -1165,7 +1177,7 @@ function manageUpkeep(state: GameState, ctx: Ctx): void {
 function slotValue(state: GameState, c: City, slot: number, gov: string): number {
   const t = radiusTile(state, c, slot);
   if (!t) return -1;
-  const y = tileYield(state, t, false, gov);
+  const y = tileYield(state, t, false, gov, c.owner);
   return y.food * 3 + y.shields * 2 + y.trade;
 }
 
@@ -1203,11 +1215,11 @@ function governCity(state: GameState, ctx: Ctx, c: City): void {
   const slots: { slot: number; food: number; shields: number; trade: number }[] = [];
   for (let s = 1; s < CITY_RADIUS.length; s++) {
     if (!slotFree(state, ctx, c, s)) continue;
-    const y = tileYield(state, radiusTile(state, c, s)!, false, ctx.p.government);
+    const y = tileYield(state, radiusTile(state, c, s)!, false, ctx.p.government, ctx.me);
     slots.push({ slot: s, ...y });
   }
   if (slots.length === 0) return;
-  const centre = tileYield(state, getTile(state.map, c.x, c.y)!, true, ctx.p.government);
+  const centre = tileYield(state, getTile(state.map, c.x, c.y)!, true, ctx.p.government, ctx.me);
   let settlerFood = 0;
   for (const u of ctx.units) if (u.homeCity === c.id && unitType(u.type).flags?.includes("settler")) settlerFood += gov.settlerFood;
   const cap = c.buildings.includes("aqueduct") ? 99 : 10;
@@ -1920,7 +1932,7 @@ function terraformJobs(state: GameState, ctx: Ctx, c: City): Job[] {
       jobs.push({ x, y, work: "irrigate", value: 3 + (gov.tilePenalty && r.food >= 2 ? -1 : 0) });
     if (t.terrain === Terrain.Hills && !t.mine) jobs.push({ x, y, work: "mine", value: 4 });
     if (r.road.trade > 0 && !t.road && !t.river) jobs.push({ x, y, work: "road", value: 2 + gov.tradeBonus });
-    if (ctx.p.advances.includes("railroad") && tileYield(state, t, false, ctx.p.government).shields >= 2) {
+    if (ctx.p.advances.includes("railroad") && tileYield(state, t, false, ctx.p.government, ctx.me).shields >= 2) {
       // Rails pay on shield tiles; the road comes first where there is none yet.
       if (t.road && !t.railroad) jobs.push({ x, y, work: "railroad", value: 3 });
       else if (!t.road && !t.river && r.road.turns > 0) jobs.push({ x, y, work: "road", value: 2 });

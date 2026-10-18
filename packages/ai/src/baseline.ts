@@ -1,6 +1,7 @@
 import {
   applyCommand,
   atWar,
+  advancesFor,
   availableAdvances,
   buildOptions,
   canFoundCity,
@@ -37,7 +38,7 @@ export function baselineTurn(state: GameState): void {
     manageDiplomacy(state, me);
     manageCities(state, me);
     if (p.researching === null) {
-      const options = availableAdvances(p.advances);
+      const options = availableAdvances(p.advances, advancesFor(state));
       if (options.length) applyCommand(state, { type: "research", advance: options[nextInt(state.rng, options.length)]!.id });
     }
     if (p.government === "anarchy" && p.anarchyTurns === 0) {
