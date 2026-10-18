@@ -14,6 +14,65 @@ export function drawPanel(s: Surface, x: number, y: number, w: number, h: number
   s.vline(x + w - 1, y, h, lo);
 }
 
+/**
+ * Speckle for the chrome ramps: -1 a dark speck, 1 a light one, 0 the face. A fixed
+ * 64x64 pattern laid by screen position, so the grain never crawls as panels redraw.
+ */
+const SPECKLE = (() => {
+  const t = new Int8Array(64 * 64);
+  for (let i = 0; i < t.length; i++) {
+    let h = Math.imul(i ^ 0x9e3779b9, 0x85ebca6b);
+    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+    h = (h ^ (h >>> 16)) & 15;
+    t[i] = h < 3 ? -1 : h < 5 ? 1 : 0;
+  }
+  return t;
+})();
+
+/** Fill a rectangle with a chrome ramp's face (shade 5), speckled with shades 4 and 6. */
+export function stipple(s: Surface, x: number, y: number, w: number, h: number, ramp: string): void {
+  const face = shade(ramp, 5);
+  const x0 = Math.max(0, x);
+  const y0 = Math.max(0, y);
+  const x1 = Math.min(s.width, x + w);
+  const y1 = Math.min(s.height, y + h);
+  for (let yy = y0; yy < y1; yy++)
+    for (let xx = x0; xx < x1; xx++) s.data[yy * s.width + xx] = face + SPECKLE[(yy & 63) * 64 + (xx & 63)]!;
+}
+
+/** The main screen's raised stone box: speckled grey, light top and left edges, dark bottom and right. */
+export function drawStone(s: Surface, x: number, y: number, w: number, h: number): void {
+  stipple(s, x + 1, y + 1, w - 2, h - 2, "panel");
+  s.hline(x, y, w, shade("panel", 7));
+  s.vline(x, y, h, shade("panel", 7));
+  s.hline(x + 1, y + h - 1, w - 1, shade("panel", 2));
+  s.vline(x + w - 1, y + 1, h - 1, shade("panel", 2));
+}
+
+/** Height of a blue box's title strip. */
+export const BOX_HEAD = 10;
+
+/** One of the city screen's blue boxes: a dark title strip with its caption, a speckled body, a dark rim. */
+export function drawBlueBox(s: Surface, x: number, y: number, w: number, h: number, title = "", titleRight = ""): void {
+  s.frame(x, y, w, h, shade("azure", 2));
+  stipple(s, x + 1, y + 1, w - 2, h - 2, "azure");
+  if (!title && !titleRight) return;
+  s.rect(x + 1, y + 1, w - 2, BOX_HEAD - 1, shade("azure", 1));
+  s.hline(x + 1, y + BOX_HEAD, w - 2, shade("azure", 2));
+  if (title) drawText(s, x + 4, y + 2, title, shade("azure", 7));
+  if (titleRight) drawText(s, x + w - 4 - textWidth(titleRight), y + 2, titleRight, C.WHITE!);
+}
+
+/** A pale blue button on a blue box: dark label, or a dim button while it cannot be pressed. */
+export function drawBlueButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true): void {
+  s.rect(x, y, w, h, enabled ? shade("azure", 7) : shade("azure", 3));
+  s.hline(x, y, w, C.WHITE!);
+  s.vline(x, y, h, C.WHITE!);
+  s.hline(x + 1, y + h - 1, w - 1, shade("azure", 1));
+  s.vline(x + w - 1, y + 1, h - 1, shade("azure", 1));
+  drawText(s, x + Math.floor((w - textWidth(label)) / 2), y + Math.floor((h - FONT_HEIGHT) / 2) + 1, label, enabled ? shade("azure", 1) : shade("azure", 6));
+}
+
 /** A raised button with its label centred; a disabled one keeps its place with a faded label. */
 export function drawButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true): void {
   s.rect(x, y, w, h, shade("ui", 3));
@@ -63,22 +122,30 @@ export function menuRect(m: MenuState): { x: number; y: number; w: number; h: nu
   return { x, y, w, h };
 }
 
+/** A window on the stone: black rim, speckled grey face, and a blue title strip when it has a title. */
+function drawWindow(s: Surface, x: number, y: number, w: number, h: number, title: string): void {
+  s.frame(x, y, w, h, C.BLACK!);
+  drawStone(s, x + 1, y + 1, w - 2, h - 2);
+  if (!title) return;
+  s.rect(x + 2, y + 2, w - 4, 11, shade("azure", 1));
+  drawText(s, x + 8, y + 4, title, C.WHITE!);
+}
+
 export function drawMenu(s: Surface, m: MenuState): void {
   const { x, y, w, h, lines, itemsY } = menuLayout(m);
-  drawPanel(s, x, y, w, h);
-  if (m.title) {
-    drawText(s, x + 8, y + 4, m.title, shade("ui", 7));
-    s.hline(x + 4, y + 13, w - 8, shade("ui", 0));
+  drawWindow(s, x, y, w, h, m.title);
+  lines.forEach((line, i) => drawIconLine(s, x + 10, y + (m.title ? 17 : 4) + i * FONT_HEIGHT, line, C.BLACK!));
+  if (lines.length) {
+    s.hline(x + 4, itemsY - 4, w - 8, shade("panel", 2));
+    s.hline(x + 4, itemsY - 3, w - 8, shade("panel", 7));
   }
-  lines.forEach((line, i) => drawIconLine(s, x + 10, y + (m.title ? 17 : 4) + i * FONT_HEIGHT, line, shade("ui", 6)));
-  if (lines.length) s.hline(x + 4, itemsY - 3, w - 8, shade("ui", 1));
   m.items.forEach((item, i) => {
     const ry = itemsY + i * MENU_ROW;
     const sel = i === m.selected;
-    if (sel) s.rect(x + 4, ry - 1, w - 8, MENU_ROW, shade("ui", 5));
-    drawText(s, x + 10, ry, item, sel ? C.BLACK! : shade("ui", 7));
+    if (sel) s.rect(x + 4, ry - 1, w - 8, MENU_ROW, shade("azure", 2));
+    drawText(s, x + 10, ry, item, sel ? C.WHITE! : C.BLACK!);
     const r = m.right?.[i];
-    if (r) drawText(s, x + w - 10 - textWidth(r), ry, r, sel ? C.BLACK! : shade("ui", 5));
+    if (r) drawText(s, x + w - 10 - textWidth(r), ry, r, sel ? shade("azure", 7) : shade("panel", 1));
   });
 }
 
@@ -96,18 +163,17 @@ export function drawTextInput(s: Surface, input: TextInputState, cursorOn: boole
   const h = 40;
   const x = Math.floor((320 - w) / 2);
   const y = Math.floor((200 - h) / 2);
-  drawPanel(s, x, y, w, h);
-  drawText(s, x + 8, y + 4, input.title, shade("ui", 7));
-  s.hline(x + 4, y + 13, w - 8, shade("ui", 0));
-  s.rect(x + 8, y + 18, w - 16, 12, shade("ui", 0));
-  s.frame(x + 8, y + 18, w - 16, 12, shade("ui", 4));
-  drawText(s, x + 12, y + 20, input.text, C.WHITE!);
-  if (cursorOn) s.rect(x + 12 + textWidth(input.text) + 1, y + 20, 4, FONT_HEIGHT, C.YELLOW!);
-  drawText(s, x + w - 8 - textWidth("Enter / Esc"), y + 31, "Enter / Esc", shade("ui", 5));
+  drawWindow(s, x, y, w, h, input.title);
+  s.rect(x + 8, y + 17, w - 16, 12, C.BLACK!);
+  s.frame(x + 8, y + 17, w - 16, 12, shade("panel", 2));
+  drawText(s, x + 12, y + 19, input.text, C.WHITE!);
+  if (cursorOn) s.rect(x + 12 + textWidth(input.text) + 1, y + 19, 4, FONT_HEIGHT, C.YELLOW!);
+  drawText(s, x + w - 8 - textWidth("Enter / Esc"), y + 30, "Enter / Esc", shade("panel", 1));
 }
 
 /** Small one-line message box at the bottom of the screen. */
 export function drawStatusLine(s: Surface, text: string): void {
-  drawPanel(s, 80, 188, 240, 12, true);
-  drawText(s, 84, 190, text, C.YELLOW!);
+  s.frame(80, 188, 240, 12, C.BLACK!);
+  drawStone(s, 81, 189, 238, 11);
+  drawText(s, 84, 191, text, C.BLUE!);
 }

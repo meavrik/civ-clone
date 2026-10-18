@@ -1,25 +1,26 @@
 // icons sprites for the retro renderer. Edit the grids by hand, or export/import a PNG with `npm run sprites`.
 // Every character must be in the legend described in the comment lines below.
 export default String.raw`
-# Icons, 8x8, for the info panels and the badges on working units. Drawn on the panel's dark brown.
+# Icons, 8x8, for the info panels and the badges on working units. Outlined in black so each reads
+# on the main screen's grey, the city screen's blue, the dialogs' brown and a unit badge's black.
 # Legend: . clear  k black  w white  P/p owner colour/dark
 #   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey (EGA)
 #   0-7 shades of ramp 1, a-h of ramp 2, A-H of ramp 3. Default ramps: grey, earth, stone.
 
-@people
-...ww...
-..wwww..
-..wwww..
-...ww...
-.wwwwww.
-wwwwwwww
-w.wwww.w
-..w..w..
+@people ramps=flesh,ocean
+..kkkk..
+.k6776k.
+.k6666k.
+..k55k..
+.kggffk.
+kgghgffk
+kgggfffk
+kkkkkkkk
 
 @calendar
-.Z....Z.
+.kk..kk.
 kRRRRRRk
-kRRRRRRk
+krrrrrrk
 kwwwwwwk
 kwzwzwzk
 kwwwwwwk
@@ -67,13 +68,13 @@ kyyyyyyk
 ...kk...
 
 @crown
-........
-y..yy..y
-yy.yy.yy
-yyyyyyyy
-yRyyyyRy
-yyyyyyyy
-YYYYYYYY
+.k.kk.k.
+kykyykyk
+kyyyyyyk
+kyRyyRyk
+kyyyyyyk
+kYYYYYYk
+kkkkkkkk
 ........
 
 @hourglass
@@ -87,14 +88,14 @@ kkkkkkkk
 kkkkkkkk
 
 @food
-....Y...
-...Yn...
-.NNNNNN.
-NNwNNNNn
-NNNNNNNn
-NNNNNNnn
-.NNNNnn.
-..nnnn..
+....k...
+...kYnn.
+.kkkYkk.
+kNwNNNNk
+kNNNNNNk
+kNNNNNnk
+.knNNnk.
+..kkkk..
 
 @shield
 kkkkkkkk
@@ -107,14 +108,14 @@ kZZZZZzk
 ...kk...
 
 @trade
-....y...
-yyyyyy..
-....y...
-........
-...y....
-..yyyyyy
-...y....
-........
+....kk..
+kkkkkyk.
+kyyyyyyk
+kkkkkyk.
+.kykkkkk
+kyyyyyyk
+.kykkkkk
+..kk....
 
 @boot
 ..kkk...
@@ -126,35 +127,35 @@ yyyyyy..
 kYYYYYYk
 kkkkkkkk
 
-@tower
-Z.ZZ.ZZ.
-ZZZZZZZ.
-.ZwZZZ..
-.ZZkZZ..
-.ZZZZZ..
-.ZZZZZ..
-.ZZkZZ..
-ZZZZZZZ.
+@tower ramps=grey,earth,stone
+kk.kk.kk
+kGkGFkFk
+kGGFFFEk
+.kGFFEk.
+.kGFFEk.
+.kGkkEk.
+.kGkkEk.
+kkkkkkkk
 
 @heart
+.kk..kk.
+kRRkkRRk
+kRwRRRRk
+kRRRRRrk
+.kRRRrk.
+..kRrk..
+...kk...
 ........
-.RR..RR.
-RRRRRRRR
-RwRRRRRR
-RRRRRRRR
-.RRRRRR.
-..RRRR..
-...RR...
 
 @star
-...yy...
-...yy...
-yyyyyyyy
-.yyyyyy.
-..yyyy..
-.yyyyyy.
-.yy..yy.
-yy....yy
+...k....
+..kyk...
+kkkykkk.
+kyyyyyk.
+.kyyyk..
+.kyyyk..
+kyk.kyk.
+kk...kk.
 
 @house
 ...kk...
@@ -167,93 +168,93 @@ kRRRRRRk
 .kkkkkk.
 
 @river
-........
-..UU....
-.U..U..U
-U....UU.
-........
-..UU....
-.U..U..U
-U....UU.
+.kkkkkk.
+kUUUUUUk
+kUwwUUwk
+kwUUwwUk
+kUUUUUUk
+kUwwUUwk
+kwUUwwUk
+.kkkkkk.
 
 @road
-...zz...
-...yz...
-..zZZz..
-..zyZz..
-.zZZZZz.
-.zZyZZz.
-zZZZZZZz
-zZZyZZZz
+...kk...
+..kfyk..
+..kffk..
+.kffyfk.
+.kffffk.
+kfffyffk
+kffffffk
+kfffyffk
 
 @railroad
-.Z....Z.
-YYYYYYYY
-.Z....Z.
-.Z....Z.
-YYYYYYYY
-.Z....Z.
-.Z....Z.
-YYYYYYYY
+.z....z.
+kYYYYYYk
+.z....z.
+.z....z.
+kYYYYYYk
+.z....z.
+.z....z.
+kYYYYYYk
 
 @irrigate
-....U...
-....U...
-...UUU..
-..UUwUU.
-..UwUUU.
-..UUUUU.
-...UUU..
-........
+...k....
+..kUk...
+..kUk...
+.kUwUk..
+kUwUUUk.
+kUUUUuk.
+.kUUuk..
+..kkk...
 
 @mine
-..ZZZZ..
-.Z...YZ.
-Z...Y..Z
-...Y....
-..Y.....
-.Y......
-Y.......
-........
+..kkkk..
+.kZwZZk.
+kZkkkkzk
+kzkYYkzk
+k.kYYk.k
+..kYYk..
+..kYYk..
+...kk...
 
-@fortress
-Z.Z..Z.Z
-ZZZ..ZZZ
-ZkZZZZkZ
-ZZZZZZZZ
-ZZZkkZZZ
-ZZZkkZZZ
-ZZZkkZZZ
-........
+@fortress ramps=grey,earth,stone
+kk.kk.kk
+kGkFFkEk
+kGGFFFEk
+kGGFFFEk
+kGFkkFEk
+kGFkkFEk
+kGFkkFEk
+kkkkkkkk
 
 @pollution
-........
-..ZZZ...
-.ZwZZZZ.
-ZZZzZZZZ
-ZzzzzZzZ
-.zzzzzz.
-...Y.Y..
-........
+..kkk...
+.kZZZkk.
+kZwZZZZk
+kZzZZzZk
+kzzzzzzk
+.kkkkkk.
+..Y..Y..
+.Y..Y...
 
 @clean
-......Y.
-.....Y..
-....Y...
-...Y....
-..yyy...
-.yyyyy..
-yyyyyyy.
-y.y.y.y.
+......kk
+.....kYk
+....kYk.
+..kkYk..
+.kyyyk..
+kyyyyyk.
+kyykyyk.
+.kkkkk..
 
 @hut
-...YY...
-..YYYY..
-.YYYYYY.
-YYYYYYYY
-.kyyyyk.
-.ky..yk.
-.ky..yk.
+...kk...
+..kYYk..
+.kYYYYk.
+kYYYYYYk
+kkkkkkkk
+.kgkkgk.
+.kgkkgk.
 .kkkkkk.
 
 @city
@@ -267,12 +268,12 @@ kwkwwkwk
 kkkkkkkk
 
 @swords
-w......w
-.w....w.
-..w..w..
-...ww...
-...ww...
-..Y..Y..
-.Y....Y.
-Y......Y
+wk....kw
+kwk..kwk
+.kwkkwk.
+..kwwk..
+..kwwk..
+.kYkkYk.
+kYk..kYk
+Yk....kY
 `;

@@ -1,6 +1,7 @@
 import type { AdvisorKind, CityScreenView, MainScreenView, MenuState, Renderer, TextInputState } from "@civ/renderer-api";
 import {
   cityButtonAt,
+  cityExitHit,
   citySlotAt,
   drawCityScreen,
   drawDiplomacyScreen,
@@ -83,7 +84,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     statusLine: (text) => drawStatusLine(screen, text),
     menuHit: (menu, px, py) => menuHit(menu, px, py),
     citySlotAt: (px, py) => citySlotAt(px, py),
-    cityExitHit: (_px, py) => py > SCREEN_H - 12,
+    cityExitHit: (px, py) => cityExitHit(px, py),
     cityButtonAt: (px, py) => cityButtonAt(px, py),
     tileAt(state: GameState, view: MainScreenView, px, py) {
       if (px < VIEW_X || py < VIEW_Y) return null;

@@ -99,8 +99,12 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
   terrain, cities, villages and specials are pixel art in `src/art/*.art.ts` (text grids; legend
   and parser in `src/sprites/sheet.ts`, compiled surfaces in `src/sprites/index.ts`; 8x8 panel icons
-  in `icons.art.ts`, drawn with `src/icons.ts`); roads,
+  in `icons.art.ts`, drawn with `src/icons.ts`, outlined in black so they read on every background); roads,
   rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.
+  Chrome, as the original: light speckled stone (`panel` ramp, `drawStone`) for the status column,
+  menu bar, dialogs and dropdowns (black ink, blue title strip and selection); bright blue boxes
+  (`azure` ramp, `drawBlueBox`) on black for the city screen, goods as rows of icons (`iconRow`,
+  `storeGrid`). `stipple` speckles both by screen position. Advisor pages still use the brown `ui` ramp.
 - `tools/sprites` — `npm run sprites -- export [dir]` writes the sheets as PNGs (8 sprites wide,
   1:1, magenta = owner colour); `npm run sprites -- import <sheet>.png` writes an edited sheet
   back into `src/art`, rejecting any pixel outside the sprite's palette legend.

@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, revealAround, Terrain, unitType } from "@civ/core";
-import { C, cityButtonAt, citySlotAt, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { C, cityButtonAt, citySlotAt, cityUnitSlot, shade, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -393,11 +393,11 @@ describe("city screen", () => {
     drawCityScreen(s, state, { city: city.id });
     writeFileSync(new URL("./out/city-upkeep.png", import.meta.url), encodePng(s, 3));
     // Under each unit's sprite: a size-1 city under Despotism keeps its first unit free.
+    const box = new Set([3, 4, 5, 6].map((n) => shade("azure", n))); // the box's speckled face
     const under = (i: number) => {
-      const x = 214 + (i % 5) * 18;
-      const y = 30 + 94 + Math.floor(i / 5) * 27 + 17;
+      const { x, y } = cityUnitSlot(i);
       let painted = 0;
-      for (let dy = 0; dy < 8; dy++) for (let dx = 0; dx < 16; dx++) if (s.get(x + dx, y + dy) !== s.get(300, 180)) painted++;
+      for (let dy = 0; dy < 8; dy++) for (let dx = 0; dx < 16; dx++) if (!box.has(s.get(x + dx, y + 17 + dy))) painted++;
       return painted;
     };
     expect(under(0)).toBe(0);

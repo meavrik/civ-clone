@@ -28,6 +28,7 @@ import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
+import { drawStone } from "../widgets.js";
 import { drawCity } from "./map-city.js";
 
 /**
@@ -68,14 +69,14 @@ export function menuBarAnchor(index: number): { x: number; y: number } {
   return { x: Math.max(0, t.x - 6), y: BAR_H };
 }
 
-/** The menu bar: parchment strip with the titles, the open one inverted. */
+/** The menu bar: a light grey strip matching the status column, the open title in the selection's blue. */
 export function drawMenuBar(s: Surface, open?: number): void {
-  s.rect(0, 0, SCREEN_W, BAR_H, shade("ui", 6));
-  s.hline(0, BAR_H - 1, SCREEN_W, shade("ui", 3));
+  s.rect(0, 0, SCREEN_W, BAR_H, shade("panel", 6));
+  s.hline(0, BAR_H - 1, SCREEN_W, shade("panel", 2));
   menuBarLayout().forEach(({ x, w }, i) => {
     const on = i === open;
-    if (on) s.rect(x - 4, 0, w + 8, BAR_H - 1, shade("ui", 1));
-    drawText(s, x, 1, MENU_BAR[i]!, on ? shade("ui", 7) : C.BLACK!);
+    if (on) s.rect(x - 4, 0, w + 8, BAR_H - 1, shade("azure", 2));
+    drawText(s, x, 1, MENU_BAR[i]!, on ? C.WHITE! : C.BLACK!);
   });
 }
 
@@ -262,6 +263,24 @@ const TEXT_X = 3;
 const TEXT_W = PANEL_W - 6;
 const PANEL_BOTTOM = SCREEN_H - 2;
 
+/** Text on the status column's light stone: black, a dark grey for what matters less, blue news, red wars. */
+const INK = C.BLACK!;
+const DIM = shade("panel", 1);
+const NEWS = C.BLUE!;
+const WAR = C.RED!;
+
+/** A groove across the status column between its boxes: a dark line over a light one. */
+function groove(s: Surface, y: number): void {
+  s.hline(1, y, PANEL_W - 2, shade("panel", 2));
+  s.hline(1, y + 1, PANEL_W - 2, shade("panel", 7));
+}
+
+/** A civilization's colour as a small framed flag, ahead of a name drawn in black. */
+function ownerFlag(s: Surface, x: number, y: number, color: number): void {
+  s.rect(x, y + 1, 6, 6, C.BLACK!);
+  s.rect(x + 1, y + 2, 4, 4, color);
+}
+
 function linesLeft(y: number): number {
   return Math.max(0, Math.floor((PANEL_BOTTOM - y) / FONT_HEIGHT));
 }
@@ -285,8 +304,8 @@ function tileIconLine(state: GameState, x: number, y: number, extra = ""): strin
 /** What a tile holds, for the inspect box: terrain, yields and features as icons, city, units. Returns the next y. */
 export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: number, x: number, y: number): number {
   const me = state.players[state.currentPlayer]!;
-  const ink = shade("ui", 7);
-  const dim = shade("ui", 5);
+  const ink = INK;
+  const dim = DIM;
   const idx = ty * state.map.width + wrapX(state.map, tx);
   if (ty < 0 || ty >= state.map.height || !me.explored[idx]) {
     drawText(s, x, y, "Unexplored", dim);
@@ -302,14 +321,16 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
   const city = cityAt(state, tx, ty);
   if (city && linesLeft(y) > 0) {
     drawIcon(s, "city", x, y);
-    drawTextWrapped(s, x + 9, y, TEXT_W - 9, city.name, playerColor(state, city.owner), 1);
+    ownerFlag(s, x + 9, y, playerColor(state, city.owner));
+    drawTextWrapped(s, x + 17, y, TEXT_W - 17, city.name, ink, 1);
     y += 9;
   }
   const units = me.visible[idx] ? unitAt(state, tx, ty) : [];
   if (units.length && linesLeft(y) > 0) {
     const top = units[0]!;
     const label = units.length === 1 ? unitType(top.type).name : `${units.length}x ${unitType(top.type).name}`;
-    y += FONT_HEIGHT * drawTextWrapped(s, x, y, TEXT_W, label, playerColor(state, top.owner), 1);
+    ownerFlag(s, x, y, playerColor(state, top.owner));
+    y += FONT_HEIGHT * drawTextWrapped(s, x + 8, y, TEXT_W - 8, label, ink, 1);
     const jobs = units.flatMap((u) => (u.order.kind === "work" ? [`{${WORK_ICON[u.order.work]}}${u.order.turnsLeft}`] : []));
     if (jobs.length && linesLeft(y) > 0) y += 9 * drawIconsWrapped(s, x, y, TEXT_W, jobs.join("  "), dim, 1);
   }
@@ -319,11 +340,11 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
 /** Moves left as pips: bright for each whole move, half-lit for thirds, dark for spent. Returns the x after them. */
 function drawMovePips(s: Surface, x: number, y: number, left: number, allowance: number): number {
   const total = Math.ceil(allowance / 3);
-  if (total > 10) return drawIconLine(s, x, y, `{boot}${Math.floor(left / 3)}${left % 3 ? `.${left % 3}` : ""}`, shade("ui", 7));
+  if (total > 10) return drawIconLine(s, x, y, `{boot}${Math.floor(left / 3)}${left % 3 ? `.${left % 3}` : ""}`, INK);
   for (let i = 0; i < total; i++) {
     const have = left - i * 3;
     const px = x + i * 5;
-    s.rect(px, y + 2, 4, 4, shade("ui", 0));
+    s.rect(px, y + 2, 4, 4, C.BLACK!);
     if (have >= 3) s.rect(px, y + 2, 4, 4, C.YELLOW!);
     else if (have > 0) s.rect(px, y + 4, 4, 2, C.YELLOW!);
   }
@@ -333,7 +354,9 @@ function drawMovePips(s: Surface, x: number, y: number, left: number, allowance:
 export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenView): void {
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
-  s.rect(0, VIEW_Y, PANEL_W, SCREEN_H - VIEW_Y, shade("ui", 1));
+  // Light speckled stone under everything, bevelled at its edges like the original's panels.
+  s.rect(0, VIEW_Y, PANEL_W, SCREEN_H - VIEW_Y, C.BLACK!);
+  drawStone(s, 0, VIEW_Y + map.height + 3, PANEL_W, SCREEN_H - (VIEW_Y + map.height + 3));
 
   // Minimap: 80x50, one pixel per tile.
   const mmY = VIEW_Y + 2;
@@ -357,12 +380,11 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     s.set(vx, mmY + vy + y, C.WHITE!);
     s.set((vx + VIEW_TILES_X - 1) % map.width, mmY + vy + y, C.WHITE!);
   }
-  s.hline(0, mmY + map.height, PANEL_W, shade("ui", 0));
 
   // Empire: population, year, treasury and tax/luxury/science, government and research, as icons.
   let y = mmY + map.height + 4;
-  const ink = shade("ui", 7);
-  const dim = shade("ui", 5);
+  const ink = INK;
+  const dim = DIM;
   const pop = state.cities.filter((c) => c.owner === state.currentPlayer).reduce((n, c) => n + c.size * (c.size + 1) * 5000, 0);
   let x = drawIconLine(s, TEXT_X, y, `{people}${pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : pop >= 1000 ? `${Math.floor(pop / 1000)},000` : String(pop)}`, ink) + 3;
   // Research: a bulb and a bar filling toward the next advance, at the end of the population row.
@@ -370,7 +392,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     drawIcon(s, "bulb", x, y);
     const bw = PANEL_W - 4 - (x + 9);
     const cost = researchCost(me.advances.length, me.difficulty);
-    s.rect(x + 9, y + 2, bw, 4, shade("ui", 0));
+    s.rect(x + 9, y + 2, bw, 4, C.BLACK!);
     s.rect(x + 9, y + 2, Math.round((bw * Math.min(me.science, cost)) / cost), 4, C.LBLUE!);
   }
   y += 9;
@@ -382,8 +404,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   drawIconLine(s, x, y, rates, dim);
   y += 9;
   drawIconLine(s, TEXT_X, y, `{crown}${GOVERNMENTS[me.government]?.name ?? me.government}`, dim);
-  y += 11;
-  s.hline(2, y, PANEL_W - 4, shade("ui", 0));
+  y += 10;
+  groove(s, y);
   y += 4;
 
   // Unit box: the unit awaiting orders (moves as pips, its square and orders as icons), or the end of the turn.
@@ -427,8 +449,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     drawText(s, TEXT_X, y, view.autoEnd ? "(auto)" : "Press Enter", dim);
     y += FONT_HEIGHT;
   }
-  y += 3;
-  s.hline(2, y, PANEL_W - 4, shade("ui", 0));
+  y += 2;
+  groove(s, y);
   y += 4;
 
   // Bottom: who we are at war with, kept clear of everything above it.
@@ -445,14 +467,12 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     lines.splice(2);
     bottom = PANEL_BOTTOM - lines.length * FONT_HEIGHT - 2;
     drawIcon(s, "swords", TEXT_X, bottom + 2);
-    lines.forEach((line, i) => drawText(s, TEXT_X + 10, bottom + 2 + i * FONT_HEIGHT, line, C.LRED!));
+    lines.forEach((line, i) => drawText(s, TEXT_X + 10, bottom + 2 + i * FONT_HEIGHT, line, WAR));
   }
 
   // Info area: the tile under inspection, else the latest message.
   if (view.inspect) drawTileInfo(s, state, view.inspect.x, view.inspect.y, TEXT_X, y);
-  else if (view.message) drawTextWrapped(s, TEXT_X, y, TEXT_W, view.message, C.YELLOW!, Math.max(0, Math.floor((bottom - y) / FONT_HEIGHT)));
-
-  s.vline(PANEL_W - 1, VIEW_Y, SCREEN_H - VIEW_Y, shade("ui", 0));
+  else if (view.message) drawTextWrapped(s, TEXT_X, y, TEXT_W, view.message, NEWS, Math.max(0, Math.floor((bottom - y) / FONT_HEIGHT)));
 }
 
 export function drawMainScreen(s: Surface, state: GameState, view: MainScreenView): void {

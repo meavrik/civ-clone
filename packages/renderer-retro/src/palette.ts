@@ -86,6 +86,19 @@ for (const [name, colors] of Object.entries(RAMPS)) {
 // Orange is the one civilization colour the EGA set lacks.
 C.ORANGE = PALETTE.length;
 PALETTE.push([255, 170, 0]);
+
+// Screen chrome, added after the rest so earlier indices keep their place: the main
+// screen's light stone grey and the city screen's bright blue, each speckled by `stipple`
+// (face 5, specks 4 and 6, bevel 7 and 2). Not even steps: the face shades sit close
+// together so text stays readable over the speckle, and 7 is a pale ink and button face.
+const CHROME: Record<string, Rgb[]> = {
+  panel: [[24, 24, 32], [64, 64, 76], [108, 108, 118], [140, 140, 148], [170, 170, 176], [184, 184, 190], [200, 200, 204], [244, 244, 240]],
+  azure: [[10, 10, 52], [26, 30, 110], [44, 48, 156], [66, 70, 188], [84, 88, 210], [96, 100, 222], [112, 116, 232], [208, 216, 255]],
+};
+for (const [name, colors] of Object.entries(CHROME)) {
+  C[name.toUpperCase()] = PALETTE.length;
+  PALETTE.push(...colors);
+}
 while (PALETTE.length < 256) PALETTE.push([0, 0, 0]);
 
 /** Index of shade `n` (0 dark .. 7 light) within a named ramp. */

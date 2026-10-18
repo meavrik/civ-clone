@@ -6,54 +6,63 @@ import {
   formatYear,
   getTile,
   productionName,
-  radiusTile,
   slotAvailable,
   tileYield,
   turnToYear,
   unitSupport,
-  unitType,
   wonder,
   type City,
   type GameState,
 } from "@civ/core";
-import { drawText, drawTextCentered, textWidth } from "../font.js";
+import type { IconName } from "@civ/renderer-api";
+import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
-import { drawBox, drawButton, drawPanel } from "../widgets.js";
+import { BOX_HEAD, drawBlueBox, drawBlueButton } from "../widgets.js";
 import { drawIcon, ICON } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
 
 /**
- * City screen. Layout (320x200):
- *   title bar          0..11
- *   citizens row      13..25
- *   resource map      left, 5x5 tiles (80x80) at (6, 30)
- *   totals + boxes    middle column
- *   production box    right column
- *   improvements list bottom middle
- *   key hints         bottom
+ * City screen (320x200): blue boxes on black, each with a dark title strip.
+ *   title and citizens      across the top
+ *   resources | map | improvements
+ *   food store | units | production
+ *   key hints and Exit      along the bottom
  */
-export const CITY_MAP_X = 6;
-export const CITY_MAP_Y = 30;
-const COL2_X = 96;
-const COL3_X = 214;
+const TOP = { y: 1, h: 26 };
+const ROW1 = { y: 28, h: 84 };
+const ROW2 = { y: 114, h: 73 };
+const LEFT = { x: 1, w: 106 };
+const MID = { x: 108, w: 84 };
+const RIGHT = { x: 193, w: 126 };
+const BAR_Y = 188;
+
+export const CITY_MAP_X = MID.x + 2;
+export const CITY_MAP_Y = ROW1.y + 2;
 
 import type { CityButton, CityScreenView } from "@civ/renderer-api";
 
-/** The production box's buttons, under its shield count. */
+/** The production box's buttons, under its title strip. */
 const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: number; label: string }> = {
-  change: { x: COL3_X, y: CITY_MAP_Y + 63, w: 48, h: 11, label: "Change" },
-  buy: { x: COL3_X + 52, y: CITY_MAP_Y + 63, w: 46, h: 11, label: "Buy" },
+  change: { x: RIGHT.x + 3, y: ROW2.y + BOX_HEAD + 2, w: 50, h: 11, label: "Change" },
+  buy: { x: RIGHT.x + RIGHT.w - 51, y: ROW2.y + BOX_HEAD + 2, w: 48, h: 11, label: "Buy" },
 };
+
+const EXIT = { x: SCREEN_W - 34, y: BAR_Y + 1, w: 33, h: 11 };
 
 export function cityButtonAt(px: number, py: number): CityButton | null {
   for (const [id, b] of Object.entries(CITY_BUTTONS) as [CityButton, (typeof CITY_BUTTONS)[CityButton]][])
     if (px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h) return id;
   return null;
+}
+
+/** The bottom bar, Exit button and all, leaves the city. */
+export function cityExitHit(_px: number, py: number): boolean {
+  return py >= BAR_Y && py < SCREEN_H;
 }
 
 export function citySlotAt(px: number, py: number): number | null {
@@ -65,6 +74,19 @@ export function citySlotAt(px: number, py: number): number | null {
   const slot = CITY_RADIUS.findIndex(([ox, oy]) => ox === dx && oy === dy);
   return slot >= 0 ? slot : null;
 }
+
+/** Top-left of the i-th supported unit's sprite in the units box; what it costs is drawn under it. */
+export function cityUnitSlot(i: number): { x: number; y: number } {
+  return { x: MID.x + 3 + (i % 4) * 20, y: ROW2.y + BOX_HEAD + 3 + Math.floor(i / 4) * 27 };
+}
+const UNIT_SLOTS = 8;
+
+/** Text on the blue boxes: a dark shadow keeps every colour readable over the speckle. */
+function say(s: Surface, x: number, y: number, text: string, color: number): number {
+  return drawText(s, x, y, text, color, shade("azure", 0));
+}
+const INK = C.WHITE!;
+const LABEL = shade("azure", 7);
 
 function yieldIcons(s: Surface, x: number, y: number, food: number, shields: number, trade: number): void {
   // Tiny 3x3 glyphs: green dot food, grey block shields, yellow coin trade. Up to 4 per row.
@@ -86,20 +108,77 @@ function yieldIcons(s: Surface, x: number, y: number, food: number, shields: num
   for (let k = 0; k < trade; k++) put(C.YELLOW!, "coin");
 }
 
-function citizen(s: Surface, x: number, y: number, mood: "happy" | "content" | "unhappy" | "entertainer" | "taxman" | "scientist"): void {
+/**
+ * Icons in a row no wider than `w`, the groups a few pixels apart; when they do not
+ * fit side by side they overlap, as the original's city screen stacks its goods.
+ */
+function iconRow(s: Surface, x: number, y: number, w: number, groups: [IconName, number][]): void {
+  const shown = groups.filter(([, n]) => n > 0);
+  const n = shown.reduce((t, [, k]) => t + k, 0);
+  if (n === 0) return;
+  const gap = 3;
+  const room = w - ICON - gap * (shown.length - 1);
+  const step = n > 1 ? Math.min(ICON + 1, room / (n - 1)) : 0;
+  let at = 0;
+  shown.forEach(([icon, k], g) => {
+    for (let i = 0; i < k; i++, at++) drawIcon(s, icon, x + Math.round(at * step) + g * gap, y);
+  });
+}
+
+/**
+ * A store of goods as rows of icons (food in the granary, shields toward the build):
+ * a darker bed the size of the box, filled from the top-left. Big boxes let one icon
+ * stand for several units, so the rows never smear into a bar.
+ */
+function storeGrid(s: Surface, x: number, y: number, w: number, maxRows: number, icon: IconName, have: number, box: number): number {
+  const per = Math.max(1, Math.ceil(box / (maxRows * 24)));
+  const slots = Math.ceil(box / per);
+  const perRow = Math.max(10, Math.ceil(slots / maxRows));
+  const rows = Math.ceil(slots / perRow);
+  const step = (w - ICON - 2) / (perRow - 1);
+  s.rect(x, y, w, rows * (ICON + 1) + 1, shade("azure", 3));
+  const filled = Math.min(slots, Math.floor(have / per));
+  for (let i = 0; i < filled; i++) drawIcon(s, icon, x + 1 + Math.round((i % perRow) * step), y + 1 + Math.floor(i / perRow) * (ICON + 1));
+  return rows * (ICON + 1) + 1;
+}
+
+type Mood = "happy" | "content" | "unhappy" | "entertainer" | "taxman" | "scientist";
+
+/** A citizen as a small bust: the face shows the mood, the shirt and hat the job. */
+const CITIZEN_FACE = ["..kkk..", ".kfffk.", "kfkfkfk", "kfffffk", "kf...fk", "kf...fk", ".kfffk."];
+const MOUTH: Record<"happy" | "content" | "unhappy", [string, string]> = {
+  happy: ["k.k", ".k."],
+  content: ["...", "kkk"],
+  unhappy: [".k.", "k.k"],
+};
+const SHIRT: Record<Mood, () => number> = {
+  happy: () => C.YELLOW!,
+  content: () => shade("grey", 6),
+  unhappy: () => C.RED!,
+  entertainer: () => C.LMAGENTA!,
+  taxman: () => C.ORANGE!,
+  scientist: () => C.LCYAN!,
+};
+
+function citizen(s: Surface, x: number, y: number, mood: Mood): void {
   const skin = shade("flesh", 5);
-  const w = 7;
-  s.rect(x, y, w, 9, skin);
-  s.frame(x, y, w, 9, C.BLACK!);
-  s.set(x + 2, y + 3, C.BLACK!);
-  s.set(x + 4, y + 3, C.BLACK!);
-  if (mood === "happy") { s.set(x + 2, y + 6, C.BLACK!); s.hline(x + 3, y + 7, 1, C.BLACK!); s.set(x + 4, y + 6, C.BLACK!); }
-  else if (mood === "content") s.hline(x + 2, y + 6, 3, C.BLACK!);
-  else if (mood === "unhappy") { s.set(x + 2, y + 7, C.BLACK!); s.hline(x + 3, y + 6, 1, C.BLACK!); s.set(x + 4, y + 7, C.BLACK!); s.rect(x + 1, y + 1, 5, 1, C.LRED!); }
-  else {
-    s.hline(x + 2, y + 6, 3, C.BLACK!);
-    const hat = mood === "entertainer" ? C.LMAGENTA! : mood === "taxman" ? C.YELLOW! : C.LCYAN!;
-    s.rect(x, y - 2, w, 3, hat);
+  const mouth = MOUTH[mood === "happy" || mood === "unhappy" ? mood : mood === "content" ? "content" : "happy"];
+  CITIZEN_FACE.forEach((row, r) => {
+    for (let c = 0; c < 7; c++) {
+      let ch = row[c]!;
+      if (ch === "." && (r === 4 || r === 5) && c >= 2 && c <= 4) ch = mouth[r - 4]![c - 2] === "k" ? "k" : "f";
+      if (ch === "k") s.set(x + c, y + r, C.BLACK!);
+      else if (ch === "f") s.set(x + c, y + r, skin);
+    }
+  });
+  // Shoulders and shirt.
+  const shirt = SHIRT[mood]();
+  s.rect(x, y + 7, 7, 4, C.BLACK!);
+  s.rect(x + 1, y + 7, 5, 3, shirt);
+  s.set(x + 3, y + 7, skin);
+  if (mood === "entertainer" || mood === "taxman" || mood === "scientist") {
+    s.rect(x + 1, y - 2, 5, 3, C.BLACK!);
+    s.rect(x + 2, y - 2, 3, 2, shirt);
   }
 }
 
@@ -108,22 +187,58 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   if (!city) return;
   const player = state.players[city.owner]!;
   const r = computeCity(state, city);
-  s.fill(shade("ui", 1));
+  s.fill(C.BLACK!);
 
-  // Title.
-  s.rect(0, 0, SCREEN_W, 12, shade("ui", 0));
-  drawTextCentered(s, SCREEN_W / 2, 2, `${city.name} (Pop ${city.size})  ${formatYear(turnToYear(state.turn))}`, shade("ui", 7));
-
-  // Citizens.
-  let cx = 6;
-  for (let i = 0; i < r.happy; i++, cx += 9) citizen(s, cx, 15, "happy");
-  for (let i = 0; i < r.content; i++, cx += 9) citizen(s, cx, 15, "content");
-  for (let i = 0; i < r.unhappy; i++, cx += 9) citizen(s, cx, 15, "unhappy");
+  // Title and citizens; the strip turns red while the city riots.
+  drawBlueBox(s, LEFT.x, TOP.y, SCREEN_W - 2, TOP.h);
+  s.rect(LEFT.x + 1, TOP.y + 1, SCREEN_W - 4, BOX_HEAD - 1, r.disorder ? C.RED! : shade("azure", 1));
+  s.hline(LEFT.x + 1, TOP.y + BOX_HEAD, SCREEN_W - 4, shade("azure", 2));
+  drawTextCentered(s, SCREEN_W / 2, TOP.y + 2, `${city.name} (Pop ${city.size})   ${formatYear(turnToYear(state.turn))}`, C.WHITE!);
+  let cx = 5;
+  const cy = TOP.y + BOX_HEAD + 3;
+  for (let i = 0; i < r.happy; i++, cx += 8) citizen(s, cx, cy, "happy");
+  for (let i = 0; i < r.content; i++, cx += 8) citizen(s, cx, cy, "content");
+  for (let i = 0; i < r.unhappy; i++, cx += 8) citizen(s, cx, cy, "unhappy");
   cx += 4;
-  for (const sp of city.specialists) { citizen(s, cx, 15, sp); cx += 9; }
-  if (r.disorder) drawText(s, 200, 16, "CIVIL DISORDER", C.LRED!);
+  for (const sp of city.specialists) { citizen(s, cx, cy, sp); cx += 8; }
+  if (r.disorder) say(s, SCREEN_W - 6 - textWidth("CIVIL DISORDER"), cy + 2, "CIVIL DISORDER", C.LRED!);
+
+  // Resources: food, shields and trade as rows of icons with what is left or lost, then where the trade goes.
+  drawBlueBox(s, LEFT.x, ROW1.y, LEFT.w, ROW1.h, "City Resources");
+  const rx = LEFT.x + 3;
+  const rw = LEFT.w - 26;
+  const num = (y: number, text: string, color: number) => say(s, LEFT.x + LEFT.w - 3 - textWidth(text), y, text, color);
+  let y = ROW1.y + BOX_HEAD + 3;
+  const surplus = Math.max(0, r.foodSurplus);
+  iconRow(s, rx, y, rw, [["food", r.food - surplus], ["food", surplus]]);
+  num(y, `${r.foodSurplus > 0 ? "+" : ""}${r.foodSurplus}`, r.foodSurplus < 0 ? C.LRED! : r.foodSurplus > 0 ? C.LGREEN! : INK);
+  y += 10;
+  // Shields that go to unit support, and trade lost to corruption, stand apart at the end of their row.
+  const upkeep = Math.min(r.shields, r.unitShields);
+  iconRow(s, rx, y, rw, [["shield", r.shields - upkeep], ["shield", upkeep]]);
+  if (r.unitShields) num(y, `-${r.unitShields}`, C.LRED!);
+  y += 10;
+  iconRow(s, rx, y, rw, [["trade", r.trade - r.corruption], ["trade", r.corruption]]);
+  if (r.corruption) num(y, `-${r.corruption}`, C.LRED!);
+  y += 10;
+  iconRow(s, rx, y, LEFT.w - 6, [["coin", r.tax], ["gem", r.lux], ["bulb", r.science]]);
+  y += 11;
+  say(s, rx, y, "Upkeep", LABEL);
+  num(y, `${r.buildingUpkeep}$`, INK);
+  y += 9;
+  if (r.routes) {
+    say(s, rx, y, "Routes", LABEL);
+    num(y, `+${r.routes}`, INK);
+    y += 9;
+  }
+  if (r.pollution > 0) {
+    drawIcon(s, "pollution", rx, y);
+    say(s, rx + ICON + 2, y, "Smog", LABEL);
+    num(y, `${r.pollution}%`, C.LRED!);
+  }
 
   // Resource map.
+  drawBlueBox(s, MID.x, ROW1.y, MID.w, ROW1.h);
   const me = state.players[state.currentPlayer]!;
   s.rect(CITY_MAP_X - 1, CITY_MAP_Y - 1, 82, 82, C.BLACK!);
   for (let ty = 0; ty < 5; ty++)
@@ -158,86 +273,79 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       const worked = slot === 0 || city.worked.includes(slot);
       if (worked) {
         const y = tileYield(state, tile, slot === 0, player.government);
-        s.rect(px, py + 8, TILE, 8, shade("ui", 0));
+        if (slot === 0) drawCity(s, px, py - 1, city, playerColor(state, city.owner));
+        s.rect(px, py + 8, TILE, 8, C.BLACK!);
         yieldIcons(s, px, py + 8, y.food, y.shields, y.trade);
-        if (slot === 0) {
-          drawCity(s, px, py - 1, city, playerColorOf(state, city.owner));
-          s.rect(px, py + 8, TILE, 8, shade("ui", 0));
-          yieldIcons(s, px, py + 8, y.food, y.shields, y.trade);
-        }
       } else if (!slotAvailable(state, city, slot)) {
         // Hatch unavailable tiles.
         for (let k = 0; k < TILE; k += 2) s.set(px + k, py + (k % 4 === 0 ? 0 : 1) + ((k * 7) % TILE), C.LRED!);
       }
     }
-  drawText(s, CITY_MAP_X, CITY_MAP_Y + 84, "Click: work tile", shade("ui", 5));
-  drawText(s, CITY_MAP_X, CITY_MAP_Y + 93, "City: best tiles", shade("ui", 5));
 
-  // Totals column.
-  const ink = shade("ui", 7);
-  const dim = shade("ui", 5);
-  let y = CITY_MAP_Y;
-  const row = (label: string, val: string, color = ink) => {
-    drawText(s, COL2_X, y, label, dim);
-    drawText(s, COL2_X + 72, y, val, color);
-    y += 9;
-  };
-  row("Food", `${r.food} (${r.foodSurplus >= 0 ? "+" : ""}${r.foodSurplus})`, r.foodSurplus < 0 ? C.LRED! : ink);
-  drawBox(s, COL2_X, y, 110, 7, city.food, r.foodBox, C.LGREEN!);
-  y += 10;
-  row("Shields", `${r.shields}${r.unitShields ? ` (-${r.unitShields})` : ""}`);
-  row("Trade", `${r.trade}${r.routes ? ` (${r.routes} routes)` : ""}${r.corruption ? ` (-${r.corruption})` : ""}`);
-  row("Tax/Lux/Sci", `${r.tax}/${r.lux}/${r.science}`);
-  row("Upkeep", `${r.buildingUpkeep}$`);
-  if (r.pollution > 0) row("Pollution", `${r.pollution}%`, C.LRED!);
-  y += 2;
-  drawText(s, COL2_X, y, "Improvements", dim);
-  y += 9;
-  for (const b of city.buildings) {
-    drawText(s, COL2_X + 4, y, building(b).name, ink);
-    y += 8;
-    if (y > 180) break;
+  // Improvements, wonders in yellow, each building with its upkeep.
+  drawBlueBox(s, RIGHT.x, ROW1.y, RIGHT.w, ROW1.h, "Improvements");
+  const lines = [
+    ...city.wonders.map((w) => ({ name: wonder(w).name, color: C.YELLOW!, upkeep: 0 })),
+    ...city.buildings.map((b) => ({ name: building(b).name, color: INK, upkeep: building(b).upkeep })),
+  ];
+  const fit = Math.floor((ROW1.h - BOX_HEAD - 4) / FONT_HEIGHT);
+  const shown = lines.length > fit ? lines.slice(0, fit - 1) : lines;
+  y = ROW1.y + BOX_HEAD + 3;
+  for (const l of shown) {
+    say(s, RIGHT.x + 4, y, l.name, l.color);
+    if (l.upkeep) say(s, RIGHT.x + RIGHT.w - 4 - textWidth(`${l.upkeep}$`), y, `${l.upkeep}$`, LABEL);
+    y += FONT_HEIGHT;
   }
-  for (const w of city.wonders) {
-    drawText(s, COL2_X + 4, y, wonder(w).name, C.YELLOW!);
-    y += 8;
-    if (y > 180) break;
-  }
+  if (shown.length < lines.length) say(s, RIGHT.x + 4, y, `and ${lines.length - shown.length} more`, LABEL);
+  if (!lines.length) say(s, RIGHT.x + 4, y, "None yet", LABEL);
 
-  // Production column.
-  drawPanel(s, COL3_X - 4, CITY_MAP_Y - 2, SCREEN_W - COL3_X, 81);
-  const p = city.production;
-  const pname = productionName(p);
-  drawText(s, COL3_X, CITY_MAP_Y + 2, "Building:", dim);
-  drawText(s, COL3_X, CITY_MAP_Y + 11, pname, ink);
-  if (p.kind === "unit") s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), SCREEN_W - 24, CITY_MAP_Y + 2, SPRITE_CLEAR);
-  drawBox(s, COL3_X, CITY_MAP_Y + 22, SCREEN_W - COL3_X - 8, 8, city.shields, r.productionCost, C.LGREY!);
-  drawText(s, COL3_X, CITY_MAP_Y + 32, `${city.shields}/${r.productionCost} shields`, dim);
-  const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
-  drawText(s, COL3_X, CITY_MAP_Y + 41, turns === null ? "never" : `${turns} turn${turns === 1 ? "" : "s"}`, dim);
-  const cost = buyCost(state, city);
-  drawText(s, COL3_X, CITY_MAP_Y + 52, cost ? `Buy: ${cost}$` : "Complete", player.gold >= cost ? ink : dim);
-  const { change, buy } = CITY_BUTTONS;
-  drawButton(s, change.x, change.y, change.w, change.h, change.label);
-  drawButton(s, buy.x, buy.y, buy.w, buy.h, buy.label, cost > 0 && player.gold >= cost);
+  // Food store: the granary fills toward the next citizen.
+  drawBlueBox(s, LEFT.x, ROW2.y, LEFT.w, ROW2.h, "Food", `${city.food}/${r.foodBox}`);
+  y = ROW2.y + BOX_HEAD + 2;
+  y += storeGrid(s, LEFT.x + 3, y, LEFT.w - 6, 5, "food", city.food, r.foodBox) + 2;
+  const grow = r.foodSurplus > 0 ? Math.ceil(Math.max(0, r.foodBox - city.food) / r.foodSurplus) : null;
+  say(s, LEFT.x + 3, ROW2.y + ROW2.h - 10, r.foodSurplus < 0 ? "Starving!" : grow === null ? "Not growing" : `Grows in ${grow} turn${grow === 1 ? "" : "s"}`, r.foodSurplus < 0 ? C.LRED! : LABEL);
 
   // Supported units, each with what it costs the city: a shield beyond the free ones, food for settlers.
   const support = unitSupport(state, city);
-  drawText(s, COL3_X, CITY_MAP_Y + 84, `Units: ${support.length}`, dim);
-  support.slice(0, 10).forEach(({ unit, shields, food }, i) => {
-    const ux = COL3_X + (i % 5) * 18;
-    const uy = CITY_MAP_Y + 94 + Math.floor(i / 5) * 27;
-    s.blit(unitSprite(unit.type, playerColorOf(state, unit.owner)), ux, uy, SPRITE_CLEAR);
+  drawBlueBox(s, MID.x, ROW2.y, MID.w, ROW2.h, "Units", String(support.length));
+  support.slice(0, UNIT_SLOTS).forEach(({ unit, shields, food }, i) => {
+    const { x: ux, y: uy } = cityUnitSlot(i);
+    s.blit(unitSprite(unit.type, playerColor(state, unit.owner)), ux, uy, SPRITE_CLEAR);
     let ix = ux;
     if (shields) { drawIcon(s, "shield", ix, uy + 17); ix += ICON; }
     if (food) drawIcon(s, "food", ix, uy + 17);
   });
+  if (support.length > UNIT_SLOTS) say(s, MID.x + MID.w - 4 - textWidth(`+${support.length - UNIT_SLOTS}`), ROW2.y + ROW2.h - 10, `+${support.length - UNIT_SLOTS}`, LABEL);
 
-  // Hints.
-  s.rect(0, SCREEN_H - 12, SCREEN_W, 12, shade("ui", 0));
-  const hint = view.message ?? "Esc: Exit   C: Change   B: Buy   N: Rename";
-  drawText(s, 4, SCREEN_H - 10, hint, view.message ? C.YELLOW! : shade("ui", 5));
-  void textWidth;
+  // Production: what is being built, its shields as icons, how long, and the price to buy it now.
+  const p = city.production;
+  drawBlueBox(s, RIGHT.x, ROW2.y, RIGHT.w, ROW2.h, productionName(p), `${city.shields}/${r.productionCost}`);
+  const cost = buyCost(state, city);
+  const { change, buy } = CITY_BUTTONS;
+  drawBlueButton(s, change.x, change.y, change.w, change.h, change.label);
+  drawBlueButton(s, buy.x, buy.y, buy.w, buy.h, buy.label, cost > 0 && player.gold >= cost);
+  y = change.y + change.h + 3;
+  let gx = RIGHT.x + 3;
+  if (p.kind === "unit") {
+    s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), gx, y, SPRITE_CLEAR);
+    gx += 19;
+  }
+  storeGrid(s, gx, y, RIGHT.x + RIGHT.w - 3 - gx, 3, "shield", city.shields, r.productionCost);
+  const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
+  const by = ROW2.y + ROW2.h - 10;
+  say(s, RIGHT.x + 3, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
+  const price = cost ? `Buy ${cost}$` : "Complete";
+  say(s, RIGHT.x + RIGHT.w - 3 - textWidth(price), by, price, cost && player.gold >= cost ? C.YELLOW! : LABEL);
+
+  // Hints, or the latest word, and the way out.
+  s.rect(0, BAR_Y, SCREEN_W, SCREEN_H - BAR_Y, shade("azure", 1));
+  if (view.message) drawTextWrapped(s, 4, BAR_Y + 3, EXIT.x - 8, view.message, C.YELLOW!, 1);
+  else drawText(s, 4, BAR_Y + 3, "Esc Exit   C Change   B Buy   N Rename", shade("azure", 7));
+  s.rect(EXIT.x, EXIT.y, EXIT.w, EXIT.h, C.RED!);
+  s.hline(EXIT.x, EXIT.y, EXIT.w, C.LRED!);
+  s.vline(EXIT.x, EXIT.y, EXIT.h, C.LRED!);
+  drawTextCentered(s, EXIT.x + EXIT.w / 2, EXIT.y + 2, "Exit", C.WHITE!);
 }
 
 function playerColorOf(state: GameState, owner: number): number {
