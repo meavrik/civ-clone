@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, building, BUILDINGS, createUnit, getTile, newGame, revealAround, SPACE_PARTS, Terrain, wonder, WONDERS, type UnitBattle } from "@civ/core";
-import { builtNotice, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
+import { builtNotice, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, moveRefusal, NUDGE_MS, researchOutlook, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
 const fresh = (step: SetupState["step"]): SetupState => ({ step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
 
@@ -217,6 +217,28 @@ describe("unit motion", () => {
     expect(m.at(150).moving.find((u) => u.unit === 2)!.x).toBeCloseTo(-0.5);
   });
 
+  it("nudges a refused unit toward the square it could not enter and back, after a slide still playing", () => {
+    const m = new MotionPlayer();
+    m.play([step(1, 10, 10, 11, 10)], 0, pace);
+    m.nudge({ id: 1, type: "militia", owner: 0, x: 11, y: 10 }, 0, -1, 0);
+    expect(m.at(50).moving).toEqual([{ unit: 1, type: "militia", owner: 0, x: 10.5, y: 10 }]);
+    // At the height of the lean it stands well out toward the square, then it springs back.
+    const lean = m.at(100 + NUDGE_MS * 0.275).moving[0]!;
+    expect(lean.x).toBe(11);
+    expect(lean.y).toBeCloseTo(9.7, 2);
+    expect(m.at(100 + NUDGE_MS * 0.55).moving[0]!.y).toBeCloseTo(10, 5);
+    expect(m.at(100 + NUDGE_MS - 1).moving[0]!.y).toBeCloseTo(10, 2);
+    expect(m.busy(100 + NUDGE_MS - 1)).toBe(true);
+    expect(m.busy(100 + NUDGE_MS)).toBe(false);
+    expect(m.at(100 + NUDGE_MS).moving).toEqual([]);
+    // Pressing again while one waits replaces it rather than queueing a train of nudges.
+    m.play([step(2, 0, 0, 1, 0)], 1000, pace);
+    m.nudge({ id: 1, type: "militia", owner: 0, x: 11, y: 10 }, 1, 0, 1000);
+    m.nudge({ id: 1, type: "militia", owner: 0, x: 11, y: 10 }, 1, 0, 1010);
+    expect(m.busy(1100 + NUDGE_MS - 1)).toBe(true);
+    expect(m.busy(1100 + NUDGE_MS)).toBe(false);
+  });
+
   it("fits a long chain into the time allowed, and clear() snaps everything home", () => {
     const m = new MotionPlayer();
     const chain = Array.from({ length: 40 }, (_, i) => step(1, i, 0, i + 1, 0));
@@ -292,5 +314,44 @@ describe("icon lines", () => {
     const width = (s: string) => s.length;
     expect(wrapIconLine("aaa  bbb  ccc", 8, width)).toEqual(["aaa  bbb", "ccc"]);
     expect(wrapIconLine("aaaaaaaaaa  b", 4, width)).toEqual(["aaaaaaaaaa", "b"]);
+  });
+});
+
+describe("refused moves", () => {
+  it("say in words why a unit cannot go, and what would let it", () => {
+    const s = newGame(2026);
+    const u = s.units.find((x) => x.owner === 0 && x.type === "settlers")!;
+    getTile(s.map, u.x + 1, u.y)!.terrain = Terrain.Ocean;
+    for (const o of s.units) if (o.x === u.x + 1 && o.y === u.y && o.id !== u.id) o.x = u.x - 3;
+    const r = applyCommand(s, { type: "move", unit: u.id, dx: 1, dy: 0 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(moveRefusal(s, u.id, 1, 0, r.reason)).toBe("Settlers cannot cross the ocean. A ship with room must carry it.");
+    getTile(s.map, u.x, u.y + 1)!.terrain = Terrain.Mountains;
+    expect(moveRefusal(s, u.id, 0, 1, "steep")).toBe("Only settlers climb the mountains off the road. Build a road over them first.");
+    expect(moveRefusal(s, u.id, 0, 1, "no-moves")).toBe("No moves left for Settlers this turn.");
+    expect(moveRefusal(s, u.id, 0, 1, "zoc")).toMatch(/^Zone of control/);
+    // A reason without its own words still reads as a sentence.
+    expect(moveRefusal(s, u.id, 0, 1, "too close to home")).toBe("Too close to home.");
+  });
+});
+
+describe("research outlook", () => {
+  it("names the advance under study, the beakers toward it and the turns to go, or asks for a pick", () => {
+    const s = newGame(2026);
+    const p = s.players[0]!;
+    p.researching = null;
+    expect(researchOutlook(s)).toMatchObject({ id: null, open: true });
+    p.researching = "pottery";
+    p.science = 3;
+    expect(researchOutlook(s)).toMatchObject({ id: "pottery", name: "Pottery", have: 3, turns: null });
+    const settlers = s.units.find((x) => x.owner === 0 && x.type === "settlers")!;
+    getTile(s.map, settlers.x, settlers.y)!.river = true; // trade for the new city
+    applyCommand(s, { type: "found", unit: settlers.id });
+    p.taxRate = 0;
+    p.luxRate = 0;
+    p.sciRate = 10;
+    const r = researchOutlook(s);
+    expect(r.turns).toBeGreaterThan(0);
+    expect(r.cost).toBeGreaterThan(r.have);
   });
 });

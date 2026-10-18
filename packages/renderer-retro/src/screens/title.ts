@@ -1,7 +1,7 @@
 import { drawText, drawTextCentered } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawPanel } from "../widgets.js";
+import { DIM, drawWindow, GOLD, INK } from "../widgets.js";
 
 /**
  * Title screen: an original sunrise-over-sea composition in the palette,
@@ -53,14 +53,13 @@ export function drawTitleScreen(s: Surface, blink: boolean): void {
 
 /** End of game: score sheet and rank. */
 export function drawEndScreen(s: Surface, lines: string[], rank: string): void {
-  s.fill(shade("ui", 0));
-  drawPanel(s, 30, 24, SCREEN_W - 60, SCREEN_H - 48);
-  drawTextCentered(s, SCREEN_W / 2, 32, "The End", C.WHITE!, C.BLACK!);
+  s.fill(C.BLACK!);
+  drawWindow(s, 30, 24, SCREEN_W - 60, SCREEN_H - 48, "The End", { centred: true });
   let y = 50;
   for (const l of lines) {
-    drawText(s, 48, y, l, shade("ui", 7));
+    drawText(s, 48, y, l, INK);
     y += 10;
   }
-  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 56, `Your rule was ${rank}.`, C.YELLOW!);
-  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 36, "Press any key for a new game", shade("ui", 5));
+  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 56, `Your rule was ${rank}.`, GOLD);
+  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 36, "Press any key for a new game", DIM);
 }

@@ -3,7 +3,7 @@ import type { ReportPage } from "@civ/renderer-api";
 import { drawText, drawTextCentered, textWidth } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawPanel } from "../widgets.js";
+import { DIM, drawPage, drawWindow, FADED, INK } from "../widgets.js";
 import { minimapColor, playerColor, slotColor } from "./main.js";
 
 const ROW = 9;
@@ -17,10 +17,7 @@ function fit(text: string, width: number): string {
 
 /** A titled page of rows; a long list flows into two columns. */
 export function drawReportScreen(s: Surface, page: ReportPage): void {
-  s.fill(shade("ui", 1));
-  drawPanel(s, 4, 4, SCREEN_W - 8, SCREEN_H - 8);
-  drawTextCentered(s, SCREEN_W / 2, 8, page.title, shade("ui", 7));
-  s.hline(12, 18, SCREEN_W - 24, shade("ui", 0));
+  drawPage(s, page.title, page.hint ? `${page.hint}   (any key)` : "(any key)");
   const rows = Math.floor((SCREEN_H - 24 - 26) / ROW);
   const columns = page.lines.length > rows ? 2 : 1;
   const colW = Math.floor((SCREEN_W - 24) / columns);
@@ -28,7 +25,7 @@ export function drawReportScreen(s: Surface, page: ReportPage): void {
     const col = Math.floor(i / rows);
     const x = 12 + col * colW;
     const y = 24 + (i % rows) * ROW;
-    const ink = line.dim ? shade("ui", 4) : shade("ui", 7);
+    const ink = line.dim ? FADED : INK;
     let tx = x;
     if (line.slot !== undefined) {
       s.rect(x, y + 1, 6, 6, slotColor(line.slot));
@@ -41,11 +38,9 @@ export function drawReportScreen(s: Surface, page: ReportPage): void {
     drawText(s, tx, y, fit(line.text, leftW + 1), ink);
     if (right) {
       const r = fit(right, avail - leftW - 6);
-      drawText(s, x + colW - 6 - textWidth(r), y, r, line.dim ? shade("ui", 4) : shade("ui", 5));
+      drawText(s, x + colW - 6 - textWidth(r), y, r, line.dim ? FADED : DIM);
     }
   });
-  if (page.hint) drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 14, `${page.hint}   (any key)`, shade("ui", 5));
-  else drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 14, "(any key)", shade("ui", 5));
 }
 
 /** The whole world at four pixels a square (80x50 fills the screen): terrain, cities, and the units we can see. */
@@ -71,6 +66,6 @@ export function drawWorldMap(s: Surface, state: GameState): void {
     s.rect(ox + c.x * k, oy + c.y * k, k, k, playerColor(state, c.owner));
     if (k >= 4) s.rect(ox + c.x * k + 1, oy + c.y * k + 1, k - 2, k - 2, C.WHITE!);
   }
-  drawPanel(s, 2, SCREEN_H - 13, 112, 11);
-  drawText(s, 6, SCREEN_H - 11, "World Map (any key)", shade("ui", 7));
+  drawWindow(s, 2, SCREEN_H - 14, 112, 13, "");
+  drawText(s, 6, SCREEN_H - 11, "World Map (any key)", INK);
 }

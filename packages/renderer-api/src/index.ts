@@ -1,6 +1,7 @@
 import type { BattleFrame, UnitMotion } from "./motion.js";
 import type { Lifting } from "./fog.js";
 import type { TechTreeHit, TechTreeView } from "./techtree.js";
+import type { Callout } from "./refusal.js";
 export * from "./motion.js";
 export * from "./icons.js";
 export * from "./coast.js";
@@ -8,6 +9,7 @@ export * from "./river.js";
 export * from "./fog.js";
 export * from "./territory.js";
 export * from "./techtree.js";
+export * from "./refusal.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
@@ -64,6 +66,8 @@ export interface MainScreenView {
   blink: boolean;
   /** Status message under the unit box (e.g. a refused move); wrapped to the panel. */
   message?: string | undefined;
+  /** A note on the map beside a square: why the unit there could not move. */
+  callout?: Callout | undefined;
   /** Tile the player clicked to inspect; shown instead of the message. */
   inspect?: { x: number; y: number } | undefined;
   /** The turn ends by itself once no unit needs orders. */

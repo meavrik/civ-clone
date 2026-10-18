@@ -8,7 +8,6 @@ import {
   maxHp,
   moveAllowance,
   NEIGHBOURS,
-  researchCost,
   Terrain,
   TERRAIN_NAMES,
   TERRAIN_RULES,
@@ -28,8 +27,9 @@ import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
-import { drawStone } from "../widgets.js";
+import { BAD, DIM, drawStone, drawSwatch, INK, NOTE } from "../widgets.js";
 import { drawCity } from "./map-city.js";
+import { techLabel } from "./techtree.js";
 
 /**
  * Main map screen layout, as in the original: a menu bar across the top, a
@@ -80,8 +80,8 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, isDeepWater, knownSquare, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
-import { drawIcon, drawIconLine, drawIconsWrapped, iconLineWidth } from "../icons.js";
+import { borderSides, isDeepWater, researchOutlook, techLayout, type Callout, knownSquare, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
+import { drawIcon, drawIconLine, drawIconsWrapped, ICON, iconLineWidth } from "../icons.js";
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
 export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LMAGENTA!, C.LGREY!, C.ORANGE!, C.LRED!];
@@ -255,19 +255,44 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     if (pos) s.frame(pos[0], pos[1], TILE, TILE, C.YELLOW!);
   }
 
+  if (view.callout) drawCallout(s, state, view, view.callout);
+
   // Letterbox the bottom half-row like the original's hard panel edge.
   void VIEW_H;
+}
+
+const CALLOUT_W = 150;
+
+/** A note beside a square of the map: a stone box above it (below it near the top), its point at the square. */
+function drawCallout(s: Surface, state: GameState, view: MainScreenView, c: Callout): void {
+  const pos = tileToScreen(state, view, c.x, c.y);
+  if (!pos) return;
+  const lines = wrapText(c.text, CALLOUT_W - 8).slice(0, 4);
+  const w = Math.max(...lines.map(textWidth)) + 9;
+  const h = lines.length * FONT_HEIGHT + 5;
+  const cx = pos[0] + (TILE >> 1);
+  const x = Math.max(VIEW_X + 1, Math.min(SCREEN_W - 1 - w, cx - (w >> 1)));
+  const above = pos[1] - 5 - h >= VIEW_Y + 1;
+  const y = above ? pos[1] - 5 - h : pos[1] + TILE + 5;
+  s.frame(x, y, w, h, C.BLACK!);
+  drawStone(s, x + 1, y + 1, w - 2, h - 2);
+  lines.forEach((l, i) => drawText(s, x + 5, y + 3 + i * FONT_HEIGHT, l, INK));
+  // The point: a black-rimmed wedge from the box's edge toward the square.
+  const px = Math.max(x + 5, Math.min(x + w - 6, cx));
+  for (let i = 0; i < 4; i++) {
+    const row = above ? y + h - 1 + i : y - i;
+    s.hline(px - (3 - i), row, 2 * (3 - i) + 1, C.BLACK!);
+    if (i < 3) s.hline(px - (2 - i), row, 2 * (2 - i) + 1, shade("panel", 5));
+  }
 }
 
 const TEXT_X = 3;
 const TEXT_W = PANEL_W - 6;
 const PANEL_BOTTOM = SCREEN_H - 2;
 
-/** Text on the status column's light stone: black, a dark grey for what matters less, blue news, red wars. */
-const INK = C.BLACK!;
-const DIM = shade("panel", 1);
-const NEWS = C.BLUE!;
-const WAR = C.RED!;
+/** News in blue, wars in red. */
+const NEWS = NOTE;
+const WAR = BAD;
 
 /** A groove across the status column between its boxes: a dark line over a light one. */
 function groove(s: Surface, y: number): void {
@@ -275,11 +300,7 @@ function groove(s: Surface, y: number): void {
   s.hline(1, y + 1, PANEL_W - 2, shade("panel", 7));
 }
 
-/** A civilization's colour as a small framed flag, ahead of a name drawn in black. */
-function ownerFlag(s: Surface, x: number, y: number, color: number): void {
-  s.rect(x, y + 1, 6, 6, C.BLACK!);
-  s.rect(x + 1, y + 2, 4, 4, color);
-}
+const ownerFlag = drawSwatch;
 
 function linesLeft(y: number): number {
   return Math.max(0, Math.floor((PANEL_BOTTOM - y) / FONT_HEIGHT));
@@ -337,6 +358,30 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
   return y;
 }
 
+/**
+ * Research: the advance under study by a bulb with the turns still to go, and under them a
+ * thin bar of the beakers gathered toward it (or a nudge to pick one). Returns the y after it.
+ */
+function drawResearch(s: Surface, state: GameState, y: number): number {
+  const r = researchOutlook(state);
+  if (!r.id) {
+    if (!r.open) return y + 1;
+    drawIcon(s, "bulb", TEXT_X, y);
+    drawTextWrapped(s, TEXT_X + ICON + 1, y, TEXT_W - ICON - 1, "None picked", NEWS, 1);
+    return y + 10;
+  }
+  const node = techLayout().byId.get(r.id);
+  const turns = `{hourglass}${r.turns === null ? "-" : r.turns}`;
+  const tw = iconLineWidth(turns);
+  drawIcon(s, "bulb", TEXT_X, y);
+  drawTextWrapped(s, TEXT_X + ICON + 1, y, TEXT_W - ICON - tw - 3, node ? techLabel(node) : r.name, INK, 1);
+  drawIconLine(s, TEXT_X + TEXT_W - tw, y, turns, DIM);
+  s.rect(TEXT_X, y + 9, TEXT_W, 4, C.BLACK!);
+  const fill = Math.round(((TEXT_W - 2) * Math.min(r.have, r.cost)) / r.cost);
+  if (fill > 0) s.rect(TEXT_X + 1, y + 10, fill, 2, C.LCYAN!);
+  return y + 15;
+}
+
 /** Moves left as pips: bright for each whole move, half-lit for thirds, dark for spent. Returns the x after them. */
 function drawMovePips(s: Surface, x: number, y: number, left: number, allowance: number): number {
   const total = Math.ceil(allowance / 3);
@@ -386,25 +431,18 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   const ink = INK;
   const dim = DIM;
   const pop = state.cities.filter((c) => c.owner === state.currentPlayer).reduce((n, c) => n + c.size * (c.size + 1) * 5000, 0);
-  let x = drawIconLine(s, TEXT_X, y, `{people}${pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : pop >= 1000 ? `${Math.floor(pop / 1000)},000` : String(pop)}`, ink) + 3;
-  // Research: a bulb and a bar filling toward the next advance, at the end of the population row.
-  if (me.researching && x + 17 <= PANEL_W - 3) {
-    drawIcon(s, "bulb", x, y);
-    const bw = PANEL_W - 4 - (x + 9);
-    const cost = researchCost(me.advances.length, me.difficulty);
-    s.rect(x + 9, y + 2, bw, 4, C.BLACK!);
-    s.rect(x + 9, y + 2, Math.round((bw * Math.min(me.science, cost)) / cost), 4, C.LBLUE!);
-  }
+  drawIconLine(s, TEXT_X, y, `{people}${pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : pop >= 1000 ? `${Math.floor(pop / 1000)},000` : String(pop)}`, ink);
   y += 9;
   drawIconLine(s, TEXT_X, y, `{calendar} ${formatYear(turnToYear(state.turn))}`, ink);
   y += 9;
-  x = drawIconLine(s, TEXT_X, y, `{purse}${me.gold}`, ink) + 2;
+  let x = drawIconLine(s, TEXT_X, y, `{purse}${me.gold}`, ink) + 2;
   const rates = `{coin}${me.taxRate}{gem}${me.luxRate}{bulb}${me.sciRate}`;
   if (x + iconLineWidth(rates) > PANEL_W - 2) { y += 9; x = TEXT_X; }
   drawIconLine(s, x, y, rates, dim);
   y += 9;
   drawIconLine(s, TEXT_X, y, `{crown}${GOVERNMENTS[me.government]?.name ?? me.government}`, dim);
-  y += 10;
+  y += 9;
+  y = drawResearch(s, state, y);
   groove(s, y);
   y += 4;
 

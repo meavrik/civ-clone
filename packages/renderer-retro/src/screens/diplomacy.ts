@@ -2,7 +2,7 @@ import { civ, GOVERNMENTS, relation, type GameState } from "@civ/core";
 import { drawText, drawTextCentered } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawPanel } from "../widgets.js";
+import { drawWindow, INK } from "../widgets.js";
 import { PLAYER_COLORS } from "./main.js";
 
 /**
@@ -13,7 +13,7 @@ export function drawDiplomacyScreen(s: Surface, state: GameState, player: number
   const p = state.players[player]!;
   const c = civ(p.civ);
   const color = PLAYER_COLORS[p.color % PLAYER_COLORS.length]!;
-  s.fill(shade("ui", 0));
+  s.fill(shade("earth", 0));
   // Throne-room backdrop.
   for (let y = 0; y < 120; y++) for (let x = 0; x < SCREEN_W; x += 2) s.set(x + (y & 1), y, shade("earth", 1));
   s.rect(0, 120, SCREEN_W, 2, shade("earth", 4));
@@ -29,8 +29,8 @@ export function drawDiplomacyScreen(s: Surface, state: GameState, player: number
   s.rect(cx - 6, 76, 12, 6, shade("flesh", 4)); // neck
   drawTextCentered(s, cx, 126, `${c.leader} of the ${c.name} (${GOVERNMENTS[p.government]?.name ?? ""})`, C.WHITE!, C.BLACK!);
   const r = relation(state, state.currentPlayer, player);
-  drawTextCentered(s, cx, 136, r === "war" ? "We are at WAR" : "We are at peace", r === "war" ? C.LRED! : shade("ui", 6));
-  drawPanel(s, 16, 146, SCREEN_W - 32, 40, true);
-  drawText(s, 22, 150, `"${line}"`, shade("ui", 7));
+  drawTextCentered(s, cx, 136, r === "war" ? "We are at WAR" : "We are at peace", r === "war" ? C.LRED! : C.LGREEN!, C.BLACK!);
+  drawWindow(s, 16, 146, SCREEN_W - 32, 40, "");
+  drawText(s, 22, 150, `"${line}"`, INK);
   void SCREEN_H;
 }

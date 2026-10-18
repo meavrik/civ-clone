@@ -66,6 +66,10 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   panel lines; groups separated by two spaces wrap apart). The main screen has a menu bar (`MENU_BAR`: Game, Orders, Advisors,
   World, Debug) above map and panel; a `MenuState` with an `anchor` and an empty title is a bar dropdown.
   Debug's entries (reveal map, gold, research, production, moves, contact) are the core `cheat` command, logged and replayed like any order.
+  A refused move (`tryMove` in the web app) nudges the unit toward the square (`MotionPlayer.nudge`,
+  a UI-only beat) and puts a note beside it (`view.callout`, words from `moveRefusal` in `refusal.ts`),
+  gone after 4 s or at the next key or click. Both status panels show the research under way
+  (`researchOutlook`: advance, beakers, turns to go).
   Unit animation: core appends every step (`applyMove`) and fight (`resolveCombat`, round by round) to
   `lastActions` (a UI side channel like `lastTurnEvents`, emptied by `endTurn`, never read by replays or
   AI); `MotionPlayer` (`renderer-api/src/motion.ts`) times them into `view.moving` (slides) and
@@ -101,10 +105,12 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   and parser in `src/sprites/sheet.ts`, compiled surfaces in `src/sprites/index.ts`; 8x8 panel icons
   in `icons.art.ts`, drawn with `src/icons.ts`, outlined in black so they read on every background); roads,
   rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.
-  Chrome, as the original: light speckled stone (`panel` ramp, `drawStone`) for the status column,
-  menu bar, dialogs and dropdowns (black ink, blue title strip and selection); bright blue boxes
-  (`azure` ramp, `drawBlueBox`) on black for the city screen, goods as rows of icons (`iconRow`,
-  `storeGrid`). `stipple` speckles both by screen position. Advisor pages still use the brown `ui` ramp.
+  Chrome, as the original's main screen: every panel, window, page and button is the same light
+  speckled stone (`panel` ramp, `drawStone`/`drawPanel`, `drawWindow`, `drawPage`; `stipple` by screen
+  position) with a blue title strip and selection (`azure` ramp), on black. Text on it uses the inks in
+  `widgets.ts` (`INK`, `DIM`, `FADED`, `GOOD`, `BAD`, `NOTE`, `GOLD`): the bright EGA colours are lost
+  on light grey. The city screen's goods are rows of icons (`iconRow`, `storeGrid`). The old brown `ui`
+  ramp stays in the palette only to keep later indices in place.
 - `tools/sprites` — `npm run sprites -- export [dir]` writes the sheets as PNGs (8 sprites wide,
   1:1, magenta = owner colour); `npm run sprites -- import <sheet>.png` writes an edited sheet
   back into `src/art`, rejecting any pixel outside the sprite's palette legend.

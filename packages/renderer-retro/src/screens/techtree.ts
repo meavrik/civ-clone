@@ -15,11 +15,11 @@ import { drawText, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawIcon, ICON } from "../icons.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawPanel } from "../widgets.js";
+import { DIM, drawButton, drawPanel, drawTitleStrip, GOLD, GOOD, INK, NOTE } from "../widgets.js";
 
 /**
  * The tech tree window: the graph of advances a few tiers at a time (known
- * ones green, those within reach parchment, the one just found yellow), and
+ * ones green, those within reach white, the one just found yellow), and
  * under it what the selected advance gives, with the button to research it.
  */
 
@@ -70,8 +70,8 @@ function nodeY(node: TechNode): number {
 const LOOK: Record<TechStatus, { fill: number; ink: number; edge: number }> = {
   known: { fill: shade("grass", 2), ink: C.WHITE!, edge: shade("grass", 4) },
   researching: { fill: C.CYAN!, ink: C.WHITE!, edge: C.LCYAN! },
-  available: { fill: shade("ui", 6), ink: C.BLACK!, edge: shade("ui", 7) },
-  locked: { fill: shade("ui", 1), ink: shade("ui", 4), edge: shade("ui", 3) },
+  available: { fill: shade("panel", 7), ink: C.BLACK!, edge: C.BLACK! },
+  locked: { fill: shade("panel", 4), ink: shade("panel", 2), edge: shade("panel", 2) },
 };
 
 /** A pixel inside the graph window only. */
@@ -161,7 +161,7 @@ function arrow(s: Surface, x: number, dir: -1 | 1): void {
   const cy = y + (h >> 1);
   for (let i = 0; i < 4; i++) {
     const ax = dir < 0 ? x + 2 + i : x + ARROW_W - 3 - i;
-    s.vline(ax, cy - i, 2 * i + 1, shade("ui", 7));
+    s.vline(ax, cy - i, 2 * i + 1, C.BLACK!);
   }
 }
 
@@ -176,7 +176,7 @@ function moreRight(view: TechTreeView): boolean {
 function drawStrip(s: Surface, state: GameState, view: TechTreeView): void {
   const { tiers, nodes } = techLayout();
   const per = STRIP.w / tiers;
-  s.rect(STRIP.x, STRIP.y, STRIP.w, STRIP.h, shade("ui", 0));
+  s.rect(STRIP.x, STRIP.y, STRIP.w, STRIP.h, shade("panel", 1));
   // Marks for the tiers holding a choice (cyan) or the advance just found (yellow).
   for (const n of nodes) {
     const st = techStatus(state, n.id);
@@ -185,7 +185,7 @@ function drawStrip(s: Surface, state: GameState, view: TechTreeView): void {
   }
   const tx = Math.round(STRIP.x + view.scroll * per);
   const tw = Math.round(TECH_COLUMNS * per);
-  s.frame(tx, STRIP.y - 1, tw, STRIP.h + 2, shade("ui", 6));
+  s.frame(tx, STRIP.y - 1, tw, STRIP.h + 2, C.WHITE!);
 }
 
 interface Button { x: number; y: number; w: number; label: string; hit: TechTreeHit }
@@ -206,21 +206,21 @@ function buttons(state: GameState, view: TechTreeView): Button[] {
 
 export function drawTechTree(s: Surface, state: GameState, view: TechTreeView): void {
   const { nodes, byId } = techLayout();
-  s.fill(shade("ui", 1));
-  drawPanel(s, 0, 0, SCREEN_W, 12);
-  drawText(s, 5, 2, techTreeTitle(view), view.discovered.length ? C.YELLOW! : shade("ui", 7), C.BLACK!);
+  s.fill(C.BLACK!);
   const known = state.players[state.currentPlayer]!.advances.length;
-  const count = `${known}/${nodes.length}`;
-  drawText(s, SCREEN_W - 5 - textWidth(count), 2, count, shade("ui", 5));
+  drawTitleStrip(s, 0, 0, SCREEN_W, "", { right: `${known}/${nodes.length}` });
+  drawText(s, 4, 2, techTreeTitle(view), view.discovered.length ? C.YELLOW! : C.WHITE!);
 
+  // The graph lies on a flat, darker grey sunk into the stone, so the speckle never breaks an edge.
+  drawPanel(s, 0, GRAPH.y - 1, SCREEN_W, GRAPH.h + 2);
   drawPanel(s, GRAPH.x, GRAPH.y, GRAPH.w, GRAPH.h, true);
-  s.rect(GRAPH.x + 1, GRAPH.y + 1, GRAPH.w - 2, GRAPH.h - 2, shade("ui", 0));
+  s.rect(GRAPH.x + 1, GRAPH.y + 1, GRAPH.w - 2, GRAPH.h - 2, shade("panel", 3));
   const sel = byId.get(view.selected)!;
   for (const n of nodes) for (const r of n.requires) {
     if (n.id === view.selected || r === view.selected) continue;
-    edge(s, byId.get(r)!, n, view.scroll, shade("ui", 2));
+    edge(s, byId.get(r)!, n, view.scroll, shade("panel", 1));
   }
-  for (const r of sel.requires) edge(s, byId.get(r)!, sel, view.scroll, shade("ui", 7), true);
+  for (const r of sel.requires) edge(s, byId.get(r)!, sel, view.scroll, C.WHITE!, true);
   for (const n of sel.leadsTo) edge(s, sel, byId.get(n)!, view.scroll, C.LCYAN!, true);
   for (const n of nodes) drawNode(s, state, view, n);
   if (moreLeft(view)) arrow(s, GRAPH.x + 1, -1);
@@ -231,31 +231,31 @@ export function drawTechTree(s: Surface, state: GameState, view: TechTreeView): 
   const d = techDetails(state, view.selected);
   drawPanel(s, 0, DETAILS_Y, SCREEN_W, SCREEN_H - DETAILS_Y);
   const fresh = view.discovered.includes(view.selected);
-  drawText(s, 6, DETAILS_Y + 3, d.name, fresh ? C.YELLOW! : C.WHITE!, C.BLACK!);
+  drawText(s, 6, DETAILS_Y + 3, d.name, fresh ? GOLD : INK);
   const standing = fresh ? "Just discovered!" : d.standing;
-  const standingInk = fresh ? C.YELLOW! : d.status === "available" ? C.LCYAN! : d.status === "known" ? shade("grass", 6) : shade("ui", 5);
+  const standingInk = fresh ? GOLD : d.status === "available" ? NOTE : d.status === "known" ? GOOD : DIM;
   const lines = drawTextWrapped(s, 6, DETAILS_Y + 12, SCREEN_W - 12, standing, standingInk, 2);
   const rule = DETAILS_Y + 13 + lines * FONT_HEIGHT;
-  s.hline(4, rule, SCREEN_W - 8, shade("ui", 0));
+  s.hline(4, rule, SCREEN_W - 8, shade("panel", 2));
+  s.hline(4, rule + 1, SCREEN_W - 8, shade("panel", 7));
   let y = rule + 3;
   const labelW = Math.max(0, ...d.rows.map((r) => textWidth(r.label))) + 6;
   for (const row of d.rows) {
     if (y > BUTTON_Y - FONT_HEIGHT) break;
     drawIcon(s, row.icon, 6, y);
-    drawText(s, 8 + ICON, y, row.label, shade("ui", 5));
+    drawText(s, 8 + ICON, y, row.label, DIM);
     const room = Math.max(1, Math.floor((BUTTON_Y - 1 - y) / FONT_HEIGHT));
-    y += drawTextWrapped(s, 8 + ICON + labelW, y, SCREEN_W - 16 - ICON - labelW, row.items.join(", "), shade("ui", 7), Math.min(2, room)) * FONT_HEIGHT + 1;
+    y += drawTextWrapped(s, 8 + ICON + labelW, y, SCREEN_W - 16 - ICON - labelW, row.items.join(", "), INK, Math.min(2, room)) * FONT_HEIGHT + 1;
   }
-  if (!d.rows.length) drawText(s, 6, y, "The last advance of the tree.", shade("ui", 5));
+  if (!d.rows.length) drawText(s, 6, y, "The last advance of the tree.", DIM);
 
   const bs = buttons(state, view);
   for (const b of bs) {
-    drawPanel(s, b.x, b.y, b.w, 11);
-    drawText(s, b.x + 5, b.y + 2, b.label, b.hit.kind === "research" ? C.YELLOW! : shade("ui", 7), C.BLACK!);
+    drawButton(s, b.x, b.y, b.w, 11, b.label, true, b.hit.kind === "research");
   }
   const hint = view.choosing && !canResearch(state, view) ? (view.closable ? "Tab: choices  Esc: close" : "Pick an advance within reach (Tab)")
     : view.choosing ? "Enter: research  Tab: next" : "Arrows: look around";
-  drawText(s, 6, BUTTON_Y + 2, hint, shade("ui", 4));
+  drawText(s, 6, BUTTON_Y + 2, hint, DIM);
 }
 
 /** What lies under a point of the tech tree window. */

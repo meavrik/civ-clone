@@ -2,16 +2,15 @@ import { advance, GOVERNMENTS, researchCost, type GameState } from "@civ/core";
 import { drawText, drawTextCentered } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawBox, drawPanel } from "../widgets.js";
+import { DIM, drawBox, drawWindow, INK } from "../widgets.js";
 
 /** Science advisor: research progress and what we know; A opens the tech tree to pick the next research. */
 export function drawScienceScreen(s: Surface, state: GameState): void {
   const p = state.players[state.currentPlayer]!;
-  s.fill(shade("ui", 1));
-  drawPanel(s, 10, 10, SCREEN_W - 20, SCREEN_H - 20);
-  drawTextCentered(s, SCREEN_W / 2, 16, "Science Advisor", shade("ui", 7));
-  const ink = shade("ui", 7);
-  const dim = shade("ui", 5);
+  s.fill(C.BLACK!);
+  drawWindow(s, 10, 10, SCREEN_W - 20, SCREEN_H - 20, "Science Advisor", { centred: true });
+  const ink = INK;
+  const dim = DIM;
   const cost = researchCost(p.advances.length, p.difficulty);
   drawText(s, 20, 34, `Researching: ${p.researching ? advance(p.researching).name : "(nothing)"}`, ink);
   drawBox(s, 20, 44, 200, 8, p.science, cost, C.LCYAN!);
@@ -34,9 +33,8 @@ export function drawScienceScreen(s: Surface, state: GameState): void {
 export function drawRatesScreen(s: Surface, state: GameState): void {
   const p = state.players[state.currentPlayer]!;
   const gov = GOVERNMENTS[p.government]!;
-  s.fill(shade("ui", 1));
-  drawPanel(s, 40, 40, SCREEN_W - 80, 110);
-  drawTextCentered(s, SCREEN_W / 2, 46, `Rates (${gov.name}, max ${gov.maxRate * 10}%)`, shade("ui", 7));
+  s.fill(C.BLACK!);
+  drawWindow(s, 40, 40, SCREEN_W - 80, 110, `Rates (${gov.name}, max ${gov.maxRate * 10}%)`, { centred: true });
   const rows: [string, number, number][] = [
     ["Tax", p.taxRate, C.YELLOW!],
     ["Luxury", p.luxRate, C.LMAGENTA!],
@@ -44,11 +42,11 @@ export function drawRatesScreen(s: Surface, state: GameState): void {
   ];
   let y = 64;
   for (const [label, val, color] of rows) {
-    drawText(s, 52, y, label, shade("ui", 5));
+    drawText(s, 52, y, label, DIM);
     drawBox(s, 110, y, 120, 8, val, 10, color);
-    drawText(s, 236, y, `${val * 10}%`, shade("ui", 7));
+    drawText(s, 236, y, `${val * 10}%`, INK);
     y += 18;
   }
-  drawTextCentered(s, SCREEN_W / 2, 124, "Left/Right: tax   Up/Down: luxury", shade("ui", 5));
-  drawTextCentered(s, SCREEN_W / 2, 134, "Science takes the rest.  Esc: done", shade("ui", 5));
+  drawTextCentered(s, SCREEN_W / 2, 124, "Left/Right: tax   Up/Down: luxury", DIM);
+  drawTextCentered(s, SCREEN_W / 2, 134, "Science takes the rest.  Esc: done", DIM);
 }

@@ -117,6 +117,30 @@ export function sciencePerTurn(state: GameState): number {
   return sum;
 }
 
+/** The current player's research as the status panels show it. */
+export interface ResearchOutlook {
+  /** The advance under study, or null while none is picked. */
+  id: string | null;
+  name: string;
+  /** Beakers gathered toward it and what it costs. */
+  have: number;
+  cost: number;
+  /** Turns until it is found at this rate, or null while no science comes in. */
+  turns: number | null;
+  /** Something is left to research: none picked yet means a choice is due. */
+  open: boolean;
+}
+
+export function researchOutlook(state: GameState): ResearchOutlook {
+  const p = state.players[state.currentPlayer]!;
+  const cost = researchCost(p.advances.length, p.difficulty);
+  const perTurn = sciencePerTurn(state);
+  const turns = perTurn > 0 ? Math.max(1, Math.ceil((cost - p.science) / perTurn)) : null;
+  const id = p.researching;
+  const open = id !== null || ADVANCES.some((a) => techStatus(state, a.id) === "available");
+  return { id, name: id ? techLayout().byId.get(id)?.name ?? id : "", have: p.science, cost, turns, open };
+}
+
 /** Unknown advances that must come first, the advance itself last, in tree order. */
 export function techPath(state: GameState, id: string): string[] {
   const known = new Set(state.players[state.currentPlayer]!.advances);

@@ -156,6 +156,18 @@ describe("modern renderer", () => {
     expect(ctx.maxY).toBeLessThanOrEqual(MODERN_H + 2 * MODERN_TILE);
   });
 
+  it("shows the research under way in the panel and a note beside a refused unit", () => {
+    const ctx = new FakeContext();
+    const r = createModernRenderer(ctx, () => 2);
+    const { state, u, view } = world();
+    state.players[0]!.researching = "pottery";
+    r.beginFrame();
+    r.main(state, { ...view, callout: { x: u.x, y: u.y, text: "No moves left for Settlers this turn." } });
+    r.present();
+    expect(ctx.texts.some((t) => t.includes("Pottery"))).toBe(true);
+    expect(ctx.texts.join(" ")).toContain("No moves left for Settlers this turn.");
+  });
+
   it("maps points back to tiles, the minimap, menu rows and city slots", () => {
     const ctx = new FakeContext();
     const r = createModernRenderer(ctx);

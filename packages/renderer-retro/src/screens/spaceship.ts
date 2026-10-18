@@ -2,7 +2,7 @@ import { formatYear, shipStats, SPACE_PARTS, partCount, turnToYear, type GameSta
 import { drawText, drawTextCentered } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawBox, drawPanel } from "../widgets.js";
+import { BAD, DIM, drawBox, drawPage, drawSwatch, GOLD, GOOD, INK } from "../widgets.js";
 import { PLAYER_COLORS } from "./main.js";
 
 /**
@@ -11,15 +11,12 @@ import { PLAYER_COLORS } from "./main.js";
  * race against the other civilizations.
  */
 export function drawSpaceshipScreen(s: Surface, state: GameState): void {
-  s.fill(shade("ui", 1));
-  drawPanel(s, 4, 4, SCREEN_W - 8, SCREEN_H - 8);
-  const ink = shade("ui", 7);
-  const dim = shade("ui", 5);
-  drawTextCentered(s, SCREEN_W / 2, 8, "Spaceship", ink);
-  s.hline(12, 18, SCREEN_W - 24, shade("ui", 0));
   const me = state.players[state.currentPlayer]!;
+  const st = shipStats(me.spaceship);
+  drawPage(s, "Spaceship", st.launchable && me.spaceship.launched === null ? "Enter: launch   Esc: back" : "Esc: back");
+  const ink = INK;
+  const dim = DIM;
   const ship = me.spaceship;
-  const st = shipStats(ship);
 
   let y = 26;
   for (const part of SPACE_PARTS) {
@@ -33,12 +30,12 @@ export function drawSpaceshipScreen(s: Surface, state: GameState): void {
   const row = (l: string, v: string, color = ink) => { drawText(s, 12, y, l, dim); drawText(s, 120, y, v, color); y += 9; };
   row("Habitats", `${st.habitats} (${st.modules} modules carried)`);
   row("Engines", `${st.components} components carried`);
-  row("Success", `${st.successPct}%`, st.successPct >= 60 ? C.LGREEN! : st.successPct > 0 ? C.YELLOW! : C.LRED!);
+  row("Success", `${st.successPct}%`, st.successPct >= 60 ? GOOD : st.successPct > 0 ? GOLD : BAD);
   row("Flight", `${st.flightTurns} turns`);
   y += 4;
-  if (ship.arrived) drawText(s, 12, y, "Our colonists have landed!", C.LGREEN!);
-  else if (ship.launched !== null) drawText(s, 12, y, `Launched ${formatYear(turnToYear(ship.launched))}, arrives ${formatYear(turnToYear(ship.arrives ?? ship.launched))}`, C.YELLOW!);
-  else if (st.launchable) drawText(s, 12, y, "Ready for launch: press Enter", C.LGREEN!);
+  if (ship.arrived) drawText(s, 12, y, "Our colonists have landed!", GOOD);
+  else if (ship.launched !== null) drawText(s, 12, y, `Launched ${formatYear(turnToYear(ship.launched))}, arrives ${formatYear(turnToYear(ship.arrives ?? ship.launched))}`, GOLD);
+  else if (st.launchable) drawText(s, 12, y, "Ready for launch: press Enter", GOOD);
   else drawText(s, 12, y, "Needs one habitat (3 modules), a component and structurals to carry them", dim);
   y += 14;
 
@@ -56,10 +53,9 @@ export function drawSpaceshipScreen(s: Surface, state: GameState): void {
     if (p.id === me.id || p.id === state.barbarians || !p.alive) continue;
     const o = p.spaceship;
     const line = o.arrived ? "have landed" : o.launched !== null ? `launched ${formatYear(turnToYear(o.launched))}` : o.structurals + o.components + o.modules > 0 ? "building a ship" : "no ship";
-    s.rect(12, y + 1, 6, 6, PLAYER_COLORS[p.color % PLAYER_COLORS.length]!);
+    drawSwatch(s, 12, y, PLAYER_COLORS[p.color % PLAYER_COLORS.length]!);
     drawText(s, 22, y, `${p.name}: ${line}`, ink);
     y += 9;
     if (y > SCREEN_H - 26) break;
   }
-  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 14, st.launchable && ship.launched === null ? "Enter: launch   Esc: back" : "Esc: back", dim);
 }

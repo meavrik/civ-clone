@@ -8,7 +8,6 @@ import {
   maxHp,
   moveAllowance,
   NEIGHBOURS,
-  researchCost,
   Terrain,
   TERRAIN_NAMES,
   TERRAIN_RULES,
@@ -21,13 +20,13 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, fogPatch, isDeepWater, knownSquare, MENU_BAR, riverShape, territory, shownActive, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, fogPatch, isDeepWater, knownSquare, MENU_BAR, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import { paintBorders } from "../borders.js";
 import { drawIconLine, iconParagraph, paintIcon } from "../icons.js";
 import type { Context2D } from "../context.js";
-import { circle, fillRound, measure, panel, paragraph, strokeRound, text } from "../draw.js";
+import { circle, fillRound, measure, panel, paragraph, strokeRound, text, wrap } from "../draw.js";
 import { paintBadge, paintBurst, paintCity, paintCityLabel, paintHitFlash, paintHpBar, paintUnit, playerColor } from "../markers.js";
 import { paintFog, paintFortress, paintHut, paintIrrigation, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
 import { BAR_H, COMBAT, H, ICON, PANEL_W, SEA, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, VIEW_Y, W } from "../theme.js";
@@ -252,12 +251,50 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
       fillRound(ctx, pos[0] + 1.5, pos[1] + 1.5, TILE - 3, TILE - 3, 6, UI.selection);
     }
   }
+  if (view.callout) paintCallout(ctx, state, view, view.callout);
   ctx.restore();
+}
+
+const CALLOUT_W = 300;
+
+/** A note beside a square of the map: a card above it (below it near the top), its point at the square. */
+function paintCallout(ctx: Context2D, state: GameState, view: MainScreenView, c: Callout): void {
+  const pos = tileToScreen(state, view, c.x, c.y);
+  if (!pos) return;
+  const size = 14;
+  const lineH = Math.round(size * 1.3);
+  const lines = wrap(ctx, c.text, CALLOUT_W - 24, size).slice(0, 4);
+  const w = Math.max(...lines.map((l) => measure(ctx, l, size))) + 24;
+  const h = lines.length * lineH + 14;
+  const cx = pos[0] + TILE / 2;
+  const x = Math.max(VIEW_X + 4, Math.min(W - 4 - w, cx - w / 2));
+  const above = pos[1] - 12 - h >= VIEW_Y + 4;
+  const y = above ? pos[1] - 12 - h : pos[1] + TILE + 12;
+  panel(ctx, x, y, w, h, 8, UI.card);
+  const px = Math.max(x + 14, Math.min(x + w - 14, cx));
+  const tip = above ? y + h + 8 : y - 8;
+  const base = above ? y + h - 1 : y + 1;
+  ctx.beginPath();
+  ctx.moveTo(px - 8, base);
+  ctx.lineTo(px, tip);
+  ctx.lineTo(px + 8, base);
+  ctx.closePath();
+  ctx.fillStyle = UI.card;
+  ctx.fill();
+  lines.forEach((l, i) => text(ctx, x + 12, y + 7 + i * lineH, l, { size }));
 }
 
 const TEXT_X = 16;
 const TEXT_W = PANEL_W - 32;
 const LINE = 19;
+
+/** Text cut with "..." to fit a width. */
+function fitText(ctx: Context2D, s: string, width: number, size: number): string {
+  if (measure(ctx, s, size) <= width) return s;
+  let t = s;
+  while (t.length > 1 && measure(ctx, `${t}...`, size) > width) t = t.slice(0, -1);
+  return `${t}...`;
+}
 
 /** A square's yields and what stands on it, as one icon line: food, shields, trade, then features. */
 function tileIconLine(state: GameState, x: number, y: number, extra = ""): string {
@@ -369,15 +406,22 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   drawIconLine(ctx, half - 26, y, `{coin}${me.taxRate * 10}  {gem}${me.luxRate * 10}  {bulb}${me.sciRate * 10}`, { size: 12, color: UI.dim });
   y += LINE + 4;
   drawIconLine(ctx, TEXT_X, y, `{crown} ${GOVERNMENTS[me.government]?.name ?? me.government}`, { size: 13, color: UI.accent });
-  if (me.researching) {
-    const cost = researchCost(me.advances.length, me.difficulty);
-    paintIcon(ctx, "bulb", half, y, 16);
-    const bx = half + 22;
-    const bw = PANEL_W - 16 - bx;
-    fillRound(ctx, bx, y + 5, bw, 7, 3.5, UI.panelEdge);
-    fillRound(ctx, bx, y + 5, Math.max(7, (bw * Math.min(me.science, cost)) / cost), 7, 3.5, UI.info);
+  y += LINE + 4;
+  // Research: the advance under study with the turns to go, and a bar of the beakers toward it.
+  const research = researchOutlook(state);
+  if (research.id) {
+    const turns = research.turns === null ? "no science" : `${research.turns} turn${research.turns === 1 ? "" : "s"}`;
+    const tw = measure(ctx, turns, 12);
+    drawIconLine(ctx, TEXT_X, y, `{bulb} ${fitText(ctx, research.name, PANEL_W - 16 - TEXT_X - tw - 30, 14)}`, { size: 14 });
+    text(ctx, PANEL_W - 16 - tw, y + 2, turns, { size: 12, color: UI.dim });
+    const bw = PANEL_W - 16 - TEXT_X;
+    fillRound(ctx, TEXT_X, y + LINE + 1, bw, 6, 3, UI.panelEdge);
+    if (research.have > 0) fillRound(ctx, TEXT_X, y + LINE + 1, Math.max(6, (bw * Math.min(research.have, research.cost)) / research.cost), 6, 3, UI.info);
+    y += LINE + 10;
+  } else if (research.open) {
+    drawIconLine(ctx, TEXT_X, y, "{bulb} Pick research", { size: 14, color: UI.info });
+    y += LINE;
   }
-  y += LINE + 2;
   ctx.fillStyle = UI.panelEdge;
   ctx.fillRect(12, y, PANEL_W - 24, 1);
   y += 10;

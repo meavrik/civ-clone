@@ -61,6 +61,7 @@ import {
   leaderLine,
   FogLifter,
   MotionPlayer,
+  moveRefusal,
   nextAvailable,
   openTechTree,
   setupChoose,
@@ -128,6 +129,20 @@ let lastBlink = 0;
 function say(text: string, ms = 2500): void {
   status = text;
   statusUntil = performance.now() + ms;
+}
+
+/** When the note beside a refused unit goes (any key or click takes it sooner). */
+let calloutUntil = 0;
+const CALLOUT_MS = 4000;
+
+/** A move the rules refused: the unit leans toward the square and springs back, and a note beside it says why. */
+function refuseMove(unit: number, dx: number, dy: number, reason: string): void {
+  const u = unitById(state, unit);
+  if (!u) { say(REASONS[reason] ?? reason); return; }
+  const now = performance.now();
+  motion.nudge({ id: u.id, type: u.type, owner: u.owner, x: u.x, y: u.y }, dx, dy, now);
+  view.callout = { x: u.x, y: u.y, text: moveRefusal(state, unit, dx, dy, reason) };
+  calloutUntil = now + CALLOUT_MS;
 }
 
 const REASONS: Record<string, string> = {
@@ -1120,7 +1135,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
     const city = cityAt(state, u.x + dx, u.y + dy);
     if (city) openDiplomatMenu(unit, city.id);
     return;
-  } else say(REASONS[r.reason] ?? r.reason);
+  } else refuseMove(unit, dx, dy, r.reason);
   blinkOn = true;
   lastBlink = performance.now();
   afterUnitOrder(before, mark);
@@ -1275,6 +1290,7 @@ addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   lastInput = performance.now();
   view.inspect = undefined;
+  view.callout = undefined;
   const sc = screenState;
   switch (sc.kind) {
     case "title": openTitleMenu(); break;
@@ -1340,6 +1356,7 @@ canvas.addEventListener("wheel", (e) => {
 canvas.addEventListener("mousedown", (e) => {
   const [px, py] = toLogical(e);
   lastInput = performance.now();
+  view.callout = undefined;
   const sc = screenState;
   switch (sc.kind) {
     case "title": openTitleMenu(); return;
@@ -1476,6 +1493,7 @@ function frame(t: number): void {
   if (screenState.kind === "techTree") stepTree(screenState, t);
   if (screenState.kind !== "title" && screenState.kind !== "setup") stepCamera(t);
   if (status && t > statusUntil) status = undefined;
+  if (view.callout && t > calloutUntil) view.callout = undefined;
   const shown = motion.at(t);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;

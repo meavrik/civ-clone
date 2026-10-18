@@ -61,6 +61,25 @@ export const DEATH_MS = 450;
 const ROUND_MS = { min: 30, max: 110 };
 /** How far toward the defender the attacker closes, in squares. */
 const LUNGE = 0.3;
+/** A refused move: the unit leans this far toward the square, springs back, and bumps once more, smaller. */
+export const NUDGE_MS = 420;
+const NUDGE = 0.3;
+
+/** Where a nudged unit stands, as a fraction of the way toward the square it was refused, at time t (0..1). */
+export function nudgeReach(t: number): number {
+  if (t <= 0 || t >= 1) return 0;
+  if (t < 0.55) return NUDGE * Math.sin((Math.PI * t) / 0.55);
+  return NUDGE * 0.3 * Math.sin((Math.PI * (t - 0.55)) / 0.45);
+}
+
+/** The unit a nudge moves: where it stands and what to draw. */
+export interface NudgedUnit {
+  id: number;
+  type: string;
+  owner: number;
+  x: number;
+  y: number;
+}
 
 interface Slide {
   step: UnitStep;
@@ -70,6 +89,7 @@ interface Slide {
 
 type Beat =
   | { kind: "slide"; slides: Slide[]; start: number; end: number }
+  | { kind: "nudge"; unit: NudgedUnit; dx: number; dy: number; start: number; end: number }
   | { kind: "battle"; battle: UnitBattle; dx: number; dy: number; roundMs: number; start: number; end: number };
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
@@ -133,12 +153,29 @@ export class MotionPlayer {
     }
   }
 
+  /**
+   * A move the rules refused: the unit leans toward the square it could not enter and springs
+   * back, after whatever is still playing. A second nudge of the same unit replaces a waiting one.
+   */
+  nudge(unit: NudgedUnit, dx: number, dy: number, now: number): void {
+    this.beats = this.beats.filter((b) => !(b.kind === "nudge" && b.unit.id === unit.id && b.start > now));
+    const start = Math.max(now, this.beats.at(-1)?.end ?? now);
+    this.beats.push({ kind: "nudge", unit, dx, dy, start, end: start + NUDGE_MS });
+  }
+
   /** What to draw at `now`: units away from their squares, and the fight under way, if any. */
   at(now: number): MotionFrame {
     while (this.beats.length && this.beats[0]!.end <= now) this.beats.shift();
     const seen = new Map<number, UnitMotion>();
     let battle: BattleFrame | undefined;
     for (const beat of this.beats) {
+      if (beat.kind === "nudge") {
+        const { unit } = beat;
+        if (seen.has(unit.id)) continue;
+        const reach = now <= beat.start ? 0 : nudgeReach((now - beat.start) / (beat.end - beat.start));
+        seen.set(unit.id, { unit: unit.id, type: unit.type, owner: unit.owner, x: unit.x + beat.dx * reach, y: unit.y + beat.dy * reach });
+        continue;
+      }
       if (beat.kind === "slide") {
         const f = now <= beat.start ? 0 : ease(Math.min(1, (now - beat.start) / (beat.end - beat.start)));
         for (const { step, dx, dy } of beat.slides) {

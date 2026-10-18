@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, revealAround, Terrain, unitType } from "@civ/core";
-import { C, cityButtonAt, citySlotAt, cityUnitSlot, shade, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, Terrain, unitType } from "@civ/core";
+import { C, cityButtonAt, citySlotAt, cityUnitSlot, isStone, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -245,6 +245,43 @@ describe("retro renderer", () => {
   });
 });
 
+describe("refused moves and research", () => {
+  it("puts a note above a unit that was refused, and shows the research under way in the panel", () => {
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    revealAround(state, 0, u.x, u.y, 9);
+    applyCommand(state, { type: "found", unit: u.id });
+    const p = state.players[0]!;
+    p.researching = "pottery";
+    p.science = 6;
+    const guard = createUnit(state, "militia", 0, u.x + 1, u.y + 1);
+    recomputeVisibility(state, 0);
+    state.activeUnit = guard.id;
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true };
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    const before = s.data.slice();
+    // Beakers toward Pottery: a light cyan bar in the status column.
+    let beakers = 0;
+    for (let y = 9; y < 200; y++) for (let x = 0; x < 80; x++) if (s.get(x, y) === C.LCYAN!) beakers++;
+    expect(beakers).toBeGreaterThan(0);
+
+    drawMainScreen(s, state, { ...view, callout: { x: guard.x, y: guard.y, text: "Militia cannot cross the ocean. A ship with room must carry it." } });
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/callout.png", import.meta.url), encodePng(s, 3));
+    // The note covers part of the map above the unit's square, and nothing else.
+    const top = 9 + (guard.y - view.originY) * 16;
+    let changed = 0;
+    for (let i = 0; i < s.data.length; i++) {
+      if (s.data[i] === before[i]) continue;
+      changed++;
+      expect(i % 320).toBeGreaterThanOrEqual(80);
+      expect(Math.floor(i / 320)).toBeLessThan(top);
+    }
+    expect(changed).toBeGreaterThan(500);
+  });
+});
+
 describe("garrisons", () => {
   it("marks a city with units inside with a shield: ours always, others' while we see the square", () => {
     const state = newGame(2026);
@@ -393,11 +430,10 @@ describe("city screen", () => {
     drawCityScreen(s, state, { city: city.id });
     writeFileSync(new URL("./out/city-upkeep.png", import.meta.url), encodePng(s, 3));
     // Under each unit's sprite: a size-1 city under Despotism keeps its first unit free.
-    const box = new Set([3, 4, 5, 6].map((n) => shade("azure", n))); // the box's speckled face
     const under = (i: number) => {
       const { x, y } = cityUnitSlot(i);
       let painted = 0;
-      for (let dy = 0; dy < 8; dy++) for (let dx = 0; dx < 16; dx++) if (!box.has(s.get(x + dx, y + 17 + dy))) painted++;
+      for (let dy = 0; dy < 8; dy++) for (let dx = 0; dx < 16; dx++) if (!isStone(s.get(x + dx, y + 17 + dy))) painted++;
       return painted;
     };
     expect(under(0)).toBe(0);
