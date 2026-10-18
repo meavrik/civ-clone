@@ -66,5 +66,6 @@ export const MIDDLE_EAST: PremadeWorld = {
     persians: [52, 23],
     indians: [76, 27],
     mongols: [75, 10],
+    hebrews: [24, 20],
   },
 };

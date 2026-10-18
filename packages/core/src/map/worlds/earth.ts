@@ -77,5 +77,7 @@ export const EARTH: PremadeWorld = {
     vikings: [40, 6],
     hittites: [46, 17],
     persians: [53, 22],
+    hebrews: [47, 21],
+    japanese: [71, 19],
   },
 };

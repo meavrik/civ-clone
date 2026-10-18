@@ -20,6 +20,7 @@ import {
   processCityTurn,
   productionCost,
   Terrain,
+  traitVeteran,
   UNIT_BY_ID,
   workOptions,
   type GameState,
@@ -168,6 +169,11 @@ describe("civilization traits", () => {
     const walker = createUnit(mongols, "militia", 0, 10, 10);
     expect(withAndWithout(mongols, () => moveAllowance(mongols, rider))).toEqual([9, 6]);
     expect(withAndWithout(mongols, () => moveAllowance(mongols, walker))).toEqual([3, 3]);
+    const hebrews = world("hebrews");
+    const settler = createUnit(hebrews, "settlers", 0, 10, 10);
+    expect(withAndWithout(hebrews, () => moveAllowance(hebrews, settler))).toEqual([6, 3]);
+    const japan = world("japanese");
+    expect(withAndWithout(japan, () => ["knights", "chariot", "phalanx"].map((u) => traitVeteran(japan, 0, u)))).toEqual([[true, true, false], [false, false, false]]);
   });
 
   it("shortens anarchy and makes villages friendly", () => {
@@ -196,5 +202,20 @@ describe("civilization traits", () => {
     const state = newGame(321, opts);
     expect(loadSave({ ...makeSave(state, opts, []), version: 4 as const }, () => {}).state.classicCivs).toBe(true);
     expect(loadSave(makeSave(state, opts, []), () => {}).state.classicCivs).toBeUndefined();
+  });
+
+  it("old saves draw their rivals from the civilizations they knew", () => {
+    const added = CIVS.filter((c) => c.since !== undefined).map((c) => c.id);
+    expect(added).toEqual(["hebrews", "japanese"]);
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 20; seed++) {
+      // Not the Romans: the Hebrews share their white.
+      const opts = { civ: "greeks", opponents: 6 };
+      const state = newGame(seed, opts);
+      for (const p of state.players) seen.add(p.civ);
+      const old = loadSave({ ...makeSave(state, opts, []), version: 10 as const }, () => {}).state;
+      expect(old.players.filter((p) => added.includes(p.civ)), `seed ${seed}`).toEqual([]);
+    }
+    for (const id of added) expect(seen.has(id), id).toBe(true);
   });
 });

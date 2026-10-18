@@ -45,6 +45,8 @@ export interface NewGameOptions extends MapGenOptions {
   farContact?: boolean;
   /** Nobody minds foreign units on their land. Old saves load with it. */
   noTrespass?: boolean;
+  /** Rivals come only from civilizations a save of this version knew (`CivRule.since`). Old saves load with it. */
+  roster?: number;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -119,7 +121,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const map = opts.world ? premadeMap(rng, opts.world) : generateMap(rng, opts);
   const homes = world && opts.historical ? world.starts : undefined;
   const humanCiv = opts.civ ?? "romans";
-  const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians" && (!homes || homes[c.id] !== undefined));
+  const roster = opts.roster;
+  const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians" && (!homes || homes[c.id] !== undefined) && (roster === undefined || (c.since ?? 0) <= roster));
   const opponents = Math.max(0, Math.min(others.length, opts.opponents ?? 2));
   const players: Player[] = [makePlayer(0, humanCiv, opts.allAi === true)];
   for (let i = 0; i < opponents; i++) {

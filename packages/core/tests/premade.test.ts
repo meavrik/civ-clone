@@ -53,7 +53,7 @@ describe("premade worlds", () => {
   it("seat enough natives for a full game of seven", () => {
     expect(nativeCivs(premadeWorld("earth")).length).toBe(CIVS.length - 1);
     expect(nativeCivs(premadeWorld("europe"))).toEqual(expect.arrayContaining(["english", "french", "germans", "romans", "greeks", "spanish", "russians"]));
-    expect(nativeCivs(premadeWorld("middle-east"))).toEqual(expect.arrayContaining(["egyptians", "babylonians", "persians", "hittites"]));
+    expect(nativeCivs(premadeWorld("middle-east"))).toEqual(expect.arrayContaining(["egyptians", "babylonians", "persians", "hittites", "hebrews"]));
     for (const world of PREMADE_WORLDS) expect(nativeCivs(world).length, world.id).toBeGreaterThanOrEqual(7);
   });
 
@@ -69,7 +69,10 @@ describe("historical starts", () => {
   it("start us on our homeland and rivals on theirs, all natives", () => {
     const world = premadeWorld("middle-east");
     const state = newGame(7, { world: world.id, historical: true, civ: "egyptians", opponents: 6 });
-    expect(state.players.filter((p) => p.id !== state.barbarians).map((p) => p.civ).sort()).toEqual(nativeCivs(world).sort());
+    // Seven seats for its eight natives.
+    const seated = state.players.filter((p) => p.id !== state.barbarians).map((p) => p.civ);
+    expect(seated).toHaveLength(7);
+    expect(nativeCivs(world)).toEqual(expect.arrayContaining(seated));
     expect(startOf(state, 0)).toEqual([...world.starts.egyptians!]);
     for (const p of state.players) {
       if (p.id === state.barbarians) continue;

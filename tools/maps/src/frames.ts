@@ -52,6 +52,7 @@ const TOLEDO: Pt = [-4.0, 39.86];
 const TRONDHEIM: Pt = [10.4, 63.4];
 const HATTUSA: Pt = [34.6, 40.0];
 const PERSEPOLIS: Pt = [52.9, 29.9];
+const JERUSALEM: Pt = [35.2, 31.8];
 
 export const FRAMES: Frame[] = [
   {
@@ -87,6 +88,8 @@ export const FRAMES: Frame[] = [
       vikings: TRONDHEIM,
       hittites: HATTUSA,
       persians: PERSEPOLIS,
+      hebrews: JERUSALEM,
+      japanese: [135.77, 35.01],
     },
   },
   {
@@ -133,6 +136,7 @@ export const FRAMES: Frame[] = [
       persians: PERSEPOLIS,
       indians: [68.1, 27.3],
       mongols: [66.97, 39.65],
+      hebrews: JERUSALEM,
     },
   },
 ];

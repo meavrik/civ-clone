@@ -189,8 +189,11 @@ caravans, railroads/fortresses/pollution/global warming, spaceship, diplomats, n
 prompt. Phase 8 done: modern-visuals renderer behind the shared `Renderer` API, switchable at
 runtime. Premade worlds done: Earth, Europe, Middle East (title menu "Play on a premade world", optional
 historical homelands: only native tribes offered, rivals drawn from natives preferring non-overlapping
-homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperature/climate/age). 18 civs
-(the original's 14 plus Spanish, Vikings, Hittites, Persians). Barbarians done (2026-10-17): uprisings and
+homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperature/climate/age). 20 civs
+(the original's 14 plus Spanish, Vikings, Hittites, Persians, and, asked for, Hebrews (Exodus: faster
+settlers; Jerusalem) and Japanese (Bushido: veteran horsemen; Kyoto, two hill squares on Earth's coarse
+grid)). A civ added later carries `since` (the save version that brought it); saves before version 11
+load with `roster: 10`, so their rivals come from the 18 they were drawn from. Barbarians done (2026-10-17): uprisings and
 sea raids with leaders and ransom, barbarian-held cities, pillage. Civilization traits done (2026-10-17):
 one ability and one starting advance per civ, shown at the tribe choice, the opening and World >
 Civilizations. Extended tech tree done (2026-10-18, asked for): Weaving (after Pottery; ends arctic wear in

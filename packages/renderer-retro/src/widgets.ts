@@ -123,7 +123,7 @@ import type { MenuState, TextInputState } from "@civ/renderer-api";
 
 export const MENU_ROW = FONT_HEIGHT + 1;
 
-interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number }
+interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number }
 
 function menuLayout(m: MenuState): MenuLayout {
   const maxItem = Math.max(textWidth(m.title), ...m.items.map((i, k) => textWidth(i) + (m.right?.[k] ? textWidth(m.right[k]!) + 12 : 0)));
@@ -132,10 +132,14 @@ function menuLayout(m: MenuState): MenuLayout {
   const lines = (m.body ?? []).flatMap((l) => wrapIcons(l, w - 20));
   const bodyH = lines.length ? lines.length * FONT_HEIGHT + 5 : 0;
   const head = m.title ? 16 : 3;
-  const h = head + bodyH + m.items.length * MENU_ROW + (m.title ? 6 : 3);
+  const foot = m.title ? 6 : 3;
+  // Long lists (every tribe) close up their rows to stay on screen.
+  const room = 200 - (m.anchor?.y ?? 0) - head - bodyH - foot;
+  const row = Math.max(FONT_HEIGHT, Math.min(MENU_ROW, Math.floor(room / Math.max(1, m.items.length))));
+  const h = head + bodyH + m.items.length * row + foot;
   const x = m.anchor ? Math.max(0, Math.min(320 - w, m.anchor.x)) : Math.floor((320 - w) / 2);
   const y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
-  return { x, y, w, h, lines, itemsY: y + head + bodyH };
+  return { x, y, w, h, lines, itemsY: y + head + bodyH, row };
 }
 
 export function menuRect(m: MenuState): { x: number; y: number; w: number; h: number } {
@@ -144,7 +148,7 @@ export function menuRect(m: MenuState): { x: number; y: number; w: number; h: nu
 }
 
 export function drawMenu(s: Surface, m: MenuState): void {
-  const { x, y, w, h, lines, itemsY } = menuLayout(m);
+  const { x, y, w, h, lines, itemsY, row } = menuLayout(m);
   drawWindow(s, x, y, w, h, m.title);
   lines.forEach((line, i) => drawIconLine(s, x + 10, y + (m.title ? 17 : 4) + i * FONT_HEIGHT, line, C.BLACK!));
   if (lines.length) {
@@ -152,9 +156,9 @@ export function drawMenu(s: Surface, m: MenuState): void {
     s.hline(x + 4, itemsY - 3, w - 8, shade("panel", 7));
   }
   m.items.forEach((item, i) => {
-    const ry = itemsY + i * MENU_ROW;
+    const ry = itemsY + i * row;
     const sel = i === m.selected;
-    if (sel) s.rect(x + 4, ry - 1, w - 8, MENU_ROW, shade("azure", 2));
+    if (sel) s.rect(x + 4, ry - 1, w - 8, row, shade("azure", 2));
     drawText(s, x + 10, ry, item, sel ? C.WHITE! : C.BLACK!);
     const r = m.right?.[i];
     if (r) drawText(s, x + w - 10 - textWidth(r), ry, r, sel ? shade("azure", 7) : DIM);
@@ -163,9 +167,9 @@ export function drawMenu(s: Surface, m: MenuState): void {
 
 /** Row index under a screen point, or -1. */
 export function menuHit(m: MenuState, px: number, py: number): number {
-  const { x, w, itemsY } = menuLayout(m);
+  const { x, w, itemsY, row } = menuLayout(m);
   if (px < x + 4 || px > x + w - 4) return -1;
-  const i = Math.floor((py - (itemsY - 1)) / MENU_ROW);
+  const i = Math.floor((py - (itemsY - 1)) / row);
   return i >= 0 && i < m.items.length ? i : -1;
 }
 

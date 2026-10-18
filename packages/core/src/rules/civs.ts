@@ -6,7 +6,7 @@ import type { UnitDomain } from "./units.js";
  * as in the original: civilizations that share a colour are never in the same
  * game (the opponent draw skips a taken colour), so every civ on the map has
  * its own. The barbarians are always red. Pairs are chosen so each premade
- * world can still field seven civilizations: the Middle East's seven natives
+ * world can still field seven civilizations: the Middle East's eight natives
  * all differ, and Europe's nine cover eight colours. Each renderer maps a slot
  * to its palette.
  */
@@ -69,6 +69,8 @@ export interface CivRule {
   cities: string[];
   /** Absent only for the barbarians. */
   trait?: CivTrait;
+  /** Save version that brought it in: older saves drew their rivals without it (`NewGameOptions.roster`). */
+  since?: number;
 }
 
 const FOOT = ["militia", "phalanx", "legion", "musketeers", "riflemen", "mech_inf"];
@@ -94,6 +96,8 @@ const TRAITS: Record<string, CivTrait> = {
   vikings: { name: "Longships", short: "Veteran ships", text: "Ships are built as veterans.", start: "bronze_working", effects: [{ kind: "veteran", domain: "sea" }] },
   hittites: { name: "Iron and Chariots", short: "Cheap soldiers", text: "Soldiers cost a fifth less.", start: "the_wheel", effects: [{ kind: "cost", pct: -20, soldiers: true }] },
   persians: { name: "Satrapies", short: "+25% tax", text: "A quarter more tax in every city.", start: "pottery", effects: [{ kind: "taxPct", pct: 25 }] },
+  hebrews: { name: "Exodus", short: "Faster settlers", text: "Settlers move one square further.", start: "ceremonial_burial", effects: [{ kind: "moves", amount: 1, units: ["settlers"] }] },
+  japanese: { name: "Bushido", short: "Veteran horsemen", text: "Mounted units are trained as veterans.", start: "bronze_working", effects: [{ kind: "veteran", units: MOUNTED }] },
 };
 
 export const CIVS: CivRule[] = [
@@ -115,6 +119,8 @@ export const CIVS: CivRule[] = [
   { id: "vikings", name: "Vikings", adjective: "Viking", leader: "Harald", color: "grey", cities: ["Trondheim", "Uppsala", "Roskilde", "Bergen", "Birka", "Hedeby", "Kaupang", "Ribe"] },
   { id: "hittites", name: "Hittites", adjective: "Hittite", leader: "Suppiluliuma", color: "orange", cities: ["Hattusa", "Kanesh", "Carchemish", "Kussara", "Sapinuwa", "Nerik", "Arinna", "Tarsus"] },
   { id: "persians", name: "Persians", adjective: "Persian", leader: "Cyrus", color: "blue", cities: ["Persepolis", "Pasargadae", "Susa", "Ecbatana", "Rhagae", "Bactra", "Hecatompylos", "Arbela"] },
+  { id: "hebrews", name: "Hebrews", adjective: "Hebrew", leader: "David", color: "white", cities: ["Jerusalem", "Hebron", "Shiloh", "Shechem", "Bethel", "Samaria", "Megiddo", "Jericho"], since: 11 },
+  { id: "japanese", name: "Japanese", adjective: "Japanese", leader: "Tokugawa", color: "orange", cities: ["Kyoto", "Edo", "Osaka", "Nara", "Kamakura", "Nagoya", "Sendai", "Hakata"], since: 11 },
   { id: "barbarians", name: "Barbarians", adjective: "Barbarian", leader: "Attila", color: "red", cities: [] },
 ];
 

@@ -669,7 +669,7 @@ describe("civilization traits", () => {
     const s = Surface.screen();
     drawTitleScreen(s, false);
     const m = setupMenu({ step: "civ", world: null, historical: false, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
-    expect(m.items).toHaveLength(18);
+    expect(m.items).toHaveLength(20);
     expect(m.right![0]).toBe("Fast roads");
     drawMenu(s, m);
     // Every tribe can still be picked: each row answers to a click.
