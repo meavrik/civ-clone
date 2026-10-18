@@ -7,7 +7,6 @@ import {
   getTile,
   maxHp,
   moveAllowance,
-  NEIGHBOURS,
   Terrain,
   TERRAIN_NAMES,
   TERRAIN_RULES,
@@ -20,7 +19,7 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, fogPatch, isDeepWater, knownSquare, MENU_BAR, ownerAt, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, ownerAt, researchOutlook, riverShape, roadMask, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import { paintBorders } from "../borders.js";
@@ -28,7 +27,7 @@ import { drawIconLine, iconParagraph, paintIcon } from "../icons.js";
 import type { Context2D } from "../context.js";
 import { circle, fillRound, measure, panel, paragraph, strokeRound, text, wrap } from "../draw.js";
 import { paintBadge, paintBurst, paintCity, paintCityLabel, paintHitFlash, paintHpBar, paintUnit, playerColor } from "../markers.js";
-import { paintFog, paintFortress, paintHut, paintIrrigation, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
+import { paintFog, paintFortress, paintHut, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
 import { BAR_H, COMBAT, H, ICON, MINIMAP, PANEL_W, SEA, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, VIEW_Y, W } from "../theme.js";
 
 /** The main map: a 48px-tile viewport right of a 240px panel, the same split as the retro layout. */
@@ -76,16 +75,6 @@ const MINIMAP_SCALE = 2;
 /** A square's colour on the minimap and the world map; open sea is darker than water along a coast. */
 export function mapColor(map: GameState["map"], x: number, y: number, explored?: ArrayLike<number>): string {
   return isDeepWater(map, x, y, explored) ? SEA.deep.base : TERRAIN[map.tiles[y * map.width + x]!.terrain].base;
-}
-
-function roadMask(state: GameState, x: number, y: number, rail: boolean): number {
-  const explored = state.players[state.currentPlayer]!.explored;
-  let mask = 0;
-  NEIGHBOURS.forEach(([dx, dy], i) => {
-    const n = getTile(state.map, x + dx, y + dy);
-    if (n && (rail ? n.railroad : n.road) && knownSquare(state.map, explored, x + dx, y + dy)) mask |= 1 << i;
-  });
-  return mask;
 }
 
 function panOffset(view: MainScreenView): [number, number] {
@@ -148,14 +137,14 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
       shown.push({ mx, my, x: dx, y: dy });
       const coast = coastPatch(map, mx, my, me.explored);
       const river = riverShape(map, mx, my, me.explored);
-      paintTile(ctx, dx, dy, tile, mx, my, coast.depth[4] === DEEP);
+      paintTile(ctx, dx, dy, tile, mx, my, coast.depth[4] === DEEP, tile.irrigation ? fieldSides(map, me.explored, mx, my) : 0);
       // A river goes under the coast pass, so the sea covers it where it bites into the land.
       if (river && tile.terrain !== Terrain.Ocean) paintRiver(ctx, dx, dy, river);
       paintCoast(ctx, dx, dy, coast, tile.terrain === Terrain.Ocean ? river : null);
-      if (tile.irrigation) paintIrrigation(ctx, dx, dy);
+      // Every square, as roads between two of its neighbours cut across its corners.
+      paintRoad(ctx, dx, dy, tile.road, roadMask(map, me.explored, mx, my), false);
+      paintRoad(ctx, dx, dy, tile.railroad, roadMask(map, me.explored, mx, my, true), true);
       if (tile.mine) paintMine(ctx, dx, dy);
-      if (tile.road) paintRoad(ctx, dx, dy, roadMask(state, mx, my, false), false);
-      if (tile.railroad) paintRoad(ctx, dx, dy, roadMask(state, mx, my, true), true);
       if (tile.special) paintSpecial(ctx, dx, dy);
       if (tile.fortress) paintFortress(ctx, dx, dy);
       if (tile.hut) paintHut(ctx, dx, dy);

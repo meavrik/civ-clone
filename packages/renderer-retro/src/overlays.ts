@@ -1,56 +1,92 @@
-import { unitType, type Unit } from "@civ/core";
-import { WORK_ICON } from "@civ/renderer-api";
+import { Terrain, unitType, type Unit } from "@civ/core";
+import { FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, roadStrokes, strokeGap, WORK_ICON } from "@civ/renderer-api";
 import { drawIcon } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, shade } from "./palette.js";
 import { Surface } from "./surface.js";
 import { TILE } from "./tiles.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
-import { darker, ownerBox, spriteSurface, UNIT_SHEET } from "./sprites/index.js";
+import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sprites/index.js";
 
-/** Road segments toward neighbouring road tiles. Mask bits follow NEIGHBOURS order. */
-export function drawRoad(s: Surface, dx: number, dy: number, mask: number): void {
-  const c = shade("earth", 4);
-  const cx = dx + 7;
-  const cy = dy + 7;
-  const ends: [number, number][] = [
-    [-1, -1], [0, -1], [1, -1],
-    [-1, 0], [1, 0],
-    [-1, 1], [0, 1], [1, 1],
-  ];
-  let any = false;
-  ends.forEach(([ex, ey], i) => {
-    if (!(mask & (1 << i))) return;
-    any = true;
-    for (let t = 0; t <= 8; t++) {
-      s.set(cx + Math.round((ex * t * 8) / 8), cy + Math.round((ey * t * 8) / 8), c);
-      s.set(cx + 1 + Math.round((ex * t * 8) / 8), cy + Math.round((ey * t * 8) / 8), c);
-    }
-  });
-  s.rect(cx, cy, 2, 2, c);
-  if (!any) s.rect(cx - 1, cy - 1, 4, 4, c); // isolated stub
+/** Half-widths of a road in pixels: its packed-earth surface, and the dark verge either side. */
+const ROAD_CORE = 1;
+const ROAD_VERGE = 2;
+/** A railroad's sleepers lie across the road this many pixels apart (as near as fits between square centres). */
+const SLEEPER_GAP = 3;
+
+/** Whether palette index `c` lies in a ramp. */
+function inRamp(c: number, ramp: string): boolean {
+  const base = shade(ramp, 0);
+  return c >= base && c < base + 8;
 }
 
-/** Railroad: a dark rail along each connected direction with cross-ties, over the road. */
-export function drawRailroad(s: Surface, dx: number, dy: number, mask: number): void {
-  const rail = shade("stone", 1);
-  const tie = shade("earth", 2);
-  const cx = dx + 7;
-  const cy = dy + 7;
-  const ends: [number, number][] = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
-  let any = false;
-  ends.forEach(([ex, ey], i) => {
-    if (!(mask & (1 << i))) return;
-    any = true;
-    for (let t = 0; t <= 8; t++) {
-      const px = cx + ex * t;
-      const py = cy + ey * t;
-      s.set(px, py, t % 3 === 1 ? tie : rail);
-      s.set(px + (ey !== 0 ? 1 : 0), py + (ex !== 0 && ey === 0 ? 1 : 0), t % 3 === 1 ? tie : rail);
-    }
-  });
-  s.rect(cx, cy, 2, 2, rail);
-  if (!any) s.rect(cx - 2, cy - 1, 6, 4, rail);
+const wayCache = new Map<number, Surface | null>();
+
+/**
+ * A road or railroad across one square (see `roadStrokes`), as a sprite keyed
+ * by SPRITE_CLEAR, or null when none crosses it. A road is a band of packed
+ * earth, worn darker here and there, between darker verges; a railroad lays
+ * bright rails on the verges with dark sleepers on gravel between, spaced
+ * evenly from square centre to square centre so they meet the next square's.
+ * A road square with no links is a small round patch.
+ */
+function waySurface(self: boolean, mask: number, rail: boolean): Surface | null {
+  const key = (rail ? 512 : 0) | (self ? 256 : 0) | mask;
+  const hit = wayCache.get(key);
+  if (hit !== undefined) return hit;
+  const strokes = roadStrokes(self, mask);
+  let out: Surface | null = null;
+  if (strokes.length || self) {
+    out = new Surface(TILE, TILE);
+    out.fill(SPRITE_CLEAR);
+    const surface = shade("earth", 6);
+    const worn = shade("earth", 5);
+    const verge = shade("earth", 2);
+    const steel = shade("stone", 6);
+    const ballast = shade("stone", 3);
+    const sleeper = shade("earth", 1);
+    for (let j = 0; j < TILE; j++)
+      for (let i = 0; i < TILE; i++) {
+        const u = (i + 0.5) / TILE;
+        const v = (j + 0.5) / TILE;
+        let d = Infinity;
+        let along = 0;
+        let gap = SLEEPER_GAP;
+        for (const st of strokes) {
+          const g = strokeGap(st, u, v) * TILE;
+          if (g >= d) continue;
+          d = g;
+          const ex = st[2] - st[0];
+          const ey = st[3] - st[1];
+          const len = Math.hypot(ex, ey);
+          along = (((u - st[0]) * ex + (v - st[1]) * ey) / len) * TILE;
+          gap = (len * TILE) / Math.max(1, Math.round((len * TILE) / SLEEPER_GAP));
+        }
+        if (!strokes.length) d = Math.hypot(u - 0.5, v - 0.5) * TILE - 1.5;
+        let c = -1;
+        if (rail) {
+          if (d >= ROAD_CORE && d < ROAD_VERGE) c = steel;
+          else if (d < ROAD_CORE && Math.abs(along / gap - Math.round(along / gap)) * gap < 0.5) c = sleeper;
+          else if (d < ROAD_CORE) c = ballast;
+        } else if (d < ROAD_CORE) c = hash(i, j, 7) < 0.25 ? worn : surface;
+        else if (d < ROAD_VERGE) c = verge;
+        if (c >= 0) out.set(i, j, c);
+      }
+  }
+  wayCache.set(key, out);
+  return out;
+}
+
+/** The road across a square: `self` when the square has one, `mask` its known road neighbours (see `roadMask`). */
+export function drawRoad(s: Surface, dx: number, dy: number, self: boolean, mask: number): void {
+  const way = waySurface(self, mask, false);
+  if (way) s.blit(way, dx, dy, SPRITE_CLEAR);
+}
+
+/** The railroad across a square, over its road: as `drawRoad`, with the railroad's neighbours. */
+export function drawRailroad(s: Surface, dx: number, dy: number, self: boolean, mask: number): void {
+  const way = waySurface(self, mask, true);
+  if (way) s.blit(way, dx, dy, SPRITE_CLEAR);
 }
 
 /** Fortress: a square rampart with corner towers. */
@@ -73,21 +109,53 @@ export function drawPollution(s: Surface, dx: number, dy: number): void {
   }
 }
 
-/** Irrigation: two short furrow rows in the tile's lower half. */
-export function drawIrrigation(s: Surface, dx: number, dy: number): void {
-  const c = shade("ocean", 5);
-  for (let i = 0; i < 3; i++) {
-    s.hline(dx + 2, dy + 3 + i * 4, 5, c);
-    s.hline(dx + 9, dy + 3 + i * 4, 5, c);
+/** Crops on irrigated plots (see `fieldLayout`), each as its light row and its dark row. */
+const CROPS: readonly (readonly [number, number])[] = [
+  [shade("plains", 6), shade("plains", 4)], // ripe grain
+  [shade("grass", 6), shade("grass", 3)], // green shoots
+  [shade("earth", 5), shade("earth", 3)], // ploughed earth
+  [shade("sand", 6), shade("sand", 4)], // pale grain
+];
+/** Terrain whose relief stays above the fields: hills keep their knolls (the pixels of this ramp). */
+const RELIEF: Partial<Record<Terrain, string>> = { [Terrain.Hills]: "earth" };
+/** The canal through an irrigated square runs along this row. */
+const CANAL = 7;
+
+/**
+ * Irrigation: the square's land turned to fields, plots of crops in rows either
+ * side of a canal (see `fieldLayout`). `ground` is the square as drawn beneath
+ * (`terrainSquare`): water in it (shore, river) stays, with a bank of the
+ * terrain beside it that the canal cuts through, and so do the knolls of hills.
+ * A strip of the terrain shows along each side, except toward irrigated
+ * neighbours (`sides`, see `fieldSides`), where the fields and the canal run on.
+ */
+export function drawIrrigation(s: Surface, dx: number, dy: number, ground: Surface, terrain: Terrain, x: number, y: number, sides: number): void {
+  const { plots, splits } = fieldLayout(x, y);
+  const relief = RELIEF[terrain];
+  const canal = shade("ocean", 6);
+  const last = TILE - 1;
+  const wet = (i: number, j: number) => i >= 0 && j >= 0 && i < TILE && j < TILE && inRamp(ground.data[j * TILE + i]!, "ocean");
+  for (let j = 0; j < TILE; j++) {
+    if ((j === 0 && !(sides & FIELD_N)) || (j === last && !(sides & FIELD_S))) continue;
+    const south = j > CANAL;
+    const split = Math.round(splits[south ? 1 : 0] * TILE);
+    for (let i = 0; i < TILE; i++) {
+      if ((i === 0 && !(sides & FIELD_W)) || (i === last && !(sides & FIELD_E))) continue;
+      const under = ground.data[j * TILE + i]!;
+      if (wet(i, j) || (relief && inRamp(under, relief))) continue;
+      if (j === CANAL) { s.set(dx + i, dy + j, canal); continue; }
+      if (wet(i - 1, j) || wet(i + 1, j) || wet(i, j - 1) || wet(i, j + 1)) continue;
+      const plot = plots[(south ? 2 : 0) + (i >= split ? 1 : 0)]!;
+      const [light, dark] = CROPS[plot.crop]!;
+      s.set(dx + i, dy + j, (plot.across ? j : i) & 1 ? dark : light);
+    }
   }
 }
 
-/** Mine: a dark shaft mouth with a timber frame. */
+/** Mine: a rock mound with a timber-framed shaft and rails running out of it, from the features sheet. */
 export function drawMine(s: Surface, dx: number, dy: number): void {
-  s.rect(dx + 9, dy + 8, 5, 5, C.BLACK!);
-  s.hline(dx + 8, dy + 7, 7, shade("earth", 5));
-  s.vline(dx + 8, dy + 7, 6, shade("earth", 5));
-  s.vline(dx + 14, dy + 7, 6, shade("earth", 5));
+  const mine = spriteSurface(FEATURE_SHEET, "mine");
+  if (mine) s.blit(mine, dx, dy, SPRITE_CLEAR);
 }
 
 export const UNIT_ABBR: Record<string, string> = {

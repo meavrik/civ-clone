@@ -156,6 +156,32 @@ export const SEA = {
 
 
 export const RIVER = "#5aa9ff";
-export const ROAD = "#8a6a3a";
-export const RAIL = "#3a3f46";
-export const IRRIGATION = "#8fd3ff";
+
+/** A road: packed earth between darker verges, worn lighter down the middle. */
+export const ROAD = { verge: "#5e4426", surface: "#a88452", worn: "rgba(232, 208, 160, 0.35)" };
+/** A railroad over its road: gravel, dark sleepers across it and bright rails. */
+export const RAIL = { ballast: "#6c6f73", sleeper: "#4a3420", rail: "#dfe5ea" };
+
+/** Irrigated fields: the canal, and each crop's ground and the darker rows on it (see `fieldLayout`). */
+export const FIELDS = {
+  canal: "#4b98e6",
+  crops: [
+    { ground: "#d6be58", rows: "#b49a38" }, // ripe grain
+    { ground: "#8fc95e", rows: "#5f9a3c" }, // green shoots
+    { ground: "#a57e50", rows: "#7c5a34" }, // ploughed earth
+    { ground: "#e8daa0", rows: "#c8b676" }, // pale grain
+  ],
+};
+
+/** A mine: a rock mound with a timber-framed shaft, rails out of it and a few spoil stones. */
+export const MINE = {
+  rock: "#8b8f96",
+  rockLight: "#b3b8bf",
+  rockDark: "#5d6168",
+  outline: "#1d2024",
+  shaft: "#0d0f12",
+  timber: "#a0703a",
+  timberLight: "#c99858",
+  rail: "#c9cfd5",
+  sleeper: "#4a3420",
+};

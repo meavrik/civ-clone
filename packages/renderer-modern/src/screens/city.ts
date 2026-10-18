@@ -14,14 +14,14 @@ import {
   wonder,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, fogPatch, riverShape, type CityButton, type CityScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, fieldSides, fogPatch, riverShape, roadMask, type CityButton, type CityScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, panel, paragraph, strokeRound, text } from "../draw.js";
 import { paintBadge, paintCity, playerColor } from "../markers.js";
 import { paintIcon } from "../icons.js";
-import { paintFortress, paintIrrigation, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
+import { paintFortress, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
 import { BUTTON, H, TILE, UI, W } from "../theme.js";
 
 /**
@@ -138,12 +138,12 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
       const coast = coastPatch(state.map, wx, my, me.explored);
       const river = riverShape(state.map, wx, my, me.explored);
       const sea = tile.terrain === Terrain.Ocean;
-      paintTile(ctx, px, py, tile, wx, my, coast.depth[4] === DEEP);
+      paintTile(ctx, px, py, tile, wx, my, coast.depth[4] === DEEP, tile.irrigation ? fieldSides(state.map, me.explored, wx, my) : 0);
       if (river && !sea) paintRiver(ctx, px, py, river);
       paintCoast(ctx, px, py, coast, sea ? river : null);
-      if (tile.irrigation) paintIrrigation(ctx, px, py);
+      paintRoad(ctx, px, py, tile.road, roadMask(state.map, me.explored, wx, my), false);
+      paintRoad(ctx, px, py, tile.railroad, roadMask(state.map, me.explored, wx, my, true), true);
       if (tile.mine) paintMine(ctx, px, py);
-      if (tile.road) paintRoad(ctx, px, py, 0, tile.railroad);
       if (tile.special) paintSpecial(ctx, px, py);
       if (tile.fortress) paintFortress(ctx, px, py);
       if (tile.pollution) paintPollution(ctx, px, py);

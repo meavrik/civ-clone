@@ -1,8 +1,8 @@
 import { Terrain, type Tile } from "@civ/core";
-import type { RiverShape } from "@civ/renderer-api";
+import { FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, roadStrokes, type RiverShape, type Stroke } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { circle } from "./draw.js";
-import { IRRIGATION, RAIL, RIVER, ROAD, SEA, TERRAIN, TILE, UI } from "./theme.js";
+import { FIELDS, MINE, RAIL, RIVER, ROAD, SEA, TERRAIN, TILE, UI } from "./theme.js";
 
 /** Tiny deterministic hash for per-tile variation (never the game RNG). */
 function h(x: number, y: number, salt: number): number {
@@ -17,12 +17,23 @@ function tree(ctx: Context2D, x: number, y: number, r: number, canopy: string, t
   circle(ctx, x, y - r * 0.2, r, canopy);
 }
 
-/** Base terrain with a few soft features, drawn flat so the map reads at a glance. */
-/** `deep` paints open sea, water with no land among its neighbours. */
-export function paintTile(ctx: Context2D, x: number, y: number, tile: Tile, tx: number, ty: number, deep = false): void {
+/** Terrain whose relief stands above its fields: hills keep their knolls. */
+const RELIEF = new Set<Terrain>([Terrain.Hills]);
+
+/**
+ * Base terrain with a few soft features, drawn flat so the map reads at a glance.
+ * `deep` paints open sea, water with no land among its neighbours. An irrigated
+ * square is fields instead of its texture (see `paintFields`; `sides` are its
+ * irrigated neighbours), under the knolls of hills.
+ */
+export function paintTile(ctx: Context2D, x: number, y: number, tile: Tile, tx: number, ty: number, deep = false, sides = 0): void {
   const look = deep ? SEA.deep : TERRAIN[tile.terrain];
   ctx.fillStyle = look.base;
   ctx.fillRect(x, y, TILE, TILE);
+  if (tile.irrigation) {
+    paintFields(ctx, x, y, tx, ty, sides);
+    if (!RELIEF.has(tile.terrain)) return;
+  }
   const v = h(tx, ty, tile.terrain);
   switch (tile.terrain) {
     case Terrain.Ocean: {
@@ -200,60 +211,191 @@ export function paintRiver(ctx: Context2D, x: number, y: number, river: RiverSha
   }
 }
 
-/** Roads and rails toward connected neighbours; mask bits follow NEIGHBOURS order. */
-export function paintRoad(ctx: Context2D, x: number, y: number, mask: number, rail: boolean): void {
+/** Half-widths of a road: its verges, and the packed earth between them. */
+const ROAD_VERGE = 4.5;
+const ROAD_SURFACE = 3;
+/** A railroad: rails this far either side of the middle, sleepers across about this far apart. */
+const RAIL_GAUGE = 2.5;
+const SLEEPER_GAP = 6;
+
+function strokePath(ctx: Context2D, x: number, y: number, st: Stroke): void {
+  ctx.beginPath();
+  ctx.moveTo(x + st[0] * TILE, y + st[1] * TILE);
+  ctx.lineTo(x + st[2] * TILE, y + st[3] * TILE);
+  ctx.stroke();
+}
+
+/**
+ * The road (or the railroad, over its road) across a square: `self` when the
+ * square has it, `mask` its known neighbours with it (see `roadMask`). Each
+ * stroke runs to the neighbour's centre, clipped to this square, so the two
+ * halves meet at the border and diagonals pass cleanly through the corners
+ * (see `roadStrokes`). Sleepers are spaced evenly from centre to centre, so
+ * they meet the next square's too. A road square with no links is a round patch.
+ */
+export function paintRoad(ctx: Context2D, x: number, y: number, self: boolean, mask: number, rail: boolean): void {
+  const strokes = roadStrokes(self, mask);
+  if (!strokes.length && !self) return;
   const cx = x + CENTRE;
   const cy = y + CENTRE;
-  const dirs: [number, number][] = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+  if (!strokes.length) {
+    circle(ctx, cx, cy, ROAD_VERGE + 2, rail ? RAIL.ballast : ROAD.verge);
+    circle(ctx, cx, cy, ROAD_SURFACE + 2, rail ? RAIL.sleeper : ROAD.surface);
+    return;
+  }
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, TILE, TILE);
+  ctx.clip();
   ctx.lineCap = "round";
-  let any = false;
   const pass = (width: number, color: string) => {
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
-    dirs.forEach(([dx, dy], i) => {
-      if (!(mask & (1 << i))) return;
-      any = true;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + dx * CENTRE, cy + dy * CENTRE);
-      ctx.stroke();
-    });
+    for (const st of strokes) strokePath(ctx, x, y, st);
   };
-  if (rail) {
-    pass(6, RAIL);
-    pass(2, "#9aa3ad");
+  if (!rail) {
+    pass(ROAD_VERGE * 2, ROAD.verge);
+    pass(ROAD_SURFACE * 2, ROAD.surface);
+    pass(2, ROAD.worn);
   } else {
-    pass(6, ROAD);
-    pass(2, "#b8925a");
-  }
-  if (!any) circle(ctx, cx, cy, 5, rail ? RAIL : ROAD);
-}
-
-export function paintIrrigation(ctx: Context2D, x: number, y: number): void {
-  ctx.strokeStyle = IRRIGATION;
-  ctx.lineWidth = 2;
-  ctx.lineCap = "round";
-  for (let i = 0; i < 3; i++) {
-    const ly = y + 30 + i * 6;
+    pass(ROAD_VERGE * 2, RAIL.ballast);
+    ctx.lineCap = "butt";
+    ctx.strokeStyle = RAIL.sleeper;
+    ctx.lineWidth = 2.5;
+    for (const st of strokes) {
+      const ex = (st[2] - st[0]) * TILE;
+      const ey = (st[3] - st[1]) * TILE;
+      const len = Math.hypot(ex, ey);
+      const n = Math.max(1, Math.round(len / SLEEPER_GAP));
+      const [nx, ny] = [(-ey / len) * ROAD_VERGE, (ex / len) * ROAD_VERGE];
+      ctx.beginPath();
+      for (let k = 0; k <= n; k++) {
+        const px = x + st[0] * TILE + (ex * k) / n;
+        const py = y + st[1] * TILE + (ey * k) / n;
+        ctx.moveTo(px - nx, py - ny);
+        ctx.lineTo(px + nx, py + ny);
+      }
+      ctx.stroke();
+    }
+    ctx.strokeStyle = RAIL.rail;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(x + 8, ly);
-    ctx.lineTo(x + 40, ly);
+    for (const st of strokes) {
+      const ex = (st[2] - st[0]) * TILE;
+      const ey = (st[3] - st[1]) * TILE;
+      const len = Math.hypot(ex, ey);
+      for (const side of [-1, 1]) {
+        const [nx, ny] = [(-ey / len) * RAIL_GAUGE * side, (ex / len) * RAIL_GAUGE * side];
+        ctx.moveTo(x + st[0] * TILE + nx, y + st[1] * TILE + ny);
+        ctx.lineTo(x + st[2] * TILE + nx, y + st[3] * TILE + ny);
+      }
+    }
     ctx.stroke();
   }
+  ctx.restore();
 }
 
+/** An irrigated square's fields are inset this far from a side without irrigation beyond it. */
+const FIELD_MARGIN = 3;
+/** The canal through the middle of an irrigated square, and the rows on each plot. */
+const CANAL = 3;
+const ROW_GAP = 4;
+
+/**
+ * Irrigation: fields over the square, plots of crops in rows either side of a
+ * canal through its middle (see `fieldLayout`). Toward irrigated neighbours
+ * (`sides`, see `fieldSides`) the plots and the canal run to the edge, so
+ * farmland reads as one patchwork; elsewhere a strip of the terrain shows.
+ */
+export function paintFields(ctx: Context2D, x: number, y: number, tx: number, ty: number, sides: number): void {
+  const { plots, splits } = fieldLayout(tx, ty);
+  const left = sides & FIELD_W ? 0 : FIELD_MARGIN;
+  const right = TILE - (sides & FIELD_E ? 0 : FIELD_MARGIN);
+  const top = sides & FIELD_N ? 0 : FIELD_MARGIN;
+  const bottom = TILE - (sides & FIELD_S ? 0 : FIELD_MARGIN);
+  const mid = TILE / 2;
+  plots.forEach((plot, k) => {
+    const south = k >= 2;
+    const split = Math.round(splits[south ? 1 : 0] * TILE);
+    const px0 = k % 2 ? split + 0.5 : left;
+    const px1 = k % 2 ? right : split - 0.5;
+    const py0 = south ? mid + CANAL / 2 : top;
+    const py1 = south ? bottom : mid - CANAL / 2;
+    const crop = FIELDS.crops[plot.crop]!;
+    ctx.fillStyle = crop.ground;
+    ctx.fillRect(x + px0, y + py0, px1 - px0, py1 - py0);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x + px0, y + py0, px1 - px0, py1 - py0);
+    ctx.clip();
+    ctx.strokeStyle = crop.rows;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (plot.across) for (let r = ROW_GAP / 2; r < TILE; r += ROW_GAP) { ctx.moveTo(x + px0, y + r); ctx.lineTo(x + px1, y + r); }
+    else for (let r = ROW_GAP / 2; r < TILE; r += ROW_GAP) { ctx.moveTo(x + r, y + py0); ctx.lineTo(x + r, y + py1); }
+    ctx.stroke();
+    ctx.restore();
+  });
+  ctx.fillStyle = FIELDS.canal;
+  ctx.fillRect(x + left, y + mid - CANAL / 2, right - left, CANAL);
+}
+
+/**
+ * A mine: a mound of rock with a timber-framed shaft in its face, rails
+ * running out of it and a few stones of spoil, in the square's lower right.
+ */
 export function paintMine(ctx: Context2D, x: number, y: number): void {
+  ctx.save();
+  ctx.lineJoin = "round";
+  // The mound, lit from the upper left.
   ctx.beginPath();
-  ctx.moveTo(x + 26, y + 22);
-  ctx.lineTo(x + 42, y + 22);
-  ctx.lineTo(x + 46, y + 40);
-  ctx.lineTo(x + 22, y + 40);
+  ctx.moveTo(x + 12, y + 44);
+  ctx.quadraticCurveTo(x + 13, y + 19, x + 30, y + 19);
+  ctx.quadraticCurveTo(x + 47, y + 19, x + 47, y + 44);
   ctx.closePath();
-  ctx.fillStyle = "#1b1f24";
+  const g = ctx.createLinearGradient(x + 14, y + 20, x + 44, y + 44);
+  g.addColorStop(0, MINE.rockLight);
+  g.addColorStop(0.5, MINE.rock);
+  g.addColorStop(1, MINE.rockDark);
+  ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = "#8a6a3a";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = MINE.outline;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
+  // The shaft, arched, with rails running out of it over two sleepers.
+  ctx.beginPath();
+  ctx.moveTo(x + 25, y + 44);
+  ctx.lineTo(x + 25, y + 33);
+  ctx.arc(x + 30, y + 33, 5, Math.PI, 0);
+  ctx.lineTo(x + 35, y + 44);
+  ctx.closePath();
+  ctx.fillStyle = MINE.shaft;
+  ctx.fill();
+  ctx.fillStyle = MINE.sleeper;
+  ctx.fillRect(x + 24, y + 41, 12, 2);
+  ctx.fillRect(x + 23, y + 45, 14, 2);
+  ctx.strokeStyle = MINE.rail;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x + 28, y + 37);
+  ctx.lineTo(x + 27, y + 48);
+  ctx.moveTo(x + 32, y + 37);
+  ctx.lineTo(x + 33, y + 48);
+  ctx.stroke();
+  // The timber frame: two posts and a lintel over them.
+  ctx.fillStyle = MINE.timber;
+  ctx.fillRect(x + 22, y + 30, 3, 14);
+  ctx.fillRect(x + 35, y + 30, 3, 14);
+  ctx.fillStyle = MINE.timberLight;
+  ctx.fillRect(x + 20, y + 27, 20, 4);
+  ctx.strokeStyle = MINE.outline;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 20, y + 27, 20, 4);
+  // Spoil beside it.
+  circle(ctx, x + 10, y + 44, 3.5, MINE.rockDark);
+  circle(ctx, x + 15, y + 45.5, 2.5, MINE.rock);
+  circle(ctx, x + 8, y + 40.5, 2, MINE.rockLight);
+  ctx.restore();
 }
 
 export function paintFortress(ctx: Context2D, x: number, y: number): void {

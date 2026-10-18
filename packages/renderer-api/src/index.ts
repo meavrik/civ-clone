@@ -10,6 +10,7 @@ export * from "./fog.js";
 export * from "./territory.js";
 export * from "./techtree.js";
 export * from "./refusal.js";
+export * from "./works.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {

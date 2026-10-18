@@ -7,7 +7,6 @@ import {
   getTile,
   maxHp,
   moveAllowance,
-  NEIGHBOURS,
   Terrain,
   TERRAIN_NAMES,
   TERRAIN_RULES,
@@ -80,7 +79,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, isDeepWater, researchOutlook, type Callout, knownSquare, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
+import { borderSides, fieldSides, isDeepWater, researchOutlook, roadMask, type Callout, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, ICON, iconLineWidth } from "../icons.js";
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
@@ -110,16 +109,6 @@ export const MINIMAP_COLOR: Record<Terrain, () => number> = {
 /** A square's minimap colour; open sea is darker than water along a coast. */
 export function minimapColor(map: GameState["map"], x: number, y: number, explored?: ArrayLike<number>): number {
   return isDeepWater(map, x, y, explored) ? shade("ocean", 1) : MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]();
-}
-
-function roadMask(state: GameState, x: number, y: number, rail = false): number {
-  const explored = state.players[state.currentPlayer]!.explored;
-  let mask = 0;
-  NEIGHBOURS.forEach(([dx, dy], i) => {
-    const n = getTile(state.map, x + dx, y + dy);
-    if (n && (rail ? n.railroad : n.road) && knownSquare(state.map, explored, x + dx, y + dy)) mask |= 1 << i;
-  });
-  return mask;
 }
 
 /** Screen position of a map tile relative to the viewport, or null if off-screen. */
@@ -162,11 +151,13 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
         continue;
       }
       const tile = map.tiles[my * map.width + mx]!;
-      s.blit(terrainSquare(map, mx, my, me.explored), dx, dy);
-      if (tile.irrigation) drawIrrigation(s, dx, dy);
+      const ground = terrainSquare(map, mx, my, me.explored);
+      s.blit(ground, dx, dy);
+      if (tile.irrigation) drawIrrigation(s, dx, dy, ground, tile.terrain, mx, my, fieldSides(map, me.explored, mx, my));
+      // Every square, as roads between two of its neighbours cut across its corners.
+      drawRoad(s, dx, dy, tile.road, roadMask(map, me.explored, mx, my));
+      drawRailroad(s, dx, dy, tile.railroad, roadMask(map, me.explored, mx, my, true));
       if (tile.mine) drawMine(s, dx, dy);
-      if (tile.road) drawRoad(s, dx, dy, roadMask(state, mx, my));
-      if (tile.railroad) drawRailroad(s, dx, dy, roadMask(state, mx, my, true));
       if (tile.special) drawSpecial(s, dx, dy, tile.terrain);
       if (tile.hut) drawHut(s, dx, dy);
       if (tile.fortress) drawFortress(s, dx, dy);

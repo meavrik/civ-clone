@@ -369,9 +369,102 @@ describe("fog of war", () => {
       t.terrain = t.terrain === Terrain.Ocean ? Terrain.Desert : Terrain.Ocean;
       t.river = !t.river;
       t.road = true;
+      t.railroad = true;
+      t.irrigation = true;
     });
     drawMainScreen(s, state, view);
     expect(s.data).toEqual(before);
+  });
+});
+
+describe("terrain works", () => {
+  // A valley laid out by hand: sea to the west, farmland along a river, a road
+  // winding east with a railway on its last stretch, mines in the hills.
+  const LAND: Record<string, Terrain> = { "~": Terrain.Ocean, g: Terrain.Grassland, p: Terrain.Plains, h: Terrain.Hills, m: Terrain.Mountains, d: Terrain.Desert, f: Terrain.Forest };
+  const TERRAIN = [
+    "~~~~ggggpphhmm",
+    "~~~gggpppfphmm",
+    "~~ggggpppdddhm",
+    "~gggggpppdddhh",
+    "~ggggppppdddhh",
+    "~~gggpppppddmm",
+    "~~~ggggpppphmm",
+    "~~~~gggppphhhm",
+    "~~~~~ggggpphhm",
+    "~~~~~~ggpppphh",
+  ];
+  // i irrigation, r road, b both, R railroad, M mine, X mine and railroad, o a lone road.
+  const WORKS = [
+    "..........M.M.",
+    "...ii..r..rX..",
+    "..iiiir.r.i.r.",
+    ".bbbrb..rM....",
+    "..iiii...RRRRR",
+    "...iii.bbi..M.",
+    "......iiii.X..",
+    "........i.....",
+    "......o....M..",
+    "..............",
+  ];
+  const RIVER: [number, number][] = [[12, 2], [12, 3], [11, 3], [10, 3], [10, 4], [9, 4], [9, 5], [8, 5], [8, 6], [7, 6], [7, 7], [6, 7], [5, 7], [4, 7]];
+
+  function valley() {
+    const state = newGame(2026);
+    const me = state.players[0]!;
+    const x0 = 20;
+    const y0 = 20;
+    state.units.length = 0;
+    state.activeUnit = null;
+    for (let j = 0; j < TERRAIN.length; j++)
+      for (let i = 0; i < TERRAIN[j]!.length; i++) {
+        const t = getTile(state.map, x0 + i, y0 + j)!;
+        const w = WORKS[j]![i]!;
+        Object.assign(t, { terrain: LAND[TERRAIN[j]![i]!]!, river: false, special: false, hut: false, fortress: false, pollution: false });
+        t.irrigation = "ib".includes(w);
+        t.road = "rbRXo".includes(w);
+        t.railroad = "RX".includes(w);
+        t.mine = "MX".includes(w);
+      }
+    for (const [i, j] of RIVER) getTile(state.map, x0 + i, y0 + j)!.river = true;
+    for (let j = -1; j <= TERRAIN.length; j++)
+      for (let i = -1; i <= TERRAIN[0]!.length; i++) {
+        const idx = (y0 + j) * state.map.width + x0 + i;
+        me.explored[idx] = 1;
+        me.visible[idx] = 1;
+      }
+    return { state, x0, y0 };
+  }
+
+  it("draws roads, railroads, fields and mines, joined across squares", () => {
+    const { state, x0, y0 } = valley();
+    const view: MainScreenView = { originX: x0 - 1, originY: y0 - 1, blink: true };
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    const at = (mx: number, my: number, i: number, j: number) => s.data[80 + (mx - view.originX) * 16 + i + (9 + (my - view.originY) * 16 + j) * 320]!;
+    const earth = (c: number) => c >= C.EARTH! && c < C.EARTH! + 8;
+    const water = (c: number) => c >= C.OCEAN! && c < C.OCEAN! + 8;
+    const crop = new Surface((TERRAIN[0]!.length + 1) * 16, (TERRAIN.length + 1) * 16);
+    for (let y = 0; y < crop.height; y++) for (let x = 0; x < crop.width; x++) crop.set(x, y, s.get(80 + x, 9 + y));
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/works.png", import.meta.url), encodePng(crop, 4));
+
+    // A road crosses its square from border to border, and a straight road meets the next square's.
+    for (let i = 0; i < 16; i++) expect(earth(at(x0 + 2, y0 + 3, i, 8)), `road at ${i}`).toBe(true);
+    // The diagonal from (6,2) to (7,1) passes the corners of (6,1) and (7,2), roadless, which draw their slivers of it.
+    expect(earth(at(x0 + 6, y0 + 1, 15, 15))).toBe(true);
+    expect(earth(at(x0 + 7, y0 + 2, 0, 0))).toBe(true);
+    // Fields: a canal runs through the middle and on into the irrigated neighbour; a strip of terrain shows toward the rest.
+    expect(water(at(x0 + 3, y0 + 4, 15, 7)) && water(at(x0 + 4, y0 + 4, 0, 7))).toBe(true);
+    const ground = (c: number) => c >= C.GRASS! && c < C.GRASS! + 8;
+    expect(ground(at(x0 + 4, y0 + 1, 8, 0))).toBe(true);
+    // The river keeps its water through the fields it waters.
+    const riverSquare = { x: x0 + 9, y: y0 + 5 };
+    let riverPx = 0;
+    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) if (water(at(riverSquare.x, riverSquare.y, i, j)) && i !== 7 && j !== 7) riverPx++;
+    expect(riverPx).toBeGreaterThan(8);
+    // A mine is a rock mound with a dark shaft.
+    expect(at(x0 + 10, y0, 10, 11)).toBe(C.BLACK);
+
   });
 });
 
