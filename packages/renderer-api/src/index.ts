@@ -26,6 +26,7 @@ import {
   PREMADE_WORLDS,
   premadeWorld,
   relation,
+  roadOnly,
   spacePart,
   Terrain,
   TERRAIN_NAMES,
@@ -467,7 +468,8 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   if (features.length) lines.push(features.join("  "));
   if (t.pollution) lines.push("{pollution} Polluted: output halved until cleaned");
   if (t.hut) lines.push("{hut} A village of a minor tribe");
-  if (r.rough && !t.road && !state.classicTerrain) lines.push("{road} Wheeled units need a road");
+  if (roadOnly(state, t) && !t.road) lines.push("{road} Only settlers climb it without a road");
+  else if (r.rough && !t.road && !state.classicTerrain) lines.push("{road} Wheeled units need a road");
   const wear = attrition(state, me.id, x, y);
   if (wear > 0 && r.attrition) lines.push(`{heart} Wears units down ${Math.round(wear * 100)}% a turn  until ${advance(r.attrition.until).name}`);
   if (t.terrain !== Terrain.Ocean) {

@@ -173,6 +173,8 @@ export interface GameState {
   classicCombat?: boolean;
   /** The 1991 terrain: every land unit enters every land square and no ground wears units down. Set for old saves. */
   classicTerrain?: boolean;
+  /** Mountains take every land unit (wheels still need a road there). Set for saves before version 7. */
+  openMountains?: boolean;
   /** Our first barbarians: parties that step ashore near any city and raze what they take, no leader. Set for old saves. */
   simpleBarbarians?: boolean;
   /** Our first landings: a soldier stepping off a ship minds zones of control as on land. Set for old saves. */

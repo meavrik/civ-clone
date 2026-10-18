@@ -10,7 +10,7 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `npm test` — vitest, all packages (50+ tests; render tests dump PNGs to `packages/renderer-retro/tests/out/`)
 - `npm run typecheck` — `tsc -b` across the workspace (strict, exactOptionalPropertyTypes, noUncheckedIndexedAccess)
 - `npm run build` — typecheck + Vite build
-- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--world earth [--historical]] [--classic-terrain] [--verify] [--json out.json]` —
+- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--world earth [--historical]] [--classic-terrain] [--open-mountains] [--verify] [--json out.json]` —
   seeded all-AI tournaments (`tools/headless`); `--verify` replays each game from its save and checks the state digest
 - `npm run maps [-- europe]` — rebuild the premade worlds from Natural Earth data (`tools/maps`, cached in `tools/maps/.cache`,
   previews in `tools/maps/out/*.png`; look at them after any change)
@@ -158,9 +158,12 @@ Civilizations. Next: mobile/PWA + touch adapter.
    for 2): fights go in rounds won with A/(A+D), survivors keep wounds and heal by resting (`HEALING`).
    `attackOdds` gives the exact chance. `classicCombat` (version 1 saves, `?combat=classic`) restores
    the original one-roll fights with the same RNG use, so old saves replay unchanged.
-   Ground: `wheeled` units (chariot, catapult, cannon, artillery, armor, mech inf) enter `rough`
-   terrain (mountains, jungle, swamp, arctic) only along a road (city squares have one; attacking onto it
-   is fine), via `canEnter`, which `checkMove`, `findPath` and the planner's camp all use. Terrain
+   Ground: off the road only settlers climb `roadOnly` terrain (mountains), so a range is a wall until
+   settlers build a road over it; `wheeled` units (chariot, catapult, cannon, artillery, armor, mech inf)
+   also keep off `rough` terrain (jungle, swamp, arctic) without one. City squares have a road, and
+   attacking onto such ground is fine. One rule, `canEnter`, serves `checkMove`, `findPath`, barbarians
+   and the planner (camp squares, scouting to the edge of ground it cannot enter). `openMountains`
+   (saves before version 7, `?mountains=open`, headless `--open-mountains`) lets every unit climb. Terrain
    `attrition` (desert 10% until Trade, arctic 20% until Medicine) takes hp instead of healing from land
    units ending a turn outside their own cities' radius, never the last one; rivers and specials spare
    them. `classicTerrain` (saves before version 3, `?terrain=classic`) turns both off.

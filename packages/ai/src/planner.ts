@@ -332,11 +332,11 @@ function analyse(state: GameState, me: number): Ctx {
   let escortsWanted = 0;
   if (warTarget && staging) {
     const t = warTarget;
-    // Chariots, siege guns and vehicles in the army keep the camp off roadless rough ground.
-    // In a foot-only campaign no wheeled unit marches, so the camp may stand on rough ground.
+    // The camp must take every kind of soldier that marches: off the road, mountains take none of them and
+    // rough ground no wheels. In a foot-only campaign no wheeled unit marches, so the camp may stand on rough ground.
     const marches = (u: Unit) => !campaignFoot || !needsRoads(state, unitType(u.type));
-    const wheels = campaignFoot ? undefined : units.map((u) => unitType(u.type)).find((ty) => needsRoads(state, ty));
-    camp = campSquare(state, me, t, staging, wheels);
+    const marchers = [...new Set(units.filter((u) => isMilitary(u) && unitType(u.type).domain === "land" && marches(u)).map((u) => u.type))].map(unitType);
+    camp = campSquare(state, me, t, staging, marchers);
     const span = dist(state, staging.x, staging.y, t.x, t.y) + 2;
     const gathered = attackers.filter((u) => marches(u) && u.aboard === null && dist(state, u.x, u.y, t.x, t.y) <= span).length;
     escorts = units.filter((u) => marches(u) && isMilitary(u) && !isAttacker(u) && u.aboard === null && !cityAt(state, u.x, u.y) && dist(state, u.x, u.y, t.x, t.y) <= span).length;
@@ -414,11 +414,11 @@ function analyse(state: GameState, me: number): Ctx {
 
 /**
  * The square beside an enemy city to camp the army on: open land (no city,
- * no foreign unit) that `wheels` can enter, the best defence the terrain
- * gives, on the side facing the staging city, off ground that wears the
- * waiting army down.
+ * no foreign unit) that every one of `marchers` can enter, the best defence
+ * the terrain gives, on the side facing the staging city, off ground that
+ * wears the waiting army down.
  */
-function campSquare(state: GameState, me: number, target: City, staging: City, wheels: UnitTypeRule | undefined): [number, number] | null {
+function campSquare(state: GameState, me: number, target: City, staging: City, marchers: UnitTypeRule[]): [number, number] | null {
   let best: [number, number] | null = null;
   let bestV = -Infinity;
   for (const [dx, dy] of NEIGHBOURS) {
@@ -427,7 +427,7 @@ function campSquare(state: GameState, me: number, target: City, staging: City, w
     const t = getTile(state.map, x, y);
     if (!t || t.terrain === Terrain.Ocean || cityAt(state, x, y)) continue;
     if (state.units.some((o) => o.owner !== me && o.x === x && o.y === y)) continue;
-    if (wheels && !canEnter(state, wheels, t)) continue;
+    if (marchers.some((ty) => !canEnter(state, ty, t))) continue;
     const v = TERRAIN_RULES[t.terrain].defense * 10 + (t.river ? 3 : 0) + (t.fortress ? 10 : 0) - 100 * attrition(state, me, x, y) - dist(state, x, y, staging.x, staging.y);
     if (v > bestV) { bestV = v; best = [x, y]; }
   }
@@ -1394,12 +1394,14 @@ function nearestCity(state: GameState, ctx: Ctx, u: Unit, pred: (c: City) => boo
 }
 
 /**
- * Breadth-first over land for the nearest unexplored tile (a visible hut
- * wins). Like the original's opponents it walks the real map, so it heads
+ * Breadth-first over land the unit can enter for the nearest unexplored
+ * tile (a visible hut wins); an unexplored tile it cannot enter (a mountain
+ * off the road) is seen from the tile beside it, so that tile is the target. Like the original's opponents it walks the real map, so it heads
  * for land it has not seen rather than feeling along the edge of the known.
  */
 function frontierTarget(state: GameState, u: Unit, limit = 900): [number, number] | null {
   const p = state.players[u.owner]!;
+  const type = unitType(u.type);
   const { width: w, height: h } = state.map;
   const start = u.y * w + u.x;
   const seen = new Uint8Array(w * h);
@@ -1428,6 +1430,10 @@ function frontierTarget(state: GameState, u: Unit, limit = 900): [number, number
       seen[ni] = 1;
       const n = state.map.tiles[ni]!;
       if (n.terrain === Terrain.Ocean) continue;
+      if (!canEnter(state, type, n)) {
+        if (fallback === null && !p.explored[ni] && i !== start) fallback = [x, y];
+        continue;
+      }
       if (blocked.has(ni)) continue;
       queue.push(ni);
     }

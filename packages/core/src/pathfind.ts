@@ -1,7 +1,7 @@
 import { MOVE_FRAC, TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Unit } from "./types.js";
-import { canEnter, needsRoads } from "./units.js";
+import { canEnter } from "./units.js";
 
 let DIST = new Float64Array(0);
 let PREV = new Int32Array(0);
@@ -24,7 +24,6 @@ export function findPath(state: GameState, u: Unit, tx: number, ty: number): [nu
   const { width: w, height: h } = state.map;
   const type = unitType(u.type);
   const land = type.domain === "land";
-  const wheeled = needsRoads(state, type);
   const target = ty * w + wrapX(state.map, tx);
   const start = u.y * w + u.x;
   if (start === target) return [];
@@ -121,8 +120,8 @@ export function findPath(state: GameState, u: Unit, tx: number, ty: number): [nu
         // Land units may path onto a friendly ship as the destination only.
         if (ni !== target) continue;
       } else if (!land && type.domain === "sea" && to.terrain !== Terrain.Ocean && !isCity) continue;
-      // Wheeled units cross rough ground only along roads, but a path may end in an attack onto it.
-      else if (wheeled && !canEnter(state, type, to) && !(ni === target && blocked[ni] === 1)) continue;
+      // Off the road only settlers climb mountains and wheels keep off rough ground, but a path may end in an attack there.
+      else if (land && !canEnter(state, type, to) && !(ni === target && blocked[ni] === 1)) continue;
       if (ni !== target && blocked[ni] === 1) continue;
       let cost: number;
       if (!land) cost = MOVE_FRAC;

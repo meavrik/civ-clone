@@ -2,6 +2,7 @@
 import { MOVE_FRAC, TERRAIN_RULES } from "../src/rules/terrain.js";
 import { unitType } from "../src/rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Unit } from "../src/types.js";
+import { canEnter } from "../src/units.js";
 
 let DIST = new Float64Array(0);
 let PREV = new Int32Array(0);
@@ -83,6 +84,8 @@ export function legacyFindPath(state: GameState, u: Unit, tx: number, ty: number
         // Land units may path onto a friendly ship as the destination only.
         if (ni !== target) continue;
       } else if (!land && type.domain === "sea" && to.terrain !== Terrain.Ocean && !isCity) continue;
+      // The rules moved on since: off the road only settlers climb mountains and wheels keep off rough ground.
+      else if (land && !canEnter(state, type, to) && !(ni === target && blocked(ni))) continue;
       if (ni !== target && blocked(ni)) continue;
       let cost: number;
       if (!land) cost = MOVE_FRAC;

@@ -17,8 +17,9 @@ export interface SaveGame {
    *    and while zones of control still held soldiers stepping off ships.
    * 4: saved before civilizations had traits and starting advances; classic civilizations.
    * 5: saved before generated worlds took their terrain from the climate; scattered terrain.
+   * 6: saved before only settlers climbed mountains off the road; open mountains.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -33,7 +34,7 @@ export interface SaveGame {
   label?: string;
 }
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -54,7 +55,7 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
 export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
-  if (![1, 2, 3, 4, 5, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  if (![1, 2, 3, 4, 5, 6, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
@@ -65,6 +66,7 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
   }
   if (save.version < 5) options.classicCivs = true;
   if (save.version < 6) options.scatteredTerrain = true;
+  if (save.version < 7) options.openMountains = true;
   const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {

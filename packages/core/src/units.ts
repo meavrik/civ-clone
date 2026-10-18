@@ -64,16 +64,27 @@ export function shipWithRoom(state: GameState, owner: number, x: number, y: numb
 
 export type MoveResult =
   | { ok: true; cost: number; board?: number; disembark?: boolean; enemyCity?: boolean }
-  | { ok: false; reason: "no-moves" | "off-map" | "terrain" | "rough" | "zoc" | "occupied" | "attack" | "full" };
+  | { ok: false; reason: "no-moves" | "off-map" | "terrain" | "rough" | "steep" | "zoc" | "occupied" | "attack" | "full" };
 
 /** Does this unit type need a road onto rough ground in this game? */
 export function needsRoads(state: GameState, type: UnitTypeRule): boolean {
   return !state.classicTerrain && type.domain === "land" && type.wheeled === true;
 }
 
-/** Can a land unit of this type enter this land square? Wheeled units take rough ground only along a road. */
+/** Is this square steep ground that only settlers climb without a road, in this game? */
+export function roadOnly(state: GameState, to: Tile): boolean {
+  return !state.classicTerrain && !state.openMountains && TERRAIN_RULES[to.terrain].roadOnly === true;
+}
+
+/**
+ * Can a land unit of this type enter this land square? Off the road, only
+ * settlers climb steep ground (mountains) and wheeled units keep off rough
+ * ground; a road (every city square has one) takes everyone.
+ */
 export function canEnter(state: GameState, type: UnitTypeRule, to: Tile): boolean {
-  return !needsRoads(state, type) || !TERRAIN_RULES[to.terrain].rough || to.road;
+  if (type.domain !== "land" || to.road) return true;
+  if (roadOnly(state, to)) return type.flags?.includes("settler") ?? false;
+  return !needsRoads(state, type) || !TERRAIN_RULES[to.terrain].rough;
 }
 
 /**
@@ -103,8 +114,9 @@ export function attrition(state: GameState, owner: number, x: number, y: number)
  *  - road-to-road or river-to-river moves cost 1/3
  *  - land units enter ocean only by boarding a friendly ship with room, and
  *    leave a ship only onto land; ships enter land only at a friendly city
- *  - (ours) wheeled units enter rough ground only along a road; attacking
- *    onto it is still allowed, since the attacker never moves in
+ *  - (ours) off the road, only settlers climb mountains and wheeled units
+ *    keep off rough ground; attacking onto either is still allowed, since
+ *    the attacker never moves in
  *  - zones of control: a land unit may not move from a tile adjacent to an
  *    enemy to another tile adjacent to an enemy, unless the destination
  *    holds a friendly unit or city; the sea has none, so stepping off a
@@ -134,7 +146,7 @@ export function checkMove(state: GameState, u: Unit, dx: number, dy: number): Mo
       if (!ship) return { ok: false, reason: occupants.length ? "full" : "terrain" };
       board = ship.id;
     } else {
-      if (!canEnter(state, type, to)) return { ok: false, reason: "rough" };
+      if (!canEnter(state, type, to)) return { ok: false, reason: roadOnly(state, to) ? "steep" : "rough" };
       if (u.aboard !== null) disembark = true;
     }
   } else if (type.domain === "sea") {

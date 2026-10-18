@@ -79,15 +79,18 @@ describe("terrain info", () => {
     expect(terrainInfo(s, (u.x + 40) % 80, u.y)).toEqual({ title: "Unexplored", lines: ["Our explorers have not seen this land."] });
   });
 
-  it("warns where wheels need a road and where the ground wears units down", () => {
+  it("warns where only settlers climb, where wheels need a road and where the ground wears units down", () => {
     const s = newGame(2026);
     const u = s.units[0]!;
     revealAround(s, 0, u.x, u.y, 3);
     const t = getTile(s.map, u.x + 1, u.y)!;
+    const roadLines = () => terrainInfo(s, u.x + 1, u.y).lines.filter((l) => l.startsWith("{road} "));
     Object.assign(t, { terrain: Terrain.Mountains, river: false, road: false, special: false });
-    expect(terrainInfo(s, u.x + 1, u.y).lines).toContain("{road} Wheeled units need a road");
+    expect(roadLines()).toEqual(["{road} Only settlers climb it without a road"]);
+    t.terrain = Terrain.Jungle;
+    expect(roadLines()).toEqual(["{road} Wheeled units need a road"]);
     t.road = true;
-    expect(terrainInfo(s, u.x + 1, u.y).lines).not.toContain("{road} Wheeled units need a road");
+    expect(roadLines()).toEqual(["{road} Road"]);
     t.terrain = Terrain.Desert;
     expect(terrainInfo(s, u.x + 1, u.y).lines).toContain("{heart} Wears units down 10% a turn  until Trade");
     applyCommand(s, { type: "found", unit: u.id });

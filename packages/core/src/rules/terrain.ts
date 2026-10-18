@@ -22,6 +22,8 @@ export interface TerrainRule {
   road: { trade: number; turns: number };
   /** Rough ground: wheeled units enter only along a road (every city square has one). */
   rough?: boolean;
+  /** Steep ground: only settlers climb on without a road; everyone else follows the road they build. */
+  roadOnly?: boolean;
   /**
    * Harsh ground: a land unit ending its turn here loses this share of its
    * full hit points instead of healing (never its last one), until its owner
@@ -71,6 +73,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     mine: { shields: 1, turns: 10 },
     road: { trade: 0, turns: 6 },
     rough: true,
+    roadOnly: true,
   },
   [Terrain.Desert]: {
     food: 0, shields: 1, trade: 0, moveCost: 1, defense: 1,

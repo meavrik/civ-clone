@@ -14,11 +14,13 @@ import {
   setRelation,
   Terrain,
   unitType,
+  workOptions,
   type GameState,
+  type NewGameOptions,
 } from "../src/index.js";
 
-function flatWorld(terrain = Terrain.Grassland, classicTerrain = false): GameState {
-  const s = newGame(1, { opponents: 1, ...(classicTerrain ? { classicTerrain } : {}) });
+function flatWorld(terrain = Terrain.Grassland, opts: NewGameOptions = {}): GameState {
+  const s = newGame(1, { opponents: 1, ...opts });
   for (const t of s.map.tiles) {
     t.terrain = terrain;
     t.river = false; t.road = false; t.irrigation = false; t.mine = false; t.special = false; t.hut = false;
@@ -33,7 +35,7 @@ const move = (s: GameState, unit: number, dx: number, dy: number) => applyComman
 
 describe("rough ground", () => {
   it("takes wheeled units only along a road, and every other land unit anywhere", () => {
-    for (const rough of [Terrain.Mountains, Terrain.Jungle, Terrain.Swamp, Terrain.Arctic]) {
+    for (const rough of [Terrain.Jungle, Terrain.Swamp, Terrain.Arctic]) {
       const s = flatWorld();
       getTile(s.map, 11, 10)!.terrain = rough;
       const chariot = createUnit(s, "chariot", 0, 10, 10);
@@ -76,10 +78,10 @@ describe("rough ground", () => {
     expect(move(s, cannon.id, 1, 0).ok).toBe(true);
   });
 
-  it("routes wheels through the one road across a mountain range", () => {
+  it("routes wheels through the one road across a jungle belt", () => {
     const s = flatWorld();
-    // Ranges on both sides, or the chariot just drives round the world.
-    for (let y = 0; y < s.map.height; y++) for (const x of [8, 12]) getTile(s.map, x, y)!.terrain = Terrain.Mountains;
+    // Belts on both sides, or the chariot just drives round the world.
+    for (let y = 0; y < s.map.height; y++) for (const x of [8, 12]) getTile(s.map, x, y)!.terrain = Terrain.Jungle;
     const chariot = createUnit(s, "chariot", 0, 10, 10);
     const militia = createUnit(s, "militia", 0, 10, 10);
     expect(findPath(s, chariot, 14, 10)).toBeNull();
@@ -96,9 +98,61 @@ describe("rough ground", () => {
     expect(attack).toHaveLength(2);
     expect(attack[1]).toEqual([12, 9]);
   });
+});
+
+describe("mountains", () => {
+  it("take only settlers off the road, who can build the road for everyone else", () => {
+    const s = flatWorld();
+    getTile(s.map, 11, 10)!.terrain = Terrain.Mountains;
+    const others = ["militia", "legion", "knights", "chariot", "diplomat", "caravan"].map((t) => createUnit(s, t, 0, 10, 10));
+    for (const u of others) expect(move(s, u.id, 1, 0)).toEqual({ ok: false, reason: "steep" });
+    const settlers = createUnit(s, "settlers", 0, 10, 10);
+    expect(move(s, settlers.id, 1, 0).ok).toBe(true);
+    expect(workOptions(s, settlers).road).toBeGreaterThan(0);
+    getTile(s.map, 11, 10)!.road = true;
+    for (const u of others) expect(move(s, u.id, 1, 0).ok).toBe(true);
+  });
+
+  it("can be attacked from below, and landed on from a ship only by settlers or along a road", () => {
+    const s = flatWorld();
+    getTile(s.map, 11, 10)!.terrain = Terrain.Mountains;
+    createUnit(s, "militia", 1, 11, 10);
+    setRelation(s, 0, 1, "war");
+    expect(move(s, createUnit(s, "legion", 0, 10, 10).id, 1, 0).ok).toBe(true);
+    expect(lastCombat).not.toBeNull();
+
+    getTile(s.map, 11, 12)!.terrain = Terrain.Ocean;
+    getTile(s.map, 12, 12)!.terrain = Terrain.Mountains;
+    const ship = createUnit(s, "trireme", 0, 11, 12);
+    const [soldier, settlers] = ["militia", "settlers"].map((t) => Object.assign(createUnit(s, t, 0, 11, 12), { aboard: ship.id }));
+    expect(move(s, soldier!.id, 1, 0)).toEqual({ ok: false, reason: "steep" });
+    expect(move(s, settlers!.id, 1, 0).ok).toBe(true);
+  });
+
+  it("route soldiers over a range by its road and settlers straight across", () => {
+    const s = flatWorld();
+    for (let y = 0; y < s.map.height; y++) for (const x of [8, 12]) getTile(s.map, x, y)!.terrain = Terrain.Mountains;
+    const militia = createUnit(s, "militia", 0, 10, 10);
+    const settlers = createUnit(s, "settlers", 0, 10, 10);
+    expect(findPath(s, militia, 14, 10)).toBeNull();
+    expect(findPath(s, settlers, 14, 10)).not.toBeNull();
+    getTile(s.map, 12, 14)!.road = true;
+    expect(findPath(s, militia, 14, 10)).toContainEqual([12, 14]);
+  });
+
+  it("stay open to every land unit in games saved before the rule", () => {
+    const s = flatWorld(Terrain.Grassland, { openMountains: true });
+    getTile(s.map, 11, 10)!.terrain = Terrain.Mountains;
+    expect(move(s, createUnit(s, "militia", 0, 10, 10).id, 1, 0).ok).toBe(true);
+    expect(move(s, createUnit(s, "chariot", 0, 10, 10).id, 1, 0)).toEqual({ ok: false, reason: "rough" });
+    const opts = { opponents: 1 as const };
+    const state = newGame(321, opts);
+    expect(loadSave({ ...makeSave(state, opts, []), version: 6 as const }, () => {}).state.openMountains).toBe(true);
+    expect(loadSave(makeSave(state, opts, []), () => {}).state.openMountains).toBeUndefined();
+  });
 
   it("is open to everyone under the 1991 terrain rules", () => {
-    const s = flatWorld(Terrain.Grassland, true);
+    const s = flatWorld(Terrain.Grassland, { classicTerrain: true });
     getTile(s.map, 11, 10)!.terrain = Terrain.Mountains;
     const chariot = createUnit(s, "chariot", 0, 10, 10);
     expect(findPath(s, chariot, 11, 10)).toEqual([[11, 10]]);
@@ -150,7 +204,7 @@ describe("harsh ground", () => {
   });
 
   it("wears nobody down under the 1991 terrain rules", () => {
-    expect(rest(flatWorld(Terrain.Desert, true), "militia", 5)).toBe(6);
+    expect(rest(flatWorld(Terrain.Desert, { classicTerrain: true }), "militia", 5)).toBe(6);
   });
 
   it("is off in games saved before it existed", () => {

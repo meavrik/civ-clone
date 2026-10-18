@@ -28,6 +28,8 @@ export interface NewGameOptions extends MapGenOptions {
   classicCombat?: boolean;
   /** The 1991 terrain: wheeled units cross rough ground and harsh ground wears nobody down. Old saves load with it. */
   classicTerrain?: boolean;
+  /** Mountains take every land unit, as before only settlers climbed them off the road. Old saves load with it. */
+  openMountains?: boolean;
   /** Our first barbarians (coastal parties, no leaders, razing what they take). Old saves load with it. */
   simpleBarbarians?: boolean;
   /** Zones of control reach a soldier stepping off a ship. Old saves load with it. */
@@ -146,6 +148,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     warming: 0,
     ...(opts.classicCombat ? { classicCombat: true } : {}),
     ...(opts.classicTerrain ? { classicTerrain: true } : {}),
+    ...(opts.openMountains ? { openMountains: true } : {}),
     ...(opts.simpleBarbarians ? { simpleBarbarians: true } : {}),
     ...(opts.zocAtSea ? { zocAtSea: true } : {}),
     ...(opts.classicCivs ? { classicCivs: true } : {}),
