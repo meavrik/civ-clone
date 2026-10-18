@@ -175,10 +175,12 @@ Civilizations. Next: mobile/PWA + touch adapter.
    escort, camp on the best square beside the walls, `assault` storms in order of the odds and goes
    all in when the group can clear the city this turn), wars of choice only at twice a rival's
    strength with a city already within reach, and peace by agreement (`acceptsPeace`: a winning AI
-   refuses, the player's offers too). Head-to-head against frozen v2 (`--ai planner,v2`, 300 turns):
-   4 civs x16 games 10-6 wins, score 219 vs 199, techs 41 vs 38; 7 civs parity in score with more
-   techs. Every civ on v3 vs every civ on v2: Earth historical 7 civs score 160 vs 129, cities 17 vs
-   14. Open AI gaps: no amphibious invasions, no tribute or AI-initiated diplomacy with the player,
+   refuses, the player's offers too). Head-to-head against frozen v2 (`--ai planner,v2`, 300 turns,
+   4 civs x16 games): on the climate-grown worlds (ef8be01, with traits and the new barbarians) 11-5
+   wins, score 207 vs 183, cities 21 vs 16, techs 45 vs 37; on the older scattered-terrain worlds it
+   was 10-6, score 219 vs 199 (numbers from before and after ef8be01 do not compare: every seed gives
+   a different world). Every civ on v3 vs every civ on v2, old worlds: Earth historical 7 civs score
+   160 vs 129, cities 17 vs 14. Open AI gaps: no amphibious invasions, no tribute or AI-initiated diplomacy with the player,
    colonists sometimes wait long in port. A 7-civ round costs ~1.3-1.6x v2 (~55 ms late game);
    core's `findPath` (typed-array heap, results identical to the old search, see
    `tests/pathfind.test.ts`) is still the hot spot. Measure AI changes with
