@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, Terrain, unitType } from "@civ/core";
-import { C, cityButtonAt, citySlotAt, cityUnitSlot, isStone, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, cityButtonAt, citySlotAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -523,6 +523,33 @@ describe("world with opponents", () => {
     const changed = s.data.filter((c, i) => c !== before[i]);
     expect(changed.length).toBeGreaterThan(100);
     expect(changed.some((c) => c === playerColor(state, enemy.owner))).toBe(true);
+
+    // The minimap (one pixel a square from y 11): each city a white dot in a cross of its owner's
+    // colour, darker inside a border; the border a line of the owner's colour round its land.
+    const view = { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true };
+    const { width, height } = state.map;
+    const mm = (x: number, y: number) => s.get(((x % width) + width) % width, 11 + y);
+    const color = playerColor(state, enemy.owner);
+    const terr = territory(state);
+    const clear = (x: number, y: number) => !state.units.some((u) => u.x === x && u.y === y)
+      && !state.cities.some((c) => Math.abs(c.x - x) + Math.abs(c.y - y) <= 1);
+    let edge: [number, number] | undefined;
+    for (let y = 0; y < height && !edge; y++)
+      for (let x = 0; x < width && !edge; x++)
+        if (ownerAt(terr, x, y) === enemy.owner && borderSides(terr, x, y).length && clear(x, y)) edge = [x, y];
+    expect(edge).toBeDefined();
+    const [ex, ey] = edge!;
+    drawMainScreen(s, state, { ...view, borders: true });
+    expect(mm(enemy.x, enemy.y)).toBe(C.WHITE!);
+    expect(mm(enemy.x + 1, enemy.y)).toBe(darker(color));
+    expect(mm(ex, ey)).toBe(color);
+    drawMainScreen(s, state, view);
+    expect(mm(enemy.x + 1, enemy.y)).toBe(color);
+    expect(mm(ex, ey)).not.toBe(color);
+    // Nothing of a square we have not explored, borders included.
+    state.players[0]!.explored[ey * width + ex] = 0;
+    drawMainScreen(s, state, { ...view, borders: true });
+    expect(mm(ex, ey)).toBe(C.BLACK!);
   });
 });
 

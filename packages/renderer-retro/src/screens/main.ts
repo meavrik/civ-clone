@@ -396,6 +396,43 @@ function drawMovePips(s: Surface, x: number, y: number, left: number, allowance:
   return x + total * 5;
 }
 
+/**
+ * The minimap, one pixel a square: explored squares in their terrain's colour; with borders
+ * shown, a line of the owner's colour along the inside edge of the land its cities reach;
+ * units we see in their owner's colour; and each known city as a white dot in a cross of its
+ * owner's colour (a darker shade inside a border, so the city stands out from the line round it).
+ */
+function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: number): void {
+  const { map } = state;
+  const me = state.players[state.currentPlayer]!;
+  s.rect(0, top, PANEL_W, map.height, C.BLACK!);
+  for (let y = 0; y < map.height; y++)
+    for (let x = 0; x < map.width; x++) {
+      if (!me.explored[y * map.width + x]) continue;
+      s.set(x, top + y, minimapColor(map, x, y, me.explored));
+    }
+  if (view.borders) {
+    const terr = territory(state);
+    for (let y = 0; y < map.height; y++)
+      for (let x = 0; x < map.width; x++) {
+        if (!me.explored[y * map.width + x]) continue;
+        const own = ownerAt(terr, x, y);
+        if (own < 0) continue;
+        if (ownerAt(terr, x - 1, y) !== own || ownerAt(terr, x + 1, y) !== own || ownerAt(terr, x, y - 1) !== own || ownerAt(terr, x, y + 1) !== own)
+          s.set(x, top + y, playerColor(state, own));
+      }
+  }
+  for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(u.x, top + u.y, playerColor(state, u.owner));
+  const put = (x: number, y: number, color: number) => { if (y >= 0 && y < map.height) s.set(wrapX(map, x), top + y, color); };
+  for (const c of state.cities) {
+    if (!me.explored[c.y * map.width + c.x]) continue;
+    const color = playerColor(state, c.owner);
+    const arm = view.borders ? darker(color) : color;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) put(c.x + dx, c.y + dy, arm);
+    put(c.x, c.y, C.WHITE!);
+  }
+}
+
 export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenView): void {
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
@@ -405,14 +442,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
 
   // Minimap: 80x50, one pixel per tile.
   const mmY = VIEW_Y + 2;
-  s.rect(0, mmY, PANEL_W, map.height, C.BLACK!);
-  for (let y = 0; y < map.height; y++)
-    for (let x = 0; x < map.width; x++) {
-      if (!me.explored[y * map.width + x]) continue;
-      s.set(x, mmY + y, minimapColor(map, x, y, me.explored));
-    }
-  for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(u.x, mmY + u.y, playerColor(state, u.owner));
-  for (const c of state.cities) if (me.explored[c.y * map.width + c.x]) s.set(c.x, mmY + c.y, C.WHITE!);
+  drawMinimap(s, state, view, mmY);
   const vx = ((view.originX % map.width) + map.width) % map.width;
   const vy = Math.max(0, view.originY);
   const vh = Math.min(map.height - vy, VIEW_TILES_Y);

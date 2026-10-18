@@ -21,6 +21,9 @@ export const VIEW_TILES_Y = Math.ceil((H - BAR_H) / TILE);
 export const FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 export const font = (px: number, weight: "normal" | "bold" | "600" = "normal") => `${weight} ${px}px ${FONT}`;
 
+/** The minimap: its dark ground, and a city's rim and heart (its body is the owner's colour). */
+export const MINIMAP = { back: "#05080d", cityRim: "#05080d", cityHeart: "#ffffff" };
+
 export const UI = {
   bg: "#0d1117",
   panel: "rgba(22, 29, 38, 0.94)",

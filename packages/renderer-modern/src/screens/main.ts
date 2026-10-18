@@ -20,7 +20,7 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, fogPatch, isDeepWater, knownSquare, MENU_BAR, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, fogPatch, isDeepWater, knownSquare, MENU_BAR, ownerAt, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import { paintBorders } from "../borders.js";
@@ -29,7 +29,7 @@ import type { Context2D } from "../context.js";
 import { circle, fillRound, measure, panel, paragraph, strokeRound, text, wrap } from "../draw.js";
 import { paintBadge, paintBurst, paintCity, paintCityLabel, paintHitFlash, paintHpBar, paintUnit, playerColor } from "../markers.js";
 import { paintFog, paintFortress, paintHut, paintIrrigation, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
-import { BAR_H, COMBAT, H, ICON, PANEL_W, SEA, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, VIEW_Y, W } from "../theme.js";
+import { BAR_H, COMBAT, H, ICON, MINIMAP, PANEL_W, SEA, TERRAIN, TILE, UI, VIEW_TILES_X, VIEW_TILES_Y, VIEW_X, VIEW_Y, W } from "../theme.js";
 
 /** The main map: a 48px-tile viewport right of a 240px panel, the same split as the retro layout. */
 
@@ -370,22 +370,47 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   // Minimap at two pixels per tile.
   const mw = map.width * MINIMAP_SCALE;
   const mh = map.height * MINIMAP_SCALE;
-  fillRound(ctx, MINIMAP_X - 4, MINIMAP_Y - 4, mw + 8, mh + 8, 6, "#05080d");
+  fillRound(ctx, MINIMAP_X - 4, MINIMAP_Y - 4, mw + 8, mh + 8, 6, MINIMAP.back);
   for (let y = 0; y < map.height; y++)
     for (let x = 0; x < map.width; x++) {
       if (!me.explored[y * map.width + x]) continue;
       ctx.fillStyle = mapColor(map, x, y, me.explored);
       ctx.fillRect(MINIMAP_X + x * MINIMAP_SCALE, MINIMAP_Y + y * MINIMAP_SCALE, MINIMAP_SCALE, MINIMAP_SCALE);
     }
+  // Borders, when shown: a line of the owner's colour along each edge of the land its cities reach.
+  if (view.borders) {
+    const terr = territory(state);
+    const k = MINIMAP_SCALE;
+    for (let y = 0; y < map.height; y++)
+      for (let x = 0; x < map.width; x++) {
+        if (!me.explored[y * map.width + x]) continue;
+        const own = ownerAt(terr, x, y);
+        if (own < 0) continue;
+        ctx.fillStyle = playerColor(state.players[own]!.color);
+        const px = MINIMAP_X + x * k;
+        const py = MINIMAP_Y + y * k;
+        if (ownerAt(terr, x, y - 1) !== own) ctx.fillRect(px, py, k, 1);
+        if (ownerAt(terr, x, y + 1) !== own) ctx.fillRect(px, py + k - 1, k, 1);
+        if (ownerAt(terr, x - 1, y) !== own) ctx.fillRect(px, py, 1, k);
+        if (ownerAt(terr, x + 1, y) !== own) ctx.fillRect(px + k - 1, py, 1, k);
+      }
+  }
   for (const u of state.units) {
     if (!me.visible[u.y * map.width + u.x]) continue;
     ctx.fillStyle = playerColor(state.players[u.owner]!.color);
     ctx.fillRect(MINIMAP_X + u.x * MINIMAP_SCALE, MINIMAP_Y + u.y * MINIMAP_SCALE, MINIMAP_SCALE, MINIMAP_SCALE);
   }
+  // Cities: a square of the owner's colour, dark-rimmed, with a white heart.
   for (const c of state.cities) {
     if (!me.explored[c.y * map.width + c.x]) continue;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(MINIMAP_X + c.x * MINIMAP_SCALE - 1, MINIMAP_Y + c.y * MINIMAP_SCALE - 1, MINIMAP_SCALE + 2, MINIMAP_SCALE + 2);
+    const cx = MINIMAP_X + c.x * MINIMAP_SCALE + MINIMAP_SCALE / 2;
+    const cy = MINIMAP_Y + c.y * MINIMAP_SCALE + MINIMAP_SCALE / 2;
+    ctx.fillStyle = MINIMAP.cityRim;
+    ctx.fillRect(cx - 3, cy - 3, 6, 6);
+    ctx.fillStyle = playerColor(state.players[c.owner]!.color);
+    ctx.fillRect(cx - 2, cy - 2, 4, 4);
+    ctx.fillStyle = MINIMAP.cityHeart;
+    ctx.fillRect(cx - 1, cy - 1, 2, 2);
   }
   const vx = ((view.originX % map.width) + map.width) % map.width;
   const vy = Math.max(0, view.originY);

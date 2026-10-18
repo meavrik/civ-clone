@@ -98,7 +98,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   (science advisor A, Advisors > Tech Tree); when research is due it closes only on a pick.
   Borders (`territory.ts`, drawing only, toggled in the Game menu): each known city claims its
   `CITY_RADIUS`, the nearer then older city winning a shared square; `borderSides` gives the edges and
-  where a line must reach past an inner corner. Drawn after all squares, under the fog.
+  where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimaps
+  follow the same toggle: a line of the owner's colour round each civ's explored land; cities are
+  marked in their owner's colour either way (retro: a white dot in a cross, darker inside a border).
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
   terrain, cities, villages and specials are pixel art in `src/art/*.art.ts` (text grids; legend

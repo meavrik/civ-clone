@@ -23,6 +23,7 @@ class FakeContext implements Context2D {
   shadowOffsetY = 0;
   calls = new Map<string, number>();
   texts: string[] = [];
+  fills: { x: number; y: number; w: number; h: number; style: string }[] = [];
   maxX = 0;
   maxY = 0;
   private bump(name: string): void { this.calls.set(name, (this.calls.get(name) ?? 0) + 1); }
@@ -42,7 +43,7 @@ class FakeContext implements Context2D {
   fill(): void { this.bump("fill"); }
   stroke(): void { this.bump("stroke"); }
   clip(): void { this.bump("clip"); }
-  fillRect(x: number, y: number, w: number, h: number): void { this.seen(x + w, y + h); this.bump("fillRect"); }
+  fillRect(x: number, y: number, w: number, h: number): void { this.seen(x + w, y + h); this.bump("fillRect"); this.fills.push({ x, y, w, h, style: String(this.fillStyle) }); }
   strokeRect(x: number, y: number, w: number, h: number): void { this.seen(x + w, y + h); this.bump("strokeRect"); }
   clearRect(): void {}
   fillText(text: string, x: number, y: number): void { this.seen(x, y); this.texts.push(text); this.bump("fillText"); }
@@ -166,6 +167,23 @@ describe("modern renderer", () => {
     r.present();
     expect(ctx.texts.some((t) => t.includes("Pottery"))).toBe(true);
     expect(ctx.texts.join(" ")).toContain("No moves left for Settlers this turn.");
+  });
+
+  it("marks cities on the minimap, and borders there when they are shown", () => {
+    const ctx = new FakeContext();
+    const r = createModernRenderer(ctx, () => 2);
+    const { state, view } = world();
+    const ours = PLAYER_COLORS[state.players[0]!.color % PLAYER_COLORS.length]!;
+    // The minimap sits at the top of the panel, above y 150.
+    const onMinimap = (f: { x: number; y: number }) => f.x < 240 && f.y < 150;
+    const lines = () => ctx.fills.filter((f) => onMinimap(f) && f.style === ours && (f.w === 1 || f.h === 1)).length;
+    r.beginFrame();
+    r.main(state, { ...view, borders: false });
+    expect(ctx.fills.filter((f) => onMinimap(f) && f.style === ours && f.w === 4 && f.h === 4)).toHaveLength(state.cities.length);
+    expect(lines()).toBe(0);
+    ctx.fills = [];
+    r.main(state, { ...view, borders: true });
+    expect(lines()).toBeGreaterThan(10);
   });
 
   it("maps points back to tiles, the minimap, menu rows and city slots", () => {
