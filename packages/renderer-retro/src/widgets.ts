@@ -119,16 +119,25 @@ export function drawBox(s: Surface, x: number, y: number, w: number, h: number, 
     }
 }
 
-import type { MenuState, TextInputState } from "@civ/renderer-api";
+import { menuButtons, MODAL_MAX_SHARE, type MenuState, type TextInputState } from "@civ/renderer-api";
 
 export const MENU_ROW = FONT_HEIGHT + 1;
+/** A modal's choices as buttons (see `menuButtons`): this tall, this far apart, at least this wide. */
+const BUTTON_H = FONT_HEIGHT + 4;
+const BUTTON_ROW = BUTTON_H + 3;
+const BUTTON_MIN_W = 56;
+/** A titled window is at least this wide; its text wraps rather than widen it past MODAL_MAX_SHARE of the screen. */
+const MODAL_MIN_W = 112;
 
-interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number }
+interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number }
 
 function menuLayout(m: MenuState): MenuLayout {
-  const maxItem = Math.max(textWidth(m.title), ...m.items.map((i, k) => textWidth(i) + (m.right?.[k] ? textWidth(m.right[k]!) + 12 : 0)));
-  const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) : 0;
-  const w = Math.min(300, Math.max(maxItem, Math.min(bodyW, 276)) + 24);
+  const buttons = menuButtons(m);
+  const itemW = Math.max(0, ...m.items.map((i, k) => textWidth(i) + (m.right?.[k] ? textWidth(m.right[k]!) + 12 : 0)));
+  const bw = buttons ? Math.max(BUTTON_MIN_W, itemW + 16) : 0;
+  const need = Math.max(textWidth(m.title) + 16, buttons ? bw + 24 : itemW + 24);
+  const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) + 20 : 0;
+  const w = Math.min(300, Math.max(need, Math.min(bodyW, Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0));
   const lines = (m.body ?? []).flatMap((l) => wrapIcons(l, w - 20));
   const bodyH = lines.length ? lines.length * FONT_HEIGHT + 5 : 0;
   const head = m.title ? 16 : 3;
@@ -136,10 +145,11 @@ function menuLayout(m: MenuState): MenuLayout {
   // Long lists (every tribe) close up their rows to stay on screen.
   const room = 200 - (m.anchor?.y ?? 0) - head - bodyH - foot;
   const row = Math.max(FONT_HEIGHT, Math.min(MENU_ROW, Math.floor(room / Math.max(1, m.items.length))));
-  const h = head + bodyH + m.items.length * row + foot;
+  const itemsH = buttons ? m.items.length * BUTTON_ROW + 1 : m.items.length * row;
+  const h = head + bodyH + itemsH + foot;
   const x = m.anchor ? Math.max(0, Math.min(320 - w, m.anchor.x)) : Math.floor((320 - w) / 2);
   const y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
-  return { x, y, w, h, lines, itemsY: y + head + bodyH, row };
+  return { x, y, w, h, lines, itemsY: y + head + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw };
 }
 
 export function menuRect(m: MenuState): { x: number; y: number; w: number; h: number } {
@@ -148,7 +158,7 @@ export function menuRect(m: MenuState): { x: number; y: number; w: number; h: nu
 }
 
 export function drawMenu(s: Surface, m: MenuState): void {
-  const { x, y, w, h, lines, itemsY, row } = menuLayout(m);
+  const { x, y, w, h, lines, itemsY, row, buttons, bx, bw } = menuLayout(m);
   drawWindow(s, x, y, w, h, m.title);
   lines.forEach((line, i) => drawIconLine(s, x + 10, y + (m.title ? 17 : 4) + i * FONT_HEIGHT, line, C.BLACK!));
   if (lines.length) {
@@ -156,8 +166,12 @@ export function drawMenu(s: Surface, m: MenuState): void {
     s.hline(x + 4, itemsY - 3, w - 8, shade("panel", 7));
   }
   m.items.forEach((item, i) => {
-    const ry = itemsY + i * row;
     const sel = i === m.selected;
+    if (buttons) {
+      drawButton(s, bx, itemsY + 1 + i * BUTTON_ROW, bw, BUTTON_H, item, true, sel);
+      return;
+    }
+    const ry = itemsY + i * row;
     if (sel) s.rect(x + 4, ry - 1, w - 8, row, shade("azure", 2));
     drawText(s, x + 10, ry, item, sel ? C.WHITE! : C.BLACK!);
     const r = m.right?.[i];
@@ -167,7 +181,13 @@ export function drawMenu(s: Surface, m: MenuState): void {
 
 /** Row index under a screen point, or -1. */
 export function menuHit(m: MenuState, px: number, py: number): number {
-  const { x, w, itemsY, row } = menuLayout(m);
+  const { x, w, itemsY, row, buttons, bx, bw } = menuLayout(m);
+  if (buttons) {
+    const off = py - itemsY - 1;
+    const i = Math.floor(off / BUTTON_ROW);
+    if (px < bx || px >= bx + bw || off < 0 || off % BUTTON_ROW >= BUTTON_H) return -1;
+    return i < m.items.length ? i : -1;
+  }
   if (px < x + 4 || px > x + w - 4) return -1;
   const i = Math.floor((py - (itemsY - 1)) / row);
   return i >= 0 && i < m.items.length ? i : -1;

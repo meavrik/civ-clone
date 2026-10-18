@@ -81,6 +81,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   names them, every renderer draws all of them, and text may carry `{icon}` tokens (modal bodies and
   panel lines; groups separated by two spaces wrap apart). The main screen has a menu bar (`MENU_BAR`: Game, Orders, Advisors,
   World, Debug) above map and panel; a `MenuState` with an `anchor` and an empty title is a bar dropdown.
+  A titled menu of up to four choices is a modal (`menuButtons`): its choices are buttons sized to the
+  longest label and centred, and its text wraps rather than widen it past `MODAL_MAX_SHARE` of the
+  screen; keep modal text to a line or two.
   Debug's entries (reveal map, gold, research, production, moves, contact) are the core `cheat` command, logged and replayed like any order.
   A refused move (`tryMove` in the web app) nudges the unit toward the square (`MotionPlayer.nudge`,
   a UI-only beat) and puts a note beside it (`view.callout`, words from `moveRefusal` in `refusal.ts`),

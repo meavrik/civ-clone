@@ -118,6 +118,18 @@ export interface MenuState {
   right?: string[];
 }
 
+/** A modal window grows with its text only up to about this share of the screen's width, then wraps. */
+export const MODAL_MAX_SHARE = 0.55;
+
+/**
+ * Whether a menu's choices show as buttons: a titled window of a few (a message's
+ * OK, a yes or no), each sized to the longest label and centred. Dropdowns and
+ * longer lists (what to build, every tribe) keep rows.
+ */
+export function menuButtons(m: MenuState): boolean {
+  return m.title !== "" && !m.anchor && m.items.length <= 4 && !m.right?.some(Boolean);
+}
+
 export interface TextInputState {
   title: string;
   text: string;
@@ -421,13 +433,13 @@ export function builtNotice(state: GameState, cityId: number, p: Production): { 
     case "building": {
       const b = building(p.id);
       const lines = [`{${buildingIcon(b)}} ${b.text}`];
-      if (b.upkeep) lines.push(`{purse} Upkeep ${b.upkeep} gold a turn`);
+      if (b.upkeep) lines.push(`{purse} Upkeep ${b.upkeep} gold`);
       return { title: `${city.name} builds ${b.name}`, lines };
     }
     case "wonder": {
       const w = wonder(p.id);
-      const lines = ["{star} A Wonder of the World!", w.text];
-      if (w.obsolete) lines.push(`{hourglass} Its power ends with ${advance(w.obsolete).name}`);
+      const lines = [`{star} ${w.text}`];
+      if (w.obsolete) lines.push(`{hourglass} Ends with ${advance(w.obsolete).name}`);
       return { title: `${city.name} completes ${w.name}`, lines };
     }
     case "spaceship": {
@@ -454,7 +466,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   const me = state.players[state.currentPlayer]!;
   const { map } = state;
   const idx = y * map.width + wrapX(map, x);
-  if (y < 0 || y >= map.height || !me.explored[idx]) return { title: "Unexplored", lines: ["Our explorers have not seen this land."] };
+  if (y < 0 || y >= map.height || !me.explored[idx]) return { title: "Unexplored", lines: ["Not explored yet."] };
   const t = map.tiles[idx]!;
   const r = TERRAIN_RULES[t.terrain];
   const city = cityAt(state, x, y);
@@ -472,9 +484,9 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     t.fortress && "{fortress} Fortress",
   ].filter(Boolean);
   if (features.length) lines.push(features.join("  "));
-  if (t.pollution) lines.push("{pollution} Polluted: output halved until cleaned");
-  if (t.hut) lines.push("{hut} A village of a minor tribe");
-  if (roadOnly(state, t) && !t.road) lines.push("{road} Only settlers climb it without a road");
+  if (t.pollution) lines.push("{pollution} Polluted: output halved");
+  if (t.hut) lines.push("{hut} A tribal village");
+  if (roadOnly(state, t) && !t.road) lines.push("{road} Settlers only, until a road");
   else if (r.rough && !t.road && !state.classicTerrain) lines.push("{road} Wheeled units need a road");
   const wear = attrition(state, me.id, x, y);
   if (wear > 0 && r.attrition) lines.push(`{heart} Wears units down ${Math.round(wear * 100)}% a turn  until ${advance(attritionCure(state, r.attrition)).name}`);
@@ -494,8 +506,11 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
       for (const u of units) counts.set(unitType(u.type).name, (counts.get(unitType(u.type).name) ?? 0) + 1);
       const names = [...counts].map(([n, k]) => (k > 1 ? `${k} ${n}` : n)).join(", ");
       lines.push(`{swords} ${names} (${owner.id === me.id ? "ours" : owner.name})`);
-      for (const u of units) if (u.order.kind === "work")
-        lines.push(`{${WORK_ICON[u.order.work]}} ${unitType(u.type).name}: ${WORK_NAME[u.order.work]}, ${u.order.turnsLeft} turn${u.order.turnsLeft === 1 ? "" : "s"} left`);
+      for (const u of units) {
+        if (u.order.kind !== "work") continue;
+        const job = WORK_NAME[u.order.work];
+        lines.push(`{${WORK_ICON[u.order.work]}} ${job[0]!.toUpperCase()}${job.slice(1)}, ${u.order.turnsLeft} turn${u.order.turnsLeft === 1 ? "" : "s"}`);
+      }
       const hurt = units.filter((u) => u.hp < maxHp(state, u.type));
       if (hurt.length) lines.push(hurt.map((u) => `{heart} ${unitType(u.type).name} ${u.hp}/${maxHp(state, u.type)}`).join("  "));
     }

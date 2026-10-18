@@ -376,7 +376,7 @@ function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0
   say(`${civ(state.players[0]!.civ).leader}, lead the ${state.players[0]!.name} to glory.`, 4000);
   // Our strength, once, as the reign begins.
   const t = civ(state.players[0]!.civ).trait;
-  if (t && !state.classicCivs) modal(`The ${state.players[0]!.name}`, [`${t.name}: ${t.text}`, `We begin knowing ${advance(t.start).name}.`], ["OK"], () => { screenState = { kind: "map" }; }, 0, () => { screenState = { kind: "map" }; });
+  if (t && !state.classicCivs) modal(`The ${state.players[0]!.name}`, [`{star} ${t.name}: ${t.text}`, `We start with ${advance(t.start).name}.`], ["OK"], () => { screenState = { kind: "map" }; }, 0, () => { screenState = { kind: "map" }; });
 }
 
 function resumeGame(save: SaveGame): void {
@@ -502,7 +502,7 @@ function builtWindow(cityId: number, p: Production, then: () => void): void {
   const notice = builtNotice(state, cityId, p);
   if (!city || city.owner !== 0 || !notice) { then(); return; }
   openCity(cityId, then);
-  modal(notice.title, notice.lines, ["Choose what to build next"], () => openProductionMenu(cityId));
+  modal(notice.title, notice.lines, ["Build next..."], () => openProductionMenu(cityId));
 }
 
 /** Buy what a city is building once the price is seen against the treasury, as the original asks. */
@@ -513,9 +513,9 @@ function askBuy(cityId: number): void {
   const gold = state.players[city.owner]!.gold;
   const name = productionName(city.production);
   if (cost === 0) { say(`${name} is already paid for`); return; }
-  const price = `{purse} Cost ${cost} gold  {coin} Treasury ${gold} gold`;
-  if (gold < cost) { modal(`Buy ${name}?`, [price, "We cannot afford it yet."], ["OK"], () => {}); return; }
-  modal(`Buy ${name}?`, [price], ["Yes, buy it", "No"], (i) => {
+  const price = `{purse} ${cost} gold  {coin} ${gold} in the treasury`;
+  if (gold < cost) { modal(`Buy ${name}?`, [price, "Not enough gold yet."], ["OK"], () => {}); return; }
+  modal(`Buy ${name}?`, [price], ["Buy", "Not now"], (i) => {
     if (i === 0 && dispatch({ type: "buy", city: cityId })) say(`${name} will be ready next turn`);
   });
 }
@@ -527,11 +527,11 @@ function modal(title: string, body: string[], items: string[], onPick: (i: numbe
 
 /** What a tribal village held, in a window like the original's. */
 function hutModal(r: HutResult, then: () => void): void {
-  const body = r.kind === "gold" ? [`The elders welcome you with a gift of ${r.amount} gold.`]
-    : r.kind === "advance" ? ["Among the villagers you find scrolls of ancient wisdom.", `We learn ${advance(r.advance).name}!`]
-    : r.kind === "unit" ? [`The village warriors swear allegiance: a unit of ${unitType(r.unit).name} joins you.`]
-    : r.kind === "barbarians" ? ["The village was a trap!", "A horde of barbarians bursts from the huts."]
-    : ["The village stands empty; its people are long gone."];
+  const body = r.kind === "gold" ? [`The elders give us ${r.amount} gold.`]
+    : r.kind === "advance" ? [`Old scrolls teach us ${advance(r.advance).name}!`]
+    : r.kind === "unit" ? [`${unitType(r.unit).name} from the village join us.`]
+    : r.kind === "barbarians" ? ["A trap! Barbarians pour out."]
+    : ["The village is empty."];
   // Scrolls found go on to the tech tree, like any advance found.
   const after = r.kind === "advance" ? () => showFound([r.advance], then) : then;
   modal("A Tribal Village", body, ["OK"], () => after(), 0, after);
@@ -543,15 +543,15 @@ function openTerrainInfo(tx: number, ty: number): void {
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
   const items: [string, () => void][] = [];
   if (active && !(active.x === tx && active.y === ty))
-    items.push([`Send the ${unitType(active.type).name} here`, () => {
+    items.push([`Send ${unitType(active.type).name} here`, () => {
       const before = state.activeUnit;
       const mark = lastActions.length;
       if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
       afterUnitOrder(before, mark);
     }]);
   const city = cityAt(state, tx, ty);
-  if (city && city.owner === 0) items.push(["Open the city", () => openCity(city.id)]);
-  items.push(["Center the map here", () => centerOn(tx, ty)]);
+  if (city && city.owner === 0) items.push(["Open city", () => openCity(city.id)]);
+  items.push(["Center here", () => centerOn(tx, ty)]);
   items.push(["Close", () => {}]);
   modal(info.title, info.lines, items.map((i) => i[0]), (i) => items[i]?.[1](), items.length - 1);
 }
@@ -712,7 +712,7 @@ function openGovernmentMenu(under: Screen, then?: () => void): void {
 
 function openWarMenu(player: number, then?: () => void): void {
   const name = state.players[player]!.name;
-  menu(`Declare war on the ${name}?`, ["No, keep the peace", "Yes, declare war!"], (i) => {
+  menu(`War on the ${name}?`, ["Keep the peace", "Declare war!"], (i) => {
     if (i === 1) {
       dispatch({ type: "declareWar", player });
       say(`War with the ${name}!`, 3000);
@@ -791,7 +791,7 @@ function confirmDisband(unit: number): void {
   const u = unitById(state, unit);
   if (!u) return;
   const name = unitType(u.type).name;
-  modal("Are you sure?", [`Disband ${name}? The unit is gone for good.`], ["No, keep it", "Yes, disband"], (i) => {
+  modal("Are you sure?", [`Disband ${name} for good?`], ["No, keep it", "Yes, disband"], (i) => {
     if (i !== 1) return;
     dispatch({ type: "disband", unit });
     followActive(true);
@@ -824,7 +824,7 @@ function askRevolution(): void {
     if (p.anarchyTurns === 0) openGovernmentMenu({ kind: "map" }); else say("Still in anarchy");
     return;
   }
-  menu("Start a revolution?", ["No", "Yes, overthrow the government"], (i) => {
+  menu("Start a revolution?", ["No", "Yes, revolt"], (i) => {
     if (i === 1) { dispatch({ type: "revolution" }); say("Revolution! Anarchy reigns.", 3000); }
   });
 }
@@ -1038,7 +1038,7 @@ function audience(player: number, line: string, done: () => void = () => { scree
           : them.gold < 10 ? "Our treasury is bare; there is nothing to give."
           : "We pay tribute to no one. Come and take it, if you dare.");
       });
-      items.push(["Declare war", () => talkMenu(`Declare war on the ${them.name}?`, ["No, keep the peace", "Yes, declare war!"], (i) => {
+      items.push(["Declare war", () => talkMenu(`War on the ${them.name}?`, ["Keep the peace", "Declare war!"], (i) => {
         if (i !== 1) { talk(words); return; }
         dispatch({ type: "declareWar", player });
         tried.add("Propose peace");
@@ -1266,8 +1266,8 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
         const e = events[i]!;
         if (e.kind === "disbanded") { lost.push(e); events.splice(i, 1); } else i++;
       }
-      const lines = lost.map((e) => `{shield} ${state.cities.find((c) => c.id === e.city)?.name ?? "A city"} cannot support its ${e.detail}`);
-      modal(lost.length > 1 ? "Units disbanded" : "Unit disbanded", [...lines, "Each unit beyond a city's free ones costs a shield a turn."], ["OK"], () => next(), 0, next);
+      const lines = lost.map((e) => `{shield} ${state.cities.find((c) => c.id === e.city)?.name ?? "A city"} can't support its ${e.detail}`);
+      modal(lost.length > 1 ? "Units disbanded" : "Unit disbanded", [...lines, "Extra units cost a shield a turn."], ["OK"], () => next(), 0, next);
     }
     else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && ev.production.kind !== "unit") builtWindow(ev.city, ev.production, next);
     else if (ev.kind === "contact") meet(ev.player, next);

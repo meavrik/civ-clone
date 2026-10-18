@@ -55,6 +55,19 @@ export function wrapIconLine(line: string, maxWidth: number, width: (piece: stri
   for (const g of groups) {
     const next = cur ? `${cur}  ${g}` : g;
     if (cur && width(next) > maxWidth) { lines.push(cur); cur = g; } else cur = next;
+    // A group too wide on its own wraps by word, each icon kept with the word after it.
+    if (width(cur) <= maxWidth) continue;
+    const words = cur.split(" ").reduce<string[]>((ws, w) => {
+      const last = ws[ws.length - 1];
+      if (last !== undefined && /^\{[a-z_]+\}$/.test(last)) ws[ws.length - 1] = `${last} ${w}`;
+      else ws.push(w);
+      return ws;
+    }, []);
+    cur = "";
+    for (const w of words) {
+      const more = cur ? `${cur} ${w}` : w;
+      if (cur && width(more) > maxWidth) { lines.push(cur); cur = w; } else cur = more;
+    }
   }
   if (cur) lines.push(cur);
   return lines;

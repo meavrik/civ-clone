@@ -71,12 +71,12 @@ describe("terrain info", () => {
     expect(info.lines).toContain("{star} Resources  {river} River  {road} Road");
     expect(info.lines.some((l) => l.startsWith("Settlers:  {irrigate} +1 {food}"))).toBe(true);
     expect(info.lines).toContain("{swords} 2 Militia, Settlers (ours)");
-    expect(info.lines).toContain("{road} Settlers: building a road, 2 turns left");
+    expect(info.lines).toContain("{road} Building a road, 2 turns");
     for (const line of info.lines) for (const seg of iconSegments(line)) if ("icon" in seg) expect(ICONS).toContain(seg.icon);
 
     applyCommand(s, { type: "found", unit: u.id });
     expect(terrainInfo(s, u.x, u.y).lines.some((l) => l.startsWith(`{city} ${s.cities[0]!.name} (Romans), size 1`))).toBe(true);
-    expect(terrainInfo(s, (u.x + 40) % 80, u.y)).toEqual({ title: "Unexplored", lines: ["Our explorers have not seen this land."] });
+    expect(terrainInfo(s, (u.x + 40) % 80, u.y)).toEqual({ title: "Unexplored", lines: ["Not explored yet."] });
   });
 
   it("warns where only settlers climb, where wheels need a road and where the ground wears units down", () => {
@@ -86,7 +86,7 @@ describe("terrain info", () => {
     const t = getTile(s.map, u.x + 1, u.y)!;
     const roadLines = () => terrainInfo(s, u.x + 1, u.y).lines.filter((l) => l.startsWith("{road} "));
     Object.assign(t, { terrain: Terrain.Mountains, river: false, road: false, special: false });
-    expect(roadLines()).toEqual(["{road} Only settlers climb it without a road"]);
+    expect(roadLines()).toEqual(["{road} Settlers only, until a road"]);
     t.terrain = Terrain.Jungle;
     expect(roadLines()).toEqual(["{road} Wheeled units need a road"]);
     t.road = true;
@@ -152,15 +152,15 @@ describe("finished builds", () => {
     expect(builtNotice(s, 9999, { kind: "building", id: "granary" })).toBeNull();
     expect(builtNotice(s, c.id, { kind: "building", id: "granary" })).toEqual({
       title: `${c.name} builds Granary`,
-      lines: [`{food} ${building("granary").text}`, "{purse} Upkeep 1 gold a turn"],
+      lines: [`{food} ${building("granary").text}`, "{purse} Upkeep 1 gold"],
     });
     // The palace costs nothing to keep, so it says no upkeep.
     expect(builtNotice(s, c.id, { kind: "building", id: "palace" })!.lines).toEqual([`{crown} ${building("palace").text}`]);
     expect(builtNotice(s, c.id, { kind: "wonder", id: "pyramids" })).toEqual({
       title: `${c.name} completes Pyramids`,
-      lines: ["{star} A Wonder of the World!", wonder("pyramids").text, "{hourglass} Its power ends with Communism"],
+      lines: [`{star} ${wonder("pyramids").text}`, "{hourglass} Ends with Communism"],
     });
-    expect(builtNotice(s, c.id, { kind: "wonder", id: "magellans" })!.lines).toHaveLength(2);
+    expect(builtNotice(s, c.id, { kind: "wonder", id: "magellans" })!.lines).toHaveLength(1);
     s.players[0]!.spaceship.structurals = 3;
     expect(builtNotice(s, c.id, { kind: "spaceship", id: "structural" })!.lines.at(-1)).toBe("{star} 3 of 32 built");
   });
