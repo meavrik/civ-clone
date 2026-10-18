@@ -19,7 +19,7 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, ownerAt, researchOutlook, riverShape, roadMask, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, ownerAt, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import { paintBorders } from "../borders.js";
@@ -142,8 +142,8 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
       if (river && tile.terrain !== Terrain.Ocean) paintRiver(ctx, dx, dy, river);
       paintCoast(ctx, dx, dy, coast, tile.terrain === Terrain.Ocean ? river : null);
       // Every square, as roads between two of its neighbours cut across its corners.
-      paintRoad(ctx, dx, dy, tile.road, roadMask(map, me.explored, mx, my), false);
-      paintRoad(ctx, dx, dy, tile.railroad, roadMask(map, me.explored, mx, my, true), true);
+      paintRoad(ctx, dx, dy, map, me.explored, mx, my, false);
+      paintRoad(ctx, dx, dy, map, me.explored, mx, my, true);
       if (tile.mine) paintMine(ctx, dx, dy);
       if (tile.special) paintSpecial(ctx, dx, dy);
       if (tile.fortress) paintFortress(ctx, dx, dy);

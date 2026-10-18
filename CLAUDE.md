@@ -120,10 +120,11 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimaps
   follow the same toggle: a line of the owner's colour round each civ's explored land; cities are
   marked in their owner's colour either way (retro: a white dot in a cross, darker inside a border).
-  Roads and fields (`works.ts`): a road runs from a square's centre to each known road neighbour's
-  centre, every square drawing the whole stroke clipped to itself, and the two squares beside a
-  diagonal draw their corner of it too (`roadStrokes`), so roads join without pinching; railroads
-  lay rails and sleepers (spaced centre to centre) along the same strokes. Irrigation is fields:
+  Roads and fields (`works.ts`): roads wander. Each square has a meeting point near its centre, and
+  the course to each known road neighbour's bows and snakes, keyed by the pair and laid from the same
+  end whichever square asks; every square draws whole courses clipped to itself, and the two squares
+  beside a diagonal draw their part of it too (`roadWays`), so roads join without seams. Railroads
+  lay rails and sleepers (spaced evenly along each course) on the same courses. Irrigation is fields:
   plots of crops in rows either side of an east-west canal (`fieldLayout`), running on into
   irrigated neighbours (`fieldSides`) with a strip of terrain elsewhere; water and the knolls of
   hills stay above them. Mines are a rock mound with a timber-framed shaft, drawn over the roads.

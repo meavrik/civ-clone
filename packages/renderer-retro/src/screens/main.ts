@@ -79,7 +79,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, fieldSides, isDeepWater, researchOutlook, roadMask, type Callout, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
+import { borderSides, fieldSides, isDeepWater, researchOutlook, type Callout, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, ICON, iconLineWidth } from "../icons.js";
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
@@ -155,8 +155,8 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       s.blit(ground, dx, dy);
       if (tile.irrigation) drawIrrigation(s, dx, dy, ground, tile.terrain, mx, my, fieldSides(map, me.explored, mx, my));
       // Every square, as roads between two of its neighbours cut across its corners.
-      drawRoad(s, dx, dy, tile.road, roadMask(map, me.explored, mx, my));
-      drawRailroad(s, dx, dy, tile.railroad, roadMask(map, me.explored, mx, my, true));
+      drawRoad(s, dx, dy, map, me.explored, mx, my);
+      drawRailroad(s, dx, dy, map, me.explored, mx, my);
       if (tile.mine) drawMine(s, dx, dy);
       if (tile.special) drawSpecial(s, dx, dy, tile.terrain);
       if (tile.hut) drawHut(s, dx, dy);

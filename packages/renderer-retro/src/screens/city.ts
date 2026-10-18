@@ -14,7 +14,7 @@ import {
   type City,
   type GameState,
 } from "@civ/core";
-import { fieldSides, roadMask, type IconName } from "@civ/renderer-api";
+import { fieldSides, type IconName } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
@@ -268,8 +268,8 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       const ground = terrainSquare(state.map, wx, my, me.explored);
       s.blit(ground, px, py);
       if (tile.irrigation) drawIrrigation(s, px, py, ground, tile.terrain, wx, my, fieldSides(state.map, me.explored, wx, my));
-      drawRoad(s, px, py, tile.road, roadMask(state.map, me.explored, wx, my));
-      drawRailroad(s, px, py, tile.railroad, roadMask(state.map, me.explored, wx, my, true));
+      drawRoad(s, px, py, state.map, me.explored, wx, my);
+      drawRailroad(s, px, py, state.map, me.explored, wx, my);
       if (tile.mine) drawMine(s, px, py);
       if (tile.special) drawSpecial(s, px, py, tile.terrain);
       if (tile.fortress) drawFortress(s, px, py);

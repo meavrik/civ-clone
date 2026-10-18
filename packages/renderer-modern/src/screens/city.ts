@@ -14,7 +14,7 @@ import {
   wonder,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, fieldSides, fogPatch, riverShape, roadMask, type CityButton, type CityScreenView } from "@civ/renderer-api";
+import { coastPatch, DEEP, fieldSides, fogPatch, riverShape, type CityButton, type CityScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import type { Context2D } from "../context.js";
@@ -141,8 +141,8 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
       paintTile(ctx, px, py, tile, wx, my, coast.depth[4] === DEEP, tile.irrigation ? fieldSides(state.map, me.explored, wx, my) : 0);
       if (river && !sea) paintRiver(ctx, px, py, river);
       paintCoast(ctx, px, py, coast, sea ? river : null);
-      paintRoad(ctx, px, py, tile.road, roadMask(state.map, me.explored, wx, my), false);
-      paintRoad(ctx, px, py, tile.railroad, roadMask(state.map, me.explored, wx, my, true), true);
+      paintRoad(ctx, px, py, state.map, me.explored, wx, my, false);
+      paintRoad(ctx, px, py, state.map, me.explored, wx, my, true);
       if (tile.mine) paintMine(ctx, px, py);
       if (tile.special) paintSpecial(ctx, px, py);
       if (tile.fortress) paintFortress(ctx, px, py);

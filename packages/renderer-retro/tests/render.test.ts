@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, Terrain, unitType } from "@civ/core";
-import { borderSides, C, cityButtonAt, citySlotAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, cityButtonAt, citySlotAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -448,11 +448,17 @@ describe("terrain works", () => {
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/works.png", import.meta.url), encodePng(crop, 4));
 
-    // A road crosses its square from border to border, and a straight road meets the next square's.
-    for (let i = 0; i < 16; i++) expect(earth(at(x0 + 2, y0 + 3, i, 8)), `road at ${i}`).toBe(true);
-    // The diagonal from (6,2) to (7,1) passes the corners of (6,1) and (7,2), roadless, which draw their slivers of it.
-    expect(earth(at(x0 + 6, y0 + 1, 15, 15))).toBe(true);
-    expect(earth(at(x0 + 7, y0 + 2, 0, 0))).toBe(true);
+    // A road wanders across its square, and its packed earth meets the next square's at the border.
+    const surface = (c: number) => c === shade("earth", 6) || c === shade("earth", 5);
+    const rows = (mx: number, i: number) => [...Array(16).keys()].filter((j) => surface(at(mx, y0 + 3, i, j)));
+    const leaving = rows(x0 + 2, 15);
+    expect(leaving.length).toBeGreaterThan(0);
+    expect(leaving.some((j) => rows(x0 + 3, 0).some((k) => Math.abs(j - k) <= 1))).toBe(true);
+    expect(new Set([0, 4, 8, 12, 15].map((i) => rows(x0 + 2, i).join())).size).toBeGreaterThan(1);
+    // The diagonal from (6,2) to (7,1) passes the corner of (6,1) and (7,2), roadless, which draw their part of it.
+    let corner = 0;
+    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) if (earth(at(x0 + 6, y0 + 1, i, j)) || earth(at(x0 + 7, y0 + 2, i, j))) corner++;
+    expect(corner).toBeGreaterThan(0);
     // Fields: a canal runs through the middle and on into the irrigated neighbour; a strip of terrain shows toward the rest.
     expect(water(at(x0 + 3, y0 + 4, 15, 7)) && water(at(x0 + 4, y0 + 4, 0, 7))).toBe(true);
     const ground = (c: number) => c >= C.GRASS! && c < C.GRASS! + 8;

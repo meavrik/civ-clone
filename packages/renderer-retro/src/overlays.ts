@@ -1,5 +1,5 @@
-import { Terrain, unitType, type Unit } from "@civ/core";
-import { FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, roadStrokes, strokeGap, WORK_ICON } from "@civ/renderer-api";
+import { Terrain, unitType, type Unit, type WorldMap } from "@civ/core";
+import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, roadWays, WORK_ICON, type Explored, type RoadWays } from "@civ/renderer-api";
 import { drawIcon } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, shade } from "./palette.js";
@@ -11,7 +11,7 @@ import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sp
 /** Half-widths of a road in pixels: its packed-earth surface, and the dark verge either side. */
 const ROAD_CORE = 1;
 const ROAD_VERGE = 2;
-/** A railroad's sleepers lie across the road this many pixels apart (as near as fits between square centres). */
+/** A railroad's sleepers lie across the road this many pixels apart (as near as fits along each course). */
 const SLEEPER_GAP = 3;
 
 /** Whether palette index `c` lies in a ramp. */
@@ -20,73 +20,67 @@ function inRamp(c: number, ramp: string): boolean {
   return c >= base && c < base + 8;
 }
 
-const wayCache = new Map<number, Surface | null>();
+const wayCache = new Map<string, Surface>();
 
 /**
- * A road or railroad across one square (see `roadStrokes`), as a sprite keyed
- * by SPRITE_CLEAR, or null when none crosses it. A road is a band of packed
- * earth, worn darker here and there, between darker verges; a railroad lays
- * bright rails on the verges with dark sleepers on gravel between, spaced
- * evenly from square centre to square centre so they meet the next square's.
- * A road square with no links is a small round patch.
+ * A road or railroad across one square (see `roadWays`), as a sprite keyed by
+ * SPRITE_CLEAR. A road is a band of packed earth, worn here and there, between
+ * dark verges that grass breaks into; a railroad lays bright rails on the
+ * verges with dark sleepers on gravel between, spaced evenly along each course
+ * so they meet the next square's. A road square with no links is a small
+ * round patch.
  */
-function waySurface(self: boolean, mask: number, rail: boolean): Surface | null {
-  const key = (rail ? 512 : 0) | (self ? 256 : 0) | mask;
+function waySurface(ways: RoadWays, x: number, y: number, rail: boolean): Surface {
+  const key = `${rail ? "r" : "w"}${ways.key}`;
   const hit = wayCache.get(key);
-  if (hit !== undefined) return hit;
-  const strokes = roadStrokes(self, mask);
-  let out: Surface | null = null;
-  if (strokes.length || self) {
-    out = new Surface(TILE, TILE);
-    out.fill(SPRITE_CLEAR);
-    const surface = shade("earth", 6);
-    const worn = shade("earth", 5);
-    const verge = shade("earth", 2);
-    const steel = shade("stone", 6);
-    const ballast = shade("stone", 3);
-    const sleeper = shade("earth", 1);
-    for (let j = 0; j < TILE; j++)
-      for (let i = 0; i < TILE; i++) {
-        const u = (i + 0.5) / TILE;
-        const v = (j + 0.5) / TILE;
-        let d = Infinity;
-        let along = 0;
-        let gap = SLEEPER_GAP;
-        for (const st of strokes) {
-          const g = strokeGap(st, u, v) * TILE;
-          if (g >= d) continue;
-          d = g;
-          const ex = st[2] - st[0];
-          const ey = st[3] - st[1];
-          const len = Math.hypot(ex, ey);
-          along = (((u - st[0]) * ex + (v - st[1]) * ey) / len) * TILE;
-          gap = (len * TILE) / Math.max(1, Math.round((len * TILE) / SLEEPER_GAP));
-        }
-        if (!strokes.length) d = Math.hypot(u - 0.5, v - 0.5) * TILE - 1.5;
-        let c = -1;
-        if (rail) {
-          if (d >= ROAD_CORE && d < ROAD_VERGE) c = steel;
-          else if (d < ROAD_CORE && Math.abs(along / gap - Math.round(along / gap)) * gap < 0.5) c = sleeper;
-          else if (d < ROAD_CORE) c = ballast;
-        } else if (d < ROAD_CORE) c = hash(i, j, 7) < 0.25 ? worn : surface;
-        else if (d < ROAD_VERGE) c = verge;
-        if (c >= 0) out.set(i, j, c);
+  if (hit) return hit;
+  const out = new Surface(TILE, TILE);
+  out.fill(SPRITE_CLEAR);
+  const surface = shade("earth", 6);
+  const worn = shade("earth", 5);
+  const verge = shade("earth", 2);
+  const steel = shade("stone", 6);
+  const ballast = shade("stone", 3);
+  const sleeper = shade("earth", 1);
+  for (let j = 0; j < TILE; j++)
+    for (let i = 0; i < TILE; i++) {
+      const u = (i + 0.5) / TILE;
+      const v = (j + 0.5) / TILE;
+      let d = Infinity;
+      let along = 0;
+      let gap = SLEEPER_GAP;
+      for (const c of ways.courses) {
+        const g = courseGap(c, u, v);
+        if (g.gap * TILE >= d) continue;
+        d = g.gap * TILE;
+        along = g.along * TILE;
+        gap = (g.length * TILE) / Math.max(1, Math.round((g.length * TILE) / SLEEPER_GAP));
       }
-  }
+      if (ways.patch) d = Math.hypot(u - ways.patch[0], v - ways.patch[1]) * TILE - 1.5;
+      const grain = hash(x * TILE + i, y * TILE + j, 7);
+      let c = -1;
+      if (rail) {
+        if (d >= ROAD_CORE && d < ROAD_VERGE) c = steel;
+        else if (d < ROAD_CORE) c = Math.abs(along / gap - Math.round(along / gap)) * gap < 0.5 ? sleeper : ballast;
+      } else if (d < ROAD_CORE) c = grain < 0.25 ? worn : surface;
+      else if (d < ROAD_VERGE && grain > 0.15) c = verge;
+      if (c >= 0) out.set(i, j, c);
+    }
+  if (wayCache.size > 4096) wayCache.clear();
   wayCache.set(key, out);
   return out;
 }
 
-/** The road across a square: `self` when the square has one, `mask` its known road neighbours (see `roadMask`). */
-export function drawRoad(s: Surface, dx: number, dy: number, self: boolean, mask: number): void {
-  const way = waySurface(self, mask, false);
-  if (way) s.blit(way, dx, dy, SPRITE_CLEAR);
+/** The road across square (x, y), as the viewer knows it (`explored`). */
+export function drawRoad(s: Surface, dx: number, dy: number, map: WorldMap, explored: Explored, x: number, y: number): void {
+  const ways = roadWays(map, explored, x, y);
+  if (ways) s.blit(waySurface(ways, x, y, false), dx, dy, SPRITE_CLEAR);
 }
 
-/** The railroad across a square, over its road: as `drawRoad`, with the railroad's neighbours. */
-export function drawRailroad(s: Surface, dx: number, dy: number, self: boolean, mask: number): void {
-  const way = waySurface(self, mask, true);
-  if (way) s.blit(way, dx, dy, SPRITE_CLEAR);
+/** The railroad across square (x, y), over its road. */
+export function drawRailroad(s: Surface, dx: number, dy: number, map: WorldMap, explored: Explored, x: number, y: number): void {
+  const ways = roadWays(map, explored, x, y, true);
+  if (ways) s.blit(waySurface(ways, x, y, true), dx, dy, SPRITE_CLEAR);
 }
 
 /** Fortress: a square rampart with corner towers. */

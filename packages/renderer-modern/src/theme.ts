@@ -157,8 +157,8 @@ export const SEA = {
 
 export const RIVER = "#5aa9ff";
 
-/** A road: packed earth between darker verges, worn lighter down the middle. */
-export const ROAD = { verge: "#5e4426", surface: "#a88452", worn: "rgba(232, 208, 160, 0.35)" };
+/** A road: packed earth between darker verges, with wheel ruts along it and pebbles at its edges. */
+export const ROAD = { verge: "#5e4426", surface: "#a88452", rut: "rgba(94, 66, 34, 0.45)", pebble: "#d9c39a" };
 /** A railroad over its road: gravel, dark sleepers across it and bright rails. */
 export const RAIL = { ballast: "#6c6f73", sleeper: "#4a3420", rail: "#dfe5ea" };
 

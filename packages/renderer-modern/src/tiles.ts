@@ -1,5 +1,5 @@
-import { Terrain, type Tile } from "@civ/core";
-import { FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, roadStrokes, type RiverShape, type Stroke } from "@civ/renderer-api";
+import { Terrain, type Tile, type WorldMap } from "@civ/core";
+import { FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, roadWays, type Course, type Explored, type RiverShape } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { circle } from "./draw.js";
 import { FIELDS, MINE, RAIL, RIVER, ROAD, SEA, TERRAIN, TILE, UI } from "./theme.js";
@@ -211,86 +211,128 @@ export function paintRiver(ctx: Context2D, x: number, y: number, river: RiverSha
   }
 }
 
-/** Half-widths of a road: its verges, and the packed earth between them. */
+/** Half-widths of a road: its verges, and the packed earth between them; its ruts lie this far off the middle. */
 const ROAD_VERGE = 4.5;
 const ROAD_SURFACE = 3;
+const RUT = 1.6;
 /** A railroad: rails this far either side of the middle, sleepers across about this far apart. */
 const RAIL_GAUGE = 2.5;
 const SLEEPER_GAP = 6;
 
-function strokePath(ctx: Context2D, x: number, y: number, st: Stroke): void {
-  ctx.beginPath();
-  ctx.moveTo(x + st[0] * TILE, y + st[1] * TILE);
-  ctx.lineTo(x + st[2] * TILE, y + st[3] * TILE);
-  ctx.stroke();
+/** A course in this square's pixels (see `roadWays`). */
+function coursePixels(x: number, y: number, c: Course): number[] {
+  return c.map((v, k) => (k % 2 ? y : x) + v * TILE);
+}
+
+/** A polyline shifted sideways by `by` pixels (positive to its left), each point along the normal of its neighbours. */
+function shifted(pts: number[], by: number): number[] {
+  const out: number[] = [];
+  const n = pts.length / 2;
+  for (let k = 0; k < n; k++) {
+    const a = Math.max(0, k - 1) * 2;
+    const b = Math.min(n - 1, k + 1) * 2;
+    const ex = pts[b]! - pts[a]!;
+    const ey = pts[b + 1]! - pts[a + 1]!;
+    const len = Math.hypot(ex, ey) || 1;
+    out.push(pts[k * 2]! - (ey / len) * by, pts[k * 2 + 1]! + (ex / len) * by);
+  }
+  return out;
+}
+
+function polyline(ctx: Context2D, pts: number[]): void {
+  ctx.moveTo(pts[0]!, pts[1]!);
+  for (let k = 2; k < pts.length; k += 2) ctx.lineTo(pts[k]!, pts[k + 1]!);
+}
+
+/** Points every `gap` (as near as fits) along a polyline, each with its direction, from its start to its end. */
+function stations(pts: number[], gap: number): [number, number, number, number][] {
+  let total = 0;
+  for (let k = 0; k + 3 < pts.length; k += 2) total += Math.hypot(pts[k + 2]! - pts[k]!, pts[k + 3]! - pts[k + 1]!);
+  const n = Math.max(1, Math.round(total / gap));
+  const out: [number, number, number, number][] = [];
+  let k = 0;
+  let run = 0;
+  for (let i = 0; i <= n; i++) {
+    const want = (total * i) / n;
+    for (;;) {
+      const len = Math.hypot(pts[k + 2]! - pts[k]!, pts[k + 3]! - pts[k + 1]!);
+      if (run + len >= want - 1e-9 || k + 4 >= pts.length) {
+        const t = len ? Math.min(1, (want - run) / len) : 0;
+        const ex = pts[k + 2]! - pts[k]!;
+        const ey = pts[k + 3]! - pts[k + 1]!;
+        out.push([pts[k]! + ex * t, pts[k + 1]! + ey * t, ex / (len || 1), ey / (len || 1)]);
+        break;
+      }
+      run += len;
+      k += 2;
+    }
+  }
+  return out;
 }
 
 /**
- * The road (or the railroad, over its road) across a square: `self` when the
- * square has it, `mask` its known neighbours with it (see `roadMask`). Each
- * stroke runs to the neighbour's centre, clipped to this square, so the two
- * halves meet at the border and diagonals pass cleanly through the corners
- * (see `roadStrokes`). Sleepers are spaced evenly from centre to centre, so
- * they meet the next square's too. A road square with no links is a round patch.
+ * The road (or the railroad, over its road) across square (x, y) as the viewer
+ * knows it (see `roadWays`): each course wanders to the next square's meeting
+ * point, clipped to this square, so the halves meet at the border. A road is
+ * packed earth between dark verges, with two wheel ruts and a few pebbles; a
+ * railroad lays sleepers (spaced evenly along each course, so they meet the next
+ * square's) and two rails on gravel. A road square with no links is a round patch.
  */
-export function paintRoad(ctx: Context2D, x: number, y: number, self: boolean, mask: number, rail: boolean): void {
-  const strokes = roadStrokes(self, mask);
-  if (!strokes.length && !self) return;
-  const cx = x + CENTRE;
-  const cy = y + CENTRE;
-  if (!strokes.length) {
-    circle(ctx, cx, cy, ROAD_VERGE + 2, rail ? RAIL.ballast : ROAD.verge);
-    circle(ctx, cx, cy, ROAD_SURFACE + 2, rail ? RAIL.sleeper : ROAD.surface);
+export function paintRoad(ctx: Context2D, x: number, y: number, map: WorldMap, explored: Explored, mx: number, my: number, rail: boolean): void {
+  const ways = roadWays(map, explored, mx, my, rail);
+  if (!ways) return;
+  if (ways.patch) {
+    const [px, py] = [x + ways.patch[0] * TILE, y + ways.patch[1] * TILE];
+    circle(ctx, px, py, ROAD_VERGE + 2, rail ? RAIL.ballast : ROAD.verge);
+    circle(ctx, px, py, ROAD_SURFACE + 2, rail ? RAIL.sleeper : ROAD.surface);
     return;
   }
+  const courses = ways.courses.map((c) => coursePixels(x, y, c));
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, TILE, TILE);
   ctx.clip();
   ctx.lineCap = "round";
-  const pass = (width: number, color: string) => {
+  ctx.lineJoin = "round";
+  const pass = (width: number, color: string, side = 0) => {
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
-    for (const st of strokes) strokePath(ctx, x, y, st);
+    ctx.beginPath();
+    for (const c of courses) polyline(ctx, side ? shifted(c, side) : c);
+    ctx.stroke();
   };
   if (!rail) {
     pass(ROAD_VERGE * 2, ROAD.verge);
     pass(ROAD_SURFACE * 2, ROAD.surface);
-    pass(2, ROAD.worn);
+    pass(1, ROAD.rut, RUT);
+    pass(1, ROAD.rut, -RUT);
+    // Pebbles at the edges, a few to a course, placed by the squares at its ends so both squares agree.
+    const at = (u: number, v: number) => Math.floor(my + v) * map.width + ((Math.floor(mx + u) % map.width) + map.width) % map.width;
+    ways.courses.forEach((c, i) => {
+      const from = at(c[0]!, c[1]!);
+      const to = at(c[c.length - 2]!, c[c.length - 1]!);
+      for (const [k, [px, py, dx, dy]] of stations(courses[i]!, 9).entries()) {
+        const r = hash(from, to, 420 + k);
+        if (r > 0.35) continue;
+        const side = r < 0.17 ? 1 : -1;
+        circle(ctx, px - dy * ROAD_SURFACE * side, py + dx * ROAD_SURFACE * side, 1, ROAD.pebble);
+      }
+    });
   } else {
     pass(ROAD_VERGE * 2, RAIL.ballast);
     ctx.lineCap = "butt";
     ctx.strokeStyle = RAIL.sleeper;
     ctx.lineWidth = 2.5;
-    for (const st of strokes) {
-      const ex = (st[2] - st[0]) * TILE;
-      const ey = (st[3] - st[1]) * TILE;
-      const len = Math.hypot(ex, ey);
-      const n = Math.max(1, Math.round(len / SLEEPER_GAP));
-      const [nx, ny] = [(-ey / len) * ROAD_VERGE, (ex / len) * ROAD_VERGE];
-      ctx.beginPath();
-      for (let k = 0; k <= n; k++) {
-        const px = x + st[0] * TILE + (ex * k) / n;
-        const py = y + st[1] * TILE + (ey * k) / n;
-        ctx.moveTo(px - nx, py - ny);
-        ctx.lineTo(px + nx, py + ny);
-      }
-      ctx.stroke();
-    }
-    ctx.strokeStyle = RAIL.rail;
-    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    for (const st of strokes) {
-      const ex = (st[2] - st[0]) * TILE;
-      const ey = (st[3] - st[1]) * TILE;
-      const len = Math.hypot(ex, ey);
-      for (const side of [-1, 1]) {
-        const [nx, ny] = [(-ey / len) * RAIL_GAUGE * side, (ex / len) * RAIL_GAUGE * side];
-        ctx.moveTo(x + st[0] * TILE + nx, y + st[1] * TILE + ny);
-        ctx.lineTo(x + st[2] * TILE + nx, y + st[3] * TILE + ny);
+    for (const c of courses)
+      for (const [px, py, dx, dy] of stations(c, SLEEPER_GAP)) {
+        ctx.moveTo(px + dy * ROAD_VERGE, py - dx * ROAD_VERGE);
+        ctx.lineTo(px - dy * ROAD_VERGE, py + dx * ROAD_VERGE);
       }
-    }
     ctx.stroke();
+    ctx.lineCap = "round";
+    pass(1.5, RAIL.rail, RAIL_GAUGE);
+    pass(1.5, RAIL.rail, -RAIL_GAUGE);
   }
   ctx.restore();
 }
