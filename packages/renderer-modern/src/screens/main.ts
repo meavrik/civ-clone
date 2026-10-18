@@ -432,7 +432,7 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   y += LINE + 4;
   drawIconLine(ctx, TEXT_X, y, `{crown} ${GOVERNMENTS[me.government]?.name ?? me.government}`, { size: 13, color: UI.accent });
   y += LINE + 4;
-  // Research: the advance under study with the turns to go, and a bar of the beakers toward it.
+  // Research: the advance under study with the turns to go, and a bar of the beakers toward it; nothing while none is picked.
   const research = researchOutlook(state);
   if (research.id) {
     const turns = research.turns === null ? "no science" : `${research.turns} turn${research.turns === 1 ? "" : "s"}`;
@@ -443,9 +443,6 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
     fillRound(ctx, TEXT_X, y + LINE + 1, bw, 6, 3, UI.panelEdge);
     if (research.have > 0) fillRound(ctx, TEXT_X, y + LINE + 1, Math.max(6, (bw * Math.min(research.have, research.cost)) / research.cost), 6, 3, UI.info);
     y += LINE + 10;
-  } else if (research.open) {
-    drawIconLine(ctx, TEXT_X, y, "{bulb} Pick research", { size: 14, color: UI.info });
-    y += LINE;
   }
   ctx.fillStyle = UI.panelEdge;
   ctx.fillRect(12, y, PANEL_W - 24, 1);

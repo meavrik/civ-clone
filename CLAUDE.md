@@ -69,7 +69,8 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   A refused move (`tryMove` in the web app) nudges the unit toward the square (`MotionPlayer.nudge`,
   a UI-only beat) and puts a note beside it (`view.callout`, words from `moveRefusal` in `refusal.ts`),
   gone after 4 s or at the next key or click. Both status panels show the research under way
-  (`researchOutlook`: advance, beakers, turns to go).
+  (`researchOutlook`: advance, beakers, turns to go), and nothing while none is picked. Disbanding
+  (Shift+D, Orders > Disband) asks "Are you sure?" first, No by default (`confirmDisband`).
   Unit animation: core appends every step (`applyMove`) and fight (`resolveCombat`, round by round) to
   `lastActions` (a UI side channel like `lastTurnEvents`, emptied by `endTurn`, never read by replays or
   AI); `MotionPlayer` (`renderer-api/src/motion.ts`) times them into `view.moving` (slides) and

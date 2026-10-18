@@ -265,6 +265,14 @@ describe("refused moves and research", () => {
     let beakers = 0;
     for (let y = 9; y < 200; y++) for (let x = 0; x < 80; x++) if (s.get(x, y) === C.LCYAN!) beakers++;
     expect(beakers).toBeGreaterThan(0);
+    // With nothing under study the row is left out altogether: no bar, no bulb, no words.
+    p.researching = null;
+    const empty = Surface.screen();
+    drawMainScreen(empty, state, view);
+    const inPanel = (sf: Surface, color: number) => { let n = 0; for (let y = 9; y < 200; y++) for (let x = 0; x < 80; x++) if (sf.get(x, y) === color) n++; return n; };
+    expect(inPanel(empty, C.YELLOW!)).toBeLessThan(inPanel(s, C.YELLOW!)); // the bulb
+    expect(beakers - inPanel(empty, C.LCYAN!)).toBeGreaterThan(0); // the bar (the gem shares its cyan)
+    p.researching = "pottery";
 
     drawMainScreen(s, state, { ...view, callout: { x: guard.x, y: guard.y, text: "Militia cannot cross the ocean. A ship with room must carry it." } });
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });

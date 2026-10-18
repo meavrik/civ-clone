@@ -360,16 +360,11 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
 
 /**
  * Research: the advance under study by a bulb with the turns still to go, and under them a
- * thin bar of the beakers gathered toward it (or a nudge to pick one). Returns the y after it.
+ * thin bar of the beakers gathered toward it; nothing while none is picked. Returns the y after it.
  */
 function drawResearch(s: Surface, state: GameState, y: number): number {
   const r = researchOutlook(state);
-  if (!r.id) {
-    if (!r.open) return y + 1;
-    drawIcon(s, "bulb", TEXT_X, y);
-    drawTextWrapped(s, TEXT_X + ICON + 1, y, TEXT_W - ICON - 1, "None picked", NEWS, 1);
-    return y + 10;
-  }
+  if (!r.id) return y + 1;
   const node = techLayout().byId.get(r.id);
   const turns = `{hourglass}${r.turns === null ? "-" : r.turns}`;
   const tw = iconLineWidth(turns);

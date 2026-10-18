@@ -760,8 +760,20 @@ function unitOrders(unit: number): MenuEntry[] {
   if (here && here.owner === u.owner && u.homeCity !== here.id) items.push([`Home city: ${here.name}`, "H", () => setHome(unit)]);
   items.push(["Wait", "W", () => dispatch({ type: "wait", unit })]);
   items.push(["Skip turn", "Space", () => dispatch({ type: "skip", unit })]);
-  items.push(["Disband", "Shift+D", () => dispatch({ type: "disband", unit })]);
+  items.push(["Disband", "Shift+D", () => confirmDisband(unit)]);
   return items;
+}
+
+/** Disbanding loses the unit for good, so ask first (Shift+D, Orders > Disband); No is the default. */
+function confirmDisband(unit: number): void {
+  const u = unitById(state, unit);
+  if (!u) return;
+  const name = unitType(u.type).name;
+  modal("Are you sure?", [`Disband ${name}? The unit is gone for good.`], ["No, keep it", "Yes, disband"], (i) => {
+    if (i !== 1) return;
+    dispatch({ type: "disband", unit });
+    followActive(true);
+  }, 0, () => {});
 }
 
 /** The city the unit stands in pays its upkeep from now on (H), as in the original. */
@@ -1177,7 +1189,7 @@ function mapKey(e: KeyboardEvent): void {
       break;
     }
     case "KeyB": if (active !== null) foundWithName(active); break;
-    case "KeyD": if (e.shiftKey) order({ type: "disband", unit: active! }); break;
+    case "KeyD": if (e.shiftKey && active !== null) confirmDisband(active); break;
     case "KeyH": if (active !== null) setHome(active); break;
     case "KeyC": followActive(true); break;
     case "KeyT": screenState = { kind: "rates" }; break;

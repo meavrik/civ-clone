@@ -336,11 +336,11 @@ describe("refused moves", () => {
 });
 
 describe("research outlook", () => {
-  it("names the advance under study, the beakers toward it and the turns to go, or asks for a pick", () => {
+  it("names the advance under study, the beakers toward it and the turns to go", () => {
     const s = newGame(2026);
     const p = s.players[0]!;
     p.researching = null;
-    expect(researchOutlook(s)).toMatchObject({ id: null, open: true });
+    expect(researchOutlook(s)).toMatchObject({ id: null, name: "" });
     p.researching = "pottery";
     p.science = 3;
     expect(researchOutlook(s)).toMatchObject({ id: "pottery", name: "Pottery", have: 3, turns: null });
