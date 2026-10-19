@@ -2,11 +2,13 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sheetFromImage, sheetImage, SHEETS, sheetText } from "@civ/renderer-retro";
+import { appIcons } from "./icons.js";
 import { decodePng, encodePng } from "./png.js";
 
 /**
  * npm run sprites -- export [dir]            write units.png, terrain.png, features.png (default dir: art-export)
  * npm run sprites -- import <file.png> [sheet] read an edited sheet back into packages/renderer-retro/src/art
+ * npm run sprites -- icons [dir]             draw the mobile app's icons (default dir: apps/mobile/public/icons)
  *
  * Sheets are 8 sprites wide at 1:1 scale; transparent pixels are clear and
  * magenta (#ff00ff, #800080) stands for the owner's colour and its dark
@@ -14,6 +16,7 @@ import { decodePng, encodePng } from "./png.js";
  * can name, or the import stops and lists the offending pixels.
  */
 const ART_DIR = resolve(fileURLToPath(new URL("../../../packages/renderer-retro/src/art/", import.meta.url)));
+const ICON_DIR = resolve(fileURLToPath(new URL("../../../apps/mobile/public/icons/", import.meta.url)));
 
 export function artModule(sheet: string, text: string): string {
   return [
@@ -56,7 +59,16 @@ function main(argv: string[]): number {
     console.log(`updated ${target}`);
     return 0;
   }
-  console.error("usage: npm run sprites -- export [dir] | import <file.png> [sheet]");
+  if (cmd === "icons") {
+    const dir = resolve(args[0] ?? ICON_DIR);
+    mkdirSync(dir, { recursive: true });
+    for (const { file, image } of appIcons()) {
+      writeFileSync(join(dir, file), encodePng(image));
+      console.log(`wrote ${join(dir, file)}`);
+    }
+    return 0;
+  }
+  console.error("usage: npm run sprites -- export [dir] | import <file.png> [sheet] | icons [dir]");
   return 2;
 }
 

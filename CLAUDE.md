@@ -7,6 +7,7 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 ## Commands
 
 - `npm run dev` — Vite dev server for apps/web (http://localhost:5173)
+- `npm run dev:mobile` / `build:mobile` / `preview:mobile` — the phone app (apps/mobile, http://localhost:5180, on the LAN too)
 - `npm test` — vitest, all packages (50+ tests; render tests dump PNGs to `packages/renderer-retro/tests/out/`)
 - `npm run typecheck` — `tsc -b` across the workspace (strict, exactOptionalPropertyTypes, noUncheckedIndexedAccess)
 - `npm run build` — typecheck + Vite build
@@ -177,7 +178,8 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   ramp stays in the palette only to keep later indices in place.
 - `tools/sprites` — `npm run sprites -- export [dir]` writes the sheets as PNGs (8 sprites wide,
   1:1, magenta = owner colour); `npm run sprites -- import <sheet>.png` writes an edited sheet
-  back into `src/art`, rejecting any pixel outside the sprite's palette legend.
+  back into `src/art`, rejecting any pixel outside the sprite's palette legend; `npm run sprites -- icons`
+  draws the mobile app's icons (a walled city, `icons.ts`) into `apps/mobile/public/icons`.
 - `packages/renderer-modern` — canvas-2D renderer on a 960x600 logical surface (same panel/
   viewport split, 48px tiles): `theme.ts` (all colours and fonts), `draw.ts` (panels, wrapped
   text, bars), `tiles.ts`/`markers.ts` (terrain, overlays, units, cities), `screens/*`. It draws
@@ -196,6 +198,22 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   civ a turn, later steps get a callout) and the AI's demands after its turn show our unit, then the
   leader asks us out (`askToLeave`: leave = gotos to the nearest square outside, open borders, a gift,
   or stay); an AI declaring war on us says so in an audience.
+- `apps/mobile` — the web game as a PWA for phones and tablets, asked for without changing the web game:
+  `src/main.ts` imports `apps/web/src/main.ts` as it is, and `vite.config.ts` (`webGame`) hands that file
+  three stand-ins for its own modules: `display.ts` (screen and controls laid out by `layout.ts`: a pad
+  column left and a keys column right, or a band below when upright, whichever leaves the bigger screen;
+  safe-area insets; `toLogical` from the canvas rect at any scale), `renderer.ts` (the web retro renderer
+  with the map drawn and hit-tested through `MapPan`: a finger's drag, let go when the game moves its
+  camera, the active unit changes or a key is pressed on the map; keeps the frame's `TextInputState`) and
+  `storage.ts` (same slots; remembers the last autosave so `save.ts` can save the turn so far when the page
+  is hidden). Keep those three web modules' exports as they are (each stand-in `satisfies` its web
+  counterpart's type). It reads `window.civ` (`screen`, `state`, `log`) from web main.ts: keep that hook.
+  `touch.ts` turns fingers (`gestures.ts`) into the mouse the game knows: tap = mousedown 0, hold 450 ms
+  = mousedown 2, drag = pan or tech-tree wheel; mouse pointers are left to the browser. `controls.ts`
+  presses the keys `keys.ts` lists per screen kind (the pad: Numpad diagonals and C on the map, arrows in
+  menus). `text.ts` shows a DOM field while the game asks for text, bound to the game's `TextInputState`,
+  OK/Cancel = Enter/Esc. The build writes `sw.js` from `service-worker.js` (every file precached under a
+  content hash; pages network-first, `ignoreVary`). `base: "./"`, so the build plays from any folder.
 - `tools/headless` — tournament harness: `runGame(config)` plays an `allAi` game through `runAiPlayers`, samples
   per-civ stats, fingerprints the final state; `AIS` registry seats a named AI per civ. `cli.ts` prints tables.
 - `tools/maps` — premade-world builder: `frames.ts` (lon/lat → grid breakpoints per world, homelands),
@@ -249,7 +267,9 @@ the player's units off their land, warn once more, then go to war (our departure
 borders). Culture borders done (2026-10-19, asked for): borders start a square round each city and grow
 with its culture (save version 12). World sizes done (2026-10-19, asked for: premade maps felt small):
 small 80x50, medium 120x75, large 160x100 for premade and customized worlds; no save version (a save
-without `size` is small). Next: mobile/PWA + touch adapter.
+without `size` is small). Mobile PWA done (2026-10-19, asked for, apps/web untouched): touch, on-screen
+pad and keys, map drag, keyboard prompt, save on hide, offline service worker, icons; checked in desktop
+Chrome with simulated touches, not yet on a phone.
 
 ## Known gaps / next steps
 
@@ -322,7 +342,8 @@ without `size` is small). Next: mobile/PWA + touch adapter.
    (only the player is asked to leave), and a refused tribute demand costs nothing.
 5. Modern renderer (set aside, not in the app): real sprites/icons for units and specials, animation,
    hover states, if it comes back.
-6. Mobile: PWA + touch adapter in apps/web (input is already centralised in main.ts).
+6. Mobile (apps/mobile): not yet tried on real iOS/Android hardware (the keyboard prompt relies on focus
+   inside a touch's pointerup); no pinch zoom.
 
 ## Conventions
 

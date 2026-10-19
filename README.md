@@ -14,6 +14,7 @@ packages/renderer-api     the Renderer interface and shared screen logic both re
 packages/renderer-retro   indexed 320x200 framebuffer, palette, bitmap font, tiles, screen layouts
 packages/renderer-modern  canvas-2D renderer: 960x600, soft colour, real fonts, same layout and controls
 apps/web                  Vite app: canvas with integer scaling, keyboard input, frame loop
+apps/mobile               the same game as an installable app for phones and tablets (PWA): touch controls, offline
 tools/headless            tournament harness: seeded all-AI games, per-civ stats, replay verification
 tools/sprites             export the pixel-art sheets to PNG for a paint program, import them back
 tools/maps                rebuild the premade worlds (Earth, Europe, Middle East) from Natural Earth data
@@ -75,6 +76,27 @@ Entering a tribal village shows what it held in a window; meeting a civilization
 Saves: slots 1–5 in the game menu, autosave to slot 0 every 5 turns. A save is the seed plus the
 command log and is replayed on load, so it also serves as a replay for the AI harness.
 
+## Phones and tablets
+
+`apps/mobile` is the web game as an installable app (a PWA). It runs `apps/web/src/main.ts` as it
+is: its build hands that file a display that fills the phone, a renderer that lets a finger drag
+the map, and save slots that also save when the phone puts the game away. Nothing in `apps/web`
+changes for it.
+
+```
+npm run dev:mobile       # http://localhost:5180, and on the local network for a phone (no offline mode in dev)
+npm run build:mobile     # apps/mobile/dist: a static site, playable from any folder of any host
+npm run preview:mobile   # serve that build (localhost counts as secure, so the service worker runs)
+```
+
+Installing it (Add to Home Screen) and playing offline need the build served over HTTPS (or from
+localhost). Touch: tap = click · hold still = right-click (a unit's orders, a step onto the square
+beside it, the terrain window) · drag the map to look around (it glides back when the game moves its
+view, another unit takes over, or a key is pressed) · swipe the tech tree. Beside the screen (below it
+when the phone is upright): a direction pad (the middle centres on the unit) and the keys each screen
+answers to (Orders, Skip, Wait, End turn, Menu; Change, Buy, View, Rename, Exit in a city; OK and Back
+in menus). Naming a city brings up the phone's keyboard in a field at the top.
+
 ## Working from a Linux shell on this machine
 
 `scripts/mirror-test.sh` rsyncs the source (minus `node_modules`) to
@@ -91,6 +113,7 @@ colour (the legend is at the top of each file). Edit them directly, or use a pai
 npm run sprites -- export            # art-export/units.png, terrain.png, features.png
 # edit in Aseprite / Piskel / GIMP at 1:1 (magenta stands for the civilization's colour)
 npm run sprites -- import art-export/units.png
+npm run sprites -- icons             # the mobile app's icons, from these sprites, into apps/mobile/public/icons
 ```
 
 The import rejects any colour that the sprite's legend cannot name and lists the pixels.

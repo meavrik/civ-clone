@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Epochs" />
+    <meta name="description" content="Build an empire from the first city to the stars." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <title>Epochs</title>
+    <style>
+      /* The game's chrome: light stone (the panel ramp) with the azure selection. */
+      :root {
+        --stone: rgb(184 184 190);
+        --stone-lit: rgb(244 244 240);
+        --stone-shade: rgb(108 108 118);
+        --ink: rgb(24 24 32);
+        --azure: rgb(44 48 156);
+        --azure-lit: rgb(96 100 222);
+      }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+      body {
+        position: fixed;
+        inset: 0;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+        font: 600 15px/1.1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      #screen {
+        position: absolute;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        touch-action: none;
+      }
+      .pane {
+        position: absolute;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+      }
+      #pad {
+        display: grid;
+        grid-template-columns: repeat(3, var(--cell, 44px));
+        grid-template-rows: repeat(3, var(--cell, 44px));
+        gap: 6px;
+        align-content: center;
+        justify-content: center;
+        align-items: stretch;
+      }
+      #keys {
+        flex-direction: column;
+        gap: 8px;
+      }
+      /* Upright, the controls sit low, where the thumbs are. */
+      body[data-layout="below"] .pane { padding-bottom: 24px; }
+      body[data-layout="below"] #pad { align-content: end; }
+      body[data-layout="below"] #keys {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 132px));
+        align-content: end;
+        justify-content: center;
+        gap: 8px;
+      }
+      button {
+        font: inherit;
+        color: var(--ink);
+        background: var(--stone);
+        border: 2px solid;
+        border-color: var(--stone-lit) var(--stone-shade) var(--stone-shade) var(--stone-lit);
+        border-radius: 3px;
+        padding: 0;
+        touch-action: none;
+        outline: none;
+        cursor: pointer;
+      }
+      button.down {
+        color: #fff;
+        background: var(--azure);
+        border-color: var(--azure-lit) var(--ink) var(--ink) var(--azure-lit);
+      }
+      .key {
+        width: 100%;
+        max-width: 132px;
+        min-height: 44px;
+        padding: 4px 6px;
+      }
+      .dir svg {
+        width: 60%;
+        height: 60%;
+        fill: currentColor;
+        display: block;
+        margin: auto;
+      }
+      /* The prompt for a city's name, at the top, clear of the phone's keyboard. */
+      #ask {
+        position: fixed;
+        top: calc(env(safe-area-inset-top) + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(92vw, 420px);
+        box-sizing: border-box;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 8px;
+        padding: 8px;
+        background: var(--stone);
+        border: 2px solid;
+        border-color: var(--stone-lit) var(--stone-shade) var(--stone-shade) var(--stone-lit);
+        z-index: 2;
+      }
+      #ask[hidden] { display: none; }
+      #ask .title {
+        flex: 1 0 100%;
+        color: #fff;
+        background: var(--azure);
+        padding: 3px 6px;
+      }
+      #ask input {
+        flex: 1;
+        min-width: 0;
+        font: 16px/1.2 ui-monospace, Menlo, monospace; /* 16px, or iOS zooms in */
+        color: var(--ink);
+        background: var(--stone-lit);
+        border: 2px solid;
+        border-color: var(--stone-shade) var(--stone-lit) var(--stone-lit) var(--stone-shade);
+        padding: 6px;
+        user-select: text;
+        -webkit-user-select: text;
+        touch-action: manipulation;
+      }
+      #ask button { min-height: 40px; padding: 0 12px; touch-action: manipulation; }
+      /* The ring under a finger held still: it closes as the right-click comes. */
+      #ring {
+        position: fixed;
+        width: 56px;
+        height: 56px;
+        margin: -28px 0 0 -28px;
+        border: 3px solid rgb(244 244 240 / 0.9);
+        border-radius: 50%;
+        box-sizing: border-box;
+        pointer-events: none;
+        opacity: 0;
+        z-index: 1;
+      }
+      #ring.holding { animation: hold 450ms ease-in forwards; animation-delay: 120ms; }
+      #ring.fired { animation: fired 300ms ease-out forwards; }
+      @keyframes hold {
+        from { opacity: 0; transform: scale(1.6); }
+        to { opacity: 0.9; transform: scale(0.7); }
+      }
+      @keyframes fired {
+        from { opacity: 1; transform: scale(0.7); border-color: var(--azure-lit); }
+        to { opacity: 0; transform: scale(1.3); border-color: var(--azure-lit); }
+      }
+      #safe {
+        position: fixed;
+        visibility: hidden;
+        pointer-events: none;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="safe"></div>
+    <canvas id="screen" width="320" height="200"></canvas>
+    <div id="pad" class="pane"></div>
+    <div id="keys" class="pane"></div>
+    <div id="ring"></div>
+    <form id="ask" hidden autocomplete="off">
+      <span class="title"></span>
+      <input type="text" enterkeyhint="done" autocapitalize="words" autocorrect="off" spellcheck="false" />
+      <button type="submit">OK</button>
+      <button type="button" class="cancel">Cancel</button>
+    </form>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
