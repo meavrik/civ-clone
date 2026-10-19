@@ -13,6 +13,8 @@ export interface GeoData {
 
 export interface BuiltWorld {
   rows: string[];
+  /** Each square's landmass (an index from `landmasses`, or an ice row's own), -1 at sea. */
+  landmass: Int32Array;
   starts: Record<string, [number, number]>;
   preview: Image;
   report: string[];
@@ -72,7 +74,33 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
   const idx = (x: number, y: number) => y * W + (((x % W) + W) % W);
 
   // ---- land and water ------------------------------------------------------
-  const landCov = coverage(data.land.flatMap((s) => s.rings), WORLD_BBOX, lats, lons, W, H);
+  // Each square belongs to the landmass covering most of it (see `landmasses`); `owner` is -1 at sea.
+  const group = landmasses(data.land);
+  const masses = Math.max(0, ...group) + 1;
+  const foot = Array.from({ length: masses }, () => ({ squares: [] as number[], cov: [] as number[], area: 0 }));
+  const landCov = new Float32Array(W * H);
+  const owner = new Int32Array(W * H).fill(-1);
+  const ownCov = new Float32Array(W * H);
+  const sum = new Float32Array(W * H);
+  const byMass = Array.from({ length: masses }, () => [] as Shape[]);
+  data.land.forEach((shape, k) => byMass[group[k]!]!.push(shape));
+  byMass.forEach((pieces, m) => {
+    sum.fill(0);
+    for (const shape of pieces) {
+      const cov = coverage(shape.rings, shape.bbox, lats, lons, W, H);
+      for (let i = 0; i < W * H; i++) sum[i]! += cov[i]!;
+    }
+    const f = foot[m]!;
+    for (let i = 0; i < W * H; i++) {
+      const c = sum[i]!;
+      if (!c) continue;
+      f.squares.push(i);
+      f.cov.push(c);
+      f.area += c;
+      landCov[i]! += c;
+      if (c > ownCov[i]!) { ownCov[i] = c; owner[i] = m; }
+    }
+  });
   // Natural lakes only: reservoirs are modern.
   const lakeShapes = data.lakes.filter((l) => /lake/i.test(prop(l.props, "featurecla")) && Number(prop(l.props, "scalerank")) <= frame.lakeRank);
   const lakeCov = coverage(lakeShapes.flatMap((s) => s.rings), WORLD_BBOX, lats, lons, W, H);
@@ -81,28 +109,24 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
 
   // Islands smaller than a square still get one if they cover a fair part of it.
   let rescued = 0;
-  for (const shape of data.land) {
-    const [a, b, c, d] = shape.bbox;
-    if (c - a > 12 || d - b > 12) continue;
-    const cov = coverage(shape.rings, shape.bbox, lats, lons, W, H);
-    let best = -1;
-    let area = 0;
-    let has = false;
-    for (let i = 0; i < W * H; i++) {
-      if (!cov[i]) continue;
-      area += cov[i]!;
-      if (land[i]) has = true;
-      if (best < 0 || cov[i]! > cov[best]!) best = i;
-    }
-    if (!has && best >= 0 && area >= 0.22) { land[best] = 1; rescued++; }
-  }
+  foot.forEach((f, m) => {
+    if (f.area < 0.22 || f.squares.some((i) => land[i])) return;
+    let best = 0;
+    for (let k = 1; k < f.cov.length; k++) if (f.cov[k]! > f.cov[best]!) best = k;
+    const i = f.squares[best]!;
+    land[i] = 1;
+    owner[i] = m;
+    ownCov[i] = f.cov[best]!;
+    rescued++;
+  });
   report.push(`islands rescued: ${rescued}`);
 
-  // Water specks the grid made out of coastline (not real lakes) fill in.
+  // Water specks the grid made out of coastline (not real lakes) fill in, unless they part two landmasses.
   const seen = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) {
     if (land[i] || seen[i]) continue;
     const comp = [i];
+    const shores = new Set<number>();
     seen[i] = 1;
     for (let k = 0; k < comp.length; k++) {
       const cx = comp[k]! % W;
@@ -111,12 +135,14 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
         const ny = cy + dy;
         if (ny < 0 || ny >= H) continue;
         const n = idx(cx + dx, ny);
-        if (land[n] || seen[n]) continue;
+        if (land[n]) { shores.add(owner[n]!); continue; }
+        if (seen[n]) continue;
         seen[n] = 1;
         comp.push(n);
       }
     }
-    if (comp.length <= 2 && comp.every((n) => lakeCov[n]! < 0.4)) for (const n of comp) land[n] = 1;
+    if (comp.length <= 2 && shores.size <= 1 && comp.every((n) => lakeCov[n]! < 0.4))
+      for (const n of comp) { land[n] = 1; owner[n] = [...shores][0] ?? -1; }
   }
 
   const drawLine = (line: Pt[], value: 0 | 1) => {
@@ -134,7 +160,26 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
     for (let i = 0; i < W * H; i++) if (cov[i]! >= 0.5) land[i] = 0;
   }
   if (frame.seam) for (let y = 0; y < H; y++) land[idx(0, y)] = 0;
-  if (frame.polar) for (let x = 0; x < W; x++) { land[x] = 1; land[(H - 1) * W + x] = 1; }
+  const polar = (i: number) => frame.polar && (i < W || i >= (H - 1) * W);
+  if (frame.polar)
+    for (const row of [0, H - 1]) {
+      // The ice row is the landmass covering most of it (Antarctica), or a landmass of its own.
+      const tally = new Map<number, number>();
+      for (let x = 0; x < W; x++) if (land[row * W + x]) tally.set(owner[row * W + x]!, (tally.get(owner[row * W + x]!) ?? 0) + 1);
+      const [top, count] = [...tally].filter(([m]) => m >= 0).sort((a, b) => b[1] - a[1])[0] ?? [-1, 0];
+      const ice = count >= W / 2 ? top : masses + row;
+      for (let x = 0; x < W; x++) { land[row * W + x] = 1; owner[row * W + x] = ice; }
+    }
+  const homeSquares = new Set<number>();
+  for (const home of Object.values(frame.homes)) {
+    const [hx, hy] = project(frame, home);
+    if (hy >= 0 && hy < H) homeSquares.add(idx(Math.floor(hx), Math.floor(hy)));
+  }
+  const separated = separateLandmasses(land, owner, ownCov, foot.map((f) => f.area), W, H, polar, homeSquares);
+  for (let i = 0; i < W * H; i++) if (!land[i]) owner[i] = -1;
+  const mixed = mixedLandmasses(owner, W, H);
+  if (mixed) throw new Error(`${frame.id} ${size}: landmasses ${mixed} joined by land`);
+  report.push(`landmasses kept apart: ${separated.sunk} squares sunk${separated.lost ? `, ${separated.lost} islands too small to keep` : ""}`);
 
   // ---- climate zones ----------------------------------------------------------
   const zoneCov = new Map<Zone, Float32Array>();
@@ -251,7 +296,151 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
     }
     rows.push(row);
   }
-  return { rows, starts, preview: preview(terrain, river, starts, W, H), report };
+  return { rows, landmass: owner, starts, preview: preview(terrain, river, starts, W, H), report };
+}
+
+/**
+ * Natural Earth's land polygons grouped into landmasses: every polygon is a landmass of
+ * its own (Afro-Eurasia is one, Britain another), except where the data cuts one at the
+ * 180th meridian (Chukotka, Wrangel, Fiji): pieces meeting there at the same latitude join.
+ */
+export function landmasses(land: readonly Shape[]): number[] {
+  const parent = land.map((_, i) => i);
+  const find = (i: number): number => {
+    while (parent[i] !== i) i = parent[i] = parent[parent[i]!]!;
+    return i;
+  };
+  const east = new Map<string, number>();
+  land.forEach((s, k) => { for (const [x, y] of s.rings.flat()) if (x >= 179.9999) east.set(y.toFixed(4), k); });
+  land.forEach((s, k) => {
+    for (const [x, y] of s.rings.flat()) {
+      const e = x <= -179.9999 ? east.get(y.toFixed(4)) : undefined;
+      if (e !== undefined) parent[find(k)] = find(e);
+    }
+  });
+  const ids = new Map<number, number>();
+  return land.map((_, i) => {
+    const root = find(i);
+    if (!ids.has(root)) ids.set(root, ids.size);
+    return ids.get(root)!;
+  });
+}
+
+/**
+ * Keeps landmasses apart: wherever squares of two landmasses touch, side or corner (a unit
+ * steps diagonally, so a corner is a land bridge), one goes under, so Britain stays off
+ * France and Sicily off Italy at every size. Which one, in order: never an ice row, never the
+ * square of a historical homeland (`homes`), never one whose landmass it would cut in two
+ * (Attica stays on Greece when Euboea hugs its coast); an island keeps its last square when it
+ * holds half a square of land or more and the neighbours it pushes under hold less land than
+ * it does; otherwise the smaller landmass gives up its square unless the bigger one's is mostly
+ * sea (a square costs what land of its own it holds, the bigger landmass's half a square more).
+ * Land squares without a landmass (filled specks, drawn isthmuses) first take the nearest
+ * one's. Returns how many squares sank and how many small islands went with them.
+ */
+export function separateLandmasses(
+  land: Uint8Array, owner: Int32Array, ownCov: Float32Array, area: readonly number[], W: number, H: number,
+  fixed: (i: number) => boolean, homes: ReadonlySet<number> = new Set(),
+): { sunk: number; lost: number } {
+  const neighbours = (i: number) => {
+    const x = i % W;
+    const y = Math.floor(i / W);
+    const out: number[] = [];
+    for (const [dx, dy] of NEIGHBOURS) if (y + dy >= 0 && y + dy < H) out.push((y + dy) * W + (((x + dx) % W) + W) % W);
+    return out;
+  };
+  // Unclaimed land takes the nearest landmass across land.
+  const queue: number[] = [];
+  for (let i = 0; i < W * H; i++) if (land[i] && owner[i]! >= 0) queue.push(i);
+  for (let q = 0; q < queue.length; q++)
+    for (const n of neighbours(queue[q]!)) if (land[n] && owner[n]! < 0) { owner[n] = owner[queue[q]!]!; queue.push(n); }
+  let fresh = Math.max(area.length, ...owner) + 1;
+  for (let i = 0; i < W * H; i++) if (land[i] && owner[i]! < 0) owner[i] = fresh++;
+
+  const size = new Map<number, number>();
+  for (let i = 0; i < W * H; i++) if (land[i]) size.set(owner[i]!, (size.get(owner[i]!) ?? 0) + 1);
+  const had = new Set(size.keys());
+  const areaOf = (i: number) => area[owner[i]!] ?? 0;
+  // Sinking a square cuts its landmass when its own neighbours do not join up round it.
+  const RING = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]] as const;
+  const cuts = (i: number) => {
+    const x = i % W;
+    const y = Math.floor(i / W);
+    const near = RING.filter(([dx, dy]) => {
+      if (y + dy < 0 || y + dy >= H) return false;
+      const n = (y + dy) * W + (((x + dx) % W) + W) % W;
+      return land[n] === 1 && owner[n] === owner[i];
+    });
+    if (near.length <= 1) return false;
+    const reached = [near[0]!];
+    for (let k = 0; k < reached.length; k++)
+      for (const c of near) if (!reached.includes(c) && Math.abs(c[0] - reached[k]![0]) <= 1 && Math.abs(c[1] - reached[k]![1]) <= 1) reached.push(c);
+    return reached.length < near.length;
+  };
+  const worthKeeping = (i: number) => {
+    if (size.get(owner[i]!) !== 1 || areaOf(i) < 0.5) return false;
+    let price = 0;
+    for (const n of neighbours(i)) {
+      if (!land[n] || owner[n] === owner[i]) continue;
+      if (fixed(n) || homes.has(n) || cuts(n)) return false;
+      price += ownCov[n]!;
+    }
+    return price < areaOf(i);
+  };
+  const cost = (i: number, other: number) => ownCov[i]! + (areaOf(i) > areaOf(other) ? 0.5 : 0);
+  const victim = (a: number, b: number) => {
+    if (fixed(a) !== fixed(b)) return fixed(a) ? b : a;
+    if (homes.has(a) !== homes.has(b)) return homes.has(a) ? b : a;
+    if (cuts(a) !== cuts(b)) return cuts(a) ? b : a;
+    if (worthKeeping(a) !== worthKeeping(b)) return worthKeeping(a) ? b : a;
+    const ca = cost(a, b);
+    const cb = cost(b, a);
+    if (ca !== cb) return ca < cb ? a : b;
+    return areaOf(a) <= areaOf(b) ? a : b;
+  };
+  let sunk = 0;
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (let i = 0; i < W * H; i++) {
+      if (!land[i]) continue;
+      for (const n of neighbours(i)) {
+        if (!land[n] || owner[n] === owner[i]) continue;
+        const v = victim(i, n);
+        if (fixed(v)) throw new Error(`landmasses ${owner[i]} and ${owner[n]} meet on the ice rows`);
+        land[v] = 0;
+        size.set(owner[v]!, size.get(owner[v]!)! - 1);
+        sunk++;
+        changed = true;
+        if (v === i) break;
+      }
+    }
+  }
+  const lost = [...had].filter((m) => !size.get(m)).length;
+  return { sunk, lost };
+}
+
+/** The first two landmasses found joined by land (as "a and b"), or null when every stretch of land is one landmass. */
+export function mixedLandmasses(landmass: Int32Array, W: number, H: number): string | null {
+  const seen = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    if (landmass[i]! < 0 || seen[i]) continue;
+    const stack = [i];
+    seen[i] = 1;
+    while (stack.length) {
+      const c = stack.pop()!;
+      const x = c % W;
+      const y = Math.floor(c / W);
+      for (const [dx, dy] of NEIGHBOURS) {
+        if (y + dy < 0 || y + dy >= H) continue;
+        const n = (y + dy) * W + (((x + dx) % W) + W) % W;
+        if (landmass[n]! < 0 || seen[n]) continue;
+        if (landmass[n] !== landmass[i]) return `${landmass[i]} and ${landmass[n]}`;
+        seen[n] = 1;
+        stack.push(n);
+      }
+    }
+  }
+  return null;
 }
 
 function bboxOfRing(ring: Pt[]): [number, number, number, number] {
@@ -296,8 +485,46 @@ function preview(terrain: Terrain[], river: Uint8Array, starts: Record<string, [
   return img;
 }
 
-/** The generated TypeScript module for a world, built at every size. */
-export function worldModule(frame: Frame, worlds: Readonly<Record<WorldSize, BuiltWorld>>): string {
+/** A world as an older build drew it, kept so saves from before a change replay on the same land. */
+export interface FrozenGrid {
+  rows: readonly string[];
+  starts: Readonly<Record<string, readonly [number, number]>>;
+}
+
+/** The squares and homelands where an older grid differs from a new build, or null where they agree. */
+export function joinedDiff(now: BuiltWorld, old: FrozenGrid): { squares: [number, number, string][]; starts: Record<string, [number, number]> } | null {
+  const squares: [number, number, string][] = [];
+  old.rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) if (row[x] !== now.rows[y]![x]) squares.push([x, y, row[x]!]);
+  });
+  const starts: Record<string, [number, number]> = {};
+  for (const [civ, [x, y]] of Object.entries(old.starts)) if (now.starts[civ]?.[0] !== x || now.starts[civ]?.[1] !== y) starts[civ] = [x, y];
+  return squares.length || Object.keys(starts).length ? { squares, starts } : null;
+}
+
+/**
+ * The generated TypeScript module for a world, built at every size. With `joined` (the grids
+ * saves before version 13 played on, `legacy/joined-islands.json`), each size also lists the
+ * squares and homelands that differed then, before landmasses were kept apart.
+ */
+export function worldModule(frame: Frame, worlds: Readonly<Record<WorldSize, BuiltWorld>>, joined?: Readonly<Record<WorldSize, FrozenGrid>>): string {
+  const legacy = (size: WorldSize): string[] => {
+    const diff = joined?.[size] && joinedDiff(worlds[size], joined[size]);
+    if (!diff) return [];
+    const squares = diff.squares.map(([x, y, ch]) => `[${x}, ${y}, "${ch}"]`);
+    const lines: string[] = [];
+    for (let k = 0; k < squares.length; k += 8) lines.push(`          ${squares.slice(k, k + 8).join(", ")},`);
+    return [
+      `      joinedIslands: {`,
+      `        squares: [`,
+      ...lines,
+      `        ],`,
+      `        starts: {`,
+      ...Object.entries(diff.starts).map(([civ, [x, y]]) => `          ${civ}: [${x}, ${y}],`),
+      `        },`,
+      `      },`,
+    ];
+  };
   const grid = (size: WorldSize) => {
     const world = worlds[size];
     return [
@@ -308,6 +535,7 @@ export function worldModule(frame: Frame, worlds: Readonly<Record<WorldSize, Bui
       `      starts: {`,
       ...Object.entries(world.starts).map(([civ, [x, y]]) => `        ${civ}: [${x}, ${y}],`),
       `      },`,
+      ...legacy(size),
       `    },`,
     ];
   };

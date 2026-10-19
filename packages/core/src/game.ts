@@ -1,6 +1,6 @@
 import { selectNextUnit } from "./commands.js";
 import { generateMap, type MapGenOptions } from "./map/generate.js";
-import { premadeMap, premadeWorld, type PremadeWorld } from "./map/premade.js";
+import { premadeMap, premadeStarts, premadeWorld, type PremadeWorld } from "./map/premade.js";
 import { createRng, nextInt } from "./rng.js";
 import { advancesFor } from "./rules/advances.js";
 import { civ, CIVS, colorSlot } from "./rules/civs.js";
@@ -49,6 +49,8 @@ export interface NewGameOptions extends MapGenOptions {
   fixedBorders?: boolean;
   /** Rivals come only from civilizations a save of this version knew (`CivRule.since`). Old saves load with it. */
   roster?: number;
+  /** Premade worlds as first drawn, some islands joined to their neighbours by land (Britain to France). Old saves load with it. */
+  joinedIslands?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -120,8 +122,8 @@ function homelandStart(map: WorldMap, home: readonly [number, number], starts: [
 export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const rng = createRng(seed);
   const world = opts.world ? premadeWorld(opts.world) : undefined;
-  const map = opts.world ? premadeMap(rng, opts.world, opts.size) : generateMap(rng, opts);
-  const homes = world && opts.historical ? world.sizes[opts.size ?? "small"].starts : undefined;
+  const map = opts.world ? premadeMap(rng, opts.world, opts.size, opts.joinedIslands) : generateMap(rng, opts);
+  const homes = world && opts.historical ? premadeStarts(world, opts.size, opts.joinedIslands) : undefined;
   const humanCiv = opts.civ ?? "romans";
   const roster = opts.roster;
   const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians" && (!homes || homes[c.id] !== undefined) && (roster === undefined || (c.since ?? 0) <= roster));

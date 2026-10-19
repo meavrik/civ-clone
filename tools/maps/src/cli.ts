@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { encodePng } from "@civ/sprites-tool";
 import { WORLD_SIZES, type WorldSize } from "@civ/core";
-import { buildWorld, worldModule, type BuiltWorld, type GeoData } from "./build.js";
+import { buildWorld, worldModule, type BuiltWorld, type FrozenGrid, type GeoData } from "./build.js";
 import { FRAMES } from "./frames.js";
 import { polylines, readGeo, shapes } from "./geo.js";
 
@@ -19,6 +19,8 @@ const ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
 const CACHE = join(ROOT, ".cache");
 const OUT = join(ROOT, "out");
 const WORLDS = resolve(ROOT, "../../packages/core/src/map/worlds");
+/** The worlds as saves before version 13 played them, before landmasses were kept apart: never rebuilt. */
+const JOINED = join(ROOT, "legacy/joined-islands.json");
 const SOURCE = "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@v5.1.2/geojson/";
 const LAYERS = {
   land: "ne_50m_land.geojson",
@@ -46,6 +48,7 @@ async function main(ids: string[]): Promise<void> {
     regions: shapes(readGeo(await fetchLayer(LAYERS.regions))),
     rivers: polylines(readGeo(await fetchLayer(LAYERS.rivers))),
   };
+  const joined = JSON.parse(readFileSync(JOINED, "utf8")) as Record<string, Record<WorldSize, FrozenGrid>>;
   mkdirSync(OUT, { recursive: true });
   const frames = ids.length ? FRAMES.filter((f) => ids.includes(f.id)) : FRAMES;
   if (!frames.length) throw new Error(`unknown world (known: ${FRAMES.map((f) => f.id).join(", ")})`);
@@ -59,7 +62,7 @@ async function main(ids: string[]): Promise<void> {
       console.log(`${frame.name} ${width}x${height}: ${Math.round(performance.now() - t0)} ms`);
       for (const line of world.report) console.log(`  ${line}`);
     }
-    writeFileSync(join(WORLDS, `${frame.id}.ts`), worldModule(frame, built));
+    writeFileSync(join(WORLDS, `${frame.id}.ts`), worldModule(frame, built, joined[frame.id]));
   }
 }
 

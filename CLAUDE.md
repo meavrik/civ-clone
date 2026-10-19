@@ -30,7 +30,16 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   read `MAP_WIDTH`/`MAP_HEIGHT` for a game's map: use `map.width`/`map.height`. Bigger generated worlds
   are the same world drawn finer (walks, noise, rivers and start spacing scale with width / 80, small
   unchanged); premade ones are rasterised at each size by `tools/maps` (`scaleFrame` stretches a frame's
-  breakpoints, given in the original's squares). Setup asks the size after a premade world and first in
+  breakpoints, given in the original's squares).
+  Premade landmasses stay apart (asked for: Britain had touched France): each Natural Earth land polygon
+  is a landmass (`landmasses`, pieces cut at 180 degrees joined), each square goes to the one covering
+  most of it, and where two touch, side or corner, `separateLandmasses` sinks one (never an ice row or
+  a homeland's square, never one that would cut its landmass in two; an island of half a square or more
+  keeps its last square if that costs its neighbours less land; else the smaller landmass yields). The
+  polar ice rows are a landmass of their own (Antarctica's in the south). `npm run maps` throws if any
+  land joins two landmasses (`mixedLandmasses`). Saves before version 13 on premade worlds load with
+  `joinedIslands`: the old grids, kept as per-size diffs (`PremadeGrid.joinedIslands`) that the tool
+  derives from the frozen `tools/maps/legacy/joined-islands.json` (never rebuild that file). Setup asks the size after a premade world and first in
   "Customize world"; "Start a new game" plays the original's size; `?size=large` in the web app.
   Generated worlds: land from random-walk chunks, terrain from the climate (`climateWorld`): smooth
   heat and rain fields that wrap east-west, rain in latitude belts and on prevailing winds that dry out
@@ -267,7 +276,8 @@ the player's units off their land, warn once more, then go to war (our departure
 borders). Culture borders done (2026-10-19, asked for): borders start a square round each city and grow
 with its culture (save version 12). World sizes done (2026-10-19, asked for: premade maps felt small):
 small 80x50, medium 120x75, large 160x100 for premade and customized worlds; no save version (a save
-without `size` is small). Mobile PWA done (2026-10-19, asked for, apps/web untouched): touch, on-screen
+without `size` is small). Islands kept apart on premade worlds at every size (2026-10-19, asked for;
+save version 13). Mobile PWA done (2026-10-19, asked for, apps/web untouched): touch, on-screen
 pad and keys, map drag, keyboard prompt, save on hide, offline service worker, icons; checked in desktop
 Chrome with simulated touches, not yet on a phone.
 

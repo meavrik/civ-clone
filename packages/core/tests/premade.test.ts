@@ -12,6 +12,8 @@ import {
   PREMADE_WORLDS,
   premadeWorld,
   Terrain,
+  labelContinents,
+  premadeStarts,
   WORLD_SIZES,
   type Command,
   type GameState,
@@ -66,6 +68,43 @@ describe("premade worlds", () => {
       return Math.abs(starts.romans![0] - starts.chinese![0]);
     };
     expect(span("large")).toBeGreaterThan(span("small") * 1.8);
+  });
+
+  it("keep islands off the mainland at every size: Britain off Europe, Japan off Asia, Eurasia whole", () => {
+    const continentOf = (world: string, size: (typeof WORLD_SIZES)[number]["id"], joined = false) => {
+      const w = premadeWorld(world);
+      const map = decodeWorld(w, size, joined);
+      labelContinents(map);
+      const starts = premadeStarts(w, size, joined);
+      return (civ: string) => { const [x, y] = starts[civ]!; return map.tiles[y * map.width + x]!.continent; };
+    };
+    for (const size of WORLD_SIZES) {
+      for (const world of ["earth", "europe"]) {
+        const of = continentOf(world, size.id);
+        for (const rival of ["french", "germans", "spanish", "vikings", "romans"]) expect(of("english"), `${world} ${size.id} ${rival}`).not.toBe(of(rival));
+        expect(of("greeks"), `${world} ${size.id}`).toBe(of("hittites"));
+      }
+      const earth = continentOf("earth", size.id);
+      expect(earth("japanese"), size.id).not.toBe(earth("chinese"));
+      expect(earth("americans"), size.id).not.toBe(earth("russians"));
+    }
+    // As first drawn (saves before version 13), Britain touched France on Earth.
+    const before = continentOf("earth", "small", true);
+    expect(before("english")).toBe(before("french"));
+  });
+
+  it("load saves from before version 13 on the land they were played on", () => {
+    const opts = { world: "earth", historical: true, civ: "english", opponents: 3 };
+    const save = { ...makeSave(newGame(3, opts), opts, []), version: 12 as const };
+    const { state, options } = loadSave(save, () => {});
+    expect(options.joinedIslands).toBe(true);
+    const joined = decodeWorld(premadeWorld("earth"), "small", true);
+    expect(state.map.tiles.map((t) => t.terrain)).toEqual(joined.tiles.map((t) => t.terrain));
+    expect(state.map.tiles.map((t) => t.terrain)).not.toEqual(newGame(3, opts).map.tiles.map((t) => t.terrain));
+    expect(startOf(state, 0)).toEqual([...premadeStarts(premadeWorld("earth"), "small", true).english!]);
+    // A generated world never had islands joined: nothing changes for it.
+    const random = { ...makeSave(newGame(3, { opponents: 2 }), { opponents: 2 }, []), version: 12 as const };
+    expect(loadSave(random, () => {}).options.joinedIslands).toBeUndefined();
   });
 
   it("play at the size asked for, every player seeing that map", () => {

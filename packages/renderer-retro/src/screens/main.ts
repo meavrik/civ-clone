@@ -451,15 +451,14 @@ function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: nu
   }
   for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(toPixel(k, u.x), top + toPixel(k, u.y), playerColor(state, u.owner));
   const put = (px: number, py: number, color: number) => { if (py >= 0 && py < h) s.set(((px % w) + w) % w, top + py, color); };
-  for (const c of state.cities) {
-    if (!me.explored[c.y * map.width + c.x]) continue;
+  // Every cross first, then every dot: on a bigger world cities share neighbouring pixels, and no arm may hide a city.
+  const known = state.cities.filter((c) => me.explored[c.y * map.width + c.x]);
+  for (const c of known) {
     const color = playerColor(state, c.owner);
     const arm = view.borders ? darker(color) : color;
-    const cx = toPixel(k, c.x);
-    const cy = toPixel(k, c.y);
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) put(cx + dx, cy + dy, arm);
-    put(cx, cy, C.WHITE!);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) put(toPixel(k, c.x) + dx, toPixel(k, c.y) + dy, arm);
   }
+  for (const c of known) put(toPixel(k, c.x), toPixel(k, c.y), C.WHITE!);
 }
 
 /** The map square under a minimap pixel (the middle of the block it stands for), or null off the map. */
