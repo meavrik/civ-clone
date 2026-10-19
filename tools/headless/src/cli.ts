@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { PREMADE_WORLDS } from "@civ/core";
+import { PREMADE_WORLDS, WORLD_SIZES, type WorldSize } from "@civ/core";
 import { AIS, defaultConfig, replayMatches, runGame, seatAis, type GameConfig, type GameResult, type PlayerStats, type Sample } from "./index.js";
 
 /**
@@ -20,6 +20,7 @@ interface Options {
   verify: boolean;
   quiet: boolean;
   world: string | null;
+  size: WorldSize | null;
   historical: boolean;
   classicTerrain: boolean;
   classicCivs: boolean;
@@ -38,6 +39,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --ai a,b,...     AI per seat, cycled (default planner; known: ${Object.keys(AIS).join(", ")})
   --json FILE      write all results (with per-sample series) as JSON
   --world W        play on a premade world (${PREMADE_WORLDS.map((w) => w.id).join(", ")})
+  --size S         world size (${WORLD_SIZES.map((s) => `${s.id} ${s.width}x${s.height}`).join(", ")}; default small)
   --historical     on a premade world, start each civ in its historical homeland
   --classic-terrain  the 1991 terrain: wheels need no roads, no ground wears units down
   --classic-civs     the 1991 civilizations: no traits, no starting advance
@@ -48,7 +50,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -72,6 +74,7 @@ function parseArgs(argv: string[]): Options {
       case "json": o.json = takes() ?? null; break;
       case "verify": o.verify = true; break;
       case "world": o.world = takes() ?? null; break;
+      case "size": o.size = (takes() ?? null) as WorldSize | null; break;
       case "historical": o.historical = true; break;
       case "classic-terrain": o.classicTerrain = true; break;
       case "classic-civs": o.classicCivs = true; break;
@@ -85,6 +88,7 @@ function parseArgs(argv: string[]): Options {
   if (o.civs < 2 || o.civs > 8) throw new Error("--civs must be 2..8");
   if (o.difficulty < 0 || o.difficulty > 4) throw new Error("--difficulty must be 0..4");
   if (o.world && !PREMADE_WORLDS.some((w) => w.id === o.world)) throw new Error(`unknown world "${o.world}"`);
+  if (o.size && !WORLD_SIZES.some((s) => s.id === o.size)) throw new Error(`unknown size "${o.size}" (known: ${WORLD_SIZES.map((s) => s.id).join(", ")})`);
   for (const a of o.ais) if (!AIS[a]) throw new Error(`unknown AI "${a}" (known: ${Object.keys(AIS).join(", ")})`);
   return o;
 }
@@ -184,6 +188,7 @@ function main(argv: string[]): number {
     const config: GameConfig = defaultConfig(o.seed + g, {
       civs: o.civs, difficulty: o.difficulty, turns: o.turns, ais: o.ais, every: o.every,
       ...(o.world ? { world: o.world, historical: o.historical } : {}),
+      ...(o.size ? { size: o.size } : {}),
       ...(o.classicTerrain ? { classicTerrain: true } : {}),
       ...(o.classicCivs ? { classicCivs: true } : {}),
       ...(o.openMountains ? { openMountains: true } : {}),

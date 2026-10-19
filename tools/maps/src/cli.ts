@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { encodePng } from "@civ/sprites-tool";
-import { buildWorld, worldModule, type GeoData } from "./build.js";
+import { WORLD_SIZES, type WorldSize } from "@civ/core";
+import { buildWorld, worldModule, type BuiltWorld, type GeoData } from "./build.js";
 import { FRAMES } from "./frames.js";
 import { polylines, readGeo, shapes } from "./geo.js";
 
@@ -11,8 +12,8 @@ import { polylines, readGeo, shapes } from "./geo.js";
  *
  * Rebuilds the premade worlds in packages/core/src/map/worlds from Natural
  * Earth's 1:50m land, lakes, rivers and geography regions (public domain,
- * downloaded once into tools/maps/.cache), and writes a preview PNG of each
- * into tools/maps/out.
+ * downloaded once into tools/maps/.cache), each at every world size, and
+ * writes a preview PNG of each size into tools/maps/out (`earth-large.png`).
  */
 const ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
 const CACHE = join(ROOT, ".cache");
@@ -49,12 +50,16 @@ async function main(ids: string[]): Promise<void> {
   const frames = ids.length ? FRAMES.filter((f) => ids.includes(f.id)) : FRAMES;
   if (!frames.length) throw new Error(`unknown world (known: ${FRAMES.map((f) => f.id).join(", ")})`);
   for (const frame of frames) {
-    const t0 = performance.now();
-    const world = buildWorld(frame, data);
-    writeFileSync(join(WORLDS, `${frame.id}.ts`), worldModule(frame, world));
-    writeFileSync(join(OUT, `${frame.id}.png`), encodePng(world.preview));
-    console.log(`${frame.name}: ${Math.round(performance.now() - t0)} ms`);
-    for (const line of world.report) console.log(`  ${line}`);
+    const built = {} as Record<WorldSize, BuiltWorld>;
+    for (const { id: size, width, height } of WORLD_SIZES) {
+      const t0 = performance.now();
+      const world = buildWorld(frame, data, size);
+      built[size] = world;
+      writeFileSync(join(OUT, `${frame.id}-${size}.png`), encodePng(world.preview));
+      console.log(`${frame.name} ${width}x${height}: ${Math.round(performance.now() - t0)} ms`);
+      for (const line of world.report) console.log(`  ${line}`);
+    }
+    writeFileSync(join(WORLDS, `${frame.id}.ts`), worldModule(frame, built));
   }
 }
 

@@ -1,4 +1,4 @@
-import { MAP_HEIGHT, MAP_WIDTH, NEIGHBOURS, Terrain, TERRAIN_CHARS } from "@civ/core";
+import { MAP_WIDTH, NEIGHBOURS, Terrain, TERRAIN_CHARS, WORLD_SIZES, worldSize, type WorldSize } from "@civ/core";
 import type { Image } from "@civ/sprites-tool";
 import { HAND_ZONES, latitudeMix, MIXES, patchNoise, pick, regionZone, ZONE_RANK, type Zone } from "./climate.js";
 import { dataLon, fromGrid, project, type Frame } from "./frames.js";
@@ -18,13 +18,21 @@ export interface BuiltWorld {
   report: string[];
 }
 
-const W = MAP_WIDTH;
-const H = MAP_HEIGHT;
 /** Samples per square along each axis. */
 const S = 6;
 
+/**
+ * The frame on a bigger world's grid: its breakpoints are given in squares of
+ * the original's 80x50, so every column and row is stretched by the size's scale.
+ */
+export function scaleFrame(frame: Frame, size: WorldSize): Frame {
+  const k = worldSize(size).width / MAP_WIDTH;
+  if (k === 1) return frame;
+  return { ...frame, lon: frame.lon.map(([v, t]) => [v, t * k]), lat: frame.lat.map(([v, t]) => [v, t * k]) };
+}
+
 /** Sample positions: S latitudes per row and S longitudes per column, inside the frame. */
-function sampleGrid(frame: Frame): { lats: number[]; lons: number[] } {
+function sampleGrid(frame: Frame, W: number, H: number): { lats: number[]; lons: number[] } {
   const lats: number[] = [];
   for (let y = 0; y < H; y++) for (let j = 0; j < S; j++) lats.push(fromGrid(frame.lat, y + (j + 0.5) / S));
   const lons: number[] = [];
@@ -33,7 +41,7 @@ function sampleGrid(frame: Frame): { lats: number[]; lons: number[] } {
 }
 
 /** Fraction of each square's samples inside the rings, limited to the rings' bounding box. */
-function coverage(rings: readonly (readonly Pt[])[], bbox: readonly number[], lats: number[], lons: number[]): Float32Array {
+function coverage(rings: readonly (readonly Pt[])[], bbox: readonly number[], lats: number[], lons: number[], W: number, H: number): Float32Array {
   const cov = new Float32Array(W * H);
   const rowsIn: number[] = [];
   for (let r = 0; r < lats.length; r++) if (lats[r]! >= bbox[1]! && lats[r]! <= bbox[3]!) rowsIn.push(r);
@@ -51,21 +59,23 @@ function coverage(rings: readonly (readonly Pt[])[], bbox: readonly number[], la
 
 const WORLD_BBOX = [-180, -90, 180, 90];
 
-function wrapDist(frame: Frame, a: readonly [number, number], b: readonly [number, number]): number {
+function wrapDist(frame: Frame, W: number, a: readonly [number, number], b: readonly [number, number]): number {
   const dx = Math.abs(a[0] - b[0]);
   return Math.max(frame.global || frame.seam ? Math.min(dx, W - dx) : dx, Math.abs(a[1] - b[1]));
 }
 
-export function buildWorld(frame: Frame, data: GeoData): BuiltWorld {
-  const { lats, lons } = sampleGrid(frame);
+export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"): BuiltWorld {
+  const { width: W, height: H } = worldSize(size);
+  const frame = scaleFrame(base, size);
+  const { lats, lons } = sampleGrid(frame, W, H);
   const report: string[] = [];
   const idx = (x: number, y: number) => y * W + (((x % W) + W) % W);
 
   // ---- land and water ------------------------------------------------------
-  const landCov = coverage(data.land.flatMap((s) => s.rings), WORLD_BBOX, lats, lons);
+  const landCov = coverage(data.land.flatMap((s) => s.rings), WORLD_BBOX, lats, lons, W, H);
   // Natural lakes only: reservoirs are modern.
   const lakeShapes = data.lakes.filter((l) => /lake/i.test(prop(l.props, "featurecla")) && Number(prop(l.props, "scalerank")) <= frame.lakeRank);
-  const lakeCov = coverage(lakeShapes.flatMap((s) => s.rings), WORLD_BBOX, lats, lons);
+  const lakeCov = coverage(lakeShapes.flatMap((s) => s.rings), WORLD_BBOX, lats, lons, W, H);
   const land = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) land[i] = landCov[i]! - lakeCov[i]! >= 0.5 ? 1 : 0;
 
@@ -74,7 +84,7 @@ export function buildWorld(frame: Frame, data: GeoData): BuiltWorld {
   for (const shape of data.land) {
     const [a, b, c, d] = shape.bbox;
     if (c - a > 12 || d - b > 12) continue;
-    const cov = coverage(shape.rings, shape.bbox, lats, lons);
+    const cov = coverage(shape.rings, shape.bbox, lats, lons, W, H);
     let best = -1;
     let area = 0;
     let has = false;
@@ -120,7 +130,7 @@ export function buildWorld(frame: Frame, data: GeoData): BuiltWorld {
   for (const line of frame.land ?? []) drawLine(line, 1);
   for (const ring of frame.seas ?? []) {
     const closed = [...ring, ring[0]!];
-    const cov = coverage([closed], bboxOfRing(closed), lats, lons);
+    const cov = coverage([closed], bboxOfRing(closed), lats, lons, W, H);
     for (let i = 0; i < W * H; i++) if (cov[i]! >= 0.5) land[i] = 0;
   }
   if (frame.seam) for (let y = 0; y < H; y++) land[idx(0, y)] = 0;
@@ -135,11 +145,11 @@ export function buildWorld(frame: Frame, data: GeoData): BuiltWorld {
   };
   for (const r of data.regions) {
     const zone = regionZone(prop(r.props, "FEATURECLA"), prop(r.props, "NAME"), Number(prop(r.props, "SCALERANK")));
-    if (zone) addZone(zone, coverage(r.rings, r.bbox, lats, lons));
+    if (zone) addZone(zone, coverage(r.rings, r.bbox, lats, lons, W, H));
   }
   for (const { zone, ring } of HAND_ZONES) {
     const closed = [...ring, ring[0]!];
-    addZone(zone, coverage([closed], bboxOfRing(closed), lats, lons));
+    addZone(zone, coverage([closed], bboxOfRing(closed), lats, lons, W, H));
   }
 
   const terrain = new Array<Terrain>(W * H).fill(Terrain.Ocean);
@@ -223,7 +233,7 @@ export function buildWorld(frame: Frame, data: GeoData): BuiltWorld {
   let pair = "";
   for (let a = 0; a < names.length; a++)
     for (let b = a + 1; b < names.length; b++) {
-      const d = wrapDist(frame, starts[names[a]!]!, starts[names[b]!]!);
+      const d = wrapDist(frame, W, starts[names[a]!]!, starts[names[b]!]!);
       if (d < closest) { closest = d; pair = `${names[a]}/${names[b]}`; }
     }
   report.push(`homelands: ${names.map((n) => `${n} ${starts[n]!.join(",")}`).join("  ")}`);
@@ -241,7 +251,7 @@ export function buildWorld(frame: Frame, data: GeoData): BuiltWorld {
     }
     rows.push(row);
   }
-  return { rows, starts, preview: preview(terrain, river, starts), report };
+  return { rows, starts, preview: preview(terrain, river, starts, W, H), report };
 }
 
 function bboxOfRing(ring: Pt[]): [number, number, number, number] {
@@ -251,7 +261,8 @@ function bboxOfRing(ring: Pt[]): [number, number, number, number] {
 }
 
 // ---- preview image ------------------------------------------------------------------
-const PX = 8;
+/** Preview pixels a square: about 640 wide at every size. */
+const previewPx = (W: number) => Math.max(4, Math.round(640 / W));
 const COLORS: Record<Terrain, [number, number, number]> = {
   [Terrain.Ocean]: [30, 60, 140],
   [Terrain.Grassland]: [80, 160, 60],
@@ -266,7 +277,8 @@ const COLORS: Record<Terrain, [number, number, number]> = {
   [Terrain.Jungle]: [20, 130, 70],
 };
 
-function preview(terrain: Terrain[], river: Uint8Array, starts: Record<string, [number, number]>): Image {
+function preview(terrain: Terrain[], river: Uint8Array, starts: Record<string, [number, number]>, W: number, H: number): Image {
+  const PX = previewPx(W);
   const img: Image = { width: W * PX, height: H * PX, data: new Uint8Array(W * PX * H * PX * 4) };
   const put = (px: number, py: number, [r, g, b]: [number, number, number]) => {
     const o = (py * img.width + px) * 4;
@@ -276,16 +288,29 @@ function preview(terrain: Terrain[], river: Uint8Array, starts: Record<string, [
     for (let x = 0; x < W; x++) {
       const i = y * W + x;
       for (let py = 0; py < PX; py++) for (let px = 0; px < PX; px++) put(x * PX + px, y * PX + py, COLORS[terrain[i]!]);
-      if (river[i]) for (let py = 3; py < 5; py++) for (let px = 3; px < 5; px++) put(x * PX + px, y * PX + py, [60, 140, 255]);
+      const r0 = PX >> 1;
+      if (river[i]) for (let py = r0 - 1; py < r0 + 1; py++) for (let px = r0 - 1; px < r0 + 1; px++) put(x * PX + px, y * PX + py, [60, 140, 255]);
     }
   for (const [x, y] of Object.values(starts))
     for (let py = 1; py < PX - 1; py++) for (let px = 1; px < PX - 1; px++) if (py === 1 || py === PX - 2 || px === 1 || px === PX - 2) put(x * PX + px, y * PX + py, [255, 30, 30]);
   return img;
 }
 
-/** The generated TypeScript module for a world. */
-export function worldModule(frame: Frame, world: BuiltWorld): string {
-  const starts = Object.entries(world.starts).map(([civ, [x, y]]) => `    ${civ}: [${x}, ${y}],`);
+/** The generated TypeScript module for a world, built at every size. */
+export function worldModule(frame: Frame, worlds: Readonly<Record<WorldSize, BuiltWorld>>): string {
+  const grid = (size: WorldSize) => {
+    const world = worlds[size];
+    return [
+      `    ${size}: {`,
+      `      rows: [`,
+      ...world.rows.map((r) => `        "${r}",`),
+      `      ],`,
+      `      starts: {`,
+      ...Object.entries(world.starts).map(([civ, [x, y]]) => `        ${civ}: [${x}, ${y}],`),
+      `      },`,
+      `    },`,
+    ];
+  };
   return [
     `// Generated by tools/maps from Natural Earth data (public domain). Regenerate with \`npm run maps\`;`,
     `// hand edits are lost on the next run. "." ocean, g grassland, p plains, f forest, h hills, m mountains,`,
@@ -295,11 +320,8 @@ export function worldModule(frame: Frame, world: BuiltWorld): string {
     `export const ${frame.constName}: PremadeWorld = {`,
     `  id: ${JSON.stringify(frame.id)},`,
     `  name: ${JSON.stringify(frame.name)},`,
-    `  rows: [`,
-    ...world.rows.map((r) => `    "${r}",`),
-    `  ],`,
-    `  starts: {`,
-    ...starts,
+    `  sizes: {`,
+    ...WORLD_SIZES.flatMap((s) => grid(s.id)),
     `  },`,
     `};`,
     ``,

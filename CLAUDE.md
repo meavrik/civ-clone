@@ -10,19 +10,27 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `npm test` — vitest, all packages (50+ tests; render tests dump PNGs to `packages/renderer-retro/tests/out/`)
 - `npm run typecheck` — `tsc -b` across the workspace (strict, exactOptionalPropertyTypes, noUncheckedIndexedAccess)
 - `npm run build` — typecheck + Vite build
-- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--world earth [--historical]] [--classic-terrain] [--open-mountains] [--verify] [--json out.json]` —
+- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--world earth [--historical]] [--size medium] [--classic-terrain] [--open-mountains] [--verify] [--json out.json]` —
   seeded all-AI tournaments (`tools/headless`); `--verify` replays each game from its save and checks the state digest
 - `npm run maps [-- europe]` — rebuild the premade worlds from Natural Earth data (`tools/maps`, cached in `tools/maps/.cache`,
-  previews in `tools/maps/out/*.png`; look at them after any change)
+  previews in `tools/maps/out/<world>-<size>.png`; look at them after any change)
 - npm and pnpm both work (`workspaces` + `*` deps, `.npmrc` links workspace packages for pnpm)
 
 ## Layout
 
 - `packages/core` — deterministic game engine, zero DOM. Rules as data in `src/rules/*`
   (terrain, units, buildings, wonders, advances, governments, civs). Map gen (`map/generate.ts`), premade
-  worlds (`map/premade.ts` + generated `map/worlds/*.ts`: 50 rows of 80 terrain chars, upper case = river,
+  worlds (`map/premade.ts` + generated `map/worlds/*.ts`: per world size, rows of terrain chars, upper case = river,
   and each native civ's homeland square), cities,
   combat, pathfinding, diplomacy, barbarians, save/score. Entry: `src/index.ts`.
+  World sizes (`WORLD_SIZES` in `types.ts`, `NewGameOptions.size`; our departure, asked for): small is the
+  original's 80x50 (and every game without a size), medium 120x75, large 160x100, all 8:5 so the retro
+  minimap stays 80x50 pixels (`minimapScale`: a pixel per block of squares, land shown over sea). Never
+  read `MAP_WIDTH`/`MAP_HEIGHT` for a game's map: use `map.width`/`map.height`. Bigger generated worlds
+  are the same world drawn finer (walks, noise, rivers and start spacing scale with width / 80, small
+  unchanged); premade ones are rasterised at each size by `tools/maps` (`scaleFrame` stretches a frame's
+  breakpoints, given in the original's squares). Setup asks the size after a premade world and first in
+  "Customize world"; "Start a new game" plays the original's size; `?size=large` in the web app.
   Generated worlds: land from random-walk chunks, terrain from the climate (`climateWorld`): smooth
   heat and rain fields that wrap east-west, rain in latitude belts and on prevailing winds that dry out
   over land and mountains (rain shadows), ranked so biome shares stay steady; mountains on noise ridges
@@ -239,7 +247,9 @@ asked for): civs meet face to face and the map shows whom we met before the audi
 offers open borders, maps, knowledge, gifts, tribute and war; civs at peace without open borders ask
 the player's units off their land, warn once more, then go to war (our departure: the original had no
 borders). Culture borders done (2026-10-19, asked for): borders start a square round each city and grow
-with its culture (save version 12). Next: mobile/PWA + touch adapter.
+with its culture (save version 12). World sizes done (2026-10-19, asked for: premade maps felt small):
+small 80x50, medium 120x75, large 160x100 for premade and customized worlds; no save version (a save
+without `size` is small). Next: mobile/PWA + touch adapter.
 
 ## Known gaps / next steps
 

@@ -23,6 +23,7 @@ import {
   drawTextInput,
   drawTitleScreen,
   menuHit,
+  minimapSquare,
   PALETTE_RGBA,
   panOffset,
   SCREEN_H,
@@ -101,9 +102,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     techTreeHit: (state, view, px, py) => techTreeHit(state, view, px, py),
     minimapAt(state: GameState, px, py) {
-      const top = VIEW_Y + 2;
-      if (px >= VIEW_X || py < top || py >= top + state.map.height) return null;
-      return { x: px, y: py - top };
+      if (px >= VIEW_X) return null;
+      return minimapSquare(state.map, px, py - (VIEW_Y + 2));
     },
     report: (page) => drawReportScreen(screen, page),
     worldMap: (state) => drawWorldMap(screen, state),

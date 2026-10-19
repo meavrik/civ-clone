@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRng, formatYear, generateMap, getTile, loadSave, makeSave, NEIGHBOURS, newGame, Terrain, turnToYear, type MapGenOptions, type Tile, type WorldMap } from "../src/index.js";
+import { createRng, formatYear, generateMap, getTile, loadSave, makeSave, mapDistance, NEIGHBOURS, newGame, Terrain, turnToYear, WORLD_SIZES, type MapGenOptions, type Tile, type WorldMap } from "../src/index.js";
 
 describe("map generation", () => {
   it("produces an 80x50 world deterministically", () => {
@@ -24,6 +24,32 @@ describe("map generation", () => {
     for (let x = 0; x < 80; x++) {
       expect(g.map.tiles[x]!.terrain).toBe(Terrain.Arctic);
       expect(g.map.tiles[49 * 80 + x]!.terrain).toBe(Terrain.Arctic);
+    }
+  });
+
+  it("grows bigger worlds the same way: as much land, as varied, more rivers, starts further apart", () => {
+    const small = worlds();
+    for (const size of WORLD_SIZES.filter((s) => s.id !== "small")) {
+      const maps = worlds({ size: size.id });
+      for (const map of maps) {
+        expect([map.width, map.height, map.tiles.length]).toEqual([size.width, size.height, size.width * size.height]);
+        for (const x of [0, size.width - 1]) {
+          expect(map.tiles[x]!.terrain).toBe(Terrain.Arctic);
+          expect(map.tiles[(size.height - 1) * size.width + x]!.terrain).toBe(Terrain.Arctic);
+        }
+        const land = map.tiles.filter((t) => t.terrain !== Terrain.Ocean).length / map.tiles.length;
+        expect(land, size.id).toBeGreaterThan(0.3);
+        expect(land, size.id).toBeLessThan(0.5);
+      }
+      for (const t of [Terrain.Grassland, Terrain.Plains, Terrain.Forest, Terrain.Hills, Terrain.Mountains, Terrain.Desert])
+        expect(Math.abs(share(maps, t) - share(small, t)), `${size.id} ${Terrain[t]}`).toBeLessThan(0.06);
+      const rivers = (ms: WorldMap[]) => ms.flatMap((m) => m.tiles).filter((t) => t.river).length;
+      expect(rivers(maps)).toBeGreaterThan(rivers(small) * 1.5);
+      const game = newGame(8, { size: size.id, opponents: 6 });
+      const starts = game.players.filter((p) => p.id !== game.barbarians).map((p) => game.units.find((u) => u.owner === p.id)!);
+      for (let a = 0; a < starts.length; a++)
+        for (let b = a + 1; b < starts.length; b++)
+          expect(mapDistance(game.map, starts[a]!.x, starts[a]!.y, starts[b]!.x, starts[b]!.y)).toBeGreaterThanOrEqual(10);
     }
   });
 });

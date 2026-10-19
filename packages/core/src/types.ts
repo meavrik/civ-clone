@@ -5,6 +5,23 @@ import type { SpacePart, Spaceship } from "./rules/spaceship.js";
 export const MAP_WIDTH = 80;
 export const MAP_HEIGHT = 50;
 
+export type WorldSize = "small" | "medium" | "large";
+
+/**
+ * World sizes offered at setup (our departure: the original had one). Each
+ * keeps the original's 8:5 shape, so the minimap stays 80x50 pixels; small is
+ * the original's world and what every game without a size plays on.
+ */
+export const WORLD_SIZES: readonly { id: WorldSize; name: string; width: number; height: number }[] = [
+  { id: "small", name: "Small", width: MAP_WIDTH, height: MAP_HEIGHT },
+  { id: "medium", name: "Medium", width: 120, height: 75 },
+  { id: "large", name: "Large", width: 160, height: 100 },
+];
+
+export function worldSize(id: WorldSize = "small"): (typeof WORLD_SIZES)[number] {
+  return WORLD_SIZES.find((s) => s.id === id) ?? WORLD_SIZES[0]!;
+}
+
 export enum Terrain {
   Ocean = 0,
   Grassland,

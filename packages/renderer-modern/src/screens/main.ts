@@ -70,7 +70,8 @@ export function drawMenuBar(ctx: Context2D, open?: number): void {
     text(ctx, x, 7, MENU_BAR[i]!, { size: 15, weight: "600", color: on ? UI.ink : "#c9d3de" });
   });
 }
-const MINIMAP_SCALE = 2;
+/** Minimap pixels a square: two on the original's 80x50, less on a bigger world so the minimap keeps its 160 pixels across. */
+const minimapScale = (map: GameState["map"]) => (2 * 80) / Math.max(80, map.width);
 
 /** A square's colour on the minimap and the world map; open sea is darker than water along a coast. */
 export function mapColor(map: GameState["map"], x: number, y: number, explored?: ArrayLike<number>): string {
@@ -100,8 +101,8 @@ export function tileAt(state: GameState, view: MainScreenView, px: number, py: n
 }
 
 export function minimapAt(state: GameState, px: number, py: number): { x: number; y: number } | null {
-  const x = Math.floor((px - MINIMAP_X) / MINIMAP_SCALE);
-  const y = Math.floor((py - MINIMAP_Y) / MINIMAP_SCALE);
+  const x = Math.floor((px - MINIMAP_X) / minimapScale(state.map));
+  const y = Math.floor((py - MINIMAP_Y) / minimapScale(state.map));
   if (x < 0 || y < 0 || x >= state.map.width || y >= state.map.height) return null;
   return { x, y };
 }
@@ -356,7 +357,8 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   ctx.fillStyle = UI.panelEdge;
   ctx.fillRect(PANEL_W - 1, BAR_H, 1, H - BAR_H);
 
-  // Minimap at two pixels per tile.
+  // Minimap at two pixels per tile on the original's world.
+  const MINIMAP_SCALE = minimapScale(map);
   const mw = map.width * MINIMAP_SCALE;
   const mh = map.height * MINIMAP_SCALE;
   fillRound(ctx, MINIMAP_X - 4, MINIMAP_Y - 4, mw + 8, mh + 8, 6, MINIMAP.back);

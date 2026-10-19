@@ -52,6 +52,7 @@ import {
   unitById,
   unitType,
   workOptions,
+  WORLD_SIZES,
   type Cheat,
   type Command,
   type DiplomatAction,
@@ -63,6 +64,7 @@ import {
   type TurnEvent,
   type CombatReport,
   type UnitAction,
+  type WorldSize,
 } from "@civ/core";
 import {
   builtNotice,
@@ -412,6 +414,7 @@ if (params.has("seed")) {
       opponents: Number(params.get("opponents") ?? 6),
       ...(params.get("civ") ? { civ: params.get("civ")! } : {}),
       ...(params.get("world") ? { world: params.get("world")!, historical: params.get("historical") !== "0" } : {}),
+      ...(WORLD_SIZES.some((w) => w.id === params.get("size")) ? { size: params.get("size") as WorldSize } : {}),
       ...(params.get("combat") === "classic" ? { classicCombat: true } : {}),
       ...(params.get("terrain") === "classic" ? { classicTerrain: true } : {}),
       ...(params.get("mountains") === "open" ? { openMountains: true } : {}),
@@ -1557,7 +1560,7 @@ function setupKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "setup" }>): voi
 }
 let setupSelection = 0;
 
-/** Begin the setup questions at `step`: a random world asks difficulty first, a premade one which world, a custom one the land. */
+/** Begin the setup questions at `step`: a random world asks difficulty first, a premade one which world, a custom one its size. */
 function openSetup(step: SetupState["step"]): void {
   const setup: SetupState = { step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" };
   screenState = { kind: "setup", setup };
@@ -1572,7 +1575,7 @@ async function openTitleMenu(): Promise<void> {
     ...(auto ? [[`Continue: ${saveLabel(auto)}`, () => resumeGame(auto)] as [string, () => void]] : []),
     ["Start a new game", () => openSetup("difficulty")],
     ["Play on a premade world", () => openSetup("world")],
-    ["Customize world", () => openSetup("landMass")],
+    ["Customize world", () => openSetup("size")],
     ["Load a saved game", () => void openLoadMenu()],
     ...(auto && auto.log.length ? [["Back to an earlier turn", () => openRewindMenu(auto, false)] as [string, () => void]] : []),
   ];

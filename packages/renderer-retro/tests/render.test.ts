@@ -689,6 +689,59 @@ describe("world with opponents", () => {
     drawMainScreen(s, state, { ...view, borders: true });
     expect(mm(ex, ey)).toBe(C.BLACK!);
   });
+
+  it("fits a bigger world's minimap in the same 80x50, each pixel a block of squares", async () => {
+    const { aiTurn } = await import("@civ/ai");
+    const { drawWorldMap, minimapColor, minimapSize, minimapSquare, VIEW_Y } = await import("../src/index.js");
+    const state = newGame(4, { world: "earth", historical: true, civ: "greeks", opponents: 3, size: "large" });
+    for (let r = 0; r < 12; r++) {
+      let guard = 0;
+      while (state.activeUnit !== null && guard++ < 50) applyCommand(state, { type: "skip", unit: state.activeUnit });
+      applyCommand(state, { type: "endTurn" });
+      while (state.currentPlayer !== 0) { aiTurn(state); applyCommand(state, { type: "endTurn" }); }
+    }
+    const { map } = state;
+    expect(minimapSize(map)).toEqual({ w: 80, h: 50 });
+    const me = state.players[0]!;
+    me.explored.fill(1);
+    me.visible.fill(1);
+    const city = state.cities.find((c) => c.owner !== 0) ?? state.cities[0]!;
+    const view = { originX: city.x - 7, originY: Math.max(0, city.y - 6), blink: true };
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    writeFileSync(new URL("./out/main-screen-large.png", import.meta.url), encodePng(s, 3));
+    const top = VIEW_Y + 2;
+    const mm = (px: number, py: number) => s.get(px, top + py);
+    // Each city at the pixel of its 2x2 block, and that pixel leads back to the block.
+    expect(mm(city.x >> 1, city.y >> 1)).toBe(C.WHITE!);
+    const back = minimapSquare(map, city.x >> 1, city.y >> 1)!;
+    expect(Math.abs(back.x - city.x) <= 1 && Math.abs(back.y - city.y) <= 1).toBe(true);
+    expect(minimapSquare(map, 80, 0)).toBeNull();
+    expect(minimapSquare(map, 0, 50)).toBeNull();
+    // A block of sea with one square of land shows the land, so islands stay on the map.
+    const clear = (px: number, py: number) => !state.units.some((u) => u.x >> 1 === px && u.y >> 1 === py)
+      && !state.cities.some((c) => Math.abs((c.x >> 1) - px) + Math.abs((c.y >> 1) - py) <= 1);
+    let island: [number, number] | undefined;
+    for (let py = 1; py < 49 && !island; py++)
+      for (let px = 0; px < 80 && !island; px++) {
+        const squares = [0, 1, map.width, map.width + 1].map((d) => map.tiles[py * 2 * map.width + px * 2 + d]!);
+        if (squares.filter((t) => t.terrain !== Terrain.Ocean).length === 1 && clear(px, py)) island = [px, py];
+      }
+    expect(island).toBeDefined();
+    const [ix, iy] = island!;
+    const landAt = [0, 1, map.width, map.width + 1].map((d) => iy * 2 * map.width + ix * 2 + d).find((i) => map.tiles[i]!.terrain !== Terrain.Ocean)!;
+    expect(mm(ix, iy)).toBe(minimapColor(map, landAt % map.width, Math.floor(landAt / map.width), me.explored));
+    // Nothing of a block we have not explored.
+    for (const d of [0, 1, map.width, map.width + 1]) me.explored[iy * 2 * map.width + ix * 2 + d] = 0;
+    drawMainScreen(s, state, view);
+    expect(mm(ix, iy)).toBe(C.BLACK!);
+    // The panel below the minimap starts where it does on the original's world.
+    const small = Surface.screen();
+    drawMainScreen(small, newGame(4), { originX: 0, originY: 0, blink: true });
+    for (let x = 0; x < 80; x++) expect(isStone(s.get(x, top + 52)), `x ${x}`).toBe(isStone(small.get(x, top + 52)));
+    drawWorldMap(s, state);
+    writeFileSync(new URL("./out/world-map-large.png", import.meta.url), encodePng(s, 3));
+  });
 });
 
 describe("civilization traits", () => {

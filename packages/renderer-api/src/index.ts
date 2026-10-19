@@ -43,6 +43,7 @@ import {
   unitSupport,
   unitType,
   wonder,
+  WORLD_SIZES,
   wrapX,
   type BuildingRule,
   type City,
@@ -51,6 +52,7 @@ import {
   type NewGameOptions,
   type Production,
   type Unit,
+  type WorldSize,
 } from "@civ/core";
 
 /**
@@ -197,9 +199,11 @@ export interface ReportPage {
 }
 
 export interface SetupState {
-  step: "world" | "starts" | "landMass" | "temperature" | "climate" | "age" | "difficulty" | "opponents" | "civ" | "done";
+  step: "world" | "size" | "starts" | "landMass" | "temperature" | "climate" | "age" | "difficulty" | "opponents" | "civ" | "done";
   /** Premade world id, or null for a generated world. */
   world: string | null;
+  /** World size (WORLD_SIZES); the original's 80x50 when absent. */
+  size?: WorldSize;
   /** On a premade world: civilizations start in their historical homelands. */
   historical: boolean;
   /** "Customize world" answers, 0..2 each (see MapGenOptions); null keeps the defaults. */
@@ -289,6 +293,13 @@ export const WORLD_QUESTIONS = [
 
 export const START_CHOICES = ["In their historical homelands", "Anywhere on the map"];
 
+/** The world size question: each size by name, its squares beside it. */
+export const SIZE_QUESTION = {
+  title: "How big a world?",
+  items: WORLD_SIZES.map((s) => s.name),
+  right: WORLD_SIZES.map((s) => `${s.width} x ${s.height}`),
+};
+
 /** Tribes offered at setup: on a premade world with homelands, only the civilizations native to it. */
 export function setupCivs(setup: SetupState): string[] {
   if (setup.world && setup.historical) return nativeCivs(premadeWorld(setup.world));
@@ -304,6 +315,8 @@ export function setupMenu(setup: SetupState): { title: string; items: string[]; 
   switch (setup.step) {
     case "world":
       return { title: "Choose a world", items: PREMADE_WORLDS.map((w) => w.name), selected: Math.max(0, PREMADE_WORLDS.findIndex((w) => w.id === setup.world)) };
+    case "size":
+      return { ...SIZE_QUESTION, selected: Math.max(0, WORLD_SIZES.findIndex((s) => s.id === (setup.size ?? "small"))) };
     case "starts":
       return { title: "Where do the civilizations begin?", items: START_CHOICES, selected: setup.historical ? 0 : 1 };
     case "landMass": case "temperature": case "climate": case "age": {
@@ -340,7 +353,12 @@ export function setupChoose(setup: SetupState, index: number): boolean {
   switch (setup.step) {
     case "world":
       setup.world = PREMADE_WORLDS[index]?.id ?? PREMADE_WORLDS[0]!.id;
-      setup.step = "starts";
+      setup.step = "size";
+      break;
+    case "size":
+      setup.size = WORLD_SIZES[index]?.id ?? "small";
+      // A premade world asks where the civilizations begin next; a custom one, the land.
+      setup.step = setup.world ? "starts" : "landMass";
       break;
     case "starts":
       setup.historical = index === 0;
@@ -380,6 +398,7 @@ export function setupOptions(setup: SetupState): NewGameOptions {
     opponents: setup.opponents,
     civ: setup.civ,
     ...(setup.world ? { world: setup.world, historical: setup.historical } : {}),
+    ...(setup.size && setup.size !== "small" ? { size: setup.size } : {}),
     ...(setup.custom ? (setup.custom as MapGenOptions) : {}),
   };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decodeWorld, MAP_WIDTH, Terrain } from "@civ/core";
-import { buildWorld, worldModule } from "../src/build.js";
+import { decodeWorld, Terrain, WORLD_SIZES, type WorldSize } from "@civ/core";
+import { buildWorld, scaleFrame, worldModule, type BuiltWorld } from "../src/build.js";
 import { FRAMES, fromGrid, project, toGrid, type Frame } from "../src/frames.js";
 import { ScanFill, supercover, type Pt } from "../src/geo.js";
 
@@ -38,15 +38,33 @@ describe("map tool", () => {
     expect(fill.inside(0, 11)).toBe(false);
   });
 
-  it("builds a world module the engine can read", () => {
+  it("stretches a frame over a bigger world's grid, the same place in the same spot", () => {
+    const europe = FRAMES.find((f) => f.id === "europe")!;
+    expect(scaleFrame(europe, "small")).toBe(europe);
+    const large = scaleFrame(europe, "large");
+    const [x, y] = project(europe, [12.5, 41.9]);
+    const [lx, ly] = project(large, [12.5, 41.9]);
+    expect(lx).toBeCloseTo(x * 2, 6);
+    expect(ly).toBeCloseTo(y * 2, 6);
+  });
+
+  it("builds a world module the engine can read, at every size", () => {
     const frame: Frame = { ...FRAMES.find((f) => f.id === "europe")!, homes: { romans: [5, 50] }, riverNames: [] };
     const island = { props: {}, rings: [square(0, 45, 10, 55)], bbox: [0, 45, 10, 55] as [number, number, number, number] };
-    const world = buildWorld(frame, { land: [island], lakes: [], regions: [], rivers: [] });
-    const text = worldModule(frame, world);
+    const built = {} as Record<WorldSize, BuiltWorld>;
+    for (const size of WORLD_SIZES) built[size.id] = buildWorld(frame, { land: [island], lakes: [], regions: [], rivers: [] }, size.id);
+    const text = worldModule(frame, built);
     expect(text).toContain('export const EUROPE: PremadeWorld = {');
-    const map = decodeWorld({ id: frame.id, name: frame.name, rows: world.rows, starts: world.starts });
-    const [x, y] = world.starts.romans!;
-    expect(map.tiles[y * MAP_WIDTH + x]!.terrain).not.toBe(Terrain.Ocean);
-    expect(map.tiles.filter((t) => t.terrain !== Terrain.Ocean).length).toBeGreaterThan(100);
+    expect(text).toContain("    large: {");
+    const world = { id: frame.id, name: frame.name, sizes: built };
+    for (const size of WORLD_SIZES) {
+      const map = decodeWorld(world, size.id);
+      expect([map.width, map.height]).toEqual([size.width, size.height]);
+      const [x, y] = built[size.id].starts.romans!;
+      expect(map.tiles[y * map.width + x]!.terrain).not.toBe(Terrain.Ocean);
+      // The island covers the same share of the world at every size.
+      const land = map.tiles.filter((t) => t.terrain !== Terrain.Ocean).length / map.tiles.length;
+      expect(land).toBeGreaterThan(100 / 4000);
+    }
   });
 });

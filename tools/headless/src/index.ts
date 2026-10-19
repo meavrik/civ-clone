@@ -11,6 +11,7 @@ import {
   type GameState,
   type NewGameOptions,
   type SaveGame,
+  type WorldSize,
 } from "@civ/core";
 
 /**
@@ -43,6 +44,8 @@ export interface GameConfig {
   every: number;
   /** Premade world id; a generated world when absent. */
   world?: string;
+  /** World size (WORLD_SIZES); the original's 80x50 when absent. */
+  size?: WorldSize;
   /** On a premade world, civilizations start in their historical homelands. */
   historical?: boolean;
   /** The 1991 terrain rules (no roads needed for wheels, no attrition), to measure the difference. */
@@ -131,6 +134,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     opponents: Math.max(1, Math.min(7, config.civs - 1)),
     difficulty: config.difficulty,
     ...(config.world ? { world: config.world, historical: config.historical === true } : {}),
+    ...(config.size ? { size: config.size } : {}),
     ...(config.classicTerrain ? { classicTerrain: true } : {}),
     ...(config.openMountains ? { openMountains: true } : {}),
     ...(config.classicCivs ? { classicCivs: true } : {}),

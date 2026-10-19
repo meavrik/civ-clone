@@ -5,7 +5,7 @@ import { createRng, nextInt } from "./rng.js";
 import { advancesFor } from "./rules/advances.js";
 import { civ, CIVS, colorSlot } from "./rules/civs.js";
 import { newSpaceship } from "./rules/spaceship.js";
-import { MAP_HEIGHT, MAP_WIDTH, Terrain, type GameState, type Player, type WorldMap } from "./types.js";
+import { MAP_WIDTH, Terrain, type GameState, type Player, type WorldMap } from "./types.js";
 import { createUnit } from "./units.js";
 import { recomputeVisibility } from "./visibility.js";
 
@@ -52,7 +52,7 @@ export interface NewGameOptions extends MapGenOptions {
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
-function makePlayer(id: number, civId: string, isAi: boolean): Player {
+function makePlayer(map: WorldMap, id: number, civId: string, isAi: boolean): Player {
   const color = colorSlot(civ(civId).color);
   return {
     id,
@@ -61,8 +61,8 @@ function makePlayer(id: number, civId: string, isAi: boolean): Player {
     isAi,
     alive: true,
     color,
-    explored: new Uint8Array(MAP_WIDTH * MAP_HEIGHT),
-    visible: new Uint8Array(MAP_WIDTH * MAP_HEIGHT),
+    explored: new Uint8Array(map.width * map.height),
+    visible: new Uint8Array(map.width * map.height),
     gold: 0,
     taxRate: 5,
     luxRate: 0,
@@ -88,9 +88,9 @@ function squareDist(map: WorldMap, a: readonly [number, number], b: readonly [nu
   return Math.max(Math.min(dx, map.width - dx), Math.abs(a[1] - b[1]));
 }
 
-/** Civilizations with a homeland on the world, in roster order (barbarians never have one). */
+/** Civilizations with a homeland on the world, in roster order (barbarians never have one; every size has the same). */
 export function nativeCivs(world: PremadeWorld): string[] {
-  return CIVS.filter((c) => world.starts[c.id] !== undefined).map((c) => c.id);
+  return CIVS.filter((c) => world.sizes.small.starts[c.id] !== undefined).map((c) => c.id);
 }
 
 /**
@@ -120,13 +120,13 @@ function homelandStart(map: WorldMap, home: readonly [number, number], starts: [
 export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const rng = createRng(seed);
   const world = opts.world ? premadeWorld(opts.world) : undefined;
-  const map = opts.world ? premadeMap(rng, opts.world) : generateMap(rng, opts);
-  const homes = world && opts.historical ? world.starts : undefined;
+  const map = opts.world ? premadeMap(rng, opts.world, opts.size) : generateMap(rng, opts);
+  const homes = world && opts.historical ? world.sizes[opts.size ?? "small"].starts : undefined;
   const humanCiv = opts.civ ?? "romans";
   const roster = opts.roster;
   const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians" && (!homes || homes[c.id] !== undefined) && (roster === undefined || (c.since ?? 0) <= roster));
   const opponents = Math.max(0, Math.min(others.length, opts.opponents ?? 2));
-  const players: Player[] = [makePlayer(0, humanCiv, opts.allAi === true)];
+  const players: Player[] = [makePlayer(map, 0, humanCiv, opts.allAi === true)];
   for (let i = 0; i < opponents; i++) {
     // Every civilization in the game keeps its own colour: skip civs whose colour is taken.
     const takenColors = new Set(players.map((p) => p.color));
@@ -140,10 +140,10 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     }
     const pick = pool[nextInt(rng, pool.length)]!;
     others.splice(others.indexOf(pick), 1);
-    players.push(makePlayer(players.length, pick.id, true));
+    players.push(makePlayer(map, players.length, pick.id, true));
   }
   const barbarians = players.length;
-  players.push(makePlayer(barbarians, "barbarians", true));
+  players.push(makePlayer(map, barbarians, "barbarians", true));
 
   const state: GameState = {
     seed,
@@ -188,19 +188,21 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     }
   }
 
-  // Starting positions: open land on decent continents, spread apart.
+  // Starting positions: open land on decent continents, spread apart (further on a bigger world).
+  const k = map.width / MAP_WIDTH;
   const sizes = new Map<number, number>();
   for (const t of map.tiles) if (t.terrain !== Terrain.Ocean) sizes.set(t.continent, (sizes.get(t.continent) ?? 0) + 1);
   const candidates: number[] = [];
-  for (let y = 6; y < map.height - 6; y++)
+  const margin = Math.round(6 * k);
+  for (let y = margin; y < map.height - margin; y++)
     for (let x = 0; x < map.width; x++) {
       const t = map.tiles[y * map.width + x]!;
-      if ((t.terrain === Terrain.Grassland || t.terrain === Terrain.Plains) && (sizes.get(t.continent) ?? 0) >= 40)
+      if ((t.terrain === Terrain.Grassland || t.terrain === Terrain.Plains) && (sizes.get(t.continent) ?? 0) >= 40 * k * k)
         candidates.push(y * map.width + x);
     }
   const starts: [number, number][] = [];
   const far = (x: number, y: number) =>
-    starts.every(([sx, sy]) => Math.max(Math.min(Math.abs(sx - x), map.width - Math.abs(sx - x)), Math.abs(sy - y)) >= 10);
+    starts.every(([sx, sy]) => Math.max(Math.min(Math.abs(sx - x), map.width - Math.abs(sx - x)), Math.abs(sy - y)) >= 10 * k);
   for (const p of players) {
     if (p.id === barbarians) continue;
     let sx = 0;

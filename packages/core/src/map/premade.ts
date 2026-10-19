@@ -1,20 +1,25 @@
 import type { RngState } from "../rng.js";
-import { MAP_HEIGHT, MAP_WIDTH, Terrain, type WorldMap } from "../types.js";
+import { Terrain, worldSize, type WorldMap, type WorldSize } from "../types.js";
 import { blankTile, labelContinents, scatterSpecials } from "./generate.js";
 import { EARTH } from "./worlds/earth.js";
 import { EUROPE } from "./worlds/europe.js";
 import { MIDDLE_EAST } from "./worlds/middle-east.js";
 
 /**
- * A premade world: real geography rasterised onto the 80x50 grid by
- * `tools/maps` from Natural Earth data (public domain). Terrain and rivers
+ * A premade world: real geography rasterised onto the grid of each world size
+ * by `tools/maps` from Natural Earth data (public domain). Terrain and rivers
  * are fixed; specials and villages are still scattered from the game's
  * seed. Every civilization with a homeland on the map has a start square.
  */
 export interface PremadeWorld {
   id: string;
   name: string;
-  /** MAP_HEIGHT rows of MAP_WIDTH characters from TERRAIN_CHARS; upper case marks a river. */
+  /** The world drawn at each size (WORLD_SIZES), the same land on a finer grid. */
+  sizes: Readonly<Record<WorldSize, PremadeGrid>>;
+}
+
+export interface PremadeGrid {
+  /** One row per square of height, one character per square of width, from TERRAIN_CHARS; upper case marks a river. */
   rows: readonly string[];
   /** Historical homeland of each civilization that has one here, as a map square. */
   starts: Readonly<Record<string, readonly [number, number]>>;
@@ -44,14 +49,16 @@ export function premadeWorld(id: string): PremadeWorld {
   return world;
 }
 
-/** The world's terrain and rivers as drawn in its rows, with nothing scattered yet. */
-export function decodeWorld(world: PremadeWorld): WorldMap {
-  if (world.rows.length !== MAP_HEIGHT) throw new Error(`${world.id}: ${world.rows.length} rows, expected ${MAP_HEIGHT}`);
+/** The world's terrain and rivers as drawn in its rows at that size, with nothing scattered yet. */
+export function decodeWorld(world: PremadeWorld, size: WorldSize = "small"): WorldMap {
+  const { width, height } = worldSize(size);
+  const { rows } = world.sizes[size];
+  if (rows.length !== height) throw new Error(`${world.id} (${size}): ${rows.length} rows, expected ${height}`);
   const tiles = [];
-  for (let y = 0; y < MAP_HEIGHT; y++) {
-    const row = world.rows[y]!;
-    if (row.length !== MAP_WIDTH) throw new Error(`${world.id}: row ${y} has ${row.length} columns, expected ${MAP_WIDTH}`);
-    for (let x = 0; x < MAP_WIDTH; x++) {
+  for (let y = 0; y < height; y++) {
+    const row = rows[y]!;
+    if (row.length !== width) throw new Error(`${world.id} (${size}): row ${y} has ${row.length} columns, expected ${width}`);
+    for (let x = 0; x < width; x++) {
       const ch = row[x]!;
       const terrain = CHAR_TERRAIN.get(ch.toLowerCase());
       if (terrain === undefined) throw new Error(`${world.id}: unknown terrain "${ch}" at ${x},${y}`);
@@ -60,12 +67,12 @@ export function decodeWorld(world: PremadeWorld): WorldMap {
       tiles.push(tile);
     }
   }
-  return { width: MAP_WIDTH, height: MAP_HEIGHT, tiles };
+  return { width, height, tiles };
 }
 
 /** A premade world ready to play: its terrain plus specials and villages from the game's RNG. */
-export function premadeMap(rng: RngState, id: string): WorldMap {
-  const map = decodeWorld(premadeWorld(id));
+export function premadeMap(rng: RngState, id: string, size: WorldSize = "small"): WorldMap {
+  const map = decodeWorld(premadeWorld(id), size);
   scatterSpecials(map, rng);
   labelContinents(map);
   return map;

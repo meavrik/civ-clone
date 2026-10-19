@@ -1,7 +1,9 @@
 import { nextFloat, nextInt, type RngState } from "../rng.js";
-import { MAP_HEIGHT, MAP_WIDTH, NEIGHBOURS, Terrain, wrapX, type Tile, type WorldMap } from "../types.js";
+import { MAP_WIDTH, NEIGHBOURS, Terrain, worldSize, wrapX, type Tile, type WorldMap, type WorldSize } from "../types.js";
 
 export interface MapGenOptions {
+  /** World size (see WORLD_SIZES); the original's 80x50 when absent. */
+  size?: WorldSize;
   /** 0..2 — original "land mass" setting (small / normal / large). */
   landMass?: 0 | 1 | 2;
   /** 0..2 — original "temperature" (cool / temperate / warm). */
@@ -27,8 +29,10 @@ export interface MapGenOptions {
  * Every random draw comes from the game's RNG, so a seed reproduces a world.
  */
 export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
-  const w = MAP_WIDTH;
-  const h = MAP_HEIGHT;
+  const { width: w, height: h } = worldSize(opts.size);
+  // Bigger worlds are the same world drawn finer: walks k times wider (k^2 steps),
+  // so there are as many continents as on the original's, each with more room.
+  const k = w / MAP_WIDTH;
   const landMass = opts.landMass ?? 1;
   const age = opts.age ?? 1;
 
@@ -40,8 +44,9 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
   while (landCount < targetLand && guard++ < 4000) {
     // Chunk origin, away from the poles.
     let x = nextInt(rng, w);
-    let y = 4 + nextInt(rng, h - 8);
-    const steps = 20 + nextInt(rng, 40);
+    const pole = Math.round(4 * k);
+    let y = pole + nextInt(rng, h - 2 * pole);
+    const steps = Math.round((20 + nextInt(rng, 40)) * k * k);
     for (let i = 0; i < steps; i++) {
       // Stamp a 2x2-ish blob so coastlines are chunky rather than stringy.
       for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) {
@@ -84,8 +89,7 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
 
 /** The first generator's terrain and rivers: each land square rolled on its own (saves before version 6). */
 function scatteredWorld(rng: RngState, elev: Uint8Array, opts: MapGenOptions): WorldMap {
-  const w = MAP_WIDTH;
-  const h = MAP_HEIGHT;
+  const { width: w, height: h } = worldSize(opts.size);
   const landMass = opts.landMass ?? 1;
   const temperature = opts.temperature ?? 1;
   const climate = opts.climate ?? 1;
@@ -183,8 +187,9 @@ function scatteredWorld(rng: RngState, elev: Uint8Array, opts: MapGenOptions): W
  * joining where they meet.
  */
 function climateWorld(rng: RngState, elev: Uint8Array, opts: MapGenOptions): WorldMap {
-  const w = MAP_WIDTH;
-  const h = MAP_HEIGHT;
+  const { width: w, height: h } = worldSize(opts.size);
+  // Features scale with the world, so a bigger one has wider ranges and regions, not more of them.
+  const k = w / MAP_WIDTH;
   const landMass = opts.landMass ?? 1;
   const temperature = opts.temperature ?? 1;
   const climate = opts.climate ?? 1;
@@ -195,7 +200,7 @@ function climateWorld(rng: RngState, elev: Uint8Array, opts: MapGenOptions): Wor
   const shore = seaDistance(elev, w, h);
 
   // ---- relief --------------------------------------------------------------
-  const ridges = noiseField(rng, w, h, [12, 6], [0.7, 0.3]);
+  const ridges = noiseField(rng, w, h, [12 * k, 6 * k], [0.7, 0.3]);
   let maxElev = 1;
   for (let i = 0; i < n; i++) maxElev = Math.max(maxElev, elev[i]!);
   const piled = blur(Float32Array.from(elev, (e) => e / maxElev), w, h, 1);
@@ -204,7 +209,7 @@ function climateWorld(rng: RngState, elev: Uint8Array, opts: MapGenOptions): Wor
   for (let i = 0; i < n; i++) {
     if (!land(i)) continue;
     const ridge = Math.pow(1 - Math.abs(2 * ridges[i]! - 1), 3);
-    relief[i] = 0.65 * ridge + 0.2 * piled[i]! + 0.15 * Math.min(shore[i]!, 5) / 5;
+    relief[i] = 0.65 * ridge + 0.2 * piled[i]! + 0.15 * Math.min(shore[i]!, 5 * k) / (5 * k);
     const y = Math.floor(i / w);
     if (y > 0 && y < h - 1) ranked.push(relief[i]!);
   }
@@ -215,8 +220,8 @@ function climateWorld(rng: RngState, elev: Uint8Array, opts: MapGenOptions): Wor
   const hillsAt = above(mountainShare + [0.11, 0.12, 0.13][age]!);
 
   // ---- heat and rain -------------------------------------------------------
-  const warmth = noiseField(rng, w, h, [20, 10], [0.6, 0.4]);
-  const damp = noiseField(rng, w, h, [12, 5, 3], [0.35, 0.35, 0.3]);
+  const warmth = noiseField(rng, w, h, [20 * k, 10 * k], [0.6, 0.4]);
+  const damp = noiseField(rng, w, h, [12 * k, 5 * k, 3 * k], [0.35, 0.35, 0.3]);
   const winds = windRain(elev, relief, hillsAt, mountainsAt, w, h);
   const heat = new Float32Array(n);
   const wet = new Float32Array(n);
@@ -273,14 +278,14 @@ function climateWorld(rng: RngState, elev: Uint8Array, opts: MapGenOptions): Wor
     const t = tiles[i]!.terrain;
     if ((t === Terrain.Hills || t === Terrain.Mountains) && rain[i]! > 0.4) sources.push(i);
   }
-  const wanted = Math.round([14, 20, 26][landMass]! * [0.7, 1, 1.3][climate]!);
+  const wanted = Math.round([14, 20, 26][landMass]! * [0.7, 1, 1.3][climate]! * k * k);
   let placed = 0;
-  for (let attempt = 0; attempt < 600 && placed < wanted && sources.length; attempt++) {
+  for (let attempt = 0; attempt < 600 * k * k && placed < wanted && sources.length; attempt++) {
     let at = sources[nextInt(rng, sources.length)]!;
     if (tiles[at]!.river) continue;
     const path: number[] = [];
     let ok = false;
-    for (let step = 0; step < 30; step++) {
+    for (let step = 0; step < 30 * k; step++) {
       const x = at % w;
       const y = Math.floor(at / w);
       const spin = nextInt(rng, 4);

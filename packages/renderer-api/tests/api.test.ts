@@ -17,6 +17,9 @@ describe("setup", () => {
     const setup = fresh("world");
     expect(setupMenu(setup).items).toEqual(["Earth", "Europe", "Middle East"]);
     expect(setupChoose(setup, 2)).toBe(false);
+    // Then its size, the original's selected, each with its squares beside it.
+    expect(setupMenu(setup)).toMatchObject({ title: "How big a world?", items: ["Small", "Medium", "Large"], right: ["80 x 50", "120 x 75", "160 x 100"], selected: 0 });
+    setupChoose(setup, 2);
     expect(setupMenu(setup).items).toEqual(["In their historical homelands", "Anywhere on the map"]);
     setupChoose(setup, 0);
     setupChoose(setup, 3); // King
@@ -25,28 +28,31 @@ describe("setup", () => {
     expect(tribes).toContain("Egyptians");
     expect(tribes).not.toContain("Aztecs");
     expect(setupChoose(setup, tribes.indexOf("Persians"))).toBe(true);
-    expect(setupOptions(setup)).toEqual({ difficulty: 3, opponents: 6, civ: "persians", world: "middle-east", historical: true });
+    expect(setupOptions(setup)).toEqual({ difficulty: 3, opponents: 6, civ: "persians", world: "middle-east", historical: true, size: "large" });
   });
 
   it("offers every tribe when a premade world scatters the civilizations", () => {
     const setup = fresh("world");
     setupChoose(setup, 1);
+    setupChoose(setup, 0); // small: the original's size, left out of the options
     setupChoose(setup, 1);
     setupChoose(setup, 2);
     setupChoose(setup, 4);
     expect(setupMenu(setup).items).toContain("Aztecs");
+    setupChoose(setup, 0);
+    expect(setupOptions(setup)).not.toHaveProperty("size");
   });
 
-  it("asks the four customize-world questions before the usual ones", () => {
-    const setup = fresh("landMass");
+  it("asks the world's size and the four customize-world questions before the usual ones", () => {
+    const setup = fresh("size");
     const titles: string[] = [];
-    for (const pick of [2, 0, 2, 1]) { titles.push(setupMenu(setup).title); setupChoose(setup, pick); }
-    expect(titles).toEqual(["How much land?", "Temperature?", "Climate?", "Age of the world?"]);
+    for (const pick of [1, 2, 0, 2, 1]) { titles.push(setupMenu(setup).title); setupChoose(setup, pick); }
+    expect(titles).toEqual(["How big a world?", "How much land?", "Temperature?", "Climate?", "Age of the world?"]);
     expect(setup.step).toBe("difficulty");
     setupChoose(setup, 2);
     setupChoose(setup, 4);
     setupChoose(setup, 0);
-    expect(setupOptions(setup)).toEqual({ difficulty: 2, opponents: 6, civ: "romans", landMass: 2, temperature: 0, climate: 2, age: 1 });
+    expect(setupOptions(setup)).toEqual({ difficulty: 2, opponents: 6, civ: "romans", size: "medium", landMass: 2, temperature: 0, climate: 2, age: 1 });
   });
 });
 

@@ -12,6 +12,7 @@ import {
   PREMADE_WORLDS,
   premadeWorld,
   Terrain,
+  WORLD_SIZES,
   type Command,
   type GameState,
 } from "../src/index.js";
@@ -27,26 +28,52 @@ function dist(a: [number, number], b: [number, number]): number {
 }
 
 describe("premade worlds", () => {
-  it("are full 80x50 grids with land, sea and rivers only on land", () => {
-    for (const world of PREMADE_WORLDS) {
-      const map = decodeWorld(world);
-      expect(map.tiles.length).toBe(MAP_WIDTH * MAP_HEIGHT);
-      const land = map.tiles.filter((t) => t.terrain !== Terrain.Ocean).length / map.tiles.length;
-      expect(land, world.id).toBeGreaterThan(0.3);
-      expect(land, world.id).toBeLessThan(0.8);
-      expect(map.tiles.some((t) => t.river), world.id).toBe(true);
-      expect(map.tiles.every((t) => !t.river || t.terrain !== Terrain.Ocean), world.id).toBe(true);
-    }
+  it("are full grids at every size with land, sea and rivers only on land", () => {
+    for (const world of PREMADE_WORLDS)
+      for (const size of WORLD_SIZES) {
+        const at = `${world.id} ${size.id}`;
+        const map = decodeWorld(world, size.id);
+        expect([map.width, map.height], at).toEqual([size.width, size.height]);
+        expect(map.tiles.length, at).toBe(size.width * size.height);
+        const land = map.tiles.filter((t) => t.terrain !== Terrain.Ocean).length / map.tiles.length;
+        expect(land, at).toBeGreaterThan(0.3);
+        expect(land, at).toBeLessThan(0.8);
+        expect(map.tiles.some((t) => t.river), at).toBe(true);
+        expect(map.tiles.every((t) => !t.river || t.terrain !== Terrain.Ocean), at).toBe(true);
+      }
+    // Small is the original's 80x50.
+    expect(decodeWorld(premadeWorld("earth")).tiles.length).toBe(MAP_WIDTH * MAP_HEIGHT);
   });
 
-  it("put every homeland on land a city can be built on", () => {
-    for (const world of PREMADE_WORLDS) {
-      const map = decodeWorld(world);
-      for (const [civ, [x, y]] of Object.entries(world.starts)) {
-        expect(CIVS.some((c) => c.id === civ), `${world.id} ${civ}`).toBe(true);
-        const t = map.tiles[y * MAP_WIDTH + x]!;
-        expect([Terrain.Ocean, Terrain.Arctic, Terrain.Mountains], `${world.id} ${civ}`).not.toContain(t.terrain);
+  it("put every homeland on land a city can be built on, the same civilizations at every size", () => {
+    for (const world of PREMADE_WORLDS)
+      for (const size of WORLD_SIZES) {
+        const map = decodeWorld(world, size.id);
+        const { starts } = world.sizes[size.id];
+        expect(Object.keys(starts).sort(), `${world.id} ${size.id}`).toEqual(Object.keys(world.sizes.small.starts).sort());
+        for (const [civ, [x, y]] of Object.entries(starts)) {
+          expect(CIVS.some((c) => c.id === civ), `${world.id} ${civ}`).toBe(true);
+          const t = map.tiles[y * map.width + x]!;
+          expect([Terrain.Ocean, Terrain.Arctic, Terrain.Mountains], `${world.id} ${size.id} ${civ}`).not.toContain(t.terrain);
+        }
       }
+  });
+
+  it("spread the homelands further apart on bigger worlds", () => {
+    const earth = premadeWorld("earth");
+    const span = (size: "small" | "large") => {
+      const { starts } = earth.sizes[size];
+      return Math.abs(starts.romans![0] - starts.chinese![0]);
+    };
+    expect(span("large")).toBeGreaterThan(span("small") * 1.8);
+  });
+
+  it("play at the size asked for, every player seeing that map", () => {
+    for (const size of WORLD_SIZES) {
+      const state = newGame(5, { world: "europe", historical: true, civ: "english", opponents: 4, size: size.id });
+      expect([state.map.width, state.map.height]).toEqual([size.width, size.height]);
+      for (const p of state.players) expect(p.explored.length).toBe(size.width * size.height);
+      expect(startOf(state, 0)).toEqual([...premadeWorld("europe").sizes[size.id].starts.english!]);
     }
   });
 
@@ -73,10 +100,11 @@ describe("historical starts", () => {
     const seated = state.players.filter((p) => p.id !== state.barbarians).map((p) => p.civ);
     expect(seated).toHaveLength(7);
     expect(nativeCivs(world)).toEqual(expect.arrayContaining(seated));
-    expect(startOf(state, 0)).toEqual([...world.starts.egyptians!]);
+    const { starts } = world.sizes.small;
+    expect(startOf(state, 0)).toEqual([...starts.egyptians!]);
     for (const p of state.players) {
       if (p.id === state.barbarians) continue;
-      expect(dist(startOf(state, p.id), [...world.starts[p.civ]!] as [number, number]), p.civ).toBeLessThanOrEqual(3);
+      expect(dist(startOf(state, p.id), [...starts[p.civ]!] as [number, number]), p.civ).toBeLessThanOrEqual(3);
     }
   });
 
@@ -96,13 +124,13 @@ describe("historical starts", () => {
     const world = premadeWorld("europe");
     const state = newGame(11, { world: world.id, historical: false, civ: "romans", opponents: 6 });
     expect(state.players.length).toBe(8);
-    const home = world.starts.romans!;
+    const home = world.sizes.small.starts.romans!;
     const here = startOf(state, 0);
     expect(here[0] === home[0] && here[1] === home[1]).toBe(false);
   });
 
-  it("replay from a save", () => {
-    const opts = { world: "earth", historical: true, civ: "romans", opponents: 3 };
+  it.each(["small", "large"] as const)("replay from a save (%s)", (size) => {
+    const opts = { world: "earth", historical: true, civ: "romans", opponents: 3, ...(size === "small" ? {} : { size }) };
     const state = newGame(99, opts);
     const log: Command[] = [];
     const skip = (s: GameState) => { let g = 0; while (s.activeUnit !== null && g++ < 100) applyCommand(s, { type: "skip", unit: s.activeUnit }); };

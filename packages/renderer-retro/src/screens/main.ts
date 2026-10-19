@@ -33,7 +33,8 @@ import { techLabel } from "./techtree.js";
 /**
  * Main map screen layout, as in the original: a menu bar across the top, a
  * left-hand status column and a tile viewport below it. The column is 80px
- * wide, which fits an 80x50 minimap at one pixel per tile.
+ * wide, which fits an 80x50 minimap at one pixel per tile (a bigger world's
+ * pixels each stand for a block of squares, see `minimapScale`).
  */
 export const BAR_H = 9;
 export const PANEL_W = 80;
@@ -379,67 +380,126 @@ function drawMovePips(s: Surface, x: number, y: number, left: number, allowance:
 }
 
 /**
- * The minimap, one pixel a square: explored squares in their terrain's colour; with borders
- * shown, a line of the owner's colour along the inside edge of the land its cities reach;
- * units we see in their owner's colour; and each known city as a white dot in a cross of its
- * owner's colour (a darker shade inside a border, so the city stands out from the line round it).
+ * Squares a minimap pixel stands for along each axis: 1 on the original's
+ * 80x50 (or anything narrower), 1.5 on a medium world, 2 on a large one.
+ */
+export function minimapScale(map: GameState["map"]): number {
+  return Math.max(1, map.width / PANEL_W);
+}
+
+/** The minimap's size in pixels: the panel's 80 across, and 50 down on every world size. */
+export function minimapSize(map: GameState["map"]): { w: number; h: number } {
+  const k = minimapScale(map);
+  return { w: Math.ceil(map.width / k), h: Math.ceil(map.height / k) };
+}
+
+/** The minimap pixel a square falls in, along one axis. */
+const toPixel = (k: number, v: number) => Math.floor(v / k);
+/** The first square a minimap pixel stands for, along one axis (the next pixel's first ends it). */
+const fromPixel = (k: number, p: number) => Math.ceil(p * k);
+
+/**
+ * The minimap, one pixel a square on the original's world (a block of squares on a bigger
+ * one: the first explored land in it, else its sea, so islands still show): explored squares
+ * in their terrain's colour; with borders shown, a line of the owner's colour along the inside
+ * edge of the land its cities reach; units we see in their owner's colour; and each known city
+ * as a white dot in a cross of its owner's colour (a darker shade inside a border, so the city
+ * stands out from the line round it).
  */
 function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: number): void {
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
-  s.rect(0, top, PANEL_W, map.height, C.BLACK!);
-  for (let y = 0; y < map.height; y++)
-    for (let x = 0; x < map.width; x++) {
-      if (!me.explored[y * map.width + x]) continue;
-      s.set(x, top + y, minimapColor(map, x, y, me.explored));
+  const k = minimapScale(map);
+  const { w, h } = minimapSize(map);
+  s.rect(0, top, PANEL_W, h, C.BLACK!);
+  // The square each pixel shows (-1: nothing explored there), and the one its border reads.
+  const shown = new Int32Array(w * h).fill(-1);
+  const owned = new Int32Array(w * h);
+  for (let py = 0; py < h; py++)
+    for (let px = 0; px < w; px++) {
+      const y0 = fromPixel(k, py);
+      const y1 = Math.min(map.height, fromPixel(k, py + 1));
+      const x0 = fromPixel(k, px);
+      const x1 = Math.min(map.width, fromPixel(k, px + 1));
+      let pick = -1;
+      for (let y = y0; y < y1 && (pick < 0 || map.tiles[pick]!.terrain === Terrain.Ocean); y++)
+        for (let x = x0; x < x1; x++) {
+          const i = y * map.width + x;
+          if (!me.explored[i]) continue;
+          if (pick < 0 || map.tiles[i]!.terrain !== Terrain.Ocean) pick = i;
+          if (map.tiles[pick]!.terrain !== Terrain.Ocean) break;
+        }
+      shown[py * w + px] = pick;
+      owned[py * w + px] = pick >= 0 ? pick : y0 * map.width + x0;
+      if (pick >= 0) s.set(px, top + py, minimapColor(map, pick % map.width, Math.floor(pick / map.width), me.explored));
     }
   if (view.borders) {
     const terr = territory(state);
-    for (let y = 0; y < map.height; y++)
-      for (let x = 0; x < map.width; x++) {
-        if (!me.explored[y * map.width + x]) continue;
-        const own = ownerAt(terr, x, y);
+    const ownerOf = (px: number, py: number) => {
+      if (py < 0 || py >= h) return -1;
+      const i = owned[py * w + (((px % w) + w) % w)]!;
+      return ownerAt(terr, i % map.width, Math.floor(i / map.width));
+    };
+    for (let py = 0; py < h; py++)
+      for (let px = 0; px < w; px++) {
+        if (shown[py * w + px]! < 0) continue;
+        const own = ownerOf(px, py);
         if (own < 0) continue;
-        if (ownerAt(terr, x - 1, y) !== own || ownerAt(terr, x + 1, y) !== own || ownerAt(terr, x, y - 1) !== own || ownerAt(terr, x, y + 1) !== own)
-          s.set(x, top + y, playerColor(state, own));
+        if (ownerOf(px - 1, py) !== own || ownerOf(px + 1, py) !== own || ownerOf(px, py - 1) !== own || ownerOf(px, py + 1) !== own)
+          s.set(px, top + py, playerColor(state, own));
       }
   }
-  for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(u.x, top + u.y, playerColor(state, u.owner));
-  const put = (x: number, y: number, color: number) => { if (y >= 0 && y < map.height) s.set(wrapX(map, x), top + y, color); };
+  for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(toPixel(k, u.x), top + toPixel(k, u.y), playerColor(state, u.owner));
+  const put = (px: number, py: number, color: number) => { if (py >= 0 && py < h) s.set(((px % w) + w) % w, top + py, color); };
   for (const c of state.cities) {
     if (!me.explored[c.y * map.width + c.x]) continue;
     const color = playerColor(state, c.owner);
     const arm = view.borders ? darker(color) : color;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) put(c.x + dx, c.y + dy, arm);
-    put(c.x, c.y, C.WHITE!);
+    const cx = toPixel(k, c.x);
+    const cy = toPixel(k, c.y);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) put(cx + dx, cy + dy, arm);
+    put(cx, cy, C.WHITE!);
   }
+}
+
+/** The map square under a minimap pixel (the middle of the block it stands for), or null off the map. */
+export function minimapSquare(map: GameState["map"], px: number, py: number): { x: number; y: number } | null {
+  const { w, h } = minimapSize(map);
+  if (px < 0 || py < 0 || px >= w || py >= h) return null;
+  const k = minimapScale(map);
+  return { x: Math.min(map.width - 1, Math.floor((px + 0.5) * k)), y: Math.min(map.height - 1, Math.floor((py + 0.5) * k)) };
 }
 
 export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenView): void {
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
   // Light speckled stone under everything, bevelled at its edges like the original's panels.
+  const mm = minimapSize(map);
   s.rect(0, VIEW_Y, PANEL_W, SCREEN_H - VIEW_Y, C.BLACK!);
-  drawStone(s, 0, VIEW_Y + map.height + 3, PANEL_W, SCREEN_H - (VIEW_Y + map.height + 3));
+  drawStone(s, 0, VIEW_Y + mm.h + 3, PANEL_W, SCREEN_H - (VIEW_Y + mm.h + 3));
 
-  // Minimap: 80x50, one pixel per tile.
+  // Minimap: 80x50, one pixel per tile on the original's world; the viewport framed in white.
   const mmY = VIEW_Y + 2;
   drawMinimap(s, state, view, mmY);
+  const k = minimapScale(map);
   const vx = ((view.originX % map.width) + map.width) % map.width;
   const vy = Math.max(0, view.originY);
   const vh = Math.min(map.height - vy, VIEW_TILES_Y);
-  for (let x = 0; x < VIEW_TILES_X; x++) {
-    const px = (vx + x) % map.width;
-    s.set(px, mmY + vy, C.WHITE!);
-    s.set(px, mmY + vy + vh - 1, C.WHITE!);
+  const left = toPixel(k, vx);
+  const right = toPixel(k, vx + VIEW_TILES_X - 1);
+  const topY = mmY + toPixel(k, vy);
+  const bottomY = mmY + toPixel(k, vy + vh - 1);
+  for (let px = left; px <= right; px++) {
+    s.set(px % mm.w, topY, C.WHITE!);
+    s.set(px % mm.w, bottomY, C.WHITE!);
   }
-  for (let y = 0; y < vh; y++) {
-    s.set(vx, mmY + vy + y, C.WHITE!);
-    s.set((vx + VIEW_TILES_X - 1) % map.width, mmY + vy + y, C.WHITE!);
+  for (let py = topY; py <= bottomY; py++) {
+    s.set(left % mm.w, py, C.WHITE!);
+    s.set(right % mm.w, py, C.WHITE!);
   }
 
   // Empire: population, year, treasury and tax/luxury/science, government and research, as icons.
-  let y = mmY + map.height + 4;
+  let y = mmY + mm.h + 4;
   const ink = INK;
   const dim = DIM;
   const pop = state.cities.filter((c) => c.owner === state.currentPlayer).reduce((n, c) => n + c.size * (c.size + 1) * 5000, 0);
