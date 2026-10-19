@@ -94,6 +94,7 @@ import {
   type MenuState,
   type Renderer,
   type ReportPage,
+  keepInView,
   MENU_BAR,
   topCitiesReport,
   civilizationsReport,
@@ -1539,12 +1540,24 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     openBarMenu(sc.bar + (e.code === "ArrowLeft" || e.code === "Numpad4" ? -1 : 1));
     return;
   }
+  const page = Math.max(1, renderer.menuRows(m) - 1);
   switch (e.code) {
     case "ArrowUp": case "Numpad8": m.selected = (m.selected + m.items.length - 1) % m.items.length; break;
     case "ArrowDown": case "Numpad2": m.selected = (m.selected + 1) % m.items.length; break;
-    case "Enter": case "NumpadEnter": case "Space": screenState = sc.under; sc.onPick(m.selected); break;
-    case "Escape": screenState = sc.under; sc.onCancel?.(); break;
+    case "PageUp": case "Numpad9": moveSelection(m, -page); break;
+    case "PageDown": case "Numpad3": moveSelection(m, page); break;
+    case "Home": case "Numpad7": moveSelection(m, -m.items.length); break;
+    case "End": case "Numpad1": moveSelection(m, m.items.length); break;
+    case "Enter": case "NumpadEnter": case "Space": screenState = sc.under; sc.onPick(m.selected); return;
+    case "Escape": screenState = sc.under; sc.onCancel?.(); return;
   }
+  m.top = keepInView(m, renderer.menuRows(m));
+}
+
+/** Move a menu's selection by `by` rows, stopping at the ends, and scroll it into view. */
+function moveSelection(m: MenuState, by: number): void {
+  m.selected = Math.max(0, Math.min(m.items.length - 1, m.selected + by));
+  m.top = keepInView(m, renderer.menuRows(m));
 }
 
 function setupKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "setup" }>): void {
@@ -1662,6 +1675,12 @@ canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 // The wheel (or a sideways swipe) scrolls the tech tree, about a tier a notch.
 canvas.addEventListener("wheel", (e) => {
   const sc = screenState;
+  // Over a list too long for the screen, the wheel moves the choice a few rows a notch.
+  if (sc.kind === "menu" && renderer.menuRows(sc.menu) < sc.menu.items.length) {
+    e.preventDefault();
+    moveSelection(sc.menu, Math.sign(e.deltaY) * 3);
+    return;
+  }
   if (sc.kind !== "techTree") return;
   e.preventDefault();
   const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
@@ -1686,6 +1705,9 @@ canvas.addEventListener("mousedown", (e) => {
         const t = renderer.menuBarHit(px, py);
         if (t >= 0) { if (t === sc.bar) screenState = sc.under; else openBarMenu(t); return; }
       }
+      // The bar of a long list pages through it, above or below its thumb; the thumb itself does nothing.
+      const way = renderer.menuScrollAt(sc.menu, px, py);
+      if (way !== null) { if (way) moveSelection(sc.menu, way * Math.max(1, renderer.menuRows(sc.menu) - 1)); return; }
       const i = renderer.menuHit(sc.menu, px, py);
       screenState = sc.under;
       if (i >= 0) sc.onPick(i); else sc.onCancel?.();

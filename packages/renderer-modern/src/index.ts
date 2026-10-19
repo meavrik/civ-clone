@@ -47,6 +47,9 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     textInput: (input, cursorOn) => drawTextInput(ctx, input, cursorOn),
     statusLine: (s) => drawStatusLine(ctx, s),
     menuHit: (menu, px, py) => menuHit(ctx, menu, px, py),
+    // Set aside (not in the app): its menus show every row and never scroll.
+    menuRows: (menu) => menu.items.length,
+    menuScrollAt: () => null,
     citySlotAt: (px, py) => citySlotAt(px, py),
     cityExitHit: (px, py) => cityExitHit(px, py),
     cityButtonAt: (px, py) => cityButtonAt(px, py),

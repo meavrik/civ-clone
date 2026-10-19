@@ -156,6 +156,16 @@ export interface MenuState {
   selected: number;
   /** Optional second column per row (cost, turns...). */
   right?: string[];
+  /** The first row shown, when the list is longer than the window holds (`Renderer.menuRows`); it scrolls. */
+  top?: number;
+}
+
+/** A menu's first row shown, moved as little as it must be to keep the selected row among the `rows` on view. */
+export function keepInView(m: MenuState, rows: number): number {
+  const top = Math.max(0, Math.min(m.top ?? 0, m.items.length - rows));
+  if (m.selected < top) return m.selected;
+  if (m.selected >= top + rows) return m.selected - rows + 1;
+  return top;
 }
 
 /** A modal window grows with its text only up to about this share of the screen's width, then wraps. */
@@ -252,6 +262,10 @@ export interface Renderer {
 
   /** Row index under a point in a menu, or -1. */
   menuHit(menu: MenuState, px: number, py: number): number;
+  /** How many of a menu's rows show at once; a longer list scrolls (`MenuState.top`, `keepInView`). */
+  menuRows(menu: MenuState): number;
+  /** A point on a scrolling menu's bar: -1 above its thumb (page up), 1 below (page down), 0 on it; null off the bar. */
+  menuScrollAt(menu: MenuState, px: number, py: number): number | null;
   /** Radius slot under a point on the city screen's resource map, or null. */
   citySlotAt(px: number, py: number): number | null;
   /** True when the point is on the city screen's exit bar. */

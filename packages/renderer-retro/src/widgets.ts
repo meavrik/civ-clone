@@ -120,7 +120,7 @@ export function drawBox(s: Surface, x: number, y: number, w: number, h: number, 
     }
 }
 
-import { menuButtons, MODAL_MAX_SHARE, PICTURES, type MenuState, type TextInputState } from "@civ/renderer-api";
+import { keepInView, menuButtons, MODAL_MAX_SHARE, PICTURES, type MenuState, type TextInputState } from "@civ/renderer-api";
 
 export const MENU_ROW = FONT_HEIGHT + 1;
 /** A modal's choices as buttons (see `menuButtons`): this tall, this far apart, at least this wide. */
@@ -130,29 +130,42 @@ const BUTTON_MIN_W = 56;
 /** A titled window is at least this wide; its text wraps rather than widen it past MODAL_MAX_SHARE of the screen. */
 const MODAL_MIN_W = 112;
 
-interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number; picH: number }
+/** A list too long for the screen scrolls: its bar runs down the right of the rows, this wide. */
+const SCROLL_W = 5;
+
+interface MenuLayout {
+  x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number; picH: number;
+  /** Rows on view, and the first of them; `rows` is short of the items when the list scrolls. */
+  rows: number; top: number;
+}
 
 function menuLayout(m: MenuState): MenuLayout {
   const buttons = menuButtons(m);
   const itemW = Math.max(0, ...m.items.map((i, k) => textWidth(i) + (m.right?.[k] ? textWidth(m.right[k]!) + 12 : 0)));
   const bw = buttons ? Math.max(BUTTON_MIN_W, itemW + 16) : 0;
-  const need = Math.max(textWidth(m.title) + 16, buttons ? bw + 24 : itemW + 24);
-  const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) + 20 : 0;
+  const head = m.title ? 16 : 3;
+  const foot = m.title ? 6 : 3;
   const pic = m.picture ? PICTURES[m.picture.id] : undefined;
   const picH = pic ? pic.h + 8 : 0;
+  // A list that will not fit even with its rows closed up scrolls at the usual row height, beside its bar.
+  const roomGuess = 200 - (m.anchor?.y ?? 0) - head - picH - foot - (m.body?.length ? m.body.length * FONT_HEIGHT + 5 : 0);
+  const scrolls = !buttons && m.items.length * FONT_HEIGHT > roomGuess;
+  const need = Math.max(textWidth(m.title) + 16, buttons ? bw + 24 : itemW + 24 + (scrolls ? SCROLL_W + 4 : 0));
+  const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) + 20 : 0;
   const w = Math.min(300, Math.max(need, Math.min(bodyW, Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0, pic ? pic.w + 24 : 0));
   const lines = (m.body ?? []).flatMap((l) => wrapIcons(l, w - 20));
   const bodyH = lines.length ? lines.length * FONT_HEIGHT + 5 : 0;
-  const head = m.title ? 16 : 3;
-  const foot = m.title ? 6 : 3;
-  // Long lists (every tribe) close up their rows to stay on screen.
+  // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
   const room = 200 - (m.anchor?.y ?? 0) - head - picH - bodyH - foot;
-  const row = Math.max(FONT_HEIGHT, Math.min(MENU_ROW, Math.floor(room / Math.max(1, m.items.length))));
-  const itemsH = buttons ? m.items.length * BUTTON_ROW + 1 : m.items.length * row;
+  const fits = m.items.length * FONT_HEIGHT <= room;
+  const row = fits ? Math.max(FONT_HEIGHT, Math.min(MENU_ROW, Math.floor(room / Math.max(1, m.items.length)))) : MENU_ROW;
+  const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
+  const itemsH = buttons ? m.items.length * BUTTON_ROW + 1 : rows * row;
   const h = head + picH + bodyH + itemsH + foot;
   const x = m.anchor ? Math.max(0, Math.min(320 - w, m.anchor.x)) : Math.floor((320 - w) / 2);
   const y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
-  return { x, y, w, h, lines, itemsY: y + head + picH + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, picH };
+  const top = rows < m.items.length ? keepInView(m, rows) : 0;
+  return { x, y, w, h, lines, itemsY: y + head + picH + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, picH, rows, top };
 }
 
 export function menuRect(m: MenuState): { x: number; y: number; w: number; h: number } {
@@ -160,8 +173,35 @@ export function menuRect(m: MenuState): { x: number; y: number; w: number; h: nu
   return { x, y, w, h };
 }
 
+/** How many of a menu's rows show at once. */
+export function menuRows(m: MenuState): number {
+  return menuLayout(m).rows;
+}
+
+/** A scrolling menu's bar: its track beside the rows, and the thumb that shows which of them are on view. */
+function scrollBar(m: MenuState, l: MenuLayout): { x: number; y: number; h: number; thumbY: number; thumbH: number } {
+  const x = l.x + l.w - 4 - SCROLL_W;
+  const y = l.itemsY - 1;
+  const h = l.rows * l.row;
+  const track = h - 2 * (SCROLL_W + 1);
+  const thumbH = Math.max(3, Math.round((track * l.rows) / m.items.length));
+  const thumbY = y + SCROLL_W + 1 + Math.round(((track - thumbH) * l.top) / Math.max(1, m.items.length - l.rows));
+  return { x, y, h, thumbY, thumbH };
+}
+
+/** Where a point lies on a scrolling menu's bar: -1 above its thumb (the up arrow too), 1 below, 0 on it; null off the bar. */
+export function menuScrollAt(m: MenuState, px: number, py: number): number | null {
+  const l = menuLayout(m);
+  if (l.rows >= m.items.length) return null;
+  const b = scrollBar(m, l);
+  if (px < b.x - 1 || px > b.x + SCROLL_W || py < b.y || py >= b.y + b.h) return null;
+  return py < b.thumbY ? -1 : py >= b.thumbY + b.thumbH ? 1 : 0;
+}
+
 export function drawMenu(s: Surface, m: MenuState): void {
-  const { x, y, w, h, lines, itemsY, row, buttons, bx, bw, picH } = menuLayout(m);
+  const l = menuLayout(m);
+  const { x, y, w, h, lines, itemsY, row, buttons, bx, bw, picH, rows, top } = l;
+  const scrolls = rows < m.items.length;
   drawWindow(s, x, y, w, h, m.title);
   const pic = m.picture ? PICTURES[m.picture.id] : undefined;
   if (pic && m.picture) {
@@ -176,32 +216,50 @@ export function drawMenu(s: Surface, m: MenuState): void {
     s.hline(x + 4, itemsY - 4, w - 8, shade("panel", 2));
     s.hline(x + 4, itemsY - 3, w - 8, shade("panel", 7));
   }
+  const rowW = w - 8 - (scrolls ? SCROLL_W + 2 : 0);
   m.items.forEach((item, i) => {
     const sel = i === m.selected;
     if (buttons) {
       drawButton(s, bx, itemsY + 1 + i * BUTTON_ROW, bw, BUTTON_H, item, true, sel);
       return;
     }
-    const ry = itemsY + i * row;
-    if (sel) s.rect(x + 4, ry - 1, w - 8, row, shade("azure", 2));
+    if (i < top || i >= top + rows) return;
+    const ry = itemsY + (i - top) * row;
+    if (sel) s.rect(x + 4, ry - 1, rowW, row, shade("azure", 2));
     drawText(s, x + 10, ry, item, sel ? C.WHITE! : C.BLACK!);
     const r = m.right?.[i];
-    if (r) drawText(s, x + w - 10 - textWidth(r), ry, r, sel ? shade("azure", 7) : DIM);
+    if (r) drawText(s, x + 4 + rowW - 6 - textWidth(r), ry, r, sel ? shade("azure", 7) : DIM);
   });
+  if (scrolls) drawScrollBar(s, m, l);
+}
+
+/** The bar beside a scrolling list: arrows at its ends (dark while there is more that way), a thumb for the rows on view. */
+function drawScrollBar(s: Surface, m: MenuState, l: MenuLayout): void {
+  const b = scrollBar(m, l);
+  s.rect(b.x, b.y, SCROLL_W, b.h, shade("panel", 3));
+  s.rect(b.x, b.thumbY, SCROLL_W, b.thumbH, shade("azure", 2));
+  const more = (up: boolean) => (up ? l.top > 0 : l.top + l.rows < m.items.length);
+  for (const up of [true, false]) {
+    const ink = more(up) ? INK : FADED;
+    const ay = up ? b.y + 1 : b.y + b.h - 2;
+    // A small triangle, its point toward the hidden rows.
+    for (let k = 0; k < 3; k++) s.hline(b.x + 2 - k, up ? ay + k : ay - k, 1 + 2 * k, ink);
+  }
 }
 
 /** Row index under a screen point, or -1. */
 export function menuHit(m: MenuState, px: number, py: number): number {
-  const { x, w, itemsY, row, buttons, bx, bw } = menuLayout(m);
+  const { x, w, itemsY, row, buttons, bx, bw, rows, top } = menuLayout(m);
   if (buttons) {
     const off = py - itemsY - 1;
     const i = Math.floor(off / BUTTON_ROW);
     if (px < bx || px >= bx + bw || off < 0 || off % BUTTON_ROW >= BUTTON_H) return -1;
     return i < m.items.length ? i : -1;
   }
-  if (px < x + 4 || px > x + w - 4) return -1;
+  const right = x + w - 4 - (rows < m.items.length ? SCROLL_W + 2 : 0);
+  if (px < x + 4 || px > right) return -1;
   const i = Math.floor((py - (itemsY - 1)) / row);
-  return i >= 0 && i < m.items.length ? i : -1;
+  return i >= 0 && i < rows && top + i < m.items.length ? top + i : -1;
 }
 
 /** A one-line text prompt: title, the text being typed, a blinking cursor. */
