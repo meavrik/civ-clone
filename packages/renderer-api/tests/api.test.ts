@@ -149,6 +149,8 @@ describe("finished builds", () => {
     applyCommand(s, { type: "found", unit: s.units[0]!.id });
     const c = s.cities[0]!;
     expect(builtNotice(s, c.id, { kind: "unit", id: "militia" })).toBeNull();
+    // Settlers cost the city a citizen, so it asks what to build next.
+    expect(builtNotice(s, c.id, { kind: "unit", id: "settlers" })!.title).toBe(`${c.name} builds Settlers`);
     expect(builtNotice(s, 9999, { kind: "building", id: "granary" })).toBeNull();
     expect(builtNotice(s, c.id, { kind: "building", id: "granary" })).toEqual({
       title: `${c.name} builds Granary`,

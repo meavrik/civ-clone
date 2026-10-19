@@ -515,8 +515,8 @@ function activateFromCity(sc: Extract<Screen, { kind: "city" }>, unit: number): 
 }
 
 /**
- * A city finished an improvement, a wonder or a spaceship part: a window over the city
- * says what it does, then the city's builders ask what comes next. Leaving the city goes
+ * A city finished an improvement, a wonder, a spaceship part or settlers: a window over
+ * the city says what it does, then the city's builders ask what comes next. Leaving the city goes
  * on with the turn's news.
  */
 function builtWindow(cityId: number, p: Production, then: () => void): void {
@@ -1298,7 +1298,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       const lines = lost.map((e) => `{shield} ${state.cities.find((c) => c.id === e.city)?.name ?? "A city"} can't support its ${e.detail}`);
       modal(lost.length > 1 ? "Units disbanded" : "Unit disbanded", [...lines, "Extra units cost a shield a turn."], ["OK"], () => next(), 0, next);
     }
-    else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && ev.production.kind !== "unit") builtWindow(ev.city, ev.production, next);
+    else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && builtNotice(state, ev.city, ev.production)) builtWindow(ev.city, ev.production, next);
     else if (ev.kind === "contact") meet(ev.player, next);
     else if (ev.kind === "trespass" || ev.kind === "leaveDemand") {
       // One request a civilization at a time: the latest says how far it has gone.

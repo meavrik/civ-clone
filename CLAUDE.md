@@ -79,7 +79,8 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
   over its city screen with a window saying what it does (`text` on each rule in `rules/buildings.ts`,
   `wonders.ts`, `spaceship.ts`), then asks what to build next; leaving the city goes on with the turn's news
-  (the city `Screen`'s `then`). Finished units say nothing: the city goes on building them. That window
+  (the city `Screen`'s `then`). Finished units say nothing (the city goes on building them), except Settlers: they cost a
+  citizen, so their window asks what to build next. That window
   is headed by the building's picture (`MenuState.picture`). City view (`cityview.ts`, the original's View:
   the city screen's View button or V; the modern city screen shows it small as the button): every improvement
   and wonder has a `PICTURES` entry made of shapes (`Part`: rect, poly, oval, line, each of a `Material`) on a

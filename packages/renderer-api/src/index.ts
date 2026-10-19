@@ -464,15 +464,21 @@ function buildingIcon(b: BuildingRule): IconName {
 }
 
 /**
- * The window a city opens when it finishes an improvement, a wonder or a
- * spaceship part: what it made and what that does. Its builders then ask
- * what comes next. Units open none: their city goes on building them.
+ * The window a city opens when it finishes an improvement, a wonder, a
+ * spaceship part or settlers: what it made and what that does. Its builders
+ * then ask what comes next. Other units open none: their city goes on
+ * building them. Settlers cost the city a citizen, so it asks before
+ * shrinking again.
  */
 export function builtNotice(state: GameState, cityId: number, p: Production): { title: string; lines: string[] } | null {
   const city = state.cities.find((c) => c.id === cityId);
   if (!city) return null;
   switch (p.kind) {
-    case "unit": return null;
+    case "unit": {
+      const u = unitType(p.id);
+      if (!u.flags?.includes("settler")) return null;
+      return { title: `${city.name} builds ${u.name}`, lines: [`{people} ${city.name} gave one of its people to them.`, `{shield} More ${u.name} shrink it again: pick what to build next.`] };
+    }
     case "building": {
       const b = building(p.id);
       const lines = [`{${buildingIcon(b)}} ${b.text}`];
