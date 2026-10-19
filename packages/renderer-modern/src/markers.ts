@@ -1,7 +1,7 @@
 import { unitType, type City, type Unit } from "@civ/core";
 import type { Context2D } from "./context.js";
 import { circle, fillRound, measure, strokeRound, text } from "./draw.js";
-import { COMBAT, ICON, PLAYER_COLORS, PLAYER_DARK, TILE, UI } from "./theme.js";
+import { COMBAT, ICON, PLAYER_COLORS, PLAYER_DARK, TILE, UI, WALLS } from "./theme.js";
 import { WORK_ICON } from "@civ/renderer-api";
 import { paintIcon } from "./icons.js";
 
@@ -76,13 +76,28 @@ export function paintUnit(ctx: Context2D, x: number, y: number, u: Pick<Unit, "t
 }
 
 /** City marker: a dark block in the owner's colour frame with a cluster of buildings and the size badge. */
+/** City walls: a band of stone round the city's box with battlements along the top. */
+function paintWalls(ctx: Context2D, x: number, y: number): void {
+  const merlons = [1.5, 11, 20.5, 30, 39.5];
+  // The outline first, a little proud of the stone, then the stone and the lit tops of the battlements.
+  fillRound(ctx, x, y + 3.5, TILE, TILE - 3.5, 6, WALLS.dark);
+  ctx.fillStyle = WALLS.dark;
+  for (const m of merlons) ctx.fillRect(x + m - 0.75, y, 8.5, 6);
+  fillRound(ctx, x + 1, y + 4.5, TILE - 2, TILE - 5.5, 5, WALLS.stone);
+  ctx.fillStyle = WALLS.stone;
+  for (const m of merlons) ctx.fillRect(x + m, y + 0.75, 7, 6);
+  ctx.fillStyle = WALLS.lit;
+  for (const m of merlons) ctx.fillRect(x + m, y + 0.75, 7, 1.5);
+}
+
 /** A city on the map: the owner's ring and skyline, walls, the population, a red flag in disorder and a shield in the corner when units are inside (`garrisoned`). */
 export function paintCity(ctx: Context2D, x: number, y: number, city: City, slot: number, garrisoned = false): void {
   const color = playerColor(slot);
-  const walled = city.buildings.includes("city_walls");
-  fillRound(ctx, x + 3, y + 3, TILE - 6, TILE - 6, 8, "#1c2430");
-  strokeRound(ctx, x + 3, y + 3, TILE - 6, TILE - 6, 8, color, 3);
-  if (walled) strokeRound(ctx, x + 0.5, y + 0.5, TILE - 1, TILE - 1, 10, "#cfd6dd", 2);
+  // Walls ring the box, which sits a little further in to leave them room.
+  const inset = city.buildings.includes("city_walls") ? 6 : 3;
+  if (inset > 3) paintWalls(ctx, x, y);
+  fillRound(ctx, x + inset, y + inset, TILE - 2 * inset, TILE - 2 * inset, 8, "#1c2430");
+  strokeRound(ctx, x + inset, y + inset, TILE - 2 * inset, TILE - 2 * inset, 8, color, 3);
   ctx.fillStyle = color;
   ctx.fillRect(x + 10, y + 22, 8, 14);
   ctx.fillRect(x + 20, y + 14, 9, 22);

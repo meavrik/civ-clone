@@ -1,8 +1,8 @@
 // features sprites for the retro renderer. Edit the grids by hand, or export/import a PNG with `npm run sprites`.
 // Every character must be in the legend described in the comment lines below.
 export default String.raw`
-# Features, 16x16, drawn over the map. Cities sit on the owner's colour box; walls go on top, and the
-# garrison shield (units inside) over those.
+# Features, 16x16, drawn over the map. Cities sit on the owner's colour box; walls ring the box under
+# the buildings, and the garrison shield (units inside) goes over those.
 # Special resources are named after the resource (game serves forest and tundra).
 # Legend: . clear  k black  w white  P/p owner colour/dark
 #   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey (EGA)
@@ -45,22 +45,22 @@ kwwwwk..........
 ................
 
 @walls
-fcfcfcfcfcfcfcfc
-f..............f
-c..............c
-f..............f
-c..............c
-f..............f
-c..............c
-f..............f
-c..............c
-f..............f
-c..............c
-f..............f
-c..............c
-f..............f
-c..............c
-ffffffffffffffff
+hg.hg.hhgg.hg.hg
+gfffffffffffffed
+gfkkkkkkkkkkkked
+gfk..........ked
+efk..........ked
+gfk..........ked
+gfk..........ked
+gfk..........ked
+efk..........ked
+gfk..........ked
+gfk..........ked
+gfk..........ked
+efk..........ked
+gfkkkkkkkkkkkked
+effffffffffffffd
+dddddddddddddddd
 
 @hut
 ................

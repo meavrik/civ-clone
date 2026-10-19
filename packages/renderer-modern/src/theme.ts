@@ -129,6 +129,9 @@ export const CITIZEN = {
   coinDark: "#a8791f",
 };
 
+/** City walls on the map: stone, its dark outline, and the lit tops of the battlements. */
+export const WALLS = { stone: "#a3acb6", dark: "#3e4650", lit: "#dfe4e9" };
+
 /** Hit point bars, the flash of a blow, and the burst of a beaten unit. */
 export const COMBAT = {
   hpGood: "#7bd88f",

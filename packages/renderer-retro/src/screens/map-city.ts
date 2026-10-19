@@ -7,18 +7,19 @@ import type { Surface } from "../surface.js";
 
 /**
  * City marker on the map: buildings from the features sheet on the owner's
- * colour box, stone walls around it when built, a white shield in the corner
+ * colour box, ringed by crenellated stone walls when built (the buildings rise
+ * over them), a white shield in the corner
  * when units are inside (`garrisoned`), the population in a dark label, and
  * a red flag in disorder.
  */
 export function drawCity(s: Surface, dx: number, dy: number, city: City, color: number, garrisoned = false): void {
   s.blit(ownerBox(color), dx, dy, SPRITE_CLEAR);
-  const town = spriteSurface(FEATURE_SHEET, "city", color);
-  if (town) s.blit(town, dx, dy, SPRITE_CLEAR);
   if (city.buildings.includes("city_walls")) {
     const walls = spriteSurface(FEATURE_SHEET, "walls", color);
     if (walls) s.blit(walls, dx, dy, SPRITE_CLEAR);
   }
+  const town = spriteSurface(FEATURE_SHEET, "city", color);
+  if (town) s.blit(town, dx, dy, SPRITE_CLEAR);
   if (garrisoned) {
     const shield = spriteSurface(FEATURE_SHEET, "garrison", color);
     if (shield) s.blit(shield, dx, dy, SPRITE_CLEAR);
