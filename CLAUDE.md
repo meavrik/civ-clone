@@ -138,15 +138,15 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   widening toward the sea; the sea square carries the mouth on through spilled shore. Strokes show on
   land only. Retro blends coast and river per pixel (`terrainSquare` in `tiles.ts`, cached by
   neighbourhood); modern fills marching-squares paths (`renderer-modern/src/coast.ts`) and strokes rivers.
-  Fog of war: in retro (the app) unexplored squares are plain black, as in the original, and explored
-  ones show whole beside them (asked for 2026-10-19, replacing the clouds). `FogLifter` (`fog.ts`, a UI
-  side channel run by `apps/web` each frame, like `MotionPlayer`) fades the black off newly explored
-  squares over 700 ms, held until a sliding unit of the viewer comes within reach, into `view.lifting`;
-  foreign units and cities wait for it to half clear. Retro: `fogSquare`, black through the Bayer
-  dither. The set-aside modern renderer still draws the old clouds (`fogLevel`, `cloudTone`: fog
-  drifting into explored squares beside them): `Clouds` gathers the view's fog and fills each layer as
-  one path (per-square fills leave seams, and thousands of tiny polygons cost ~600 ms a frame), lifting
-  squares as alpha layers grouped by fog left, bodies before billows (else edges show).
+  Fog of war (`fog.ts`): unexplored squares are fog, and fog drifts into explored squares beside them
+  (solid at the border, clear before the centre, a ragged edge). `FogLifter` (a UI side channel run by
+  `apps/web` each frame, like `MotionPlayer`) fades fog off newly explored squares over 700 ms, held
+  until a sliding unit of the viewer comes within reach, into `view.lifting`; foreign units and cities
+  wait for it to half clear. Retro: `fogSquare`, solid black (asked for 2026-10-19: no grey cloud
+  shades; keep the drifting edge), the edge and the lifting dissolving through the Bayer dither;
+  modern (set aside) still draws grey clouds (`cloudTone`): `Clouds` gathers the view's fog and fills
+  each layer as one path (per-square fills leave seams, and thousands of tiny polygons cost ~600 ms a
+  frame), lifting squares as alpha layers grouped by fog left, bodies before billows (else edges show).
   Tech tree (`techtree.ts`): `techLayout(state)` lays out only what the player knows and what is
   within reach (the next phase, `techShown`); further advances stay hidden until they come within
   reach (the details still name what an advance leads to). Each shown advance gets a tier (its

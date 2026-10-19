@@ -141,7 +141,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
         s.rect(dx, dy, TILE, TILE, C.BLACK!);
         continue;
       }
-      // Unexplored squares are black; an explored one just found keeps some black while it dissolves.
+      // Unexplored squares are black; the black drifts a little way into explored squares beside them.
       const fog = fogSquare(map, me.explored, mx, my, view.lifting);
       if (!me.explored[my * map.width + mx]) {
         s.blit(fog!, dx, dy);
