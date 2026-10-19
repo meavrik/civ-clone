@@ -98,6 +98,23 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
 }
 
 /**
+ * Where each turn began in a save's log: at the start, then after each of the
+ * player's end-of-turn commands (the computer players' turns replay from the
+ * seed and are not logged, so every one of those ends a round).
+ */
+export function turnStarts(save: SaveGame): { turn: number; length: number }[] {
+  const ends = save.log.flatMap((c, i) => (c.type === "endTurn" ? [i + 1] : []));
+  const first = save.turn - ends.length;
+  return [{ turn: first, length: 0 }, ...ends.map((length, k) => ({ turn: first + k + 1, length }))];
+}
+
+/** The save as it stood when `turn` began, its log cut back to there; null if it never saw that turn begin. */
+export function rewindSave(save: SaveGame, turn: number): SaveGame | null {
+  const at = turnStarts(save).find((t) => t.turn === turn);
+  return at ? { ...save, log: save.log.slice(0, at.length), turn } : null;
+}
+
+/**
  * Advance through AI players until a human's turn comes up or a full round
  * has been played (the turn counter moved on), whichever is first. With a
  * human seat the two coincide; in an all-AI game one call is one round.

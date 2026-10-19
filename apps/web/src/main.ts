@@ -39,12 +39,14 @@ import {
   productionName,
   rankTitle,
   relation,
+  rewindSave,
   routeBonus,
   runAiPlayers,
   shipStats,
   Terrain,
   traitMoves,
   trespassers,
+  turnStarts,
   turnToYear,
   unitAt,
   unitById,
@@ -97,34 +99,15 @@ import {
   type SetupState,
   type TextInputState,
 } from "@civ/renderer-api";
-import { createModernRenderer } from "@civ/renderer-modern";
-import { backingScale, canvas, configureDisplay, fitCanvas, toLogical } from "./display.js";
+import { canvas, configureDisplay, fitCanvas, toLogical } from "./display.js";
 import { createRetroRenderer } from "./retro-renderer.js";
 import { listSlots, readSlot, SLOTS, writeSlot } from "./storage.js";
 
 // ---- renderer ----------------------------------------------------------------
-/** Which visuals to use: ?renderer= on the URL, else the remembered choice, else retro. */
-function rendererChoice(): string {
-  const fromUrl = new URLSearchParams(location.search).get("renderer");
-  if (fromUrl) return fromUrl;
-  try { return localStorage.getItem("epochs.renderer") ?? "retro"; } catch { return "retro"; }
-}
-
-function createRenderer(id: string): Renderer {
-  const r = id === "modern"
-    ? createModernRenderer(canvas.getContext("2d", { alpha: false }) as unknown as Parameters<typeof createModernRenderer>[0], backingScale)
-    : createRetroRenderer(canvas);
-  configureDisplay(r.width, r.height, r.id === "retro");
-  return r;
-}
-
-let renderer: Renderer = createRenderer(rendererChoice());
-
-function setRenderer(id: string): void {
-  renderer = createRenderer(id);
-  try { localStorage.setItem("epochs.renderer", renderer.id); } catch { /* private mode */ }
-  if (state) { cam.ready = false; followActive(true); }
-}
+// The game is drawn retro. The modern renderer (packages/renderer-modern) is set aside for
+// now: the app no longer offers it, though it still builds and passes its tests.
+const renderer: Renderer = createRetroRenderer(canvas);
+configureDisplay(renderer.width, renderer.height, true);
 
 addEventListener("resize", fitCanvas);
 
@@ -288,6 +271,12 @@ function watchable(actions: readonly UnitAction[]): UnitAction[] {
 let autoEnd = (() => { try { return localStorage.getItem("epochs.autoEnd") !== "off"; } catch { return true; } })();
 let lastInput = 0;
 let lastAutoEnd = 0;
+/** A game just loaded waits for a key or click before its turn can end by itself, so a restored turn is seen first. */
+let autoEndHeld = false;
+function noteInput(): void {
+  lastInput = performance.now();
+  autoEndHeld = false;
+}
 function setAutoEnd(on: boolean): void {
   autoEnd = on;
   try { localStorage.setItem("epochs.autoEnd", on ? "on" : "off"); } catch { /* private mode */ }
@@ -367,6 +356,18 @@ function reportCombat(report: CombatReport): void {
 }
 
 // ---- game start -------------------------------------------------------------
+/** Keep the game in the autosave slot: written as every turn begins, and when a game starts or is loaded. */
+function autosave(): void {
+  void writeSlot(0, makeSave(state, options, log)).catch(() => {});
+}
+
+/** A save as its civilization and year: "Romans, 1200 BC". */
+function saveLabel(s: SaveGame): string {
+  let name = s.civ;
+  try { name = civ(s.civ).name; } catch { /* a civilization since renamed */ }
+  return `${name}, ${formatYear(turnToYear(s.turn))}`;
+}
+
 function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0): void {
   options = opts;
   state = newGame(seed, opts);
@@ -376,6 +377,7 @@ function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0
   screenState = { kind: "map" };
   cam.ready = false;
   followActive(true);
+  autosave();
   say(`${civ(state.players[0]!.civ).leader}, lead the ${state.players[0]!.name} to glory.`, 4000);
   // Our strength, once, as the reign begins.
   const t = civ(state.players[0]!.civ).trait;
@@ -394,6 +396,8 @@ function resumeGame(save: SaveGame): void {
     screenState = { kind: "map" };
     cam.ready = false;
     followActive(true);
+    autosave();
+    autoEndHeld = true;
     say(`Loaded: ${formatYear(turnToYear(state.turn))}`);
   } catch (err) {
     say(`Load failed: ${(err as Error).message}`, 4000);
@@ -875,9 +879,9 @@ function barEntries(index: number): MenuEntry[] {
         ["Revolution!", "G", () => askRevolution()],
         [`Auto End Turn: ${autoEnd ? "On" : "Off"}`, "", () => { setAutoEnd(!autoEnd); say(`Auto end turn ${autoEnd ? "on" : "off"}`); }],
         [`Borders: ${borders ? "On" : "Off"}`, "", () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
-        [`Visuals: ${renderer.id === "retro" ? "Retro" : "Modern"}`, "", () => setRenderer(renderer.id === "retro" ? "modern" : "retro")],
         ["Save Game", "", () => void openSaveMenu()],
         ["Load Game", "", () => void openLoadMenu()],
+        ["Back to an Earlier Turn", "", () => openRewindMenu(makeSave(state, options, log), true)],
         ["Retire", "", () => endGame({ kind: "time" })],
         ["New Game", "", () => { screenState = { kind: "title" }; }],
       ];
@@ -951,7 +955,7 @@ function openGameMenu(): void {
 
 async function openSaveMenu(): Promise<void> {
   const slots = await listSlots();
-  const items = slots.map((s, i) => (i === 0 ? "(autosave)" : s ? `${i}. ${s.civ}, ${formatYear(turnToYear(s.turn))}` : `${i}. empty`));
+  const items = slots.map((s, i) => (i === 0 ? "(autosave)" : s ? `${i}. ${saveLabel(s)}` : `${i}. empty`));
   menu("Save to slot", items, (i) => {
     if (i === 0) return;
     void writeSlot(i, makeSave(state, options, log)).then(() => say(`Saved to slot ${i}`));
@@ -960,9 +964,28 @@ async function openSaveMenu(): Promise<void> {
 
 async function openLoadMenu(): Promise<void> {
   const slots = await listSlots();
-  const items = slots.map((s, i) => (s ? `${i === 0 ? "auto" : i}. ${s.civ}, ${formatYear(turnToYear(s.turn))}` : `${i === 0 ? "auto" : i}. empty`));
+  const items = slots.map((s, i) => (s ? `${i === 0 ? "auto" : i}. ${saveLabel(s)}` : `${i === 0 ? "auto" : i}. empty`));
   menu("Load which game?", items, (i) => {
     void readSlot(i).then((s) => { if (s) resumeGame(s); else say("Empty slot"); });
+  });
+}
+
+/** How many turns back the game can be taken from its menu. */
+const REWIND_TURNS = 8;
+
+/**
+ * Go back to the start of an earlier turn of a save (the autosave from the title, the game
+ * in play from the Game menu): its log cut back there and replayed. In play, ask first.
+ */
+function openRewindMenu(save: SaveGame, confirm: boolean): void {
+  const turns = turnStarts(save).slice(-REWIND_TURNS).reverse();
+  const label = (turn: number) => `${formatYear(turnToYear(turn))}${turn === save.turn ? " (this turn)" : ""}`;
+  menu("Back to the start of which turn?", [...turns.map((t) => label(t.turn)), "Never mind"], (i) => {
+    const t = turns[i];
+    const back = t && rewindSave(save, t.turn);
+    if (!back) return;
+    if (!confirm) { resumeGame(back); return; }
+    modal(`Back to ${formatYear(turnToYear(t.turn))}?`, ["Everything since then is lost, unless saved."], ["Go back", "Stay"], (k) => { if (k === 0) resumeGame(back); }, 1);
   });
 }
 
@@ -1373,8 +1396,7 @@ function endTurn(): void {
   // Whom we met comes first: a new neighbour's other words make sense only after the greeting.
   events.unshift(...newContacts());
   void runAiPlayers; // replay helper lives in core; here the loop above also harvests events
-  // Autosave every 5 turns.
-  if (state.turn % 5 === 0) void writeSlot(0, makeSave(state, options, log)).catch(() => {});
+  autosave();
   // Their moves we could see, then our gotos (begun as our turn started), then the news.
   const now = performance.now();
   motion.play(watched, now, { ...OTHERS_PACE, width: state.map.width });
@@ -1541,13 +1563,17 @@ function openSetup(step: SetupState["step"]): void {
   setupSelection = setupMenu(setup).selected;
 }
 
-function openTitleMenu(): void {
+/** The title menu; with an autosave, the game left last can be picked up, or an earlier turn of it. */
+async function openTitleMenu(): Promise<void> {
+  const auto = await readSlot(0).catch(() => undefined);
+  if (screenState.kind !== "title") return;
   const items: [string, () => void][] = [
+    ...(auto ? [[`Continue: ${saveLabel(auto)}`, () => resumeGame(auto)] as [string, () => void]] : []),
     ["Start a new game", () => openSetup("difficulty")],
     ["Play on a premade world", () => openSetup("world")],
     ["Customize world", () => openSetup("landMass")],
     ["Load a saved game", () => void openLoadMenu()],
-    [`Visuals: ${renderer.id === "retro" ? "retro" : "modern"}`, () => { setRenderer(renderer.id === "retro" ? "modern" : "retro"); openTitleMenu(); }],
+    ...(auto && auto.log.length ? [["Back to an earlier turn", () => openRewindMenu(auto, false)] as [string, () => void]] : []),
   ];
   screenState = {
     kind: "menu",
@@ -1565,18 +1591,18 @@ addEventListener("keydown", (e) => {
     const sc0 = screenState;
     if (sc0.kind === "map" || (sc0.kind === "menu" && sc0.bar !== undefined)) {
       e.preventDefault();
-      lastInput = performance.now();
+      noteInput();
       openBarMenu(BAR_KEYS[e.code]!);
     }
     return;
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  lastInput = performance.now();
+  noteInput();
   view.inspect = undefined;
   view.callout = undefined;
   const sc = screenState;
   switch (sc.kind) {
-    case "title": openTitleMenu(); break;
+    case "title": void openTitleMenu(); break;
     case "setup": setupKey(e, sc); break;
     case "map": mapKey(e); break;
     case "city": cityKey(e, sc); break;
@@ -1640,11 +1666,11 @@ canvas.addEventListener("wheel", (e) => {
 }, { passive: false });
 canvas.addEventListener("mousedown", (e) => {
   const [px, py] = toLogical(e);
-  lastInput = performance.now();
+  noteInput();
   view.callout = undefined;
   const sc = screenState;
   switch (sc.kind) {
-    case "title": openTitleMenu(); return;
+    case "title": void openTitleMenu(); return;
     case "setup": {
       const m = setupMenu(sc.setup);
       const i = renderer.menuHit({ ...m }, px, py);
@@ -1803,7 +1829,7 @@ function frame(t: number): void {
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
   if (!animating && afterSlides.length && screenState.kind === "map") for (const fn of afterSlides.splice(0)) fn();
   // Auto end turn: nothing to order, the player has been idle a moment, and the map is showing.
-  if (autoEnd && screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length && !handoff
+  if (autoEnd && !autoEndHeld && screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length && !handoff
     && t - lastInput > 900 && t - lastAutoEnd > 900) {
     lastAutoEnd = t;
     endTurn();

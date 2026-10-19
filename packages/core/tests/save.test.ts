@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, checkGameEnd, computeScore, loadSave, makeSave, newGame, parseSave, rankTitle, serializeSave, type Command } from "../src/index.js";
+import { applyCommand, checkGameEnd, computeScore, loadSave, makeSave, newGame, parseSave, rankTitle, rewindSave, serializeSave, turnStarts, type Command } from "../src/index.js";
 
 /** Trivial stand-in for the AI: skip every unit. */
 function skipAll(state: Parameters<typeof applyCommand>[0]): void {
@@ -25,6 +25,34 @@ describe("save/load", () => {
     expect(JSON.stringify(again.cities)).toBe(JSON.stringify(state.cities));
     expect(JSON.stringify(again.units)).toBe(JSON.stringify(state.units));
     expect(again.rng.s).toEqual(state.rng.s);
+  });
+
+  it("goes back to the start of any turn it saw, the same as it was then", () => {
+    const opts = { opponents: 1 as const };
+    const state = newGame(321, opts);
+    const log: Command[] = [];
+    const run = (cmd: Command) => { if (applyCommand(state, cmd).ok) log.push(cmd); };
+    const first = state.turn;
+    const seen = new Map<number, string>();
+    run({ type: "found", unit: state.units[0]!.id });
+    for (let i = 0; i < 5; i++) {
+      skipAll(state);
+      run({ type: "endTurn" });
+      while (state.currentPlayer !== 0) { skipAll(state); applyCommand(state, { type: "endTurn" }); }
+      seen.set(state.turn, JSON.stringify([state.cities, state.units, state.rng.s]));
+    }
+    // Midway through the last turn: what was done so far belongs to it, not to a new one.
+    run({ type: "skip", unit: state.units.find((u) => u.owner === 0)?.id ?? -1 });
+    const save = makeSave(state, opts, log);
+    expect(turnStarts(save).map((t) => t.turn)).toEqual([first, first + 1, first + 2, first + 3, first + 4, first + 5]);
+    for (const [turn, then] of seen) {
+      const back = rewindSave(save, turn)!;
+      expect(back.turn).toBe(turn);
+      const { state: again } = loadSave(back, skipAll);
+      expect(again.turn).toBe(turn);
+      expect(JSON.stringify([again.cities, again.units, again.rng.s])).toBe(then);
+    }
+    expect(rewindSave(save, first + 9)).toBeNull();
   });
 
   it("replays a save from before hit points with one-roll fights", () => {

@@ -168,9 +168,13 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   viewport split, 48px tiles): `theme.ts` (all colours and fonts), `draw.ts` (panels, wrapped
   text, bars), `tiles.ts`/`markers.ts` (terrain, overlays, units, cities), `screens/*`. It draws
   through a `Context2D` subset so Node tests use a recording fake.
-- `apps/web` — `main.ts` (screen stack + input, picks the renderer: `?renderer=modern|retro`, the
-  "Visuals" menu entry, remembered in localStorage), `retro-renderer.ts` (adapter), `display.ts`
-  (canvas fitting: crisp integer scale for retro, DPR-aware for modern), `storage.ts` (IndexedDB saves).
+- `apps/web` — `main.ts` (screen stack + input; draws with the retro renderer only: the modern one is
+  set aside for now, still built and tested but not offered), `retro-renderer.ts` (adapter), `display.ts`
+  (canvas fitting: crisp integer scale for retro, DPR-aware for modern), `storage.ts` (IndexedDB saves,
+  per browser: slot 0 is the autosave, written as every turn begins and when a game starts or loads).
+  The title offers "Continue" (the autosave) and, like the Game menu, "Back to an earlier turn": a save
+  is a seed and the player's commands, so `turnStarts`/`rewindSave` (core `save.ts`) cut its log back
+  to the start of any turn it saw. A loaded game holds Auto End Turn until the next key or click.
   Diplomacy: a meeting first holds the map on whom we met (the `beat` screen:
   a callout, 1.6 s or any key), then their leader receives us (`audience`: open or close borders,
   exchange maps, trade knowledge (pick theirs, they name ours), give gold, demand tribute, declare war;
@@ -207,8 +211,8 @@ Phases 1–7 done: world, cities, tech/wonders/governments, combat/transport/got
 turns, diplomacy, save/load, title/setup, advisors, end conditions, headless harness, planner AI.
 Rules-completeness pass done (2026-10-16): data verified against FreeCiv civ1, all wonders bound,
 caravans, railroads/fortresses/pollution/global warming, spaceship, diplomats, nukes, in-game text
-prompt. Phase 8 done: modern-visuals renderer behind the shared `Renderer` API, switchable at
-runtime. Premade worlds done: Earth, Europe, Middle East (title menu "Play on a premade world", optional
+prompt. Phase 8 done: modern-visuals renderer behind the shared `Renderer` API (set aside
+2026-10-19, asked for: the app draws retro only; the package keeps building and passing its tests). Premade worlds done: Earth, Europe, Middle East (title menu "Play on a premade world", optional
 historical homelands: only native tribes offered, rivals drawn from natives preferring non-overlapping
 homelands, starts nudged 3+ squares apart) and "Customize world" (land/temperature/climate/age). 20 civs
 (the original's 14 plus Spanish, Vikings, Hittites, Persians, and, asked for, Hebrews (Exodus: faster
@@ -299,7 +303,8 @@ borders). Next: mobile/PWA + touch adapter.
    trireme loss at sea yet.
 4. Diplomacy: no embassies; computer civilizations mind neither each other's land nor the player's
    (only the player is asked to leave), and a refused tribute demand costs nothing.
-5. Modern renderer polish: real sprites/icons for units and specials, animation, hover states.
+5. Modern renderer (set aside, not in the app): real sprites/icons for units and specials, animation,
+   hover states, if it comes back.
 6. Mobile: PWA + touch adapter in apps/web (input is already centralised in main.ts).
 
 ## Conventions
