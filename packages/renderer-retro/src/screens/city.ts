@@ -3,8 +3,10 @@ import {
   buyCost,
   CITY_RADIUS,
   computeCity,
+  cultureRate,
   formatYear,
   getTile,
+  nextBorderLevel,
   productionName,
   slotAvailable,
   tileYield,
@@ -21,7 +23,7 @@ import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, GOLD, GOOD, INK, stipple, TITLE_H } from "../widgets.js";
 import { CITIZEN_H, drawCitizen } from "../citizens.js";
-import { drawIcon, ICON } from "../icons.js";
+import { drawIcon, drawIconLine, ICON } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
@@ -273,7 +275,8 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
     ...city.wonders.map((w) => ({ name: wonder(w).name, color: GOLD, upkeep: 0 })),
     ...city.buildings.map((b) => ({ name: building(b).name, color: INK, upkeep: building(b).upkeep })),
   ];
-  const fit = Math.floor((ROW1.h - BOX_HEAD - 4) / FONT_HEIGHT);
+  // The last line is the city's culture, unless borders never grow (old saves).
+  const fit = Math.floor((ROW1.h - BOX_HEAD - 4) / FONT_HEIGHT) - (state.fixedBorders ? 0 : 1);
   const shown = lines.length > fit ? lines.slice(0, fit - 1) : lines;
   y = ROW1.y + BOX_HEAD + 3;
   for (const l of shown) {
@@ -283,6 +286,14 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   }
   if (shown.length < lines.length) say(s, RIGHT.x + 4, y, `and ${lines.length - shown.length} more`, LABEL);
   if (!lines.length) say(s, RIGHT.x + 4, y, "None yet", LABEL);
+  // Culture toward the level where the border grows next, and what a turn adds.
+  if (!state.fixedBorders) {
+    const cy = ROW1.y + ROW1.h - 3 - FONT_HEIGHT;
+    const next = nextBorderLevel(state, city);
+    drawIconLine(s, RIGHT.x + 4, cy, `{culture} Culture ${city.culture}${next === null ? "" : `/${next}`}`, INK);
+    const gain = `+${cultureRate(state, city)}`;
+    say(s, RIGHT.x + RIGHT.w - 4 - textWidth(gain), cy, gain, GOOD);
+  }
 
   // Food store: the granary fills toward the next citizen.
   drawBox(s, LEFT.x, ROW2.y, LEFT.w, ROW2.h, "Food", `${city.food}/${r.foodBox}`);

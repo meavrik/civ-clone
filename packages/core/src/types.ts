@@ -118,6 +118,8 @@ export interface City {
   disorder: boolean;
   /** Ids of cities this one trades with (caravan routes, mutual, at most three). */
   routes: number[];
+  /** Culture gathered since it was founded; its border reaches further as it mounts (territory.ts). */
+  culture: number;
 }
 
 export interface Player {
@@ -189,6 +191,8 @@ export interface GameState {
   farContact?: boolean;
   /** No civilization minds foreign units on its land (no demands to leave, no wars over it). Set for saves before version 10. */
   noTrespass?: boolean;
+  /** Every city's land is the 21 squares it works, whatever its culture. Set for saves before version 12. */
+  fixedBorders?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

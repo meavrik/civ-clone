@@ -156,13 +156,14 @@ describe("finished builds", () => {
       title: `${c.name} builds Granary`,
       lines: [`{food} ${building("granary").text}`, "{purse} Upkeep 1 gold"],
     });
-    // The palace costs nothing to keep, so it says no upkeep.
-    expect(builtNotice(s, c.id, { kind: "building", id: "palace" })!.lines).toEqual([`{crown} ${building("palace").text}`]);
+    // The palace costs nothing to keep, so it says no upkeep, only the culture it brings.
+    expect(builtNotice(s, c.id, { kind: "building", id: "palace" })!.lines).toEqual([`{crown} ${building("palace").text}`, "{culture} Culture +2 a turn"]);
+    expect(builtNotice(s, c.id, { kind: "building", id: "temple" })!.lines.at(-1)).toBe("{purse} Upkeep 1 gold  {culture} Culture +1 a turn");
     expect(builtNotice(s, c.id, { kind: "wonder", id: "pyramids" })).toEqual({
       title: `${c.name} completes Pyramids`,
-      lines: [`{star} ${wonder("pyramids").text}`, "{hourglass} Ends with Communism"],
+      lines: [`{star} ${wonder("pyramids").text}`, "{hourglass} Ends with Communism  {culture} Culture +3 a turn"],
     });
-    expect(builtNotice(s, c.id, { kind: "wonder", id: "magellans" })!.lines).toHaveLength(1);
+    expect(builtNotice(s, c.id, { kind: "wonder", id: "magellans" })!.lines).toEqual([`{star} ${wonder("magellans").text}`, "{culture} Culture +3 a turn"]);
     s.players[0]!.spaceship.structurals = 3;
     expect(builtNotice(s, c.id, { kind: "spaceship", id: "structural" })!.lines.at(-1)).toBe("{star} 3 of 32 built");
   });

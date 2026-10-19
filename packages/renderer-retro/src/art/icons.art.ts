@@ -3,7 +3,8 @@
 export default String.raw`
 # Icons, 8x8, for the info panels and the badges on working units. Outlined in black so each reads
 # on the main screen's grey, the city screen's blue, the dialogs' brown and a unit badge's black.
-# people: a man and a woman; food: an ear of wheat; shield (production, the rules' shields): a hammer.
+# people: a man and a woman; food: an ear of wheat; shield (production, the rules' shields): a hammer;
+# culture: a column.
 # Legend: . clear  k black  w white  P/p owner colour/dark
 #   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey (EGA)
 #   0-7 shades of ramp 1, a-h of ramp 2, A-H of ramp 3. Default ramps: grey, earth, stone.
@@ -277,4 +278,14 @@ kwk..kwk
 .kYkkYk.
 kYk..kYk
 Yk....kY
+
+@culture ramps=stone
+kkkkkkkk
+k767767k
+.kkkkkk.
+..k75k..
+..k75k..
+..k75k..
+.kkkkkk.
+k666665k
 `;

@@ -138,6 +138,12 @@ const DRAW: Record<IconName, (ctx: Context2D) => void> = {
     box(c, 1.5, 7, 4.5, 8, ICON.wall); box(c, 6.5, 3, 4, 12, ICON.wall); box(c, 11, 8.5, 3.5, 6.5, ICON.wall);
     for (const [x, y] of [[7.5, 5], [7.5, 8], [7.5, 11], [2.7, 9], [2.7, 12], [12, 10.5]] as const) box(c, x, y, 1.6, 1.6, ICON.stoneDark);
   },
+  culture: (c) => {
+    // A column: capital, fluted shaft, base.
+    box(c, 2.5, 1.5, 11, 2.5, ICON.wall); box(c, 4, 4, 8, 1.2, ICON.stoneDark);
+    box(c, 5, 5.2, 6, 7.3, ICON.wall); for (const x of [6.5, 8, 9.5]) box(c, x - 0.35, 5.6, 0.7, 6.6, ICON.stoneDark);
+    box(c, 4, 12.5, 8, 1.2, ICON.stoneDark); box(c, 2.5, 13.7, 11, 2, ICON.wall);
+  },
   swords: (c) => {
     line(c, [[3, 3], [12, 12]], ICON.ink, 1.8); line(c, [[13, 3], [4, 12]], ICON.ink, 1.8);
     line(c, [[10, 14], [14, 10]], ICON.wood, 1.6); line(c, [[6, 14], [2, 10]], ICON.wood, 1.6);

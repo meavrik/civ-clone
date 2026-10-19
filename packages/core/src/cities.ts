@@ -21,6 +21,7 @@ import {
   type Tile,
   type Unit,
 } from "./types.js";
+import { borderRadius, cultureRate } from "./territory.js";
 import { createUnit } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
@@ -552,6 +553,7 @@ export function foundCity(state: GameState, owner: number, x: number, y: number,
     wonders: [],
     production: { kind: "unit", id: "militia" },
     founded: state.turn,
+    culture: 0,
     disorder: false,
     routes: [],
   };
@@ -574,7 +576,7 @@ export function buyCost(state: GameState, city: City): number {
 
 export interface CityTurnEvent {
   city: number;
-  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine" | "sold" | "pollution" | "disbanded";
+  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine" | "sold" | "pollution" | "disbanded" | "borders";
   detail?: string;
   /** What was finished ("built", "wonder"). */
   production?: Production;
@@ -588,6 +590,13 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
 
   city.disorder = r.disorder;
   if (r.disorder) events.push({ city: city.id, kind: "disorder" });
+
+  // Culture mounts every turn, and the border reaches further at each level (fixed in old saves).
+  if (!state.fixedBorders) {
+    const reach = borderRadius(state, city);
+    city.culture += cultureRate(state, city);
+    if (borderRadius(state, city) > reach) events.push({ city: city.id, kind: "borders" });
+  }
 
   // Treasury: tax in, building upkeep out. A bankrupt treasury sells the costliest improvement to keep.
   player.gold += r.tax - r.buildingUpkeep;

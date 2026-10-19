@@ -24,6 +24,7 @@ import {
   civ,
   CIV_COLORS,
   CIVS,
+  CULTURE,
   hasContact,
   maxHp,
   WONDERS,
@@ -481,15 +482,14 @@ export function builtNotice(state: GameState, cityId: number, p: Production): { 
     }
     case "building": {
       const b = building(p.id);
-      const lines = [`{${buildingIcon(b)}} ${b.text}`];
-      if (b.upkeep) lines.push(`{purse} Upkeep ${b.upkeep} gold`);
-      return { title: `${city.name} builds ${b.name}`, lines };
+      // Upkeep and culture share the second line.
+      const costs = [b.upkeep ? `{purse} Upkeep ${b.upkeep} gold` : "", b.culture && !state.fixedBorders ? `{culture} Culture +${b.culture} a turn` : ""];
+      return { title: `${city.name} builds ${b.name}`, lines: [`{${buildingIcon(b)}} ${b.text}`, costs.filter(Boolean).join("  ")].filter(Boolean) };
     }
     case "wonder": {
       const w = wonder(p.id);
-      const lines = [`{star} ${w.text}`];
-      if (w.obsolete) lines.push(`{hourglass} Ends with ${advance(w.obsolete).name}`);
-      return { title: `${city.name} completes ${w.name}`, lines };
+      const more = [w.obsolete ? `{hourglass} Ends with ${advance(w.obsolete).name}` : "", state.fixedBorders ? "" : `{culture} Culture +${CULTURE.wonder} a turn`];
+      return { title: `${city.name} completes ${w.name}`, lines: [`{star} ${w.text}`, more.filter(Boolean).join("  ")].filter(Boolean) };
     }
     case "spaceship": {
       const part = spacePart(p.id);

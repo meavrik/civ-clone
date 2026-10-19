@@ -3,8 +3,10 @@ import {
   buyCost,
   CITY_RADIUS,
   computeCity,
+  cultureRate,
   formatYear,
   getTile,
+  nextBorderLevel,
   productionName,
   slotAvailable,
   Terrain,
@@ -185,6 +187,10 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   row("Trade", `${r.trade}${r.routes ? ` (${r.routes} from routes)` : ""}${r.corruption ? ` (-${r.corruption} corruption)` : ""}`);
   row("Tax / Lux / Sci", `${r.tax} / ${r.lux} / ${r.science}`);
   row("Upkeep", `${r.buildingUpkeep} gold`);
+  if (!state.fixedBorders) {
+    const next = nextBorderLevel(state, city);
+    row("Culture", `${city.culture}${next === null ? "" : ` of ${next} for a wider border`} (+${cultureRate(state, city)} a turn)`);
+  }
   if (r.pollution > 0) row("Pollution", `${r.pollution}%`, UI.danger);
   y += 6;
   text(ctx, COL2_X, y, "Improvements", { size: 14, color: UI.dim });

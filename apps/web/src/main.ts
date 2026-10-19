@@ -1285,6 +1285,7 @@ function eventMessage(ev: TurnEvent): string | null {
     case "sold": return `${name} sells its ${ev.detail} to pay the bills`;
     case "pollution": return `Pollution near ${name}!`;
     case "disbanded": return `${name} cannot support ${ev.detail}: disbanded`;
+    case "borders": return `${name}'s culture spreads: its border grows`;
   }
 }
 

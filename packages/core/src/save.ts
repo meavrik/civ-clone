@@ -25,8 +25,9 @@ export interface SaveGame {
    * 9: saved before civilizations met face to face (the meeting unit stops, cities see round them)
    *    and minded foreign units on their land; far contact, no trespass.
    * 10: saved before the Hebrews and the Japanese; rivals drawn from the eighteen before them.
+   * 11: saved before borders grew with culture; fixed borders (each city the 21 squares it works).
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -41,7 +42,7 @@ export interface SaveGame {
   label?: string;
 }
 
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -62,7 +63,7 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
 export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
@@ -81,6 +82,7 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
     options.noTrespass = true;
   }
   if (save.version < 11) options.roster = 10;
+  if (save.version < 12) options.fixedBorders = true;
   const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {

@@ -2,9 +2,9 @@ import { claims, type GameState } from "@civ/core";
 
 /**
  * Civilization borders, as drawn: the land each civilization claims (core's
- * `claims`: each city the 21 squares of its `CITY_RADIUS`, the nearer then
- * the older city winning a shared square). The rules read the same claims
- * for trespass. Only cities the viewer has explored count, so borders show
+ * `claims`: each city the squares within its border, which grows with its
+ * culture; the nearer, then the more cultured, then the older city wins a
+ * shared square). The rules read the same claims for trespass. Only cities the viewer has explored count, so borders show
  * nothing that lies under the fog.
  */
 export interface Territory {

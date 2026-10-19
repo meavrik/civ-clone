@@ -45,6 +45,8 @@ export interface NewGameOptions extends MapGenOptions {
   farContact?: boolean;
   /** Nobody minds foreign units on their land. Old saves load with it. */
   noTrespass?: boolean;
+  /** Each city's land is the 21 squares it works; borders never grow with culture. Old saves load with it. */
+  fixedBorders?: boolean;
   /** Rivals come only from civilizations a save of this version knew (`CivRule.since`). Old saves load with it. */
   roster?: number;
 }
@@ -168,6 +170,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.classicAdvances ? { classicAdvances: true } : {}),
     ...(opts.farContact ? { farContact: true } : {}),
     ...(opts.noTrespass ? { noTrespass: true } : {}),
+    ...(opts.fixedBorders ? { fixedBorders: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

@@ -2,16 +2,22 @@ import { describe, expect, it } from "vitest";
 import { applyCommand, CITY_RADIUS, newGame } from "@civ/core";
 import { borderSides, ownerAt, territory, type Territory } from "../src/index.js";
 
+/** A city with ten turns' culture, reaching the 21 squares it works. */
 function founded() {
   const state = newGame(7);
   const u = state.units[0]!;
   applyCommand(state, { type: "found", unit: u.id });
-  return { state, city: state.cities[0]! };
+  const city = state.cities[0]!;
+  city.culture = 10;
+  return { state, city };
 }
 
 describe("territory", () => {
-  it("gives each city the squares it can work", () => {
+  it("gives a new city the squares round it, and with culture the squares it can work", () => {
     const { state, city } = founded();
+    city.culture = 0;
+    expect([...territory(state).owner].filter((o) => o === city.owner).length).toBe(9);
+    city.culture = 10;
     const t = territory(state);
     expect([...t.owner].filter((o) => o === city.owner).length).toBe(CITY_RADIUS.length);
     for (const [dx, dy] of CITY_RADIUS) expect(ownerAt(t, city.x + dx, city.y + dy)).toBe(city.owner);

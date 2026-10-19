@@ -47,13 +47,19 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   Diplomacy (`diplomacy.ts`): civilizations meet face to face (`contactRange` 1, as the original), and
   the unit that walked into the meeting stops for the turn, on a goto too (`meetAround`), so each side
   sees whom it met; cities see the squares next to them. Land (`territory.ts`: `claims`, `landOwner`):
-  each city its `CITY_RADIUS`, the nearer then older city winning. At peace without open borders
+  each city the squares within its border, which grows with its culture (`borderRadius`: 1 square out
+  when founded, one more at each of `CULTURE.levels` in `rules/culture.ts`, radius 2 being the 21 squares
+  it works); a shared square goes to the nearer city, then the one with more culture, then the older.
+  `City.culture` gathers every turn (`cultureRate`: a base, one per four citizens, `BuildingRule.culture`
+  from palace, temple, library, courthouse, colosseum, cathedral and university, and each wonder), and a
+  `borders` city event says when the border grows; the city screen shows culture against the next level. At peace without open borders
   (`openBorders`/`closeBorders` commands, `state.openBorders`) a civilization minds land units on its
   land (`trespassOn`: not diplomats, caravans or units aboard): stepping in records its first demand
   to leave (`state.trespass`, a `trespass` event), `demandLeave` adds one, a gift (`giveGold`) forgives,
   and the record drops at the owner's turn once the units are gone. Other deals: `shareMaps`,
   `tribute` (`tributePaid`). `warDeclared` says who declared on whom (`on`) and why (`reason`).
-  Saves before version 10 load with `farContact` and `noTrespass` (meeting at two squares, no stop).
+  Saves before version 10 load with `farContact` and `noTrespass` (meeting at two squares, no stop),
+  saves before version 12 with `fixedBorders` (each city its 21 squares, the nearer then older winning).
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
   `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it), `baseline.ts`
   (v1) and `barbarian.ts` (the barbarians, reached through `baselineTurn` so every AI seat shares it:
@@ -232,7 +238,8 @@ code. `tileYield` takes the working civ (`owner`) for the pasture food. Borders 
 asked for): civs meet face to face and the map shows whom we met before the audience; the audience
 offers open borders, maps, knowledge, gifts, tribute and war; civs at peace without open borders ask
 the player's units off their land, warn once more, then go to war (our departure: the original had no
-borders). Next: mobile/PWA + touch adapter.
+borders). Culture borders done (2026-10-19, asked for): borders start a square round each city and grow
+with its culture (save version 12). Next: mobile/PWA + touch adapter.
 
 ## Known gaps / next steps
 
