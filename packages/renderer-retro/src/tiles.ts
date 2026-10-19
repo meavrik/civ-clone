@@ -1,5 +1,5 @@
 import { Terrain, TERRAIN_RULES, type WorldMap } from "@civ/core";
-import { cloudTone, coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, landOwner, riverShape, SHORE, strokeDistance, type Explored, type Lifting } from "@civ/renderer-api";
+import { coastLevel, coastPatch, DEEP, DEEP_EDGE, knownSquare, landOwner, riverShape, SHORE, strokeDistance, type Explored, type Lifting } from "@civ/renderer-api";
 import { FEATURE_SHEET, mirrored, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { C, shade } from "./palette.js";
@@ -127,37 +127,29 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
   return out;
 }
 
-/** 4x4 ordered dither thresholds, for fading fog and blending cloud shades without colours in between. */
+/** 4x4 ordered dither thresholds, for the black dissolving off a square just explored. */
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((n) => (n + 0.5) / 16);
 
-const fogCache = new Map<string, Surface>();
-/** How soft the drifting edge of the fog is (see `fogLevel`): crisp, so only a thin band is dithered. */
-const FOG_EDGE = 0.5;
+/** Steps the black of a square just explored dissolves through. */
+const FADE_STEPS = 16;
+const fadeCache: (Surface | undefined)[] = [];
 
 /**
- * The fog drawn over square (x, y), or null when it has none: solid clouds on
- * an unexplored square, and on an explored square beside one, clouds drifting
- * in from that side, dithered out to clear pixels (SPRITE_CLEAR). Fog still
- * lifting off a square just explored (`lifting`) dissolves through the same
- * dither. The clouds are dark, with faint lighter billows (a checker where
- * they meet), and follow world position, so they run on across square borders.
+ * What hides square (x, y), or null when nothing does: an unexplored square is
+ * plain black, as in the original, and an explored one shows whole, whatever
+ * lies beside it. Black still lifting off a square just explored (`lifting`)
+ * dissolves through an ordered dither, the rest of it clear (SPRITE_CLEAR).
  */
 export function fogSquare(map: WorldMap, explored: Explored, x: number, y: number, lifting?: Lifting): Surface | null {
-  const p = fogPatch(map, explored, x, y, lifting);
-  if (p.cover[4]! < 1 && !p.edge) return null;
-  const hit = fogCache.get(p.key);
+  const cover = knownSquare(map, explored, x, y) ? lifting?.get(y * map.width + (((x % map.width) + map.width) % map.width)) ?? 0 : 1;
+  const step = Math.round(Math.max(0, Math.min(1, cover)) * FADE_STEPS);
+  if (step === 0) return null;
+  const hit = fadeCache[step];
   if (hit) return hit;
   const out = new Surface(TILE, TILE);
   for (let j = 0; j < TILE; j++)
-    for (let i = 0; i < TILE; i++) {
-      const u = (i + 0.5) / TILE;
-      const v = (j + 0.5) / TILE;
-      if (fogLevel(p, u, v, FOG_EDGE) <= BAYER[(j & 3) * 4 + (i & 3)]!) { out.data[j * TILE + i] = SPRITE_CLEAR; continue; }
-      const tone = cloudTone(x + u, y + v, map.width) + ((i + j) & 1 ? 0.03 : -0.03);
-      out.data[j * TILE + i] = shade("fog", tone < 0.7 ? 1 : 2);
-    }
-  if (fogCache.size > 4096) fogCache.clear();
-  fogCache.set(p.key, out);
+    for (let i = 0; i < TILE; i++) out.data[j * TILE + i] = step / FADE_STEPS > BAYER[(j & 3) * 4 + (i & 3)]! ? C.BLACK! : SPRITE_CLEAR;
+  fadeCache[step] = out;
   return out;
 }
 

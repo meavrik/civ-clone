@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, Terrain, unitType } from "@civ/core";
-import { borderSides, C, cityButtonAt, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, cityButtonAt, fogSquare, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -324,43 +324,46 @@ describe("garrisons", () => {
 });
 
 describe("fog of war", () => {
-  it("draws clouds over unexplored squares, drifting into explored ones, and shows nothing of what lies beneath", () => {
+  it("draws unexplored squares plain black, explored ones whole beside them, and shows nothing of what lies beneath", () => {
     const state = newGame(7);
     const u = state.units[0]!;
-    // Explore a little more, along the coast, so the fog edge crosses land and sea.
+    // Explore a little more, along the coast, so the edge of the known world crosses land and sea.
     const me = state.players[0]!;
     const was = me.explored.slice();
     revealAround(state, 0, u.x + 2, u.y + 1, 2);
     const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false };
     const s = Surface.screen();
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
-
-    // Halfway through lifting off the squares just found, the fog over them is dissolving.
-    const found = [...me.explored.keys()].filter((i) => me.explored[i] && !was[i]);
-    expect(found.length).toBeGreaterThan(0);
-    drawMainScreen(s, state, { ...view, lifting: new Map(found.map((i) => [i, 0.5])) });
-    writeFileSync(new URL("./out/fog-lifting.png", import.meta.url), encodePng(s, 3));
-    const i0 = found.find((i) => [-1, 0, 1].every((d) => me.explored[i + d]))!;
-    const sq = { x: i0 % state.map.width, y: Math.floor(i0 / state.map.width) };
-    let fogPx = 0;
-    for (let j = 4; j < 12; j++)
-      for (let i = 4; i < 12; i++) {
-        const c = s.data[(80 + (sq.x - view.originX) * 16 + i) + (9 + (sq.y - view.originY) * 16 + j) * 320]! - C.FOG!;
-        if (c >= 0 && c < 8) fogPx++;
-      }
-    expect(fogPx).toBeGreaterThan(16);
-    expect(fogPx).toBeLessThan(48);
+    const at = (mx: number, my: number, i: number, j: number) => s.data[(80 + (mx - view.originX) * 16 + i) + (9 + (my - view.originY) * 16 + j) * 320]!;
+    const blacks = (mx: number, my: number) => {
+      let n = 0;
+      for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) if (at(mx, my, i, j) === C.BLACK!) n++;
+      return n;
+    };
 
     drawMainScreen(s, state, view);
     writeFileSync(new URL("./out/fog.png", import.meta.url), encodePng(s, 3));
-
-    // An unexplored square is cloud through and through; an explored one keeps its middle clear.
-    const fogMin = C.FOG!;
-    const at = (mx: number, my: number, i: number, j: number) => s.data[(80 + (mx - view.originX) * 16 + i) + (9 + (my - view.originY) * 16 + j) * 320]!;
+    // An unexplored square is black through and through.
     const hidden = { x: u.x - 6, y: u.y };
     expect(me.explored[hidden.y * state.map.width + hidden.x]).toBe(0);
-    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) expect(at(hidden.x, hidden.y, i, j) - fogMin, `${i},${j}`).toBeLessThan(8);
-    expect(at(u.x, u.y, 8, 8) - fogMin < 0 || at(u.x, u.y, 8, 8) - fogMin >= 8).toBe(true);
+    expect(blacks(hidden.x, hidden.y)).toBe(256);
+    // Nothing drifts into an explored square from an unexplored one beside it.
+    const { width } = state.map;
+    const edge = [...me.explored.keys()].find((i) => me.explored[i] && [-1, 1, -width, width].some((d) => !me.explored[i + d]))!;
+    expect(edge).toBeDefined();
+    expect(fogSquare(state.map, me.explored, edge % width, Math.floor(edge / width))).toBeNull();
+    expect(fogSquare(state.map, me.explored, hidden.x, hidden.y)!.data.every((c) => c === C.BLACK!)).toBe(true);
+
+    // Halfway through lifting off a square just found, half its pixels are still black, in a dither.
+    const found = [...me.explored.keys()].filter((i) => me.explored[i] && !was[i]);
+    expect(found.length).toBeGreaterThan(0);
+    const sq = { x: found[0]! % width, y: Math.floor(found[0]! / width) };
+    const clear = blacks(sq.x, sq.y);
+    drawMainScreen(s, state, { ...view, lifting: new Map(found.map((i) => [i, 0.5])) });
+    writeFileSync(new URL("./out/fog-lifting.png", import.meta.url), encodePng(s, 3));
+    expect(blacks(sq.x, sq.y) - clear).toBeGreaterThan(100);
+    expect(blacks(sq.x, sq.y)).toBeLessThanOrEqual(128 + clear);
+    drawMainScreen(s, state, view);
 
     // Rewrite every unexplored square: the picture does not change.
     const before = s.data.slice();
