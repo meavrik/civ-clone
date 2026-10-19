@@ -329,7 +329,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawStone(s, 0, BAR_Y, SCREEN_W, SCREEN_H - BAR_Y);
   const { view: viewButton } = CITY_BUTTONS;
   if (view.message) drawTextWrapped(s, 4, BAR_Y + 3, viewButton.x - 8, view.message, C.BLUE!, 1);
-  else drawText(s, 4, BAR_Y + 3, "Esc Exit  C Change  B Buy  N Rename  V View", DIM);
+  else drawText(s, 4, BAR_Y + 3, "Enter Exit  C Change  B Buy  N Rename  V View", DIM);
   drawButton(s, viewButton.x, viewButton.y, viewButton.w, viewButton.h, viewButton.label);
   s.rect(EXIT.x, EXIT.y, EXIT.w, EXIT.h, C.RED!);
   s.hline(EXIT.x, EXIT.y, EXIT.w, C.LRED!);

@@ -72,7 +72,8 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `packages/renderer-api` — the `Renderer` interface every renderer implements (draw each screen
   in its own logical size, hit-test menus/city map/city buttons/tiles/minimap/menu bar), the shared view types and the
   DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`, `builtNotice`).
-  City screen: Change and Buy buttons in the production box (`cityButtonAt`); Buy (button or B) shows the
+  City screen: Change and Buy buttons in the production box (`cityButtonAt`); Esc, Enter (not held) or a click
+  on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. Its units (`cityUnits`: those in the city from any home, then those it
   supports elsewhere, faded, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens

@@ -1489,6 +1489,8 @@ function cityKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "city" }>): void 
   const cv = sc.view;
   switch (e.code) {
     case "Escape": leaveCity(sc); break;
+    // Not a held Enter, which would carry on from the menu or notice it just answered.
+    case "Enter": case "NumpadEnter": if (!e.repeat) leaveCity(sc); break;
     case "KeyC": openProductionMenu(cv.city); break;
     case "KeyB": askBuy(cv.city); break;
     case "KeyV": openCityView(sc); break;
@@ -1672,12 +1674,13 @@ canvas.addEventListener("mousedown", (e) => {
       const unit = renderer.cityUnitAt(state, sc.view, px, py);
       if (unit !== null) { activateFromCity(sc, unit); return; }
       // A worked square frees its citizen; an unworked one takes a free citizen or the worker on the
-      // weakest square; the city's own square puts every citizen on the best squares.
+      // weakest square; the city's own square puts every citizen on the best squares. A click on
+      // nothing that answers leaves the city, as Exit, Esc and Enter do.
       const slot = renderer.citySlotAt(px, py);
       const city = state.cities.find((c) => c.id === sc.view.city);
       if (slot === 0) { if (dispatch({ type: "arrangeCity", city: sc.view.city })) say("Citizens moved to the best tiles"); }
       else if (slot !== null && city) dispatch({ type: city.worked.includes(slot) ? "toggleTile" : "workTile", city: city.id, slot });
-      else if (renderer.cityExitHit(px, py)) leaveCity(sc);
+      else leaveCity(sc);
       return;
     }
     case "cityView": {

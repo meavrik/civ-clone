@@ -239,6 +239,6 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   // Exit bar.
   ctx.fillStyle = UI.panel;
   ctx.fillRect(0, H - HINT_H, W, HINT_H);
-  const hint = view.message ?? "Esc exit   ·   C change production   ·   B buy   ·   N rename   ·   click a unit to give it orders";
+  const hint = view.message ?? "Enter exit   ·   C change production   ·   B buy   ·   N rename   ·   click a unit to give it orders";
   paragraph(ctx, 24, H - HINT_H + 10, W - 48, hint, { size: 14, color: view.message ? UI.accent : UI.dim }, 1);
 }
