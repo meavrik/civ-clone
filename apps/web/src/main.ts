@@ -572,6 +572,11 @@ function openTerrainInfo(tx: number, ty: number): void {
       const mark = lastActions.length;
       if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
       afterUnitOrder(before, mark);
+      // A diplomat that reaches the gate of the foreign city it was sent to asks what to do there.
+      const d = unitById(state, active.id);
+      const gate = cityAt(state, tx, ty);
+      if (d && gate && gate.owner !== 0 && gate.owner !== state.barbarians && unitType(d.type).flags?.includes("diplomat") && d.movesLeft > 0 && isAdjacent(d, tx, ty))
+        openDiplomatMenu(d.id, gate.id);
     }]);
   const city = cityAt(state, tx, ty);
   if (city && city.owner === 0) items.push(["Open city", () => openCity(city.id)]);

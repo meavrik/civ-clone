@@ -43,6 +43,8 @@ export function moveRefusal(state: GameState, unitId: number, dx: number, dy: nu
       return `${name} cannot attack ships at sea.`;
     case "only land units take cities":
       return "Only land units can take a city.";
+    case "barbarian city":
+      return `Barbarians keep no secrets worth stealing: ${name} has no business there.`;
     default:
       return `${capitalise(reason)}.`;
   }

@@ -292,7 +292,8 @@ borders). Next: mobile/PWA + touch adapter.
    flight, landing wins; lost with the capital; F6 screen; the planner races once it knows Space
    Flight and lands around turn 600-700 in all-AI games). Diplomats done (`diplomat` command next to a
    foreign city: steal an advance, sabotage, incite revolt via `inciteCost`; a victim at peace declares
-   war). Nuclear units detonate: everything within a tile dies, the city is halved, fallout is
+   war; a diplomat never walks into a foreign city, guarded or not: the move is refused with reason
+   `diplomat` and the web app offers the missions, also when a goto brings it to the gate). Nuclear units detonate: everything within a tile dies, the city is halved, fallout is
    left; SDI Defense within three tiles stops them. No embassies, city investigation, air fuel or
    trireme loss at sea yet.
 4. Diplomacy: no embassies; computer civilizations mind neither each other's land nor the player's

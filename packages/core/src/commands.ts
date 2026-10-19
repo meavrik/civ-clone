@@ -405,6 +405,12 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
     const hostile = state.units.some((o) => o.owner !== u.owner && o.x === tx && o.y === ty) || state.cities.some((c) => c.owner !== u.owner && c.x === tx && c.y === ty);
     if (hostile) return detonate(state, u, tx, ty);
   }
+  // A diplomat at a foreign gate, guarded or not, acts through the diplomat command: it never
+  // walks in or fights. Barbarians keep nothing worth a diplomat's while.
+  if (unitType(u.type).flags?.includes("diplomat") && u.movesLeft > 0) {
+    const gate = cityAt(state, wrapX(state.map, u.x + dx), u.y + dy);
+    if (gate && gate.owner !== u.owner) return { ok: false, reason: gate.owner === state.barbarians ? "barbarian city" : "diplomat" };
+  }
   const r = checkMove(state, u, dx, dy);
   if (!r.ok && r.reason === "attack") {
     const defenderOwner = state.units.find((o) => o.owner !== u.owner && o.x === wrapX(state.map, u.x + dx) && o.y === u.y + dy)!.owner;
@@ -433,8 +439,6 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
   if (!r.ok) return { ok: false, reason: r.reason };
   if (r.enemyCity) {
     const city = state.cities.find((c) => c.x === wrapX(state.map, u.x + dx) && c.y === u.y + dy)!;
-    // A diplomat at a foreign gate acts through the diplomat command, never by walking in.
-    if (unitType(u.type).flags?.includes("diplomat")) return { ok: false, reason: "diplomat" };
     if (!atWar(state, u.owner, city.owner)) {
       // A caravan calling at a peaceful foreign city opens a trade route instead of entering.
       if (unitType(u.type).flags?.includes("caravan")) return establishRoute(state, u, city);

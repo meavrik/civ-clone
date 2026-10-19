@@ -23,6 +23,21 @@ function world(): GameState {
 }
 
 describe("diplomats", () => {
+  it("ask for orders at a foreign gate even when the city is guarded, at peace or at war", () => {
+    const s = world();
+    s.currentPlayer = 1;
+    createUnit(s, "phalanx", 1, 30, 20);
+    s.currentPlayer = 0;
+    const d = createUnit(s, "diplomat", 0, 29, 20);
+    expect(applyCommand(s, { type: "move", unit: d.id, dx: 1, dy: 0 })).toEqual({ ok: false, reason: "diplomat" });
+    setRelation(s, 0, 1, "war");
+    expect(applyCommand(s, { type: "move", unit: d.id, dx: 1, dy: 0 })).toEqual({ ok: false, reason: "diplomat" });
+    expect([d.x, d.y, d.movesLeft]).toEqual([29, 20, 6]);
+    // Out of moves, it is told so rather than offered a mission it cannot carry out.
+    d.movesLeft = 0;
+    expect(applyCommand(s, { type: "move", unit: d.id, dx: 1, dy: 0 }).reason).not.toBe("diplomat");
+  });
+
   it("steal an advance, are spent, and start a war when the victim was at peace", () => {
     const s = world();
     // Alphabet is the one advance to steal, whatever the civilizations started with.
