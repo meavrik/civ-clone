@@ -601,18 +601,30 @@ describe("advisor screens", () => {
     const shown = [...hits.keys()].filter((k) => byId.has(k));
     expect(shown).toContain("code_of_laws");
     expect(shown).toContain("monarchy");
-    expect(hits.has("literacy")).toBe(false); // beyond reach: not in the tree yet
+    expect(shown).toContain("literacy"); // a step beyond reach: hinted, faint
+    expect(hits.has("the_republic")).toBe(false); // two steps beyond: not in the tree yet
     for (const id of shown) expect(byId.get(id)!.tier).toBeLessThan(tree.scroll + TECH_COLUMNS);
-    expect(hits.has("scroll")).toBe(false); // the next phase fits the window: nothing to scroll to
     expect(hits.has("scrollTo")).toBe(true); // the strip under the graph
     expect(hits.has("close")).toBe(false); // research is due: no way out but a pick
     expect(hits.has("research")).toBe(false); // the find itself is known
+    expect(hits.has("choices")).toBe(true); // ...but the way on to the choices is there
+    const buttonAt = (kind: string) => { for (let x = 0; x < 320; x++) if (techTreeHit(state, tree, x, 192)?.kind === kind) return true; return false; };
     tree.selected = "monarchy";
     drawTechTree(s, state, tree);
     writeFileSync(new URL("./out/techtree-choice.png", import.meta.url), encodePng(s, 3));
-    let research = false;
-    for (let x = 0; x < 320; x++) if (techTreeHit(state, tree, x, 192)?.kind === "research") research = true;
-    expect(research).toBe(true);
+    expect(buttonAt("research")).toBe(true);
+    // A hint offers its first step: Literacy wants Writing first.
+    tree.selected = "literacy";
+    drawTechTree(s, state, tree);
+    writeFileSync(new URL("./out/techtree-hint.png", import.meta.url), encodePng(s, 3));
+    expect(buttonAt("research")).toBe(true);
+    // Under way: the node carries the beakers gathered.
+    applyCommand(state, { type: "research", advance: "writing" });
+    p.science = 10;
+    drawTechTree(s, state, { ...tree, selected: "writing", discovered: [], choosing: false, closable: true });
+    writeFileSync(new URL("./out/techtree-researching.png", import.meta.url), encodePng(s, 3));
+    p.researching = null;
+    p.science = 0;
     // Far along the tree, browsing from the science advisor: the last few within reach, both arrows, a close button.
     p.advances = ADVANCES.map((a) => a.id).filter((id) => !["fusion_power", "artificial_intelligence", "quantum_computing"].includes(id));
     const late = { ...tree, selected: "fusion_power", discovered: [], choosing: false, closable: true, scroll: 9.3 };

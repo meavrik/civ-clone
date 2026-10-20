@@ -20,9 +20,11 @@ import type { IconName } from "./icons.js";
 
 /**
  * The tech tree as a graph, shown when an advance is found and whenever the
- * next research is chosen. It holds only what the player knows and what is
- * within reach (the next phase); everything further on stays hidden until it
- * comes within reach. Every advance shown sits in a column, its tier (the
+ * next research is chosen. It holds what the player knows, what is within
+ * reach (the next phase) and, as a hint of what lies ahead, the advances one
+ * step further (`techHinted`: all they need is known or within reach), drawn
+ * faint; everything beyond stays hidden until it comes nearer. Every advance
+ * shown sits in a column, its tier (the
  * longest chain of shown prerequisites beneath it), and a row; both renderers
  * draw the same layout, a few columns at a time, scrolled by the web app. Rows
  * are ordered so that an advance sits near the ones it needs and the ones it
@@ -37,6 +39,8 @@ export interface TechNode {
   /** Prerequisites and successors among the advances shown. */
   requires: string[];
   leadsTo: string[];
+  /** Advances it leads to that are not shown yet: more lies beyond. */
+  beyond: number;
 }
 
 export interface TechLayout {
@@ -48,9 +52,15 @@ export interface TechLayout {
   rows: number;
 }
 
-/** True while an advance shows in the tree: known, under study, or within reach. */
+/** True while an advance shows in the tree: known, under study, within reach, or hinted one step further. */
 export function techShown(state: GameState, id: string): boolean {
-  return techStatus(state, id) !== "locked";
+  return techStatus(state, id) !== "locked" || techHinted(state, id);
+}
+
+/** A locked advance shown faint as a hint of what lies ahead: everything it needs is known or within reach. */
+export function techHinted(state: GameState, id: string): boolean {
+  const a = advancesFor(state).find((x) => x.id === id);
+  return !!a && techStatus(state, id) === "locked" && a.requires.every((r) => techStatus(state, r) !== "locked");
 }
 
 const layoutCache = new Map<string, TechLayout>();
@@ -62,13 +72,13 @@ export function techLayout(state: GameState): TechLayout {
   const key = `${state.classicAdvances ? "1991" : "ours"}:${shown.map((a) => a.id).join(",")}`;
   const cached = layoutCache.get(key);
   if (cached) return cached;
-  const layout = layOut(shown);
+  const layout = layOut(shown, tree);
   if (layoutCache.size > 32) layoutCache.clear();
   layoutCache.set(key, layout);
   return layout;
 }
 
-function layOut(shown: readonly AdvanceRule[]): TechLayout {
+function layOut(shown: readonly AdvanceRule[], tree: readonly AdvanceRule[]): TechLayout {
   const ids = new Set(shown.map((a) => a.id));
   const needs = (a: AdvanceRule) => a.requires.filter((r) => ids.has(r));
   const tierOf = new Map<string, number>();
@@ -83,6 +93,7 @@ function layOut(shown: readonly AdvanceRule[]): TechLayout {
   const nodes: TechNode[] = shown.map((a) => ({
     id: a.id, name: a.name, tier: tier(a.id), row: 0, requires: needs(a),
     leadsTo: shown.filter((n) => n.requires.includes(a.id)).map((n) => n.id),
+    beyond: tree.filter((n) => !ids.has(n.id) && n.requires.includes(a.id)).length,
   }));
   const byId = new Map(nodes.map((n) => [n.id, n]));
   if (!nodes.length) return { nodes, byId, tiers: 1, rows: 1 };
@@ -185,6 +196,8 @@ export function techPath(state: GameState, id: string): string[] {
 export interface TechDetails {
   name: string;
   status: TechStatus;
+  /** Locked, but shown faint as a hint of what lies ahead. */
+  hinted: boolean;
   /** Where it stands for us, in one line: known, how far the research is, or what it still needs. */
   standing: string;
   /** What it brings, a row per kind (units, improvements...), and the advances it leads to. */
@@ -208,12 +221,12 @@ export function techDetails(state: GameState, id: string): TechDetails {
   const turns = perTurn > 0 ? Math.max(1, Math.ceil((cost - p.science) / perTurn)) : 0;
   const eta = turns ? `about ${turns} turn${turns === 1 ? "" : "s"}` : "no science yet";
   let standing: string;
-  if (status === "known") standing = "Known";
-  else if (status === "researching") standing = `Researching: ${p.science}/${cost} beakers, ${eta}`;
-  else if (status === "available") standing = `Within reach: ${eta}`;
+  if (status === "known") standing = "Discovered";
+  else if (status === "researching") standing = `Researching now: ${p.science}/${cost} beakers, ${eta}`;
+  else if (status === "available") standing = `Can be researched now: ${eta}`;
   else {
     const missing = a.requires.filter((r) => !p.advances.includes(r)).map((r) => advance(r).name);
-    standing = `Needs ${and(missing)}, ${techPath(state, id).length} advances away`;
+    standing = `Later: needs ${and(missing)} first, ${techPath(state, id).length} advances away`;
   }
   const rows: TechDetails["rows"] = [];
   const add = (icon: IconName, label: string, items: string[]): void => { if (items.length) rows.push({ icon, label, items }); };
@@ -233,7 +246,7 @@ export function techDetails(state: GameState, id: string): TechDetails {
   add("hourglass", "Ends", WONDERS.filter((w) => w.obsolete === id).map((w) => w.name));
   // What it leads to, even beyond what the tree shows yet: worth knowing when choosing.
   add("bulb", "Leads to", tree.filter((n) => n.requires.includes(id)).map((n) => n.name));
-  return { name: a.name, status, standing, rows };
+  return { name: a.name, status, hinted: techHinted(state, id), standing, rows };
 }
 
 // ---- the window's view state and its navigation ---------------------------------------
@@ -256,13 +269,54 @@ export interface TechTreeView {
 export type TechTreeHit =
   | { kind: "advance"; id: string }
   | { kind: "research" }
+  | { kind: "choices" } // select the next advance that can be researched
   | { kind: "close" }
   | { kind: "scroll"; by: number }
   | { kind: "scrollTo"; tier: number };
 
-/** True when the details panel offers to research the selected advance. */
+/**
+ * What the Research button studies for the selected advance: the advance
+ * itself when it is within reach; for one further on, the first step toward
+ * it (null when the research under way is already a step toward it); null
+ * when it is known, under study, or nothing may be chosen here.
+ */
+export function researchTarget(state: GameState, view: TechTreeView): string | null {
+  if (!view.choosing) return null;
+  const status = techStatus(state, view.selected);
+  if (status === "available") return view.selected;
+  if (status !== "locked") return null;
+  const path = techPath(state, view.selected);
+  if (path.some((id) => techStatus(state, id) === "researching")) return null;
+  return path.find((id) => techStatus(state, id) === "available") ?? null;
+}
+
+/** True when the details panel offers research for the selected advance (itself, or the first step toward it). */
 export function canResearch(state: GameState, view: TechTreeView): boolean {
-  return view.choosing && techStatus(state, view.selected) === "available";
+  return researchTarget(state, view) !== null;
+}
+
+/** How the player's tree stands: advances discovered, those that can be researched now, and those not yet in sight. */
+export function techTally(state: GameState): { known: number; open: number; total: number } {
+  const p = state.players[state.currentPlayer]!;
+  const tree = advancesFor(state);
+  return { known: p.advances.length, open: availableAdvances(p.advances, tree).length, total: tree.length };
+}
+
+/** The line under the details telling the player what to do next. */
+export function techTreeHint(state: GameState, view: TechTreeView): string {
+  const target = researchTarget(state, view);
+  if (target && target !== view.selected) return `First step toward ${advance(view.selected).name}`;
+  if (target) return "Enter: research  Tab: others";
+  if (view.choosing) {
+    const researching = state.players[state.currentPlayer]!.researching;
+    const status = techStatus(state, view.selected);
+    if (status === "locked") return `On the way: researching ${advance(researching!).name}`;
+    if (status === "researching") return "Under way  Tab: other choices";
+    if (researching) return "Tab: other choices";
+    const open = techTally(state).open;
+    return open === 1 ? "One advance can be researched (Tab)" : `Pick one of ${open} to research (Tab)`;
+  }
+  return "Arrows: look around";
 }
 
 /** Keep the scroll within a tree `tiers` wide, for a window `columns` tiers wide. */
@@ -326,9 +380,11 @@ export function nextAvailable(state: GameState, id: string, dir = 1): string {
   return ([...open].reverse().find((n) => order.indexOf(n) < at) ?? open[open.length - 1]!).id;
 }
 
-/** The title of the window: what was just found, or the question asked. */
-export function techTreeTitle(view: TechTreeView): string {
+/** The title of the window: what was just found, the question asked when research is due, or the research under way. */
+export function techTreeTitle(view: TechTreeView, state?: GameState): string {
   const found = view.discovered.map((d) => advance(d).name);
   if (found.length) return `Wise men discover ${and(found)}!`;
+  const researching = state?.players[state.currentPlayer]!.researching;
+  if (researching) return `Researching ${advance(researching).name}`;
   return view.choosing ? "Wise men ask: what shall we research?" : "The tree of knowledge";
 }

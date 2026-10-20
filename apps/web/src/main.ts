@@ -71,6 +71,7 @@ import {
 import {
   builtNotice,
   canResearch,
+  researchTarget,
   clampTechScroll,
   DIFFICULTIES,
   leaderLine,
@@ -674,9 +675,11 @@ function closeTree(sc: TreeScreen): void {
   sc.then();
 }
 
+/** Research what the window offers for the selected advance: itself, or the first step toward one further on. */
 function pickResearch(sc: TreeScreen): void {
-  if (!canResearch(state, sc.tree)) return;
-  if (dispatch({ type: "research", advance: sc.tree.selected })) say(`Researching ${advance(sc.tree.selected).name}`);
+  const target = researchTarget(state, sc.tree);
+  if (!target) return;
+  if (dispatch({ type: "research", advance: target })) say(target === sc.tree.selected ? `Researching ${advance(target).name}` : `Researching ${advance(target).name}, toward ${advance(sc.tree.selected).name}`);
   closeTree(sc);
 }
 
@@ -721,6 +724,7 @@ function treeClick(sc: TreeScreen, px: number, py: number): void {
       else treeSelect(sc, hit.id);
       break;
     case "research": pickResearch(sc); break;
+    case "choices": treeSelect(sc, nextAvailable(state, sc.tree.selected)); break;
     case "close": closeTree(sc); break;
     case "scroll": treeScroll(sc, sc.target + hit.by); break;
     case "scrollTo": sc.target = techScrollCentring(techLayout(state).tiers, hit.tier, renderer.techColumns); break;

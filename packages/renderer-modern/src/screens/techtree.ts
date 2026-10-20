@@ -1,6 +1,7 @@
 import { advance, advancesFor, type GameState } from "@civ/core";
 import {
-  canResearch,
+  researchTarget,
+  techTreeHint,
   techDetails,
   techLane,
   techLayout,
@@ -173,7 +174,9 @@ function buttons(ctx: Context2D, state: GameState, view: TechTreeView): Button[]
     out.push({ x, w, label, hit });
     x += w + 12;
   };
-  if (canResearch(state, view)) add(`Research ${advance(view.selected).name}`, { kind: "research" });
+  const target = researchTarget(state, view);
+  if (target) add(`Research ${advance(target).name}`, { kind: "research" });
+  else if (view.choosing && techStatus(state, view.selected) !== "locked") add("Show choices", { kind: "choices" });
   if (view.closable) add("Close", { kind: "close" });
   return out;
 }
@@ -184,7 +187,7 @@ export function drawTechTree(ctx: Context2D, state: GameState, view: TechTreeVie
   ctx.fillStyle = UI.bg;
   ctx.fillRect(0, 0, W, H);
   panel(ctx, 16, 16, W - 32, H - 32, 16);
-  text(ctx, 40, 30, techTreeTitle(view), { size: 22, weight: "600", color: view.discovered.length ? UI.accent : UI.ink });
+  text(ctx, 40, 30, techTreeTitle(view, state), { size: 22, weight: "600", color: view.discovered.length ? UI.accent : UI.ink });
   const known = state.players[state.currentPlayer]!.advances.length;
   text(ctx, W - 40, 36, `${known} of ${advancesFor(state).length} advances known`, { size: 13, color: UI.dim, align: "right" });
 
@@ -209,7 +212,7 @@ export function drawTechTree(ctx: Context2D, state: GameState, view: TechTreeVie
   const d = techDetails(state, view.selected);
   const fresh = view.discovered.includes(view.selected);
   text(ctx, 48, DETAILS_Y, d.name, { size: 24, weight: "600", color: fresh ? UI.accent : UI.ink });
-  const standingColor = fresh ? UI.accent : d.status === "available" ? UI.info : d.status === "known" ? UI.ok : UI.dim;
+  const standingColor = fresh ? UI.accent : d.status === "available" || d.status === "researching" ? UI.info : d.status === "known" ? UI.ok : UI.dim;
   paragraph(ctx, 48, DETAILS_Y + 36, 300, fresh ? "Just discovered!" : d.standing, { size: 14, color: standingColor }, 3);
   let y = DETAILS_Y + 2;
   const rowsX = 380;
@@ -222,17 +225,13 @@ export function drawTechTree(ctx: Context2D, state: GameState, view: TechTreeVie
   if (!d.rows.length) text(ctx, rowsX, y, "It leads to no further advance.", { size: 14, color: UI.dim });
 
   for (const b of buttons(ctx, state, view)) {
-    const primary = b.hit.kind === "research";
+    const primary = b.hit.kind === "research" || b.hit.kind === "choices";
     if (primary) fillRound(ctx, b.x, BUTTON.y, b.w, BUTTON.h, 10, TECH.button);
     else strokeRound(ctx, b.x + 0.5, BUTTON.y + 0.5, b.w - 1, BUTTON.h - 1, 10, UI.panelEdge, 1.5);
     text(ctx, b.x + b.w / 2, BUTTON.y + 9, b.label, { size: 15, weight: "600", color: primary ? TECH.buttonInk : UI.ink, align: "center" });
   }
   const close = view.closable ? " · Esc close" : "";
-  const hint = view.choosing && !canResearch(state, view)
-    ? `${view.closable ? "Tab next choice" : "Pick an advance within reach · Tab next choice"} · arrows or click to look${close}`
-    : view.choosing ? `Enter research · Tab next choice · click an advance to see what it brings${close}`
-    : "Arrows or click to look around · Esc close";
-  text(ctx, 48, H - 56, hint, { size: 12, color: UI.dim });
+  text(ctx, 48, H - 56, `${techTreeHint(state, view).replace(/ {2}/g, " · ")} · arrows or click to look${close}`, { size: 12, color: UI.dim });
 }
 
 /** What lies under a point of the tech tree window. */

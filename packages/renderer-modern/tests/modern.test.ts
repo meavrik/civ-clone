@@ -277,11 +277,12 @@ describe("modern fog of war", () => {
     const { byId } = techLayout(state);
     for (const id of [...hits.keys()].filter((k) => byId.has(k))) expect(byId.get(id)!.tier).toBeLessThan(tree.scroll + r.techColumns);
     expect(hits.has("code_of_laws")).toBe(true);
-    expect(hits.has("literacy")).toBe(false); // beyond reach: not in the tree yet
-    expect(hits.has("scroll1")).toBe(false); // the next phase fits the window
+    expect(hits.has("literacy")).toBe(true); // a step beyond reach: hinted
+    expect(hits.has("the_republic")).toBe(false); // two steps beyond: not in the tree yet
     expect(hits.has("scroll-1")).toBe(false);
     expect(hits.has("scrollTo")).toBe(true);
     expect(hits.has("research")).toBe(false);
+    expect(hits.has("choices")).toBe(true); // the find is known: on to the choices
     expect(hits.has("close")).toBe(false);
     tree.selected = "monarchy";
     hits = scan();

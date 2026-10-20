@@ -165,9 +165,17 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   modern (set aside) still draws grey clouds (`cloudTone`): `Clouds` gathers the view's fog and fills
   each layer as one path (per-square fills leave seams, and thousands of tiny polygons cost ~600 ms a
   frame), lifting squares as alpha layers grouped by fog left, bodies before billows (else edges show).
-  Tech tree (`techtree.ts`): `techLayout(state)` lays out only what the player knows and what is
-  within reach (the next phase, `techShown`); further advances stay hidden until they come within
-  reach (the details still name what an advance leads to). Each shown advance gets a tier (its
+  Tech tree (`techtree.ts`): `techLayout(state)` lays out what the player knows, what is within
+  reach (the next phase) and, as a hint (asked for 2026-10-20), the advances one step further
+  (`techHinted`: all they need is known or within reach; drawn faint and dashed, a dotted stub where
+  more lies beyond, `TechNode.beyond`), all `techShown`; the rest stay hidden until they come nearer
+  (the details still name what an advance leads to). Retro draws a legend over the graph (Discovered
+  with a tick, Researching with its beakers as a bar, Can research in a blue frame, Later), the name
+  and standing on one line ("Discovered", "Researching now", "Can be researched now", "Later: needs
+  ... first"), and `techTreeHint` says what to do next. The Research button studies `researchTarget`:
+  the advance, or for a hint the first step toward it; "Show choices" (`choices` hit) jumps to one
+  that can be researched. With the hints the window still needs nine rows at most (tested at every
+  step of both trees). Each shown advance gets a tier (its
   longest chain of shown prerequisites) and a row (barycentre sweeps), nine rows at most, and edges
   that skip tiers run along the lanes between rows (`techLane`) so they never pass behind an advance. `Renderer.techTree` draws a `TechTreeView` a few
   tiers at a time (`techColumns`), `techTreeHit` hit-tests it. The web app opens it (`openTree`) on

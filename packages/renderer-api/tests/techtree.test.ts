@@ -4,6 +4,9 @@ import {
   canResearch,
   nextAvailable,
   openTechTree,
+  researchTarget,
+  techHinted,
+  techTreeHint,
   techDetails,
   techLayout,
   techPath,
@@ -47,18 +50,38 @@ describe("tech tree layout", () => {
     expect(old.rows).toBeLessThanOrEqual(9);
   });
 
-  it("shows only what is known and within reach: the next phase, nothing beyond", () => {
+  it("shows what is known and within reach, hints the step after it, and hides what lies beyond", () => {
     const state = newGame(2026, { classicCivs: true });
     state.players[0]!.advances.push("alphabet");
-    const { nodes, byId, tiers } = techLayout(state);
-    for (const n of nodes) expect(techStatus(state, n.id), n.id).not.toBe("locked");
+    const { nodes, byId } = techLayout(state);
+    // Every locked advance shown is a hint: all it needs is known or within reach.
+    for (const n of nodes) if (techStatus(state, n.id) === "locked") expect(techHinted(state, n.id), n.id).toBe(true);
     expect(byId.has("writing")).toBe(true);
-    expect(byId.has("literacy")).toBe(false);
-    expect(techShown(state, "literacy")).toBe(false);
-    expect(nodes.length).toBe(1 + 9); // Alphabet, six roots, Writing, Code of Laws, Map Making
-    expect(tiers).toBe(2);
+    expect(techHinted(state, "literacy")).toBe(true); // Writing and Code of Laws are both within reach
+    expect(byId.has("literacy")).toBe(true);
+    expect(techShown(state, "the_republic")).toBe(false); // needs Literacy, itself only a hint
+    expect(byId.has("the_republic")).toBe(false);
+    expect(nodes.filter((n) => techStatus(state, n.id) !== "locked").length).toBe(1 + 9); // Alphabet, six roots, Writing, Code of Laws, Map Making
+    // A hint that leads further says so: more lies beyond it.
+    expect(byId.get("literacy")!.beyond).toBeGreaterThan(0);
+    expect(byId.get("alphabet")!.beyond).toBe(0);
+    expect(techDetails(state, "literacy").hinted).toBe(true);
     // What it leads to is told in the details all the same, for planning.
     expect(techDetails(state, "writing").rows.find((r) => r.label === "Leads to")?.items).toEqual(expect.arrayContaining(["Literacy"]));
+  });
+
+  it("never needs more rows than the window holds, the hints included", () => {
+    for (const classicAdvances of [false, true]) {
+      const state = newGame(2026, { classicAdvances });
+      const p = state.players[0]!;
+      p.advances = [];
+      const tree = classicAdvances ? CLASSIC_ADVANCES : ADVANCES;
+      // Research the whole tree in its own order, checking the window at every step.
+      for (const a of tree) {
+        expect(techLayout(state).rows, `${a.id}`).toBeLessThanOrEqual(9);
+        p.advances.push(a.id);
+      }
+    }
   });
 
   it("says what Weaving and Animal Husbandry do to the land", () => {
@@ -88,17 +111,17 @@ describe("tech tree state", () => {
     expect(techStatus(state, "philosophy")).toBe("locked");
 
     const bronze = techDetails(state, "bronze_working");
-    expect(bronze.standing).toBe("Known");
+    expect(bronze.standing).toBe("Discovered");
     expect(bronze.rows.find((r) => r.label === "Wonders")?.items).toContain("Colossus");
     expect(bronze.rows.find((r) => r.label === "Leads to")?.items).toEqual(expect.arrayContaining(["Currency", "Iron Working"]));
     const monarchy = techDetails(state, "monarchy");
     expect(monarchy.rows.find((r) => r.label === "Government")?.items).toEqual(["Monarchy"]);
-    expect(monarchy.standing).toMatch(/^Needs Ceremonial Burial and Code of Laws, 3 advances away$/);
+    expect(monarchy.standing).toMatch(/^Later: needs Ceremonial Burial and Code of Laws first, 3 advances away$/);
     expect(techPath(state, "monarchy")).toEqual(expect.arrayContaining(["ceremonial_burial", "code_of_laws", "monarchy"]));
     expect(techDetails(state, "iron_working").rows.find((r) => r.label === "Units")?.items[0]).toMatch(/^Legion \d+\/\d+\/\d+$/);
     expect(techDetails(state, "railroad").rows.find((r) => r.label === "Settlers")?.items).toEqual(["Lay railroads"]);
-    expect(techDetails(state, "currency").standing).toMatch(/^Within reach/);
-    expect(techDetails(state, "writing").standing).toMatch(/^Researching: \d+\/\d+ beakers/);
+    expect(techDetails(state, "currency").standing).toMatch(/^Can be researched now/);
+    expect(techDetails(state, "writing").standing).toMatch(/^Researching now: \d+\/\d+ beakers/);
   });
 
   it("opens on the advance just found, offers only advances within reach, and names the find", () => {
@@ -109,10 +132,20 @@ describe("tech tree state", () => {
     expect(tree.scroll).toBe(0);
     expect(techTreeTitle(tree)).toBe("Wise men discover Alphabet!");
     expect(canResearch(state, tree)).toBe(false);
+    expect(techTreeHint(state, tree)).toMatch(/^Pick one of \d+ to research \(Tab\)$/);
     tree.selected = "writing";
     expect(canResearch(state, tree)).toBe(true);
+    expect(researchTarget(state, tree)).toBe("writing");
+    // Further on, the button offers the first step toward it, unless the research under way is one.
     tree.selected = "literacy";
-    expect(canResearch(state, tree)).toBe(false);
+    expect(researchTarget(state, tree)).toBe("writing");
+    expect(techTreeHint(state, tree)).toBe("First step toward Literacy");
+    applyCommand(state, { type: "research", advance: "code_of_laws" });
+    expect(researchTarget(state, tree)).toBeNull();
+    expect(techTreeHint(state, tree)).toBe("On the way: researching Code of Laws");
+    state.players[0]!.researching = null;
+    // Only where the research can be chosen.
+    expect(researchTarget(state, { ...tree, selected: "writing", choosing: false })).toBeNull();
     expect(techTreeTitle({ ...tree, discovered: [] })).toBe("Wise men ask: what shall we research?");
     expect(techTreeTitle({ ...tree, discovered: ["alphabet", "masonry"] })).toBe("Wise men discover Alphabet and Masonry!");
     // Without a find it opens on the first advance within reach, the deep ones centred.
