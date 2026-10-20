@@ -40,7 +40,7 @@ function world(opts: NewGameOptions = {}): GameState {
   return s;
 }
 
-/** Civ 1 holds a city at (30, 10); we have a city far away; the two are at peace. Both are capitals: their palaces take their borders two squares out. */
+/** Civ 1 holds a city at (30, 10); we have a city far away; the two are at peace. Both have grown until their borders reach two squares out. */
 function neighbours(opts: NewGameOptions = {}): GameState {
   const s = world(opts);
   const ours = createUnit(s, "settlers", 0, 10, 10);
@@ -50,7 +50,13 @@ function neighbours(opts: NewGameOptions = {}): GameState {
   applyCommand(s, { type: "found", unit: theirs.id });
   s.currentPlayer = 0;
   setRelation(s, 0, 1, "peace");
-  if (s.accruedCulture) for (const c of s.cities) c.culture = 10;
+  for (const c of s.cities) {
+    if (s.accruedCulture) c.culture = 10; // ten turns' culture, as old saves gathered it
+    else {
+      c.size += CULTURE.levels[0]! - cityCulture(s, c);
+      autoAssignWorkers(s, c);
+    }
+  }
   lastTurnEvents.length = 0;
   return s;
 }
@@ -130,13 +136,16 @@ describe("culture", () => {
     const s = neighbours();
     const theirs = s.cities.find((c) => c.owner === 1)!;
     theirs.buildings = [];
+    theirs.size = 1;
     expect(borderRadius(s, theirs)).toBe(1);
     expect(landOwner(s, 31, 11)).toBe(1);
     expect(landOwner(s, 32, 10)).toBe(-1);
-    theirs.size = 3;
+    theirs.size = CULTURE.levels[0]! - 1;
+    expect(borderRadius(s, theirs)).toBe(1); // people alone take long
+    theirs.size++;
     expect(landOwner(s, 32, 11)).toBe(1); // the 21 squares it works
     expect(landOwner(s, 33, 10)).toBe(-1);
-    theirs.size = 6;
+    theirs.size = CULTURE.levels[1]! - building("temple").culture!;
     theirs.buildings.push("temple");
     expect(landOwner(s, 33, 11)).toBe(1);
     expect(landOwner(s, 33, 13)).toBe(-1); // the rim of a disc, not a square
@@ -148,6 +157,8 @@ describe("culture", () => {
   it("is what a city's people, buildings and wonders make it, not more each turn, and says when the border grows", () => {
     const s = neighbours();
     const ours = s.cities.find((c) => c.owner === 0)!;
+    ours.size = 1;
+    autoAssignWorkers(s, ours);
     expect(cityCulture(s, ours)).toBe(CULTURE.perCitizen + building("palace").culture!);
     ours.buildings = [];
     expect(cityCulture(s, ours)).toBe(CULTURE.perCitizen);

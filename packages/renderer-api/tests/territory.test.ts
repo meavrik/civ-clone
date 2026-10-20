@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, CITY_RADIUS, newGame } from "@civ/core";
+import { applyCommand, cityCulture, CITY_RADIUS, CULTURE, newGame } from "@civ/core";
 import { borderSides, ownerAt, territory, type Territory } from "../src/index.js";
 
-/** The capital, its palace taking its border to the 21 squares it works. */
+/** The capital, grown until its border reaches the 21 squares it works. */
 function founded() {
   const state = newGame(7);
   const u = state.units[0]!;
   applyCommand(state, { type: "found", unit: u.id });
   const city = state.cities[0]!;
+  city.size += CULTURE.levels[0] - cityCulture(state, city);
   return { state, city };
 }
 

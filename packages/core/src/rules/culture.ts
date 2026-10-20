@@ -13,10 +13,13 @@ export const CULTURE = {
   wonder: 4,
   /**
    * A new city's border reaches the squares round it (radius 1); each of these
-   * levels reached takes it a square further. Radius 2 is the 21 squares a city
-   * works: a city of three, or one with a temple, or the capital.
+   * levels reached takes it a square further, so a border grows only as the
+   * city both grows and builds (asked for: it grew after two new citizens).
+   * Radius 2 is the 21 squares a city works: a city of six with a temple, or
+   * the capital at five. Radius 3 wants a full city of ten with a temple,
+   * library and courthouse; 4 and 5 the great cities of the late game.
    */
-  levels: [3, 8, 16, 30],
+  levels: [8, 16, 28, 45],
 } as const;
 
 /**
