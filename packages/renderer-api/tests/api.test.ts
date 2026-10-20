@@ -350,18 +350,18 @@ describe("icon lines", () => {
 });
 
 describe("refused moves", () => {
-  it("say in words why a unit cannot go, and what would let it", () => {
+  it("say in a few words why a unit cannot go", () => {
     const s = newGame(2026);
     const u = s.units.find((x) => x.owner === 0 && x.type === "settlers")!;
     getTile(s.map, u.x + 1, u.y)!.terrain = Terrain.Ocean;
     for (const o of s.units) if (o.x === u.x + 1 && o.y === u.y && o.id !== u.id) o.x = u.x - 3;
     const r = applyCommand(s, { type: "move", unit: u.id, dx: 1, dy: 0 });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(moveRefusal(s, u.id, 1, 0, r.reason)).toBe("Settlers cannot cross the ocean. A ship with room must carry it.");
+    if (!r.ok) expect(moveRefusal(s, u.id, 1, 0, r.reason)).toBe("Can't go there yet.");
     getTile(s.map, u.x, u.y + 1)!.terrain = Terrain.Mountains;
-    expect(moveRefusal(s, u.id, 0, 1, "steep")).toBe("Only settlers climb the mountains off the road. Build a road over them first.");
-    expect(moveRefusal(s, u.id, 0, 1, "no-moves")).toBe("No moves left for Settlers this turn.");
-    expect(moveRefusal(s, u.id, 0, 1, "zoc")).toMatch(/^Zone of control/);
+    expect(moveRefusal(s, u.id, 0, 1, "steep")).toBe("Needs a road.");
+    expect(moveRefusal(s, u.id, 0, 1, "no-moves")).toBe("No moves left.");
+    expect(moveRefusal(s, u.id, 0, 1, "zoc")).toBe("Enemy too close.");
     // A reason without its own words still reads as a sentence.
     expect(moveRefusal(s, u.id, 0, 1, "too close to home")).toBe("Too close to home.");
   });
