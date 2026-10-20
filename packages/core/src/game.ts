@@ -49,6 +49,8 @@ export interface NewGameOptions extends MapGenOptions {
   fixedBorders?: boolean;
   /** Our first culture: gathered every turn, not what a city's people and buildings make it. Old saves load with it. */
   accruedCulture?: boolean;
+  /** Civilizations make peace the moment they meet, with no treaty to ask for. Old saves load with it. */
+  peaceOnContact?: boolean;
   /** Rivals come only from civilizations a save of this version knew (`CivRule.since`). Old saves load with it. */
   roster?: number;
   /** Premade worlds as first drawn, some islands joined to their neighbours by land (Britain to France). Old saves load with it. */
@@ -176,6 +178,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.noTrespass ? { noTrespass: true } : {}),
     ...(opts.fixedBorders ? { fixedBorders: true } : {}),
     ...(opts.accruedCulture ? { accruedCulture: true } : {}),
+    ...(opts.peaceOnContact ? { peaceOnContact: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

@@ -1,7 +1,8 @@
-import { acceptsMapSwap, acceptsPeace, aiTurn, attitude, bordersAnswer, BORDERS_PRICE, tradeAsk, tributeOffer } from "@civ/ai";
+import { acceptsMapSwap, acceptsPeace, aiTurn, attitude, bordersAnswer, BORDERS_PRICE, peaceAnswer, PEACE_PRICE, tradeAsk, tributeOffer } from "@civ/ai";
 import {
   advance,
   applyCommand,
+  atPeace,
   atWar,
   advancesFor,
   availableAdvances,
@@ -18,6 +19,7 @@ import {
   civ,
   computeScore,
   defaultCityName,
+  esteem,
   FINAL_TURN,
   findPath,
   formatYear,
@@ -1038,13 +1040,18 @@ function meetingPlace(player: number): { x: number; y: number } | null {
   return best;
 }
 
-/** A leader's first words, by how they regard us. */
+/** A leader's first words, by how they regard us and what they make of our influence. */
 function greeting(player: number): string {
   const c = civ(state.players[player]!.civ);
+  const regard = esteem(state, player, 0);
   switch (attitude(state, player, 0)) {
-    case "friendly": return `I am ${c.leader} of the ${c.name}. May our peoples prosper side by side.`;
-    case "wary": return `I am ${c.leader} of the ${c.name}. Our armies are many; walk softly near our lands.`;
-    default: return leaderLine(state, player);
+    case "friendly": return regard === "admired"
+      ? `I am ${c.leader} of the ${c.name}. Word of your great cities has reached even us.`
+      : `I am ${c.leader} of the ${c.name}. May our peoples prosper side by side.`;
+    case "wary": return regard === "scorned"
+      ? `I am ${c.leader} of the ${c.name}. We had never heard of your people.`
+      : `I am ${c.leader} of the ${c.name}. Our armies are many; walk softly near our lands.`;
+    default: return regard === "scorned" ? `I am ${c.leader} of the ${c.name}. What are your villages to our cities?` : leaderLine(state, player);
   }
 }
 
@@ -1077,13 +1084,17 @@ function audience(player: number, line: string, done: () => void = () => { scree
         talk("Peace, then. Let the dead rest.");
       });
     } else {
-      if (bordersOpen(state, 0, player)) offer("Close borders", () => { dispatch({ type: "closeBorders", player }); talk("As you wish. Keep to your lands, and we to ours."); });
-      else offer("Open borders", () => proposeBorders(player, talk, () => talk("Our lands are open to your people, and yours to ours.")));
-      offer("Exchange maps", () => {
-        if (!acceptsMapSwap(state, player, 0)) { talk("Our maps are not for your eyes."); return; }
-        dispatch({ type: "shareMaps", player });
-        talk("Our scribes copy your maps, and yours ours.");
-      });
+      // Met but without a treaty: peace comes first, and with it open borders and maps.
+      if (!atPeace(state, 0, player)) offer("Propose peace", () => proposePeace(player, talk));
+      else {
+        if (bordersOpen(state, 0, player)) offer("Close borders", () => { dispatch({ type: "closeBorders", player }); talk("As you wish. Keep to your lands, and we to ours."); });
+        else offer("Open borders", () => proposeBorders(player, talk, () => talk("Our lands are open to your people, and yours to ours.")));
+        offer("Exchange maps", () => {
+          if (!acceptsMapSwap(state, player, 0)) { talk("Our maps are not for your eyes."); return; }
+          dispatch({ type: "shareMaps", player });
+          talk("Our scribes copy your maps, and yours ours.");
+        });
+      }
       if (them.advances.some((a) => !me.advances.includes(a)) && tradeAsk(state, player, 0)) offer("Trade knowledge", () => tradeKnowledge(player, talk));
       if (me.gold >= 50) offer("Give 50 gold", () => { dispatch({ type: "giveGold", player, amount: 50 }); talk("Your generosity will be remembered."); });
       offer("Demand tribute", () => {
@@ -1094,7 +1105,8 @@ function audience(player: number, line: string, done: () => void = () => { scree
           : them.gold < 10 ? "Our treasury is bare; there is nothing to give."
           : "We pay tribute to no one. Come and take it, if you dare.");
       });
-      items.push(["Declare war", () => talkMenu(`War on the ${them.name}?`, ["Keep the peace", "Declare war!"], (i) => {
+      const treaty = atPeace(state, 0, player);
+      items.push(["Declare war", () => talkMenu(treaty ? `Break the treaty with the ${them.name}?` : `War on the ${them.name}?`, ["Keep the peace", "Declare war!"], (i) => {
         if (i !== 1) { talk(words); return; }
         dispatch({ type: "declareWar", player });
         tried.add("Propose peace");
@@ -1113,17 +1125,39 @@ function audience(player: number, line: string, done: () => void = () => { scree
  * `agreed` runs once borders are open.
  */
 function proposeBorders(player: number, talk: (words: string) => void, agreed: () => void): void {
-  const answer = bordersAnswer(state, player, 0);
-  if (answer === "no") { talk("We will not have your soldiers roam our lands."); return; }
-  if (answer === "yes") { dispatch({ type: "openBorders", player }); agreed(); return; }
-  if (state.players[0]!.gold < BORDERS_PRICE) { talk(`For ${BORDERS_PRICE} gold we might. You have not so much.`); return; }
-  screenState = { kind: "diplomacy", player, line: `For a gift of ${BORDERS_PRICE} gold, our lands are open to you.` };
-  talkMenu(`Pay ${BORDERS_PRICE} gold for open borders?`, ["Yes, pay", "No"], (i) => {
-    if (i !== 0) { talk("Then our borders stay closed."); return; }
-    dispatch({ type: "giveGold", player, amount: BORDERS_PRICE });
-    dispatch({ type: "openBorders", player });
+  proposeDeal(player, bordersAnswer(state, player, 0), BORDERS_PRICE, talk, {
+    no: "We will not have your soldiers roam our lands.",
+    price: `For a gift of ${BORDERS_PRICE} gold, our lands are open to you.`,
+    question: `Pay ${BORDERS_PRICE} gold for open borders?`,
+    declined: "Then our borders stay closed.",
+  }, () => { dispatch({ type: "openBorders", player }); agreed(); });
+}
+
+/** Ask `player`, met without a treaty, for peace: a friendly civilization signs, a wary one asks a gift first, a hostile one refuses. */
+function proposePeace(player: number, talk: (words: string) => void): void {
+  proposeDeal(player, peaceAnswer(state, player, 0), PEACE_PRICE, talk, {
+    no: esteem(state, player, 0) === "scorned" ? "A treaty with a people no one has heard of? No." : "We will bind ourselves to no treaty with you.",
+    price: `For a gift of ${PEACE_PRICE} gold, we will sign.`,
+    question: `Pay ${PEACE_PRICE} gold for a peace treaty?`,
+    declined: "Then we have nothing to sign.",
+  }, () => { dispatch({ type: "makePeace", player }); talk("Let there be peace between our peoples."); });
+}
+
+/**
+ * A deal a leader answers by attitude: yes (`agreed` runs), for a gift of
+ * `price` gold (asked first, then paid), or no. `words` are the leader's.
+ */
+function proposeDeal(player: number, answer: "yes" | "for gold" | "no", price: number, talk: (words: string) => void,
+  words: { no: string; price: string; question: string; declined: string }, agreed: () => void): void {
+  if (answer === "no") { talk(words.no); return; }
+  if (answer === "yes") { agreed(); return; }
+  if (state.players[0]!.gold < price) { talk(`For ${price} gold we might. You have not so much.`); return; }
+  screenState = { kind: "diplomacy", player, line: words.price };
+  talkMenu(words.question, ["Yes, pay", "No"], (i) => {
+    if (i !== 0) { talk(words.declined); return; }
+    dispatch({ type: "giveGold", player, amount: price });
     agreed();
-  }, () => talk("Then our borders stay closed."));
+  }, () => talk(words.declined));
 }
 
 /** Pick one of their advances; they name the one of ours they want for it. */
@@ -1172,7 +1206,7 @@ function askToLeave(owner: number, warnings: number, then: () => void, at?: { x:
         then();
         say(n ? `Our units leave the land of the ${them.name}.` : "Our units find no way out.", 3000);
       }]);
-      if (!tried.has("borders") && bordersAnswer(state, owner, 0) !== "no")
+      if (!tried.has("borders") && atPeace(state, owner, 0) && bordersAnswer(state, owner, 0) !== "no")
         items.push(["Open borders?", () => {
           tried.add("borders");
           proposeBorders(owner, talk, () => { then(); say(`The ${them.name} open their lands to us.`, 3000); });
@@ -1225,6 +1259,25 @@ function nearestExit(u: { id: number; x: number; y: number }, owner: number): { 
     if (best) return best;
   }
   return null;
+}
+
+/**
+ * A computer leader's envoy offers us peace (from war, or as a treaty after
+ * meeting): we sign (makePeace) or send the envoy home.
+ */
+function peaceOfferAudience(player: number, then: () => void): void {
+  if (atPeace(state, 0, player) || !state.players[player]?.alive) { then(); return; }
+  const war = atWar(state, 0, player);
+  const words = war ? "Enough blood has been spilled. Let us make peace."
+    : esteem(state, player, 0) === "admired" ? "Your people are much spoken of. Let us bind ourselves in peace."
+    : "Let our peoples be at peace, by treaty.";
+  screenState = { kind: "diplomacy", player, line: words };
+  const refuse = () => { then(); say(`${civ(state.players[player]!.civ).leader}: "The offer will not stand forever."`, 3500); };
+  talkMenu(`The ${state.players[player]!.name} offer peace`, ["Sign the treaty", "Refuse"], (i) => {
+    if (i !== 0) { refuse(); return; }
+    dispatch({ type: "makePeace", player });
+    audience(player, "It is done. May it last.", then);
+  }, refuse);
 }
 
 /** A civilization declares war on us: its leader says so. */
@@ -1338,6 +1391,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       askToLeave(ev.player, warnings, next, ev.kind === "trespass" ? { x: ev.x, y: ev.y } : undefined);
     }
     else if (ev.kind === "warDeclared" && ev.on === 0) warAudience(ev.player, ev.reason, next);
+    else if (ev.kind === "peaceOffer" && ev.to === 0) peaceOfferAudience(ev.player, next);
     else if (ev.kind === "chooseResearch") askResearch(next);
     else if (ev.kind === "chooseGovernment") openGovernmentMenu({ kind: "map" }, next);
     else {
@@ -1370,6 +1424,7 @@ function concernsUs(ev: TurnEvent): boolean {
   if (ev.kind === "cityLost" || ev.kind === "cityCaptured" || ev.kind === "barbarians") return ev.player === 0;
   if (ev.kind === "warDeclared") return ev.on === 0;
   if (ev.kind === "leaveDemand") return ev.to === 0;
+  if (ev.kind === "peaceOffer") return ev.to === 0;
   if (ev.kind === "trespass") return ev.intruder === 0; // our gotos, walked as our turn began
   return ev.kind === "eliminated" || ev.kind === "globalWarming" || ev.kind === "nuked"
     || ev.kind === "spaceLaunched" || ev.kind === "spaceArrived" || ev.kind === "spaceLost";

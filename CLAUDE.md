@@ -64,7 +64,14 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `?civs=classic`, `--classic-civs`) turns them all off. Tests of base rules play classic civs.
   Diplomacy (`diplomacy.ts`): civilizations meet face to face (`contactRange` 1, as the original), and
   the unit that walked into the meeting stops for the turn, on a goto too (`meetAround`), so each side
-  sees whom it met; cities see the squares next to them. Land (`territory.ts`: `claims`, `landOwner`):
+  sees whom it met; cities see the squares next to them. Meeting leaves them in contact, no treaty
+  (`Relation` "contact", `metRelation`; asked for 2026-10-20): neither may attack before `declareWar`,
+  and `openBorders`/`shareMaps` wait for a peace treaty (`makePeace`, `atPeace`); a computer leader's
+  envoy offers one with `offerPeace` (`state.peaceOffers`, a `peaceOffer` event the player answers with
+  `makePeace` or not at all). Influence (asked for): `civInfluence` is the culture of all a civ's cities;
+  `esteem(judge, of)` weighs it against the judge's own (`INFLUENCE` in `rules/culture.ts`: admired at 1.5x,
+  scorned at half, both sides counting 10 more), and the AI's `attitude` reads it. Saves before version 15
+  load with `peaceOnContact` (meeting made peace at once). Land (`territory.ts`: `claims`, `landOwner`):
   each city the squares within its border, which grows with its culture (`borderRadius`: 1 square out
   when founded, one more at each of `CULTURE.levels` in `rules/culture.ts`, radius 2 being the 21 squares
   it works); a shared square goes to the nearer city, then the one with more culture, then the older.
@@ -72,7 +79,7 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   temple, library, courthouse, colosseum, cathedral and university, and each wonder), never more turn after
   turn (asked for), so it falls when the city shrinks or loses a building; a `borders` city event says when
   the border grows; the city screen shows culture against the next level. Saves before version 14 load with
-  `accruedCulture`: `City.culture` gathered every turn (`cultureRate`, frozen numbers in `ACCRUED_CULTURE`). At peace without open borders
+  `accruedCulture`: `City.culture` gathered every turn (`cultureRate`, frozen numbers in `ACCRUED_CULTURE`). Met and not at war, without open borders
   (`openBorders`/`closeBorders` commands, `state.openBorders`) a civilization minds land units on its
   land (`trespassOn`: not diplomats, caravans or units aboard): stepping in records its first demand
   to leave (`state.trespass`, a `trespass` event), `demandLeave` adds one, a gift (`giveGold`) forgives,
@@ -89,9 +96,16 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   (`guardBorders`): a human civ's units on its land are asked off (stepping in was the first request),
   warned once more a turn later, then war (`reason: "trespass"`) unless the planner is under 0.6x the
   intruder's strength (then it complains every 5 turns); computer civs do not mind each other. The
-  player's audience asks pure functions of the state: `attitude` (friendly, wary when proud or
-  aggrieved, hostile at war or after a last warning), `bordersAnswer` (wary: for `BORDERS_PRICE`
-  gold), `acceptsMapSwap`, `tributeOffer` (only far weaker civs, once in 20 turns), `tradeAsk`. The planner is
+  player's audience asks pure functions of the state: `attitude` (hostile at war or after a last
+  warning; else a grievance, pride (1.5x the strength) and scorn for the player's influence each count
+  one against, admiration one for: none on balance friendly, one wary, two hostile), `peaceAnswer` (a
+  treaty after meeting) and `bordersAnswer` (wary: for `PEACE_PRICE`/`BORDERS_PRICE` gold), `acceptsMapSwap`,
+  `acceptsPeace` (at war: the fighting decides), `tributeOffer` (only far weaker civs, once in 20 turns),
+  `tradeAsk`. Toward a human civ only (computer pairs play as before, so v3-v2 runs are unchanged): the
+  planner's envoy offers a treaty to a player it is friendly with (10% a turn, one envoy a turn per player,
+  20 turns apart per pair), offers peace to end a war it wants over instead of making it, spares a player
+  whose influence it admires from wars of choice, needs 3x the strength to break a treaty, and is twice
+  as quick to attack a player it is hostile to. The planner is
   stateless between turns: it re-derives the empire picture (`analyse`) from `GameState` every turn
   (units' goto orders are its only memory, and they are game state), so replays stay exact.
   `describePlan` exposes its view (sites, colony plan, campaign) for tests.
@@ -206,12 +220,16 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   is a seed and the player's commands, so `turnStarts`/`rewindSave` (core `save.ts`) cut its log back
   to the start of any turn it saw. A loaded game holds Auto End Turn until the next key or click.
   Diplomacy: a meeting first holds the map on whom we met (the `beat` screen:
-  a callout, 1.6 s or any key), then their leader receives us (`audience`: open or close borders,
-  exchange maps, trade knowledge (pick theirs, they name ours), give gold, demand tribute, declare war;
-  each once a talk, the answer becomes the leader's words). Stepping onto land that minds us (once a
+  a callout, 1.6 s or any key), then their leader receives us (`audience`: without a treaty propose
+  peace (`proposePeace`: yes, a gift first, or no); at peace open or close borders and exchange maps;
+  always trade knowledge (pick theirs, they name ours), give gold, demand tribute, declare war ("break
+  the treaty" at peace); each once a talk, the answer becomes the leader's words; greetings name
+  admiration or scorn). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
+  into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
+  whether they admire or scorn us (`regardWords`). Stepping onto land that minds us (once a
   civ a turn, later steps get a callout) and the AI's demands after its turn show our unit, then the
-  leader asks us out (`askToLeave`: leave = gotos to the nearest square outside, open borders, a gift,
-  or stay); an AI declaring war on us says so in an audience.
+  leader asks us out (`askToLeave`: leave = gotos to the nearest square outside, open borders (at
+  peace only), a gift, or stay); an AI declaring war on us says so in an audience.
 - `apps/mobile` — the web game as a PWA for phones and tablets, asked for without changing the web game:
   `src/main.ts` imports `apps/web/src/main.ts` as it is, and `vite.config.ts` (`webGame`) hands that file
   three stand-ins for its own modules: `display.ts` (screen and controls laid out by `layout.ts`: a pad
@@ -280,7 +298,10 @@ offers open borders, maps, knowledge, gifts, tribute and war; civs at peace with
 the player's units off their land, warn once more, then go to war (our departure: the original had no
 borders). Culture borders done (2026-10-19, asked for): borders start a square round each city and grow
 with its culture (save version 12); since 2026-10-20 (asked for, save version 14) culture is what a city's
-people, buildings and wonders make it, not gathered every turn. World sizes done (2026-10-19, asked for: premade maps felt small):
+people, buildings and wonders make it, not gathered every turn. Peace treaties and influence done
+(2026-10-20, asked for: "exchange maps and open borders only after peace; total civ influence should
+affect how other civs treat the player"): meeting leaves no treaty, maps and borders need peace,
+computer leaders weigh the player's influence (save version 15). World sizes done (2026-10-19, asked for: premade maps felt small):
 small 80x50, medium 120x75, large 160x100 for premade and customized worlds; no save version (a save
 without `size` is small). Islands kept apart on premade worlds at every size (2026-10-19, asked for;
 save version 13). Mobile PWA done (2026-10-19, asked for, apps/web untouched): touch, on-screen
@@ -336,7 +357,7 @@ Chrome with simulated touches, not yet on a phone.
    10-6 wins, score 153 vs 125, cities 20.5 vs 9.6, techs 30.5 vs 29.3 (with `--loose-upkeep` 10-6,
    210 vs 184). On the extended tech tree (version 9; the planner also seeks Weaving after Medicine,
    the modern advances after Fusion Power, and values their improvements): 11-5, score 160 vs 124,
-   cities 20.9 vs 10.3, techs 30.0 vs 29.4. Open AI gaps: no amphibious invasions, no tribute demands or treaty offers to the player (it only asks the player off its land), its units ignore the player's borders,
+   cities 20.9 vs 10.3, techs 30.0 vs 29.4. Open AI gaps: no amphibious invasions, no tribute demands to the player (it asks the player off its land and offers treaties), its units ignore the player's borders,
    colonists sometimes wait long in port. A 7-civ round costs ~1.3-1.6x v2 (~55 ms late game);
    core's `findPath` (typed-array heap, results identical to the old search, see
    `tests/pathfind.test.ts`) is still the hot spot. Measure AI changes with

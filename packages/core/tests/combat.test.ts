@@ -303,7 +303,7 @@ describe("diplomacy and turns", () => {
     createUnit(s, "settlers", 1, 20, 20);
     s.currentPlayer = 1;
     applyCommand(s, { type: "move", unit: b.id, dx: -1, dy: 0 });
-    expect(relation(s, 0, 1)).toBe("peace");
+    expect(relation(s, 0, 1)).toBe("contact"); // met, no treaty yet
     expect(lastTurnEvents.some((e) => e.kind === "contact")).toBe(true);
     s.currentPlayer = 0;
     const turn = s.turn;

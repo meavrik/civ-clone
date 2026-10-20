@@ -796,6 +796,13 @@ describe("title, advisors, diplomacy, end", () => {
     writeFileSync(new URL("./out/score.png", import.meta.url), encodePng(s, 3));
     drawDiplomacyScreen(s, state, 1, leaderLine(state, 1));
     writeFileSync(new URL("./out/diplomacy.png", import.meta.url), encodePng(s, 3));
+    // Met without a treaty, and our capital renowned enough for them to admire us.
+    state.relations["0:2"] = "contact";
+    state.cities.find((c) => c.owner === 0)!.wonders.push("pyramids", "colossus", "great_library");
+    drawForeignAdvisor(s, state);
+    writeFileSync(new URL("./out/advisor-foreign-treaty.png", import.meta.url), encodePng(s, 3));
+    drawDiplomacyScreen(s, state, 2, leaderLine(state, 2));
+    writeFileSync(new URL("./out/diplomacy-contact.png", import.meta.url), encodePng(s, 3));
     drawEndScreen(s, ["You have conquered the world!", "", "Total score: 123"], "Great");
     writeFileSync(new URL("./out/end.png", import.meta.url), encodePng(s, 3));
     expect(s.data.some((c) => c !== 0)).toBe(true);

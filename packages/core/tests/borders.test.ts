@@ -8,16 +8,20 @@ import {
   ACCRUED_CULTURE,
   autoAssignWorkers,
   cityCulture,
+  civInfluence,
   computeCity,
   CULTURE,
   cultureRate,
   createUnit,
+  esteem,
+  INFLUENCE,
   landOwner,
   lastTurnEvents,
   loadSave,
   makeSave,
   newGame,
   nextBorderLevel,
+  peaceOffered,
   relation,
   setRelation,
   Terrain,
@@ -71,7 +75,7 @@ describe("contact", () => {
     applyCommand(s, { type: "move", unit: scout.id, dx: 1, dy: 0 });
     expect(relation(s, 0, 1)).toBe("none"); // two squares apart: not yet
     applyCommand(s, { type: "move", unit: scout.id, dx: 1, dy: 0 });
-    expect(relation(s, 0, 1)).toBe("peace");
+    expect(relation(s, 0, 1)).toBe("contact"); // met: no treaty yet
     expect(lastTurnEvents).toContainEqual({ kind: "contact", player: 1 });
     expect(scout.movesLeft).toBe(0);
   });
@@ -88,19 +92,19 @@ describe("contact", () => {
     const scout = createUnit(s, "cavalry", 0, 16, 10);
     scout.movesLeft = 30;
     expect(applyCommand(s, { type: "goto", unit: scout.id, x: 30, y: 10 }).ok).toBe(true);
-    expect(relation(s, 0, 1)).toBe("peace");
+    expect(relation(s, 0, 1)).toBe("contact");
     expect(scout.x).toBe(19);
     expect(scout.order.kind).toBe("goto"); // it walks on next turn
   });
 
   it("keeps the old two-square meeting, with no stop, in saves before version 10", () => {
-    const s = world({ farContact: true });
+    const s = world({ farContact: true, peaceOnContact: true });
     createUnit(s, "militia", 1, 20, 10);
     const scout = createUnit(s, "cavalry", 0, 16, 10);
     scout.movesLeft = 30;
     applyCommand(s, { type: "move", unit: scout.id, dx: 1, dy: 0 });
     applyCommand(s, { type: "move", unit: scout.id, dx: 1, dy: 0 });
-    expect(relation(s, 0, 1)).toBe("peace");
+    expect(relation(s, 0, 1)).toBe("peace"); // and old saves made peace on meeting
     expect(scout.movesLeft).toBeGreaterThan(0);
   });
 
@@ -323,6 +327,73 @@ describe("treaties", () => {
     s.currentPlayer = 1;
     applyCommand(s, { type: "declareWar", player: 0, reason: "trespass" });
     expect(lastTurnEvents).toContainEqual({ kind: "warDeclared", player: 1, on: 0, reason: "trespass" });
+  });
+});
+
+describe("peace treaties", () => {
+  it("are not made by meeting: maps and open borders wait for peace", () => {
+    const s = neighbours();
+    setRelation(s, 0, 1, "contact");
+    expect(applyCommand(s, { type: "shareMaps", player: 1 })).toEqual({ ok: false, reason: "not at peace" });
+    expect(applyCommand(s, { type: "openBorders", player: 1 })).toEqual({ ok: false, reason: "not at peace" });
+    expect(applyCommand(s, { type: "makePeace", player: 1 }).ok).toBe(true);
+    expect(relation(s, 0, 1)).toBe("peace");
+    expect(applyCommand(s, { type: "shareMaps", player: 1 }).ok).toBe(true);
+    expect(applyCommand(s, { type: "openBorders", player: 1 }).ok).toBe(true);
+  });
+
+  it("are not needed for a civilization to mind our units on its land", () => {
+    const s = neighbours();
+    setRelation(s, 0, 1, "contact");
+    createUnit(s, "militia", 0, 29, 10);
+    expect(trespassers(s, 1, 0).length).toBe(1);
+  });
+
+  it("are offered by a leader, remembered, and never to a civilization at peace already", () => {
+    const s = neighbours();
+    setRelation(s, 0, 1, "contact");
+    s.currentPlayer = 1;
+    expect(applyCommand(s, { type: "offerPeace", player: 0 }).ok).toBe(true);
+    expect(lastTurnEvents).toContainEqual({ kind: "peaceOffer", player: 1, to: 0 });
+    expect(peaceOffered(s, 1, 0)).toBe(s.turn);
+    expect(applyCommand(s, { type: "offerPeace", player: s.barbarians }).ok).toBe(false);
+    setRelation(s, 0, 1, "peace");
+    expect(applyCommand(s, { type: "offerPeace", player: 0 })).toEqual({ ok: false, reason: "already at peace" });
+  });
+
+  it("came with every meeting in saves before version 15", () => {
+    const s = world({ peaceOnContact: true });
+    createUnit(s, "militia", 1, 20, 10);
+    const scout = createUnit(s, "militia", 0, 18, 10);
+    applyCommand(s, { type: "move", unit: scout.id, dx: 1, dy: 0 });
+    expect(relation(s, 0, 1)).toBe("peace");
+    const old = { ...makeSave(newGame(5, { opponents: 1 }), { opponents: 1 }, []), version: 14 as const };
+    expect(loadSave(old, () => {}).state.peaceOnContact).toBe(true);
+    expect(loadSave(makeSave(newGame(5, { opponents: 1 }), { opponents: 1 }, []), () => {}).state.peaceOnContact).toBeUndefined();
+  });
+});
+
+describe("influence", () => {
+  it("is the culture of all a civilization's cities", () => {
+    const s = neighbours();
+    const ours = s.cities.filter((c) => c.owner === 0);
+    expect(civInfluence(s, 0)).toBe(ours.reduce((n, c) => n + cityCulture(s, c), 0));
+    expect(civInfluence(s, 0)).toBeGreaterThan(0);
+  });
+
+  it("is admired when far greater than the judge's own, scorned when far less", () => {
+    const s = neighbours();
+    const ours = s.cities.find((c) => c.owner === 0)!;
+    const theirs = s.cities.find((c) => c.owner === 1)!;
+    expect(esteem(s, 1, 0)).toBe("respected"); // alike
+    ours.buildings.push("temple", "library", "courthouse");
+    ours.wonders.push("pyramids", "colossus");
+    // Ours, with the floor, at least half again theirs: admired; seen the other way round, scorned.
+    expect(civInfluence(s, 0) + INFLUENCE.floor).toBeGreaterThanOrEqual((civInfluence(s, 1) + INFLUENCE.floor) * INFLUENCE.admired);
+    expect(esteem(s, 1, 0)).toBe("admired");
+    theirs.size = 1;
+    theirs.buildings = [];
+    expect(esteem(s, 0, 1)).toBe("scorned");
   });
 });
 

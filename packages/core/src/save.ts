@@ -28,8 +28,9 @@ export interface SaveGame {
    * 11: saved before borders grew with culture; fixed borders (each city the 21 squares it works).
    * 12: saved before premade worlds kept their landmasses apart; joined islands (Britain touching France).
    * 13: saved while a city's culture mounted every turn; accrued culture.
+   * 14: saved while civilizations made peace the moment they met; peace on contact.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -44,7 +45,7 @@ export interface SaveGame {
   label?: string;
 }
 
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -65,7 +66,7 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
 export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
@@ -87,6 +88,7 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
   if (save.version < 12) options.fixedBorders = true;
   if (save.version < 13 && options.world) options.joinedIslands = true;
   if (save.version < 14) options.accruedCulture = true;
+  if (save.version < 15) options.peaceOnContact = true;
   const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {

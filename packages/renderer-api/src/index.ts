@@ -20,12 +20,14 @@ import {
   advance,
   attrition,
   attritionCure,
+  bordersOpen,
   building,
   cityAt,
   civ,
   CIV_COLORS,
   CIVS,
   CULTURE,
+  esteem,
   hasContact,
   maxHp,
   WONDERS,
@@ -418,17 +420,41 @@ export function setupOptions(setup: SetupState): NewGameOptions {
   };
 }
 
-/** A leader's greeting line, by mood. */
+/** A leader's greeting line, by mood and by what they make of our influence. */
 export function leaderLine(state: GameState, player: number): string {
   const p = state.players[player]!;
   const c = civ(p.civ);
   const r = relation(state, state.currentPlayer, player);
   if (r === "war") return `${c.leader} spits: your cities will burn.`;
+  const regard = esteem(state, player, state.currentPlayer);
+  if (regard === "admired") return "Your people's fame goes before you. Welcome.";
+  if (regard === "scorned") return "Speak quickly. Greater peoples wait on us.";
   const mine = state.units.filter((u) => u.owner === state.currentPlayer).length;
   const theirs = state.units.filter((u) => u.owner === player).length;
   if (theirs > mine * 2) return "Our armies are mighty. Tread carefully.";
   if (mine > theirs * 2) return "We seek only peace with so great a power.";
   return "Greetings. What brings you to our court?";
+}
+
+export type StandingTone = "war" | "contact" | "peace";
+
+/**
+ * How the current player stands with civilization `player`: a word or two
+ * for lists, or (`long`) a line for the audience, and a tone to colour it.
+ */
+export function standing(state: GameState, player: number, long = false): { text: string; tone: StandingTone } {
+  const me = state.currentPlayer;
+  const r = relation(state, me, player);
+  if (r === "war") return { text: long ? "We are at WAR" : "WAR", tone: "war" };
+  if (r !== "peace") return { text: long ? "No treaty between us" : "No treaty", tone: "contact" };
+  const open = bordersOpen(state, me, player);
+  return { text: long ? (open ? "At peace, our borders open" : "We are at peace") : open ? "Open borders" : "Peace", tone: "peace" };
+}
+
+/** What civilization `player` makes of the current player's influence, in a few words; "" when nothing stands out. */
+export function regardWords(state: GameState, player: number): string {
+  const regard = esteem(state, player, state.currentPlayer);
+  return regard === "admired" ? "admire us" : regard === "scorned" ? "scorn us" : "";
 }
 
 /** A civilization's name as the current player knows it: unmet civilizations stay anonymous. */

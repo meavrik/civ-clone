@@ -1,6 +1,7 @@
 import {
   advance,
   applyCommand,
+  atPeace,
   atWar,
   attackOdds,
   attackStrength,
@@ -29,8 +30,11 @@ import {
   getTile,
   government,
   governmentsAvailable,
+  esteem,
   hasContact,
   hasWaterNearby,
+  peaceOffered,
+  relation,
   trespassers,
   trespassRecord,
   MAX_TRADE_ROUTES,
@@ -735,9 +739,12 @@ export function acceptsPeace(state: GameState, them: number, me: number): boolea
 
 /**
  * How computer civilization `them` regards `me`: hostile at war or once it
- * has warned `me` off its land twice, wary while it holds a grievance or is
- * far the stronger (proud), friendly otherwise. Read from the state alone, so
- * the player's audience can ask without touching the game.
+ * has warned `me` off its land twice. Otherwise it weighs what it holds
+ * against `me`, a grievance (one warning), pride (far the stronger) and scorn
+ * for `me`'s little influence, against admiration for great influence
+ * (`esteem`): nothing against on balance is friendly, one thing wary, two
+ * hostile. Read from the state alone, so the player's audience can ask
+ * without touching the game.
  */
 export type Attitude = "friendly" | "wary" | "hostile";
 
@@ -745,8 +752,17 @@ export function attitude(state: GameState, them: number, me: number): Attitude {
   if (atWar(state, them, me)) return "hostile";
   const grievance = trespassRecord(state, them, me);
   if (grievance && grievance.warnings >= 2) return "hostile";
-  if (grievance || strength(state, them) > strength(state, me) * 1.5) return "wary";
-  return "friendly";
+  const regard = esteem(state, them, me);
+  let mood = regard === "admired" ? 1 : regard === "scorned" ? -1 : 0;
+  if (grievance) mood--;
+  if (strength(state, them) > strength(state, me) * 1.5) mood--;
+  return mood >= 0 ? "friendly" : mood === -1 ? "wary" : "hostile";
+}
+
+/** Friendly: yes; wary: for a gift; hostile: no. */
+function dealAnswer(state: GameState, them: number, me: number): "yes" | "for gold" | "no" {
+  const a = attitude(state, them, me);
+  return a === "friendly" ? "yes" : a === "wary" ? "for gold" : "no";
 }
 
 /** The gift a wary civilization asks before it opens its borders. */
@@ -754,9 +770,23 @@ export const BORDERS_PRICE = 50;
 
 /** Would `them` open borders with `me`? Friendly: yes; wary: for a gift of `BORDERS_PRICE` gold; hostile: no. */
 export function bordersAnswer(state: GameState, them: number, me: number): "yes" | "for gold" | "no" {
-  const a = attitude(state, them, me);
-  return a === "friendly" ? "yes" : a === "wary" ? "for gold" : "no";
+  return dealAnswer(state, them, me);
 }
+
+/** The gift a wary civilization asks before it signs a peace treaty. */
+export const PEACE_PRICE = 50;
+
+/**
+ * Would `them`, met but without a treaty, sign peace with `me`? Friendly: yes;
+ * wary: for a gift of `PEACE_PRICE` gold; hostile: no. (At war `acceptsPeace`
+ * answers: the fighting decides it.)
+ */
+export function peaceAnswer(state: GameState, them: number, me: number): "yes" | "for gold" | "no" {
+  return dealAnswer(state, them, me);
+}
+
+/** Turns before a computer leader offers the same civilization peace again. */
+const PEACE_OFFER_GAP = 20;
 
 /** Would `them` swap maps with `me`? Unless hostile. */
 export function acceptsMapSwap(state: GameState, them: number, me: number): boolean {
@@ -822,10 +852,18 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
       const pointless = !reachable && !state.units.some((u) => u.owner === o.id && ctx.continents.has(getTile(state.map, u.x, u.y)!.continent));
       const stalled = ctx.warTarget === null || ctx.warTarget.owner !== o.id;
       const wantPeace = ((mine < theirs * 0.7 || pointless) && nextInt(state.rng, 100) < 20) || (stalled && nextInt(state.rng, 100) < 8);
-      // Peace takes two: another computer civilization agrees only when it is not clearly winning.
-      if (wantPeace && (!o.isAi || acceptsPeace(state, o.id, me))) applyCommand(state, { type: "makePeace", player: o.id });
+      if (!wantPeace) continue;
+      // Peace takes two: another computer civilization agrees only when it is not clearly winning, the player
+      // when it answers our envoy (saves before version 15 made peace with the player at once).
+      if (o.isAi ? acceptsPeace(state, o.id, me) : state.peaceOnContact) applyCommand(state, { type: "makePeace", player: o.id });
+      else if (!o.isAi && offerDue(state, me, o.id)) applyCommand(state, { type: "offerPeace", player: o.id });
       continue;
     }
+    // A player we think well of, met but without a treaty: now and then our envoy offers one
+    // (one envoy a turn at the player's court, whoever sends it).
+    if (!o.isAi && relation(state, me, o.id) === "contact" && offerDue(state, me, o.id) && !envoyThisTurn(state, o.id)
+      && attitude(state, me, o.id) === "friendly" && nextInt(state.rng, 100) < 10)
+      applyCommand(state, { type: "offerPeace", player: o.id });
   }
   // A war of choice against the weakest neighbour we can reach over land: only once the army could
   // already take one of its cities, and only against a clearly weaker civ (wars cost both sides dearly).
@@ -848,9 +886,40 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
     });
     if (!prize || theirCities.length > ctx.cities.length + 3) continue;
     const r = mine / Math.max(1, strength(state, o.id));
-    if (r > ratio) { ratio = r; victim = o; }
+    const need = warOdds(state, me, o);
+    if (need === null || r < need || r <= ratio) continue;
+    ratio = r;
+    victim = o;
   }
-  if (victim && ratio >= 2 && nextInt(state.rng, 100) < (ratio >= 3 ? 10 : 5)) applyCommand(state, { type: "declareWar", player: victim.id });
+  if (!victim) return;
+  // A player we scorn (or bear a grudge against besides) is attacked twice as readily.
+  const scorn = !victim.isAi && !state.peaceOnContact && attitude(state, me, victim.id) === "hostile" ? 2 : 1;
+  if (nextInt(state.rng, 100) < (ratio >= 3 ? 10 : 5) * scorn) applyCommand(state, { type: "declareWar", player: victim.id });
+}
+
+/** May our envoy offer `to` peace now? Not within `PEACE_OFFER_GAP` turns of the last offer, nor in saves before version 15. */
+function offerDue(state: GameState, me: number, to: number): boolean {
+  if (state.peaceOnContact) return false;
+  const last = peaceOffered(state, me, to);
+  return last === undefined || state.turn - last >= PEACE_OFFER_GAP;
+}
+
+/** Has any civilization offered `to` peace this turn? */
+function envoyThisTurn(state: GameState, to: number): boolean {
+  for (const [k, turn] of Object.entries(state.peaceOffers ?? {})) if (turn === state.turn && k.split(">")[1] === String(to)) return true;
+  return false;
+}
+
+/**
+ * How much stronger than `o` we must be to start a war of choice: twice. A
+ * player gets more say (not in saves before version 15): one we regard as
+ * friendly (far the weaker, so only one whose influence we admire) is spared,
+ * and breaking a peace treaty with one wants three times its strength.
+ */
+function warOdds(state: GameState, me: number, o: Player): number | null {
+  if (o.isAi || state.peaceOnContact) return 2;
+  if (attitude(state, me, o.id) === "friendly") return null;
+  return atPeace(state, me, o.id) ? 3 : 2;
 }
 
 /** How much an advance is worth to us: earlier on our goal list is better; anything off it comes last. */

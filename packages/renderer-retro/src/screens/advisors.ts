@@ -1,14 +1,13 @@
 import {
   advance,
-  bordersOpen,
   civ,
+  civInfluence,
   computeCity,
   computeScore,
   formatYear,
   GOVERNMENTS,
   hasContact,
   productionName,
-  relation,
   turnToYear,
   unitType,
   type GameState,
@@ -17,7 +16,9 @@ import { drawText, drawTextCentered, textWidth } from "../font.js";
 import { unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { BAD, DIM, drawPage, drawSwatch, INK } from "../widgets.js";
+import { BAD, DIM, drawPage, drawSwatch, GOOD, INK } from "../widgets.js";
+import { drawIconLine } from "../icons.js";
+import { regardWords, standing } from "@civ/renderer-api";
 import { PLAYER_COLORS } from "./main.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 
@@ -72,27 +73,31 @@ export function drawMilitaryAdvisor(s: Surface, state: GameState): void {
   if (counts.size === 0) drawText(s, 12, y, "No units.", DIM);
 }
 
-/** F3: known civilizations and relations. */
+/** F3: known civilizations, how we stand with each, and their influence (the culture of their cities) against ours. */
 export function drawForeignAdvisor(s: Surface, state: GameState): void {
   frame(s, "Foreign Minister");
   const me = state.currentPlayer;
   const ink = INK;
   const dim = DIM;
   let y = 26;
+  drawIconLine(s, 12, y, `Our influence {culture}${civInfluence(state, me)}`, dim);
+  y += 12;
   let any = false;
   for (const p of state.players) {
     if (p.id === me || p.id === state.barbarians) continue;
     if (!hasContact(state, me, p.id)) continue;
     any = true;
     const c = civ(p.civ);
-    const r = relation(state, me, p.id);
+    const st = standing(state, p.id);
     const color = PLAYER_COLORS[p.color % PLAYER_COLORS.length]!;
     drawSwatch(s, 12, y - 1, color);
     drawText(s, 22, y, `${c.leader} of the ${c.name}`, p.alive ? ink : dim);
-    drawText(s, 200, y, p.alive ? (r === "war" ? "WAR" : bordersOpen(state, me, p.id) ? "Open borders" : "Peace") : "destroyed", r === "war" ? BAD : dim);
+    drawText(s, 200, y, p.alive ? st.text : "destroyed", p.alive && st.tone === "war" ? BAD : dim);
     y += 9;
     const cities = state.cities.filter((x) => x.owner === p.id).length;
-    drawText(s, 22, y, `${GOVERNMENTS[p.government]?.name ?? p.government}, ${cities} cities, ${p.advances.length} advances, ${p.gold}$`, dim);
+    drawIconLine(s, 22, y, `${GOVERNMENTS[p.government]?.name ?? p.government}  {city}${cities} {bulb}${p.advances.length} {purse}${p.gold} {culture}${civInfluence(state, p.id)}`, dim);
+    const regard = p.alive ? regardWords(state, p.id) : "";
+    if (regard) drawText(s, 200, y, `They ${regard}`, regard === "admire us" ? GOOD : BAD);
     y += 12;
   }
   if (!any) drawText(s, 12, y, "We have not met any other civilizations.", dim);

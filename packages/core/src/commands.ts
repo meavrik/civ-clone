@@ -22,6 +22,7 @@ import {
 import { maybeSpawnBarbarians } from "./barbarians.js";
 import { captureCity, checkElimination, resolveCombat } from "./combat.js";
 import {
+  atPeace,
   atWar,
   bordersOpen,
   clearTrespass,
@@ -29,8 +30,8 @@ import {
   forgiveTrespass,
   hasContact,
   meetAround,
+  metRelation,
   mindsTrespass,
-  relation,
   setBordersOpen,
   setRelation,
   trespassers,
@@ -85,7 +86,8 @@ export type Command =
   | { type: "tradeRoute"; unit: number } // caravan in a city far from its home
   | { type: "diplomat"; unit: number; action: DiplomatAction; x: number; y: number } // against the foreign city at (x, y) next door
   | { type: "declareWar"; player: number; reason?: "trespass" }
-  | { type: "makePeace"; player: number }
+  | { type: "makePeace"; player: number } // a treaty, from war or from first contact (the other side's answer is the caller's to ask)
+  | { type: "offerPeace"; player: number } // a computer leader proposes a treaty; `player` answers with makePeace or not at all
   | { type: "openBorders"; player: number } // both civilizations' units may cross each other's land
   | { type: "closeBorders"; player: number }
   | { type: "shareMaps"; player: number } // each side learns the land the other has explored
@@ -118,6 +120,7 @@ export type TurnEvent =
   | { kind: "warDeclared"; player: number; on: number; reason?: "trespass" } // `player` declares war on `on`
   | { kind: "trespass"; player: number; intruder: number; unit: number; x: number; y: number; warnings: number } // `intruder`'s unit stepped onto `player`'s land
   | { kind: "leaveDemand"; player: number; to: number; warnings: number } // `player` asks `to` to leave its land
+  | { kind: "peaceOffer"; player: number; to: number } // `player` offers `to` a peace treaty
   | { kind: "cityLost"; name: string; player: number; by: number }
   | { kind: "cityCaptured"; name: string; player: number; by: number }
   | { kind: "unitLost"; unit: string; by: number }
@@ -222,9 +225,17 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       setRelation(state, state.currentPlayer, cmd.player, "peace");
       return { ok: true };
     }
+    case "offerPeace": {
+      const me = state.currentPlayer;
+      if (cmd.player === me || cmd.player === state.barbarians || !hasContact(state, me, cmd.player)) return { ok: false, reason: "no contact" };
+      if (atPeace(state, me, cmd.player)) return { ok: false, reason: "already at peace" };
+      (state.peaceOffers ??= {})[`${me}>${cmd.player}`] = state.turn;
+      lastTurnEvents.push({ kind: "peaceOffer", player: me, to: cmd.player });
+      return { ok: true };
+    }
     case "openBorders": {
       const me = state.currentPlayer;
-      if (cmd.player === me || relation(state, me, cmd.player) !== "peace" || cmd.player === state.barbarians) return { ok: false, reason: "not at peace" };
+      if (cmd.player === me || !atPeace(state, me, cmd.player) || cmd.player === state.barbarians) return { ok: false, reason: "not at peace" };
       if (bordersOpen(state, me, cmd.player)) return { ok: false, reason: "borders already open" };
       setBordersOpen(state, me, cmd.player, true);
       forgiveTrespass(state, me, cmd.player);
@@ -239,7 +250,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     case "shareMaps": {
       const me = state.players[state.currentPlayer]!;
       const them = state.players[cmd.player];
-      if (!them || them.id === me.id || relation(state, me.id, them.id) !== "peace") return { ok: false, reason: "not at peace" };
+      if (!them || them.id === me.id || !atPeace(state, me.id, them.id)) return { ok: false, reason: "not at peace" };
       for (let i = 0; i < me.explored.length; i++) {
         if (!me.explored[i] && !them.explored[i]) continue;
         me.explored[i] = 1;
@@ -822,7 +833,7 @@ function applyCheat(state: GameState, cheat: Cheat): CommandResult {
       return { ok: true };
     case "contact":
       for (const o of state.players)
-        if (o.id !== p.id && o.alive && o.id !== state.barbarians && !hasContact(state, p.id, o.id)) setRelation(state, p.id, o.id, "peace");
+        if (o.id !== p.id && o.alive && o.id !== state.barbarians && !hasContact(state, p.id, o.id)) setRelation(state, p.id, o.id, metRelation(state));
       return { ok: true };
   }
 }

@@ -1,7 +1,7 @@
 import {
   advance,
-  bordersOpen,
   civ,
+  civInfluence,
   computeCity,
   computeScore,
   formatYear,
@@ -9,7 +9,6 @@ import {
   hasContact,
   partCount,
   productionName,
-  relation,
   researchCost,
   shipStats,
   SPACE_PARTS,
@@ -17,7 +16,7 @@ import {
   unitType,
   type GameState,
 } from "@civ/core";
-import type { AdvisorKind, ReportPage } from "@civ/renderer-api";
+import { regardWords, standing, type AdvisorKind, type ReportPage, type StandingTone } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, page, panel, paragraph, text } from "../draw.js";
 import { paintBadge, playerColor } from "../markers.js";
@@ -110,22 +109,28 @@ function drawMilitary(ctx: Context2D, state: GameState): void {
   if (counts.size === 0) text(ctx, box.x, y, "No units.", { size: 14, color: UI.dim });
 }
 
+const STANDING_COLOR: Record<StandingTone, string> = { war: UI.danger, contact: UI.accent, peace: UI.ok };
+
 function drawForeign(ctx: Context2D, state: GameState): void {
   const box = advisorPage(ctx, "Foreign Minister");
   const me = state.currentPlayer;
   let y = box.y;
+  text(ctx, box.x, y, `Our influence: ${civInfluence(state, me)}`, { size: 14, color: UI.dim });
+  y += 30;
   let any = false;
   for (const p of state.players) {
     if (p.id === me || p.id === state.barbarians || !hasContact(state, me, p.id)) continue;
     any = true;
     const c = civ(p.civ);
-    const r = relation(state, me, p.id);
+    const st = standing(state, p.id);
     fillRound(ctx, box.x, y + 3, 12, 12, 3, playerColor(p.color));
     text(ctx, box.x + 22, y, `${c.leader} of the ${c.name}`, { size: 16, weight: "600", color: p.alive ? UI.ink : UI.dim });
-    text(ctx, box.x + box.w, y, p.alive ? (r === "war" ? "WAR" : bordersOpen(state, me, p.id) ? "Peace · open borders" : "Peace") : "destroyed", { size: 14, color: r === "war" ? UI.danger : UI.dim, align: "right" });
+    text(ctx, box.x + box.w, y, p.alive ? st.text : "destroyed", { size: 14, color: p.alive && st.tone === "war" ? UI.danger : UI.dim, align: "right" });
     y += 22;
     const cities = state.cities.filter((x) => x.owner === p.id).length;
-    text(ctx, box.x + 22, y, `${GOVERNMENTS[p.government]?.name ?? p.government} · ${cities} cities · ${p.advances.length} advances · ${p.gold} gold`, { size: 13, color: UI.dim });
+    text(ctx, box.x + 22, y, `${GOVERNMENTS[p.government]?.name ?? p.government} · ${cities} cities · ${p.advances.length} advances · ${p.gold} gold · influence ${civInfluence(state, p.id)}`, { size: 13, color: UI.dim });
+    const regard = p.alive ? regardWords(state, p.id) : "";
+    if (regard) text(ctx, box.x + box.w, y, `They ${regard}`, { size: 13, color: regard === "admire us" ? UI.ok : UI.danger, align: "right" });
     y += 34;
   }
   if (!any) text(ctx, box.x, y, "We have not met any other civilizations.", { size: 14, color: UI.dim });
@@ -195,9 +200,8 @@ export function drawDiplomacyScreen(ctx: Context2D, state: GameState, player: nu
   ctx.stroke();
   text(ctx, cx, 366, `${c.leader} of the ${c.name}`, { size: 26, weight: "600", align: "center", shadow: true });
   text(ctx, cx, 400, GOVERNMENTS[p.government]?.name ?? "", { size: 15, color: UI.dim, align: "center" });
-  const r = relation(state, state.currentPlayer, player);
-  const standing = r === "war" ? "We are at WAR" : bordersOpen(state, state.currentPlayer, player) ? "At peace, our borders open" : "We are at peace";
-  text(ctx, cx, 424, standing, { size: 15, weight: "600", color: r === "war" ? UI.danger : UI.ok, align: "center" });
+  const st = standing(state, player, true);
+  text(ctx, cx, 424, st.text, { size: 15, weight: "600", color: STANDING_COLOR[st.tone], align: "center" });
   panel(ctx, 120, 460, W - 240, 92, 14, UI.card);
   paragraph(ctx, 144, 476, W - 288, `“${line}”`, { size: 18 }, 3);
 }

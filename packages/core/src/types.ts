@@ -105,7 +105,13 @@ export interface Unit {
   aboard: number | null;
 }
 
-export type Relation = "none" | "peace" | "war";
+/**
+ * Between two civilizations: "none" before they meet, "contact" once met
+ * without a treaty (neither side may attack before declaring war, and maps
+ * and borders wait for peace), "peace" under a treaty, "war". Saves before
+ * version 15 went straight to peace on meeting (`peaceOnContact`).
+ */
+export type Relation = "none" | "contact" | "peace" | "war";
 
 export type Specialist = "entertainer" | "taxman" | "scientist";
 
@@ -212,12 +218,16 @@ export interface GameState {
   fixedBorders?: boolean;
   /** Culture mounts every turn (`City.culture`, `cultureRate`) rather than being what a city's people, buildings and wonders make it. Set for saves before version 14. */
   accruedCulture?: boolean;
+  /** Meeting signs peace at once (no "contact" relation, no peace offers). Set for saves before version 15. */
+  peaceOnContact?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */
   trespass?: Record<string, Trespass>;
   /** "payer>receiver": the turn tribute was last paid. */
   tributePaid?: Record<string, number>;
+  /** "offerer>to": the turn `offerer` last offered `to` peace. */
+  peaceOffers?: Record<string, number>;
 }
 
 export interface Trespass {

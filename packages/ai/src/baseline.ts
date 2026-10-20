@@ -66,7 +66,7 @@ function manageDiplomacy(state: GameState, me: number): void {
     // Occasionally pick a fight with a weaker neighbour; occasionally tire of a war.
     const myStrength = state.units.filter((u) => u.owner === me && unitType(u.type).attack > 0).length;
     const theirStrength = state.units.filter((u) => u.owner === other.id && unitType(u.type).attack > 0).length;
-    if (r === "peace" && myStrength > theirStrength + 2 && nextInt(state.rng, 100) < 4) applyCommand(state, { type: "declareWar", player: other.id });
+    if (r !== "war" && myStrength > theirStrength + 2 && nextInt(state.rng, 100) < 4) applyCommand(state, { type: "declareWar", player: other.id });
     else if (r === "war" && myStrength < theirStrength && nextInt(state.rng, 100) < 10) applyCommand(state, { type: "makePeace", player: other.id });
   }
 }

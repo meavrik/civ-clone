@@ -1,5 +1,5 @@
 import { building } from "./rules/buildings.js";
-import { ACCRUED_CULTURE, CULTURE } from "./rules/culture.js";
+import { ACCRUED_CULTURE, CULTURE, INFLUENCE } from "./rules/culture.js";
 import type { City, GameState } from "./types.js";
 
 /**
@@ -18,6 +18,24 @@ export function cityCulture(state: GameState, city: City): number {
   let n = city.size * CULTURE.perCitizen;
   for (const b of city.buildings) n += building(b).culture ?? 0;
   return n + city.wonders.length * CULTURE.wonder;
+}
+
+/** A civilization's influence: the culture of all its cities. */
+export function civInfluence(state: GameState, player: number): number {
+  let n = 0;
+  for (const c of state.cities) if (c.owner === player) n += cityCulture(state, c);
+  return n;
+}
+
+export type Esteem = "admired" | "respected" | "scorned";
+
+/** How civilization `judge` regards `of`'s influence against its own: admired when far greater, scorned when far less (`INFLUENCE`). */
+export function esteem(state: GameState, judge: number, of: number): Esteem {
+  const theirs = civInfluence(state, judge) + INFLUENCE.floor;
+  const ours = civInfluence(state, of) + INFLUENCE.floor;
+  if (ours >= theirs * INFLUENCE.admired) return "admired";
+  if (theirs >= ours * INFLUENCE.scorned) return "scorned";
+  return "respected";
 }
 
 /** Culture a city gathered in a turn in saves before version 14 (`accruedCulture`): a little from its people, more from its temples, libraries and wonders. */

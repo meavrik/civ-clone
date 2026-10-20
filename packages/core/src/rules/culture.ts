@@ -23,6 +23,20 @@ export const CULTURE = {
 } as const;
 
 /**
+ * A civilization's influence is the culture of all its cities (`civInfluence`
+ * in territory.ts; our departure, asked for). Other civilizations weigh it
+ * against their own (`esteem`), each side counting `floor` more so that the
+ * first few cities do not swing it: at `admired` times theirs or more they
+ * admire it, at `scorned` times less or worse they scorn it. Computer leaders
+ * deal more readily with civilizations they admire (`attitude` in the AI).
+ */
+export const INFLUENCE = {
+  floor: 10,
+  admired: 1.5,
+  scorned: 2,
+} as const;
+
+/**
  * Culture as saves before version 14 had it (`accruedCulture`): gathered every
  * turn (a base, one more for each `perCitizens` of the people, each building's
  * share and each wonder's) toward these totals. Frozen: those games must replay.

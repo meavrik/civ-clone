@@ -26,6 +26,16 @@ export function hasContact(state: GameState, a: number, b: number): boolean {
   return relation(state, a, b) !== "none";
 }
 
+/** Have `a` and `b` a peace treaty? (Met without one, they are only in contact.) */
+export function atPeace(state: GameState, a: number, b: number): boolean {
+  return relation(state, a, b) === "peace";
+}
+
+/** The relation a first meeting leaves: contact, no treaty yet; peace at once in saves before version 15 (`peaceOnContact`). */
+export function metRelation(state: GameState): Relation {
+  return state.peaceOnContact ? "peace" : "contact";
+}
+
 /**
  * How far apart a unit or city of each side must come to meet: next to each
  * other, as in the original, so every unit (sight 1) sees whom it met. Saves
@@ -38,7 +48,7 @@ export function contactRange(state: GameState): number {
 /**
  * Detect first contacts: a unit or city of `a` within `contactRange` of one of
  * `b`. Returns the ids of players newly contacted this call (relation set to
- * peace).
+ * `metRelation`).
  */
 export function detectContacts(state: GameState, a: number): number[] {
   const unmet = state.players.filter((p) => p.id !== a && p.alive && p.id !== state.barbarians && !hasContact(state, a, p.id));
@@ -53,7 +63,7 @@ export function detectContacts(state: GameState, a: number): number[] {
     const theirs = [...state.units.filter((u) => u.owner === p.id), ...state.cities.filter((c) => c.owner === p.id)];
     const touching = mine.some((m) => theirs.some((t) => near(m.x, m.y, t.x, t.y)));
     if (touching) {
-      setRelation(state, a, p.id, "peace");
+      setRelation(state, a, p.id, metRelation(state));
       met.push(p.id);
     }
   }
@@ -71,7 +81,7 @@ export function meetAround(state: GameState, u: Unit): number[] {
   for (const t of [...state.units, ...state.cities]) {
     if (!unmet.has(t.owner) || !near(t.x, t.y)) continue;
     unmet.delete(t.owner);
-    setRelation(state, u.owner, t.owner, "peace");
+    setRelation(state, u.owner, t.owner, metRelation(state));
     met.push(t.owner);
   }
   return met;
@@ -91,13 +101,14 @@ export function setBordersOpen(state: GameState, a: number, b: number, open: boo
 }
 
 /**
- * Does `owner` mind units of `intruder` on its land? Only at peace and
+ * Does `owner` mind units of `intruder` on its land? Once met and not at war,
  * without open borders: at war they are fair game, and before contact
  * nobody has asked anything. Never in saves before version 10 (`noTrespass`).
  */
 export function mindsTrespass(state: GameState, owner: number, intruder: number): boolean {
   if (state.noTrespass || owner < 0 || owner === intruder || owner === state.barbarians || intruder === state.barbarians) return false;
-  return relation(state, owner, intruder) === "peace" && !bordersOpen(state, owner, intruder);
+  const r = relation(state, owner, intruder);
+  return (r === "peace" || r === "contact") && !bordersOpen(state, owner, intruder);
 }
 
 /**
@@ -149,4 +160,11 @@ export function clearTrespass(state: GameState, owner: number): void {
     const [o, i] = k.split(">").map(Number) as [number, number];
     if (o === owner && !trespassers(state, o, i).length) delete state.trespass[k];
   }
+}
+
+// ---- peace offers -------------------------------------------------------------------
+
+/** The turn `from` last offered `to` peace, if ever. */
+export function peaceOffered(state: GameState, from: number, to: number): number | undefined {
+  return state.peaceOffers?.[`${from}>${to}`];
 }

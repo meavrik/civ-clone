@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, createUnit, foundCity, getTile, labelContinents, lastTurnEvents, newGame, relation, setBordersOpen, setRelation, Terrain, trespassRecord, type GameState } from "@civ/core";
-import { acceptsMapSwap, attitude, bordersAnswer, describePlan, plannerTurn, tributeOffer } from "../src/index.js";
+import { applyCommand, createUnit, esteem, foundCity, getTile, labelContinents, lastTurnEvents, newGame, peaceOffered, relation, setBordersOpen, setRelation, Terrain, trespassRecord, type GameState, type NewGameOptions } from "@civ/core";
+import { acceptsMapSwap, attitude, bordersAnswer, describePlan, peaceAnswer, plannerTurn, tributeOffer } from "../src/index.js";
 
 /** Player 0 plays (AI); everyone else just ends the turn. */
 function round(state: GameState): void {
@@ -80,8 +80,8 @@ describe("planner AI v3", () => {
 
 describe("planner AI v3 borders", () => {
   /** Computer civ 1 has a city at (30, 10) and two phalanxes; our militia stands on its land, at peace. */
-  function trespassed(): { s: GameState; unit: number } {
-    const s = newGame(6, { opponents: 1 });
+  function trespassed(opts: NewGameOptions = {}): { s: GameState; unit: number } {
+    const s = newGame(6, { opponents: 1, ...opts });
     for (const t of s.map.tiles) Object.assign(t, { terrain: Terrain.Grassland, river: false, special: false, hut: false, road: false, irrigation: false, mine: false });
     labelContinents(s.map);
     s.units = [];
@@ -143,5 +143,108 @@ describe("planner AI v3 borders", () => {
     s.trespass = { "1>0": { turn: s.turn, warnings: 2 } };
     expect(attitude(s, 1, 0)).toBe("hostile");
     expect(bordersAnswer(s, 1, 0)).toBe("no");
+  });
+});
+
+describe("planner AI v3 treaties and influence", () => {
+  /** Computer civ 1 (a city at (30, 10), two phalanxes) and our city at (`ourX`, 10) with a militia at home, met without a treaty. */
+  function met(opts: NewGameOptions = {}, ourX = 10): GameState {
+    const s = newGame(6, { opponents: 1, ...opts });
+    for (const t of s.map.tiles) Object.assign(t, { terrain: Terrain.Grassland, river: false, special: false, hut: false, road: false, irrigation: false, mine: false });
+    labelContinents(s.map);
+    s.units = [];
+    s.cities = [];
+    foundCity(s, 0, ourX, 10);
+    foundCity(s, 1, 30, 10);
+    createUnit(s, "phalanx", 1, 30, 10);
+    createUnit(s, "phalanx", 1, 30, 10);
+    createUnit(s, "militia", 0, ourX, 10).order = { kind: "fortified" };
+    setRelation(s, 0, 1, "contact");
+    s.currentPlayer = 1;
+    return s;
+  }
+
+  /** Temples, libraries and wonders in the city of `owner`: far more influence than a lone city's. */
+  function renowned(s: GameState, owner: number): void {
+    const c = s.cities.find((x) => x.owner === owner)!;
+    c.buildings.push("temple", "library", "courthouse");
+    c.wonders.push("pyramids", "colossus");
+  }
+
+  it("weighs our influence: admiration outweighs its pride, scorn adds to it", () => {
+    const s = met();
+    expect(attitude(s, 1, 0)).toBe("wary"); // proud: four phalanx points against our militia's two
+    expect(peaceAnswer(s, 1, 0)).toBe("for gold");
+    renowned(s, 0);
+    expect(esteem(s, 1, 0)).toBe("admired");
+    expect(attitude(s, 1, 0)).toBe("friendly");
+    expect(peaceAnswer(s, 1, 0)).toBe("yes");
+    expect(bordersAnswer(s, 1, 0)).toBe("yes");
+    s.cities.find((c) => c.owner === 0)!.buildings = [];
+    s.cities.find((c) => c.owner === 0)!.wonders = [];
+    renowned(s, 1);
+    expect(esteem(s, 1, 0)).toBe("scorned");
+    expect(attitude(s, 1, 0)).toBe("hostile"); // proud and scornful
+    expect(peaceAnswer(s, 1, 0)).toBe("no");
+    expect(acceptsMapSwap(s, 1, 0)).toBe(false);
+  });
+
+  it("sends a player it thinks well of an offer of peace now and then, and leaves the answer to them", () => {
+    const s = met();
+    renowned(s, 0);
+    let offered: number | undefined;
+    for (let t = 0; t < 80 && offered === undefined; t++, s.turn++) {
+      plannerTurn(s);
+      offered = peaceOffered(s, 1, 0);
+    }
+    expect(offered).toBeDefined();
+    expect(lastTurnEvents).toContainEqual({ kind: "peaceOffer", player: 1, to: 0 });
+    expect(relation(s, 0, 1)).toBe("contact");
+    for (let t = 0; t < 15; t++, s.turn++) plannerTurn(s);
+    expect(peaceOffered(s, 1, 0)).toBe(offered); // not again so soon
+  });
+
+  it("sends one envoy a turn to a player, whoever sends it", () => {
+    const s = met();
+    renowned(s, 0);
+    s.peaceOffers = { [`2>0`]: s.turn }; // another civilization's envoy came this turn
+    for (let t = 0; t < 40; t++) plannerTurn(s);
+    expect(peaceOffered(s, 1, 0)).toBeUndefined();
+  });
+
+  it("does not court a player it is wary of", () => {
+    const s = met();
+    for (let t = 0; t < 30; t++, s.turn++) plannerTurn(s);
+    expect(peaceOffered(s, 1, 0)).toBeUndefined();
+  });
+
+  it("offers peace to end a war it is losing, where saves before version 15 made it at once", () => {
+    for (const old of [false, true]) {
+      const s = met(old ? { peaceOnContact: true } : {});
+      setRelation(s, 0, 1, "war");
+      s.units = s.units.filter((u) => u.owner !== 1);
+      for (let i = 0; i < 4; i++) createUnit(s, "legion", 0, 10, 10);
+      for (let t = 0; t < 40 && relation(s, 0, 1) === "war" && peaceOffered(s, 1, 0) === undefined; t++, s.turn++) plannerTurn(s);
+      if (old) expect(relation(s, 0, 1)).toBe("peace");
+      else {
+        expect(peaceOffered(s, 1, 0)).toBeDefined();
+        expect(relation(s, 0, 1)).toBe("war");
+      }
+    }
+  });
+
+  it("spares a far weaker player whose influence it admires from a war of choice", () => {
+    const declared = (admired: boolean): boolean => {
+      const s = met({}, 22); // within reach of their legions
+      s.turn = 100;
+      foundCity(s, 1, 30, 20);
+      foundCity(s, 1, 40, 10);
+      for (let i = 0; i < 8; i++) createUnit(s, "legion", 1, 30, 10);
+      if (admired) renowned(s, 0);
+      for (let t = 0; t < 60 && relation(s, 0, 1) !== "war"; t++, s.turn++) plannerTurn(s);
+      return relation(s, 0, 1) === "war";
+    };
+    expect(declared(false)).toBe(true);
+    expect(declared(true)).toBe(false);
   });
 });
