@@ -34,7 +34,7 @@ export interface BuildingRule {
   needs?: string;
   /** Pollution cut, percent: Mass Transit removes population pollution; the rest cut production pollution (best one counts). */
   pollutionPct?: number;
-  /** Culture it adds each turn, which pushes the city's border out (rules/culture.ts). */
+  /** Culture it adds to the city while it stands, which pushes the border out (rules/culture.ts). */
   culture?: number;
 }
 
@@ -43,20 +43,20 @@ const B = (id: string, name: string, cost: number, upkeep: number, text: string,
 });
 
 export const BUILDINGS: BuildingRule[] = [
-  B("palace", "Palace", 200, 0, "The seat of government: the farther a city lies from it, the more trade corruption takes.", { requires: "masonry", culture: 2 }),
+  B("palace", "Palace", 200, 0, "The seat of government: the farther a city lies from it, the more trade corruption takes.", { requires: "masonry", culture: 3 }),
   B("barracks", "Barracks", 40, 1, "Land units trained here start as veterans.", { barracks: true }),
   B("granary", "Granary", 60, 1, "Half the food stays in store when the city grows.", { requires: "pottery", granary: true }),
-  B("temple", "Temple", 40, 1, "Calms one unhappy citizen.", { requires: "ceremonial_burial", content: 1, culture: 1 }),
+  B("temple", "Temple", 40, 1, "Calms one unhappy citizen.", { requires: "ceremonial_burial", content: 1, culture: 2 }),
   B("marketplace", "Marketplace", 80, 1, "Adds half again to the city's tax and luxuries.", { requires: "currency", taxPct: 50, luxPct: 50 }),
-  B("library", "Library", 80, 1, "Adds half again to the city's science.", { requires: "writing", sciencePct: 50, culture: 1 }),
-  B("courthouse", "Courthouse", 80, 1, "Halves the trade lost to corruption.", { requires: "code_of_laws", halveCorruption: true, culture: 1 }),
+  B("library", "Library", 80, 1, "Adds half again to the city's science.", { requires: "writing", sciencePct: 50, culture: 2 }),
+  B("courthouse", "Courthouse", 80, 1, "Halves the trade lost to corruption.", { requires: "code_of_laws", halveCorruption: true, culture: 2 }),
   B("city_walls", "City Walls", 120, 2, "Triples the defence of the city against attacks by land.", { requires: "masonry", wallsPct: 200 }),
   B("aqueduct", "Aqueduct", 120, 2, "Lets the city grow past size 10.", { requires: "construction", aqueduct: true }),
   B("bank", "Bank", 120, 3, "Adds half again to tax and luxuries, on top of the marketplace.", { requires: "banking", taxPct: 50, luxPct: 50, needs: "marketplace" }),
-  B("cathedral", "Cathedral", 160, 3, "Calms three unhappy citizens.", { requires: "religion", content: 3, culture: 2 }),
-  B("university", "University", 160, 3, "Adds half again to science, on top of the library.", { requires: "university", sciencePct: 50, needs: "library", culture: 2 }),
+  B("cathedral", "Cathedral", 160, 3, "Calms three unhappy citizens.", { requires: "religion", content: 3, culture: 3 }),
+  B("university", "University", 160, 3, "Adds half again to science, on top of the library.", { requires: "university", sciencePct: 50, needs: "library", culture: 3 }),
   B("mass_transit", "Mass Transit", 160, 4, "Ends the pollution a large population makes.", { requires: "mass_production", pollutionPct: 100 }),
-  B("colosseum", "Colosseum", 100, 4, "Calms three unhappy citizens.", { requires: "construction", content: 3, culture: 1 }),
+  B("colosseum", "Colosseum", 100, 4, "Calms three unhappy citizens.", { requires: "construction", content: 3, culture: 2 }),
   B("factory", "Factory", 200, 4, "Adds half again to the city's shields, and to its pollution.", { requires: "industrialization", shieldsPct: 50 }),
   B("mfg_plant", "Mfg. Plant", 320, 6, "Adds half again to shields, on top of the factory.", { requires: "robotics", shieldsPct: 50, needs: "factory" }),
   B("sdi_defense", "SDI Defense", 200, 4, "Stops nuclear attacks within three squares of the city.", { requires: "superconductor" }),

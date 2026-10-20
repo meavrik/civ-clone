@@ -584,6 +584,14 @@ export interface CityTurnEvent {
 
 /** End-of-turn pass for one city. Returns events for the UI. */
 export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
+  // The border reaches further as the city grows and builds (fixed in old saves).
+  const reach = borderRadius(state, city);
+  const events = cityTurn(state, city);
+  if (!state.fixedBorders && borderRadius(state, city) > reach) events.push({ city: city.id, kind: "borders" });
+  return events;
+}
+
+function cityTurn(state: GameState, city: City): CityTurnEvent[] {
   const events: CityTurnEvent[] = [];
   const player = state.players[city.owner]!;
   const r = computeCity(state, city);
@@ -591,12 +599,8 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
   city.disorder = r.disorder;
   if (r.disorder) events.push({ city: city.id, kind: "disorder" });
 
-  // Culture mounts every turn, and the border reaches further at each level (fixed in old saves).
-  if (!state.fixedBorders) {
-    const reach = borderRadius(state, city);
-    city.culture += cultureRate(state, city);
-    if (borderRadius(state, city) > reach) events.push({ city: city.id, kind: "borders" });
-  }
+  // Saves before version 14: culture mounted every turn.
+  if (state.accruedCulture && !state.fixedBorders) city.culture += cultureRate(state, city);
 
   // Treasury: tax in, building upkeep out. A bankrupt treasury sells the costliest improvement to keep.
   player.gold += r.tax - r.buildingUpkeep;

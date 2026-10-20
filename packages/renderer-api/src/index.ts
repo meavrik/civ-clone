@@ -16,6 +16,7 @@ export * from "./cityview.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
+  ACCRUED_CULTURE,
   advance,
   attrition,
   attritionCure,
@@ -507,6 +508,8 @@ function buildingIcon(b: BuildingRule): IconName {
 export function builtNotice(state: GameState, cityId: number, p: Production): { title: string; lines: string[] } | null {
   const city = state.cities.find((c) => c.id === cityId);
   if (!city) return null;
+  // Culture is what a city holds; old saves gathered it every turn.
+  const perTurn = state.accruedCulture ? " a turn" : "";
   switch (p.kind) {
     case "unit": {
       const u = unitType(p.id);
@@ -516,12 +519,13 @@ export function builtNotice(state: GameState, cityId: number, p: Production): { 
     case "building": {
       const b = building(p.id);
       // Upkeep and culture share the second line.
-      const costs = [b.upkeep ? `{purse} Upkeep ${b.upkeep} gold` : "", b.culture && !state.fixedBorders ? `{culture} Culture +${b.culture} a turn` : ""];
+      const culture = state.accruedCulture ? ACCRUED_CULTURE.buildings[b.id] : b.culture;
+      const costs = [b.upkeep ? `{purse} Upkeep ${b.upkeep} gold` : "", culture && !state.fixedBorders ? `{culture} Culture +${culture}${perTurn}` : ""];
       return { title: `${city.name} builds ${b.name}`, lines: [`{${buildingIcon(b)}} ${b.text}`, costs.filter(Boolean).join("  ")].filter(Boolean) };
     }
     case "wonder": {
       const w = wonder(p.id);
-      const more = [w.obsolete ? `{hourglass} Ends with ${advance(w.obsolete).name}` : "", state.fixedBorders ? "" : `{culture} Culture +${CULTURE.wonder} a turn`];
+      const more = [w.obsolete ? `{hourglass} Ends with ${advance(w.obsolete).name}` : "", state.fixedBorders ? "" : `{culture} Culture +${state.accruedCulture ? ACCRUED_CULTURE.wonder : CULTURE.wonder}${perTurn}`];
       return { title: `${city.name} completes ${w.name}`, lines: [`{star} ${w.text}`, more.filter(Boolean).join("  ")].filter(Boolean) };
     }
     case "spaceship": {

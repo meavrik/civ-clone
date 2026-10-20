@@ -5,6 +5,10 @@ import {
   bordersOpen,
   building,
   claims,
+  ACCRUED_CULTURE,
+  autoAssignWorkers,
+  cityCulture,
+  computeCity,
   CULTURE,
   cultureRate,
   createUnit,
@@ -36,7 +40,7 @@ function world(opts: NewGameOptions = {}): GameState {
   return s;
 }
 
-/** Civ 1 holds a city at (30, 10); we have a city far away; the two are at peace. Both reach two squares out, as ten turns' culture takes them. */
+/** Civ 1 holds a city at (30, 10); we have a city far away; the two are at peace. Both are capitals: their palaces take their borders two squares out. */
 function neighbours(opts: NewGameOptions = {}): GameState {
   const s = world(opts);
   const ours = createUnit(s, "settlers", 0, 10, 10);
@@ -46,7 +50,7 @@ function neighbours(opts: NewGameOptions = {}): GameState {
   applyCommand(s, { type: "found", unit: theirs.id });
   s.currentPlayer = 0;
   setRelation(s, 0, 1, "peace");
-  for (const c of s.cities) c.culture = 10;
+  if (s.accruedCulture) for (const c of s.cities) c.culture = 10;
   lastTurnEvents.length = 0;
   return s;
 }
@@ -122,39 +126,51 @@ describe("land", () => {
 });
 
 describe("culture", () => {
-  it("lets a new city claim the squares round it, and reach further as its culture mounts", () => {
+  it("lets a new city claim the squares round it, and reach further as its culture grows", () => {
     const s = neighbours();
     const theirs = s.cities.find((c) => c.owner === 1)!;
-    theirs.culture = 0;
+    theirs.buildings = [];
     expect(borderRadius(s, theirs)).toBe(1);
     expect(landOwner(s, 31, 11)).toBe(1);
     expect(landOwner(s, 32, 10)).toBe(-1);
-    theirs.culture = 10;
+    theirs.size = 3;
     expect(landOwner(s, 32, 11)).toBe(1); // the 21 squares it works
     expect(landOwner(s, 33, 10)).toBe(-1);
-    theirs.culture = 60;
+    theirs.size = 6;
+    theirs.buildings.push("temple");
     expect(landOwner(s, 33, 11)).toBe(1);
     expect(landOwner(s, 33, 13)).toBe(-1); // the rim of a disc, not a square
-    theirs.culture = CULTURE.levels.at(-1)!;
+    theirs.size = CULTURE.levels.at(-1)!;
     expect(borderRadius(s, theirs)).toBe(CULTURE.levels.length + 1);
     expect(nextBorderLevel(s, theirs)).toBeNull();
   });
 
-  it("is gathered every turn from a city's people, buildings and wonders, and says when the border grows", () => {
+  it("is what a city's people, buildings and wonders make it, not more each turn, and says when the border grows", () => {
     const s = neighbours();
     const ours = s.cities.find((c) => c.owner === 0)!;
-    ours.culture = 0;
-    expect(cultureRate(s, ours)).toBe(CULTURE.base + building("palace").culture!);
+    expect(cityCulture(s, ours)).toBe(CULTURE.perCitizen + building("palace").culture!);
     ours.buildings = [];
-    expect(cultureRate(s, ours)).toBe(CULTURE.base);
-    ours.size = 8;
+    expect(cityCulture(s, ours)).toBe(CULTURE.perCitizen);
+    ours.size = 4;
+    autoAssignWorkers(s, ours);
     ours.buildings.push("temple");
     ours.wonders.push("pyramids");
-    expect(cultureRate(s, ours)).toBe(CULTURE.base + 2 + building("temple").culture! + CULTURE.wonder);
-    ours.culture = CULTURE.levels[0]! - 1;
-    const rate = cultureRate(s, ours);
+    const culture = 4 * CULTURE.perCitizen + building("temple").culture! + CULTURE.wonder;
+    expect(cityCulture(s, ours)).toBe(culture);
     applyCommand(s, { type: "endTurn" });
-    expect(ours.culture).toBe(CULTURE.levels[0]! - 1 + rate);
+    while (s.currentPlayer !== 0) applyCommand(s, { type: "endTurn" });
+    expect(cityCulture(s, ours)).toBe(culture);
+    expect(ours.culture).toBe(0);
+    // A city one citizen short of the next level grows into it.
+    ours.buildings = [];
+    ours.wonders = [];
+    ours.size = CULTURE.levels[0]! - 1;
+    autoAssignWorkers(s, ours);
+    expect(borderRadius(s, ours)).toBe(1);
+    ours.food = computeCity(s, ours).foodBox;
+    lastTurnEvents.length = 0;
+    applyCommand(s, { type: "endTurn" });
+    expect(ours.size).toBe(CULTURE.levels[0]);
     expect(borderRadius(s, ours)).toBe(2);
     expect(lastTurnEvents).toContainEqual({ city: ours.id, kind: "borders" });
   });
@@ -165,14 +181,30 @@ describe("culture", () => {
     const settler = createUnit(s, "settlers", 0, 26, 10);
     applyCommand(s, { type: "found", unit: settler.id });
     const [ours, theirs] = [s.cities.find((c) => c.x === 26)!, s.cities.find((c) => c.owner === 1)!];
-    ours.culture = 10;
-    theirs.culture = 10;
+    ours.size = cityCulture(s, theirs);
+    expect(borderRadius(s, ours)).toBe(2);
     expect(landOwner(s, 28, 10)).toBe(1); // as far from each, as much culture: the older city's
-    ours.culture = 11;
+    ours.size++;
     expect(landOwner(s, 28, 10)).toBe(0);
-    theirs.culture = 12;
+    theirs.size += 2;
     expect(landOwner(s, 28, 10)).toBe(1);
     expect(landOwner(s, 27, 10)).toBe(0); // the nearer city keeps its side, whatever the culture
+  });
+
+  it("was gathered every turn in saves before version 14", () => {
+    const s = neighbours({ accruedCulture: true });
+    const ours = s.cities.find((c) => c.owner === 0)!;
+    expect(cultureRate(s, ours)).toBe(ACCRUED_CULTURE.base + ACCRUED_CULTURE.buildings.palace!);
+    ours.culture = ACCRUED_CULTURE.levels[0]! - 1;
+    expect(borderRadius(s, ours)).toBe(1);
+    const rate = cultureRate(s, ours);
+    applyCommand(s, { type: "endTurn" });
+    expect(ours.culture).toBe(ACCRUED_CULTURE.levels[0]! - 1 + rate);
+    expect(borderRadius(s, ours)).toBe(2);
+    expect(lastTurnEvents).toContainEqual({ city: ours.id, kind: "borders" });
+    const old = { ...makeSave(newGame(5, { opponents: 1 }), { opponents: 1 }, []), version: 13 as const };
+    expect(loadSave(old, () => {}).state.accruedCulture).toBe(true);
+    expect(loadSave(makeSave(newGame(5, { opponents: 1 }), { opponents: 1 }, []), () => {}).state.accruedCulture).toBeUndefined();
   });
 
   it("never moves borders in saves before version 12", () => {

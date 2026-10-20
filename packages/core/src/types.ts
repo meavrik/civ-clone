@@ -135,7 +135,7 @@ export interface City {
   disorder: boolean;
   /** Ids of cities this one trades with (caravan routes, mutual, at most three). */
   routes: number[];
-  /** Culture gathered since it was founded; its border reaches further as it mounts (territory.ts). */
+  /** Culture gathered since it was founded, in saves before version 14 (`accruedCulture`); since then a city's culture is what it holds (`cityCulture` in territory.ts) and this stays 0. */
   culture: number;
 }
 
@@ -210,6 +210,8 @@ export interface GameState {
   noTrespass?: boolean;
   /** Every city's land is the 21 squares it works, whatever its culture. Set for saves before version 12. */
   fixedBorders?: boolean;
+  /** Culture mounts every turn (`City.culture`, `cultureRate`) rather than being what a city's people, buildings and wonders make it. Set for saves before version 14. */
+  accruedCulture?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

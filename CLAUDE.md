@@ -68,9 +68,11 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   each city the squares within its border, which grows with its culture (`borderRadius`: 1 square out
   when founded, one more at each of `CULTURE.levels` in `rules/culture.ts`, radius 2 being the 21 squares
   it works); a shared square goes to the nearer city, then the one with more culture, then the older.
-  `City.culture` gathers every turn (`cultureRate`: a base, one per four citizens, `BuildingRule.culture`
-  from palace, temple, library, courthouse, colosseum, cathedral and university, and each wonder), and a
-  `borders` city event says when the border grows; the city screen shows culture against the next level. At peace without open borders
+  A city's culture is what it holds now (`cityCulture`: one per citizen, `BuildingRule.culture` from palace,
+  temple, library, courthouse, colosseum, cathedral and university, and each wonder), never more turn after
+  turn (asked for), so it falls when the city shrinks or loses a building; a `borders` city event says when
+  the border grows; the city screen shows culture against the next level. Saves before version 14 load with
+  `accruedCulture`: `City.culture` gathered every turn (`cultureRate`, frozen numbers in `ACCRUED_CULTURE`). At peace without open borders
   (`openBorders`/`closeBorders` commands, `state.openBorders`) a civilization minds land units on its
   land (`trespassOn`: not diplomats, caravans or units aboard): stepping in records its first demand
   to leave (`state.trespass`, a `trespass` event), `demandLeave` adds one, a gift (`giveGold`) forgives,
@@ -277,7 +279,8 @@ asked for): civs meet face to face and the map shows whom we met before the audi
 offers open borders, maps, knowledge, gifts, tribute and war; civs at peace without open borders ask
 the player's units off their land, warn once more, then go to war (our departure: the original had no
 borders). Culture borders done (2026-10-19, asked for): borders start a square round each city and grow
-with its culture (save version 12). World sizes done (2026-10-19, asked for: premade maps felt small):
+with its culture (save version 12); since 2026-10-20 (asked for, save version 14) culture is what a city's
+people, buildings and wonders make it, not gathered every turn. World sizes done (2026-10-19, asked for: premade maps felt small):
 small 80x50, medium 120x75, large 160x100 for premade and customized worlds; no save version (a save
 without `size` is small). Islands kept apart on premade worlds at every size (2026-10-19, asked for;
 save version 13). Mobile PWA done (2026-10-19, asked for, apps/web untouched): touch, on-screen

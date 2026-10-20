@@ -3,6 +3,7 @@ import {
   buyCost,
   CITY_RADIUS,
   computeCity,
+  cityCulture,
   cultureRate,
   formatYear,
   getTile,
@@ -189,7 +190,7 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   row("Upkeep", `${r.buildingUpkeep} gold`);
   if (!state.fixedBorders) {
     const next = nextBorderLevel(state, city);
-    row("Culture", `${city.culture}${next === null ? "" : ` of ${next} for a wider border`} (+${cultureRate(state, city)} a turn)`);
+    row("Culture", `${cityCulture(state, city)}${next === null ? "" : ` of ${next} for a wider border`}${state.accruedCulture ? ` (+${cultureRate(state, city)} a turn)` : ""}`);
   }
   if (r.pollution > 0) row("Pollution", `${r.pollution}%`, UI.danger);
   y += 6;

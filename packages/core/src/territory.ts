@@ -1,10 +1,10 @@
 import { building } from "./rules/buildings.js";
-import { CULTURE } from "./rules/culture.js";
+import { ACCRUED_CULTURE, CULTURE } from "./rules/culture.js";
 import type { City, GameState } from "./types.js";
 
 /**
  * A civilization's land: each city claims the squares within its border, which
- * reaches further as the city's culture mounts (`borderRadius`). Where cities of
+ * reaches further as the city's culture grows (`borderRadius`). Where cities of
  * two civilizations reach the same square, the nearer city takes it, then the
  * one with more culture, then the older. The rules read it for trespass
  * (`diplomacy.ts`); the renderers draw its edge as borders. Saves before
@@ -12,25 +12,43 @@ import type { City, GameState } from "./types.js";
  * nearer then the older city winning.
  */
 
-/** Culture a city gathers in a turn: a little from its people, more from its temples, libraries and wonders. */
-export function cultureRate(_state: GameState, city: City): number {
-  let n = CULTURE.base + Math.floor(city.size / CULTURE.perCitizens);
+/** A city's culture: one for each citizen, its buildings' share and its wonders'. Saves before version 14 gathered it turn by turn (`City.culture`). */
+export function cityCulture(state: GameState, city: City): number {
+  if (state.accruedCulture) return city.culture;
+  let n = city.size * CULTURE.perCitizen;
   for (const b of city.buildings) n += building(b).culture ?? 0;
   return n + city.wonders.length * CULTURE.wonder;
 }
 
-/** How many squares out a city's border reaches: 1 when founded, one more at each culture level. */
-export function borderRadius(state: GameState, city: City): number {
+/** Culture a city gathered in a turn in saves before version 14 (`accruedCulture`): a little from its people, more from its temples, libraries and wonders. */
+export function cultureRate(_state: GameState, city: City): number {
+  let n = ACCRUED_CULTURE.base + Math.floor(city.size / ACCRUED_CULTURE.perCitizens);
+  for (const b of city.buildings) n += ACCRUED_CULTURE.buildings[b] ?? 0;
+  return n + city.wonders.length * ACCRUED_CULTURE.wonder;
+}
+
+function cultureLevels(state: GameState): readonly number[] {
+  return state.accruedCulture ? ACCRUED_CULTURE.levels : CULTURE.levels;
+}
+
+/** How many squares out a border reaches for a city with this much culture: 1 when founded, one more at each level. */
+function radiusFor(state: GameState, culture: number): number {
   if (state.fixedBorders) return 2;
   let r = 1;
-  for (const need of CULTURE.levels) if (city.culture >= need) r++;
+  for (const need of cultureLevels(state)) if (culture >= need) r++;
   return r;
+}
+
+/** How many squares out a city's border reaches: 1 when founded, one more at each culture level. */
+export function borderRadius(state: GameState, city: City): number {
+  return radiusFor(state, cityCulture(state, city));
 }
 
 /** The culture a city needs for its border to grow again; null once it reaches as far as borders go. */
 export function nextBorderLevel(state: GameState, city: City): number | null {
   if (state.fixedBorders) return null;
-  return CULTURE.levels.find((need) => city.culture < need) ?? null;
+  const culture = cityCulture(state, city);
+  return cultureLevels(state).find((need) => culture < need) ?? null;
 }
 
 /** Whether a square (dx, dy) from a city lies within a border of radius r: a disc filled out at its rim (radius 2 is the 21-square fat cross). */
@@ -38,11 +56,11 @@ export function withinBorder(dx: number, dy: number, r: number): boolean {
   return dx * dx + dy * dy <= r * r + r;
 }
 
-/** Whether `c`, at squared distance d from a square, takes it from the city holding it so far. */
-function beats(state: GameState, c: City, d: number, holder: City | null, holderD: number): boolean {
+/** Whether `c` (with this culture), at squared distance d from a square, takes it from the city holding it so far. */
+function beats(state: GameState, c: City, culture: number, d: number, holder: City | null, holderCulture: number, holderD: number): boolean {
   if (!holder || d < holderD) return true;
   if (d > holderD) return false;
-  if (!state.fixedBorders && c.culture !== holder.culture) return c.culture > holder.culture;
+  if (!state.fixedBorders && culture !== holderCulture) return culture > holderCulture;
   return c.id < holder.id;
 }
 
@@ -52,9 +70,11 @@ export function claims(state: GameState, counts: (c: City) => boolean = () => tr
   const owner = new Int16Array(width * height).fill(-1);
   const near = new Float64Array(width * height).fill(Infinity);
   const holder: (City | null)[] = new Array<City | null>(width * height).fill(null);
+  const held = new Float64Array(width * height);
   for (const c of state.cities) {
     if (!counts(c)) continue;
-    const r = borderRadius(state, c);
+    const culture = cityCulture(state, c);
+    const r = radiusFor(state, culture);
     for (let dy = -r; dy <= r; dy++) {
       const y = c.y + dy;
       if (y < 0 || y >= height) continue;
@@ -62,9 +82,10 @@ export function claims(state: GameState, counts: (c: City) => boolean = () => tr
         if (!withinBorder(dx, dy, r)) continue;
         const i = y * width + (((c.x + dx) % width) + width) % width;
         const d = dx * dx + dy * dy;
-        if (!beats(state, c, d, holder[i]!, near[i]!)) continue;
+        if (!beats(state, c, culture, d, holder[i]!, held[i]!, near[i]!)) continue;
         near[i] = d;
         holder[i] = c;
+        held[i] = culture;
         owner[i] = c.owner;
       }
     }
@@ -76,14 +97,16 @@ export function claims(state: GameState, counts: (c: City) => boolean = () => tr
 export function landOwner(state: GameState, x: number, y: number): number {
   const w = state.map.width;
   let best: City | null = null;
+  let bestCulture = 0;
   let bestD = Infinity;
   for (const c of state.cities) {
     let dx = Math.abs(c.x - x) % w;
     if (dx > w / 2) dx = w - dx;
     const dy = Math.abs(c.y - y);
-    if (!withinBorder(dx, dy, borderRadius(state, c))) continue;
+    const culture = cityCulture(state, c);
+    if (!withinBorder(dx, dy, radiusFor(state, culture))) continue;
     const d = dx * dx + dy * dy;
-    if (beats(state, c, d, best, bestD)) { best = c; bestD = d; }
+    if (beats(state, c, culture, d, best, bestCulture, bestD)) { best = c; bestCulture = culture; bestD = d; }
   }
   return best ? best.owner : -1;
 }

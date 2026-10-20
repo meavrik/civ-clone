@@ -3,6 +3,7 @@ import {
   buyCost,
   CITY_RADIUS,
   computeCity,
+  cityCulture,
   cultureRate,
   formatYear,
   getTile,
@@ -286,13 +287,15 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   }
   if (shown.length < lines.length) say(s, RIGHT.x + 4, y, `and ${lines.length - shown.length} more`, LABEL);
   if (!lines.length) say(s, RIGHT.x + 4, y, "None yet", LABEL);
-  // Culture toward the level where the border grows next, and what a turn adds.
+  // Culture toward the level where the border grows next (and, in old saves, what a turn adds).
   if (!state.fixedBorders) {
     const cy = ROW1.y + ROW1.h - 3 - FONT_HEIGHT;
     const next = nextBorderLevel(state, city);
-    drawIconLine(s, RIGHT.x + 4, cy, `{culture} Culture ${city.culture}${next === null ? "" : `/${next}`}`, INK);
-    const gain = `+${cultureRate(state, city)}`;
-    say(s, RIGHT.x + RIGHT.w - 4 - textWidth(gain), cy, gain, GOOD);
+    drawIconLine(s, RIGHT.x + 4, cy, `{culture} Culture ${cityCulture(state, city)}${next === null ? "" : `/${next}`}`, INK);
+    if (state.accruedCulture) {
+      const gain = `+${cultureRate(state, city)}`;
+      say(s, RIGHT.x + RIGHT.w - 4 - textWidth(gain), cy, gain, GOOD);
+    }
   }
 
   // Food store: the granary fills toward the next citizen.
