@@ -1,6 +1,6 @@
 import type { BattleFrame, UnitMotion } from "./motion.js";
 import type { Lifting } from "./fog.js";
-import type { TechTreeHit, TechTreeView } from "./techtree.js";
+import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
 export * from "./motion.js";
 export * from "./icons.js";
@@ -9,7 +9,7 @@ export * from "./coast.js";
 export * from "./river.js";
 export * from "./fog.js";
 export * from "./territory.js";
-export * from "./techtree.js";
+export * from "./research.js";
 export * from "./refusal.js";
 export * from "./works.js";
 export * from "./cityview.js";
@@ -237,8 +237,8 @@ export interface Renderer {
   /** Map tiles that fit in the main screen's viewport. */
   readonly viewTilesX: number;
   readonly viewTilesY: number;
-  /** Tiers of the tech tree that fit across its window (may be fractional). */
-  readonly techColumns: number;
+  /** Rows of the research panel's list on view at once; a longer list scrolls (`ResearchView.top`). */
+  readonly researchListRows: number;
 
   /** Called once per frame before any screen is drawn. */
   beginFrame(): void;
@@ -250,8 +250,8 @@ export interface Renderer {
   city(state: GameState, view: CityScreenView): void;
   /** The city as a picture: its improvements, wonders and homes on its own ground. */
   cityView(state: GameState, view: CityViewState): void;
-  /** The tech tree: shown when an advance is found and where the next research is picked. */
-  techTree(state: GameState, view: TechTreeView): void;
+  /** The research panel: shown when an advance is found and where the next research is picked. */
+  research(state: GameState, view: ResearchView): void;
   science(state: GameState): void;
   rates(state: GameState): void;
   advisor(state: GameState, which: AdvisorKind): void;
@@ -283,8 +283,10 @@ export interface Renderer {
   tileAt(state: GameState, view: MainScreenView, px: number, py: number): { x: number; y: number } | null;
   /** Map tile under a point on the main screen's minimap, or null. */
   minimapAt(state: GameState, px: number, py: number): { x: number; y: number } | null;
-  /** What lies under a point of the tech tree: an advance, a button, a scroll arrow or the scroll strip. */
-  techTreeHit(state: GameState, view: TechTreeView, px: number, py: number): TechTreeHit | null;
+  /** What lies under a point of the research panel: an advance in the list or on the card, a button, the scroll bar. */
+  researchHit(state: GameState, view: ResearchView, px: number, py: number): ResearchHit | null;
+  /** What the main screen's status panel holds under a point: the research row opens the research panel. */
+  statusAt(state: GameState, view: MainScreenView, px: number, py: number): "research" | null;
 
   /** A report page (wonders, top cities...). */
   report(page: ReportPage): void;

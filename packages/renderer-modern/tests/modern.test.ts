@@ -4,7 +4,7 @@ import { CLOUDS, PLAYER_COLORS } from "../src/theme.js";
 import type { MainScreenView } from "@civ/renderer-api";
 import { createModernRenderer, MODERN_H, MODERN_TILE, MODERN_W, type Context2D, type Gradient } from "../src/index.js";
 import { paintIcon } from "../src/icons.js";
-import { cityScene, civilizationsReport, ICONS, openTechTree, setupMenu, techLayout } from "@civ/renderer-api";
+import { cityScene, civilizationsReport, ICONS, openResearch, setupMenu } from "@civ/renderer-api";
 
 /** Records what the renderer asks of the canvas; width of text is a flat per-character estimate. */
 class FakeContext implements Context2D {
@@ -88,12 +88,12 @@ describe("modern renderer", () => {
     r.city(state, { city: state.cities[0]!.id });
     r.cityView(state, { city: state.cities[0]!.id });
     r.cityView(state, { city: state.cities[0]!.id, picked: "palace" });
-    const tree = openTechTree(state, r.techColumns, { discovered: ["bronze_working"], choosing: true, closable: false });
-    r.techTree(state, tree);
-    // Far along: a player who knows all but the last few, the tree scrolled toward its end.
+    const panel = openResearch(state, r.researchListRows, { discovered: ["bronze_working"], choosing: true, closable: false });
+    r.research(state, panel);
+    // Far along: a player who knows all but the last few, the list scrolled toward its end.
     const known = state.players[0]!.advances;
     state.players[0]!.advances = ADVANCES.map((a) => a.id).filter((id) => !["fusion_power", "quantum_computing"].includes(id));
-    r.techTree(state, { ...tree, selected: "fusion_power", closable: true, scroll: 14.1 });
+    r.research(state, { ...panel, selected: "fusion_power", closable: true, top: 20 });
     state.players[0]!.advances = known;
     r.science(state);
     r.rates(state);
@@ -259,41 +259,31 @@ describe("modern renderer", () => {
 });
 
 describe("modern fog of war", () => {
-  it("hit-tests the tech tree: advances on show, the research button, arrows and the strip", () => {
+  it("hit-tests the research panel: its list, the card's links and the research button", () => {
     const ctx = new FakeContext();
     const r = createModernRenderer(ctx);
     const { state } = world();
     state.players[0]!.advances.push("alphabet", "code_of_laws", "ceremonial_burial");
-    const tree = openTechTree(state, r.techColumns, { discovered: ["code_of_laws"], choosing: true, closable: false });
+    const panel = openResearch(state, r.researchListRows, { discovered: ["code_of_laws"], choosing: true, closable: false });
     const scan = () => {
-      const found = new Map<string, number>();
+      const found = new Set<string>();
       for (let y = 0; y < MODERN_H; y += 3) for (let x = 0; x < MODERN_W; x += 3) {
-        const h = r.techTreeHit(state, tree, x, y);
-        if (h) found.set(h.kind === "advance" ? h.id : h.kind === "scroll" ? `scroll${Math.sign(h.by)}` : h.kind, 1);
+        const h = r.researchHit(state, panel, x, y);
+        if (h) found.add(h.kind === "row" || h.kind === "link" ? `${h.kind}:${h.id}` : h.kind);
       }
       return found;
     };
-    let hits = scan();
-    const { byId } = techLayout(state);
-    for (const id of [...hits.keys()].filter((k) => byId.has(k))) expect(byId.get(id)!.tier).toBeLessThan(tree.scroll + r.techColumns);
-    expect(hits.has("code_of_laws")).toBe(true);
-    expect(hits.has("literacy")).toBe(true); // a step beyond reach: hinted
-    expect(hits.has("the_republic")).toBe(false); // two steps beyond: not in the tree yet
-    expect(hits.has("scroll-1")).toBe(false);
-    expect(hits.has("scrollTo")).toBe(true);
-    expect(hits.has("research")).toBe(false);
-    expect(hits.has("choices")).toBe(true); // the find is known: on to the choices
-    expect(hits.has("close")).toBe(false);
-    tree.selected = "monarchy";
-    hits = scan();
+    expect(panel.selected).toBe("monarchy");
+    const hits = scan();
+    expect(hits.has("row:monarchy")).toBe(true);
+    expect(hits.has("row:literacy")).toBe(true); // coming later
+    expect(hits.has("row:the_republic")).toBe(false);
+    expect(hits.has("link:ceremonial_burial")).toBe(true);
     expect(hits.has("research")).toBe(true);
-    r.techTree(state, tree);
+    expect(hits.has("close")).toBe(false);
+    r.research(state, panel);
     expect(ctx.texts).toContain("Research Monarchy");
     expect(ctx.texts).toContain("Wise men discover Code of Laws!");
-    // A long tree scrolls: the arrow to the later tiers.
-    state.players[0]!.advances = ADVANCES.map((a) => a.id).filter((id) => id !== "quantum_computing");
-    tree.scroll = 0;
-    expect(scan().has("scroll1")).toBe(true);
   });
 
   it("covers unexplored squares in clouds and draws nothing of what lies beneath", () => {

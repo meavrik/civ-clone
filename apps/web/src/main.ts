@@ -71,26 +71,25 @@ import {
 import {
   builtNotice,
   canResearch,
+  keepResearchInView,
+  nextChoice,
+  openResearch,
+  researchRowOf,
+  researchRows,
+  researchStep,
   researchTarget,
-  clampTechScroll,
   DIFFICULTIES,
   leaderLine,
   FogLifter,
   MotionPlayer,
   moveRefusal,
-  nextAvailable,
-  openTechTree,
   PICTURES,
   setupChoose,
   setupMenu,
   setupOptions,
-  techLayout,
-  techScrollCentring,
-  techScrollShowing,
-  techStep,
   terrainInfo,
   TEXT_INPUT_MAX,
-  type TechTreeView,
+  type ResearchView,
   type CityScreenView,
   type CityViewState,
   type MainScreenView,
@@ -165,7 +164,7 @@ type Screen =
   | { kind: "map" }
   | { kind: "city"; view: CityScreenView; then?: () => void } // `then`: the turn's news that waits for the city to close
   | { kind: "cityView"; view: CityViewState; city: Extract<Screen, { kind: "city" }> } // the city as a picture, over its city screen
-  | { kind: "techTree"; tree: TechTreeView; target: number; back: Screen; then: () => void }
+  | { kind: "research"; view: ResearchView; back: Screen; then: () => void }
   | { kind: "science" }
   | { kind: "rates" }
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
@@ -644,103 +643,91 @@ function openProductionMenu(cityId: number): void {
   };
 }
 
-// ---- the tech tree ---------------------------------------------------------------
-type TreeScreen = Extract<Screen, { kind: "techTree" }>;
+// ---- the research panel ------------------------------------------------------------
+type ResearchScreen = Extract<Screen, { kind: "research" }>;
 
 /**
- * Open the tech tree window. `then` runs once it closes (the next of the turn's
+ * Open the research panel. `then` runs once it closes (the next of the turn's
  * events), and `back` is the screen it closes onto. When research is due it can
  * only be left by picking the next advance, as the wise men insist.
  */
 function openTree(opts: { discovered?: string[]; choosing: boolean; closable: boolean }, then: () => void = () => {}, back: Screen = { kind: "map" }): void {
   const choosing = opts.choosing && availableAdvances(state.players[0]!.advances, advancesFor(state)).length > 0;
-  const tree = openTechTree(state, renderer.techColumns, { ...opts, choosing, closable: opts.closable || !choosing });
-  screenState = { kind: "techTree", tree, target: tree.scroll, back, then };
+  const view = openResearch(state, renderer.researchListRows, { ...opts, choosing, closable: opts.closable || !choosing });
+  screenState = { kind: "research", view, back, then };
 }
 
-/** Advances gained along the way (a village, a diplomat, a treaty): the tree shows them, and the research can be changed there. */
+/** Advances gained along the way (a village, a diplomat, a treaty): the panel shows them, and the research can be changed there. */
 function showFound(ids: string[], then: () => void = () => {}): void {
   if (!ids.length) { then(); return; }
   openTree({ discovered: ids, choosing: true, closable: true }, then, screenState);
 }
 
-/** The research is due: pick the next advance in the tree. */
+/** The research is due: pick the next advance in the panel. */
 function askResearch(then: () => void = () => {}): void {
   if (!availableAdvances(state.players[0]!.advances, advancesFor(state)).length) { then(); return; }
   openTree({ choosing: true, closable: false }, then);
 }
 
-function closeTree(sc: TreeScreen): void {
+function closeTree(sc: ResearchScreen): void {
   screenState = sc.back;
   sc.then();
 }
 
-/** Research what the window offers for the selected advance: itself, or the first step toward one further on. */
-function pickResearch(sc: TreeScreen): void {
-  const target = researchTarget(state, sc.tree);
+/** Research what the panel offers for the selected advance: itself, or the first step toward one further on. */
+function pickResearch(sc: ResearchScreen): void {
+  const target = researchTarget(state, sc.view);
   if (!target) return;
-  if (dispatch({ type: "research", advance: target })) say(target === sc.tree.selected ? `Researching ${advance(target).name}` : `Researching ${advance(target).name}, toward ${advance(sc.tree.selected).name}`);
+  if (dispatch({ type: "research", advance: target })) say(target === sc.view.selected ? `Researching ${advance(target).name}` : `Researching ${advance(target).name}, toward ${advance(sc.view.selected).name}`);
   closeTree(sc);
 }
 
-/** Select an advance, scrolling just enough to show it whole. */
-function treeSelect(sc: TreeScreen, id: string): void {
-  sc.tree.selected = id;
-  const layout = techLayout(state);
-  sc.target = techScrollShowing(layout.tiers, sc.target, layout.byId.get(id)?.tier ?? 0, renderer.techColumns);
+/** Show an advance's card, scrolling the list to it when it is listed. */
+function treeSelect(sc: ResearchScreen, id: string): void {
+  sc.view.selected = id;
+  keepResearchInView(state, sc.view, renderer.researchListRows);
 }
 
-function treeScroll(sc: TreeScreen, to: number): void {
-  sc.target = clampTechScroll(techLayout(state).tiers, to, renderer.techColumns);
+function treeScroll(sc: ResearchScreen, by: number): void {
+  const rows = researchRows(state, sc.view).length;
+  sc.view.top = Math.max(0, Math.min(Math.max(0, rows - renderer.researchListRows), sc.view.top + by));
 }
 
-function treeKey(e: KeyboardEvent, sc: TreeScreen): void {
-  const t = sc.tree;
+function treeKey(e: KeyboardEvent, sc: ResearchScreen): void {
+  const v = sc.view;
+  const page = renderer.researchListRows - 1;
   switch (e.code) {
-    case "ArrowLeft": case "Numpad4": treeSelect(sc, techStep(state, t.selected, -1, 0)); break;
-    case "ArrowRight": case "Numpad6": treeSelect(sc, techStep(state, t.selected, 1, 0)); break;
-    case "ArrowUp": case "Numpad8": treeSelect(sc, techStep(state, t.selected, 0, -1)); break;
-    case "ArrowDown": case "Numpad2": treeSelect(sc, techStep(state, t.selected, 0, 1)); break;
-    case "Tab": e.preventDefault(); if (t.choosing) treeSelect(sc, nextAvailable(state, t.selected, e.shiftKey ? -1 : 1)); break;
-    case "PageUp": treeScroll(sc, sc.target - Math.floor(renderer.techColumns)); break;
-    case "PageDown": treeScroll(sc, sc.target + Math.floor(renderer.techColumns)); break;
+    case "ArrowUp": case "Numpad8": treeSelect(sc, researchStep(state, v, -1)); break;
+    case "ArrowDown": case "Numpad2": treeSelect(sc, researchStep(state, v, 1)); break;
+    case "PageUp": treeSelect(sc, researchStep(state, v, -page)); break;
+    case "PageDown": treeSelect(sc, researchStep(state, v, page)); break;
+    case "Home": treeSelect(sc, researchStep(state, v, -1000)); break;
+    case "End": treeSelect(sc, researchStep(state, v, 1000)); break;
+    case "Tab": e.preventDefault(); if (v.choosing) treeSelect(sc, nextChoice(state, v, e.shiftKey ? -1 : 1)); break;
     case "Enter": case "NumpadEnter": case "Space":
       e.preventDefault();
-      if (canResearch(state, t)) pickResearch(sc);
-      else if (t.choosing) treeSelect(sc, nextAvailable(state, t.selected));
+      if (canResearch(state, v)) pickResearch(sc);
+      else if (v.choosing) treeSelect(sc, nextChoice(state, v));
       else closeTree(sc);
       break;
-    case "Escape": if (t.closable) closeTree(sc); break;
+    case "Escape": if (v.closable) closeTree(sc); break;
   }
 }
 
-/** A click on the tree: an advance shows what it brings, and a second click on one within reach picks it. */
-function treeClick(sc: TreeScreen, px: number, py: number): void {
-  const hit = renderer.techTreeHit(state, sc.tree, px, py);
+/** A click on the panel: an advance shows its card, and a second click on one that can be researched picks it. */
+function treeClick(sc: ResearchScreen, px: number, py: number): void {
+  const hit = renderer.researchHit(state, sc.view, px, py);
   if (!hit) return;
   switch (hit.kind) {
-    case "advance":
-      if (hit.id === sc.tree.selected && canResearch(state, sc.tree)) pickResearch(sc);
+    case "row":
+      if (hit.id === sc.view.selected && canResearch(state, sc.view)) pickResearch(sc);
       else treeSelect(sc, hit.id);
       break;
+    case "link": treeSelect(sc, hit.id); break;
     case "research": pickResearch(sc); break;
-    case "choices": treeSelect(sc, nextAvailable(state, sc.tree.selected)); break;
     case "close": closeTree(sc); break;
-    case "scroll": treeScroll(sc, sc.target + hit.by); break;
-    case "scrollTo": sc.target = techScrollCentring(techLayout(state).tiers, hit.tier, renderer.techColumns); break;
+    case "scroll": treeScroll(sc, hit.by); break;
   }
-}
-
-let treeFrameAt = 0;
-/** The tree's view glides to its scroll target; the visuals may have changed under it. */
-function stepTree(sc: TreeScreen, t: number): void {
-  const dt = Math.min(100, t - treeFrameAt);
-  treeFrameAt = t;
-  sc.target = clampTechScroll(techLayout(state).tiers, sc.target, renderer.techColumns);
-  const tree = sc.tree;
-  const gap = sc.target - tree.scroll;
-  tree.scroll = Math.abs(gap) < 0.01 ? sc.target : tree.scroll + gap * Math.min(1, dt / 90);
-  tree.blink = blinkOn;
 }
 
 function openGovernmentMenu(under: Screen, then?: () => void): void {
@@ -906,7 +893,7 @@ function barEntries(index: number): MenuEntry[] {
         ["Military Advisor", "F2", () => { screenState = { kind: "advisor", which: "military" }; }],
         ["Foreign Minister", "F3", () => { screenState = { kind: "advisor", which: "foreign" }; }],
         ["Science Advisor", "F4", () => { screenState = { kind: "science" }; }],
-        ["Tech Tree", "", () => openTree({ choosing: true, closable: true })],
+        ["Research", "", () => openTree({ choosing: true, closable: true })],
       ];
     case "World":
       return [
@@ -1694,7 +1681,7 @@ addEventListener("keydown", (e) => {
       else if (sc.which === "foreign" && (e.code === "Enter" || e.code === "NumpadEnter")) openForeignTalkMenu();
       else advisorHotkey(e);
       break;
-    case "techTree": treeKey(e, sc); break;
+    case "research": treeKey(e, sc); break;
     case "diplomacy": screenState = { kind: "map" }; break;
     case "beat": e.preventDefault(); endBeat(sc); break;
     case "end": screenState = { kind: "title" }; break;
@@ -1740,12 +1727,14 @@ canvas.addEventListener("wheel", (e) => {
     moveSelection(sc.menu, Math.sign(e.deltaY) * 3);
     return;
   }
-  if (sc.kind !== "techTree") return;
+  if (sc.kind !== "research") return;
   e.preventDefault();
-  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-  const tiers = e.deltaMode === 1 ? d / 3 : e.deltaMode === 2 ? d * renderer.techColumns : d / 100;
-  treeScroll(sc, sc.target + tiers);
+  // The list scrolls a row for each line of the wheel (pixels gathered until they make a row).
+  wheelRows += e.deltaMode === 1 ? e.deltaY : e.deltaMode === 2 ? e.deltaY * renderer.researchListRows : e.deltaY / 30;
+  const rows = Math.trunc(wheelRows);
+  if (rows) { wheelRows -= rows; treeScroll(sc, rows); }
 }, { passive: false });
+let wheelRows = 0;
 canvas.addEventListener("mousedown", (e) => {
   const [px, py] = toLogical(e);
   noteInput();
@@ -1773,7 +1762,7 @@ canvas.addEventListener("mousedown", (e) => {
       return;
     }
     case "report": case "worldMap": screenState = { kind: "map" }; return;
-    case "techTree": if (e.button === 0) treeClick(sc, px, py); return;
+    case "research": if (e.button === 0) treeClick(sc, px, py); return;
     case "end": screenState = { kind: "title" }; return;
     case "diplomacy": screenState = { kind: "map" }; return;
     case "beat": endBeat(sc); return;
@@ -1812,6 +1801,8 @@ canvas.addEventListener("mousedown", (e) => {
   if (bar >= 0) { openBarMenu(bar); return; }
   const mm = renderer.minimapAt(state, px, py);
   if (mm) { centerOn(mm.x, mm.y); return; }
+  // The research row of the status panel opens the research panel.
+  if (e.button === 0 && renderer.statusAt(state, view, px, py) === "research") { openTree({ choosing: true, closable: true }); return; }
   if (handoff) { finishHandoff(); return; }
   const hit = renderer.tileAt(state, view, px, py);
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
@@ -1872,7 +1863,7 @@ function draw(sc: Screen): void {
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
     case "cityView": renderer.cityView(state, sc.view); break;
-    case "techTree": renderer.techTree(state, sc.tree); break;
+    case "research": renderer.research(state, sc.view); break;
     case "science": renderer.science(state); break;
     case "rates": renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;
@@ -1898,7 +1889,7 @@ function frame(t: number): void {
   view.blink = blinkOn;
   view.autoEnd = autoEnd;
   view.borders = borders;
-  if (screenState.kind === "techTree") stepTree(screenState, t);
+  if (screenState.kind === "research") screenState.view.blink = blinkOn;
   if (screenState.kind !== "title" && screenState.kind !== "setup") stepCamera(t);
   if (status && t > statusUntil) status = undefined;
   if (view.callout && t > calloutUntil) view.callout = undefined;

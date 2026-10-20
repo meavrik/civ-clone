@@ -27,10 +27,10 @@ export function keysFor(c: Context): Key[] {
         : [k("End turn", "Enter", "Enter"), k("Menu", "F10", "F10")];
     case "city":
       return [k("Change", "KeyC", "c"), k("Buy", "KeyB", "b"), k("View", "KeyV", "v"), k("Rename", "KeyN", "n"), k("Exit", "Escape", "Escape")];
-    case "techTree":
-      return [k("Pick", "Enter", "Enter"), k("Next", "Tab", "Tab"), k("Close", "Escape", "Escape")];
+    case "research":
+      return [k("Research", "Enter", "Enter"), k("Next", "Tab", "Tab"), k("Close", "Escape", "Escape")];
     case "science":
-      return [k("Tech tree", "KeyA", "a"), BACK];
+      return [k("Research", "KeyA", "a"), BACK];
     case "rates":
       return [k("Done", "Enter", "Enter")];
     case "spaceship":
@@ -61,7 +61,7 @@ export interface PadKey {
 
 /**
  * The direction pad: on the map it moves the active unit (the diagonals are the numeric keypad's,
- * the middle centres the map on the unit); elsewhere the arrows walk menus, the tree and the rates.
+ * the middle centres the map on the unit); elsewhere the arrows walk menus, the research list and the rates.
  * null where the arrows do nothing.
  */
 export function padFor(screen: string): PadKey[] | null {
@@ -83,7 +83,7 @@ export function padFor(screen: string): PadKey[] | null {
       ];
     case "menu":
     case "setup":
-    case "techTree":
+    case "research":
     case "rates":
       return arrows;
     default:

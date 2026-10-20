@@ -165,22 +165,23 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   modern (set aside) still draws grey clouds (`cloudTone`): `Clouds` gathers the view's fog and fills
   each layer as one path (per-square fills leave seams, and thousands of tiny polygons cost ~600 ms a
   frame), lifting squares as alpha layers grouped by fog left, bodies before billows (else edges show).
-  Tech tree (`techtree.ts`): `techLayout(state)` lays out what the player knows, what is within
-  reach (the next phase) and, as a hint (asked for 2026-10-20), the advances one step further
-  (`techHinted`: all they need is known or within reach; drawn faint and dashed, a dotted stub where
-  more lies beyond, `TechNode.beyond`), all `techShown`; the rest stay hidden until they come nearer
-  (the details still name what an advance leads to). Retro draws a legend over the graph (Discovered
-  with a tick, Researching with its beakers as a bar, Can research in a blue frame, Later), the name
-  and standing on one line ("Discovered", "Researching now", "Can be researched now", "Later: needs
-  ... first"), and `techTreeHint` says what to do next. The Research button studies `researchTarget`:
-  the advance, or for a hint the first step toward it; "Show choices" (`choices` hit) jumps to one
-  that can be researched. With the hints the window still needs nine rows at most (tested at every
-  step of both trees). Each shown advance gets a tier (its
-  longest chain of shown prerequisites) and a row (barycentre sweeps), nine rows at most, and edges
-  that skip tiers run along the lanes between rows (`techLane`) so they never pass behind an advance. `Renderer.techTree` draws a `TechTreeView` a few
-  tiers at a time (`techColumns`), `techTreeHit` hit-tests it. The web app opens it (`openTree`) on
-  every advance found (end of turn, village, diplomat, treaty) and wherever research is picked
-  (science advisor A, Advisors > Tech Tree); when research is due it closes only on a pick.
+  Research panel (`research.ts`; redesigned 2026-10-20, asked for: the old tier graph was confusing and
+  disliked, so it is gone): built round the choice. Under the title a band with the research under way
+  (bulb, beaker bar, turns) or what the advance just found brings (`researchBand`); on the left a list
+  (`researchRows`) of three groups: Research next (the research under way first, then what the latest
+  find brought within reach, marked with a yellow diamond, then the rest; each row with icons of what it
+  brings, `techIcons`), Coming later (`comesLater`: everything it needs is known or can be researched now;
+  the hint of what lies ahead, faint) and Discovered (ticked, newest first); it scrolls (`ResearchView.top`,
+  `keepResearchInView`, `Renderer.researchListRows`). On the right a card for the selected advance
+  (`techDetails`): its standing ("Discovered", "Researching", "Can research now", "Later: needs ...
+  first"), what it brings, what it needs and what it opens the way to (each with what else it waits for,
+  "with Mysticism" or "then ready"), all links to their own cards, and along its bottom the city view's
+  pictures of its wonders and buildings and its units' sprites where there is room. The Research button
+  studies `researchTarget`: the advance, or for one further on the first step toward it. Keys: Up/Down,
+  PgUp/PgDn, Home/End, Tab (the next choice), Enter, Esc. `Renderer.research`/`researchHit`. The web app
+  opens it (`openTree`) on every advance found (end of turn, village, diplomat, treaty) and wherever
+  research is picked (science advisor A, Advisors > Research, and a click on the status panel's research
+  row: `Renderer.statusAt`); when research is due it closes only on a pick.
   Borders (`territory.ts`, toggled in the Game menu, which hides only the drawing): core's `claims`
   from the cities the viewer knows, the same land the rules read for trespass; `borderSides` gives the edges and
   where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimaps
@@ -249,7 +250,7 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   is hidden). Keep those three web modules' exports as they are (each stand-in `satisfies` its web
   counterpart's type). It reads `window.civ` (`screen`, `state`, `log`) from web main.ts: keep that hook.
   `touch.ts` turns fingers (`gestures.ts`) into the mouse the game knows: tap = mousedown 0, hold 450 ms
-  = mousedown 2, drag = pan or tech-tree wheel; mouse pointers are left to the browser. `controls.ts`
+  = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. `controls.ts`
   presses the keys `keys.ts` lists per screen kind (the pad: Numpad diagonals and C on the map, arrows in
   menus). `text.ts` shows a DOM field while the game asks for text, bound to the game's `TextInputState`,
   OK/Cancel = Enter/Esc. The build writes `sw.js` from `service-worker.js` (every file precached under a

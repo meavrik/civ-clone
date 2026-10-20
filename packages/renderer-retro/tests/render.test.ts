@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, Terrain, unitType } from "@civ/core";
-import { borderSides, C, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawTechTree, openTechTree, TECH_COLUMNS, techLayout, techTreeHit, type TechTreeHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -582,58 +582,75 @@ describe("city screen", () => {
 });
 
 describe("advisor screens", () => {
-  it("renders the tech tree on a discovery, hit-testing its advances, buttons and scrolling", () => {
+  it("renders the research panel on a discovery, hit-testing its list, card links, buttons and scrolling", () => {
     const state = newGame(2026);
     const p = state.players[0]!;
     p.advances.push("alphabet", "bronze_working", "ceremonial_burial", "code_of_laws");
     const s = Surface.screen();
-    const tree = openTechTree(state, TECH_COLUMNS, { discovered: ["code_of_laws"], choosing: true, closable: false });
-    drawTechTree(s, state, tree);
-    writeFileSync(new URL("./out/techtree.png", import.meta.url), encodePng(s, 3));
-    // The advance just found is marked yellow; every advance hit at the left of the tree lies in the tiers on show.
-    expect(s.data.filter((c) => c === C.YELLOW).length).toBeGreaterThan(100);
-    const hits = new Map<string, TechTreeHit>();
+    const view = openResearch(state, RESEARCH_LIST_ROWS, { discovered: ["code_of_laws"], choosing: true, closable: false });
+    expect(view.selected).toBe("monarchy"); // what the find brought within reach comes first
+    drawResearch(s, state, view);
+    writeFileSync(new URL("./out/research.png", import.meta.url), encodePng(s, 3));
+    const hits = new Map<string, ResearchHit>();
     for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
-      const h = techTreeHit(state, tree, x, y);
-      if (h) hits.set(h.kind === "advance" ? h.id : h.kind, h);
+      const h = researchHit(state, view, x, y);
+      if (h) hits.set(h.kind === "row" || h.kind === "link" ? `${h.kind}:${h.id}` : h.kind, h);
     }
-    const { byId } = techLayout(state);
-    const shown = [...hits.keys()].filter((k) => byId.has(k));
-    expect(shown).toContain("code_of_laws");
-    expect(shown).toContain("monarchy");
-    expect(shown).toContain("literacy"); // a step beyond reach: hinted, faint
-    expect(hits.has("the_republic")).toBe(false); // two steps beyond: not in the tree yet
-    for (const id of shown) expect(byId.get(id)!.tier).toBeLessThan(tree.scroll + TECH_COLUMNS);
-    expect(hits.has("scrollTo")).toBe(true); // the strip under the graph
+    expect(hits.has("row:monarchy")).toBe(true);
+    expect(hits.has("row:writing")).toBe(true);
+    expect(hits.has("row:literacy")).toBe(true); // coming later: a hint of what lies ahead
+    expect(hits.has("row:the_republic")).toBe(false); // two steps beyond: not listed
+    expect(hits.has("link:ceremonial_burial")).toBe(true); // Monarchy's card: what it needs...
+    expect(hits.has("link:feudalism")).toBe(true); // ...and what it opens the way to
+    expect(hits.has("research")).toBe(true);
     expect(hits.has("close")).toBe(false); // research is due: no way out but a pick
-    expect(hits.has("research")).toBe(false); // the find itself is known
-    expect(hits.has("choices")).toBe(true); // ...but the way on to the choices is there
-    const buttonAt = (kind: string) => { for (let x = 0; x < 320; x++) if (techTreeHit(state, tree, x, 192)?.kind === kind) return true; return false; };
-    tree.selected = "monarchy";
-    drawTechTree(s, state, tree);
-    writeFileSync(new URL("./out/techtree-choice.png", import.meta.url), encodePng(s, 3));
-    expect(buttonAt("research")).toBe(true);
-    // A hint offers its first step: Literacy wants Writing first.
-    tree.selected = "literacy";
-    drawTechTree(s, state, tree);
-    writeFileSync(new URL("./out/techtree-hint.png", import.meta.url), encodePng(s, 3));
-    expect(buttonAt("research")).toBe(true);
-    // Under way: the node carries the beakers gathered.
+    expect(hits.has("scroll")).toBe(true); // the discovered ones lie further down the list
+    // A card reached through a link: Literacy wants Writing first.
+    view.selected = "literacy";
+    drawResearch(s, state, view);
+    writeFileSync(new URL("./out/research-later.png", import.meta.url), encodePng(s, 3));
+    // Under way, opened from the status panel: progress across the top, a close button.
     applyCommand(state, { type: "research", advance: "writing" });
     p.science = 10;
-    drawTechTree(s, state, { ...tree, selected: "writing", discovered: [], choosing: false, closable: true });
-    writeFileSync(new URL("./out/techtree-researching.png", import.meta.url), encodePng(s, 3));
-    p.researching = null;
-    p.science = 0;
-    // Far along the tree, browsing from the science advisor: the last few within reach, both arrows, a close button.
+    const browsing = openResearch(state, RESEARCH_LIST_ROWS, { choosing: true, closable: true });
+    expect(browsing.selected).toBe("writing");
+    drawResearch(s, state, browsing);
+    writeFileSync(new URL("./out/research-under-way.png", import.meta.url), encodePng(s, 3));
+    // Late in the game the list is long and scrolls.
     p.advances = ADVANCES.map((a) => a.id).filter((id) => !["fusion_power", "artificial_intelligence", "quantum_computing"].includes(id));
-    const late = { ...tree, selected: "fusion_power", discovered: [], choosing: false, closable: true, scroll: 9.3 };
-    drawTechTree(s, state, late);
-    writeFileSync(new URL("./out/techtree-late.png", import.meta.url), encodePng(s, 3));
+    p.researching = null;
+    const late = openResearch(state, RESEARCH_LIST_ROWS, { choosing: false, closable: true });
+    expect(researchRows(state, late).length).toBeGreaterThan(RESEARCH_LIST_ROWS);
+    drawResearch(s, state, late);
+    writeFileSync(new URL("./out/research-late.png", import.meta.url), encodePng(s, 3));
     const kinds = new Set<string>();
-    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) { const h = techTreeHit(state, late, x, y); if (h) kinds.add(h.kind === "scroll" ? `scroll${Math.sign(h.by)}` : h.kind); }
-    expect([...kinds]).toEqual(expect.arrayContaining(["scroll-1", "scroll1", "close", "advance"]));
+    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) { const h = researchHit(state, late, x, y); if (h) kinds.add(h.kind === "scroll" ? `scroll${Math.sign(h.by)}` : h.kind); }
+    expect([...kinds]).toEqual(expect.arrayContaining(["scroll1", "close", "row"]));
     expect(kinds.has("research")).toBe(false);
+  });
+
+  it("opens the research panel from the status panel's research row", () => {
+    const state = newGame(2026);
+    applyCommand(state, { type: "found", unit: state.units.find((u) => u.type === "settlers")!.id });
+    const at = (): Set<string> => {
+      const found = new Set<string>();
+      for (let y = 0; y < 200; y++) for (let x = 0; x < 80; x++) if (statusPanelAt(state, x, y)) found.add(`${x},${y}`);
+      return found;
+    };
+    state.players[0]!.researching = null;
+    expect(at().size).toBe(0); // no row while nothing is under study
+    applyCommand(state, { type: "research", advance: "alphabet" });
+    const cells = at();
+    expect(cells.size).toBeGreaterThan(0);
+    // The row it answers on is where the bulb is drawn.
+    const s = Surface.screen();
+    const view: MainScreenView = { originX: 0, originY: 0, blink: false };
+    drawMainScreen(s, state, view);
+    const ys = [...cells].map((c) => Number(c.split(",")[1]));
+    const top = Math.min(...ys);
+    let bulb = false;
+    for (let y = top; y < top + 9; y++) for (let x = 3; x < 11; x++) if (s.get(x, y) === C.YELLOW) bulb = true;
+    expect(bulb).toBe(true);
   });
 
   it("renders science and rates screens", () => {

@@ -28,7 +28,7 @@ import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
 import { BAD, DIM, drawStone, drawSwatch, INK, NOTE } from "../widgets.js";
 import { drawCity } from "./map-city.js";
-import { techLabel } from "./techtree.js";
+import { techLabel } from "./research.js";
 
 /**
  * Main map screen layout, as in the original: a menu bar across the top, a
@@ -346,9 +346,30 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
   return y;
 }
 
+function ratesLine(state: GameState): string {
+  const me = state.players[state.currentPlayer]!;
+  return `{coin}${me.taxRate}{gem}${me.luxRate}{bulb}${me.sciRate}`;
+}
+
+/** Where the status panel's rows fall: whether the rates wrap under the treasury, and the top of the research row. */
+function empireRows(state: GameState): { wrapRates: boolean; researchY: number } {
+  const me = state.players[state.currentPlayer]!;
+  const top = VIEW_Y + 2 + minimapSize(state.map).h + 4;
+  const wrapRates = TEXT_X + iconLineWidth(`{purse}${me.gold}`) + 2 + iconLineWidth(ratesLine(state)) > PANEL_W - 2;
+  return { wrapRates, researchY: top + 9 * (wrapRates ? 5 : 4) };
+}
+
+/** What the status panel holds under a point: the research row (when research is under way) opens the research panel. */
+export function statusPanelAt(state: GameState, px: number, py: number): "research" | null {
+  if (px < 0 || px >= PANEL_W || !researchOutlook(state).id) return null;
+  const { researchY } = empireRows(state);
+  return py >= researchY - 1 && py < researchY + 14 ? "research" : null;
+}
+
 /**
  * Research: the advance under study by a bulb with the turns still to go, and under them a
  * thin bar of the beakers gathered toward it; nothing while none is picked. Returns the y after it.
+ * A click on it opens the research panel (`statusPanelAt`).
  */
 function drawResearch(s: Surface, state: GameState, y: number): number {
   const r = researchOutlook(state);
@@ -506,14 +527,13 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   y += 9;
   drawIconLine(s, TEXT_X, y, `{calendar} ${formatYear(turnToYear(state.turn))}`, ink);
   y += 9;
+  const { wrapRates, researchY } = empireRows(state);
   let x = drawIconLine(s, TEXT_X, y, `{purse}${me.gold}`, ink) + 2;
-  const rates = `{coin}${me.taxRate}{gem}${me.luxRate}{bulb}${me.sciRate}`;
-  if (x + iconLineWidth(rates) > PANEL_W - 2) { y += 9; x = TEXT_X; }
-  drawIconLine(s, x, y, rates, dim);
+  if (wrapRates) { y += 9; x = TEXT_X; }
+  drawIconLine(s, x, y, ratesLine(state), dim);
   y += 9;
   drawIconLine(s, TEXT_X, y, `{crown}${GOVERNMENTS[me.government]?.name ?? me.government}`, dim);
-  y += 9;
-  y = drawResearch(s, state, y);
+  y = drawResearch(s, state, researchY);
   groove(s, y);
   y += 4;
 

@@ -1,7 +1,7 @@
 import { screenKind } from "./civ.js";
 import { canvas, displayScale, logicalAt } from "./display.js";
 import { GESTURES, Recognizer, type Gesture } from "./gestures.js";
-import { pan, shown, TILE_PX, tileUnder } from "./renderer.js";
+import { pan, TILE_PX, tileUnder } from "./renderer.js";
 import { syncText } from "./text.js";
 
 /**
@@ -12,7 +12,7 @@ import { syncText } from "./text.js";
 const fingers = new Recognizer();
 const ring = document.getElementById("ring")!;
 let holdTimer = 0;
-let dragging: "map" | "tree" | null = null;
+let dragging: "map" | "list" | null = null;
 
 function click(x: number, y: number, button: 0 | 2): void {
   canvas.dispatchEvent(new MouseEvent("mousedown", { clientX: x, clientY: y, button, buttons: button === 2 ? 2 : 1, bubbles: true, cancelable: true }));
@@ -43,16 +43,15 @@ function act(g: Gesture | null): void {
       break;
     case "dragStart":
       showRing(g.x, g.y, "");
-      dragging = screenKind() === "map" && tileUnder(...logicalAt(g.x, g.y)) ? "map" : screenKind() === "techTree" ? "tree" : null;
+      dragging = screenKind() === "map" && tileUnder(...logicalAt(g.x, g.y)) ? "map" : screenKind() === "research" ? "list" : null;
       if (dragging === "map") pan.grab();
       break;
     case "drag": {
       const scale = displayScale();
       if (dragging === "map") pan.drag(-g.dx / (scale * TILE_PX), -g.dy / (scale * TILE_PX));
-      else if (dragging === "tree" && shown.renderer) {
-        // The wheel the tree answers to: 100 a tier, a tier being the tree's width over the tiers it shows.
-        const tier = shown.renderer.width / shown.renderer.techColumns;
-        canvas.dispatchEvent(new WheelEvent("wheel", { deltaX: (-g.dx / scale / tier) * 100, deltaMode: 0, bubbles: true, cancelable: true }));
+      else if (dragging === "list") {
+        // The research list scrolls with the finger: the wheel it answers to moves a row for every 30 of its pixels, a row being 9 logical ones.
+        canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: (-g.dy / scale / 9) * 30, deltaMode: 0, bubbles: true, cancelable: true }));
       }
       break;
     }

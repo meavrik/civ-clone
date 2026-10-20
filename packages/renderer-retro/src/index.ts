@@ -13,7 +13,7 @@ export * from "./pictures.js";
 export * from "./screens/cityview.js";
 export * from "./screens/map-city.js";
 export * from "./screens/discovery.js";
-export * from "./screens/techtree.js";
+export * from "./screens/research.js";
 export * from "./screens/title.js";
 export * from "./screens/advisors.js";
 export * from "./screens/diplomacy.js";

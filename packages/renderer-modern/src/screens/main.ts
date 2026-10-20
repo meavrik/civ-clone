@@ -278,6 +278,18 @@ const TEXT_X = 16;
 const TEXT_W = PANEL_W - 32;
 const LINE = 19;
 
+/** The top of the status panel's research row: under the minimap and three rows of the empire. */
+function researchRowY(state: GameState): number {
+  return MINIMAP_Y + state.map.height * minimapScale(state.map) + 14 + 3 * (LINE + 4);
+}
+
+/** What the status panel holds under a point: the research row (when research is under way) opens the research panel. */
+export function statusPanelAt(state: GameState, px: number, py: number): "research" | null {
+  if (px < 0 || px >= PANEL_W || !researchOutlook(state).id) return null;
+  const y = researchRowY(state);
+  return py >= y - 4 && py < y + LINE + 10 ? "research" : null;
+}
+
 /** Text cut with "..." to fit a width. */
 function fitText(ctx: Context2D, s: string, width: number, size: number): string {
   if (measure(ctx, s, size) <= width) return s;
@@ -424,6 +436,7 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   drawIconLine(ctx, TEXT_X, y, `{crown} ${GOVERNMENTS[me.government]?.name ?? me.government}`, { size: 13, color: UI.accent });
   y += LINE + 4;
   // Research: the advance under study with the turns to go, and a bar of the beakers toward it; nothing while none is picked.
+  // A click on it opens the research panel (`statusPanelAt`).
   const research = researchOutlook(state);
   if (research.id) {
     const turns = research.turns === null ? "no science" : `${research.turns} turn${research.turns === 1 ? "" : "s"}`;

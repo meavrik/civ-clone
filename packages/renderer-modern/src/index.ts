@@ -2,9 +2,9 @@ import type { Renderer } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, cityButtonAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
-import { drawMainScreen, menuBarAnchor, menuBarHit, minimapAt, tileAt } from "./screens/main.js";
+import { drawMainScreen, menuBarAnchor, menuBarHit, minimapAt, statusPanelAt, tileAt } from "./screens/main.js";
 import { drawAdvisor, drawDiplomacyScreen, drawRatesScreen, drawReport, drawScienceScreen, drawSpaceshipScreen, drawWorldMap } from "./screens/pages.js";
-import { drawTechTree, TECH_COLUMNS, techTreeHit } from "./screens/techtree.js";
+import { drawResearch, RESEARCH_LIST_ROWS, researchHit } from "./screens/research.js";
 import { drawEndScreen, drawTitleScreen } from "./screens/title.js";
 import { drawMenu, drawStatusLine, drawTextInput, menuHit } from "./screens/widgets.js";
 import { H, VIEW_TILES_X, VIEW_TILES_Y, W } from "./theme.js";
@@ -26,7 +26,7 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     height: H,
     viewTilesX: VIEW_TILES_X,
     viewTilesY: VIEW_TILES_Y,
-    techColumns: TECH_COLUMNS,
+    researchListRows: RESEARCH_LIST_ROWS,
     beginFrame() {
       const s = scale();
       ctx.setTransform(s, 0, 0, s, 0, 0);
@@ -36,7 +36,7 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     main: (state, view) => drawMainScreen(ctx, state, view),
     city: (state, view) => drawCityScreen(ctx, state, view),
     cityView: (state, view) => drawCityView(ctx, state, view),
-    techTree: (state, view) => drawTechTree(ctx, state, view),
+    research: (state, view) => drawResearch(ctx, state, view),
     science: (state) => drawScienceScreen(ctx, state),
     rates: (state) => drawRatesScreen(ctx, state),
     advisor: (state, which) => drawAdvisor(ctx, state, which),
@@ -57,7 +57,8 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px, py),
     tileAt: (state, view, px, py) => tileAt(state, view, px, py),
     minimapAt: (state, px, py) => minimapAt(state, px, py),
-    techTreeHit: (state, view, px, py) => techTreeHit(ctx, state, view, px, py),
+    researchHit: (state, view, px, py) => researchHit(ctx, state, view, px, py),
+    statusAt: (state, _view, px, py) => statusPanelAt(state, px, py),
     report: (page) => drawReport(ctx, page),
     worldMap: (state) => drawWorldMap(ctx, state),
     menuBarHit: (px, py) => menuBarHit(ctx, px, py),
