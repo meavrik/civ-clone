@@ -7,7 +7,7 @@ import { wonder, WONDERS, type WonderRule } from "./rules/wonders.js";
 import { government } from "./rules/governments.js";
 import { civ } from "./rules/civs.js";
 import { nextCityName } from "./rules/names.js";
-import { TERRAIN_RULES } from "./rules/terrain.js";
+import { specialOf, TERRAIN_RULES } from "./rules/terrain.js";
 import { UNIT_TYPES, unitType } from "./rules/units.js";
 import {
   CITY_RADIUS,
@@ -41,12 +41,17 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
   let food = r.food;
   let shields = r.shields;
   let trade = r.trade;
-  if (tile.special && r.special) {
-    food += r.special.food ?? 0;
-    shields += r.special.shields ?? 0;
-    trade += r.special.trade ?? 0;
-    const learned = r.special.learned;
-    if (learned && owner !== undefined && knows(state.players[owner]?.advances ?? [], learned.advance)) food += learned.food;
+  const sp = specialOf(tile);
+  if (sp) {
+    food += sp.food ?? 0;
+    shields += sp.shields ?? 0;
+    trade += sp.trade ?? 0;
+    const learned = sp.learned;
+    if (learned && owner !== undefined && knows(state.players[owner]?.advances ?? [], learned.advance)) {
+      food += learned.food ?? 0;
+      shields += learned.shields ?? 0;
+      trade += learned.trade ?? 0;
+    }
   }
   if (tile.river) trade += 1;
   if (tile.road) trade += r.road.trade;

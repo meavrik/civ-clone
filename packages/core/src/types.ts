@@ -54,6 +54,8 @@ export interface Tile {
   terrain: Terrain;
   river: boolean;
   special: boolean;
+  /** The special is its terrain's second kind (`TerrainRule.second`), where it has one. */
+  secondSpecial?: boolean;
   road: boolean;
   irrigation: boolean;
   mine: boolean;
@@ -222,6 +224,8 @@ export interface GameState {
   peaceOnContact?: boolean;
   /** A city works any of its 21 squares, inside its border or not (`slotInLand`). Set for saves before version 16. */
   workBeyondBorders?: boolean;
+  /** Every terrain has one kind of special, as the original (no `TerrainRule.second`). Set for saves before version 17. */
+  oneSpecial?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

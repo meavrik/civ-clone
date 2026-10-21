@@ -1,4 +1,4 @@
-import { Terrain, TERRAIN_RULES, type WorldMap } from "@civ/core";
+import { specialOf, Terrain, type Tile, type WorldMap } from "@civ/core";
 import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, BLEND_REACH, groundOwner, LAND, landOwner, riverShape, SHORE, strokeDistance, type CoastPatch, type Explored, type Lifting } from "@civ/renderer-api";
 import { FEATURE_SHEET, RESOURCE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
@@ -274,10 +274,20 @@ export function fogSquare(map: WorldMap, explored: Explored, x: number, y: numbe
   return out;
 }
 
-/** A special resource: its icon from the resources sheet, else the features sheet (named after the resource). */
-export function drawSpecial(s: Surface, dx: number, dy: number, terrain: Terrain): void {
-  const name = TERRAIN_RULES[terrain].special?.name.toLowerCase();
-  const icon = name ? spriteSurface(RESOURCE_SHEET, name) ?? spriteSurface(FEATURE_SHEET, name) : null;
+/** Specials drawn with another's picture until they have their own: seals as whales, peat as iron ore. */
+const STAND_IN: Record<string, string> = { seals: "whales", peat: "iron" };
+
+/** A special's picture by its name: from the resources sheet, else the features sheet, else its stand-in's. */
+export function specialSprite(name: string): Surface | null {
+  const key = name.toLowerCase();
+  const standIn = STAND_IN[key];
+  return spriteSurface(RESOURCE_SHEET, key) ?? spriteSurface(FEATURE_SHEET, key) ?? (standIn ? spriteSurface(RESOURCE_SHEET, standIn) : null);
+}
+
+/** A square's special resource, drawn over its terrain. */
+export function drawSpecial(s: Surface, dx: number, dy: number, tile: Tile): void {
+  const name = specialOf(tile)?.name;
+  const icon = name ? specialSprite(name) : null;
   if (icon) { s.blit(icon, dx, dy, SPRITE_CLEAR); return; }
   s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!);
 }

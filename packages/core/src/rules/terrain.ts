@@ -7,17 +7,32 @@ import { Terrain } from "../types.js";
  * civ1 ruleset: only forest, swamp and jungle change terrain under the
  * plough, nothing is mined into forest, and mountains mine for +1.
  */
+/**
+ * A special resource and what it adds to its square; `learned` adds more for a worker whose
+ * civilization knows an advance (Animal Husbandry: pastures for Horses, Game and Seals).
+ */
+export interface SpecialRule {
+  name: string;
+  food?: number;
+  shields?: number;
+  trade?: number;
+  learned?: { advance: string; food?: number; shields?: number; trade?: number };
+}
+
 export interface TerrainRule {
   food: number;
   shields: number;
   trade: number;
   moveCost: number;
   defense: number;
+  /** The original's special resource on this terrain (see `SpecialRule`). */
+  special?: SpecialRule;
   /**
-   * Special resource found on this terrain and its bonus; `learned` adds more for a worker whose
-   * civilization knows an advance (Animal Husbandry: pastures for Horses, Game and Seals).
+   * A second kind of special (our departure, asked for 2026-10-21, after Civilization II): about
+   * half the specials on this terrain are this one instead (`Tile.secondSpecial`). Worlds of saves
+   * before version 17 have none (`oneSpecial`).
    */
-  special?: { name: string; food?: number; shields?: number; trade?: number; learned?: { advance: string; food: number } };
+  second?: SpecialRule;
   /** Irrigation result: yield bonus, or a terrain change. Turns = settler-turns. */
   irrigate?: { food?: number; becomes?: Terrain; turns: number };
   mine?: { shields?: number; becomes?: Terrain; turns: number };
@@ -42,18 +57,23 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Ocean]: {
     food: 1, shields: 0, trade: 2, moveCost: 1, defense: 1,
     special: { name: "Fish", food: 2 },
+    // Whalers put to sea with Navigation.
+    second: { name: "Whales", food: 1, shields: 1, learned: { advance: "navigation", shields: 1 } },
     road: { trade: 0, turns: 0 },
   },
   [Terrain.Grassland]: {
     food: 2, shields: 0, trade: 0, moveCost: 1, defense: 1,
     // Grassland "resources" (the shield variant) are handled as a special.
     special: { name: "Resources", shields: 1 },
+    second: { name: "Cotton", trade: 2, learned: { advance: "weaving", shields: 1 } },
     irrigate: { food: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
   },
   [Terrain.Plains]: {
     food: 1, shields: 1, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Horses", shields: 2, learned: { advance: "animal_husbandry", food: 1 } },
+    // Pots keep the harvest.
+    second: { name: "Wheat", food: 2, learned: { advance: "pottery", food: 1 } },
     irrigate: { food: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
   },
@@ -73,6 +93,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Mountains]: {
     food: 0, shields: 1, trade: 0, moveCost: 3, defense: 3,
     special: { name: "Gold", trade: 6 },
+    second: { name: "Iron", shields: 3, learned: { advance: "iron_working", shields: 1 } },
     mine: { shields: 1, turns: 10 },
     road: { trade: 0, turns: 6 },
     rough: true,
@@ -81,6 +102,8 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Desert]: {
     food: 0, shields: 1, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Oasis", food: 3 },
+    // A little bitumen until Refining makes it oil.
+    second: { name: "Oil", shields: 1, learned: { advance: "refining", shields: 3 } },
     irrigate: { food: 1, turns: 5 },
     mine: { shields: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
@@ -117,6 +140,13 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     rough: true,
   },
 };
+
+/** The special on a square, if it has one: its terrain's second kind where the square says so, else the first. */
+export function specialOf(tile: { terrain: Terrain; special: boolean; secondSpecial?: boolean }): SpecialRule | undefined {
+  if (!tile.special) return undefined;
+  const r = TERRAIN_RULES[tile.terrain];
+  return (tile.secondSpecial ? r.second : undefined) ?? r.special;
+}
 
 /** Movement points are stored in thirds so roads (1/3) stay integral. */
 export const MOVE_FRAC = 3;

@@ -57,6 +57,7 @@ import {
   type Production,
   type Unit,
   type WorldSize,
+  specialOf,
 } from "@civ/core";
 
 /**
@@ -593,7 +594,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   const defence = r.defense === 1 ? "" : `  {tower} +${Math.round((r.defense - 1) * 100)}%`;
   lines.push(`{food} ${yld.food}  {shield} ${yld.shields}  {trade} ${yld.trade}  {boot} ${r.moveCost}${defence}`);
   const features = [
-    t.special && r.special && `{star} ${r.special.name}`,
+    specialOf(t) && `{star} ${specialOf(t)!.name}`,
     t.river && "{river} River",
     t.railroad ? "{railroad} Railroad" : t.road && "{road} Road",
     t.irrigation && "{irrigate} Irrigation",

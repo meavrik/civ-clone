@@ -18,6 +18,7 @@ import {
   workOptions,
   wrapX,
   type GameState,
+  specialOf,
 } from "@civ/core";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
@@ -155,7 +156,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       drawRoad(s, dx, dy, map, me.explored, mx, my);
       drawRailroad(s, dx, dy, map, me.explored, mx, my);
       if (tile.mine) drawMine(s, dx, dy);
-      if (tile.special) drawSpecial(s, dx, dy, tile.terrain);
+      if (tile.special) drawSpecial(s, dx, dy, tile);
       if (tile.hut) drawHut(s, dx, dy);
       if (tile.fortress) drawFortress(s, dx, dy);
       if (tile.pollution) drawPollution(s, dx, dy);
@@ -335,7 +336,7 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
   const t = state.map.tiles[idx]!;
   const r = TERRAIN_RULES[t.terrain];
   terrainSwatch(s, t.terrain, x, y);
-  drawTextWrapped(s, x + 10, y, TEXT_W - 10, r.special && t.special ? `${TERRAIN_NAMES[t.terrain]}: ${r.special.name}` : TERRAIN_NAMES[t.terrain], ink, 1);
+  drawTextWrapped(s, x + 10, y, TEXT_W - 10, specialOf(t) ? `${TERRAIN_NAMES[t.terrain]}: ${specialOf(t)!.name}` : TERRAIN_NAMES[t.terrain], ink, 1);
   y += 9;
   const move = `{boot}${r.moveCost}${r.defense !== 1 ? ` {tower}+${Math.round((r.defense - 1) * 100)}%` : ""}`;
   y += 9 * drawIconsWrapped(s, x, y, TEXT_W, tileIconLine(state, tx, ty, move), ink, Math.min(3, linesLeft(y)));

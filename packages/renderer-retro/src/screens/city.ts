@@ -255,7 +255,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       drawRoad(s, px, py, state.map, me.explored, wx, my);
       drawRailroad(s, px, py, state.map, me.explored, wx, my);
       if (tile.mine) drawMine(s, px, py);
-      if (tile.special) drawSpecial(s, px, py, tile.terrain);
+      if (tile.special) drawSpecial(s, px, py, tile);
       if (tile.fortress) drawFortress(s, px, py);
       if (tile.pollution) drawPollution(s, px, py);
       if (fog) s.blit(fog, px, py, SPRITE_CLEAR);

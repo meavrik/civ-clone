@@ -6,6 +6,7 @@ import {
   drawText,
   FEATURE_SHEET,
   RESOURCE_SHEET,
+  specialSprite,
   getTile,
   ownerBox,
   PALETTE,
@@ -35,10 +36,8 @@ describe("sprite sheets", () => {
     for (const t of UNIT_TYPES) expect(UNIT_SHEET.byName.has(t.id), t.id).toBe(true);
     for (const name of ["ocean", "grassland", "plains", "forest", "hills", "mountains", "desert", "tundra", "arctic", "swamp", "jungle"])
       expect(TERRAIN_SHEET.byName.has(name), name).toBe(true);
-    for (const rule of Object.values(TERRAIN_RULES)) {
-      const name = rule.special?.name.toLowerCase();
-      if (name) expect(RESOURCE_SHEET.byName.has(name) || FEATURE_SHEET.byName.has(name), name).toBe(true);
-    }
+    for (const rule of Object.values(TERRAIN_RULES))
+      for (const sp of [rule.special, rule.second]) if (sp) expect(specialSprite(sp.name), sp.name).not.toBeNull();
     for (const name of ["city", "walls", "hut", "mine"]) expect(FEATURE_SHEET.byName.has(name), name).toBe(true);
     // Every panel icon, at 8x8 so it sits in a line of text.
     expect(ICON_SHEET.size).toBe(8);

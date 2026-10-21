@@ -128,7 +128,7 @@ function homelandStart(map: WorldMap, home: readonly [number, number], starts: [
 export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const rng = createRng(seed);
   const world = opts.world ? premadeWorld(opts.world) : undefined;
-  const map = opts.world ? premadeMap(rng, opts.world, opts.size, opts.joinedIslands) : generateMap(rng, opts);
+  const map = opts.world ? premadeMap(rng, opts.world, opts.size, opts.joinedIslands, opts.oneSpecial) : generateMap(rng, opts);
   const homes = world && opts.historical ? premadeStarts(world, opts.size, opts.joinedIslands) : undefined;
   const humanCiv = opts.civ ?? "romans";
   const roster = opts.roster;
@@ -182,6 +182,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.accruedCulture ? { accruedCulture: true } : {}),
     ...(opts.peaceOnContact ? { peaceOnContact: true } : {}),
     ...(opts.workBeyondBorders ? { workBeyondBorders: true } : {}),
+    ...(opts.oneSpecial ? { oneSpecial: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

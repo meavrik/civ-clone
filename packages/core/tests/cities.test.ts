@@ -10,6 +10,7 @@ import {
   lastTurnEvents,
   newGame,
   slotScore,
+  specialOf,
   Terrain,
   tileYield,
   unitSupport,
@@ -63,6 +64,45 @@ describe("tile yields", () => {
     expect(tileYield(s, t, false, "monarchy", 0).food).toBe(4);
     t.terrain = Terrain.Grassland; // Resources: no animals
     expect(tileYield(s, t, false, "monarchy", 0).food).toBe(2);
+  });
+
+  it("gives a terrain's second special its own yield, raised by its advance", () => {
+    const s = flatWorld();
+    const t = getTile(s.map, 10, 10)!;
+    t.terrain = Terrain.Ocean;
+    t.special = true;
+    expect(specialOf(t)?.name).toBe("Fish");
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 3, shields: 0, trade: 2 });
+    t.secondSpecial = true;
+    expect(specialOf(t)?.name).toBe("Whales");
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 2, shields: 1, trade: 2 });
+    s.players[0]!.advances.push("navigation");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
+    // Oil is little use until Refining.
+    t.terrain = Terrain.Desert;
+    expect(specialOf(t)?.name).toBe("Oil");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
+    s.players[0]!.advances.push("refining");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(5);
+    // A terrain without a second kind keeps its first.
+    t.terrain = Terrain.Hills;
+    expect(specialOf(t)?.name).toBe("Coal");
+  });
+
+  it("scatters both kinds on new worlds, and only the first in worlds of older saves", () => {
+    const count = (oneSpecial: boolean) => {
+      const { map } = newGame(4, oneSpecial ? { oneSpecial } : {});
+      const names = new Map<string, number>();
+      for (const t of map.tiles) { const n = specialOf(t)?.name; if (n) names.set(n, (names.get(n) ?? 0) + 1); }
+      return { names, specials: map.tiles.filter((t) => t.special).length, terrains: map.tiles.map((t) => t.terrain).join() };
+    };
+    const now = count(false);
+    const old = count(true);
+    for (const n of ["Whales", "Wheat", "Cotton", "Iron"]) expect(now.names.get(n), n).toBeGreaterThan(0);
+    for (const n of ["Whales", "Wheat", "Cotton", "Oil", "Iron"]) expect(old.names.has(n), n).toBe(false);
+    // The same world, the same squares: only which kind changes.
+    expect(now.terrains).toBe(old.terrains);
+    expect(now.specials).toBe(old.specials);
   });
 });
 

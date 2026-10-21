@@ -1,4 +1,5 @@
 import { nextFloat, nextInt, type RngState } from "../rng.js";
+import { TERRAIN_RULES } from "../rules/terrain.js";
 import { MAP_WIDTH, NEIGHBOURS, Terrain, worldSize, wrapX, type Tile, type WorldMap, type WorldSize } from "../types.js";
 
 export interface MapGenOptions {
@@ -12,6 +13,8 @@ export interface MapGenOptions {
   climate?: 0 | 1 | 2;
   /** 0..2 — original "age" (3 / 4 / 5 billion years): erosion passes, and fewer mountains as it wears. */
   age?: 0 | 1 | 2;
+  /** One kind of special to each terrain, as the original (no `TerrainRule.second`). Old saves load with it. */
+  oneSpecial?: boolean;
   /**
    * The first generator: every land square's terrain rolled on its own within
    * latitude bands. Saves from before version 6 rebuild their world with it.
@@ -81,7 +84,7 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
   const map = opts.scatteredTerrain ? scatteredWorld(rng, elev, opts) : climateWorld(rng, elev, opts);
 
   // ---- 4. specials and villages --------------------------------------------
-  scatterSpecials(map, rng);
+  scatterSpecials(map, rng, opts.oneSpecial);
 
   labelContinents(map);
   return map;
@@ -445,9 +448,12 @@ export function blankTile(terrain: Terrain): Tile {
  * Specials on a drifting lattice (so they appear in the familiar spread) and
  * minor-tribe villages, roughly one per 60 land tiles and never on the poles.
  * Shared by generated and premade worlds; the lattice offset and the
- * villages come from the game's RNG, so each seed scatters them anew.
+ * villages come from the game's RNG, so each seed scatters them anew. On a
+ * terrain with a second kind of special, about half the specials are that one,
+ * picked by a hash of the square (no more RNG, so every seed keeps its world);
+ * `oneSpecial` (old saves) leaves them all the first kind.
  */
-export function scatterSpecials(map: WorldMap, rng: RngState): void {
+export function scatterSpecials(map: WorldMap, rng: RngState, oneSpecial = false): void {
   const { width: w, height: h, tiles } = map;
   const sx = nextInt(rng, 4);
   const sy = nextInt(rng, 4);
@@ -457,6 +463,7 @@ export function scatterSpecials(map: WorldMap, rng: RngState): void {
       const lattice = ((x + sx) * 13 + (y + sy) * 11 + ((x + sx) >> 2)) % 32 === 0;
       if (lattice) t.special = true;
       else if (t.terrain === Terrain.Ocean && (x * 7 + y * 3 + sx) % 29 === 0) t.special = true;
+      if (t.special && !oneSpecial && TERRAIN_RULES[t.terrain].second && squareHash(x + sx, y + sy) < 0.5) t.secondSpecial = true;
     }
   for (let y = 2; y < h - 2; y++)
     for (let x = 0; x < w; x++) {
@@ -464,6 +471,13 @@ export function scatterSpecials(map: WorldMap, rng: RngState): void {
       if (t.terrain === Terrain.Ocean || t.terrain === Terrain.Arctic) continue;
       if (nextInt(rng, 60) === 0) t.hut = true;
     }
+}
+
+/** A hash of a square in 0..1, for choices that must not draw on the game's RNG. */
+function squareHash(x: number, y: number): number {
+  let n = (x * 374761393 + y * 668265263) | 0;
+  n = (n ^ (n >>> 13)) * 1274126177;
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
 }
 
 /** Flood-fill continent/ocean ids (1-based) so "same landmass" is a lookup. */
