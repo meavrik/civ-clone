@@ -122,9 +122,9 @@ for (const [ch, rows] of Object.entries(G)) {
 export const FONT_HEIGHT = 8;
 
 /**
- * The same glyphs as fine as the screen (art/font.art.ts): two pixels to each screen pixel, stems two
- * wide and horizontal strokes one, each glyph as wide as here so text measures the same. Text on a
- * fine surface is drawn with these; on a coarse one with the bitmaps above.
+ * The game's pixel font as fine as the screen (art/font.art.ts), drawn by hand: sixteen fine rows to a
+ * line, strokes two pixels thick, real descenders, each glyph as wide as here so text measures the
+ * same. Text on a fine surface is drawn with it; on a coarse one with the bitmaps above.
  */
 const FINE = new Map<string, [number, number][]>();
 {
