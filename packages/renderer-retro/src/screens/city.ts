@@ -25,7 +25,7 @@ import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, GOLD, GOOD, INK, stipple, TITLE_H } from "../widgets.js";
 import { CITIZEN_H, drawCitizen } from "../citizens.js";
-import { drawIcon, drawIconLine, ICON } from "../icons.js";
+import { drawIcon, drawIconLine, drawMark, ICON } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
@@ -117,23 +117,15 @@ function drawBox(s: Surface, x: number, y: number, w: number, h: number, title =
 }
 
 function yieldIcons(s: Surface, x: number, y: number, food: number, shields: number, trade: number): void {
-  // Tiny 3x3 glyphs: green dot food, grey block shields, yellow coin trade. Up to 4 per row.
+  // Tiny marks a screen pixel apart (3x3 screen pixels each): food, shields, trade. Up to 4 per row.
   let i = 0;
-  const put = (color: number, shape: "dot" | "block" | "coin") => {
-    const ix = x + 1 + (i % 4) * 4;
-    const iy = y + 1 + Math.floor(i / 4) * 4;
-    if (shape === "block") s.rect(ix, iy, 3, 3, color);
-    else {
-      s.set(ix + 1, iy, color);
-      s.hline(ix, iy + 1, 3, color);
-      s.set(ix + 1, iy + 2, color);
-      if (shape === "coin") s.set(ix + 1, iy + 1, C.BLACK!);
-    }
+  const put = (mark: "yield_food" | "yield_shield" | "yield_trade") => {
+    drawMark(s, mark, (x + 1 + (i % 4) * 4) * 2, (y + 1 + Math.floor(i / 4) * 4) * 2);
     i++;
   };
-  for (let k = 0; k < food; k++) put(C.LGREEN!, "dot");
-  for (let k = 0; k < shields; k++) put(C.LGREY!, "block");
-  for (let k = 0; k < trade; k++) put(C.YELLOW!, "coin");
+  for (let k = 0; k < food; k++) put("yield_food");
+  for (let k = 0; k < shields; k++) put("yield_shield");
+  for (let k = 0; k < trade; k++) put("yield_trade");
 }
 
 /**

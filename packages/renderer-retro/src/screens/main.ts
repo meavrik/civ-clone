@@ -82,7 +82,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
 }
 
 import { borderSides, fieldSides, isDeepWater, researchOutlook, type Callout, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
-import { drawIcon, drawIconLine, drawIconsWrapped, ICON, iconLineWidth } from "../icons.js";
+import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
 /** A player's colour: their civilization's slot, never their seat. */
@@ -403,10 +403,7 @@ function drawMovePips(s: Surface, x: number, y: number, left: number, allowance:
   if (total > 10) return drawIconLine(s, x, y, `{boot}${Math.floor(left / 3)}${left % 3 ? `.${left % 3}` : ""}`, INK);
   for (let i = 0; i < total; i++) {
     const have = left - i * 3;
-    const px = x + i * 5;
-    s.rect(px, y + 2, 4, 4, C.BLACK!);
-    if (have >= 3) s.rect(px, y + 2, 4, 4, C.YELLOW!);
-    else if (have > 0) s.rect(px, y + 4, 4, 2, C.YELLOW!);
+    drawMark(s, have >= 3 ? "move" : have > 0 ? "move_part" : "move_none", (x + i * 5) * 2, (y + 2) * 2);
   }
   return x + total * 5;
 }

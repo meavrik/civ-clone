@@ -198,14 +198,14 @@ describe("retro renderer", () => {
     const s = Surface.screen();
     drawMainScreen(s, state, view);
     writeFileSync(new URL("./out/panel-icons.png", import.meta.url), encodePng(s, 3));
-    // The working settler's badge: a black square in its top right corner with the blue drop inside.
+    // The working settler's badge: a black square in its top right corner with the irrigation's blue canal inside.
     const bx = 80 + (u.x + 1 - view.originX) * 16 + 7;
     const by = 9 + (u.y - view.originY) * 16;
     let black = 0;
     let blue = 0;
-    for (let y = by; y < by + 9; y++) for (let x = bx; x < bx + 9; x++) { const c = s.get(x, y); if (c === C.BLACK!) black++; if (c === C.LBLUE!) blue++; }
+    for (let y = by; y < by + 9; y++) for (let x = bx; x < bx + 9; x++) { const c = s.get(x, y); if (c === C.BLACK!) black++; if ((c >= C.ICE! && c < C.ICE! + 8) || (c >= C.OCEAN! && c < C.OCEAN! + 8)) blue++; }
     expect(black).toBeGreaterThan(20);
-    expect(blue).toBeGreaterThan(8);
+    expect(blue).toBeGreaterThan(4);
     // The terrain window speaks in the same pictures.
     const info = terrainInfo(state, worker.x, worker.y);
     drawMenu(s, { title: info.title, body: info.lines, items: ["Center the map here", "Close"], selected: 1 });
