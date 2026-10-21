@@ -50,7 +50,7 @@ const RAMPS: Record<string, Rgb[]> = {
   earth: ramp([72, 48, 20], [196, 160, 104], 8), // hills, roads, wood
   stone: ramp([56, 56, 64], [220, 220, 228], 8), // mountains, walls
   sand: ramp([168, 132, 60], [252, 240, 180], 8),
-  hide: [[60, 30, 16], [95, 49, 25], [125, 68, 30], [155, 86, 34], [175, 100, 40], [220, 164, 85], [246, 221, 165], [252, 240, 214]], // units: leather, wood, skin, sailcloth
+  hide: [[60, 30, 16], [95, 49, 25], [125, 68, 30], [155, 86, 34], [175, 100, 40], [220, 164, 85], [246, 221, 165], [238, 228, 215]], // units: leather, wood, skin, sailcloth; resources: cotton
   mire: [[13, 31, 28], [28, 65, 48], [65, 56, 38], [92, 98, 35], [65, 139, 45], [117, 172, 50], [220, 171, 78], [245, 203, 96]], // swamp: the reference sheet's colours (2026-10-21)
   canopy: [[15, 22, 25], [12, 73, 41], [110, 55, 26], [19, 103, 41], [28, 121, 43], [141, 72, 29], [179, 96, 34], [100, 174, 50]], // jungle
   flesh: ramp([120, 72, 40], [255, 212, 168], 8),
@@ -129,6 +129,14 @@ for (const [name, colors] of Object.entries(LAND)) {
   C[name.toUpperCase()] = PALETTE.length;
   PALETTE.push(...colors);
 }
+/** Ramps shorter than eight colours; `shade` keeps within them. */
+const RAMP_SIZE: Record<string, number> = {};
+// Resources (2026-10-21): the night blue, jewels and gold of the user's resource icons, in the six
+// slots the palette had left (255 stays clear for sprites).
+C.JEWEL = PALETTE.length;
+PALETTE.push([2, 2, 21], [52, 58, 88], [77, 85, 161], [143, 87, 241], [40, 184, 223], [232, 183, 38]);
+RAMP_SIZE.jewel = 6;
+if (PALETTE.length > 255) throw new Error(`palette has ${PALETTE.length} colours; 255 is kept clear`);
 while (PALETTE.length < 256) PALETTE.push([0, 0, 0]);
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
@@ -141,7 +149,7 @@ export function slotColor(slot: number): number {
 export function shade(rampName: string, n: number): number {
   const base = C[rampName.toUpperCase()];
   if (base === undefined) throw new Error(`unknown ramp ${rampName}`);
-  return base + Math.max(0, Math.min(7, n));
+  return base + Math.max(0, Math.min((RAMP_SIZE[rampName.toLowerCase()] ?? 8) - 1, n));
 }
 
 /** RGBA lookup table (256*4) for fast framebuffer conversion. */

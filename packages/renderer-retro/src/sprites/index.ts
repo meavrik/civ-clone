@@ -1,6 +1,7 @@
 import citizensArt from "../art/citizens.art.js";
 import featuresArt from "../art/features.art.js";
 import iconsArt from "../art/icons.art.js";
+import resourcesArt from "../art/resources.art.js";
 import terrainArt from "../art/terrain.art.js";
 import unitsArt from "../art/units.art.js";
 import { C } from "../palette.js";
@@ -16,11 +17,13 @@ import { CLEAR, OWNER, OWNER_DARK, parseSheet, SPRITE_CLEAR, spriteIndices, type
 export const UNIT_SHEET = parseSheet("units", 32, unitsArt, ["hide", "steel", "grey"], DETAIL);
 export const TERRAIN_SHEET = parseSheet("terrain", 16 * DETAIL, terrainArt, ["grass", "earth", "stone"], DETAIL);
 export const FEATURE_SHEET = parseSheet("features", 16, featuresArt, ["earth", "stone", "grey"]);
+/** Special resources, as fine as the terrain they stand on: 32x32, named after the special. */
+export const RESOURCE_SHEET = parseSheet("resources", 32, resourcesArt, ["jewel", "hide", "steel"], DETAIL);
 /** 8x8 pictures for the info panels and the badges on working units. */
 export const ICON_SHEET = parseSheet("icons", 8, iconsArt, ["grey", "earth", "stone"]);
 /** The city screen's citizens, a man and a woman to each sprite (see citizens.ts). */
 export const CITIZEN_SHEET = parseSheet("citizens", 16, citizensArt, ["flesh", "earth", "grey"]);
-export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRAIN_SHEET, features: FEATURE_SHEET, icons: ICON_SHEET, citizens: CITIZEN_SHEET };
+export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRAIN_SHEET, features: FEATURE_SHEET, resources: RESOURCE_SHEET, icons: ICON_SHEET, citizens: CITIZEN_SHEET };
 
 /** An owner colour's darker partner in the EGA set, for shading the box and `p` pixels. */
 const DARKER: Record<number, number> = {

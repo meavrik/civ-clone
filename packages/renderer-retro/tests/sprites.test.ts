@@ -5,6 +5,7 @@ import {
   C,
   drawText,
   FEATURE_SHEET,
+  RESOURCE_SHEET,
   getTile,
   ownerBox,
   PALETTE,
@@ -34,7 +35,10 @@ describe("sprite sheets", () => {
     for (const t of UNIT_TYPES) expect(UNIT_SHEET.byName.has(t.id), t.id).toBe(true);
     for (const name of ["ocean", "grassland", "plains", "forest", "hills", "mountains", "desert", "tundra", "arctic", "swamp", "jungle"])
       expect(TERRAIN_SHEET.byName.has(name), name).toBe(true);
-    for (const rule of Object.values(TERRAIN_RULES)) if (rule.special) expect(FEATURE_SHEET.byName.has(rule.special.name.toLowerCase()), rule.special.name).toBe(true);
+    for (const rule of Object.values(TERRAIN_RULES)) {
+      const name = rule.special?.name.toLowerCase();
+      if (name) expect(RESOURCE_SHEET.byName.has(name) || FEATURE_SHEET.byName.has(name), name).toBe(true);
+    }
     for (const name of ["city", "walls", "hut", "mine"]) expect(FEATURE_SHEET.byName.has(name), name).toBe(true);
     // Every panel icon, at 8x8 so it sits in a line of text.
     expect(ICON_SHEET.size).toBe(8);
@@ -103,7 +107,8 @@ describe("sprite sheets", () => {
     const units = UNIT_SHEET.sprites.map((s) => s.name);
     const unitRows = Math.ceil(units.length / cols);
     const features = FEATURE_SHEET.sprites.length;
-    const height = 12 + unitRows * 2 * 18 + 12 + 18 + 12 + Math.ceil(features / cols) * 18 + 12 + 3 * 15 + 4;
+    const resources = RESOURCE_SHEET.sprites.length;
+    const height = 12 + unitRows * 2 * 18 + 12 + 18 + 12 + Math.ceil(features / cols) * 18 + 12 + Math.ceil(resources / cols) * 18 + 12 + 3 * 15 + 4;
     // As fine as the screen, so the terrain shows its fine pixels.
     const s = Surface.fine(cols * 18 + 4, height);
     s.fill(C.DGREY!);
@@ -129,6 +134,15 @@ describe("sprite sheets", () => {
       s.blit(spriteSurface(FEATURE_SHEET, f.name, PLAYER_COLORS[1]!)!, x, yy, SPRITE_CLEAR);
     });
     y += Math.ceil(features / cols) * 18 + 2;
+    drawText(s, 2, y, "Resources", C.WHITE!);
+    y += 10;
+    RESOURCE_SHEET.sprites.forEach((r, i) => {
+      const x = 2 + (i % cols) * 18;
+      const yy = y + Math.floor(i / cols) * 18;
+      s.blit(getTile(Terrain.Grassland, 0, 0), x, yy);
+      s.blit(spriteSurface(RESOURCE_SHEET, r.name)!, x, yy, SPRITE_CLEAR);
+    });
+    y += Math.ceil(resources / cols) * 18 + 2;
     drawText(s, 2, y, "Citizens (four looks to a mood)", C.WHITE!);
     y += 10;
     stipple(s, 0, y, s.width, 3 * 15, "panel");

@@ -1,6 +1,6 @@
 import { Terrain, TERRAIN_RULES, type WorldMap } from "@civ/core";
 import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, BLEND_REACH, groundOwner, LAND, landOwner, riverShape, SHORE, strokeDistance, type CoastPatch, type Explored, type Lifting } from "@civ/renderer-api";
-import { FEATURE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
+import { FEATURE_SHEET, RESOURCE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { C, PALETTE, shade } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
@@ -274,10 +274,10 @@ export function fogSquare(map: WorldMap, explored: Explored, x: number, y: numbe
   return out;
 }
 
-/** A special resource: its icon from the features sheet (named after the resource). */
+/** A special resource: its icon from the resources sheet, else the features sheet (named after the resource). */
 export function drawSpecial(s: Surface, dx: number, dy: number, terrain: Terrain): void {
   const name = TERRAIN_RULES[terrain].special?.name.toLowerCase();
-  const icon = name ? spriteSurface(FEATURE_SHEET, name) : null;
+  const icon = name ? spriteSurface(RESOURCE_SHEET, name) ?? spriteSurface(FEATURE_SHEET, name) : null;
   if (icon) { s.blit(icon, dx, dy, SPRITE_CLEAR); return; }
   s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!);
 }
