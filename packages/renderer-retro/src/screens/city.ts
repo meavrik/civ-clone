@@ -10,6 +10,7 @@ import {
   nextBorderLevel,
   productionName,
   slotAvailable,
+  slotInLand,
   tileYield,
   turnToYear,
   wonder,
@@ -264,10 +265,29 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
         if (slot === 0) drawCity(s, px, py - 1, city, playerColor(state, city.owner));
         s.rect(px, py + 8, TILE, 8, C.BLACK!);
         yieldIcons(s, px, py + 8, y.food, y.shields, y.trade);
+      } else if (!slotInLand(state, city, slot)) {
+        // Beyond the city's border (or on a rival's land): shaded, it cannot be worked.
+        for (let yy = 0; yy < TILE; yy++) for (let xx = (yy & 1); xx < TILE; xx += 2) s.set(px + xx, py + yy, C.BLACK!);
       } else if (!slotAvailable(state, city, slot)) {
-        // Hatch unavailable tiles.
+        // Hatch tiles another city works or a foreign unit stands on.
         for (let k = 0; k < TILE; k += 2) s.set(px + k, py + (k % 4 === 0 ? 0 : 1) + ((k * 7) % TILE), C.LRED!);
       }
+    }
+  // The city's border, where its land meets squares it cannot work.
+  const inLand = (dx: number, dy: number): boolean | null => {
+    const slot = CITY_RADIUS.findIndex(([ox, oy]) => ox === dx && oy === dy);
+    return slot < 0 || !getTile(state.map, city.x + dx, city.y + dy) ? null : slotInLand(state, city, slot);
+  };
+  const edge = playerColor(state, city.owner);
+  for (let ty = 0; ty < 5; ty++)
+    for (let tx = 0; tx < 5; tx++) {
+      if (inLand(tx - 2, ty - 2) !== true) continue;
+      const px = CITY_MAP_X + tx * TILE;
+      const py = CITY_MAP_Y + ty * TILE;
+      if (inLand(tx - 1, ty - 2) === false) s.rect(px + TILE - 1, py, 1, TILE, edge);
+      if (inLand(tx - 3, ty - 2) === false) s.rect(px, py, 1, TILE, edge);
+      if (inLand(tx - 2, ty - 1) === false) s.rect(px, py + TILE - 1, TILE, 1, edge);
+      if (inLand(tx - 2, ty - 3) === false) s.rect(px, py, TILE, 1, edge);
     }
 
   // Improvements, wonders in yellow, each building with its upkeep.

@@ -23,7 +23,9 @@ export const FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Ne
 export const font = (px: number, weight: "normal" | "bold" | "600" = "normal") => `${weight} ${px}px ${FONT}`;
 
 /** The minimap: its dark ground, and a city's rim and heart (its body is the owner's colour). */
-export const MINIMAP = { back: "#05080d", cityRim: "#05080d", cityHeart: "#ffffff" };
+/** The city screen's squares: beyond the city's border, and worked by another city or held by a foreign unit. */
+export const CITY_MAP = { beyond: "rgba(0, 0, 0, 0.55)", taken: "rgba(255, 80, 80, 0.35)" };
+export const MINIMAP = { back: "#05080d", cityRim: "#05080d", cityHeart: "#ffffff", /** ring round the unit awaiting orders */ pending: "#ffe14d" };
 
 export const UI = {
   bg: "#0d1117",

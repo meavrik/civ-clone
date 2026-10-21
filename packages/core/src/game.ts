@@ -51,6 +51,8 @@ export interface NewGameOptions extends MapGenOptions {
   accruedCulture?: boolean;
   /** Civilizations make peace the moment they meet, with no treaty to ask for. Old saves load with it. */
   peaceOnContact?: boolean;
+  /** Cities work any of their 21 squares, not only those inside their border. Old saves load with it. */
+  workBeyondBorders?: boolean;
   /** Rivals come only from civilizations a save of this version knew (`CivRule.since`). Old saves load with it. */
   roster?: number;
   /** Premade worlds as first drawn, some islands joined to their neighbours by land (Britain to France). Old saves load with it. */
@@ -179,6 +181,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.fixedBorders ? { fixedBorders: true } : {}),
     ...(opts.accruedCulture ? { accruedCulture: true } : {}),
     ...(opts.peaceOnContact ? { peaceOnContact: true } : {}),
+    ...(opts.workBeyondBorders ? { workBeyondBorders: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

@@ -220,6 +220,8 @@ export interface GameState {
   accruedCulture?: boolean;
   /** Meeting signs peace at once (no "contact" relation, no peace offers). Set for saves before version 15. */
   peaceOnContact?: boolean;
+  /** A city works any of its 21 squares, inside its border or not (`slotInLand`). Set for saves before version 16. */
+  workBeyondBorders?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

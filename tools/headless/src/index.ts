@@ -56,6 +56,8 @@ export interface GameConfig {
   classicCivs?: boolean;
   /** Our first unit upkeep (3 free units a city under Monarchy and Communism, debts from the shield box). */
   looseUpkeep?: boolean;
+  /** Cities work all 21 squares, inside their border or not (saves before version 16). */
+  workBeyondBorders?: boolean;
 }
 
 export interface PlayerStats {
@@ -139,6 +141,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.openMountains ? { openMountains: true } : {}),
     ...(config.classicCivs ? { classicCivs: true } : {}),
     ...(config.looseUpkeep ? { looseUpkeep: true } : {}),
+    ...(config.workBeyondBorders ? { workBeyondBorders: true } : {}),
   };
 }
 

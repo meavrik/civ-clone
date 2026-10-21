@@ -415,6 +415,14 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
     ctx.fillStyle = MINIMAP.cityHeart;
     ctx.fillRect(cx - 1, cy - 1, 2, 2);
   }
+  // The unit awaiting orders: a blinking ring round it, so it can be found from anywhere.
+  const pending = shownActive(state, view);
+  const waiting = pending !== null ? unitById(state, pending) : undefined;
+  if (waiting && view.blink) {
+    ctx.strokeStyle = MINIMAP.pending;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(MINIMAP_X + waiting.x * MINIMAP_SCALE - 3.5, MINIMAP_Y + waiting.y * MINIMAP_SCALE - 3.5, MINIMAP_SCALE + 7, MINIMAP_SCALE + 7);
+  }
   const vx = ((view.originX % map.width) + map.width) % map.width;
   const vy = Math.max(0, view.originY);
   ctx.strokeStyle = "rgba(255,255,255,0.85)";

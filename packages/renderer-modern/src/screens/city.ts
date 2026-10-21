@@ -10,6 +10,7 @@ import {
   nextBorderLevel,
   productionName,
   slotAvailable,
+  slotInLand,
   Terrain,
   tileYield,
   turnToYear,
@@ -25,7 +26,7 @@ import { paintBadge, paintCity, playerColor } from "../markers.js";
 import { paintCitizen } from "../citizens.js";
 import { paintIcon } from "../icons.js";
 import { paintFortress, paintMine, paintPollution, paintRiver, paintRoad, paintSpecial, paintTile } from "../tiles.js";
-import { BUTTON, H, TILE, UI, W } from "../theme.js";
+import { BUTTON, CITY_MAP, H, TILE, UI, W } from "../theme.js";
 import { paintCityScene } from "./cityview.js";
 
 /**
@@ -163,8 +164,12 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
           for (let k = 0; k < y.food; k++, ix += 7) circle(ctx, ix + 2, py + TILE - 9, 3, UI.ok);
           for (let k = 0; k < y.shields; k++, ix += 7) { ctx.fillStyle = "#cfd6dd"; ctx.fillRect(ix, py + TILE - 12, 5, 6); }
           for (let k = 0; k < y.trade; k++, ix += 7) circle(ctx, ix + 2, py + TILE - 9, 3, UI.accent);
+        } else if (!slotInLand(state, city, slot)) {
+          // Beyond the city's border (or on a rival's land): it cannot be worked.
+          ctx.fillStyle = CITY_MAP.beyond;
+          ctx.fillRect(px, py, TILE, TILE);
         } else if (!slotAvailable(state, city, slot)) {
-          ctx.fillStyle = "rgba(255, 80, 80, 0.35)";
+          ctx.fillStyle = CITY_MAP.taken;
           ctx.fillRect(px, py, TILE, TILE);
         }
       });

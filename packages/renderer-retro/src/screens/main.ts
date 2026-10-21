@@ -179,11 +179,16 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const fogged = (idx: number, owner: number) => owner !== state.currentPlayer && (view.lifting?.get(idx) ?? 0) >= 0.5;
   // A city with units inside shows a shield: always on our own, on others' while we see the square.
   const held = new Set(state.units.map((u) => u.y * map.width + u.x));
-  for (const c of state.cities) {
+  const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner));
+  for (const c of shownCities) {
     const idx = c.y * map.width + c.x;
-    if (!me.explored[idx] || fogged(idx, c.owner)) continue;
     const pos = tileToScreen(state, view, c.x, c.y);
     if (pos) drawCity(s, pos[0], pos[1], c, playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1));
+  }
+  // Their names under them, as the original showed them; drawn before the units so no unit is hidden by a name.
+  for (const c of shownCities) {
+    const pos = tileToScreen(state, view, c.x, c.y);
+    if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, playerColor(state, c.owner));
   }
 
   // Units: only those on tiles we currently see. Draw one per tile (top of stack).
@@ -247,6 +252,13 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
 
   // Letterbox the bottom half-row like the original's hard panel edge.
   void VIEW_H;
+}
+
+/** A city's name centred under its square: the owner's colour ringed in black, so it reads on any ground. */
+function drawCityLabel(s: Surface, cx: number, y: number, name: string, color: number): void {
+  const x = cx - Math.floor(textWidth(name) / 2);
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const) drawText(s, x + dx, y + dy, name, C.BLACK!);
+  drawText(s, x, y, name, color);
 }
 
 const CALLOUT_W = 150;
@@ -480,6 +492,19 @@ function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: nu
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) put(toPixel(k, c.x) + dx, toPixel(k, c.y) + dy, arm);
   }
   for (const c of known) put(toPixel(k, c.x), toPixel(k, c.y), C.WHITE!);
+  // The unit awaiting orders: a blinking yellow box round its pixel, so it can be found from anywhere.
+  const pending = shownActive(state, view);
+  const unit = pending !== null ? unitById(state, pending) : undefined;
+  if (unit && view.blink) {
+    const ux = toPixel(k, unit.x);
+    const uy = toPixel(k, unit.y);
+    for (let d = -2; d <= 2; d++) {
+      put(ux + d, uy - 2, C.YELLOW!);
+      put(ux + d, uy + 2, C.YELLOW!);
+      put(ux - 2, uy + d, C.YELLOW!);
+      put(ux + 2, uy + d, C.YELLOW!);
+    }
+  }
 }
 
 /** The map square under a minimap pixel (the middle of the block it stands for), or null off the map. */

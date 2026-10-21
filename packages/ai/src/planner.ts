@@ -1,6 +1,7 @@
 import {
   advance,
   applyCommand,
+  slotInLand,
   atPeace,
   atWar,
   attackOdds,
@@ -1339,7 +1340,7 @@ function slotFree(state: GameState, ctx: Ctx, c: City, slot: number): boolean {
   const i = y * state.map.width + wrapX(state.map, c.x + dx);
   const w = ctx.tileWorker.get(i);
   if (w !== undefined && w !== c.id) return false;
-  return !ctx.foreignUnitTiles.has(i);
+  return !ctx.foreignUnitTiles.has(i) && slotInLand(state, c, slot);
 }
 
 /** Refresh the index for one city after its citizens were moved. */

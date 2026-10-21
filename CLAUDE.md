@@ -11,7 +11,7 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `npm test` — vitest, all packages (50+ tests; render tests dump PNGs to `packages/renderer-retro/tests/out/`)
 - `npm run typecheck` — `tsc -b` across the workspace (strict, exactOptionalPropertyTypes, noUncheckedIndexedAccess)
 - `npm run build` — typecheck + Vite build
-- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--world earth [--historical]] [--size medium] [--classic-terrain] [--open-mountains] [--verify] [--json out.json]` —
+- `npm run headless -- --games 4 --turns 200 --civs 4 [--every 25] [--ai baseline,planner] [--world earth [--historical]] [--size medium] [--classic-terrain] [--open-mountains] [--work-beyond-borders] [--verify] [--json out.json]` —
   seeded all-AI tournaments (`tools/headless`); `--verify` replays each game from its save and checks the state digest
 - `npm run maps [-- europe]` — rebuild the premade worlds from Natural Earth data (`tools/maps`, cached in `tools/maps/.cache`,
   previews in `tools/maps/out/<world>-<size>.png`; look at them after any change)
@@ -78,7 +78,15 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   A city's culture is what it holds now (`cityCulture`: one per citizen, `BuildingRule.culture` from palace,
   temple, library, courthouse, colosseum, cathedral and university, and each wonder), never more turn after
   turn (asked for), so it falls when the city shrinks or loses a building; a `borders` city event says when
-  the border grows; the city screen shows culture against the next level. Saves before version 14 load with
+  the border grows; the city screen shows culture against the next level. A city works only squares of
+  its own land (asked for 2026-10-21; `slotInLand`: within its border, on land its civilization holds, so a
+  new city has the 8 round it until its culture reaches the first level); `slotAvailable` and both AI
+  planners' `slotFree` read it, `dropLostSquares` moves workers off squares lost since as the owner's turn
+  begins, and the city screen shades the squares beyond and rings the city's land in its owner's colour
+  (a click there says "Beyond Rome's border"). Saves before version 16 load with `workBeyondBorders`
+  (headless `--work-beyond-borders`). Head to head (planner vs v2, 16 x 300 turns): old rule 9-7, score 144 vs
+  131, pop 59 vs 51; new rule 12-4, score 129 vs 94, pop 49 vs 36 (cities grow slower; v2 suffers more).
+  Saves before version 14 load with
   `accruedCulture`: `City.culture` gathered every turn (`cultureRate`, frozen numbers in `ACCRUED_CULTURE`). Met and not at war, without open borders
   (`openBorders`/`closeBorders` commands, `state.openBorders`) a civilization minds land units on its
   land (`trespassOn`: not diplomats, caravans or units aboard): stepping in records its first demand
@@ -187,6 +195,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimaps
   follow the same toggle: a line of the owner's colour round each civ's explored land; cities are
   marked in their owner's colour either way (retro: a white dot in a cross, darker inside a border).
+  The unit awaiting orders blinks on the minimap in a yellow box (modern: a ring), so it can be found
+  from anywhere. City names stand under their squares on the map (retro: the owner's colour ringed in
+  black, drawn before the units so a name never hides one; asked for 2026-10-21).
   Roads and fields (`works.ts`): roads wander. Each square has a meeting point near its centre, and
   the course to each known road neighbour's bows and snakes, keyed by the pair and laid from the same
   end whichever square asks; every square draws whole courses clipped to itself, and the two squares

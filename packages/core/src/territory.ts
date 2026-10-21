@@ -111,6 +111,9 @@ export function claims(state: GameState, counts: (c: City) => boolean = () => tr
   return owner;
 }
 
+/** The farthest any border reaches: one square, and one more at each culture level. */
+const MAX_REACH = Math.max(CULTURE.levels.length, ACCRUED_CULTURE.levels.length) + 1;
+
 /** Whose land square (x, y) is, as `claims` has it; -1 when no city reaches it. */
 export function landOwner(state: GameState, x: number, y: number): number {
   const w = state.map.width;
@@ -121,6 +124,7 @@ export function landOwner(state: GameState, x: number, y: number): number {
     let dx = Math.abs(c.x - x) % w;
     if (dx > w / 2) dx = w - dx;
     const dy = Math.abs(c.y - y);
+    if (dx > MAX_REACH || dy > MAX_REACH) continue; // too far for any border: no need to weigh its culture
     const culture = cityCulture(state, c);
     if (!withinBorder(dx, dy, radiusFor(state, culture))) continue;
     const d = dx * dx + dy * dy;

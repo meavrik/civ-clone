@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, Terrain, unitType } from "@civ/core";
-import { borderSides, C, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
+import { borderSides, C, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -478,6 +478,29 @@ describe("terrain works", () => {
 });
 
 describe("city screen", () => {
+  it("shades the squares beyond a new city's border and rings its land", () => {
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    applyCommand(state, { type: "found", unit: u.id });
+    const city = state.cities[0]!;
+    city.buildings = [];
+    city.size = 2;
+    autoAssignWorkers(state, city);
+    const s = Surface.screen();
+    drawCityScreen(s, state, { city: city.id });
+    writeFileSync(new URL("./out/city-border.png", import.meta.url), encodePng(s, 3));
+    // The map shows the city at its middle: the squares two out are shaded (every other pixel black), those next to it are not.
+    const mapX = CITY_MAP_X + 2 * 16;
+    const mapY = CITY_MAP_Y + 2 * 16;
+    const black = (sx: number, sy: number) => { let n = 0; for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) if (s.get(sx + i, sy + j) === C.BLACK) n++; return n; };
+    expect(black(mapX + 32, mapY)).toBeGreaterThanOrEqual(128); // two east: beyond the border
+    for (const w of city.worked) expect(slotInLand(state, city, w)).toBe(true);
+    // The city on the main map carries its name under it.
+    const view: MainScreenView = { originX: city.x - 7, originY: Math.max(0, city.y - 6), blink: true };
+    drawMainScreen(s, state, view);
+    writeFileSync(new URL("./out/main-screen-city.png", import.meta.url), encodePng(s, 3));
+  });
+
   it("renders a city with production menu", () => {
     const state = newGame(2026);
     const u = state.units[0]!;

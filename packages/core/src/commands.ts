@@ -14,6 +14,7 @@ import {
   inciteCost,
   processCityTurn,
   routeBonus,
+  dropLostSquares,
   slotAvailable,
   arrangeCity,
   weakestWorked,
@@ -915,7 +916,8 @@ export function endTurn(state: GameState): void {
     }
   }
 
-  // Cities: growth, production, treasury, and the smoke they make.
+  // Cities: squares lost from their land since, then growth, production, treasury, and the smoke they make.
+  for (const c of state.cities) if (c.owner === player) dropLostSquares(state, c);
   for (const c of state.cities) if (c.owner === player) lastTurnEvents.push(...processCityTurn(state, c));
   for (const c of state.cities) if (c.owner === player && pollute(state, c)) lastTurnEvents.push({ city: c.id, kind: "pollution" });
   for (const c of state.cities)

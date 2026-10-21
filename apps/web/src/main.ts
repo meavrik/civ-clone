@@ -37,6 +37,7 @@ import {
   mapDistance,
   mindsTrespass,
   newGame,
+  slotInLand,
   pillageTarget,
   productionName,
   rankTitle,
@@ -1784,6 +1785,7 @@ canvas.addEventListener("mousedown", (e) => {
       const slot = renderer.citySlotAt(px, py);
       const city = state.cities.find((c) => c.id === sc.view.city);
       if (slot === 0) { if (dispatch({ type: "arrangeCity", city: sc.view.city })) say("Citizens moved to the best tiles"); }
+      else if (slot !== null && city && !city.worked.includes(slot) && !slotInLand(state, city, slot)) say(`Beyond ${city.name}'s border`);
       else if (slot !== null && city) dispatch({ type: city.worked.includes(slot) ? "toggleTile" : "workTile", city: city.id, slot });
       else leaveCity(sc);
       return;

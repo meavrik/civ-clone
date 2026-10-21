@@ -21,7 +21,7 @@ import {
   type Tile,
   type Unit,
 } from "./types.js";
-import { borderRadius, cultureRate } from "./territory.js";
+import { borderRadius, cultureRate, landOwner, withinBorder } from "./territory.js";
 import { createUnit } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
@@ -141,11 +141,23 @@ export function radiusTile(state: GameState, city: City, slot: number): Tile | n
   return getTile(state.map, city.x + dx, city.y + dy) ?? null;
 }
 
-/** Is a radius slot available to this city (on map, not worked by another city, not enemy-occupied)? */
+/**
+ * Does a radius slot lie in the city's own land: within its border, on a
+ * square its civilization holds (a square another civilization's city claims
+ * is theirs)? Always true in saves before version 16 (`workBeyondBorders`).
+ */
+export function slotInLand(state: GameState, city: City, slot: number): boolean {
+  if (state.workBeyondBorders || slot === 0) return true;
+  const [dx, dy] = CITY_RADIUS[slot]!;
+  if (!withinBorder(dx, dy, borderRadius(state, city))) return false;
+  return landOwner(state, wrapX(state.map, city.x + dx), city.y + dy) === city.owner;
+}
+
+/** Is a radius slot available to this city (on map, in its land, not worked by another city, not enemy-occupied)? */
 export function slotAvailable(state: GameState, city: City, slot: number): boolean {
   if (slot === 0) return false;
   const t = radiusTile(state, city, slot);
-  if (!t) return false;
+  if (!t || !slotInLand(state, city, slot)) return false;
   const [dx, dy] = CITY_RADIUS[slot]!;
   const x = wrapX(state.map, city.x + dx);
   const y = city.y + dy;
@@ -182,6 +194,27 @@ export function autoAssignWorkers(state: GameState, city: City): void {
   city.worked = scored.slice(0, Math.max(0, wanted)).map((s) => s.slot);
   // Not enough tiles: surplus citizens become entertainers.
   while (city.worked.length + city.specialists.length < city.size) city.specialists.push("entertainer");
+}
+
+/**
+ * Squares a city works that are no longer its land (its border drew back as
+ * its culture fell, or a rival's city took them): each worker moves to the
+ * best free square left, or becomes an entertainer. Run as its owner's turn
+ * begins, before the city produces.
+ */
+export function dropLostSquares(state: GameState, city: City): void {
+  const lost = city.worked.filter((s) => !slotInLand(state, city, s));
+  if (!lost.length) return;
+  city.worked = city.worked.filter((s) => !lost.includes(s));
+  for (let n = 0; n < lost.length; n++) {
+    let best = -1;
+    for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
+      if (city.worked.includes(slot) || !slotAvailable(state, city, slot)) continue;
+      if (best < 0 || slotScore(state, city, slot) > slotScore(state, city, best)) best = slot;
+    }
+    if (best < 0) city.specialists.push("entertainer");
+    else city.worked.push(best);
+  }
 }
 
 /** The worked square a city would give up first: the one worth least. */

@@ -8,11 +8,13 @@ import {
   ACCRUED_CULTURE,
   autoAssignWorkers,
   cityCulture,
+  CITY_RADIUS,
   civInfluence,
   computeCity,
   CULTURE,
   cultureRate,
   createUnit,
+  dropLostSquares,
   esteem,
   INFLUENCE,
   landOwner,
@@ -24,6 +26,8 @@ import {
   peaceOffered,
   relation,
   setRelation,
+  slotAvailable,
+  slotInLand,
   Terrain,
   trespassers,
   trespassRecord,
@@ -327,6 +331,73 @@ describe("treaties", () => {
     s.currentPlayer = 1;
     applyCommand(s, { type: "declareWar", player: 0, reason: "trespass" });
     expect(lastTurnEvents).toContainEqual({ kind: "warDeclared", player: 1, on: 0, reason: "trespass" });
+  });
+});
+
+describe("worked squares", () => {
+  /** Our new city at (10, 10), its border one square out. */
+  function newCity(opts: NewGameOptions = {}) {
+    const s = world(opts);
+    const u = createUnit(s, "settlers", 0, 10, 10);
+    applyCommand(s, { type: "found", unit: u.id });
+    const city = s.cities[0]!;
+    city.buildings = [];
+    return { s, city };
+  }
+  const slotOf = (dx: number, dy: number) => CITY_RADIUS.findIndex(([x, y]) => x === dx && y === dy);
+
+  it("lie inside the city's border: a new city works only the squares round it", () => {
+    const { s, city } = newCity();
+    expect(borderRadius(s, city)).toBe(1);
+    expect(slotInLand(s, city, slotOf(1, 1))).toBe(true);
+    expect(slotInLand(s, city, slotOf(2, 0))).toBe(false);
+    expect(slotAvailable(s, city, slotOf(2, 0))).toBe(false);
+    city.specialists.push("entertainer");
+    city.size++;
+    expect(applyCommand(s, { type: "workTile", city: city.id, slot: slotOf(2, 0) })).toEqual({ ok: false, reason: "tile unavailable" });
+    // Auto-placement keeps to the land as well.
+    city.size = 7;
+    city.specialists = [];
+    autoAssignWorkers(s, city);
+    for (const w of city.worked) expect(slotInLand(s, city, w), `slot ${w}`).toBe(true);
+    // Once its culture takes the border further, the outer squares open up.
+    city.size = CULTURE.levels[0]!;
+    expect(borderRadius(s, city)).toBe(2);
+    expect(slotAvailable(s, city, slotOf(2, 0))).toBe(true);
+  });
+
+  it("stop where a rival's land begins", () => {
+    const { s, city } = newCity();
+    city.size = CULTURE.levels[0]!; // border two squares out
+    s.currentPlayer = 1;
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 1, 13, 10).id });
+    s.currentPlayer = 0;
+    // (12, 10) is two from us and one from them: theirs.
+    expect(landOwner(s, 12, 10)).toBe(1);
+    expect(slotInLand(s, city, slotOf(2, 0))).toBe(false);
+    expect(slotInLand(s, city, slotOf(-2, 0))).toBe(true);
+  });
+
+  it("lost from the land are given up as the owner's turn begins, for the best square left", () => {
+    const { s, city } = newCity();
+    // It worked a square two out while its border reached there; now, at size 3, the border is one square out.
+    city.size = 3;
+    city.worked = [slotOf(2, 0), slotOf(1, 0), slotOf(0, 1)];
+    city.specialists = [];
+    expect(borderRadius(s, city)).toBe(1);
+    dropLostSquares(s, city);
+    expect(city.worked).not.toContain(slotOf(2, 0));
+    expect(city.worked.length).toBe(3);
+    for (const w of city.worked) expect(slotInLand(s, city, w)).toBe(true);
+  });
+
+  it("reach all 21 squares in saves before version 16", () => {
+    const { s, city } = newCity({ workBeyondBorders: true });
+    expect(slotInLand(s, city, slotOf(2, 0))).toBe(true);
+    expect(slotAvailable(s, city, slotOf(2, 0))).toBe(true);
+    const old = { ...makeSave(newGame(5, { opponents: 1 }), { opponents: 1 }, []), version: 15 as const };
+    expect(loadSave(old, () => {}).state.workBeyondBorders).toBe(true);
+    expect(loadSave(makeSave(newGame(5, { opponents: 1 }), { opponents: 1 }, []), () => {}).state.workBeyondBorders).toBeUndefined();
   });
 });
 
