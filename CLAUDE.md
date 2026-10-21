@@ -152,9 +152,13 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
 - `packages/renderer-api` — the `Renderer` interface every renderer implements (draw each screen
   in its own logical size, hit-test menus/city map/city buttons/tiles/minimap/menu bar), the shared view types and the
   DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`, `builtNotice`).
-  City screen: Change and Buy buttons in the production box (`cityButtonAt`); Esc, Enter (not held) or a click
+  City screen: Change and Buy buttons in the production box (`cityButtonAt`); the worked squares of its
+  map carry their yield marks on a half-tone shade of the square's lower half (asked for 2026-10-21: no
+  black box); Esc, Enter (not held) or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
-  price against the treasury first. Its units (`cityUnits`: those in the city from any home, then those it
+  price against the treasury first. The build menu (`openProductionMenu` in the web app) shows each
+  choice's cost and the turns to finish it from the shields already in the box (halved when the kind
+  changes, as the rules take half; "never" without a surplus). Its units (`cityUnits`: those in the city from any home, then those it
   supports elsewhere, faded, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
   over its city screen with a window saying what it does (`text` on each rule in `rules/buildings.ts`,
@@ -255,8 +259,11 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   shades of their own colours, never thick black) are all 32x32 sheets with `k = 2`; icons are 16x16
   fine; citizens 32x32. Land borders blend: renderer-api `groundOwner` warps each fine pixel by world
   noise so the line between different grounds wanders, and each terrain sprite splits at load into
-  ground + objects (objects never cut). Text: the 5x7 glyphs at three quarters of the 16x16 size (each
-  dot a 2x2 block, `DOT_X`/`DOT_Y` in `font.ts`); `drawTextSmall` places text by fine pixel. The palette
+  ground + objects (objects never cut). Text (`font.ts`): our own 4x6-dot proportional pixel font (three
+  to five dots wide, a seventh row for the descenders of g, j, p, q, y), a dot a whole screen pixel
+  (a 2x2 block on the fine screen), so strokes and gaps are whole dots: asked for 2026-10-21 ("make
+  game font more pixelated") in place of the 5x7 glyphs drawn at three quarters with overlapping
+  dots; `FONT_HEIGHT` 8 stays. `drawTextPlate` puts text on an edged plate (the city size). The palette
   is FULL: ramps `hide`, `mire`, `canopy`, `rock`, `ice` (in the old ui/fog/swamp/jungle slots),
   `meadow`, `leaf`, `mound`, `wheat`, `dune`, `heath`, `sea`, `steel`, and `jewel` (6 colours, 249-254;
   `shade` clamps to `RAMP_SIZE`); new art must reuse these ramps or free one. Panel icons (`icons.art.ts`,

@@ -2,156 +2,127 @@ import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { Surface } from "./surface.js";
 
 /**
- * Original 5x7 bitmap font in an 8px-high cell, drawn by hand for this
- * project. Glyphs are stored as 7 rows of 5 characters; '#' is ink.
- * Advance is per-glyph (proportional), like the original's UI font, which
- * matters for text wrapping in dialogs matching the original's line breaks.
+ * The game's bitmap font, drawn by hand for this project on a grid of dots: glyphs four dots wide
+ * (three to five, the font being proportional) and six tall, with a seventh row below the baseline
+ * for the descenders of g, j, p, q and y. Each glyph is rows of characters, '#' ink, top row first;
+ * missing rows are blank. A dot is one screen pixel (a 2x2 block on the fine screen), so every
+ * stroke and every gap is a whole dot: as blocky as the terrain, a little smaller than the 1991
+ * game's 5x7 letters.
  */
 const G: Record<string, string[]> = {
-  " ": ["     ", "     ", "     ", "     ", "     ", "     ", "     "],
-  "!": ["  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "     ", "  #  "],
-  '"': [" # # ", " # # ", "     ", "     ", "     ", "     ", "     "],
-  "$": ["  #  ", " ####", "# #  ", " ### ", "  # #", "#### ", "  #  "],
-  "%": ["##  #", "## # ", "  #  ", "  #  ", " #   ", "# ## ", "#  ##"],
-  "'": ["  #  ", "  #  ", "     ", "     ", "     ", "     ", "     "],
-  "(": ["   # ", "  #  ", " #   ", " #   ", " #   ", "  #  ", "   # "],
-  ")": [" #   ", "  #  ", "   # ", "   # ", "   # ", "  #  ", " #   "],
-  "*": ["     ", "# # #", " ### ", "#####", " ### ", "# # #", "     "],
-  "+": ["     ", "  #  ", "  #  ", "#####", "  #  ", "  #  ", "     "],
-  ",": ["     ", "     ", "     ", "     ", "  ## ", "  ## ", " #   "],
-  "-": ["     ", "     ", "     ", "#####", "     ", "     ", "     "],
-  ".": ["     ", "     ", "     ", "     ", "     ", " ##  ", " ##  "],
-  "/": ["    #", "    #", "   # ", "  #  ", " #   ", "#    ", "#    "],
-  "0": [" ### ", "#   #", "#  ##", "# # #", "##  #", "#   #", " ### "],
-  "1": ["  #  ", " ##  ", "  #  ", "  #  ", "  #  ", "  #  ", " ### "],
-  "2": [" ### ", "#   #", "    #", "   # ", "  #  ", " #   ", "#####"],
-  "3": ["#####", "   # ", "  #  ", "   # ", "    #", "#   #", " ### "],
-  "4": ["   # ", "  ## ", " # # ", "#  # ", "#####", "   # ", "   # "],
-  "5": ["#####", "#    ", "#### ", "    #", "    #", "#   #", " ### "],
-  "6": ["  ## ", " #   ", "#    ", "#### ", "#   #", "#   #", " ### "],
-  "7": ["#####", "    #", "   # ", "  #  ", " #   ", " #   ", " #   "],
-  "8": [" ### ", "#   #", "#   #", " ### ", "#   #", "#   #", " ### "],
-  "9": [" ### ", "#   #", "#   #", " ####", "    #", "   # ", " ##  "],
-  ":": ["     ", " ##  ", " ##  ", "     ", " ##  ", " ##  ", "     "],
-  ";": ["     ", " ##  ", " ##  ", "     ", " ##  ", " ##  ", "#    "],
-  "<": ["    #", "   # ", "  #  ", " #   ", "  #  ", "   # ", "    #"],
-  "=": ["     ", "     ", "#####", "     ", "#####", "     ", "     "],
-  ">": ["#    ", " #   ", "  #  ", "   # ", "  #  ", " #   ", "#    "],
-  "?": [" ### ", "#   #", "    #", "   # ", "  #  ", "     ", "  #  "],
-  "A": [" ### ", "#   #", "#   #", "#####", "#   #", "#   #", "#   #"],
-  "B": ["#### ", "#   #", "#   #", "#### ", "#   #", "#   #", "#### "],
-  "C": [" ### ", "#   #", "#    ", "#    ", "#    ", "#   #", " ### "],
-  "D": ["###  ", "#  # ", "#   #", "#   #", "#   #", "#  # ", "###  "],
-  "E": ["#####", "#    ", "#    ", "#### ", "#    ", "#    ", "#####"],
-  "F": ["#####", "#    ", "#    ", "#### ", "#    ", "#    ", "#    "],
-  "G": [" ### ", "#   #", "#    ", "# ###", "#   #", "#   #", " ####"],
-  "H": ["#   #", "#   #", "#   #", "#####", "#   #", "#   #", "#   #"],
-  "I": [" ### ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", " ### "],
-  "J": ["  ###", "   # ", "   # ", "   # ", "   # ", "#  # ", " ##  "],
-  "K": ["#   #", "#  # ", "# #  ", "##   ", "# #  ", "#  # ", "#   #"],
-  "L": ["#    ", "#    ", "#    ", "#    ", "#    ", "#    ", "#####"],
-  "M": ["#   #", "## ##", "# # #", "# # #", "#   #", "#   #", "#   #"],
-  "N": ["#   #", "##  #", "# # #", "#  ##", "#   #", "#   #", "#   #"],
-  "O": [" ### ", "#   #", "#   #", "#   #", "#   #", "#   #", " ### "],
-  "P": ["#### ", "#   #", "#   #", "#### ", "#    ", "#    ", "#    "],
-  "Q": [" ### ", "#   #", "#   #", "#   #", "# # #", "#  # ", " ## #"],
-  "R": ["#### ", "#   #", "#   #", "#### ", "# #  ", "#  # ", "#   #"],
-  "S": [" ####", "#    ", "#    ", " ### ", "    #", "    #", "#### "],
-  "T": ["#####", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  "],
-  "U": ["#   #", "#   #", "#   #", "#   #", "#   #", "#   #", " ### "],
-  "V": ["#   #", "#   #", "#   #", "#   #", "#   #", " # # ", "  #  "],
-  "W": ["#   #", "#   #", "#   #", "# # #", "# # #", "## ##", "#   #"],
-  "X": ["#   #", "#   #", " # # ", "  #  ", " # # ", "#   #", "#   #"],
-  "Y": ["#   #", "#   #", " # # ", "  #  ", "  #  ", "  #  ", "  #  "],
-  "Z": ["#####", "    #", "   # ", "  #  ", " #   ", "#    ", "#####"],
-  "a": ["     ", "     ", " ### ", "    #", " ####", "#   #", " ####"],
-  "b": ["#    ", "#    ", "#### ", "#   #", "#   #", "#   #", "#### "],
-  "c": ["     ", "     ", " ### ", "#    ", "#    ", "#   #", " ### "],
-  "d": ["    #", "    #", " ####", "#   #", "#   #", "#   #", " ####"],
-  "e": ["     ", "     ", " ### ", "#   #", "#####", "#    ", " ### "],
-  "f": ["  ## ", " #  #", " #   ", "###  ", " #   ", " #   ", " #   "],
-  "g": ["     ", " ####", "#   #", "#   #", " ####", "    #", " ### "],
-  "h": ["#    ", "#    ", "#### ", "#   #", "#   #", "#   #", "#   #"],
-  "i": ["  #  ", "     ", " ##  ", "  #  ", "  #  ", "  #  ", " ### "],
-  "j": ["   # ", "     ", "  ## ", "   # ", "   # ", "#  # ", " ##  "],
-  "k": ["#    ", "#    ", "#  # ", "# #  ", "##   ", "# #  ", "#  # "],
-  "l": [" ##  ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", " ### "],
-  "m": ["     ", "     ", "## # ", "# # #", "# # #", "#   #", "#   #"],
-  "n": ["     ", "     ", "#### ", "#   #", "#   #", "#   #", "#   #"],
-  "o": ["     ", "     ", " ### ", "#   #", "#   #", "#   #", " ### "],
-  "p": ["     ", "#### ", "#   #", "#   #", "#### ", "#    ", "#    "],
-  "q": ["     ", " ####", "#   #", "#   #", " ####", "    #", "    #"],
-  "r": ["     ", "     ", "# ## ", "##  #", "#    ", "#    ", "#    "],
-  "s": ["     ", "     ", " ####", "#    ", " ### ", "    #", "#### "],
-  "t": [" #   ", " #   ", "###  ", " #   ", " #   ", " #  #", "  ## "],
-  "u": ["     ", "     ", "#   #", "#   #", "#   #", "#  ##", " ## #"],
-  "v": ["     ", "     ", "#   #", "#   #", "#   #", " # # ", "  #  "],
-  "w": ["     ", "     ", "#   #", "#   #", "# # #", "# # #", " # # "],
-  "x": ["     ", "     ", "#   #", " # # ", "  #  ", " # # ", "#   #"],
-  "y": ["     ", "#   #", "#   #", "#   #", " ####", "    #", " ### "],
-  "z": ["     ", "     ", "#####", "   # ", "  #  ", " #   ", "#####"],
+  " ": [""],
+  "!": ["#", "#", "#", "#", "", "#"],
+  "\"": ["# #", "# #"],
+  "$": [" # ", " ##", "#  ", " # ", "  #", "## ", " # "],
+  "%": ["#  #", "   #", "  # ", " #  ", "#   ", "#  #"],
+  "'": ["#", "#"],
+  "(": [" #", "# ", "# ", "# ", "# ", " #"],
+  ")": ["# ", " #", " #", " #", " #", "# "],
+  "*": ["", "# #", " # ", "# #"],
+  "+": ["", " # ", "###", " # "],
+  ",": ["", "", "", "", "", " #", "# "],
+  "-": ["", "", "", "###"],
+  ".": ["", "", "", "", "", "#"],
+  "/": ["   #", "   #", "  # ", " #  ", "#   ", "#   "],
+  "0": [" ## ", "#  #", "# ##", "## #", "#  #", " ## "],
+  "1": [" # ", "## ", " # ", " # ", " # ", "###"],
+  "2": [" ## ", "#  #", "   #", " ## ", "#   ", "####"],
+  "3": ["### ", "   #", " ## ", "   #", "   #", "### "],
+  "4": ["#  #", "#  #", "####", "   #", "   #", "   #"],
+  "5": ["####", "#   ", "### ", "   #", "   #", "### "],
+  "6": [" ## ", "#   ", "### ", "#  #", "#  #", " ## "],
+  "7": ["####", "   #", "  # ", " #  ", " #  ", " #  "],
+  "8": [" ## ", "#  #", " ## ", "#  #", "#  #", " ## "],
+  "9": [" ## ", "#  #", "#  #", " ###", "   #", " ## "],
+  ":": ["", "", "#", "", "", "#"],
+  ";": ["", "", " #", "", "", " #", "# "],
+  "<": ["", "  #", " # ", "#  ", " # ", "  #"],
+  "=": ["", "", "###", "", "###"],
+  ">": ["", "#  ", " # ", "  #", " # ", "#  "],
+  "?": [" ## ", "#  #", "  # ", " #  ", "    ", " #  "],
+  "A": [" ## ", "#  #", "#  #", "####", "#  #", "#  #"],
+  "B": ["### ", "#  #", "### ", "#  #", "#  #", "### "],
+  "C": [" ###", "#   ", "#   ", "#   ", "#   ", " ###"],
+  "D": ["### ", "#  #", "#  #", "#  #", "#  #", "### "],
+  "E": ["####", "#   ", "### ", "#   ", "#   ", "####"],
+  "F": ["####", "#   ", "### ", "#   ", "#   ", "#   "],
+  "G": [" ###", "#   ", "#   ", "# ##", "#  #", " ###"],
+  "H": ["#  #", "#  #", "####", "#  #", "#  #", "#  #"],
+  "I": ["###", " # ", " # ", " # ", " # ", "###"],
+  "J": ["  ##", "   #", "   #", "   #", "#  #", " ## "],
+  "K": ["#  #", "# # ", "##  ", "# # ", "#  #", "#  #"],
+  "L": ["#   ", "#   ", "#   ", "#   ", "#   ", "####"],
+  "M": ["#   #", "## ##", "# # #", "#   #", "#   #", "#   #"],
+  "N": ["#  #", "## #", "####", "# ##", "#  #", "#  #"],
+  "O": [" ## ", "#  #", "#  #", "#  #", "#  #", " ## "],
+  "P": ["### ", "#  #", "#  #", "### ", "#   ", "#   "],
+  "Q": [" ## ", "#  #", "#  #", "#  #", "# # ", " # #"],
+  "R": ["### ", "#  #", "#  #", "### ", "# # ", "#  #"],
+  "S": [" ###", "#   ", " ## ", "   #", "   #", "### "],
+  "T": ["###", " # ", " # ", " # ", " # ", " # "],
+  "U": ["#  #", "#  #", "#  #", "#  #", "#  #", " ## "],
+  "V": ["#   #", "#   #", "#   #", "#   #", " # # ", "  #  "],
+  "W": ["#   #", "#   #", "#   #", "# # #", "# # #", " # # "],
+  "X": ["#  #", "#  #", " ## ", " ## ", "#  #", "#  #"],
+  "Y": ["# #", "# #", "# #", " # ", " # ", " # "],
+  "Z": ["####", "   #", "  # ", " #  ", "#   ", "####"],
+  "a": ["", "", " ###", "#  #", "#  #", " ###"],
+  "b": ["#   ", "#   ", "### ", "#  #", "#  #", "### "],
+  "c": ["", "", " ###", "#   ", "#   ", " ###"],
+  "d": ["   #", "   #", " ###", "#  #", "#  #", " ###"],
+  "e": ["", "", " ## ", "####", "#   ", " ###"],
+  "f": [" ##", " # ", "###", " # ", " # ", " # "],
+  "g": ["", "", " ###", "#  #", " ###", "   #", " ## "],
+  "h": ["#   ", "#   ", "### ", "#  #", "#  #", "#  #"],
+  "i": ["#", "", "#", "#", "#", "#"],
+  "j": ["  #", "", "  #", "  #", "  #", "  #", " ##"],
+  "k": ["#   ", "#   ", "# # ", "##  ", "# # ", "#  #"],
+  "l": ["#", "#", "#", "#", "#", "#"],
+  "m": ["", "", "## # ", "# # #", "# # #", "# # #"],
+  "n": ["", "", "### ", "#  #", "#  #", "#  #"],
+  "o": ["", "", " ## ", "#  #", "#  #", " ## "],
+  "p": ["", "", "### ", "#  #", "#  #", "### ", "#   "],
+  "q": ["", "", " ###", "#  #", "#  #", " ###", "   #"],
+  "r": ["", "", "# ##", "##  ", "#   ", "#   "],
+  "s": ["", "", " ###", "##  ", "  ##", "### "],
+  "t": ["", " # ", "###", " # ", " # ", " ##"],
+  "u": ["", "", "#  #", "#  #", "#  #", " ###"],
+  "v": ["", "", "# #", "# #", "# #", " # "],
+  "w": ["", "", "#   #", "# # #", "# # #", " # # "],
+  "x": ["", "", "#  #", " ## ", " ## ", "#  #"],
+  "y": ["", "", "#  #", "#  #", " ###", "   #", " ## "],
+  "z": ["", "", "####", "  # ", " #  ", "####"],
 };
 
 interface Glyph {
-  rows: number[]; // 7 bitmasks, bit 4 = leftmost column
+  /** Ink dots as (column, row), left-trimmed; rows 0-5 stand on the baseline, row 6 hangs below it. */
+  dots: [number, number][];
+  /** Dots across, the gap after the glyph included (a space is 3). */
   advance: number;
-  /** The glyph as the fine screen draws it (see DOT_X): its ink as fine pixels, and its advance in them. */
-  fine: [number, number][];
-  fineAdvance: number;
 }
-
-/**
- * On a fine surface each dot of a glyph is a 2x2 block of fine pixels, the dots 1.5 fine pixels apart
- * (rounded away from the middle, so glyphs stay symmetric), neighbours overlapping: every stroke two
- * pixels thick, the 16x16 game's letters at three quarters of their size, 8x11 fine pixels.
- */
-const DOT_X = [0, 1, 3, 5, 6];
-const DOT_Y = [0, 1, 3, 4, 6, 8, 9];
 
 const GLYPHS = new Map<string, Glyph>();
 for (const [ch, rows] of Object.entries(G)) {
-  let minC = 5;
-  let maxC = -1;
-  const bits = rows.map((r) => {
-    let m = 0;
-    for (let c = 0; c < 5; c++) {
-      if (r[c] === "#") {
-        m |= 1 << (4 - c);
-        if (c < minC) minC = c;
-        if (c > maxC) maxC = c;
-      }
-    }
-    return m;
-  });
-  const advance = ch === " " ? 4 : maxC - minC + 2;
-  // Left-trim so proportional spacing is tight.
-  const shifted = minC === 5 ? bits : bits.map((m) => (m << minC) & 0x1f);
-  const ink = new Set<string>();
-  bits.forEach((m, r) => { for (let c = 0; c < 5; c++) if (m & (1 << (4 - c))) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) ink.add(`${DOT_X[c]! - DOT_X[minC]! + dx},${DOT_Y[r]! + dy}`); });
-  const fine = [...ink].map((k) => k.split(",").map(Number) as [number, number]);
-  const fineAdvance = maxC < 0 ? 6 : DOT_X[maxC]! + 2 - DOT_X[minC]! + 2;
-  GLYPHS.set(ch, { rows: shifted, advance, fine, fineAdvance });
+  const dots: [number, number][] = [];
+  rows.forEach((r, y) => { for (let c = 0; c < r.length; c++) if (r[c] === "#") dots.push([c, y]); });
+  const minC = dots.length ? Math.min(...dots.map((d) => d[0])) : 0;
+  const width = dots.length ? Math.max(...dots.map((d) => d[0])) - minC + 1 : 0;
+  GLYPHS.set(ch, { dots: dots.map(([c, y]) => [c - minC, y]), advance: ch === " " ? 3 : width + 1 });
 }
 
+/** Height of a line of text in pixels: a dot above the glyphs, six rows of dots, the descender row. */
 export const FONT_HEIGHT = 8;
+/** The row of its line a glyph's top dots sit on. */
+const TEXT_TOP = 1;
 
-/** How far down its 8-pixel line (16 fine rows) a fine glyph's 11 rows start. */
-const TEXT_TOP = 2;
-
-/** Width of a line of text in dots, one fine pixel each (`drawTextSmall`). */
-function dotWidth(text: string): number {
+/** Width of a line of text in screen pixels. */
+export function textWidth(text: string): number {
   let w = 0;
   for (const ch of text) w += (GLYPHS.get(ch) ?? GLYPHS.get("?")!).advance;
   return w;
 }
 
-/** Width of a line of text in screen pixels, as the (fine) screen draws it, rounded up. */
-export function textWidth(text: string): number {
-  let w = 0;
-  for (const ch of text) w += (GLYPHS.get(ch) ?? GLYPHS.get("?")!).fineAdvance;
-  return Math.ceil(w / 2);
-}
-
+/** Text at (x, y), the top left of its line, in `color`, over a `shadow` one pixel down and right; returns the x after it. */
 export function drawText(
   s: Surface,
   x: number,
@@ -161,55 +132,13 @@ export function drawText(
   shadow?: number,
 ): number {
   let cx = x;
-  if (s.k >= 2) {
-    // A fine surface: the glyphs' fine ink (DOT_X), mid-line, the shadow one fine pixel off.
-    const f = s.k / 2;
-    const ox = x * s.k;
-    const oy = y * s.k + TEXT_TOP * f;
-    let dx = 0;
-    for (const ch of text) {
-      const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
-      if (shadow !== undefined) for (const [gx, gy] of g.fine) s.frect(ox + (dx + gx + 1) * f, oy + (gy + 1) * f, f, f, shadow);
-      for (const [gx, gy] of g.fine) s.frect(ox + (dx + gx) * f, oy + gy * f, f, f, color);
-      dx += g.fineAdvance;
-    }
-    return x + Math.ceil(dx / 2);
-  }
   for (const ch of text) {
     const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
-    for (let r = 0; r < 7; r++) {
-      const m = g.rows[r]!;
-      if (!m) continue;
-      for (let c = 0; c < 5; c++) {
-        if (m & (1 << (4 - c))) {
-          if (shadow !== undefined) s.set(cx + c + 1, y + r + 1, shadow);
-          s.set(cx + c, y + r, color);
-        }
-      }
-    }
+    if (shadow !== undefined) for (const [c, r] of g.dots) s.set(cx + c + 1, y + TEXT_TOP + r + 1, shadow);
+    for (const [c, r] of g.dots) s.set(cx + c, y + TEXT_TOP + r, color);
     cx += g.advance;
   }
   return cx;
-}
-
-/** Width in fine pixels of `drawTextSmall`'s text. */
-export function smallTextWidth(text: string): number {
-  return dotWidth(text);
-}
-
-/**
- * Text placed by fine pixel (a city's size on its plate): the 5x7 bitmaps a fine pixel to each dot,
- * its top left at fine pixel (fx, fy). On a coarse surface, ordinary text.
- */
-export function drawTextSmall(s: Surface, fx: number, fy: number, text: string, color: number): void {
-  if (s.k < 2) { drawText(s, Math.floor(fx / 2), Math.floor(fy / 2), text, color); return; }
-  const f = s.k / 2;
-  let cx = fx;
-  for (const ch of text) {
-    const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
-    for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (g.rows[r]! & (1 << (4 - c))) s.frect((cx + c) * f, (fy + r) * f, f, f, color);
-    cx += g.advance;
-  }
 }
 
 /** Text ringed in another colour, the ring one of the surface's finest pixels wide, so it reads on any ground. */
@@ -223,22 +152,14 @@ export function drawTextRinged(s: Surface, x: number, y: number, text: string, c
 }
 
 /**
- * Text on a plate (a city's size beside its name): a fill as tall as the glyphs plus two fine pixels
- * above and below, edged one fine pixel, the text one screen pixel in from the left. Returns the
- * plate's width in screen pixels.
+ * Text on a plate (a city's size beside its name): a fill the height of the line, edged one fine
+ * pixel, the text one pixel in from the left. Returns the plate's width in screen pixels.
  */
 export function drawTextPlate(s: Surface, x: number, y: number, text: string, fill: number, edge: number, ink: number): number {
   const w = textWidth(text) + 2;
-  if (s.k >= 2) {
-    const f = s.k / 2;
-    const top = y * s.k + (TEXT_TOP - 2) * f;
-    const h = 15 * f;
-    s.frect(x * s.k - f, top - f, w * s.k + 2 * f, h + 2 * f, edge);
-    s.frect(x * s.k, top, w * s.k, h, fill);
-  } else {
-    s.rect(x - 1, y - 1, w + 2, FONT_HEIGHT + 1, edge);
-    s.rect(x, y, w, FONT_HEIGHT - 1, fill);
-  }
+  const f = Math.max(1, s.k / 2);
+  s.frect(x * s.k - f, y * s.k - f, w * s.k + 2 * f, FONT_HEIGHT * s.k + 2 * f, edge);
+  s.rect(x, y, w, FONT_HEIGHT, fill);
   drawText(s, x + 1, y, text, ink);
   return w;
 }
