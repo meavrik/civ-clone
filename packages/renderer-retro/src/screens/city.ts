@@ -298,7 +298,8 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       if (worked) {
         const y = tileYield(state, tile, slot === 0, cityYieldGovernment(state, city), city.owner);
         if (slot === 0) drawCity(s, px, py - 1, city, playerColor(state, city.owner), false, cityMood(state, city));
-        s.rect(px, py + 8, TILE, 8, C.BLACK!);
+        // The marks on a half-tone shade of the lower half, so they read without hiding the ground.
+        for (let fy = (py + 8) * s.k; fy < (py + TILE) * s.k; fy++) for (let fx = px * s.k + (fy & 1); fx < (px + TILE) * s.k; fx += 2) s.fset(fx, fy, C.BLACK!);
         yieldIcons(s, px, py + 8, y.food, y.shields, y.trade);
       } else if (!slotInLand(state, city, slot)) {
         // Beyond the city's border (or on a rival's land): shaded, it cannot be worked.
