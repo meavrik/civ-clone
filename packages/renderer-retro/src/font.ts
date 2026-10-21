@@ -95,7 +95,18 @@ const G: Record<string, string[]> = {
 interface Glyph {
   rows: number[]; // 7 bitmasks, bit 4 = leftmost column
   advance: number;
+  /** The glyph as the fine screen draws it (see DOT_X): its ink as fine pixels, and its advance in them. */
+  fine: [number, number][];
+  fineAdvance: number;
 }
+
+/**
+ * On a fine surface each dot of a glyph is a 2x2 block of fine pixels, the dots 1.5 fine pixels apart
+ * (rounded away from the middle, so glyphs stay symmetric), neighbours overlapping: every stroke two
+ * pixels thick, the 16x16 game's letters at three quarters of their size, 8x11 fine pixels.
+ */
+const DOT_X = [0, 1, 3, 5, 6];
+const DOT_Y = [0, 1, 3, 4, 6, 8, 9];
 
 const GLYPHS = new Map<string, Glyph>();
 for (const [ch, rows] of Object.entries(G)) {
@@ -115,20 +126,19 @@ for (const [ch, rows] of Object.entries(G)) {
   const advance = ch === " " ? 4 : maxC - minC + 2;
   // Left-trim so proportional spacing is tight.
   const shifted = minC === 5 ? bits : bits.map((m) => (m << minC) & 0x1f);
-  GLYPHS.set(ch, { rows: shifted, advance });
+  const ink = new Set<string>();
+  bits.forEach((m, r) => { for (let c = 0; c < 5; c++) if (m & (1 << (4 - c))) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) ink.add(`${DOT_X[c]! - DOT_X[minC]! + dx},${DOT_Y[r]! + dy}`); });
+  const fine = [...ink].map((k) => k.split(",").map(Number) as [number, number]);
+  const fineAdvance = maxC < 0 ? 6 : DOT_X[maxC]! + 2 - DOT_X[minC]! + 2;
+  GLYPHS.set(ch, { rows: shifted, advance, fine, fineAdvance });
 }
 
 export const FONT_HEIGHT = 8;
 
-/**
- * On a fine surface (two pixels to each screen pixel, as the screen is) text is drawn small: each dot
- * of a glyph one fine pixel, so a glyph is 5x7 fine pixels, half as wide and tall as on a coarse
- * surface, set in the middle of its 8-pixel line (TEXT_TOP fine pixels down). Widths are measured
- * that way, in screen pixels rounded up.
- */
-const TEXT_TOP = 4;
+/** How far down its 8-pixel line (16 fine rows) a fine glyph's 11 rows start. */
+const TEXT_TOP = 2;
 
-/** Width of a line of text in dots (fine pixels on a fine surface; a screen pixel is two). */
+/** Width of a line of text in dots, one fine pixel each (`drawTextSmall`). */
 function dotWidth(text: string): number {
   let w = 0;
   for (const ch of text) w += (GLYPHS.get(ch) ?? GLYPHS.get("?")!).advance;
@@ -137,7 +147,9 @@ function dotWidth(text: string): number {
 
 /** Width of a line of text in screen pixels, as the (fine) screen draws it, rounded up. */
 export function textWidth(text: string): number {
-  return Math.ceil(dotWidth(text) / 2);
+  let w = 0;
+  for (const ch of text) w += (GLYPHS.get(ch) ?? GLYPHS.get("?")!).fineAdvance;
+  return Math.ceil(w / 2);
 }
 
 export function drawText(
@@ -150,23 +162,16 @@ export function drawText(
 ): number {
   let cx = x;
   if (s.k >= 2) {
-    // A fine surface: each dot one fine pixel, the glyphs mid-line, the shadow one fine pixel off.
+    // A fine surface: the glyphs' fine ink (DOT_X), mid-line, the shadow one fine pixel off.
     const f = s.k / 2;
     const ox = x * s.k;
     const oy = y * s.k + TEXT_TOP * f;
     let dx = 0;
     for (const ch of text) {
       const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
-      for (let r = 0; r < 7; r++) {
-        const m = g.rows[r]!;
-        if (!m) continue;
-        for (let c = 0; c < 5; c++) {
-          if (!(m & (1 << (4 - c)))) continue;
-          if (shadow !== undefined) s.frect(ox + (dx + c + 1) * f, oy + (r + 1) * f, f, f, shadow);
-          s.frect(ox + (dx + c) * f, oy + r * f, f, f, color);
-        }
-      }
-      dx += g.advance;
+      if (shadow !== undefined) for (const [gx, gy] of g.fine) s.frect(ox + (dx + gx + 1) * f, oy + (gy + 1) * f, f, f, shadow);
+      for (const [gx, gy] of g.fine) s.frect(ox + (dx + gx) * f, oy + gy * f, f, f, color);
+      dx += g.fineAdvance;
     }
     return x + Math.ceil(dx / 2);
   }
