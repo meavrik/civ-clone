@@ -113,6 +113,22 @@ for (const [name, colors] of Object.entries(BUILT)) {
   C[name.toUpperCase()] = PALETTE.length;
   PALETTE.push(...colors);
 }
+// Terrain test (2026-10-21): olive meadow, golden wheat, pale dunes, grey-brown heath, olive
+// mire, blue-white ice, a navy sea and leaf greens, picked from the user's reference tiles.
+const LAND: Record<string, Rgb[]> = {
+  meadow: [[18, 50, 31], [28, 72, 40], [44, 90, 42], [74, 112, 44], [102, 133, 46], [127, 150, 48], [148, 168, 58], [176, 191, 82]],
+  leaf: [[6, 20, 15], [10, 42, 29], [12, 73, 42], [14, 90, 46], [21, 110, 43], [42, 138, 48], [79, 162, 51], [124, 188, 64]],
+  wheat: [[94, 62, 24], [138, 94, 36], [186, 136, 51], [201, 154, 55], [214, 171, 58], [232, 194, 80], [253, 226, 106], [255, 243, 168]],
+  dune: [[110, 72, 38], [153, 103, 52], [189, 135, 61], [207, 154, 70], [225, 177, 75], [240, 200, 94], [253, 217, 110], [255, 240, 180]],
+  heath: [[46, 38, 30], [74, 62, 50], [102, 85, 68], [118, 103, 82], [134, 119, 96], [152, 139, 116], [176, 166, 142], [210, 202, 180]],
+  mire: [[34, 28, 18], [58, 50, 36], [74, 64, 38], [80, 82, 31], [93, 98, 35], [112, 119, 48], [140, 146, 64], [216, 180, 80]],
+  ice: [[2, 58, 138], [3, 91, 197], [41, 134, 228], [90, 168, 250], [140, 196, 253], [188, 220, 253], [230, 243, 254], [255, 255, 255]],
+  sea: [[2, 26, 74], [4, 36, 106], [5, 44, 120], [6, 58, 152], [7, 82, 192], [10, 110, 232], [58, 152, 251], [124, 192, 252]],
+};
+for (const [name, colors] of Object.entries(LAND)) {
+  C[name.toUpperCase()] = PALETTE.length;
+  PALETTE.push(...colors);
+}
 while (PALETTE.length < 256) PALETTE.push([0, 0, 0]);
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */

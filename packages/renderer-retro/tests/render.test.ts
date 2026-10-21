@@ -445,7 +445,7 @@ describe("terrain works", () => {
     drawMainScreen(s, state, view);
     const at = (mx: number, my: number, i: number, j: number) => s.data[80 + (mx - view.originX) * 16 + i + (9 + (my - view.originY) * 16 + j) * 320]!;
     const earth = (c: number) => c >= C.EARTH! && c < C.EARTH! + 8;
-    const water = (c: number) => c >= C.OCEAN! && c < C.OCEAN! + 8;
+    const water = (c: number) => c >= C.SEA! && c < C.SEA! + 8;
     const crop = new Surface((TERRAIN[0]!.length + 1) * 16, (TERRAIN.length + 1) * 16);
     for (let y = 0; y < crop.height; y++) for (let x = 0; x < crop.width; x++) crop.set(x, y, s.get(80 + x, 9 + y));
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
@@ -464,7 +464,7 @@ describe("terrain works", () => {
     expect(corner).toBeGreaterThan(0);
     // Fields: a canal runs through the middle and on into the irrigated neighbour; a strip of terrain shows toward the rest.
     expect(water(at(x0 + 3, y0 + 4, 15, 7)) && water(at(x0 + 4, y0 + 4, 0, 7))).toBe(true);
-    const ground = (c: number) => c >= C.GRASS! && c < C.GRASS! + 8;
+    const ground = (c: number) => c >= C.MEADOW! && c < C.MEADOW! + 8;
     expect(ground(at(x0 + 4, y0 + 1, 8, 0))).toBe(true);
     // The river keeps its water through the fields it waters.
     const riverSquare = { x: x0 + 9, y: y0 + 5 };

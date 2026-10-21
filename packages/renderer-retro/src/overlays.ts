@@ -129,9 +129,9 @@ const CANAL = 7;
 export function drawIrrigation(s: Surface, dx: number, dy: number, ground: Surface, terrain: Terrain, x: number, y: number, sides: number): void {
   const { plots, splits } = fieldLayout(x, y);
   const relief = RELIEF[terrain];
-  const canal = shade("ocean", 6);
+  const canal = shade("sea", 5);
   const last = TILE - 1;
-  const wet = (i: number, j: number) => i >= 0 && j >= 0 && i < TILE && j < TILE && inRamp(ground.data[j * TILE + i]!, "ocean");
+  const wet = (i: number, j: number) => i >= 0 && j >= 0 && i < TILE && j < TILE && inRamp(ground.data[j * TILE + i]!, "sea");
   for (let j = 0; j < TILE; j++) {
     if ((j === 0 && !(sides & FIELD_N)) || (j === last && !(sides & FIELD_S))) continue;
     const south = j > CANAL;

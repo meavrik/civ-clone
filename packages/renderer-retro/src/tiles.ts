@@ -70,6 +70,8 @@ const squareCache = new Map<string, Surface>();
 
 /** Half a river's width in pixels at width 1: rivers are two pixels wide, more toward the sea. */
 const RIVER_HALF = 1;
+/** The pale bank either side of a river, in pixels. */
+const RIVER_BANK = 0.8;
 
 /**
  * A map square as drawn: its terrain sprite, with the shore and the edge of
@@ -92,9 +94,10 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
   const out = new Surface(TILE, TILE);
   const sea = getTile(Terrain.Ocean, x, y).data;
   const deep = deepTile(x, y).data;
-  const surf = shade("ocean", 7);
-  const shallow = shade("ocean", 5);
-  const water = shade("ocean", 4);
+  const surf = shade("sea", 7);
+  const shallow = shade("sea", 4);
+  const water = shade("sea", 4);
+  const bank = shade("sea", 7);
   const last = TILE - 1;
   for (let j = 0; j < TILE; j++)
     for (let i = 0; i < TILE; i++) {
@@ -119,6 +122,7 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
         for (const st of river.strokes) {
           const { dist, width } = strokeDistance(st, u, v);
           if (dist * TILE < width * RIVER_HALF) { c = water; break; }
+          if (dist * TILE < width * RIVER_HALF + RIVER_BANK) c = bank;
         }
       out.data[at] = c;
     }
