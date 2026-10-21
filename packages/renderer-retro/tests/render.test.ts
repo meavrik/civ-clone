@@ -517,8 +517,9 @@ describe("terrain works", () => {
     const canal = (n: number) => Math.floor(n / DETAIL) === 7;
     for (let j = 0; j < FINE; j++) for (let i = 0; i < FINE; i++) if (water(fine(riverSquare.x, riverSquare.y, i, j)) && !canal(i) && !canal(j)) riverPx++;
     expect(riverPx).toBeGreaterThan(8 * DETAIL * DETAIL);
-    // A mine is a rock mound with a dark shaft.
-    expect(at(x0 + 10, y0, 10, 11)).toBe(C.BLACK);
+    // A mine is a rock mound with a dark shaft framed in timber.
+    expect(at(x0 + 10, y0, 7, 13)).toBe(shade("steel", 0));
+    expect(at(x0 + 10, y0, 4, 13)).toBe(shade("rock", 4));
 
   });
 });
