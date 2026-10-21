@@ -1,4 +1,4 @@
-import { C, FEATURE_SHEET, ownerBox, PALETTE_RGBA, SPRITE_CLEAR, spriteSurface, Surface, TERRAIN_SHEET } from "@civ/renderer-retro";
+import { C, FEATURE_SHEET, PALETTE_RGBA, SPRITE_CLEAR, spriteSurface, Surface, TERRAIN_SHEET } from "@civ/renderer-retro";
 import type { Image } from "./png.js";
 
 /**
@@ -13,9 +13,7 @@ export function iconScene(margin: number): Surface {
   for (let y = 0; y < size; y += 16) for (let x = 0; x < size; x += 16) s.blit(ocean, x, y, SPRITE_CLEAR);
   const owner = C.WHITE!;
   s.blit(spriteSurface(TERRAIN_SHEET, "grassland")!, margin, margin, SPRITE_CLEAR);
-  s.blit(ownerBox(owner), margin, margin, SPRITE_CLEAR);
-  s.blit(spriteSurface(FEATURE_SHEET, "walls", owner)!, margin, margin, SPRITE_CLEAR);
-  s.blit(spriteSurface(FEATURE_SHEET, "city", owner)!, margin, margin, SPRITE_CLEAR);
+  for (const part of ["walls", "city", "walls_front"]) s.blit(spriteSurface(FEATURE_SHEET, part, owner)!, margin, margin, SPRITE_CLEAR);
   return s;
 }
 

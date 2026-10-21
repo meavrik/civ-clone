@@ -64,12 +64,14 @@ export function citizenSprite(mood: CitizenMood, look: CitizenLook): Surface {
     [shade("earth", 1), hair], [shade("earth", 3), hairLight],
     [shade("grey", 2), legs], [shade("grey", 1), legsDark],
   ]);
-  const s = new Surface(CITIZEN_W, CITIZEN_H);
-  const x0 = look.woman ? 8 : 0;
-  for (let y = 0; y < CITIZEN_H; y++)
-    for (let x = 0; x < CITIZEN_W; x++) {
+  // As fine as the sheet: CITIZEN_W x CITIZEN_H screen pixels, k fine pixels to each.
+  const k = CITIZEN_SHEET.k;
+  const s = new Surface(CITIZEN_W, CITIZEN_H, undefined, k);
+  const x0 = (look.woman ? 8 : 0) * k;
+  for (let y = 0; y < s.fh; y++)
+    for (let x = 0; x < s.fw; x++) {
       const v = idx[y * CITIZEN_SHEET.size + x0 + x]!;
-      s.data[y * CITIZEN_W + x] = swap.get(v) ?? v;
+      s.data[y * s.fw + x] = swap.get(v) ?? v;
     }
   cache.set(key, s);
   return s;

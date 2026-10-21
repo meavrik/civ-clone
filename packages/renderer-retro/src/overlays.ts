@@ -212,16 +212,17 @@ const SHIELD = [
   "....k....",
 ];
 /** Where the shield sits, and where the second shield of a stack peeks out from behind it. */
-const SHIELD_AT = 1;
+export const SHIELD_AT = 1;
 const STACK_SHIFT = 2;
 
 /** A rectangle on the square at screen (dx, dy), placed in the square's 32x32 grid of fine pixels. */
-function gridRect(s: Surface, dx: number, dy: number, x: number, y: number, w: number, h: number, c: number): void {
+export function gridRect(s: Surface, dx: number, dy: number, x: number, y: number, w: number, h: number, c: number): void {
   const f = s.k / DETAIL;
   s.frect(dx * s.k + Math.floor(x * f), dy * s.k + Math.floor(y * f), Math.max(1, Math.round(w * f)), Math.max(1, Math.round(h * f)), c);
 }
 
-function drawShield(s: Surface, dx: number, dy: number, x: number, y: number, fill: number, edge: number): void {
+/** The owner's shield (SHIELD) at (x, y) of the square at screen (dx, dy), in its fine grid. */
+export function drawShield(s: Surface, dx: number, dy: number, x: number, y: number, fill: number, edge: number): void {
   SHIELD.forEach((row, j) => [...row].forEach((ch, i) => {
     if (ch !== ".") gridRect(s, dx, dy, x + i, y + j, 1, 1, ch === "k" ? C.BLACK! : ch === "P" ? fill : edge);
   }));

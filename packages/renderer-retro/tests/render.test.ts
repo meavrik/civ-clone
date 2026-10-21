@@ -301,8 +301,8 @@ describe("garrisons", () => {
     const city = state.cities[0]!;
     const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false };
     const s = Surface.screen();
-    // The shield's white field sits in the city square's top-left corner.
-    const shieldAt = (cx: number, cy: number) => s.get(80 + (cx - view.originX) * 16 + 2, 9 + (cy - view.originY) * 16 + 1) === C.WHITE!;
+    // The shield, in the owner's colour, sits in the city square's top-left corner.
+    const shieldAt = (cx: number, cy: number) => s.get(80 + (cx - view.originX) * 16 + 2, 9 + (cy - view.originY) * 16 + 1) === playerColor(state, city.owner);
 
     drawMainScreen(s, state, view);
     expect(shieldAt(city.x, city.y)).toBe(false);

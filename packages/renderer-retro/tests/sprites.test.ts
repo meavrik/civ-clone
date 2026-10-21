@@ -40,7 +40,7 @@ describe("sprite sheets", () => {
       for (const sp of [rule.special, rule.second]) if (sp) expect(specialSprite(sp.name), sp.name).not.toBeNull();
     for (const name of ["city", "walls", "hut", "mine"]) expect(FEATURE_SHEET.byName.has(name), name).toBe(true);
     // Every panel icon, at 8x8 so it sits in a line of text.
-    expect(ICON_SHEET.size).toBe(8);
+    expect(ICON_SHEET.size / ICON_SHEET.k).toBe(8); // as tall as a line of text, in screen pixels
     for (const name of ICONS) expect(ICON_SHEET.byName.has(name), name).toBe(true);
     // Every mood and trade of citizen, in both looks.
     for (const mood of MOODS) for (const name of [mood, `${mood}-2`]) expect(CITIZEN_SHEET.byName.has(name), name).toBe(true);
@@ -129,7 +129,6 @@ describe("sprite sheets", () => {
       const x = 2 + (i % cols) * 18;
       const yy = y + Math.floor(i / cols) * 18;
       s.blit(getTile(Terrain.Grassland, 0, 0), x, yy);
-      if (f.name === "city" || f.name === "walls") s.blit(ownerBox(PLAYER_COLORS[1]!), x, yy, SPRITE_CLEAR);
       s.blit(spriteSurface(FEATURE_SHEET, f.name, PLAYER_COLORS[1]!)!, x, yy, SPRITE_CLEAR);
     });
     y += Math.ceil(features / cols) * 18 + 2;

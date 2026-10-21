@@ -1,4 +1,6 @@
-import type { Surface } from "./surface.js";
+import fineArt from "./art/font.art.js";
+import { SPRITE_CLEAR } from "./sprites/sheet.js";
+import { Surface } from "./surface.js";
 
 /**
  * Original 5x7 bitmap font in an 8px-high cell, drawn by hand for this
@@ -119,6 +121,26 @@ for (const [ch, rows] of Object.entries(G)) {
 
 export const FONT_HEIGHT = 8;
 
+/**
+ * The same glyphs as fine as the screen (art/font.art.ts): two pixels to each screen pixel, stems two
+ * wide and horizontal strokes one, each glyph as wide as here so text measures the same. Text on a
+ * fine surface is drawn with these; on a coarse one with the bitmaps above.
+ */
+const FINE = new Map<string, [number, number][]>();
+{
+  let name: string | null = null;
+  let y = 0;
+  for (const raw of fineArt.split(/\r?\n/)) {
+    const line = raw.trimEnd();
+    // Comments only head the file: inside a glyph, '#' is ink.
+    if (!line || (name === null && line.startsWith("#"))) continue;
+    if (line.startsWith("@")) { name = line === "@space" ? " " : line.slice(1); FINE.set(name, []); y = 0; continue; }
+    if (name === null) continue;
+    [...line].forEach((c, x) => { if (c === "#") FINE.get(name!)!.push([x, y]); });
+    y++;
+  }
+}
+
 export function textWidth(text: string): number {
   let w = 0;
   for (const ch of text) w += (GLYPHS.get(ch) ?? GLYPHS.get("?")!).advance;
@@ -134,6 +156,20 @@ export function drawText(
   shadow?: number,
 ): number {
   let cx = x;
+  if (s.k >= 2) {
+    // A fine surface: the fine glyphs, a fine pixel at a time (the shadow one fine pixel off).
+    const f = s.k / 2;
+    for (const ch of text) {
+      const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
+      const ink = FINE.get(ch) ?? FINE.get("?")!;
+      const ox = cx * s.k;
+      const oy = y * s.k;
+      if (shadow !== undefined) for (const [gx, gy] of ink) s.frect(ox + gx * f + f, oy + gy * f + f, f, f, shadow);
+      for (const [gx, gy] of ink) s.frect(ox + gx * f, oy + gy * f, f, f, color);
+      cx += g.advance;
+    }
+    return cx;
+  }
   for (const ch of text) {
     const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
     for (let r = 0; r < 7; r++) {
@@ -149,6 +185,36 @@ export function drawText(
     cx += g.advance;
   }
   return cx;
+}
+
+/** Width in fine pixels of `drawTextSmall`'s text. */
+export function smallTextWidth(text: string): number {
+  return textWidth(text);
+}
+
+/**
+ * Small text for labels on the map (a city's size): the 5x7 bitmaps a fine pixel to each dot, half
+ * the size of other text, its top left at fine pixel (fx, fy). On a coarse surface, ordinary text.
+ */
+export function drawTextSmall(s: Surface, fx: number, fy: number, text: string, color: number): void {
+  if (s.k < 2) { drawText(s, Math.floor(fx / 2), Math.floor(fy / 2), text, color); return; }
+  const f = s.k / 2;
+  let cx = fx;
+  for (const ch of text) {
+    const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
+    for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (g.rows[r]! & (1 << (4 - c))) s.frect((cx + c) * f, (fy + r) * f, f, f, color);
+    cx += g.advance;
+  }
+}
+
+/** Text ringed in another colour, the ring a pixel of the surface's finest wide, so it reads on any ground. */
+export function drawTextRinged(s: Surface, x: number, y: number, text: string, color: number, ring: number): void {
+  const scratch = new Surface(textWidth(text) + 2, FONT_HEIGHT + 2, undefined, s.k);
+  scratch.fill(SPRITE_CLEAR);
+  drawText(scratch, 1, 1, text, ring);
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const)
+    s.fblit(scratch, (x - 1) * s.k + dx, (y - 1) * s.k + dy, SPRITE_CLEAR);
+  drawText(s, x, y, text, color);
 }
 
 /** Break text into lines no wider than `maxWidth` pixels, on spaces; an overlong word is cut. */

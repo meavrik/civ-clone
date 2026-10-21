@@ -20,7 +20,7 @@ import {
   type GameState,
   specialOf,
 } from "@civ/core";
-import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
+import { drawText, drawTextCentered, drawTextRinged, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
@@ -257,9 +257,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
 
 /** A city's name centred under its square: the owner's colour ringed in black, so it reads on any ground. */
 function drawCityLabel(s: Surface, cx: number, y: number, name: string, color: number): void {
-  const x = cx - Math.floor(textWidth(name) / 2);
-  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const) drawText(s, x + dx, y + dy, name, C.BLACK!);
-  drawText(s, x, y, name, color);
+  drawTextRinged(s, cx - Math.floor(textWidth(name) / 2), y, name, color, C.BLACK!);
 }
 
 const CALLOUT_W = 150;
