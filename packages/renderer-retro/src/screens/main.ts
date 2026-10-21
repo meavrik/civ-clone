@@ -20,9 +20,9 @@ import {
   type GameState,
   specialOf,
 } from "@civ/core";
-import { drawText, drawTextCentered, drawTextRinged, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
+import { drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
-import { C, shade, slotColor } from "../palette.js";
+import { C, shade, slotColor, PALETTE } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
@@ -189,7 +189,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // Their names under them, as the original showed them; drawn before the units so no unit is hidden by a name.
   for (const c of shownCities) {
     const pos = tileToScreen(state, view, c.x, c.y);
-    if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, playerColor(state, c.owner));
+    if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, c.size, playerColor(state, c.owner));
   }
 
   // Units: only those on tiles we currently see. Draw one per tile (top of stack).
@@ -255,9 +255,19 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   void VIEW_H;
 }
 
-/** A city's name centred under its square: the owner's colour ringed in black, so it reads on any ground. */
-function drawCityLabel(s: Surface, cx: number, y: number, name: string, color: number): void {
-  drawTextRinged(s, cx - Math.floor(textWidth(name) / 2), y, name, color, C.BLACK!);
+/**
+ * A city's size on a plate of the owner's colour and its name after it, centred under its square:
+ * the plate edged and the name ringed in black, so they read on any ground; the figures black, or
+ * white on a dark colour.
+ */
+export function drawCityLabel(s: Surface, cx: number, y: number, name: string, size: number, color: number): void {
+  const n = String(size);
+  const plate = textWidth(n) + 2;
+  const x0 = cx - Math.floor((plate + 2 + textWidth(name)) / 2);
+  const [r, g, b] = PALETTE[color]!;
+  const ink = 0.299 * r + 0.587 * g + 0.114 * b > 140 ? C.BLACK! : C.WHITE!;
+  drawTextPlate(s, x0, y, n, color, C.BLACK!, ink);
+  drawTextRinged(s, x0 + plate + 2, y, name, color, C.BLACK!);
 }
 
 const CALLOUT_W = 150;

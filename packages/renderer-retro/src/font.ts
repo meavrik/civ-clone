@@ -222,6 +222,27 @@ export function drawTextRinged(s: Surface, x: number, y: number, text: string, c
   drawText(s, x, y, text, color);
 }
 
+/**
+ * Text on a plate (a city's size beside its name): a fill as tall as the glyphs plus two fine pixels
+ * above and below, edged one fine pixel, the text one screen pixel in from the left. Returns the
+ * plate's width in screen pixels.
+ */
+export function drawTextPlate(s: Surface, x: number, y: number, text: string, fill: number, edge: number, ink: number): number {
+  const w = textWidth(text) + 2;
+  if (s.k >= 2) {
+    const f = s.k / 2;
+    const top = y * s.k + (TEXT_TOP - 2) * f;
+    const h = 15 * f;
+    s.frect(x * s.k - f, top - f, w * s.k + 2 * f, h + 2 * f, edge);
+    s.frect(x * s.k, top, w * s.k, h, fill);
+  } else {
+    s.rect(x - 1, y - 1, w + 2, FONT_HEIGHT + 1, edge);
+    s.rect(x, y, w, FONT_HEIGHT - 1, fill);
+  }
+  drawText(s, x + 1, y, text, ink);
+  return w;
+}
+
 /** Break text into lines no wider than `maxWidth` pixels, on spaces; an overlong word is cut. */
 export function wrapText(text: string, maxWidth: number): string[] {
   const lines: string[] = [];

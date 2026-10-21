@@ -249,8 +249,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   a second shield behind for a stack, hp as a strip across its top; no owner box), features
   (`features.art.ts`: city, walls/walls_front, hut, mine, drawn by `tools/sprites/draw/features.ts` as
   layers lit from the upper left with one-pixel outlines in the darkest of each thing's own colours,
-  ground showing between the houses; the size plate, garrison shield and mood flag are code in
-  `map-city.ts`) and resources (`resources.art.ts`, named after the special; one-pixel outlines in dark
+  ground showing between the houses about a well; the garrison shield and mood flag are code in
+  `map-city.ts`, and the population sits on a plate of the owner's colour before the city's name under
+  the square, `drawCityLabel` in `screens/main.ts`: asked for 2026-10-21 after a plate on the town hid it) and resources (`resources.art.ts`, named after the special; one-pixel outlines in dark
   shades of their own colours, never thick black) are all 32x32 sheets with `k = 2`; icons are 16x16
   fine; citizens 32x32. Land borders blend: renderer-api `groundOwner` warps each fine pixel by world
   noise so the line between different grounds wanders, and each terrain sprite splits at load into

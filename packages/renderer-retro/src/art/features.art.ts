@@ -4,8 +4,8 @@ export default String.raw`
 # Features, 32x32: two pixels to each screen pixel, drawn over the map, in the terrain's manner: lit
 # from the upper left, flat two- and three-shade faces, each thing outlined one pixel in the darkest of
 # its own colours. The city stands free on its square: a stone keep flying the owner's banner (P/p)
-# among tile-roofed houses; walled, the wall ring goes behind it (walls) and before it (walls_front),
-# its gate where the size plate hangs. The village (hut) is thatched round huts about a fire; the mine
+# among tile-roofed houses about a well; walled, the wall ring goes behind it (walls) and before it
+# (walls_front), its gate at the foot. The village (hut) is thatched round huts about a fire; the mine
 # a rock mound with a timber-framed shaft. Special resources are in the resources sheet.
 # Legend: . clear  k black  w white  P/p owner colour/dark
 #   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey (EGA)
@@ -36,12 +36,12 @@ export default String.raw`
 ..aaaaaaa...aaaaaaaaa..aAggbbfa.
 .......................aaaaaaaa.
 .....a..........................
-....aea..................aaaaa..
-...ageda................aeeeeea.
-..agfedda..............addddddda
-...afffa................afffffa.
-...agbfa................aAgbbfa.
-...aaaaa................aaaaaaa.
+....aea.....AAAAAAAA.....aaaaa..
+...ageda....AEAAAAEA....aeeeeea.
+..agfedda...AEAAAAEA...addddddda
+...afffa....AEAAAAEA....afffffa.
+...agbfa....AEEEEEEA....aAgbbfa.
+...aaaaa....AAAAAAAA....aaaaaaa.
 ................................
 ................................
 

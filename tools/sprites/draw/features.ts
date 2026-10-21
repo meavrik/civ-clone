@@ -107,6 +107,15 @@ function banner(px: number, top: number, poleH: number): G {
   return g;
 }
 
+/** A well: a ring of stone about dark water. */
+function well(x0: number, y0: number): G {
+  const g = blank();
+  rect(g, x0, y0, x0 + 7, y0 + 5, "E");
+  rect(g, x0, y0 + 5, x0 + 7, y0 + 5, "C");
+  rect(g, x0 + 2, y0 + 1, x0 + 5, y0 + 3, "A");
+  return outline(g, { E: "A", C: "A" });
+}
+
 function city(): G {
   const g = blank();
   over(g, longHouse(0, 6, 10, 4, 3));
@@ -118,6 +127,7 @@ function city(): G {
   over(g, longHouse(11, 15, 11, 4, 3));
   over(g, house(2, 23, 7, 4, 3, true));
   over(g, longHouse(23, 24, 9, 3, 3, true));
+  over(g, well(12, 24));
   return g;
 }
 
@@ -253,8 +263,8 @@ const header = [
   "# Features, 32x32: two pixels to each screen pixel, drawn over the map, in the terrain's manner: lit",
   "# from the upper left, flat two- and three-shade faces, each thing outlined one pixel in the darkest of",
   "# its own colours. The city stands free on its square: a stone keep flying the owner's banner (P/p)",
-  "# among tile-roofed houses; walled, the wall ring goes behind it (walls) and before it (walls_front),",
-  "# its gate where the size plate hangs. The village (hut) is thatched round huts about a fire; the mine",
+  "# among tile-roofed houses about a well; walled, the wall ring goes behind it (walls) and before it",
+  "# (walls_front), its gate at the foot. The village (hut) is thatched round huts about a fire; the mine",
   "# a rock mound with a timber-framed shaft. Special resources are in the resources sheet.",
   "# Legend: . clear  k black  w white  P/p owner colour/dark",
   "#   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey (EGA)",
