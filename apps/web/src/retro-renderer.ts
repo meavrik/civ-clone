@@ -43,18 +43,23 @@ import {
   drawWorldMap,
   menuBarAnchor,
   menuBarHit,
+  DETAIL,
 } from "@civ/renderer-retro";
 import { wrapX, type GameState } from "@civ/core";
 
-/** The 1991-style renderer behind the screen API: a 320x200 indexed framebuffer blitted through the palette. */
+/**
+ * The 1991-style renderer behind the screen API: an indexed framebuffer laid out on 320x200,
+ * its terrain twice as fine (640x400 canvas pixels), blitted through the palette.
+ */
 export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
   const ctx = canvas.getContext("2d", { alpha: false })!;
   const screen = Surface.screen();
-  const image = ctx.createImageData(SCREEN_W, SCREEN_H);
+  const image = ctx.createImageData(screen.fw, screen.fh);
   return {
     id: "retro",
     width: SCREEN_W,
     height: SCREEN_H,
+    density: DETAIL,
     viewTilesX: VIEW_TILES_X,
     viewTilesY: VIEW_TILES_Y,
     researchListRows: RESEARCH_LIST_ROWS,

@@ -7,17 +7,41 @@ import { Terrain } from "../types.js";
  * civ1 ruleset: only forest, swamp and jungle change terrain under the
  * plough, nothing is mined into forest, and mountains mine for +1.
  */
+/**
+ * A special resource and what it adds to its square; `learned` adds more for a worker whose
+ * civilization knows an advance (Animal Husbandry: pastures for Horses, Game and Seals).
+ */
+export interface SpecialRule {
+  name: string;
+  food?: number;
+  shields?: number;
+  trade?: number;
+  learned?: { advance: string; food?: number; shields?: number; trade?: number };
+  /** The save version that brought it (second specials): worlds of older saves have none (`MapGenOptions.resources`). */
+  since?: number;
+  /** Found only this many squares from land or nearer (fish keep to coastal waters). */
+  within?: number;
+  /** Found only this many squares from land or farther (whales keep to deep water: no land beside them). */
+  beyond?: number;
+}
+
+/** The save version from which `within` and `beyond` place specials; older worlds ignore them. */
+export const SPECIAL_REACH_SINCE = 19;
+
 export interface TerrainRule {
   food: number;
   shields: number;
   trade: number;
   moveCost: number;
   defense: number;
+  /** The original's special resource on this terrain (see `SpecialRule`). */
+  special?: SpecialRule;
   /**
-   * Special resource found on this terrain and its bonus; `learned` adds more for a worker whose
-   * civilization knows an advance (Animal Husbandry: pastures for Horses, Game and Seals).
+   * A second kind of special (our departure, asked for 2026-10-21, after Civilization II): about
+   * half the specials on this terrain are this one instead (`Tile.secondSpecial`), in worlds of
+   * saves from its `since` on.
    */
-  special?: { name: string; food?: number; shields?: number; trade?: number; learned?: { advance: string; food: number } };
+  second?: SpecialRule;
   /** Irrigation result: yield bonus, or a terrain change. Turns = settler-turns. */
   irrigate?: { food?: number; becomes?: Terrain; turns: number };
   mine?: { shields?: number; becomes?: Terrain; turns: number };
@@ -41,31 +65,39 @@ export interface TerrainRule {
 export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Ocean]: {
     food: 1, shields: 0, trade: 2, moveCost: 1, defense: 1,
-    special: { name: "Fish", food: 2 },
+    special: { name: "Fish", food: 2, within: 2 },
+    // Whalers put to sea with Navigation.
+    second: { name: "Whales", food: 1, shields: 1, learned: { advance: "navigation", shields: 1 }, since: 17, beyond: 2 },
     road: { trade: 0, turns: 0 },
   },
   [Terrain.Grassland]: {
     food: 2, shields: 0, trade: 0, moveCost: 1, defense: 1,
     // Grassland "resources" (the shield variant) are handled as a special.
     special: { name: "Resources", shields: 1 },
+    second: { name: "Cotton", trade: 2, learned: { advance: "weaving", shields: 1 }, since: 17 },
     irrigate: { food: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
   },
   [Terrain.Plains]: {
     food: 1, shields: 1, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Horses", shields: 2, learned: { advance: "animal_husbandry", food: 1 } },
+    // Pots keep the harvest.
+    second: { name: "Wheat", food: 2, learned: { advance: "pottery", food: 1 }, since: 17 },
     irrigate: { food: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
   },
   [Terrain.Forest]: {
     food: 1, shields: 2, trade: 0, moveCost: 2, defense: 1.5,
     special: { name: "Game", food: 2, learned: { advance: "animal_husbandry", food: 1 } },
+    // Looms want silk.
+    second: { name: "Silk", trade: 3, learned: { advance: "weaving", trade: 1 }, since: 18 },
     irrigate: { becomes: Terrain.Plains, turns: 5 },
     road: { trade: 0, turns: 4 },
   },
   [Terrain.Hills]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 2,
     special: { name: "Coal", shields: 2 },
+    second: { name: "Wine", trade: 4, since: 18 },
     irrigate: { food: 1, turns: 10 },
     mine: { shields: 3, turns: 10 },
     road: { trade: 0, turns: 4 },
@@ -73,6 +105,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Mountains]: {
     food: 0, shields: 1, trade: 0, moveCost: 3, defense: 3,
     special: { name: "Gold", trade: 6 },
+    second: { name: "Iron", shields: 3, learned: { advance: "iron_working", shields: 1 }, since: 17 },
     mine: { shields: 1, turns: 10 },
     road: { trade: 0, turns: 6 },
     rough: true,
@@ -81,6 +114,8 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Desert]: {
     food: 0, shields: 1, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Oasis", food: 3 },
+    // A little bitumen until Refining makes it oil.
+    second: { name: "Oil", shields: 1, learned: { advance: "refining", shields: 3 }, since: 17 },
     irrigate: { food: 1, turns: 5 },
     mine: { shields: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
@@ -90,12 +125,14 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Tundra]: {
     food: 1, shields: 0, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Game", food: 2, learned: { advance: "animal_husbandry", food: 1 } },
+    second: { name: "Furs", food: 1, trade: 3, since: 18 },
     road: { trade: 0, turns: 2 },
     noBarbarians: true,
   },
   [Terrain.Arctic]: {
     food: 0, shields: 0, trade: 0, moveCost: 2, defense: 1,
     special: { name: "Seals", food: 2, learned: { advance: "animal_husbandry", food: 1 } },
+    second: { name: "Ivory", food: 1, shields: 1, trade: 4, since: 18 },
     road: { trade: 0, turns: 4 },
     rough: true,
     noBarbarians: true,
@@ -105,6 +142,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Swamp]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 1.5,
     special: { name: "Peat", shields: 4 },
+    second: { name: "Spices", food: 2, trade: 4, since: 18 },
     irrigate: { becomes: Terrain.Grassland, turns: 15 },
     road: { trade: 0, turns: 4 },
     rough: true,
@@ -112,11 +150,25 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Jungle]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 1.5,
     special: { name: "Gems", trade: 4 },
+    second: { name: "Fruit", food: 3, trade: 1, since: 18 },
     irrigate: { becomes: Terrain.Grassland, turns: 15 },
     road: { trade: 0, turns: 4 },
     rough: true,
   },
 };
+
+/** A terrain's second kind of special, if worlds of a save of version `resources` have it (all do when absent). */
+export function secondKind(rule: TerrainRule, resources?: number): SpecialRule | undefined {
+  const s = rule.second;
+  return s && (resources === undefined || (s.since ?? 0) <= resources) ? s : undefined;
+}
+
+/** The special on a square, if it has one: its terrain's second kind where the square says so, else the first. */
+export function specialOf(tile: { terrain: Terrain; special: boolean; secondSpecial?: boolean }): SpecialRule | undefined {
+  if (!tile.special) return undefined;
+  const r = TERRAIN_RULES[tile.terrain];
+  return (tile.secondSpecial ? r.second : undefined) ?? r.special;
+}
 
 /** Movement points are stored in thirds so roads (1/3) stay integral. */
 export const MOVE_FRAC = 3;

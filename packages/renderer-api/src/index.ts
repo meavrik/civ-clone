@@ -5,6 +5,7 @@ import type { Callout } from "./refusal.js";
 export * from "./motion.js";
 export * from "./icons.js";
 export * from "./citizens.js";
+export * from "./blend.js";
 export * from "./coast.js";
 export * from "./river.js";
 export * from "./fog.js";
@@ -56,6 +57,7 @@ import {
   type Production,
   type Unit,
   type WorldSize,
+  specialOf,
 } from "@civ/core";
 
 /**
@@ -236,6 +238,8 @@ export interface Renderer {
   /** Logical size the screens are laid out in; mouse positions arrive in it. */
   readonly width: number;
   readonly height: number;
+  /** Canvas pixels to a logical pixel (the retro renderer draws its terrain twice as fine as its layout); 1 if absent. */
+  readonly density?: number;
   /** Map tiles that fit in the main screen's viewport. */
   readonly viewTilesX: number;
   readonly viewTilesY: number;
@@ -592,7 +596,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   const defence = r.defense === 1 ? "" : `  {tower} +${Math.round((r.defense - 1) * 100)}%`;
   lines.push(`{food} ${yld.food}  {shield} ${yld.shields}  {trade} ${yld.trade}  {boot} ${r.moveCost}${defence}`);
   const features = [
-    t.special && r.special && `{star} ${r.special.name}`,
+    specialOf(t) && `{star} ${specialOf(t)!.name}`,
     t.river && "{river} River",
     t.railroad ? "{railroad} Railroad" : t.road && "{road} Road",
     t.irrigation && "{irrigate} Irrigation",

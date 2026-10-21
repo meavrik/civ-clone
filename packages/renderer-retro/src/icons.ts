@@ -12,6 +12,17 @@ export function drawIcon(s: Surface, name: IconName, x: number, y: number): void
   if (sprite) s.blit(sprite, x, y, SPRITE_CLEAR);
 }
 
+/** The icon sheet's small marks (tick, new, yield_*, move*), each at its cell's top left. */
+export type MarkName = "tick" | "new" | "yield_food" | "yield_shield" | "yield_trade" | "move" | "move_part" | "move_none";
+
+/** A small mark with its top left at fine pixel (fx, fy) (two to a screen pixel). */
+export function drawMark(s: Surface, name: MarkName, fx: number, fy: number): void {
+  const sprite = spriteSurface(ICON_SHEET, name);
+  if (!sprite) return;
+  if (sprite.k === s.k) s.fblit(sprite, fx, fy, SPRITE_CLEAR);
+  else s.blit(sprite, Math.floor(fx / 2), Math.floor(fy / 2), SPRITE_CLEAR);
+}
+
 /** Width of a line that may carry {icon} tokens. */
 export function iconLineWidth(line: string): number {
   let w = 0;

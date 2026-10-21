@@ -54,6 +54,8 @@ export interface Tile {
   terrain: Terrain;
   river: boolean;
   special: boolean;
+  /** The special is its terrain's second kind (`TerrainRule.second`), where it has one. */
+  secondSpecial?: boolean;
   road: boolean;
   irrigation: boolean;
   mine: boolean;
@@ -235,6 +237,8 @@ export interface GameState {
    * never toppled by riots, and one content citizen fewer per four cities past eight. Set for saves before version 17.
    */
   simpleMoods?: boolean;
+  /** Second specials only of those a save of this version knew (`SpecialRule.since`). Set for saves before version 20. */
+  resources?: number;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

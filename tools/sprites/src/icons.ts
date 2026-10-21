@@ -1,4 +1,4 @@
-import { C, FEATURE_SHEET, ownerBox, PALETTE_RGBA, SPRITE_CLEAR, spriteSurface, Surface, TERRAIN_SHEET } from "@civ/renderer-retro";
+import { C, FEATURE_SHEET, PALETTE_RGBA, SPRITE_CLEAR, spriteSurface, Surface, TERRAIN_SHEET } from "@civ/renderer-retro";
 import type { Image } from "./png.js";
 
 /**
@@ -8,14 +8,12 @@ import type { Image } from "./png.js";
  */
 export function iconScene(margin: number): Surface {
   const size = 16 + 2 * margin;
-  const s = new Surface(size, size);
+  const s = Surface.fine(size, size);
   const ocean = spriteSurface(TERRAIN_SHEET, "ocean")!;
   for (let y = 0; y < size; y += 16) for (let x = 0; x < size; x += 16) s.blit(ocean, x, y, SPRITE_CLEAR);
   const owner = C.WHITE!;
   s.blit(spriteSurface(TERRAIN_SHEET, "grassland")!, margin, margin, SPRITE_CLEAR);
-  s.blit(ownerBox(owner), margin, margin, SPRITE_CLEAR);
-  s.blit(spriteSurface(FEATURE_SHEET, "walls", owner)!, margin, margin, SPRITE_CLEAR);
-  s.blit(spriteSurface(FEATURE_SHEET, "city", owner)!, margin, margin, SPRITE_CLEAR);
+  for (const part of ["walls", "city", "walls_front"]) s.blit(spriteSurface(FEATURE_SHEET, part, owner)!, margin, margin, SPRITE_CLEAR);
   return s;
 }
 
@@ -24,7 +22,7 @@ export function iconImage(s: Surface, px: number): Image {
   const data = new Uint8Array(px * px * 4);
   for (let y = 0; y < px; y++)
     for (let x = 0; x < px; x++) {
-      const p = s.get(Math.floor((x * s.width) / px), Math.floor((y * s.height) / px)) * 4;
+      const p = s.fget(Math.floor((x * s.fw) / px), Math.floor((y * s.fh) / px)) * 4;
       data.set(PALETTE_RGBA.subarray(p, p + 3), (y * px + x) * 4);
       data[(y * px + x) * 4 + 3] = 255;
     }

@@ -3,8 +3,8 @@ import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, roadW
 import { drawIcon } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, shade } from "./palette.js";
-import { Surface } from "./surface.js";
-import { TILE } from "./tiles.js";
+import { DETAIL, Surface } from "./surface.js";
+import { isWater, TILE, WATER } from "./tiles.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sprites/index.js";
 
@@ -125,21 +125,29 @@ const CANAL = 7;
  * terrain beside it that the canal cuts through, and so do the knolls of hills.
  * A strip of the terrain shows along each side, except toward irrigated
  * neighbours (`sides`, see `fieldSides`), where the fields and the canal run on.
+ * The fields are laid in screen pixels over a ground as fine as the screen: a
+ * screen pixel counts as water (or relief) if any of its fine pixels is.
  */
 export function drawIrrigation(s: Surface, dx: number, dy: number, ground: Surface, terrain: Terrain, x: number, y: number, sides: number): void {
   const { plots, splits } = fieldLayout(x, y);
   const relief = RELIEF[terrain];
-  const canal = shade("ocean", 6);
+  const canal = WATER.glint;
   const last = TILE - 1;
-  const wet = (i: number, j: number) => i >= 0 && j >= 0 && i < TILE && j < TILE && inRamp(ground.data[j * TILE + i]!, "ocean");
+  const gk = ground.k;
+  /** Whether any fine pixel of the ground's screen pixel (i, j) passes a test. */
+  const anyFine = (i: number, j: number, test: (c: number) => boolean) => {
+    for (let fj = 0; fj < gk; fj++) for (let fi = 0; fi < gk; fi++) if (test(ground.fget(i * gk + fi, j * gk + fj))) return true;
+    return false;
+  };
+  const any = (i: number, j: number, ramp: string) => anyFine(i, j, (c) => inRamp(c, ramp));
+  const wet = (i: number, j: number) => i >= 0 && j >= 0 && i < TILE && j < TILE && anyFine(i, j, isWater);
   for (let j = 0; j < TILE; j++) {
     if ((j === 0 && !(sides & FIELD_N)) || (j === last && !(sides & FIELD_S))) continue;
     const south = j > CANAL;
     const split = Math.round(splits[south ? 1 : 0] * TILE);
     for (let i = 0; i < TILE; i++) {
       if ((i === 0 && !(sides & FIELD_W)) || (i === last && !(sides & FIELD_E))) continue;
-      const under = ground.data[j * TILE + i]!;
-      if (wet(i, j) || (relief && inRamp(under, relief))) continue;
+      if (wet(i, j) || (relief && any(i, j, relief))) continue;
       if (j === CANAL) { s.set(dx + i, dy + j, canal); continue; }
       if (wet(i - 1, j) || wet(i + 1, j) || wet(i, j - 1) || wet(i, j + 1)) continue;
       const plot = plots[(south ? 2 : 0) + (i >= split ? 1 : 0)]!;
@@ -166,20 +174,19 @@ export const UNIT_ABBR: Record<string, string> = {
 const spriteCache = new Map<string, Surface>();
 
 /**
- * A unit as the map shows it: the owner's colour box with the unit's figure
- * from the units sheet on top. Clear pixels are SPRITE_CLEAR, so blit with
- * that key. A type missing from the sheet falls back to its letters.
+ * A unit's figure as the map shows it, standing free on the terrain: 32x32 fine pixels from the
+ * units sheet, its cloth and flags in the owner's colour. Clear pixels are SPRITE_CLEAR, so blit
+ * with that key. A type missing from the sheet falls back to its letters on the owner's box.
  */
 export function unitSprite(type: string, color: number): Surface {
   const key = `${type}:${color}`;
   const hit = spriteCache.get(key);
   if (hit) return hit;
-  const s = new Surface(TILE, TILE);
-  s.fill(SPRITE_CLEAR);
-  s.blit(ownerBox(color), 0, 0, SPRITE_CLEAR);
-  const figure = spriteSurface(UNIT_SHEET, type, color);
-  if (figure) s.blit(figure, 0, 0, SPRITE_CLEAR);
-  else {
+  let s = spriteSurface(UNIT_SHEET, type, color);
+  if (!s) {
+    s = new Surface(TILE, TILE);
+    s.fill(SPRITE_CLEAR);
+    s.blit(ownerBox(color), 0, 0, SPRITE_CLEAR);
     const label = UNIT_ABBR[type] ?? "?";
     drawText(s, Math.floor(8 - textWidth(label) / 2), 4, label, C.BLACK!);
   }
@@ -188,13 +195,45 @@ export function unitSprite(type: string, color: number): Surface {
   return s;
 }
 
+/**
+ * The owner's shield in a unit's top left corner, in the square's 32x32 grid of fine pixels:
+ * black edged, the owner's colour, its right side darker, coming to a point.
+ */
+const SHIELD = [
+  "kkkkkkkkk",
+  "kPPPPPPpk",
+  "kPPPPPPpk",
+  "kPPPPPPpk",
+  "kPPPPPPpk",
+  "kPPPPPPpk",
+  ".kPPPPpk.",
+  ".kPPPPpk.",
+  "..kPPpk..",
+  "...kpk...",
+  "....k....",
+];
+/** Where the shield sits, and where the second shield of a stack peeks out from behind it. */
+export const SHIELD_AT = 1;
+const STACK_SHIFT = 2;
+
+/** A rectangle on the square at screen (dx, dy), placed in the square's 32x32 grid of fine pixels. */
+export function gridRect(s: Surface, dx: number, dy: number, x: number, y: number, w: number, h: number, c: number): void {
+  const f = s.k / DETAIL;
+  s.frect(dx * s.k + Math.floor(x * f), dy * s.k + Math.floor(y * f), Math.max(1, Math.round(w * f)), Math.max(1, Math.round(h * f)), c);
+}
+
+/** The owner's shield (SHIELD) at (x, y) of the square at screen (dx, dy), in its fine grid. */
+export function drawShield(s: Surface, dx: number, dy: number, x: number, y: number, fill: number, edge: number): void {
+  SHIELD.forEach((row, j) => [...row].forEach((ch, i) => {
+    if (ch !== ".") gridRect(s, dx, dy, x + i, y + j, 1, 1, ch === "k" ? C.BLACK! : ch === "P" ? fill : edge);
+  }));
+}
+
 export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order">, dx: number, dy: number, color: number, stacked: boolean): void {
-  if (stacked) {
-    // A second box edge peeking out shows a stack, like the original.
-    s.rect(dx + 3, dy + 3, 13, 13, C.BLACK!);
-    s.rect(dx + 4, dy + 4, 11, 11, darker(color));
-  }
   s.blit(unitSprite(u.type, color), dx, dy, SPRITE_CLEAR);
+  // Whose it is: the owner's shield, a second one peeking out from behind for a stack.
+  if (stacked) drawShield(s, dx, dy, SHIELD_AT + STACK_SHIFT, SHIELD_AT + STACK_SHIFT, darker(color), darker(color));
+  drawShield(s, dx, dy, SHIELD_AT, SHIELD_AT, color, darker(color));
   if (u.order.kind === "fortified") {
     s.frame(dx, dy, TILE, TILE, shade("stone", 6));
   } else if (u.order.kind === "sentry") {
@@ -206,19 +245,25 @@ export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order">, dx: number
   }
 }
 
-/** A unit's hit points as a bar down its left edge: green, then yellow, then red as they run out. */
+/**
+ * A unit's hit points as a strip across the top of its shield (in the square's fine grid), the
+ * owner's colour showing below: green, then yellow, then red as they run out.
+ */
 export function drawHpBar(s: Surface, dx: number, dy: number, hp: number, max: number): void {
   const ratio = Math.max(0, Math.min(1, hp / max));
-  const h = hp > 0 ? Math.max(1, Math.round(12 * ratio)) : 0;
-  s.rect(dx, dy + 1, 4, 14, C.BLACK!);
-  if (h > 0) s.rect(dx + 1, dy + 2 + (12 - h), 2, h, ratio > 0.5 ? C.LGREEN! : ratio > 0.25 ? C.YELLOW! : C.LRED!);
+  const inner = SHIELD[0]!.length - 2;
+  const w = hp > 0 ? Math.max(1, Math.round(inner * ratio)) : 0;
+  gridRect(s, dx, dy, SHIELD_AT, SHIELD_AT, inner + 2, 4, C.BLACK!);
+  if (w > 0) gridRect(s, dx, dy, SHIELD_AT + 1, SHIELD_AT + 1, w, 2, ratio > 0.5 ? C.LGREEN! : ratio > 0.25 ? C.YELLOW! : C.LRED!);
 }
 
 /** The unit as a white silhouette: the flash of a blow landing on it. */
 export function drawUnitFlash(s: Surface, type: string, color: number, dx: number, dy: number): void {
   const sprite = unitSprite(type, color);
-  for (let y = 0; y < sprite.height; y++)
-    for (let x = 0; x < sprite.width; x++) if (sprite.get(x, y) !== SPRITE_CLEAR) s.set(dx + x, dy + y, C.WHITE!);
+  const flash = new Surface(sprite.width, sprite.height, undefined, sprite.k);
+  for (let i = 0; i < sprite.data.length; i++) flash.data[i] = sprite.data[i] === SPRITE_CLEAR ? SPRITE_CLEAR : C.WHITE!;
+  s.blit(flash, dx, dy, SPRITE_CLEAR);
+  drawShield(s, dx, dy, SHIELD_AT, SHIELD_AT, color, darker(color));
 }
 
 function disc(s: Surface, cx: number, cy: number, r: number, color: number): void {

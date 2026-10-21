@@ -5,6 +5,8 @@ import {
   C,
   drawText,
   FEATURE_SHEET,
+  RESOURCE_SHEET,
+  specialSprite,
   getTile,
   ownerBox,
   PALETTE,
@@ -34,10 +36,11 @@ describe("sprite sheets", () => {
     for (const t of UNIT_TYPES) expect(UNIT_SHEET.byName.has(t.id), t.id).toBe(true);
     for (const name of ["ocean", "grassland", "plains", "forest", "hills", "mountains", "desert", "tundra", "arctic", "swamp", "jungle"])
       expect(TERRAIN_SHEET.byName.has(name), name).toBe(true);
-    for (const rule of Object.values(TERRAIN_RULES)) if (rule.special) expect(FEATURE_SHEET.byName.has(rule.special.name.toLowerCase()), rule.special.name).toBe(true);
+    for (const rule of Object.values(TERRAIN_RULES))
+      for (const sp of [rule.special, rule.second]) if (sp) expect(specialSprite(sp.name), sp.name).not.toBeNull();
     for (const name of ["city", "walls", "hut", "mine"]) expect(FEATURE_SHEET.byName.has(name), name).toBe(true);
     // Every panel icon, at 8x8 so it sits in a line of text.
-    expect(ICON_SHEET.size).toBe(8);
+    expect(ICON_SHEET.size / ICON_SHEET.k).toBe(8); // as tall as a line of text, in screen pixels
     for (const name of ICONS) expect(ICON_SHEET.byName.has(name), name).toBe(true);
     // Every mood and trade of citizen, in both looks.
     for (const mood of MOODS) for (const name of [mood, `${mood}-2`]) expect(CITIZEN_SHEET.byName.has(name), name).toBe(true);
@@ -90,9 +93,11 @@ describe("sprite sheets", () => {
     expect(box.get(1, 1)).toBe(C.BLACK);
     expect(box.get(5, 5)).toBe(C.LGREEN);
     expect(box.get(0, 0)).toBe(SPRITE_CLEAR);
+    // A unit stands free, outlined in near black, its cloth in the owner's colour.
     const legion = unitSprite("legion", C.LBLUE!);
-    expect(legion.data.includes(C.BLACK!)).toBe(true);
+    expect(legion.data.includes(C.STEEL!)).toBe(true);
     expect(legion.data.includes(C.LBLUE!)).toBe(true);
+    expect(legion.data[0]).toBe(SPRITE_CLEAR);
   });
 
   it("dump a preview sheet for review", () => {
@@ -101,8 +106,10 @@ describe("sprite sheets", () => {
     const units = UNIT_SHEET.sprites.map((s) => s.name);
     const unitRows = Math.ceil(units.length / cols);
     const features = FEATURE_SHEET.sprites.length;
-    const height = 12 + unitRows * 2 * 18 + 12 + 18 + 12 + Math.ceil(features / cols) * 18 + 12 + 3 * 15 + 4;
-    const s = new Surface(cols * 18 + 4, height);
+    const resources = RESOURCE_SHEET.sprites.length;
+    const height = 12 + unitRows * 2 * 18 + 12 + 18 + 12 + Math.ceil(features / cols) * 18 + 12 + Math.ceil(resources / cols) * 18 + 12 + 3 * 15 + 4;
+    // As fine as the screen, so the terrain shows its fine pixels.
+    const s = Surface.fine(cols * 18 + 4, height);
     s.fill(C.DGREY!);
     let y = 2;
     drawText(s, 2, y, "Units (two civilizations)", C.WHITE!);
@@ -122,10 +129,18 @@ describe("sprite sheets", () => {
       const x = 2 + (i % cols) * 18;
       const yy = y + Math.floor(i / cols) * 18;
       s.blit(getTile(Terrain.Grassland, 0, 0), x, yy);
-      if (f.name === "city" || f.name === "walls") s.blit(ownerBox(PLAYER_COLORS[1]!), x, yy, SPRITE_CLEAR);
       s.blit(spriteSurface(FEATURE_SHEET, f.name, PLAYER_COLORS[1]!)!, x, yy, SPRITE_CLEAR);
     });
     y += Math.ceil(features / cols) * 18 + 2;
+    drawText(s, 2, y, "Resources", C.WHITE!);
+    y += 10;
+    RESOURCE_SHEET.sprites.forEach((r, i) => {
+      const x = 2 + (i % cols) * 18;
+      const yy = y + Math.floor(i / cols) * 18;
+      s.blit(getTile(Terrain.Grassland, 0, 0), x, yy);
+      s.blit(spriteSurface(RESOURCE_SHEET, r.name)!, x, yy, SPRITE_CLEAR);
+    });
+    y += Math.ceil(resources / cols) * 18 + 2;
     drawText(s, 2, y, "Citizens (four looks to a mood)", C.WHITE!);
     y += 10;
     stipple(s, 0, y, s.width, 3 * 15, "panel");

@@ -46,6 +46,15 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   over land and mountains (rain shadows), ranked so biome shares stay steady; mountains on noise ridges
   with hills as foothills; lone squares join their neighbours; rivers rise in wet highlands and run
   to the sea. `scatteredTerrain` keeps the first per-square generator for saves before version 6.
+  Specials (`SpecialRule`; read a square's with `specialOf(tile)`, never `TERRAIN_RULES[t].special`): every
+  land terrain and the sea has a second kind (our departure, asked for 2026-10-21, after Civilization II:
+  Whales, Cotton, Wheat, Silk, Wine, Iron, Oil, Furs, Ivory, Spices, Fruit; tundra's Game is forest's),
+  on about half their lattice squares (`Tile.secondSpecial`, a hash of the square, no RNG, so seeds keep
+  their worlds); `learned` may add food, shields or trade with an advance (Navigation, Weaving, Pottery,
+  Iron Working, Refining). Each carries `since` (the save version that brought it); old saves load with
+  `resources` (their version), so their worlds have only the kinds they knew (`secondKind`). A kind may
+  have a reach (`within`/`beyond` squares from land): Fish within 2, Whales beyond 2 (deep water), from
+  version 19 (`SPECIAL_REACH_SINCE`).
   Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
   FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
   starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail
@@ -230,14 +239,31 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   irrigated neighbours (`fieldSides`) with a strip of terrain elsewhere; water and the knolls of
   hills stay above them. Mines are a rock mound with a timber-framed shaft, drawn over the roads.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
-  `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`. Units,
-  terrain, cities, villages, specials and mines are pixel art in `src/art/*.art.ts` (text grids; legend
-  and parser in `src/sprites/sheet.ts`, compiled surfaces in `src/sprites/index.ts`; 8x8 panel icons
-  in `icons.art.ts`, drawn with `src/icons.ts`, outlined in black so they read on every background: food
-  is an ear of wheat, `shield` (production) a hammer, `people` a man and a woman); roads,
+  `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`.
+  Fine art (merged from branch terrain-tiles-test, 2026-10-21, asked for): the screen keeps its 320x200
+  layout but holds `DETAIL` (2) x 2 fine pixels per screen pixel (`Surface.k`, `fw`/`fh`, `fset`/`fget`/
+  `frect`/`fblit`; `Surface.screen()`, `Surface.fine()`), so a 16-pixel square shows a 32x32 picture.
+  Terrain (`terrain.art.ts`, recovered pixel for pixel from the user's reference sheet, no mirroring;
+  two blues: coastal `ocean`, open `deep_ocean`), units (`units.art.ts`, the user's 32x32 sheet of the
+  original's 28, standing free with the owner's shield in the top-left corner, `drawShield`/`SHIELD_AT`,
+  a second shield behind for a stack, hp as a strip across its top; no owner box), features
+  (`features.art.ts`: city, walls/walls_front, hut, mine, drawn by `tools/sprites/draw/features.ts` as
+  layers lit from the upper left with one-pixel outlines in the darkest of each thing's own colours,
+  ground showing between the houses; the size plate, garrison shield and mood flag are code in
+  `map-city.ts`) and resources (`resources.art.ts`, named after the special; one-pixel outlines in dark
+  shades of their own colours, never thick black) are all 32x32 sheets with `k = 2`; icons are 16x16
+  fine; citizens 32x32. Land borders blend: renderer-api `groundOwner` warps each fine pixel by world
+  noise so the line between different grounds wanders, and each terrain sprite splits at load into
+  ground + objects (objects never cut). Text: the 5x7 glyphs at three quarters of the 16x16 size (each
+  dot a 2x2 block, `DOT_X`/`DOT_Y` in `font.ts`); `drawTextSmall` places text by fine pixel. The palette
+  is FULL: ramps `hide`, `mire`, `canopy`, `rock`, `ice` (in the old ui/fog/swamp/jungle slots),
+  `meadow`, `leaf`, `mound`, `wheat`, `dune`, `heath`, `sea`, `steel`, and `jewel` (6 colours, 249-254;
+  `shade` clamps to `RAMP_SIZE`); new art must reuse these ramps or free one. Panel icons (`icons.art.ts`,
+  drawn with `src/icons.ts`) and the small marks (`drawMark`: tick, new, yield, moves) are hand-drawn
+  16x16: food is an ear of wheat, `shield` (production) a hammer, `people` a man and a woman; roads,
   rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.
-  Citizens (city screen) are whole figures, 7x13: `citizens.art.ts` holds a man and a woman to a 16x16
-  sprite, one per mood or trade, plus a "-2" look (beard, headscarf); `citizens.ts` swaps the sheet's
+  Citizens (city screen) are whole figures: `citizens.art.ts` holds a man and a woman to each sprite,
+  one per mood or trade, plus a "-2" look (beard, headscarf); `citizens.ts` swaps the sheet's
   stand-in skin, hair, trouser and clothes colours for each person's (`skin` ramp for deep skin tones).
   Who stands where is `citizenLook(city, i)` in renderer-api (a hash, so the same people every frame);
   the modern renderer paints the same people in `renderer-modern/src/citizens.ts`.
@@ -353,7 +379,10 @@ Chrome with simulated touches, not yet on a phone. Moods done (2026-10-21, asked
 against the original, show unhappiness on the city, units inside the city"): the reckoning stage by stage
 with a Happy panel, martial law by government, weariness souring the happy, FreeCiv's empire-size rule,
 celebrations with their government bonuses, a Democracy toppled by lasting riots, mood flags on the map
-(save version 17, `simpleMoods` for older saves).
+(save version 17, `simpleMoods` for older saves). Fine art merged (2026-10-21, asked for): branch
+terrain-tiles-test, the whole map at 32 fine pixels a square (terrain, units, resources, cities, icons,
+text), second special resources with reaches (save version 20; the branch's own 17-19 are mapped in
+`loadSave`, a 17 counting as main's).
 
 ## Known gaps / next steps
 
@@ -435,5 +464,9 @@ celebrations with their government bonuses, a Democracy toppled by lasting riots
 - When a render change is made, run the render tests and look at the PNGs in `tests/out/`
   (`sprites.png` previews every sprite on two civilizations' colours; `main-screen.png` the map).
 - Art is ours: draw new sprites in the text grids or a paint program and import them. Do not use
-  image generators or the original game's files for shipped art.
+  image generators or the original game's files for shipped art. Exception the user made (2026-10-21):
+  the terrain, unit and resource sheets were supplied by the user as reference images and copied in
+  pixel for pixel; new art drawn here follows their manner (see `packages/renderer-retro` above) and
+  the user's pixel-art rules: even chunky strokes, one-pixel outlines in dark shades of the thing's own
+  colours (no heavy black), the blocky 5x7 text, nothing algorithmically thinned or smoothed.
 - Commit per phase or per feature; messages in imperative mood.

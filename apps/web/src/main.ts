@@ -113,7 +113,7 @@ import { listSlots, readSlot, SLOTS, writeSlot } from "./storage.js";
 // The game is drawn retro. The modern renderer (packages/renderer-modern) is set aside for
 // now: the app no longer offers it, though it still builds and passes its tests.
 const renderer: Renderer = createRetroRenderer(canvas);
-configureDisplay(renderer.width, renderer.height, true);
+configureDisplay(renderer.width, renderer.height, true, renderer.density ?? 1);
 
 addEventListener("resize", fitCanvas);
 

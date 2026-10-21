@@ -18,8 +18,9 @@ import {
   workOptions,
   wrapX,
   type GameState,
+  specialOf,
 } from "@civ/core";
-import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
+import { drawText, drawTextCentered, drawTextRinged, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
@@ -81,7 +82,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
 }
 
 import { borderSides, cityMood, fieldSides, isDeepWater, researchOutlook, type Callout, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
-import { drawIcon, drawIconLine, drawIconsWrapped, ICON, iconLineWidth } from "../icons.js";
+import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
 /** A player's colour: their civilization's slot, never their seat. */
@@ -90,22 +91,22 @@ export function playerColor(state: GameState, owner: number): number {
 }
 
 export const MINIMAP_COLOR: Record<Terrain, () => number> = {
-  [Terrain.Ocean]: () => shade("ocean", 3),
-  [Terrain.Grassland]: () => shade("grass", 4),
-  [Terrain.Plains]: () => shade("plains", 4),
-  [Terrain.Forest]: () => shade("forest", 3),
-  [Terrain.Hills]: () => shade("earth", 4),
-  [Terrain.Mountains]: () => shade("stone", 4),
-  [Terrain.Desert]: () => shade("sand", 5),
-  [Terrain.Tundra]: () => shade("swamp", 5),
-  [Terrain.Arctic]: () => shade("snow", 7),
-  [Terrain.Swamp]: () => shade("swamp", 3),
-  [Terrain.Jungle]: () => shade("jungle", 3),
+  [Terrain.Ocean]: () => shade("ocean", 7),
+  [Terrain.Grassland]: () => shade("meadow", 6),
+  [Terrain.Plains]: () => shade("wheat", 3),
+  [Terrain.Forest]: () => shade("leaf", 2),
+  [Terrain.Hills]: () => shade("mound", 6),
+  [Terrain.Mountains]: () => shade("rock", 2),
+  [Terrain.Desert]: () => shade("dune", 7),
+  [Terrain.Tundra]: () => shade("heath", 7),
+  [Terrain.Arctic]: () => shade("ice", 7),
+  [Terrain.Swamp]: () => shade("mire", 3),
+  [Terrain.Jungle]: () => shade("canopy", 1),
 };
 
 /** A square's minimap colour; open sea is darker than water along a coast. */
 export function minimapColor(map: GameState["map"], x: number, y: number, explored?: ArrayLike<number>): number {
-  return isDeepWater(map, x, y, explored) ? shade("ocean", 1) : MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]();
+  return isDeepWater(map, x, y, explored) ? shade("ocean", 4) : MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]();
 }
 
 /** Screen position of a map tile relative to the viewport, or null if off-screen. */
@@ -155,7 +156,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       drawRoad(s, dx, dy, map, me.explored, mx, my);
       drawRailroad(s, dx, dy, map, me.explored, mx, my);
       if (tile.mine) drawMine(s, dx, dy);
-      if (tile.special) drawSpecial(s, dx, dy, tile.terrain);
+      if (tile.special) drawSpecial(s, dx, dy, tile);
       if (tile.hut) drawHut(s, dx, dy);
       if (tile.fortress) drawFortress(s, dx, dy);
       if (tile.pollution) drawPollution(s, dx, dy);
@@ -256,9 +257,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
 
 /** A city's name centred under its square: the owner's colour ringed in black, so it reads on any ground. */
 function drawCityLabel(s: Surface, cx: number, y: number, name: string, color: number): void {
-  const x = cx - Math.floor(textWidth(name) / 2);
-  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const) drawText(s, x + dx, y + dy, name, C.BLACK!);
-  drawText(s, x, y, name, color);
+  drawTextRinged(s, cx - Math.floor(textWidth(name) / 2), y, name, color, C.BLACK!);
 }
 
 const CALLOUT_W = 150;
@@ -335,7 +334,7 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
   const t = state.map.tiles[idx]!;
   const r = TERRAIN_RULES[t.terrain];
   terrainSwatch(s, t.terrain, x, y);
-  drawTextWrapped(s, x + 10, y, TEXT_W - 10, r.special && t.special ? `${TERRAIN_NAMES[t.terrain]}: ${r.special.name}` : TERRAIN_NAMES[t.terrain], ink, 1);
+  drawTextWrapped(s, x + 10, y, TEXT_W - 10, specialOf(t) ? `${TERRAIN_NAMES[t.terrain]}: ${specialOf(t)!.name}` : TERRAIN_NAMES[t.terrain], ink, 1);
   y += 9;
   const move = `{boot}${r.moveCost}${r.defense !== 1 ? ` {tower}+${Math.round((r.defense - 1) * 100)}%` : ""}`;
   y += 9 * drawIconsWrapped(s, x, y, TEXT_W, tileIconLine(state, tx, ty, move), ink, Math.min(3, linesLeft(y)));
@@ -404,10 +403,7 @@ function drawMovePips(s: Surface, x: number, y: number, left: number, allowance:
   if (total > 10) return drawIconLine(s, x, y, `{boot}${Math.floor(left / 3)}${left % 3 ? `.${left % 3}` : ""}`, INK);
   for (let i = 0; i < total; i++) {
     const have = left - i * 3;
-    const px = x + i * 5;
-    s.rect(px, y + 2, 4, 4, C.BLACK!);
-    if (have >= 3) s.rect(px, y + 2, 4, 4, C.YELLOW!);
-    else if (have > 0) s.rect(px, y + 4, 4, 2, C.YELLOW!);
+    drawMark(s, have >= 3 ? "move" : have > 0 ? "move_part" : "move_none", (x + i * 5) * 2, (y + 2) * 2);
   }
   return x + total * 5;
 }

@@ -5,7 +5,7 @@
  * their own logical size; mouse positions are mapped back into it.
  */
 export declare const canvas: HTMLCanvasElement;
-export declare function configureDisplay(width: number, height: number, pixelated: boolean): void;
+export declare function configureDisplay(width: number, height: number, pixelated: boolean, canvasDensity?: number): void;
 export declare function fitCanvas(): void;
 /** Backing-store pixels per logical unit, for a renderer that draws straight onto the canvas. */
 export declare function backingScale(): number;

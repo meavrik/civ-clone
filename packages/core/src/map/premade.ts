@@ -93,9 +93,9 @@ export function decodeWorld(world: PremadeWorld, size: WorldSize = "small", join
 }
 
 /** A premade world ready to play: its terrain plus specials and villages from the game's RNG. */
-export function premadeMap(rng: RngState, id: string, size: WorldSize = "small", joinedIslands = false): WorldMap {
+export function premadeMap(rng: RngState, id: string, size: WorldSize = "small", joinedIslands = false, resources?: number): WorldMap {
   const map = decodeWorld(premadeWorld(id), size, joinedIslands);
-  scatterSpecials(map, rng);
+  scatterSpecials(map, rng, resources);
   labelContinents(map);
   return map;
 }

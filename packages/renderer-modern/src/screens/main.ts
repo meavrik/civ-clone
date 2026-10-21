@@ -18,6 +18,7 @@ import {
   workOptions,
   wrapX,
   type GameState,
+  specialOf,
 } from "@civ/core";
 import { cityMood, coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, ownerAt, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
@@ -318,7 +319,7 @@ function tileInfo(ctx: Context2D, state: GameState, tx: number, ty: number, y: n
   const t = state.map.tiles[idx]!;
   const r = TERRAIN_RULES[t.terrain];
   fillRound(ctx, TEXT_X, y + 2, 14, 14, 3, TERRAIN[t.terrain].base);
-  text(ctx, TEXT_X + 22, y, t.special && r.special ? `${TERRAIN_NAMES[t.terrain]} · ${r.special.name}` : TERRAIN_NAMES[t.terrain], { weight: "600" });
+  text(ctx, TEXT_X + 22, y, specialOf(t) ? `${TERRAIN_NAMES[t.terrain]} · ${specialOf(t)!.name}` : TERRAIN_NAMES[t.terrain], { weight: "600" });
   y += LINE + 2;
   const move = `{boot} ${r.moveCost}${r.defense !== 1 ? `  {tower} +${Math.round((r.defense - 1) * 100)}%` : ""}`;
   y += iconParagraph(ctx, TEXT_X, y, TEXT_W, tileIconLine(state, tx, ty, move), { size: 14, color: UI.ink }, Math.max(1, Math.floor((bottom - y) / 20)));

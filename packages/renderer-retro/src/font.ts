@@ -1,4 +1,5 @@
-import type { Surface } from "./surface.js";
+import { SPRITE_CLEAR } from "./sprites/sheet.js";
+import { Surface } from "./surface.js";
 
 /**
  * Original 5x7 bitmap font in an 8px-high cell, drawn by hand for this
@@ -94,7 +95,18 @@ const G: Record<string, string[]> = {
 interface Glyph {
   rows: number[]; // 7 bitmasks, bit 4 = leftmost column
   advance: number;
+  /** The glyph as the fine screen draws it (see DOT_X): its ink as fine pixels, and its advance in them. */
+  fine: [number, number][];
+  fineAdvance: number;
 }
+
+/**
+ * On a fine surface each dot of a glyph is a 2x2 block of fine pixels, the dots 1.5 fine pixels apart
+ * (rounded away from the middle, so glyphs stay symmetric), neighbours overlapping: every stroke two
+ * pixels thick, the 16x16 game's letters at three quarters of their size, 8x11 fine pixels.
+ */
+const DOT_X = [0, 1, 3, 5, 6];
+const DOT_Y = [0, 1, 3, 4, 6, 8, 9];
 
 const GLYPHS = new Map<string, Glyph>();
 for (const [ch, rows] of Object.entries(G)) {
@@ -114,15 +126,30 @@ for (const [ch, rows] of Object.entries(G)) {
   const advance = ch === " " ? 4 : maxC - minC + 2;
   // Left-trim so proportional spacing is tight.
   const shifted = minC === 5 ? bits : bits.map((m) => (m << minC) & 0x1f);
-  GLYPHS.set(ch, { rows: shifted, advance });
+  const ink = new Set<string>();
+  bits.forEach((m, r) => { for (let c = 0; c < 5; c++) if (m & (1 << (4 - c))) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) ink.add(`${DOT_X[c]! - DOT_X[minC]! + dx},${DOT_Y[r]! + dy}`); });
+  const fine = [...ink].map((k) => k.split(",").map(Number) as [number, number]);
+  const fineAdvance = maxC < 0 ? 6 : DOT_X[maxC]! + 2 - DOT_X[minC]! + 2;
+  GLYPHS.set(ch, { rows: shifted, advance, fine, fineAdvance });
 }
 
 export const FONT_HEIGHT = 8;
 
-export function textWidth(text: string): number {
+/** How far down its 8-pixel line (16 fine rows) a fine glyph's 11 rows start. */
+const TEXT_TOP = 2;
+
+/** Width of a line of text in dots, one fine pixel each (`drawTextSmall`). */
+function dotWidth(text: string): number {
   let w = 0;
   for (const ch of text) w += (GLYPHS.get(ch) ?? GLYPHS.get("?")!).advance;
   return w;
+}
+
+/** Width of a line of text in screen pixels, as the (fine) screen draws it, rounded up. */
+export function textWidth(text: string): number {
+  let w = 0;
+  for (const ch of text) w += (GLYPHS.get(ch) ?? GLYPHS.get("?")!).fineAdvance;
+  return Math.ceil(w / 2);
 }
 
 export function drawText(
@@ -134,6 +161,20 @@ export function drawText(
   shadow?: number,
 ): number {
   let cx = x;
+  if (s.k >= 2) {
+    // A fine surface: the glyphs' fine ink (DOT_X), mid-line, the shadow one fine pixel off.
+    const f = s.k / 2;
+    const ox = x * s.k;
+    const oy = y * s.k + TEXT_TOP * f;
+    let dx = 0;
+    for (const ch of text) {
+      const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
+      if (shadow !== undefined) for (const [gx, gy] of g.fine) s.frect(ox + (dx + gx + 1) * f, oy + (gy + 1) * f, f, f, shadow);
+      for (const [gx, gy] of g.fine) s.frect(ox + (dx + gx) * f, oy + gy * f, f, f, color);
+      dx += g.fineAdvance;
+    }
+    return x + Math.ceil(dx / 2);
+  }
   for (const ch of text) {
     const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
     for (let r = 0; r < 7; r++) {
@@ -149,6 +190,36 @@ export function drawText(
     cx += g.advance;
   }
   return cx;
+}
+
+/** Width in fine pixels of `drawTextSmall`'s text. */
+export function smallTextWidth(text: string): number {
+  return dotWidth(text);
+}
+
+/**
+ * Text placed by fine pixel (a city's size on its plate): the 5x7 bitmaps a fine pixel to each dot,
+ * its top left at fine pixel (fx, fy). On a coarse surface, ordinary text.
+ */
+export function drawTextSmall(s: Surface, fx: number, fy: number, text: string, color: number): void {
+  if (s.k < 2) { drawText(s, Math.floor(fx / 2), Math.floor(fy / 2), text, color); return; }
+  const f = s.k / 2;
+  let cx = fx;
+  for (const ch of text) {
+    const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
+    for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (g.rows[r]! & (1 << (4 - c))) s.frect((cx + c) * f, (fy + r) * f, f, f, color);
+    cx += g.advance;
+  }
+}
+
+/** Text ringed in another colour, the ring one of the surface's finest pixels wide, so it reads on any ground. */
+export function drawTextRinged(s: Surface, x: number, y: number, text: string, color: number, ring: number): void {
+  const scratch = new Surface(textWidth(text) + 2, FONT_HEIGHT + 2, undefined, s.k);
+  scratch.fill(SPRITE_CLEAR);
+  drawText(scratch, 1, 1, text, ring);
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const)
+    s.fblit(scratch, (x - 1) * s.k + dx, (y - 1) * s.k + dy, SPRITE_CLEAR);
+  drawText(s, x, y, text, color);
 }
 
 /** Break text into lines no wider than `maxWidth` pixels, on spaces; an overlong word is cut. */

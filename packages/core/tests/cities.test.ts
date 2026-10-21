@@ -12,6 +12,9 @@ import {
   lastTurnEvents,
   newGame,
   slotScore,
+  secondKind,
+  specialOf,
+  TERRAIN_RULES,
   Terrain,
   tileYield,
   unitSupport,
@@ -65,6 +68,84 @@ describe("tile yields", () => {
     expect(tileYield(s, t, false, "monarchy", 0).food).toBe(4);
     t.terrain = Terrain.Grassland; // Resources: no animals
     expect(tileYield(s, t, false, "monarchy", 0).food).toBe(2);
+  });
+
+  it("gives a terrain's second special its own yield, raised by its advance", () => {
+    const s = flatWorld();
+    const t = getTile(s.map, 10, 10)!;
+    t.terrain = Terrain.Ocean;
+    t.special = true;
+    expect(specialOf(t)?.name).toBe("Fish");
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 3, shields: 0, trade: 2 });
+    t.secondSpecial = true;
+    expect(specialOf(t)?.name).toBe("Whales");
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 2, shields: 1, trade: 2 });
+    s.players[0]!.advances.push("navigation");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
+    // Oil is little use until Refining.
+    t.terrain = Terrain.Desert;
+    expect(specialOf(t)?.name).toBe("Oil");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
+    s.players[0]!.advances.push("refining");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(5);
+    // Hills' wine came with version 18; whales a version before.
+    t.terrain = Terrain.Hills;
+    expect(specialOf(t)?.name).toBe("Wine");
+    expect(secondKind(TERRAIN_RULES[Terrain.Hills], 17)).toBeUndefined();
+    expect(secondKind(TERRAIN_RULES[Terrain.Ocean], 17)?.name).toBe("Whales");
+  });
+
+  it("scatters both kinds on new worlds, and in an old save's world only the kinds it knew", () => {
+    // Eight worlds together, so even the rarer kinds turn up.
+    const count = (resources?: number) => {
+      const names = new Map<string, number>();
+      let specials = 0;
+      let terrains = "";
+      for (let seed = 1; seed <= 8; seed++) {
+        const { map } = newGame(seed, resources === undefined ? {} : { resources });
+        for (const t of map.tiles) { const n = specialOf(t)?.name; if (n) names.set(n, (names.get(n) ?? 0) + 1); }
+        specials += map.tiles.filter((t) => t.special).length;
+        terrains += map.tiles.map((t) => t.terrain).join();
+      }
+      return { names, specials, terrains };
+    };
+    const now = count();
+    const old = count(16);
+    const five = count(17);
+    for (const n of ["Whales", "Wheat", "Cotton", "Iron", "Oil", "Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(now.names.get(n) ?? 0, n).toBeGreaterThan(0);
+    for (const n of ["Whales", "Wheat", "Cotton", "Oil", "Iron", "Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(old.names.has(n), n).toBe(false);
+    for (const n of ["Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(five.names.has(n), n).toBe(false);
+    // Whales lay where they did until version 19 placed them by their reach.
+    expect(five.names.get("Whales")).toBe(count(18).names.get("Whales"));
+    expect(five.specials).toBe(now.specials);
+    // The same world, the same squares: only which kind changes.
+    expect(now.terrains).toBe(old.terrains);
+    expect(now.specials).toBe(old.specials);
+  });
+
+  it("keeps fish within two squares of land and whales in deep water", () => {
+    for (let seed = 1; seed <= 4; seed++) {
+      const { map } = newGame(seed);
+      const landNear = (x: number, y: number, r: number) => {
+        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= map.height) continue;
+          if (map.tiles[ny * map.width + (((x + dx) % map.width) + map.width) % map.width]!.terrain !== Terrain.Ocean) return true;
+        }
+        return false;
+      };
+      let fish = 0;
+      let whales = 0;
+      map.tiles.forEach((t, i) => {
+        const x = i % map.width;
+        const y = Math.floor(i / map.width);
+        const name = specialOf(t)?.name;
+        if (name === "Fish") { fish++; expect(landNear(x, y, 2), `fish at ${x},${y}`).toBe(true); }
+        if (name === "Whales") { whales++; expect(landNear(x, y, 1), `whales at ${x},${y}`).toBe(false); }
+      });
+      expect(fish).toBeGreaterThan(0);
+      expect(whales).toBeGreaterThan(0);
+    }
   });
 });
 

@@ -33,13 +33,15 @@ const SPECKLE = (() => {
 
 /** Fill a rectangle with a chrome ramp's face (shade 5), speckled with shades 4 and 6. */
 export function stipple(s: Surface, x: number, y: number, w: number, h: number, ramp: string): void {
+  // Laid in fine pixels, so the grain is as fine as the screen.
   const face = shade(ramp, 5);
-  const x0 = Math.max(0, x);
-  const y0 = Math.max(0, y);
-  const x1 = Math.min(s.width, x + w);
-  const y1 = Math.min(s.height, y + h);
+  const k = s.k;
+  const x0 = Math.max(0, x * k);
+  const y0 = Math.max(0, y * k);
+  const x1 = Math.min(s.fw, (x + w) * k);
+  const y1 = Math.min(s.fh, (y + h) * k);
   for (let yy = y0; yy < y1; yy++)
-    for (let xx = x0; xx < x1; xx++) s.data[yy * s.width + xx] = face + SPECKLE[(yy & 63) * 64 + (xx & 63)]!;
+    for (let xx = x0; xx < x1; xx++) s.data[yy * s.fw + xx] = face + SPECKLE[(yy & 63) * 64 + (xx & 63)]!;
 }
 
 /** True for the stone's own colours (its face and specks): what text and pictures are drawn over. */

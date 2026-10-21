@@ -11,12 +11,15 @@ export const canvas = document.getElementById("screen") as HTMLCanvasElement;
 
 let logicalW = 320;
 let logicalH = 200;
+/** Canvas pixels to a logical pixel: the retro renderer's terrain is finer than its layout. */
+let density = 1;
 let current: Layout | null = null;
 const listeners: ((layout: Layout) => void)[] = [];
 
-export function configureDisplay(width: number, height: number, _pixelated: boolean): void {
+export function configureDisplay(width: number, height: number, _pixelated: boolean, canvasDensity = 1): void {
   logicalW = width;
   logicalH = height;
+  density = canvasDensity;
   fitCanvas();
 }
 
@@ -24,9 +27,9 @@ export function fitCanvas(): void {
   const layout = layoutFor(innerWidth, innerHeight, safeInsets(), logicalW, logicalH);
   current = layout;
   place(canvas, layout.canvas);
-  if (canvas.width !== logicalW || canvas.height !== logicalH) {
-    canvas.width = logicalW;
-    canvas.height = logicalH;
+  if (canvas.width !== logicalW * density || canvas.height !== logicalH * density) {
+    canvas.width = logicalW * density;
+    canvas.height = logicalH * density;
   }
   for (const fn of listeners) fn(layout);
 }

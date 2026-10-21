@@ -29,15 +29,17 @@ function chunk(type: string, data: Uint8Array): Uint8Array {
   return out;
 }
 
+/** The surface as a PNG, `scale` times its size in pixels (each fine pixel a whole number of PNG pixels). */
 export function encodePng(s: Surface, scale = 1): Uint8Array {
-  const w = s.width * scale;
-  const hgt = s.height * scale;
+  const z = Math.max(1, Math.round(scale / s.k));
+  const w = s.fw * z;
+  const hgt = s.fh * z;
   const raw = new Uint8Array((w * 4 + 1) * hgt);
   for (let y = 0; y < hgt; y++) {
     const row = y * (w * 4 + 1);
     raw[row] = 0;
     for (let x = 0; x < w; x++) {
-      const idx = s.data[Math.floor(y / scale) * s.width + Math.floor(x / scale)]! * 4;
+      const idx = s.data[Math.floor(y / z) * s.fw + Math.floor(x / z)]! * 4;
       raw.set(PALETTE_RGBA.subarray(idx, idx + 4), row + 1 + x * 4);
     }
   }

@@ -10,22 +10,28 @@ let logicalW = 320;
 let logicalH = 200;
 let crisp = true;
 let scale = 1;
+/** Canvas pixels to a logical pixel when crisp: the retro renderer's terrain is finer than its layout. */
+let density = 1;
 
-export function configureDisplay(width: number, height: number, pixelated: boolean): void {
+export function configureDisplay(width: number, height: number, pixelated: boolean, canvasDensity = 1): void {
   logicalW = width;
   logicalH = height;
   crisp = pixelated;
+  density = canvasDensity;
   fitCanvas();
 }
 
 export function fitCanvas(): void {
   const raw = Math.min(innerWidth / logicalW, innerHeight / logicalH);
-  scale = crisp ? Math.max(1, Math.floor(raw)) : Math.max(0.2, raw);
+  // Crisp: every canvas pixel a whole number of CSS pixels, so steps of 1/density of a logical pixel.
+  scale = crisp ? Math.max(1, Math.floor(raw * density) / density) : Math.max(0.2, raw);
   canvas.style.width = `${Math.round(logicalW * scale)}px`;
   canvas.style.height = `${Math.round(logicalH * scale)}px`;
   canvas.style.imageRendering = crisp ? "pixelated" : "auto";
   if (crisp) {
-    if (canvas.width !== logicalW || canvas.height !== logicalH) { canvas.width = logicalW; canvas.height = logicalH; }
+    const w = logicalW * density;
+    const h = logicalH * density;
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   } else {
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.max(1, Math.round(logicalW * scale * dpr));

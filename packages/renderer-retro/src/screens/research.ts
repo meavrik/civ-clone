@@ -16,7 +16,7 @@ import {
   PICTURES,
 } from "@civ/renderer-api";
 import { drawText, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
-import { drawIcon, drawIconLine, drawIconsWrapped, ICON, iconLineWidth } from "../icons.js";
+import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
 import { unitSprite } from "../overlays.js";
 import { drawPicture } from "../pictures.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
@@ -75,23 +75,20 @@ const label = (id: string): string => techLabel({ id, name: advance(id).name });
 /** Text colour on the stone for an advance in each state. */
 const INK_OF: Record<TechStatus, number> = { known: GOOD, researching: shade("azure", 2), available: INK, locked: FADED };
 
-/** A tick, 6 wide and 4 high. */
-function tick(s: Surface, x: number, y: number, color: number): void {
-  for (const [dx, dy] of [[0, 1], [1, 2], [2, 3], [3, 2], [4, 1], [5, 0], [1, 3], [2, 2]] as const) s.set(x + dx, y + dy, color);
+/** A tick, 6 wide and 4 high: an advance discovered. */
+function tick(s: Surface, x: number, y: number): void {
+  drawMark(s, "tick", x * 2, y * 2);
 }
 
-/** A small diamond: brought within reach by the advance just found. */
+/** A small diamond in a 7x7 box: brought within reach by the advance just found. */
 function spark(s: Surface, x: number, y: number): void {
-  for (let k = 0; k < 4; k++) s.hline(x + 3 - k, y + k, 1 + 2 * k, C.BLACK!);
-  for (let k = 0; k < 3; k++) s.hline(x + 3 - k, y + 6 - k, 1 + 2 * k, C.BLACK!);
-  for (let k = 0; k < 3; k++) s.hline(x + 3 - k, y + 1 + k, 1 + 2 * k, C.YELLOW!);
-  for (let k = 0; k < 2; k++) s.hline(x + 3 - k, y + 5 - k, 1 + 2 * k, C.YELLOW!);
+  drawMark(s, "new", x * 2 + 2, y * 2 + 2);
 }
 
 /** The mark before an advance's name: a bulb for the research under way, a tick when discovered. */
 function mark(s: Surface, status: TechStatus, x: number, y: number, on: boolean): void {
   if (status === "researching") drawIcon(s, "bulb", x, y);
-  else if (status === "known") tick(s, x + 1, y + 2, on ? C.WHITE! : GOOD);
+  else if (status === "known") tick(s, x + 1, y + 2);
 }
 
 // ---- the list --------------------------------------------------------------------------

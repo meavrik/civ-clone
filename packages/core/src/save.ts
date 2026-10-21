@@ -31,9 +31,15 @@ export interface SaveGame {
    * 14: saved while civilizations made peace the moment they met; peace on contact.
    * 15: saved while cities worked squares beyond their border; work beyond borders.
    * 16: saved before cities celebrated, martial law went past three units, riots toppled a Democracy
-   *     and the empire's size counted by government; simple moods.
+   *     and the empire's size counted by government (simple moods), and while every terrain had one
+   *     kind of special (`resources` 16: no second specials).
+   * 17: on main, saved with the moods but before second specials (`resources` 16). The terrain-tiles-test
+   *     branch used 17 to 19 for its resource steps while its moods were still simple: 17 saved before
+   *     wine, silk, furs, ivory, spices and fruit (`resources` 17: whales, cotton, wheat, iron and oil
+   *     only; a 17 is taken as main's), 18 while fish and whales lay anywhere at sea (`resources` 18: no
+   *     `within`/`beyond`), 19 with every resource.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -48,7 +54,7 @@ export interface SaveGame {
   label?: string;
 }
 
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 20;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -69,7 +75,7 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
 export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
@@ -93,7 +99,10 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
   if (save.version < 14) options.accruedCulture = true;
   if (save.version < 15) options.peaceOnContact = true;
   if (save.version < 16) options.workBeyondBorders = true;
-  if (save.version < 17) options.simpleMoods = true;
+  // 18 and 19 were the terrain-tiles-test branch's, saved while its moods were still simple.
+  if (save.version < 17 || save.version === 18 || save.version === 19) options.simpleMoods = true;
+  // A 17 is taken as main's: second specials came to main only with 20.
+  if (save.version < 20) options.resources = save.version === 17 ? 16 : save.version;
   const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {

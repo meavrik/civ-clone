@@ -50,13 +50,13 @@ const RAMPS: Record<string, Rgb[]> = {
   earth: ramp([72, 48, 20], [196, 160, 104], 8), // hills, roads, wood
   stone: ramp([56, 56, 64], [220, 220, 228], 8), // mountains, walls
   sand: ramp([168, 132, 60], [252, 240, 180], 8),
-  snow: ramp([120, 148, 180], [255, 255, 255], 8),
-  swamp: ramp([40, 64, 36], [132, 160, 96], 8),
-  jungle: ramp([8, 64, 24], [60, 168, 60], 8),
+  hide: [[60, 30, 16], [95, 49, 25], [125, 68, 30], [155, 86, 34], [175, 100, 40], [220, 164, 85], [246, 221, 165], [238, 228, 215]], // units: leather, wood, skin, sailcloth; resources: cotton
+  mire: [[13, 31, 28], [28, 65, 48], [65, 56, 38], [92, 98, 35], [65, 139, 45], [117, 172, 50], [220, 171, 78], [245, 203, 96]], // swamp: the reference sheet's colours (2026-10-21)
+  canopy: [[15, 22, 25], [12, 73, 41], [110, 55, 26], [19, 103, 41], [28, 121, 43], [141, 72, 29], [179, 96, 34], [100, 174, 50]], // jungle
   flesh: ramp([120, 72, 40], [255, 212, 168], 8),
-  ui: ramp([40, 32, 24], [224, 200, 160], 8), // parchment-ish panel ramp
+  rock: [[60, 59, 60], [84, 83, 83], [124, 121, 118], [129, 126, 123], [195, 180, 146], [210, 198, 169], [240, 233, 201], [252, 245, 214]], // mountains and their snow
   grey: ramp([16, 16, 16], [240, 240, 240], 8),
-  fog: ramp([12, 14, 20], [118, 126, 142], 8), // clouds over unexplored squares
+  ice: [[4, 94, 200], [16, 113, 215], [42, 135, 228], [88, 171, 251], [137, 195, 253], [159, 204, 252], [194, 225, 253], [230, 242, 254]], // arctic
 };
 
 export const PALETTE: Rgb[] = [...EGA];
@@ -113,6 +113,30 @@ for (const [name, colors] of Object.entries(BUILT)) {
   C[name.toUpperCase()] = PALETTE.length;
   PALETTE.push(...colors);
 }
+// Terrain (2026-10-21): the rest of the colours fitted to the user's reference sheet, each terrain
+// drawing on up to three ramps (mire, canopy, rock and ice took the places of unused ramps above).
+const LAND: Record<string, Rgb[]> = {
+  meadow: [[31, 74, 41], [36, 79, 42], [74, 70, 42], [96, 117, 44], [120, 143, 43], [122, 147, 44], [124, 149, 46], [127, 150, 49]],
+  leaf: [[13, 29, 28], [11, 50, 36], [14, 83, 45], [48, 83, 34], [71, 84, 33], [81, 116, 46], [52, 144, 48], [86, 163, 49]],
+  mound: [[64, 51, 39], [123, 61, 28], [96, 78, 49], [160, 80, 33], [138, 104, 59], [137, 128, 51], [153, 118, 63], [211, 167, 74]],
+  wheat: [[187, 137, 51], [197, 149, 53], [208, 162, 60], [214, 171, 58], [228, 190, 73], [234, 201, 92], [249, 217, 96], [253, 223, 103]],
+  dune: [[152, 102, 52], [162, 109, 55], [191, 137, 63], [206, 152, 70], [223, 175, 74], [229, 183, 84], [238, 195, 95], [253, 217, 110]],
+  heath: [[50, 67, 36], [55, 73, 38], [88, 75, 57], [70, 88, 39], [102, 84, 67], [111, 96, 75], [109, 130, 41], [133, 119, 96]],
+  sea: [[5, 42, 115], [11, 88, 117], [3, 85, 199], [11, 115, 243], [47, 134, 179], [64, 150, 239], [122, 175, 167], [115, 186, 251]],
+  steel: [[5, 6, 10], [12, 13, 19], [38, 37, 37], [73, 75, 62], [84, 89, 102], [114, 133, 156], [150, 158, 168], [188, 185, 181]], // units: outlines, iron, hulls
+};
+for (const [name, colors] of Object.entries(LAND)) {
+  C[name.toUpperCase()] = PALETTE.length;
+  PALETTE.push(...colors);
+}
+/** Ramps shorter than eight colours; `shade` keeps within them. */
+const RAMP_SIZE: Record<string, number> = {};
+// Resources (2026-10-21): the night blue, jewels and gold of the user's resource icons, in the six
+// slots the palette had left (255 stays clear for sprites).
+C.JEWEL = PALETTE.length;
+PALETTE.push([2, 2, 21], [52, 58, 88], [77, 85, 161], [143, 87, 241], [40, 184, 223], [232, 183, 38]);
+RAMP_SIZE.jewel = 6;
+if (PALETTE.length > 255) throw new Error(`palette has ${PALETTE.length} colours; 255 is kept clear`);
 while (PALETTE.length < 256) PALETTE.push([0, 0, 0]);
 
 /** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
@@ -125,7 +149,7 @@ export function slotColor(slot: number): number {
 export function shade(rampName: string, n: number): number {
   const base = C[rampName.toUpperCase()];
   if (base === undefined) throw new Error(`unknown ramp ${rampName}`);
-  return base + Math.max(0, Math.min(7, n));
+  return base + Math.max(0, Math.min((RAMP_SIZE[rampName.toLowerCase()] ?? 8) - 1, n));
 }
 
 /** RGBA lookup table (256*4) for fast framebuffer conversion. */
