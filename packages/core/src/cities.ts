@@ -305,6 +305,20 @@ export function productionCost(p: Production): number {
   return p.kind === "unit" ? unitType(p.id).cost : p.kind === "wonder" ? wonder(p.id).cost : p.kind === "spaceship" ? spacePart(p.id).cost : building(p.id).cost;
 }
 
+/**
+ * The shields a city keeps on changing its production to `p`: all of those gathered this turn for
+ * that kind of production, half of them for another kind, as the original took half between units
+ * and improvements. They are counted from the box as the turn began (or as bought), so changing and
+ * changing back within a turn costs nothing; old saves (`compoundingPenalty`) halved the box on
+ * every change of kind.
+ */
+export function shieldsAfterChange(state: GameState, city: City, p: Production): number {
+  if (state.compoundingPenalty) return p.kind === city.production.kind ? city.shields : Math.floor(city.shields / 2);
+  const base = city.turnShields ?? city.shields;
+  const kind = city.turnKind ?? city.production.kind;
+  return p.kind === kind ? base : Math.floor(base / 2);
+}
+
 /** What a production costs `owner`: the rules' cost, less any discount of its civilization's trait. */
 export function costFor(state: GameState, owner: number, p: Production): number {
   let pct = 0;
@@ -689,6 +703,9 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
   const reach = borderRadius(state, city);
   const events = cityTurn(state, city);
   if (!state.fixedBorders && borderRadius(state, city) > reach) events.push({ city: city.id, kind: "borders" });
+  // What the box holds now is what a change of production this coming turn is reckoned from.
+  city.turnShields = city.shields;
+  city.turnKind = city.production.kind;
   return events;
 }
 

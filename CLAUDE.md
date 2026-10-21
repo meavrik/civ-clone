@@ -157,8 +157,12 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   black box); Esc, Enter (not held) or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. The build menu (`openProductionMenu` in the web app) shows each
-  choice's cost and the turns to finish it from the shields already in the box (halved when the kind
-  changes, as the rules take half; "never" without a surplus). Its units (`cityUnits`: those in the city from any home, then those it
+  choice's cost and the turns to finish it from the shields a change would keep, and the title how
+  many are stored ("never" without a surplus). A change of production keeps the box for the kind it was
+  gathered for and half of it for another kind (`shieldsAfterChange`: reckoned from the box as the turn
+  began, `City.turnShields`/`turnKind`, or as bought, so changing and changing back in a turn costs
+  nothing; FreeCiv's model). Saves before version 21 load with `compoundingPenalty`: every change of
+  kind halved the box again. Its units (`cityUnits`: those in the city from any home, then those it
   supports elsewhere, faded, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
   over its city screen with a window saying what it does (`text` on each rule in `rules/buildings.ts`,
@@ -387,7 +391,8 @@ Chrome with simulated touches, not yet on a phone. Moods done (2026-10-21, asked
 against the original, show unhappiness on the city, units inside the city"): the reckoning stage by stage
 with a Happy panel, martial law by government, weariness souring the happy, FreeCiv's empire-size rule,
 celebrations with their government bonuses, a Democracy toppled by lasting riots, mood flags on the map
-(save version 17, `simpleMoods` for older saves). Fine art merged (2026-10-21, asked for): branch
+(save version 17, `simpleMoods` for older saves). Production changes reckoned from the turn's box
+(2026-10-21, after the user found the build menu's turns baffling; save version 21). Fine art merged (2026-10-21, asked for): branch
 terrain-tiles-test, the whole map at 32 fine pixels a square (terrain, units, resources, cities, icons,
 text), second special resources with reaches (save version 20; the branch's own 17-19 are mapped in
 `loadSave`, a 17 counting as main's).

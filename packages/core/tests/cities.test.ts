@@ -2,20 +2,23 @@ import { describe, expect, it } from "vitest";
 import {
   applyCommand,
   autoAssignWorkers,
-  CITY_RADIUS,
   buyCost,
+  CITY_RADIUS,
   cityYieldGovernment,
   computeCity,
   contentBase,
   createUnit,
   getTile,
   lastTurnEvents,
+  loadSave,
+  makeSave,
   newGame,
-  slotScore,
   secondKind,
+  shieldsAfterChange,
+  slotScore,
   specialOf,
-  TERRAIN_RULES,
   Terrain,
+  TERRAIN_RULES,
   tileYield,
   unitSupport,
   type City,
@@ -206,13 +209,20 @@ describe("cities", () => {
     expect(lastTurnEvents.some((e) => e.kind === "grew")).toBe(true);
   });
 
-  it("switching production kind halves the box; buying completes it", () => {
+  it("switching production kind halves the box, switching back restores it; buying completes it", () => {
     const s = flatWorld();
     const u = createUnit(s, "settlers", 0, 10, 10);
     applyCommand(s, { type: "found", unit: u.id });
     const c = s.cities[0]!;
     c.shields = 8;
     s.players[0]!.advances.push("pottery");
+    expect(shieldsAfterChange(s, c, { kind: "building", id: "granary" })).toBe(4);
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
+    expect(c.shields).toBe(4);
+    // The box is reckoned from the turn's start: back to a unit it is whole again, and to another
+    // improvement it is half of the whole, not half of half.
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id: "militia" } });
+    expect(c.shields).toBe(8);
     applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
     expect(c.shields).toBe(4);
     s.players[0]!.gold = 1000;
@@ -225,6 +235,35 @@ describe("cities", () => {
     // The event names what was finished, for the window that asks what comes next.
     expect(lastTurnEvents).toContainEqual({ city: c.id, kind: "built", detail: "Granary", production: { kind: "building", id: "granary" } });
     expect(c.production).toEqual({ kind: "unit", id: "militia" });
+  });
+
+  it("halves the box on every change of kind for old saves, and counts a bought box as the turn's", () => {
+    const s = flatWorld();
+    s.compoundingPenalty = true;
+    const u = createUnit(s, "settlers", 0, 10, 10);
+    applyCommand(s, { type: "found", unit: u.id });
+    const c = s.cities[0]!;
+    c.shields = 8;
+    s.players[0]!.advances.push("pottery");
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id: "militia" } });
+    expect(c.shields).toBe(2);
+    const save = { ...makeSave(newGame(3, { opponents: 1 }), { opponents: 1 }, []), version: 20 as const };
+    expect(loadSave(save, () => {}).state.compoundingPenalty).toBe(true);
+    expect(loadSave(makeSave(newGame(3, { opponents: 1 }), { opponents: 1 }, []), () => {}).state.compoundingPenalty).toBeUndefined();
+
+    const t = flatWorld();
+    const v = createUnit(t, "settlers", 0, 10, 10);
+    applyCommand(t, { type: "found", unit: v.id });
+    const d = t.cities[0]!;
+    t.players[0]!.gold = 1000;
+    applyCommand(t, { type: "buy", city: d.id });
+    expect(d.shields).toBe(10);
+    t.players[0]!.advances.push("pottery");
+    applyCommand(t, { type: "setProduction", city: d.id, production: { kind: "building", id: "granary" } });
+    expect(d.shields).toBe(5);
+    applyCommand(t, { type: "setProduction", city: d.id, production: { kind: "unit", id: "militia" } });
+    expect(d.shields).toBe(10);
   });
 
   it("toggling a worked tile makes an entertainer and back", () => {

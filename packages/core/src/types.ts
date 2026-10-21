@@ -139,6 +139,13 @@ export interface City {
   wonders: string[];
   production: Production;
   founded: number;
+  /**
+   * The box as the turn began (or as bought) and the kind of production it was gathered for: a
+   * change to another kind keeps half of it, a change back all of it. Absent until the city's first
+   * turn end; old saves halve on every change instead (`compoundingPenalty`).
+   */
+  turnShields?: number;
+  turnKind?: Production["kind"];
   /** True once a disorder turn has been reported, for the renderer. */
   disorder: boolean;
   /** Turns in disorder in a row at the last turn's end; past the government's `revolutionAfter` a Democracy falls. */
@@ -239,6 +246,8 @@ export interface GameState {
   simpleMoods?: boolean;
   /** Second specials only of those a save of this version knew (`SpecialRule.since`). Set for saves before version 20. */
   resources?: number;
+  /** Every change of production kind halves the box again, even a change back. Set for saves before version 21. */
+  compoundingPenalty?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

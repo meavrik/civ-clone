@@ -19,6 +19,7 @@ import {
   arrangeCity,
   weakestWorked,
   type CityTurnEvent,
+  shieldsAfterChange,
 } from "./cities.js";
 import { maybeSpawnBarbarians } from "./barbarians.js";
 import { captureCity, checkElimination, resolveCombat } from "./combat.js";
@@ -752,8 +753,13 @@ function applyCityCommand(
     case "setProduction": {
       const allowed = buildOptions(state, city).some((p) => p.kind === cmd.production.kind && p.id === cmd.production.id);
       if (!allowed) return { ok: false, reason: "cannot build that here" };
-      // Switching between unit and improvement loses half the box, like the original.
-      if (city.production.kind !== cmd.production.kind) city.shields = Math.floor(city.shields / 2);
+      // Switching between unit and improvement loses half the box, like the original (see `shieldsAfterChange`).
+      // A box not yet recorded for this turn (a city founded this turn) counts as it stands.
+      if (city.turnShields === undefined || city.turnKind === undefined) {
+        city.turnShields = city.shields;
+        city.turnKind = city.production.kind;
+      }
+      city.shields = shieldsAfterChange(state, city, cmd.production);
       city.production = cmd.production;
       return { ok: true };
     }
@@ -798,6 +804,9 @@ function applyCityCommand(
       if (p.gold < cost) return { ok: false, reason: "not enough gold" };
       p.gold -= cost;
       city.shields = costFor(state, city.owner, city.production);
+      // Bought shields are the box a change of production is reckoned from.
+      city.turnShields = city.shields;
+      city.turnKind = city.production.kind;
       return { ok: true };
     }
     case "renameCity":
