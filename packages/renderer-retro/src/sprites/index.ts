@@ -12,7 +12,8 @@ import { CLEAR, OWNER, OWNER_DARK, parseSheet, SPRITE_CLEAR, spriteIndices, type
  * drawn as fine as the screen (DETAIL pixels to a screen pixel): a square is 16 screen pixels
  * across and its terrain 32. Everything else is drawn in screen pixels.
  */
-export const UNIT_SHEET = parseSheet("units", 16, unitsArt, ["flesh", "earth", "grey"]);
+/** Units stand free on the terrain, as fine as it: 32x32, two pixels to each screen pixel. */
+export const UNIT_SHEET = parseSheet("units", 32, unitsArt, ["hide", "steel", "grey"], DETAIL);
 export const TERRAIN_SHEET = parseSheet("terrain", 16 * DETAIL, terrainArt, ["grass", "earth", "stone"], DETAIL);
 export const FEATURE_SHEET = parseSheet("features", 16, featuresArt, ["earth", "stone", "grey"]);
 /** 8x8 pictures for the info panels and the badges on working units. */

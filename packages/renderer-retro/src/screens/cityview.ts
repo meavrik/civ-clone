@@ -30,7 +30,7 @@ const GROUND: Record<Terrain, [string, number]> = {
   [Terrain.Mountains]: ["stone", 4],
   [Terrain.Desert]: ["sand", 5],
   [Terrain.Tundra]: ["earth", 4],
-  [Terrain.Arctic]: ["snow", 6],
+  [Terrain.Arctic]: ["ice", 6],
   [Terrain.Swamp]: ["grass", 2],
   [Terrain.Jungle]: ["forest", 4],
 };
@@ -90,7 +90,7 @@ function drawLand(s: Surface, scene: CityScene, salt: number): void {
     if (k.kind === "mountain") {
       const peak = horizon - k.h;
       fillPoly(s, [k.x - k.w / 2, horizon, k.x, peak, k.x + k.w / 2, horizon], (x, y) =>
-        y < peak + k.h * 0.3 + bayer(x, y) * 2 ? shade("snow", x < k.x ? 7 : 5) : shade("stone", x < k.x ? 4 : 2));
+        y < peak + k.h * 0.3 + bayer(x, y) * 2 ? shade("rock", x < k.x ? 7 : 5) : shade("stone", x < k.x ? 4 : 2));
     } else if (k.kind === "hill") {
       fillOval(s, k.x, horizon + 1, k.w / 2, k.h, (x) => shade("grass", x < k.x - k.w / 6 ? 4 : 3), true);
     } else {

@@ -90,9 +90,11 @@ describe("sprite sheets", () => {
     expect(box.get(1, 1)).toBe(C.BLACK);
     expect(box.get(5, 5)).toBe(C.LGREEN);
     expect(box.get(0, 0)).toBe(SPRITE_CLEAR);
+    // A unit stands free, outlined in near black, its cloth in the owner's colour.
     const legion = unitSprite("legion", C.LBLUE!);
-    expect(legion.data.includes(C.BLACK!)).toBe(true);
+    expect(legion.data.includes(C.STEEL!)).toBe(true);
     expect(legion.data.includes(C.LBLUE!)).toBe(true);
+    expect(legion.data[0]).toBe(SPRITE_CLEAR);
   });
 
   it("dump a preview sheet for review", () => {
