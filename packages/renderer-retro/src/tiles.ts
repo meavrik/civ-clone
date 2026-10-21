@@ -1,19 +1,19 @@
 import { Terrain, TERRAIN_RULES, type WorldMap } from "@civ/core";
 import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, landOwner, riverShape, SHORE, strokeDistance, type Explored, type Lifting } from "@civ/renderer-api";
-import { FEATURE_SHEET, mirrored, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
+import { FEATURE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { C, shade } from "./palette.js";
-import { Surface } from "./surface.js";
+import { DETAIL, Surface } from "./surface.js";
 
 /**
- * Original 16x16 terrain tiles, authored here as code so the whole art set
- * lives in the palette by construction. Index 0 (black) is transparent in
- * overlays only; base tiles are fully opaque.
- *
- * Later phases swap this module for packed sprite sheets from Aseprite; the
- * `getTile` contract stays the same.
+ * A map square is TILE screen pixels across. Its terrain is drawn as fine as
+ * the screen (see `DETAIL`): FINE pixels across, from the terrain sheet, with
+ * coasts and rivers blended in here a fine pixel at a time. Everything drawn
+ * over the terrain (works, specials, units, cities, fog) stays in screen pixels.
  */
 export const TILE = 16;
+/** Fine pixels across a square's terrain. */
+export const FINE = TILE * DETAIL;
 
 /** Tiny deterministic hash for per-tile texture noise (not game RNG). */
 function h(x: number, y: number, salt: number): number {
@@ -38,40 +38,39 @@ const TERRAIN_SPRITE: Record<Terrain, string> = {
 
 const cache = new Map<number, Surface>();
 
-/** The terrain sprite for a square, mirrored on about half the squares so large areas do not tile visibly. */
-export function getTile(terrain: Terrain, x: number, y: number): Surface {
-  const variant = h(x, y, 1) < 0.5 ? 0 : 1;
-  const key = terrain * 2 + variant;
-  let t = cache.get(key);
+/**
+ * The terrain sprite for a square (TILE pixels across, FINE fine pixels), the same on every
+ * square: the art is lit from the upper left, so it is never mirrored.
+ */
+export function getTile(terrain: Terrain, _x: number, _y: number): Surface {
+  let t = cache.get(terrain);
   if (!t) {
-    const base = spriteSurface(TERRAIN_SHEET, TERRAIN_SPRITE[terrain]);
-    if (!base) throw new Error(`terrain sheet has no sprite for ${TERRAIN_SPRITE[terrain]}`);
-    t = variant ? mirrored(base) : base;
-    cache.set(key, t);
+    t = spriteSurface(TERRAIN_SHEET, TERRAIN_SPRITE[terrain]) ?? undefined;
+    if (!t) throw new Error(`terrain sheet has no sprite for ${TERRAIN_SPRITE[terrain]}`);
+    cache.set(terrain, t);
   }
   return t;
 }
 
-/** Open sea, away from any land, mirrored on about half the squares like the rest. */
-function deepTile(x: number, y: number): Surface {
-  const variant = h(x, y, 1) < 0.5 ? 0 : 1;
-  const key = -1 - variant;
-  let t = cache.get(key);
+/** Open sea, away from any land. */
+function deepTile(_x: number, _y: number): Surface {
+  let t = cache.get(-1);
   if (!t) {
-    const base = spriteSurface(TERRAIN_SHEET, "deep_ocean");
-    if (!base) throw new Error("terrain sheet has no sprite for deep_ocean");
-    t = variant ? mirrored(base) : base;
-    cache.set(key, t);
+    t = spriteSurface(TERRAIN_SHEET, "deep_ocean") ?? undefined;
+    if (!t) throw new Error("terrain sheet has no sprite for deep_ocean");
+    cache.set(-1, t);
   }
   return t;
 }
 
 const squareCache = new Map<string, Surface>();
 
-/** Half a river's width in pixels at width 1: rivers are two pixels wide, more toward the sea. */
-const RIVER_HALF = 1;
-/** The pale bank either side of a river, in pixels. */
-const RIVER_BANK = 0.8;
+/** Half a river's width in screen pixels at width 1: three pixels of water, more toward the sea. */
+const RIVER_HALF = 1.5;
+/** The pale bank either side of a river, in screen pixels. */
+const RIVER_BANK = 0.9;
+/** Share of a river's water that glints. */
+const RIVER_GLINT = 0.07;
 
 /**
  * A map square as drawn: its terrain sprite, with the shore and the edge of
@@ -81,6 +80,8 @@ const RIVER_BANK = 0.8;
  * seam does not show; next to the shore runs a line of surf, then a band of
  * shallows. Rivers show on land only, so a mouth runs on until it meets water.
  * Squares the player has not explored (`explored`) are left out of the blend.
+ * Every fine pixel is worked out on its own (FINE x FINE), so shores and rivers
+ * are as fine as the terrain art.
  */
 export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Explored): Surface {
   const p = coastPatch(map, x, y, explored);
@@ -91,19 +92,20 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
   const key = river ? `${p.key}|${river.key}` : p.key;
   const hit = squareCache.get(key);
   if (hit) return hit;
-  const out = new Surface(TILE, TILE);
+  const out = Surface.fine(TILE, TILE);
   const sea = getTile(Terrain.Ocean, x, y).data;
   const deep = deepTile(x, y).data;
   const surf = shade("sea", 7);
-  const shallow = shade("sea", 4);
-  const water = shade("sea", 4);
+  const shallow = shade("sea", 2);
+  const water = shade("sea", 2);
+  const glint = shade("sea", 3);
   const bank = shade("sea", 7);
-  const last = TILE - 1;
-  for (let j = 0; j < TILE; j++)
-    for (let i = 0; i < TILE; i++) {
-      const u = (i + 0.5) / TILE;
-      const v = (j + 0.5) / TILE;
-      const at = j * TILE + i;
+  const last = FINE - 1;
+  for (let j = 0; j < FINE; j++)
+    for (let i = 0; i < FINE; i++) {
+      const u = (i + 0.5) / FINE;
+      const v = (j + 0.5) / FINE;
+      const at = j * FINE + i;
       const g = p.mixed ? coastLevel(p, u, v) : p.depth[4]!;
       const k = g < SHORE ? landOwner(p, u, v) : -1;
       let c: number;
@@ -112,16 +114,17 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
         const dx = (k % 3) - 1;
         const dy = Math.floor(k / 3) - 1;
         const src = getTile(p.terrain[k]!, (((x + dx) % map.width) + map.width) % map.width, y + dy).data;
-        c = src[(dy ? last - j : j) * TILE + (dx ? last - i : i)]!;
+        c = src[(dy ? last - j : j) * FINE + (dx ? last - i : i)]!;
       } else if (g < SHORE + 0.07) c = surf;
       else if (g < 0.8) c = shallow;
       else if (g < DEEP_EDGE - 0.06) c = sea[at]!;
       else if (g < DEEP_EDGE + 0.06) c = (i + j) & 1 ? sea[at]! : deep[at]!;
       else c = deep[at]!;
       if (river && k >= 0)
+        // Distances in screen pixels (dist * TILE), so a river is as wide as it was before the fine grain.
         for (const st of river.strokes) {
           const { dist, width } = strokeDistance(st, u, v);
-          if (dist * TILE < width * RIVER_HALF) { c = water; break; }
+          if (dist * TILE < width * RIVER_HALF) { c = h(i, j, 9) < RIVER_GLINT ? glint : water; break; }
           if (dist * TILE < width * RIVER_HALF + RIVER_BANK) c = bank;
         }
       out.data[at] = c;

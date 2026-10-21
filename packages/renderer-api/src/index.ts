@@ -234,6 +234,8 @@ export interface Renderer {
   /** Logical size the screens are laid out in; mouse positions arrive in it. */
   readonly width: number;
   readonly height: number;
+  /** Canvas pixels to a logical pixel (the retro renderer draws its terrain twice as fine as its layout); 1 if absent. */
+  readonly density?: number;
   /** Map tiles that fit in the main screen's viewport. */
   readonly viewTilesX: number;
   readonly viewTilesY: number;

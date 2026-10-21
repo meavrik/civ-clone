@@ -29,10 +29,10 @@ const GROUND: Record<Terrain, [string, number]> = {
   [Terrain.Hills]: ["earth", 5],
   [Terrain.Mountains]: ["stone", 4],
   [Terrain.Desert]: ["sand", 5],
-  [Terrain.Tundra]: ["swamp", 5],
+  [Terrain.Tundra]: ["earth", 4],
   [Terrain.Arctic]: ["snow", 6],
-  [Terrain.Swamp]: ["swamp", 3],
-  [Terrain.Jungle]: ["jungle", 4],
+  [Terrain.Swamp]: ["grass", 2],
+  [Terrain.Jungle]: ["forest", 4],
 };
 
 function inside(pts: number[], x: number, y: number): boolean {

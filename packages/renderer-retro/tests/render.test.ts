@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
+import { DETAIL, FINE } from "../src/index.js";
 
 describe("retro renderer", () => {
   it("palette has 256 entries, EGA first", () => {
@@ -90,7 +91,8 @@ describe("retro renderer", () => {
     };
     const s = Surface.screen();
     drawMainScreen(s, state, view);
-    expect(s.data.length).toBe(320 * 200);
+    expect([s.width, s.height]).toEqual([320, 200]);
+    expect(s.data.length).toBe(320 * 200 * DETAIL * DETAIL);
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/main-screen.png", import.meta.url), encodePng(s, 3));
 
@@ -99,7 +101,7 @@ describe("retro renderer", () => {
     state.relations["0:1"] = "war";
     state.relations["0:2"] = "war";
     drawMainScreen(s, state, view);
-    for (let y = 0; y < 200; y++) expect(s.data[y * 320 + 79], `panel edge at row ${y}`).not.toBe(14);
+    for (let y = 0; y < s.fh; y++) for (let x = 79 * s.k; x < 80 * s.k; x++) expect(s.fget(x, y), `panel edge at fine row ${y}`).not.toBe(14);
     writeFileSync(new URL("./out/panel-message.png", import.meta.url), encodePng(s, 3));
 
     // A gliding camera draws the viewport shifted by a fraction of a tile and still stops at the panel.
@@ -283,10 +285,10 @@ describe("refused moves and research", () => {
     for (let i = 0; i < s.data.length; i++) {
       if (s.data[i] === before[i]) continue;
       changed++;
-      expect(i % 320).toBeGreaterThanOrEqual(80);
-      expect(Math.floor(i / 320)).toBeLessThan(top);
+      expect(i % s.fw).toBeGreaterThanOrEqual(80 * s.k);
+      expect(Math.floor(i / s.fw)).toBeLessThan(top * s.k);
     }
-    expect(changed).toBeGreaterThan(500);
+    expect(changed).toBeGreaterThan(500 * s.k * s.k);
   });
 });
 
@@ -354,10 +356,11 @@ describe("fog of war", () => {
 
     // The fog is black, never a shade of grey: an unexplored square is black through and through,
     // and on an explored square beside one it drifts in black, its middle left clear.
-    const at = (mx: number, my: number, i: number, j: number) => s.data[(80 + (mx - view.originX) * 16 + i) + (9 + (my - view.originY) * 16 + j) * 320]!;
+    // (i, j): a fine pixel of square (mx, my), 0 to FINE - 1.
+    const at = (mx: number, my: number, i: number, j: number) => s.fget((80 + (mx - view.originX) * 16) * s.k + i, (9 + (my - view.originY) * 16) * s.k + j);
     const hidden = { x: u.x - 6, y: u.y };
     expect(me.explored[hidden.y * width + hidden.x]).toBe(0);
-    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) expect(at(hidden.x, hidden.y, i, j), `${i},${j}`).toBe(C.BLACK!);
+    for (let j = 0; j < FINE; j++) for (let i = 0; i < FINE; i++) expect(at(hidden.x, hidden.y, i, j), `${i},${j}`).toBe(C.BLACK!);
     const edge = [...me.explored.keys()].find((i) => me.explored[i] && [-1, 1, -width, width].some((d) => !me.explored[i + d]))!;
     const drift = fogSquare(state.map, me.explored, edge % width, Math.floor(edge / width))!;
     expect(drift).not.toBeNull();
@@ -443,11 +446,14 @@ describe("terrain works", () => {
     const view: MainScreenView = { originX: x0 - 1, originY: y0 - 1, blink: true };
     const s = Surface.screen();
     drawMainScreen(s, state, view);
-    const at = (mx: number, my: number, i: number, j: number) => s.data[80 + (mx - view.originX) * 16 + i + (9 + (my - view.originY) * 16 + j) * 320]!;
+    // (i, j): a screen pixel of square (mx, my), 0 to 15, for the works drawn in screen pixels;
+    // `fine` reads a fine pixel of the terrain beneath, 0 to FINE - 1.
+    const at = (mx: number, my: number, i: number, j: number) => s.get(80 + (mx - view.originX) * 16 + i, 9 + (my - view.originY) * 16 + j);
+    const fine = (mx: number, my: number, i: number, j: number) => s.fget((80 + (mx - view.originX) * 16) * s.k + i, (9 + (my - view.originY) * 16) * s.k + j);
     const earth = (c: number) => c >= C.EARTH! && c < C.EARTH! + 8;
     const water = (c: number) => c >= C.SEA! && c < C.SEA! + 8;
-    const crop = new Surface((TERRAIN[0]!.length + 1) * 16, (TERRAIN.length + 1) * 16);
-    for (let y = 0; y < crop.height; y++) for (let x = 0; x < crop.width; x++) crop.set(x, y, s.get(80 + x, 9 + y));
+    const crop = Surface.fine((TERRAIN[0]!.length + 1) * 16, (TERRAIN.length + 1) * 16);
+    for (let y = 0; y < crop.fh; y++) for (let x = 0; x < crop.fw; x++) crop.fset(x, y, s.fget(80 * s.k + x, 9 * s.k + y));
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/works.png", import.meta.url), encodePng(crop, 4));
 
@@ -469,8 +475,10 @@ describe("terrain works", () => {
     // The river keeps its water through the fields it waters.
     const riverSquare = { x: x0 + 9, y: y0 + 5 };
     let riverPx = 0;
-    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) if (water(at(riverSquare.x, riverSquare.y, i, j)) && i !== 7 && j !== 7) riverPx++;
-    expect(riverPx).toBeGreaterThan(8);
+    // The canal runs along screen row 7, fine rows 14 and 15; leave out that row and column.
+    const canal = (n: number) => Math.floor(n / DETAIL) === 7;
+    for (let j = 0; j < FINE; j++) for (let i = 0; i < FINE; i++) if (water(fine(riverSquare.x, riverSquare.y, i, j)) && !canal(i) && !canal(j)) riverPx++;
+    expect(riverPx).toBeGreaterThan(8 * DETAIL * DETAIL);
     // A mine is a rock mound with a dark shaft.
     expect(at(x0 + 10, y0, 10, 11)).toBe(C.BLACK);
 
@@ -714,7 +722,7 @@ describe("world with opponents", () => {
     drawMainScreen(s, state, { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true, borders: true });
     writeFileSync(new URL("./out/borders.png", import.meta.url), encodePng(s, 3));
     const changed = s.data.filter((c, i) => c !== before[i]);
-    expect(changed.length).toBeGreaterThan(100);
+    expect(changed.length).toBeGreaterThan(100 * s.k * s.k);
     expect(changed.some((c) => c === playerColor(state, enemy.owner))).toBe(true);
 
     // The minimap (one pixel a square from y 11): each city a white dot in a cross of its owner's

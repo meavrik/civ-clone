@@ -125,21 +125,28 @@ const CANAL = 7;
  * terrain beside it that the canal cuts through, and so do the knolls of hills.
  * A strip of the terrain shows along each side, except toward irrigated
  * neighbours (`sides`, see `fieldSides`), where the fields and the canal run on.
+ * The fields are laid in screen pixels over a ground as fine as the screen: a
+ * screen pixel counts as water (or relief) if any of its fine pixels is.
  */
 export function drawIrrigation(s: Surface, dx: number, dy: number, ground: Surface, terrain: Terrain, x: number, y: number, sides: number): void {
   const { plots, splits } = fieldLayout(x, y);
   const relief = RELIEF[terrain];
   const canal = shade("sea", 5);
   const last = TILE - 1;
-  const wet = (i: number, j: number) => i >= 0 && j >= 0 && i < TILE && j < TILE && inRamp(ground.data[j * TILE + i]!, "sea");
+  const gk = ground.k;
+  /** Whether any fine pixel of the ground's screen pixel (i, j) lies in a ramp. */
+  const any = (i: number, j: number, ramp: string) => {
+    for (let fj = 0; fj < gk; fj++) for (let fi = 0; fi < gk; fi++) if (inRamp(ground.fget(i * gk + fi, j * gk + fj), ramp)) return true;
+    return false;
+  };
+  const wet = (i: number, j: number) => i >= 0 && j >= 0 && i < TILE && j < TILE && any(i, j, "sea");
   for (let j = 0; j < TILE; j++) {
     if ((j === 0 && !(sides & FIELD_N)) || (j === last && !(sides & FIELD_S))) continue;
     const south = j > CANAL;
     const split = Math.round(splits[south ? 1 : 0] * TILE);
     for (let i = 0; i < TILE; i++) {
       if ((i === 0 && !(sides & FIELD_W)) || (i === last && !(sides & FIELD_E))) continue;
-      const under = ground.data[j * TILE + i]!;
-      if (wet(i, j) || (relief && inRamp(under, relief))) continue;
+      if (wet(i, j) || (relief && any(i, j, relief))) continue;
       if (j === CANAL) { s.set(dx + i, dy + j, canal); continue; }
       if (wet(i - 1, j) || wet(i + 1, j) || wet(i, j - 1) || wet(i, j + 1)) continue;
       const plot = plots[(south ? 2 : 0) + (i >= split ? 1 : 0)]!;

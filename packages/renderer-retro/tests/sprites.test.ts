@@ -102,7 +102,8 @@ describe("sprite sheets", () => {
     const unitRows = Math.ceil(units.length / cols);
     const features = FEATURE_SHEET.sprites.length;
     const height = 12 + unitRows * 2 * 18 + 12 + 18 + 12 + Math.ceil(features / cols) * 18 + 12 + 3 * 15 + 4;
-    const s = new Surface(cols * 18 + 4, height);
+    // As fine as the screen, so the terrain shows its fine pixels.
+    const s = Surface.fine(cols * 18 + 4, height);
     s.fill(C.DGREY!);
     let y = 2;
     drawText(s, 2, y, "Units (two civilizations)", C.WHITE!);

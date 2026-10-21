@@ -37,7 +37,10 @@ export interface SpriteDef {
 
 export interface Sheet {
   name: string;
+  /** Pixels across a sprite, in the sheet's own (fine) pixels. */
   size: number;
+  /** The sheet's pixels across one of the screen's: 2 for terrain, drawn as fine as the screen. */
+  k: number;
   defaultRamps: string[];
   /** Comment lines at the top of the text, kept verbatim. */
   comments: string[];
@@ -64,7 +67,7 @@ export function colourOf(ch: string, ramps: string[]): number {
   throw new Error(`'${ch}' is not in the sprite legend`);
 }
 
-export function parseSheet(name: string, size: number, text: string, defaultRamps: string[]): Sheet {
+export function parseSheet(name: string, size: number, text: string, defaultRamps: string[], k = 1): Sheet {
   const comments: string[] = [];
   const sprites: SpriteDef[] = [];
   let cur: SpriteDef | null = null;
@@ -103,7 +106,7 @@ export function parseSheet(name: string, size: number, text: string, defaultRamp
       }
     });
   }
-  return { name, size, defaultRamps, comments, sprites, byName };
+  return { name, size, k, defaultRamps, comments, sprites, byName };
 }
 
 /** The sprite as palette indices (or CLEAR / OWNER / OWNER_DARK), row-major. */

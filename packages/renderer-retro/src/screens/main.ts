@@ -90,22 +90,22 @@ export function playerColor(state: GameState, owner: number): number {
 }
 
 export const MINIMAP_COLOR: Record<Terrain, () => number> = {
-  [Terrain.Ocean]: () => shade("sea", 3),
-  [Terrain.Grassland]: () => shade("meadow", 5),
-  [Terrain.Plains]: () => shade("wheat", 4),
-  [Terrain.Forest]: () => shade("leaf", 3),
-  [Terrain.Hills]: () => shade("earth", 4),
-  [Terrain.Mountains]: () => shade("stone", 4),
-  [Terrain.Desert]: () => shade("dune", 6),
-  [Terrain.Tundra]: () => shade("heath", 4),
-  [Terrain.Arctic]: () => shade("ice", 6),
-  [Terrain.Swamp]: () => shade("mire", 4),
-  [Terrain.Jungle]: () => shade("leaf", 1),
+  [Terrain.Ocean]: () => shade("sea", 0),
+  [Terrain.Grassland]: () => shade("meadow", 6),
+  [Terrain.Plains]: () => shade("wheat", 3),
+  [Terrain.Forest]: () => shade("leaf", 2),
+  [Terrain.Hills]: () => shade("mound", 6),
+  [Terrain.Mountains]: () => shade("rock", 2),
+  [Terrain.Desert]: () => shade("dune", 7),
+  [Terrain.Tundra]: () => shade("heath", 7),
+  [Terrain.Arctic]: () => shade("ice", 7),
+  [Terrain.Swamp]: () => shade("mire", 3),
+  [Terrain.Jungle]: () => shade("canopy", 1),
 };
 
 /** A square's minimap colour; open sea is darker than water along a coast. */
 export function minimapColor(map: GameState["map"], x: number, y: number, explored?: ArrayLike<number>): number {
-  return isDeepWater(map, x, y, explored) ? shade("sea", 2) : MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]();
+  return isDeepWater(map, x, y, explored) ? shade("sea", 0) : MINIMAP_COLOR[map.tiles[y * map.width + x]!.terrain]();
 }
 
 /** Screen position of a map tile relative to the viewport, or null if off-screen. */
