@@ -5,6 +5,7 @@ import type { Callout } from "./refusal.js";
 export * from "./motion.js";
 export * from "./icons.js";
 export * from "./citizens.js";
+export * from "./blend.js";
 export * from "./coast.js";
 export * from "./river.js";
 export * from "./fog.js";

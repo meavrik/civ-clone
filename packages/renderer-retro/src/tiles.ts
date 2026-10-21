@@ -1,8 +1,8 @@
 import { Terrain, TERRAIN_RULES, type WorldMap } from "@civ/core";
-import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, landOwner, riverShape, SHORE, strokeDistance, type Explored, type Lifting } from "@civ/renderer-api";
+import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, BLEND_REACH, groundOwner, LAND, landOwner, riverShape, SHORE, strokeDistance, type CoastPatch, type Explored, type Lifting } from "@civ/renderer-api";
 import { FEATURE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
-import { C, shade } from "./palette.js";
+import { C, PALETTE, shade } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
 
 /**
@@ -63,6 +63,108 @@ function deepTile(_x: number, _y: number): Surface {
   return t;
 }
 
+/** The ground each land terrain stands on: forest, hills and mountains are drawn on grassland. */
+const GROUND: Record<Terrain, Terrain> = {
+  [Terrain.Ocean]: Terrain.Ocean,
+  [Terrain.Grassland]: Terrain.Grassland,
+  [Terrain.Plains]: Terrain.Plains,
+  [Terrain.Forest]: Terrain.Grassland,
+  [Terrain.Hills]: Terrain.Grassland,
+  [Terrain.Mountains]: Terrain.Grassland,
+  [Terrain.Desert]: Terrain.Desert,
+  [Terrain.Tundra]: Terrain.Tundra,
+  [Terrain.Arctic]: Terrain.Arctic,
+  [Terrain.Swamp]: Terrain.Swamp,
+  [Terrain.Jungle]: Terrain.Jungle,
+};
+/** Terrains that are all texture, with no ground showing between things standing on it. */
+const SOLID = new Set<Terrain>([Terrain.Jungle]);
+/** Fewer pixels than this, apart from the ground's colour, are part of its texture (blades, specks, tufts). */
+const OBJECT_MIN = 16;
+
+interface Layers {
+  /** The ground alone: the sprite with everything standing on it painted over in the ground's colour. */
+  ground: Uint8Array;
+  /** 1 where something stands on the ground (a tree, a peak, a dune, a pool), drawn over any blend. */
+  objects: Uint8Array;
+}
+const layerCache = new Map<Terrain, Layers>();
+
+/**
+ * A terrain sprite split into ground and the things on it. The ground's colour is the sprite's
+ * commonest one (and colours close to it); any patch of other colours of OBJECT_MIN pixels or
+ * more, joined corner to corner, is a thing standing on the ground.
+ */
+function layers(terrain: Terrain): Layers {
+  const hit = layerCache.get(terrain);
+  if (hit) return hit;
+  const src = getTile(terrain, 0, 0).data;
+  const n = FINE * FINE;
+  const objects = new Uint8Array(n);
+  let out: Layers;
+  if (SOLID.has(terrain)) out = { ground: src.slice(0, n), objects };
+  else {
+    const count = new Map<number, number>();
+    for (let i = 0; i < n; i++) count.set(src[i]!, (count.get(src[i]!) ?? 0) + 1);
+    const base = [...count.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+    const [br, bg, bb] = PALETTE[base]!;
+    const near = (c: number) => { const [r, g, b] = PALETTE[c]!; return Math.abs(r - br) + Math.abs(g - bg) + Math.abs(b - bb) < 24; };
+    const seen = new Uint8Array(n);
+    for (let s = 0; s < n; s++) {
+      if (seen[s] || near(src[s]!)) continue;
+      const patch = [s];
+      seen[s] = 1;
+      for (let q = 0; q < patch.length; q++) {
+        const at = patch[q]!;
+        const px = at % FINE;
+        const py = (at - px) / FINE;
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = px + dx;
+            const ny = py + dy;
+            if (nx < 0 || ny < 0 || nx >= FINE || ny >= FINE) continue;
+            const t = ny * FINE + nx;
+            if (seen[t] || near(src[t]!)) continue;
+            seen[t] = 1;
+            patch.push(t);
+          }
+      }
+      if (patch.length >= OBJECT_MIN) for (const at of patch) objects[at] = 1;
+    }
+    const ground = src.slice(0, n);
+    for (let i = 0; i < n; i++) if (objects[i]) ground[i] = base;
+    out = { ground, objects };
+  }
+  layerCache.set(terrain, out);
+  return out;
+}
+
+/** The ground a land square of `terrain` lends its neighbours where it reaches over the border. */
+function groundOf(terrain: Terrain): Uint8Array {
+  return layers(GROUND[terrain]).ground;
+}
+
+/** Whether land square `p` has a known land neighbour on other ground, so their borders blend. */
+function blends(p: CoastPatch): boolean {
+  if (p.depth[4] !== LAND) return false;
+  const own = GROUND[p.terrain[4]!];
+  return p.depth.some((d, i) => d === LAND && GROUND[p.terrain[i]!] !== own);
+}
+
+/** Whether a point at (u, v) of land square `p` could be pushed into a land square on other ground than `own`. */
+function reachesOther(p: CoastPatch, own: Terrain, u: number, v: number): boolean {
+  const c0 = u < BLEND_REACH ? 0 : 1;
+  const c1 = u > 1 - BLEND_REACH ? 2 : 1;
+  const r0 = v < BLEND_REACH ? 0 : 1;
+  const r1 = v > 1 - BLEND_REACH ? 2 : 1;
+  for (let r = r0; r <= r1; r++)
+    for (let c = c0; c <= c1; c++) {
+      const i = r * 3 + c;
+      if (i !== 4 && p.depth[i] === LAND && GROUND[p.terrain[i]!] !== own) return true;
+    }
+  return false;
+}
+
 const squareCache = new Map<string, Surface>();
 
 /** Half a river's width in screen pixels at width 1: three pixels of water, more toward the sea. */
@@ -75,9 +177,11 @@ const RIVER_GLINT = 0.07;
 /**
  * A map square as drawn: its terrain sprite, with the shore and the edge of
  * deep water wandering across its borders (see `coastLevel`), and its river
- * meandering through (see `riverShape`). Land that spills into a water
- * square continues the neighbour's sprite, mirrored at the shared edge so the
- * seam does not show; next to the shore runs a line of surf, then a band of
+ * meandering through (see `riverShape`). Where land meets land on other
+ * ground (grass and sand, say), the line between them wanders too (see
+ * `groundOwner`): the neighbour's ground reaches in, under whatever stands on
+ * this square's (trees, peaks, dunes). Land that spills into a water square
+ * shows its ground; next to the shore runs a line of surf, then a band of
  * shallows. Rivers show on land only, so a mouth runs on until it meets water.
  * Squares the player has not explored (`explored`) are left out of the blend.
  * Every fine pixel is worked out on its own (FINE x FINE), so shores and rivers
@@ -88,7 +192,8 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
   const river = riverShape(map, x, y, explored);
   const own = p.terrain[4]!;
   const plain = p.depth[4] === DEEP ? deepTile(x, y) : getTile(own, x, y);
-  if (!p.mixed && !river) return plain;
+  const blend = blends(p);
+  if (!p.mixed && !river && !blend) return plain;
   const key = river ? `${p.key}|${river.key}` : p.key;
   const hit = squareCache.get(key);
   if (hit) return hit;
@@ -100,7 +205,6 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
   const water = shade("sea", 2);
   const glint = shade("sea", 3);
   const bank = shade("sea", 7);
-  const last = FINE - 1;
   for (let j = 0; j < FINE; j++)
     for (let i = 0; i < FINE; i++) {
       const u = (i + 0.5) / FINE;
@@ -109,12 +213,15 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
       const g = p.mixed ? coastLevel(p, u, v) : p.depth[4]!;
       const k = g < SHORE ? landOwner(p, u, v) : -1;
       let c: number;
-      if (!p.mixed) c = plain.data[at]!;
-      else if (k >= 0) {
-        const dx = (k % 3) - 1;
-        const dy = Math.floor(k / 3) - 1;
-        const src = getTile(p.terrain[k]!, (((x + dx) % map.width) + map.width) % map.width, y + dy).data;
-        c = src[(dy ? last - j : j) * FINE + (dx ? last - i : i)]!;
+      if (!p.mixed && !blend) c = plain.data[at]!;
+      else if (k === 4) {
+        // Land: its own art, unless another ground reaches over the border here; what stands on it stays.
+        const o = blend && !layers(own).objects[at] && reachesOther(p, GROUND[own], u, v) ? groundOwner(p, u, v) : -1;
+        c = o < 0 || GROUND[p.terrain[o]!] === GROUND[own] ? plain.data[at]! : groundOf(p.terrain[o]!)[at]!;
+      } else if (k >= 0) {
+        // Land reaching into a water square shows its ground, split between land neighbours as land is.
+        const o = groundOwner(p, u, v);
+        c = groundOf(p.terrain[o >= 0 ? o : k]!)[at]!;
       } else if (g < SHORE + 0.07) c = surf;
       else if (g < 0.8) c = shallow;
       else if (g < DEEP_EDGE - 0.06) c = sea[at]!;
@@ -129,7 +236,8 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
         }
       out.data[at] = c;
     }
-  if (squareCache.size > 4096) squareCache.clear();
+  // A square is 1 KB as fine as this; a large world is 16000 squares, so the whole of one fits.
+  if (squareCache.size > 16384) squareCache.clear();
   squareCache.set(key, out);
   return out;
 }

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { DETAIL, FINE } from "../src/index.js";
+import { DETAIL, FINE, terrainSquare } from "../src/index.js";
 
 describe("retro renderer", () => {
   it("palette has 256 entries, EGA first", () => {
@@ -380,6 +380,44 @@ describe("fog of war", () => {
     });
     drawMainScreen(s, state, view);
     expect(s.data).toEqual(before);
+  });
+});
+
+describe("land borders", () => {
+  it("lets other ground reach over a border in ragged specks, under whatever stands on the square", () => {
+    const { map } = newGame(7);
+    const X = 20;
+    const Y = 20;
+    const set = (x: number, y: number, t: Terrain) => { const tile = map.tiles[y * map.width + x]!; tile.terrain = t; tile.river = false; };
+    for (let y = Y - 2; y <= Y + 2; y++) for (let x = X - 2; x <= X + 2; x++) set(x, y, Terrain.Grassland);
+    const sandy = (c: number) => c >= C.DUNE! && c < C.DUNE! + 8;
+    // Grass among grass is drawn as its sprite; desert to the east reaches in from that side only.
+    const plain = terrainSquare(map, X, Y);
+    set(X + 1, Y, Terrain.Desert);
+    const grass = terrainSquare(map, X, Y);
+    let east = 0;
+    for (let j = 0; j < FINE; j++)
+      for (let i = 0; i < FINE; i++) {
+        const at = j * FINE + i;
+        if (i < FINE * 0.6) expect(grass.data[at]).toBe(plain.data[at]);
+        else if (sandy(grass.data[at]!)) east++;
+      }
+    expect(east).toBeGreaterThan(0);
+    // Mountains ringed by desert: the sand reaches in, every peak stays whole.
+    set(X + 1, Y, Terrain.Grassland);
+    set(X, Y, Terrain.Mountains);
+    const alone = terrainSquare(map, X, Y);
+    for (let y = Y - 1; y <= Y + 1; y++) for (let x = X - 1; x <= X + 1; x++) if (x !== X || y !== Y) set(x, y, Terrain.Desert);
+    const ringed = terrainSquare(map, X, Y);
+    const rock = (c: number) => c >= C.ROCK! && c < C.ROCK! + 8;
+    let peaks = 0;
+    for (let at = 0; at < FINE * FINE; at++) {
+      if (!rock(alone.data[at]!)) continue;
+      peaks++;
+      expect(ringed.data[at]).toBe(alone.data[at]);
+    }
+    expect(peaks).toBeGreaterThan(100);
+    expect([...ringed.data].some(sandy)).toBe(true);
   });
 });
 
