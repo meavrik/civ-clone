@@ -4,7 +4,7 @@ import { drawIcon } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, shade } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
-import { TILE } from "./tiles.js";
+import { isWater, TILE, WATER } from "./tiles.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sprites/index.js";
 
@@ -131,15 +131,16 @@ const CANAL = 7;
 export function drawIrrigation(s: Surface, dx: number, dy: number, ground: Surface, terrain: Terrain, x: number, y: number, sides: number): void {
   const { plots, splits } = fieldLayout(x, y);
   const relief = RELIEF[terrain];
-  const canal = shade("sea", 5);
+  const canal = WATER.glint;
   const last = TILE - 1;
   const gk = ground.k;
-  /** Whether any fine pixel of the ground's screen pixel (i, j) lies in a ramp. */
-  const any = (i: number, j: number, ramp: string) => {
-    for (let fj = 0; fj < gk; fj++) for (let fi = 0; fi < gk; fi++) if (inRamp(ground.fget(i * gk + fi, j * gk + fj), ramp)) return true;
+  /** Whether any fine pixel of the ground's screen pixel (i, j) passes a test. */
+  const anyFine = (i: number, j: number, test: (c: number) => boolean) => {
+    for (let fj = 0; fj < gk; fj++) for (let fi = 0; fi < gk; fi++) if (test(ground.fget(i * gk + fi, j * gk + fj))) return true;
     return false;
   };
-  const wet = (i: number, j: number) => i >= 0 && j >= 0 && i < TILE && j < TILE && any(i, j, "sea");
+  const any = (i: number, j: number, ramp: string) => anyFine(i, j, (c) => inRamp(c, ramp));
+  const wet = (i: number, j: number) => i >= 0 && j >= 0 && i < TILE && j < TILE && anyFine(i, j, isWater);
   for (let j = 0; j < TILE; j++) {
     if ((j === 0 && !(sides & FIELD_N)) || (j === last && !(sides & FIELD_S))) continue;
     const south = j > CANAL;

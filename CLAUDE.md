@@ -52,7 +52,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   on about half their lattice squares (`Tile.secondSpecial`, a hash of the square, no RNG, so seeds keep
   their worlds); `learned` may add food, shields or trade with an advance (Navigation, Weaving, Pottery,
   Iron Working, Refining). Each carries `since` (the save version that brought it); old saves load with
-  `resources` (their version), so their worlds have only the kinds they knew (`secondKind`).
+  `resources` (their version), so their worlds have only the kinds they knew (`secondKind`). A kind may
+  have a reach (`within`/`beyond` squares from land): Fish within 2, Whales beyond 2 (deep water), from
+  version 19 (`SPECIAL_REACH_SINCE`).
   Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
   FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
   starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail

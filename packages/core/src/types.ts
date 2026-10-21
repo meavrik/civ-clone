@@ -224,7 +224,7 @@ export interface GameState {
   peaceOnContact?: boolean;
   /** A city works any of its 21 squares, inside its border or not (`slotInLand`). Set for saves before version 16. */
   workBeyondBorders?: boolean;
-  /** Second specials only of those a save of this version knew (`SpecialRule.since`). Set for saves before version 18. */
+  /** Second specials only of those a save of this version knew (`SpecialRule.since`). Set for saves before version 19. */
   resources?: number;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;

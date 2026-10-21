@@ -1,5 +1,5 @@
 import { nextFloat, nextInt, type RngState } from "../rng.js";
-import { secondKind, TERRAIN_RULES } from "../rules/terrain.js";
+import { secondKind, SPECIAL_REACH_SINCE, TERRAIN_RULES, type SpecialRule } from "../rules/terrain.js";
 import { MAP_WIDTH, NEIGHBOURS, Terrain, worldSize, wrapX, type Tile, type WorldMap, type WorldSize } from "../types.js";
 
 export interface MapGenOptions {
@@ -451,7 +451,9 @@ export function blankTile(terrain: Terrain): Tile {
  * villages come from the game's RNG, so each seed scatters them anew. On a
  * terrain with a second kind of special, about half the specials are that one,
  * picked by a hash of the square (no more RNG, so every seed keeps its world);
- * an old save's `resources` leaves out the kinds that came after it.
+ * a kind with a reach (`within`, `beyond`: fish near land, whales in deep water)
+ * is found only that far from land, the other kind taking its squares. An old
+ * save's `resources` leaves out the kinds and reaches that came after it.
  */
 export function scatterSpecials(map: WorldMap, rng: RngState, resources?: number): void {
   const { width: w, height: h, tiles } = map;
@@ -463,7 +465,18 @@ export function scatterSpecials(map: WorldMap, rng: RngState, resources?: number
       const lattice = ((x + sx) * 13 + (y + sy) * 11 + ((x + sx) >> 2)) % 32 === 0;
       if (lattice) t.special = true;
       else if (t.terrain === Terrain.Ocean && (x * 7 + y * 3 + sx) % 29 === 0) t.special = true;
-      if (t.special && secondKind(TERRAIN_RULES[t.terrain], resources) && squareHash(x + sx, y + sy) < 0.5) t.secondSpecial = true;
+      if (!t.special) continue;
+      const rule = TERRAIN_RULES[t.terrain];
+      const second = secondKind(rule, resources);
+      if (!second) continue;
+      if (resources === undefined || resources >= SPECIAL_REACH_SINCE) {
+        const d = landDistance(map, x, y, 3);
+        const fits = (sp: SpecialRule | undefined) => !!sp && (sp.within === undefined || d <= sp.within) && (sp.beyond === undefined || d >= sp.beyond);
+        const first = fits(rule.special);
+        if (!fits(second)) continue;
+        if (!first) { t.secondSpecial = true; continue; }
+      }
+      if (squareHash(x + sx, y + sy) < 0.5) t.secondSpecial = true;
     }
   for (let y = 2; y < h - 2; y++)
     for (let x = 0; x < w; x++) {
@@ -471,6 +484,20 @@ export function scatterSpecials(map: WorldMap, rng: RngState, resources?: number
       if (t.terrain === Terrain.Ocean || t.terrain === Terrain.Arctic) continue;
       if (nextInt(rng, 60) === 0) t.hut = true;
     }
+}
+
+/** How many squares from land (x, y) lies, counting diagonals as one; `cap` + 1 if no land is that near. */
+function landDistance(map: WorldMap, x: number, y: number, cap: number): number {
+  for (let r = 1; r <= cap; r++)
+    for (let dy = -r; dy <= r; dy++) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= map.height) continue;
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        if (map.tiles[ny * map.width + wrapX(map, x + dx)]!.terrain !== Terrain.Ocean) return r;
+      }
+    }
+  return cap + 1;
 }
 
 /** A hash of a square in 0..1, for choices that must not draw on the game's RNG. */

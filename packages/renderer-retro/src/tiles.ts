@@ -167,10 +167,23 @@ function reachesOther(p: CoastPatch, own: Terrain, u: number, v: number): boolea
 
 const squareCache = new Map<string, Surface>();
 
-/** Half a river's width in screen pixels at width 1: three pixels of water, more toward the sea. */
-const RIVER_HALF = 1.5;
-/** The pale bank either side of a river, in screen pixels. */
-const RIVER_BANK = 0.9;
+/** Half a river's width in screen pixels at width 1: two pixels of water, more toward the sea. */
+const RIVER_HALF = 1;
+/** The pale bank either side of a river, in screen pixels (a fine pixel). */
+const RIVER_BANK = 0.5;
+
+/** Water drawn over land and along shores, in the coastal sea's blues: surf, shallows, rivers. */
+export const WATER = {
+  surf: shade("ice", 6),
+  shallow: shade("ice", 2),
+  river: shade("ocean", 7),
+  glint: shade("ice", 3),
+  bank: shade("ice", 4),
+};
+/** Whether a palette colour is water drawn over land (a river, shallows), which fields leave clear. */
+export function isWater(c: number): boolean {
+  return c === WATER.river || c === WATER.glint || c === WATER.shallow || c === WATER.bank;
+}
 /** Share of a river's water that glints. */
 const RIVER_GLINT = 0.07;
 
@@ -200,11 +213,7 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
   const out = Surface.fine(TILE, TILE);
   const sea = getTile(Terrain.Ocean, x, y).data;
   const deep = deepTile(x, y).data;
-  const surf = shade("sea", 7);
-  const shallow = shade("sea", 2);
-  const water = shade("sea", 2);
-  const glint = shade("sea", 3);
-  const bank = shade("sea", 7);
+  const { surf, shallow, river: water, glint, bank } = WATER;
   for (let j = 0; j < FINE; j++)
     for (let i = 0; i < FINE; i++) {
       const u = (i + 0.5) / FINE;

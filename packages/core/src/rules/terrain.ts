@@ -19,7 +19,14 @@ export interface SpecialRule {
   learned?: { advance: string; food?: number; shields?: number; trade?: number };
   /** The save version that brought it (second specials): worlds of older saves have none (`MapGenOptions.resources`). */
   since?: number;
+  /** Found only this many squares from land or nearer (fish keep to coastal waters). */
+  within?: number;
+  /** Found only this many squares from land or farther (whales keep to deep water: no land beside them). */
+  beyond?: number;
 }
+
+/** The save version from which `within` and `beyond` place specials; older worlds ignore them. */
+export const SPECIAL_REACH_SINCE = 19;
 
 export interface TerrainRule {
   food: number;
@@ -58,9 +65,9 @@ export interface TerrainRule {
 export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Ocean]: {
     food: 1, shields: 0, trade: 2, moveCost: 1, defense: 1,
-    special: { name: "Fish", food: 2 },
+    special: { name: "Fish", food: 2, within: 2 },
     // Whalers put to sea with Navigation.
-    second: { name: "Whales", food: 1, shields: 1, learned: { advance: "navigation", shields: 1 }, since: 17 },
+    second: { name: "Whales", food: 1, shields: 1, learned: { advance: "navigation", shields: 1 }, since: 17, beyond: 2 },
     road: { trade: 0, turns: 0 },
   },
   [Terrain.Grassland]: {

@@ -113,11 +113,37 @@ describe("tile yields", () => {
     for (const n of ["Whales", "Wheat", "Cotton", "Iron", "Oil", "Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(now.names.get(n) ?? 0, n).toBeGreaterThan(0);
     for (const n of ["Whales", "Wheat", "Cotton", "Oil", "Iron", "Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(old.names.has(n), n).toBe(false);
     for (const n of ["Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(five.names.has(n), n).toBe(false);
-    expect(five.names.get("Whales")).toBe(now.names.get("Whales"));
+    // Whales lay where they did until version 19 placed them by their reach.
+    expect(five.names.get("Whales")).toBe(count(18).names.get("Whales"));
     expect(five.specials).toBe(now.specials);
     // The same world, the same squares: only which kind changes.
     expect(now.terrains).toBe(old.terrains);
     expect(now.specials).toBe(old.specials);
+  });
+
+  it("keeps fish within two squares of land and whales in deep water", () => {
+    for (let seed = 1; seed <= 4; seed++) {
+      const { map } = newGame(seed);
+      const landNear = (x: number, y: number, r: number) => {
+        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= map.height) continue;
+          if (map.tiles[ny * map.width + (((x + dx) % map.width) + map.width) % map.width]!.terrain !== Terrain.Ocean) return true;
+        }
+        return false;
+      };
+      let fish = 0;
+      let whales = 0;
+      map.tiles.forEach((t, i) => {
+        const x = i % map.width;
+        const y = Math.floor(i / map.width);
+        const name = specialOf(t)?.name;
+        if (name === "Fish") { fish++; expect(landNear(x, y, 2), `fish at ${x},${y}`).toBe(true); }
+        if (name === "Whales") { whales++; expect(landNear(x, y, 1), `whales at ${x},${y}`).toBe(false); }
+      });
+      expect(fish).toBeGreaterThan(0);
+      expect(whales).toBeGreaterThan(0);
+    }
   });
 });
 
