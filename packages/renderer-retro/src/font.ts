@@ -122,9 +122,10 @@ for (const [ch, rows] of Object.entries(G)) {
 export const FONT_HEIGHT = 8;
 
 /**
- * The game's pixel font as fine as the screen (art/font.art.ts), drawn by hand: sixteen fine rows to a
- * line, strokes two pixels thick, real descenders, each glyph as wide as here so text measures the
- * same. Text on a fine surface is drawn with it; on a coarse one with the bitmaps above.
+ * The font on the screen's fine grid (art/font.art.ts): the bitmaps above, each dot a 2x2 block, so
+ * text looks as it did at 16x16 and can be refined a fine pixel at a time. Each glyph is as wide as
+ * here, so text measures the same. Text on a fine surface is drawn with it; on a coarse one with the
+ * bitmaps above.
  */
 const FINE = new Map<string, [number, number][]>();
 {
@@ -157,14 +158,14 @@ export function drawText(
 ): number {
   let cx = x;
   if (s.k >= 2) {
-    // A fine surface: the fine glyphs, a fine pixel at a time (the shadow one fine pixel off).
+    // A fine surface: the fine glyphs, a fine pixel at a time (the shadow a screen pixel off).
     const f = s.k / 2;
     for (const ch of text) {
       const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
       const ink = FINE.get(ch) ?? FINE.get("?")!;
       const ox = cx * s.k;
       const oy = y * s.k;
-      if (shadow !== undefined) for (const [gx, gy] of ink) s.frect(ox + gx * f + f, oy + gy * f + f, f, f, shadow);
+      if (shadow !== undefined) for (const [gx, gy] of ink) s.frect(ox + gx * f + s.k, oy + gy * f + s.k, f, f, shadow);
       for (const [gx, gy] of ink) s.frect(ox + gx * f, oy + gy * f, f, f, color);
       cx += g.advance;
     }
@@ -207,13 +208,13 @@ export function drawTextSmall(s: Surface, fx: number, fy: number, text: string, 
   }
 }
 
-/** Text ringed in another colour, the ring a pixel of the surface's finest wide, so it reads on any ground. */
+/** Text ringed a screen pixel wide in another colour, so it reads on any ground. */
 export function drawTextRinged(s: Surface, x: number, y: number, text: string, color: number, ring: number): void {
   const scratch = new Surface(textWidth(text) + 2, FONT_HEIGHT + 2, undefined, s.k);
   scratch.fill(SPRITE_CLEAR);
   drawText(scratch, 1, 1, text, ring);
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const)
-    s.fblit(scratch, (x - 1) * s.k + dx, (y - 1) * s.k + dy, SPRITE_CLEAR);
+    s.fblit(scratch, (x - 1 + dx) * s.k, (y - 1 + dy) * s.k, SPRITE_CLEAR);
   drawText(s, x, y, text, color);
 }
 
