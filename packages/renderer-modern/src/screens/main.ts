@@ -19,7 +19,7 @@ import {
   wrapX,
   type GameState,
 } from "@civ/core";
-import { coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, ownerAt, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { cityMood, coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, ownerAt, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import { paintBorders } from "../borders.js";
@@ -165,7 +165,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
     const idx = c.y * map.width + c.x;
     if (!me.explored[idx] || fogged(idx, c.owner)) continue;
     const pos = tileToScreen(state, view, c.x, c.y);
-    if (pos) paintCity(ctx, pos[0], pos[1], c, state.players[c.owner]!.color, held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1));
+    if (pos) paintCity(ctx, pos[0], pos[1], c, state.players[c.owner]!.color, held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1), c.owner === state.currentPlayer ? cityMood(state, c) : null);
   }
 
   // A unit sliding between squares is drawn after the rest, where it is now.

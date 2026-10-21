@@ -1,4 +1,5 @@
 import type { City } from "@civ/core";
+import type { CityMood } from "@civ/renderer-api";
 import { drawText, textWidth } from "../font.js";
 import { C } from "../palette.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
@@ -9,10 +10,11 @@ import type { Surface } from "../surface.js";
  * City marker on the map: buildings from the features sheet on the owner's
  * colour box, ringed by crenellated stone walls when built (the buildings rise
  * over them), a white shield in the corner
- * when units are inside (`garrisoned`), the population in a dark label, and
- * a red flag in disorder.
+ * when units are inside (`garrisoned`), the population in a dark label, and a flag for the
+ * `mood` (`cityMood`, the viewer's own cities only): red in disorder, yellow one lost happy
+ * citizen from it, green while the city celebrates.
  */
-export function drawCity(s: Surface, dx: number, dy: number, city: City, color: number, garrisoned = false): void {
+export function drawCity(s: Surface, dx: number, dy: number, city: City, color: number, garrisoned = false, mood: CityMood | null = null): void {
   s.blit(ownerBox(color), dx, dy, SPRITE_CLEAR);
   if (city.buildings.includes("city_walls")) {
     const walls = spriteSurface(FEATURE_SHEET, "walls", color);
@@ -29,8 +31,8 @@ export function drawCity(s: Surface, dx: number, dy: number, city: City, color: 
   const lx = dx + 8 - Math.floor(w / 2);
   s.rect(lx, dy + 9, w, 7, C.BLACK!);
   drawText(s, lx + 1, dy + 9, n, C.WHITE!);
-  if (city.disorder) {
+  if (mood) {
     s.vline(dx + 13, dy + 1, 5, C.BLACK!);
-    s.rect(dx + 11, dy + 1, 2, 3, C.LRED!);
+    s.rect(dx + 11, dy + 1, 2, 3, mood === "disorder" ? C.LRED! : mood === "unrest" ? C.YELLOW! : C.LGREEN!);
   }
 }

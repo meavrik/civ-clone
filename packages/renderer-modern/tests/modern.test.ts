@@ -86,6 +86,7 @@ describe("modern renderer", () => {
     r.main(state, view);
     r.main(state, { ...view, inspect: { x: state.cities[0]!.x + 1, y: state.cities[0]!.y }, message: undefined, autoEnd: true });
     r.city(state, { city: state.cities[0]!.id });
+    r.city(state, { city: state.cities[0]!.id, happy: true });
     r.cityView(state, { city: state.cities[0]!.id });
     r.cityView(state, { city: state.cities[0]!.id, picked: "palace" });
     const panel = openResearch(state, r.researchListRows, { discovered: ["bronze_working"], choosing: true, closable: false });

@@ -95,6 +95,29 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `tribute` (`tributePaid`). `warDeclared` says who declared on whom (`on`) and why (`reason`).
   Saves before version 10 load with `farContact` and `noTrespass` (meeting at two squares, no stop),
   saves before version 12 with `fixedBorders` (each city its 21 squares, the nearer then older winning).
+  Moods (`computeCity`; asked for 2026-10-21, checked against FreeCiv's civ1 ruleset): citizens are born
+  content up to the difficulty's base (6 Chieftain .. 2 Emperor; our departure, FreeCiv plays 4) and unhappy
+  beyond; an empire holding more cities than its government's `empireSize` (Anarchy 9 .. Democracy 14) loses one
+  content citizen a city, one more per `EMPIRE_SIZE_STEP` (10) cities. Then stage by stage (`CityReport.moods`,
+  shown by the city screen's Happy panel, H or its button, as the original's Happy analysis did): luxuries (two
+  a step, content to happy first), buildings (`BuildingRule.content`, the Oracle doubling temples,
+  Michelangelo's a cathedral everywhere), soldiers (martial law: each military unit in the city calms one
+  unhappy citizen, up to `GovernmentRule.martialLaw`, Monarchy 3, Despotism, Anarchy and Communism unlimited;
+  war weariness: each unit away from any city under the Republic (1) or Democracy (2) sours a content citizen,
+  then a happy one for two steps; Women's Suffrage excuses one a city), wonders (Hanging Gardens, Cure for
+  Cancer, Bach's, then Shakespeare's). Disorder when the unhappy outnumber the happy: no shields (the units'
+  upkeep still owed), tax or science; food and luxuries go on. `City.unrest` counts the turns in a row, and a
+  Democracy falls into anarchy once a city passes `revolutionAfter` (2): the `overthrown` event. Celebration
+  (the original's festival, in our words): from size `CELEBRATION_SIZE` (3) with nobody unhappy and half the
+  people happy at the turn's end (`CityReport.celebration` becomes `City.celebrating`, a `celebration` city
+  event): a Despotism's squares then yield as a Monarchy's (no tile penalty), a Monarchy's or Communism's as a
+  Democracy's (+1 trade), `cityYieldGovernment`; a Republic or Democracy grows a citizen every turn it has
+  food to spare, keeping its store. The map flags the viewer's own cities (`cityMood` in renderer-api): red
+  in disorder, yellow when the unhappy equal the happy, green while celebrating; the city screen names the
+  standing (CIVIL DISORDER, UNREST, CELEBRATING) and riots open the city with the Happy panel up. Saves before
+  version 17 load with `simpleMoods` (headless `--simple-moods`): our first rules (martial law 3 everywhere,
+  weariness stopping at the content, wonders calming with the buildings, no celebrations or fall, one content
+  citizen fewer per four cities past eight, whatever the government).
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
   `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it), `baseline.ts`
   (v1) and `barbarian.ts` (the barbarians, reached through `baselineTurn` so every AI seat shares it:
@@ -326,7 +349,11 @@ small 80x50, medium 120x75, large 160x100 for premade and customized worlds; no 
 without `size` is small). Islands kept apart on premade worlds at every size (2026-10-19, asked for;
 save version 13). Mobile PWA done (2026-10-19, asked for, apps/web untouched): touch, on-screen
 pad and keys, map drag, keyboard prompt, save on hide, offline service worker, icons; checked in desktop
-Chrome with simulated touches, not yet on a phone.
+Chrome with simulated touches, not yet on a phone. Moods done (2026-10-21, asked for: "analyze happiness
+against the original, show unhappiness on the city, units inside the city"): the reckoning stage by stage
+with a Happy panel, martial law by government, weariness souring the happy, FreeCiv's empire-size rule,
+celebrations with their government bonuses, a Democracy toppled by lasting riots, mood flags on the map
+(save version 17, `simpleMoods` for older saves).
 
 ## Known gaps / next steps
 

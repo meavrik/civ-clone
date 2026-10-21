@@ -142,7 +142,7 @@ describe("controls", () => {
   it("offers what each screen of the web game answers to", () => {
     expect(keysFor({ screen: "map", activeUnit: false }).map((k) => k.code)).toEqual(["Enter", "F10"]);
     expect(keysFor({ screen: "map", activeUnit: true }).map((k) => k.code)).toContain("Escape");
-    expect(keysFor({ screen: "city", activeUnit: true }).map((k) => k.code)).toEqual(["KeyC", "KeyB", "KeyV", "KeyN", "Escape"]);
+    expect(keysFor({ screen: "city", activeUnit: true }).map((k) => k.code)).toEqual(["KeyC", "KeyB", "KeyH", "KeyV", "KeyN", "Escape"]);
     expect(keysFor({ screen: "input", activeUnit: true })).toEqual([]);
     expect(keysFor({ screen: "diplomacy", activeUnit: false }).map((k) => k.code)).toEqual(["Enter"]);
   });

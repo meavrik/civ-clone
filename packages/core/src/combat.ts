@@ -166,7 +166,10 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
   city.food = 0;
   city.shields = 0;
   city.production = { kind: "unit", id: u.owner === state.barbarians ? barbarianUnits(state, "build")[0] ?? "militia" : "militia" };
+  // Its moods start afresh with its new master: no riots on the record, no festival.
   city.disorder = false;
+  city.unrest = 0;
+  city.celebrating = false;
   return { captured: true, destroyed: false, plunder, shipLost };
 }
 

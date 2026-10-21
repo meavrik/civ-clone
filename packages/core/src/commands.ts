@@ -117,6 +117,7 @@ export type TurnEvent =
   | { kind: "chooseResearch" }
   | { kind: "anarchyOver" }
   | { kind: "chooseGovernment" }
+  | { kind: "overthrown"; player: number } // riots went on too long under `player`'s Democracy: anarchy
   | { kind: "contact"; player: number }
   | { kind: "warDeclared"; player: number; on: number; reason?: "trespass" } // `player` declares war on `on`
   | { kind: "trespass"; player: number; intruder: number; unit: number; x: number; y: number; warnings: number } // `intruder`'s unit stepped onto `player`'s land
@@ -187,10 +188,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     case "revolution": {
       const p = state.players[state.currentPlayer]!;
       if (p.government === "anarchy") return { ok: false, reason: "already in anarchy" };
-      p.government = "anarchy";
-      p.anarchyTurns = noAnarchy(state, p.id) ? 0 : Math.min(traitAnarchyCap(state, p.id), 1 + nextInt(state.rng, 4));
-      p.pendingGovernment = null;
-      clampRates(p);
+      fallIntoAnarchy(state, p);
       return { ok: true };
     }
     case "setGovernment": {
@@ -550,6 +548,8 @@ function spy(state: GameState, u: Unit, action: DiplomatAction, x: number, y: nu
       me.gold -= cost;
       city.owner = me.id;
       city.disorder = false;
+      city.unrest = 0;
+      city.celebrating = false;
       for (const o of state.units) if (o.owner === victim.id && o.x === city.x && o.y === city.y) o.owner = me.id;
       for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
       detail = city.name;
@@ -703,6 +703,14 @@ function openHut(state: GameState, u: Unit): HutResult {
     }
   }
   return { kind: "empty" };
+}
+
+/** The government falls: anarchy for a few turns (none with a wonder that spares them), the rates clamped. */
+export function fallIntoAnarchy(state: GameState, p: GameState["players"][number]): void {
+  p.government = "anarchy";
+  p.anarchyTurns = noAnarchy(state, p.id) ? 0 : Math.min(traitAnarchyCap(state, p.id), 1 + nextInt(state.rng, 4));
+  p.pendingGovernment = null;
+  clampRates(p);
 }
 
 /** A wonder that spares the owner anarchy (Pyramids, later the United Nations) also opens every government. */
@@ -919,6 +927,12 @@ export function endTurn(state: GameState): void {
   // Cities: squares lost from their land since, then growth, production, treasury, and the smoke they make.
   for (const c of state.cities) if (c.owner === player) dropLostSquares(state, c);
   for (const c of state.cities) if (c.owner === player) lastTurnEvents.push(...processCityTurn(state, c));
+  // Riots that outlast the government's patience topple it (a Democracy's: two turns).
+  const patience = government(state.players[player]!.government).revolutionAfter;
+  if (patience !== undefined && !state.simpleMoods && state.cities.some((c) => c.owner === player && c.unrest > patience)) {
+    fallIntoAnarchy(state, state.players[player]!);
+    lastTurnEvents.push({ kind: "overthrown", player });
+  }
   for (const c of state.cities) if (c.owner === player && pollute(state, c)) lastTurnEvents.push({ city: c.id, kind: "pollution" });
   for (const c of state.cities)
     if (c.owner === player && c.worked.length + c.specialists.length !== c.size) autoAssignWorkers(state, c);

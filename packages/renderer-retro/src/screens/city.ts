@@ -4,6 +4,7 @@ import {
   CITY_RADIUS,
   computeCity,
   cityCulture,
+  cityYieldGovernment,
   cultureRate,
   formatYear,
   getTile,
@@ -15,16 +16,17 @@ import {
   turnToYear,
   wonder,
   type City,
+  type CityReport,
   type GameState,
 } from "@civ/core";
-import { cityUnits, fieldSides, type IconName } from "@civ/renderer-api";
+import { cityMood, cityUnits, fieldSides, MOOD_STAGE_ICONS, type IconName } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, GOLD, GOOD, INK, stipple, TITLE_H } from "../widgets.js";
-import { CITIZEN_H, drawCitizen } from "../citizens.js";
+import { CITIZEN_H, CITIZEN_W, drawCitizen } from "../citizens.js";
 import { drawIcon, drawIconLine, ICON } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
@@ -55,12 +57,15 @@ import type { CityButton, CityScreenView } from "@civ/renderer-api";
 
 const EXIT = { x: SCREEN_W - 34, y: BAR_Y + 1, w: 33, h: 11 };
 
-/** The production box's buttons, under its title strip, and View on the bottom bar beside Exit. */
+/** The production box's buttons, under its title strip, and Happy and View on the bottom bar beside Exit. */
 const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: number; label: string }> = {
   change: { x: RIGHT.x + 3, y: ROW2.y + BOX_HEAD + 2, w: 50, h: 11, label: "Change" },
   buy: { x: RIGHT.x + RIGHT.w - 51, y: ROW2.y + BOX_HEAD + 2, w: 48, h: 11, label: "Buy" },
   view: { x: EXIT.x - 36, y: BAR_Y + 1, w: 33, h: 11, label: "View" },
+  happy: { x: EXIT.x - 72, y: BAR_Y + 1, w: 33, h: 11, label: "Happy" },
 };
+/** The keys the bottom bar names (View and Exit are buttons there); it must fit before the Happy button. */
+export const CITY_KEYS_HINT = "C Change  B Buy  H Happy  N Rename";
 
 export function cityButtonAt(px: number, py: number): CityButton | null {
   for (const [id, b] of Object.entries(CITY_BUTTONS) as [CityButton, (typeof CITY_BUTTONS)[CityButton]][])
@@ -170,28 +175,8 @@ function storeGrid(s: Surface, x: number, y: number, w: number, maxRows: number,
   return rows * (ICON + 1) + 1;
 }
 
-export function drawCityScreen(s: Surface, state: GameState, view: CityScreenView): void {
-  const city = state.cities.find((c) => c.id === view.city);
-  if (!city) return;
-  const player = state.players[city.owner]!;
-  const r = computeCity(state, city);
-  s.fill(C.BLACK!);
-
-  // Title and citizens; the strip turns red while the city riots.
-  drawBox(s, LEFT.x, TOP.y, SCREEN_W - 2, TOP.h);
-  drawTitleStrip(s, LEFT.x + 2, TOP.y + 2, SCREEN_W - 6, `${city.name} (Pop ${city.size})   ${formatYear(turnToYear(state.turn))}`, { centred: true, ...(r.disorder ? { color: C.RED! } : {}) });
-  // Each citizen a person of their own (`citizenLook`), standing on the window's bottom edge.
-  let cx = 5;
-  let n = 0;
-  const cy = TOP.y + TOP.h - 1 - CITIZEN_H;
-  for (let i = 0; i < r.happy; i++, cx += 8) drawCitizen(s, cx, cy, "happy", city.id, n++);
-  for (let i = 0; i < r.content; i++, cx += 8) drawCitizen(s, cx, cy, "content", city.id, n++);
-  for (let i = 0; i < r.unhappy; i++, cx += 8) drawCitizen(s, cx, cy, "unhappy", city.id, n++);
-  cx += 4;
-  for (const sp of city.specialists) { drawCitizen(s, cx, cy, sp, city.id, n++); cx += 8; }
-  if (r.disorder) say(s, SCREEN_W - 6 - textWidth("CIVIL DISORDER"), TOP.y + BOX_HEAD + 4, "CIVIL DISORDER", BAD);
-
-  // Resources: food, shields and trade as rows of icons with what is left or lost, then where the trade goes.
+/** The resources box: food, shields and trade as rows of icons with what is left or lost, then where the trade goes. */
+function drawResources(s: Surface, r: CityReport): void {
   drawBox(s, LEFT.x, ROW1.y, LEFT.w, ROW1.h, "City Resources");
   const rx = LEFT.x + 3;
   const rw = LEFT.w - 26;
@@ -224,6 +209,64 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
     say(s, rx + ICON + 2, y, "Smog", LABEL);
     num(y, `${r.pollution}%`, BAD);
   }
+}
+
+/**
+ * The Happy panel, in the resources box's place (the original's Happy button): the people after each
+ * stage of the reckoning (born, luxuries, buildings, soldiers, wonders), each stage marked by its icon,
+ * faded when it moved nobody. The same person stands in the same place on every row, so one can be followed.
+ */
+function drawMoods(s: Surface, city: City, r: CityReport): void {
+  drawBox(s, LEFT.x, ROW1.y, LEFT.w, ROW1.h, "Citizens");
+  const rowH = Math.floor((ROW1.h - BOX_HEAD - 2) / r.moods.length);
+  const x0 = LEFT.x + 3 + ICON + 3;
+  const room = LEFT.x + LEFT.w - 3 - CITIZEN_W - x0;
+  r.moods.forEach((m, i) => {
+    const y = ROW1.y + BOX_HEAD + 1 + i * rowH;
+    const prev = r.moods[i - 1];
+    const moved = !prev || prev.happy !== m.happy || prev.content !== m.content || prev.unhappy !== m.unhappy;
+    const ix = LEFT.x + 3;
+    const iy = y + Math.floor((rowH - ICON) / 2);
+    drawIcon(s, MOOD_STAGE_ICONS[m.stage], ix, iy);
+    if (!moved) for (let dy = 0; dy < ICON; dy++) for (let dx = dy & 1; dx < ICON; dx += 2) stipple(s, ix + dx, iy + dy, 1, 1, "panel");
+    const n = m.happy + m.content + m.unhappy;
+    const step = n > 1 ? Math.min(CITIZEN_W + 1, room / (n - 1)) : 0;
+    let k = 0;
+    const people = (mood: "happy" | "content" | "unhappy", count: number) => {
+      for (let j = 0; j < count; j++, k++) drawCitizen(s, x0 + Math.round(k * step), y + rowH - CITIZEN_H, mood, city.id, k);
+    };
+    people("happy", m.happy);
+    people("content", m.content);
+    people("unhappy", m.unhappy);
+  });
+}
+
+export function drawCityScreen(s: Surface, state: GameState, view: CityScreenView): void {
+  const city = state.cities.find((c) => c.id === view.city);
+  if (!city) return;
+  const player = state.players[city.owner]!;
+  const r = computeCity(state, city);
+  s.fill(C.BLACK!);
+
+  // Title and citizens; the strip turns red while the city riots.
+  drawBox(s, LEFT.x, TOP.y, SCREEN_W - 2, TOP.h);
+  drawTitleStrip(s, LEFT.x + 2, TOP.y + 2, SCREEN_W - 6, `${city.name} (Pop ${city.size})   ${formatYear(turnToYear(state.turn))}`, { centred: true, ...(r.disorder ? { color: C.RED! } : {}) });
+  // Each citizen a person of their own (`citizenLook`), standing on the window's bottom edge.
+  let cx = 5;
+  let n = 0;
+  const cy = TOP.y + TOP.h - 1 - CITIZEN_H;
+  for (let i = 0; i < r.happy; i++, cx += 8) drawCitizen(s, cx, cy, "happy", city.id, n++);
+  for (let i = 0; i < r.content; i++, cx += 8) drawCitizen(s, cx, cy, "content", city.id, n++);
+  for (let i = 0; i < r.unhappy; i++, cx += 8) drawCitizen(s, cx, cy, "unhappy", city.id, n++);
+  cx += 4;
+  for (const sp of city.specialists) { drawCitizen(s, cx, cy, sp, city.id, n++); cx += 8; }
+  // The city's standing, as it is now: riots, a festival, or one lost happy citizen from riots.
+  const standing = r.disorder ? (["CIVIL DISORDER", BAD] as const) : r.celebration ? (["CELEBRATING", GOOD] as const) : r.unhappy > 0 && r.unhappy === r.happy ? (["UNREST", GOLD] as const) : null;
+  if (standing) say(s, SCREEN_W - 6 - textWidth(standing[0]), TOP.y + BOX_HEAD + 4, standing[0], standing[1]);
+
+  if (view.happy) drawMoods(s, city, r);
+  else drawResources(s, r);
+  let y = 0;
 
   // Resource map.
   drawBox(s, MID.x, ROW1.y, MID.w, ROW1.h);
@@ -261,8 +304,8 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       if (fog) s.blit(fog, px, py, SPRITE_CLEAR);
       const worked = slot === 0 || city.worked.includes(slot);
       if (worked) {
-        const y = tileYield(state, tile, slot === 0, player.government, city.owner);
-        if (slot === 0) drawCity(s, px, py - 1, city, playerColor(state, city.owner));
+        const y = tileYield(state, tile, slot === 0, cityYieldGovernment(state, city), city.owner);
+        if (slot === 0) drawCity(s, px, py - 1, city, playerColor(state, city.owner), false, cityMood(state, city));
         s.rect(px, py + 8, TILE, 8, C.BLACK!);
         yieldIcons(s, px, py + 8, y.food, y.shields, y.trade);
       } else if (!slotInLand(state, city, slot)) {
@@ -361,9 +404,10 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
 
   // Hints, or the latest word, and the way out.
   drawStone(s, 0, BAR_Y, SCREEN_W, SCREEN_H - BAR_Y);
-  const { view: viewButton } = CITY_BUTTONS;
-  if (view.message) drawTextWrapped(s, 4, BAR_Y + 3, viewButton.x - 8, view.message, C.BLUE!, 1);
-  else drawText(s, 4, BAR_Y + 3, "Enter Exit  C Change  B Buy  N Rename  V View", DIM);
+  const { view: viewButton, happy: happyButton } = CITY_BUTTONS;
+  if (view.message) drawTextWrapped(s, 4, BAR_Y + 3, happyButton.x - 8, view.message, C.BLUE!, 1);
+  else drawText(s, 4, BAR_Y + 3, CITY_KEYS_HINT, DIM);
+  drawButton(s, happyButton.x, happyButton.y, happyButton.w, happyButton.h, happyButton.label, true, view.happy === true);
   drawButton(s, viewButton.x, viewButton.y, viewButton.w, viewButton.h, viewButton.label);
   s.rect(EXIT.x, EXIT.y, EXIT.w, EXIT.h, C.RED!);
   s.hline(EXIT.x, EXIT.y, EXIT.w, C.LRED!);

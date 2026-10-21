@@ -2,7 +2,7 @@ import { unitType, type City, type Unit } from "@civ/core";
 import type { Context2D } from "./context.js";
 import { circle, fillRound, measure, strokeRound, text } from "./draw.js";
 import { COMBAT, ICON, PLAYER_COLORS, PLAYER_DARK, TILE, UI, WALLS } from "./theme.js";
-import { WORK_ICON } from "@civ/renderer-api";
+import { WORK_ICON, type CityMood } from "@civ/renderer-api";
 import { paintIcon } from "./icons.js";
 
 export const UNIT_ABBR: Record<string, string> = {
@@ -90,8 +90,12 @@ function paintWalls(ctx: Context2D, x: number, y: number): void {
   for (const m of merlons) ctx.fillRect(x + m, y + 0.75, 7, 1.5);
 }
 
-/** A city on the map: the owner's ring and skyline, walls, the population, a red flag in disorder and a shield in the corner when units are inside (`garrisoned`). */
-export function paintCity(ctx: Context2D, x: number, y: number, city: City, slot: number, garrisoned = false): void {
+/**
+ * A city on the map: the owner's ring and skyline, walls, the population, a shield in the corner when units
+ * are inside (`garrisoned`) and a flag for the `mood` (`cityMood`, the viewer's own cities only): red in
+ * disorder, yellow one lost happy citizen from it, green while the city celebrates.
+ */
+export function paintCity(ctx: Context2D, x: number, y: number, city: City, slot: number, garrisoned = false, mood: CityMood | null = null): void {
   const color = playerColor(slot);
   // Walls ring the box, which sits a little further in to leave them room.
   const inset = city.buildings.includes("city_walls") ? 6 : 3;
@@ -111,8 +115,8 @@ export function paintCity(ctx: Context2D, x: number, y: number, city: City, slot
   const bw = Math.max(16, measure(ctx, n, 12, "bold") + 8);
   fillRound(ctx, x + TILE - bw - 2, y + TILE - 18, bw, 16, 8, "#f4f6f8");
   text(ctx, x + TILE - 2 - bw / 2, y + TILE - 17, n, { size: 12, weight: "bold", color: "#111820", align: "center" });
-  if (city.disorder) {
-    ctx.fillStyle = UI.danger;
+  if (mood) {
+    ctx.fillStyle = mood === "disorder" ? UI.danger : mood === "unrest" ? UI.accent : UI.ok;
     ctx.fillRect(x + 6, y + 4, 8, 6);
     ctx.fillStyle = "#fff";
     ctx.fillRect(x + 5, y + 4, 2, 14);

@@ -80,7 +80,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, fieldSides, isDeepWater, researchOutlook, type Callout, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
+import { borderSides, cityMood, fieldSides, isDeepWater, researchOutlook, type Callout, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, ICON, iconLineWidth } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -183,7 +183,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   for (const c of shownCities) {
     const idx = c.y * map.width + c.x;
     const pos = tileToScreen(state, view, c.x, c.y);
-    if (pos) drawCity(s, pos[0], pos[1], c, playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1));
+    if (pos) drawCity(s, pos[0], pos[1], c, playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1), c.owner === state.currentPlayer ? cityMood(state, c) : null);
   }
   // Their names under them, as the original showed them; drawn before the units so no unit is hidden by a name.
   for (const c of shownCities) {

@@ -139,6 +139,13 @@ export interface City {
   founded: number;
   /** True once a disorder turn has been reported, for the renderer. */
   disorder: boolean;
+  /** Turns in disorder in a row at the last turn's end; past the government's `revolutionAfter` a Democracy falls. */
+  unrest: number;
+  /**
+   * The people celebrated their ruler at the last turn's end (`CityReport.celebration`): this turn the
+   * city runs by its government's `celebration` rule (`cityYieldGovernment`; a Republic or Democracy grows it).
+   */
+  celebrating: boolean;
   /** Ids of cities this one trades with (caravan routes, mutual, at most three). */
   routes: number[];
   /** Culture gathered since it was founded, in saves before version 14 (`accruedCulture`); since then a city's culture is what it holds (`cityCulture` in territory.ts) and this stays 0. */
@@ -222,6 +229,12 @@ export interface GameState {
   peaceOnContact?: boolean;
   /** A city works any of its 21 squares, inside its border or not (`slotInLand`). Set for saves before version 16. */
   workBeyondBorders?: boolean;
+  /**
+   * Our first moods: no celebrations, martial law of three units under every government that has it,
+   * soldiers abroad souring content citizens only, wonders calming with the buildings, a Democracy
+   * never toppled by riots, and one content citizen fewer per four cities past eight. Set for saves before version 17.
+   */
+  simpleMoods?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

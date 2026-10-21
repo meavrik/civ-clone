@@ -41,7 +41,7 @@ export function drawDomesticAdvisor(s: Surface, state: GameState): void {
   let y = 34;
   for (const c of state.cities.filter((c) => c.owner === me)) {
     const r = computeCity(state, c);
-    drawText(s, 12, y, c.name, r.disorder ? BAD : ink);
+    drawText(s, 12, y, c.name, r.disorder ? BAD : c.celebrating ? GOOD : ink);
     drawText(s, 90, y, String(c.size), ink);
     drawText(s, 120, y, `${r.foodSurplus >= 0 ? "+" : ""}${r.foodSurplus}`, r.foodSurplus < 0 ? BAD : ink);
     drawText(s, 150, y, String(r.shieldSurplus), ink);

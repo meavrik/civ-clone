@@ -53,6 +53,8 @@ export interface NewGameOptions extends MapGenOptions {
   peaceOnContact?: boolean;
   /** Cities work any of their 21 squares, not only those inside their border. Old saves load with it. */
   workBeyondBorders?: boolean;
+  /** Our first moods: no celebrations, martial law capped at three, no Democracy toppled by riots. Old saves load with it. */
+  simpleMoods?: boolean;
   /** Rivals come only from civilizations a save of this version knew (`CivRule.since`). Old saves load with it. */
   roster?: number;
   /** Premade worlds as first drawn, some islands joined to their neighbours by land (Britain to France). Old saves load with it. */
@@ -182,6 +184,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.accruedCulture ? { accruedCulture: true } : {}),
     ...(opts.peaceOnContact ? { peaceOnContact: true } : {}),
     ...(opts.workBeyondBorders ? { workBeyondBorders: true } : {}),
+    ...(opts.simpleMoods ? { simpleMoods: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

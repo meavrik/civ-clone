@@ -81,6 +81,15 @@ describe("save/load", () => {
   });
 });
 
+describe("saves before celebrations", () => {
+  it("replay with the simple moods", () => {
+    const opts = { opponents: 1 as const };
+    const state = newGame(321, opts);
+    expect(loadSave({ ...makeSave(state, opts, []), version: 16 as const }, skipAll).state.simpleMoods).toBe(true);
+    expect(loadSave(makeSave(state, opts, []), skipAll).state.simpleMoods).toBeUndefined();
+  });
+});
+
 describe("score and end", () => {
   it("scores citizens, techs and peace; detects defeat and time", () => {
     const state = newGame(5, { opponents: 1, classicCivs: true });

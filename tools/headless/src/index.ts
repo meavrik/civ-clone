@@ -58,6 +58,8 @@ export interface GameConfig {
   looseUpkeep?: boolean;
   /** Cities work all 21 squares, inside their border or not (saves before version 16). */
   workBeyondBorders?: boolean;
+  /** Our first moods: no celebrations, martial law capped at three, no Democracy toppled by riots (saves before version 17). */
+  simpleMoods?: boolean;
 }
 
 export interface PlayerStats {
@@ -142,6 +144,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.classicCivs ? { classicCivs: true } : {}),
     ...(config.looseUpkeep ? { looseUpkeep: true } : {}),
     ...(config.workBeyondBorders ? { workBeyondBorders: true } : {}),
+    ...(config.simpleMoods ? { simpleMoods: true } : {}),
   };
 }
 

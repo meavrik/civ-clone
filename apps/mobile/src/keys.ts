@@ -26,7 +26,7 @@ export function keysFor(c: Context): Key[] {
         ? [k("Orders", "Escape", "Escape"), k("Skip", "Space", " "), k("Wait", "KeyW", "w"), k("Menu", "F10", "F10")]
         : [k("End turn", "Enter", "Enter"), k("Menu", "F10", "F10")];
     case "city":
-      return [k("Change", "KeyC", "c"), k("Buy", "KeyB", "b"), k("View", "KeyV", "v"), k("Rename", "KeyN", "n"), k("Exit", "Escape", "Escape")];
+      return [k("Change", "KeyC", "c"), k("Buy", "KeyB", "b"), k("Happy", "KeyH", "h"), k("View", "KeyV", "v"), k("Rename", "KeyN", "n"), k("Exit", "Escape", "Escape")];
     case "research":
       return [k("Research", "Enter", "Enter"), k("Next", "Tab", "Tab"), k("Close", "Escape", "Escape")];
     case "science":

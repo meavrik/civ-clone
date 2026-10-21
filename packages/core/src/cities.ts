@@ -4,7 +4,7 @@ import { knows } from "./rules/advances.js";
 import { addPart, partCount, SPACE_PARTS, spacePart } from "./rules/spaceship.js";
 import { building, BUILDINGS } from "./rules/buildings.js";
 import { wonder, WONDERS, type WonderRule } from "./rules/wonders.js";
-import { government } from "./rules/governments.js";
+import { CELEBRATION_SIZE, EMPIRE_SIZE_STEP, government } from "./rules/governments.js";
 import { civ } from "./rules/civs.js";
 import { nextCityName } from "./rules/names.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
@@ -240,6 +240,17 @@ export function arrangeCity(state: GameState, city: City): void {
   }
 }
 
+/** A step of the happiness reckoning, in the order the city screen's Happy panel shows them. */
+export type MoodStageKind = "born" | "luxury" | "buildings" | "soldiers" | "wonders";
+export const MOOD_STAGES: readonly MoodStageKind[] = ["born", "luxury", "buildings", "soldiers", "wonders"];
+/** The citizens' moods after one stage of the reckoning. */
+export interface MoodStage {
+  stage: MoodStageKind;
+  happy: number;
+  content: number;
+  unhappy: number;
+}
+
 export interface CityReport {
   food: number;
   shields: number;
@@ -262,6 +273,14 @@ export interface CityReport {
   content: number;
   unhappy: number;
   disorder: boolean;
+  /** The moods after each stage (`MOOD_STAGES`), the last being the city's. */
+  moods: MoodStage[];
+  /** Unhappy citizens made content by soldiers in the city (martial law). */
+  martialLaw: number;
+  /** Citizens soured by soldiers away from home (war weariness). */
+  weariness: number;
+  /** The people are in the mood to celebrate: size 3 or more, nobody unhappy, half of them happy. At the turn's end it becomes `City.celebrating`. */
+  celebration: boolean;
   foodBox: number;
   productionCost: number;
 }
@@ -387,31 +406,50 @@ export function canHelpWonder(state: GameState, u: Unit, city: City): string | n
   return null;
 }
 
-/** Base content citizens by difficulty, shrinking as the empire grows (the original's "unhappiness from size"). */
+/**
+ * Citizens born content, by difficulty (6 at Chieftain down to 2 at Emperor), fewer as the empire
+ * grows: one less once the civilization holds more cities than its government's `empireSize`, one
+ * less again for every `EMPIRE_SIZE_STEP` beyond (the original's unhappiness from size, FreeCiv's
+ * civ1 numbers). Saves before version 17 lose one per four cities past eight, whatever the government.
+ */
 export function contentBase(state: GameState, owner: number): number {
   const p = state.players[owner]!;
   const base = [6, 5, 4, 3, 2][p.difficulty] ?? 4;
   const cities = state.cities.filter((c) => c.owner === owner).length;
-  const empirePenalty = Math.floor(Math.max(0, cities - 8) / 4);
-  return Math.max(0, base - empirePenalty);
+  if (state.simpleMoods) return Math.max(0, base - Math.floor(Math.max(0, cities - 8) / 4));
+  const limit = government(p.government).empireSize;
+  const penalty = cities > limit ? 1 + Math.floor((cities - limit - 1) / EMPIRE_SIZE_STEP) : 0;
+  return Math.max(0, base - penalty);
+}
+
+/**
+ * The government whose tile rules a city's squares yield by: its own, or while the city celebrates
+ * the one its government's `celebration` names (a Despotism's festival lifts the tile penalty, a
+ * Monarchy's or Communism's brings the Democracy's trade).
+ */
+export function cityYieldGovernment(state: GameState, city: City): string {
+  const gov = state.players[city.owner]!.government;
+  const rule = government(gov).celebration;
+  return city.celebrating && rule && "yieldsAs" in rule ? rule.yieldsAs : gov;
 }
 
 /** Everything the city screen shows and the turn pass needs, computed from state. */
 export function computeCity(state: GameState, city: City): CityReport {
   const player = state.players[city.owner]!;
   const gov = government(player.government);
+  const yieldGov = cityYieldGovernment(state, city);
   const centre = getTile(state.map, city.x, city.y)!;
   let food = 0;
   let shields = 0;
   let trade = 0;
-  const c = tileYield(state, centre, true, player.government, city.owner);
+  const c = tileYield(state, centre, true, yieldGov, city.owner);
   food += c.food;
   shields += c.shields;
   trade += c.trade;
   for (const slot of city.worked) {
     const t = radiusTile(state, city, slot);
     if (!t) continue;
-    const y = tileYield(state, t, false, player.government, city.owner);
+    const y = tileYield(state, t, false, yieldGov, city.owner);
     food += y.food;
     shields += y.shields;
     trade += y.trade;
@@ -494,34 +532,56 @@ export function computeCity(state: GameState, city: City): CityReport {
   lux = Math.floor((lux * (100 + luxPct)) / 100);
   science = Math.floor((science * (100 + sciPct) * gov.sciencePct) / 10000);
 
-  // Happiness. Citizens start content up to the base, the rest unhappy.
+  // Happiness, stage by stage as the original's Happy analysis showed it: citizens are born content
+  // up to the base and unhappy beyond it; luxuries, buildings, soldiers and wonders then move them.
   const workers = city.size - city.specialists.length;
   const base = contentBase(state, city.owner);
   let content = Math.min(workers, base);
   let unhappy = workers - content;
   let happy = 0;
+  const moods: MoodStage[] = [];
+  const stage = (kind: MoodStageKind) => moods.push({ stage: kind, happy, content, unhappy });
+  stage("born");
   // Luxuries: two per step, content -> happy first, then unhappy -> content.
   let luxLeft = Math.floor(lux / 2);
   while (luxLeft > 0 && content > 0) { content--; happy++; luxLeft--; }
   while (luxLeft > 0 && unhappy > 0) { unhappy--; content++; luxLeft--; }
-  // Buildings and wonders make unhappy citizens content.
-  let fix = contentFromBuildings + contentFromWonders;
+  stage("luxury");
+  // Buildings make unhappy citizens content (wonders with them, before version 17).
+  let fix = contentFromBuildings + (state.simpleMoods ? contentFromWonders : 0);
   while (fix > 0 && unhappy > 0) { unhappy--; content++; fix--; }
-  // Martial law.
-  if (gov.martialLaw) {
-    let police = Math.min(3, state.units.filter((u) => u.x === city.x && u.y === city.y && unitType(u.type).attack > 0 && u.owner === city.owner).length);
-    while (police > 0 && unhappy > 0) { unhappy--; content++; police--; }
+  stage("buildings");
+  // Martial law: soldiers in the city, up to the government's limit (three everywhere before version 17).
+  let martialLaw = 0;
+  const lawCap = state.simpleMoods ? Math.min(3, gov.martialLaw) : gov.martialLaw;
+  if (lawCap > 0) {
+    let soldiers = Math.min(lawCap, state.units.filter((u) => u.x === city.x && u.y === city.y && unitType(u.type).attack > 0 && u.owner === city.owner).length);
+    while (soldiers > 0 && unhappy > 0) { unhappy--; content++; soldiers--; martialLaw++; }
   }
-  // War weariness: military units outside cities under Republic/Democracy; a police effect excuses some.
+  // War weariness: soldiers away from home under the Republic and Democracy sour the content, then
+  // (since version 17) the happy, two steps each, a step left over only sobering one; a police effect excuses some.
+  let weariness = 0;
   if (gov.warWeariness > 0) {
     const abroad = state.units.filter(
       (u) => u.homeCity === city.id && unitType(u.type).attack > 0 && !cityAt(state, u.x, u.y),
     ).length;
     let weary = Math.max(0, abroad - police) * gov.warWeariness;
-    while (weary > 0 && content > 0) { content--; unhappy++; weary--; }
+    while (weary > 0 && content > 0) { content--; unhappy++; weary--; weariness++; }
+    if (!state.simpleMoods) {
+      while (weary > 1 && happy > 0) { happy--; unhappy++; weary -= 2; weariness++; }
+      if (weary > 0 && happy > 0) { happy--; content++; weariness++; }
+    }
+  }
+  stage("soldiers");
+  // Wonders last: their content, then Shakespeare's peace.
+  if (!state.simpleMoods) {
+    let calm = contentFromWonders;
+    while (calm > 0 && unhappy > 0) { unhappy--; content++; calm--; }
   }
   if (noUnhappy) { content += unhappy; unhappy = 0; }
+  stage("wonders");
   const disorder = unhappy > happy;
+  const celebration = !state.simpleMoods && city.size >= CELEBRATION_SIZE && unhappy === 0 && happy >= Math.ceil(city.size / 2);
 
   // Unit upkeep.
   let unitShields = 0;
@@ -538,13 +598,14 @@ export function computeCity(state: GameState, city: City): CityReport {
     food, shields, trade, routes,
     pollution: pollutionChance(state, city, shields),
     foodSurplus: food - foodEaten,
-    shieldSurplus: disorder ? 0 : shields - unitShields,
+    // Riots stop the work, not the soldiers' pay: a city in disorder still owes its units (not before version 17).
+    shieldSurplus: disorder ? (state.simpleMoods ? 0 : Math.min(0, shields - unitShields)) : shields - unitShields,
     unitShields, unitFood, corruption,
     tax: disorder ? 0 : tax,
     lux,
     science: disorder ? 0 : science,
     buildingUpkeep,
-    happy, content, unhappy, disorder,
+    happy, content, unhappy, disorder, moods, martialLaw, weariness, celebration,
     foodBox: cityFoodBox(state, city),
     productionCost: costFor(state, city.owner, city.production),
   };
@@ -588,6 +649,8 @@ export function foundCity(state: GameState, owner: number, x: number, y: number,
     founded: state.turn,
     culture: 0,
     disorder: false,
+    unrest: 0,
+    celebrating: false,
     routes: [],
   };
   state.cities.push(city);
@@ -609,7 +672,7 @@ export function buyCost(state: GameState, city: City): number {
 
 export interface CityTurnEvent {
   city: number;
-  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "starving" | "famine" | "sold" | "pollution" | "disbanded" | "borders";
+  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "celebration" | "starving" | "famine" | "sold" | "pollution" | "disbanded" | "borders";
   detail?: string;
   /** What was finished ("built", "wonder"). */
   production?: Production;
@@ -627,10 +690,17 @@ export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
 function cityTurn(state: GameState, city: City): CityTurnEvent[] {
   const events: CityTurnEvent[] = [];
   const player = state.players[city.owner]!;
+  const gov = government(player.government);
   const r = computeCity(state, city);
 
   city.disorder = r.disorder;
+  city.unrest = r.disorder ? city.unrest + 1 : 0;
   if (r.disorder) events.push({ city: city.id, kind: "disorder" });
+  // The people celebrate when nobody is unhappy and half are happy: from the next turn the city runs
+  // by its government's festival rule (`cityYieldGovernment`), and a Republic or Democracy grows it at once.
+  if (r.celebration && !city.celebrating) events.push({ city: city.id, kind: "celebration" });
+  city.celebrating = r.celebration;
+  const festivalGrowth = city.celebrating && gov.celebration !== undefined && "grow" in gov.celebration && r.foodSurplus > 0;
 
   // Saves before version 14: culture mounted every turn.
   if (state.accruedCulture && !state.fixedBorders) city.culture += cultureRate(state, city);
@@ -662,16 +732,19 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
     }
     city.food = 0;
     autoAssignWorkers(state, city);
-  } else if (city.food >= r.foodBox) {
+  } else if (city.food >= r.foodBox || festivalGrowth) {
     const cap = city.buildings.includes("aqueduct") ? 99 : 10;
     if (city.size < cap) {
       city.size++;
-      const keep = Math.max(city.buildings.includes("granary") ? 1 / 2 : 0, traitGrowthKeep(state, city.owner));
-      city.food = Math.floor(r.foodBox * keep);
+      // A full granary empties into the new citizen (a Granary keeps half); a festival's growth leaves the store be.
+      if (city.food >= r.foodBox) {
+        const keep = Math.max(city.buildings.includes("granary") ? 1 / 2 : 0, traitGrowthKeep(state, city.owner));
+        city.food = Math.floor(r.foodBox * keep);
+      }
       events.push({ city: city.id, kind: "grew" });
       autoAssignWorkers(state, city);
     } else {
-      city.food = r.foodBox;
+      city.food = Math.min(city.food, r.foodBox);
     }
   } else if (r.foodSurplus < 0) {
     events.push({ city: city.id, kind: "starving" });

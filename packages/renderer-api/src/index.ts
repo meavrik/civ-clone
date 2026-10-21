@@ -111,10 +111,12 @@ export function shownActive(state: GameState, view: MainScreenView): number | nu
 export interface CityScreenView {
   city: number;
   message?: string | undefined;
+  /** The Happy panel up: the citizens after each stage of the mood reckoning (`CityReport.moods`) in the resources box's place. */
+  happy?: boolean | undefined;
 }
 
-/** The city screen's buttons: change what is built or buy it now (the production box), and view the city. */
-export type CityButton = "change" | "buy" | "view";
+/** The city screen's buttons: change what is built or buy it now (the production box), view the city, and the Happy panel. */
+export type CityButton = "change" | "buy" | "view" | "happy";
 
 /** The city view, a picture of the city (`cityScene`); `picked` is the improvement or wonder last clicked. */
 export interface CityViewState {

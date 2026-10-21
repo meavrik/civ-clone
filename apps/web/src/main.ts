@@ -1319,6 +1319,7 @@ function eventMessage(ev: TurnEvent): string | null {
           : r.kind === "barbarians" ? "You have unleashed a horde of barbarians!"
           : "The village is deserted.";
       }
+      case "overthrown": return ev.player === 0 ? "Riots have toppled the government: anarchy!" : `Riots topple the ${state.players[ev.player]?.name} government.`;
       default: return null;
     }
   }
@@ -1329,6 +1330,7 @@ function eventMessage(ev: TurnEvent): string | null {
     case "built": return `${name} builds ${ev.detail}`;
     case "wonder": return `${name} completes ${ev.detail}!`;
     case "disorder": return `Civil disorder in ${name}!`;
+    case "celebration": return `${name} holds a feast in your honour!`;
     case "starving": return `${name} is starving`;
     case "famine": return `Famine in ${name}: ${ev.detail} lost`;
     case "sold": return `${name} sells its ${ev.detail} to pay the bills`;
@@ -1386,6 +1388,13 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
     else if (ev.kind === "peaceOffer" && ev.to === 0) peaceOfferAudience(ev.player, next);
     else if (ev.kind === "chooseResearch") askResearch(next);
     else if (ev.kind === "chooseGovernment") openGovernmentMenu({ kind: "map" }, next);
+    else if (ev.kind === "disorder" && state.cities.find((c) => c.id === ev.city)?.owner === 0) {
+      // Riots open the city with its Happy panel up, as the original did, so the trouble can be seen and settled.
+      say(eventMessage(ev) ?? "", 4000);
+      openCity(ev.city, next);
+      if (screenState.kind === "city") screenState.view.happy = true;
+    }
+    else if (ev.kind === "overthrown" && ev.player === 0) modal("Revolution!", ["Riots have gone on too long: the people have toppled the government.", "Anarchy reigns until a new one is chosen."], ["OK"], () => next(), 0, next);
     else {
       const msg = eventMessage(ev);
       if (msg) say(msg, 4000);
@@ -1573,6 +1582,7 @@ function cityKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "city" }>): void 
     case "KeyC": openProductionMenu(cv.city); break;
     case "KeyB": askBuy(cv.city); break;
     case "KeyV": openCityView(sc); break;
+    case "KeyH": cv.happy = !cv.happy; break;
     case "KeyN": {
       const city = state.cities.find((c) => c.id === cv.city);
       if (city) askText("Rename the city", city.name, (name) => dispatch({ type: "renameCity", city: cv.city, name }));
@@ -1777,6 +1787,7 @@ canvas.addEventListener("mousedown", (e) => {
       if (button === "change") { openProductionMenu(sc.view.city); return; }
       if (button === "buy") { askBuy(sc.view.city); return; }
       if (button === "view") { openCityView(sc); return; }
+      if (button === "happy") { sc.view.happy = !sc.view.happy; return; }
       const unit = renderer.cityUnitAt(state, sc.view, px, py);
       if (unit !== null) { activateFromCity(sc, unit); return; }
       // A worked square frees its citizen; an unworked one takes a free citizen or the worker on the

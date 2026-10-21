@@ -4,7 +4,9 @@ import {
   autoAssignWorkers,
   CITY_RADIUS,
   buyCost,
+  cityYieldGovernment,
   computeCity,
+  contentBase,
   createUnit,
   getTile,
   lastTurnEvents,
@@ -346,5 +348,149 @@ describe("bankruptcy", () => {
     expect(c.buildings).toContain("temple");
     expect(s.players[0]!.gold).toBeGreaterThan(0);
     expect(lastTurnEvents.some((e) => e.kind === "sold")).toBe(true);
+  });
+});
+
+describe("moods", () => {
+  function cityOf(s: GameState, size: number): City {
+    const u = createUnit(s, "settlers", 0, 10, 10);
+    applyCommand(s, { type: "found", unit: u.id });
+    const c = s.cities[0]!;
+    c.size = size;
+    autoAssignWorkers(s, c);
+    return c;
+  }
+
+  it("lets martial law run to the government's limit: three under Monarchy, every soldier under Despotism", () => {
+    const s = flatWorld();
+    s.players[0]!.difficulty = 4; // 2 born content
+    const c = cityOf(s, 7); // 5 unhappy
+    for (let i = 0; i < 5; i++) createUnit(s, "militia", 0, 10, 10, c.id);
+    let r = computeCity(s, c);
+    expect(r.martialLaw).toBe(5);
+    expect(r.unhappy).toBe(0);
+    expect(r.moods.map((m) => m.stage)).toEqual(["born", "luxury", "buildings", "soldiers", "wonders"]);
+    expect(r.moods[2]!.unhappy).toBe(5);
+    expect(r.moods[3]!.unhappy).toBe(0);
+    s.players[0]!.government = "monarchy";
+    r = computeCity(s, c);
+    expect(r.martialLaw).toBe(3);
+    expect(r.unhappy).toBe(2);
+    // Before version 17 every government stopped at three.
+    s.simpleMoods = true;
+    s.players[0]!.government = "despotism";
+    expect(computeCity(s, c).martialLaw).toBe(3);
+  });
+
+  it("sours the happy too when soldiers are abroad under a Democracy", () => {
+    const s = flatWorld();
+    s.players[0]!.government = "democracy";
+    const c = cityOf(s, 4);
+    // Two entertainers: four luxuries make both workers happy.
+    c.worked = c.worked.slice(0, 2);
+    c.specialists = ["entertainer", "entertainer"];
+    let r = computeCity(s, c);
+    expect([r.happy, r.content, r.unhappy]).toEqual([2, 0, 0]);
+    // Two legions in the field: four steps of weariness turn both happy citizens unhappy.
+    createUnit(s, "legion", 0, 12, 12, c.id);
+    createUnit(s, "legion", 0, 13, 13, c.id);
+    r = computeCity(s, c);
+    expect(r.weariness).toBe(2);
+    expect([r.happy, r.content, r.unhappy]).toEqual([0, 0, 2]);
+    expect(r.disorder).toBe(true);
+    // Before version 17 only the content were soured.
+    s.simpleMoods = true;
+    r = computeCity(s, c);
+    expect([r.happy, r.content, r.unhappy]).toEqual([2, 0, 0]);
+  });
+
+  it("counts the empire's size by government: one content citizen fewer past its limit, another every ten cities", () => {
+    const s = flatWorld();
+    expect(contentBase(s, 0)).toBe(4); // Prince
+    for (let i = 0; i < 11; i++) expect(applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10 + 3 * i, 10).id }).ok).toBe(true);
+    expect(contentBase(s, 0)).toBe(3); // 11 cities under Despotism (limit 10)
+    s.players[0]!.government = "democracy"; // limit 14
+    expect(contentBase(s, 0)).toBe(4);
+    for (let i = 0; i < 10; i++) expect(applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10 + 3 * i, 14).id }).ok).toBe(true);
+    expect(contentBase(s, 0)).toBe(3); // 21 cities
+    s.players[0]!.government = "despotism";
+    expect(contentBase(s, 0)).toBe(2); // one past 10, one more for the next 10
+    s.simpleMoods = true;
+    expect(contentBase(s, 0)).toBe(1); // before version 17: one per four cities past eight
+  });
+
+  it("celebrates from size 3 with nobody unhappy and half happy: a Despotism's squares lose their penalty, a Republic grows", () => {
+    const s = flatWorld();
+    const c = cityOf(s, 4);
+    const east = CITY_RADIUS.findIndex(([dx, dy]) => dx === 1 && dy === 0);
+    const west = CITY_RADIUS.findIndex(([dx, dy]) => dx === -1 && dy === 0);
+    getTile(s.map, 11, 10)!.irrigation = true;
+    c.worked = [east, west];
+    c.specialists = ["entertainer", "entertainer"];
+    c.food = 10;
+    let r = computeCity(s, c);
+    expect([r.happy, r.unhappy]).toEqual([2, 0]);
+    expect(r.celebration).toBe(true);
+    expect(c.celebrating).toBe(false);
+    expect(cityYieldGovernment(s, c)).toBe("despotism");
+    const penalised = r.food; // the centre and the irrigated square each lose a food to the despot
+    applyCommand(s, { type: "endTurn" });
+    expect(c.celebrating).toBe(true);
+    expect(lastTurnEvents.some((e) => e.kind === "celebration")).toBe(true);
+    expect(cityYieldGovernment(s, c)).toBe("monarchy");
+    expect(computeCity(s, c).food).toBe(penalised + 2);
+    // A celebrating Republic grows a citizen every turn it has food to spare, and keeps its store.
+    s.players[0]!.government = "republic";
+    getTile(s.map, 9, 10)!.irrigation = true;
+    r = computeCity(s, c);
+    expect(r.foodSurplus).toBe(1);
+    const store = c.food;
+    applyCommand(s, { type: "endTurn" });
+    expect(c.size).toBe(5);
+    expect(c.food).toBe(store + 1);
+    // Three of five must be happy now: the festival ends until they are.
+    expect(computeCity(s, c).celebration).toBe(false);
+    // Nothing of this before version 17.
+    s.simpleMoods = true;
+    c.size = 4;
+    c.worked = [east, west];
+    c.specialists = ["entertainer", "entertainer"];
+    expect(computeCity(s, c).celebration).toBe(false);
+  });
+
+  it("topples a Democracy whose city riots three turns running", () => {
+    const run = (simple: boolean) => {
+      const s = flatWorld();
+      if (simple) s.simpleMoods = true;
+      s.players[0]!.difficulty = 4; // 2 born content
+      s.players[0]!.government = "democracy";
+      const c = cityOf(s, 5); // 3 unhappy, nobody happy
+      expect(computeCity(s, c).disorder).toBe(true);
+      for (let t = 1; t <= 2; t++) {
+        applyCommand(s, { type: "endTurn" });
+        expect(c.unrest).toBe(t);
+        expect(s.players[0]!.government).toBe("democracy");
+      }
+      applyCommand(s, { type: "endTurn" });
+      expect(c.unrest).toBe(3);
+      return s;
+    };
+    const s = run(false);
+    expect(s.players[0]!.government).toBe("anarchy");
+    expect(lastTurnEvents.some((e) => e.kind === "overthrown" && e.player === 0)).toBe(true);
+    expect(run(true).players[0]!.government).toBe("democracy");
+  });
+
+  it("keeps a rioting city paying for its units", () => {
+    const s = flatWorld();
+    s.players[0]!.difficulty = 4;
+    s.players[0]!.government = "monarchy"; // every unit costs a shield
+    const c = cityOf(s, 5);
+    for (let i = 0; i < 4; i++) createUnit(s, "militia", 0, 20, 20, c.id);
+    const r = computeCity(s, c);
+    expect(r.disorder).toBe(true);
+    expect(r.shieldSurplus).toBe(Math.min(0, r.shields - r.unitShields));
+    s.simpleMoods = true;
+    expect(computeCity(s, c).shieldSurplus).toBe(0);
   });
 });

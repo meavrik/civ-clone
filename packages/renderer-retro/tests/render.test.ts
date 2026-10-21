@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("retro renderer", () => {
@@ -857,6 +857,57 @@ describe("title, advisors, diplomacy, end", () => {
     writeFileSync(new URL("./out/diplomacy-contact.png", import.meta.url), encodePng(s, 3));
     drawEndScreen(s, ["You have conquered the world!", "", "Total score: 123"], "Great");
     writeFileSync(new URL("./out/end.png", import.meta.url), encodePng(s, 3));
+    expect(s.data.some((c) => c !== 0)).toBe(true);
+  });
+});
+
+describe("moods", () => {
+  it("flags our cities by mood on the map and lays the Happy panel out stage by stage", () => {
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    revealAround(state, 0, u.x, u.y, 9);
+    applyCommand(state, { type: "found", unit: u.id });
+    const city = state.cities[0]!;
+    state.players[0]!.difficulty = 4; // two born content
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false };
+    const s = Surface.screen();
+    // The flag flies at the top right of the city square.
+    const flag = () => {
+      drawMainScreen(s, state, view);
+      return s.get(80 + (city.x - view.originX) * 16 + 11, 9 + (city.y - view.originY) * 16 + 1);
+    };
+    const plain = flag(); // one content citizen: nothing to flag
+    city.size = 5;
+    autoAssignWorkers(state, city); // three unhappy against none happy: riots
+    expect(flag()).toBe(C.LRED);
+    // Two entertainers make two happy against two unhappy: one lost happy citizen from riots.
+    city.size = 6;
+    autoAssignWorkers(state, city);
+    city.worked = city.worked.slice(0, 4);
+    city.specialists = ["entertainer", "entertainer"];
+    expect(flag()).toBe(C.YELLOW);
+    // A temple settles one of them: nothing to flag again; a festival flies green.
+    city.buildings.push("temple");
+    expect(flag()).toBe(plain);
+    city.celebrating = true;
+    expect(flag()).toBe(C.LGREEN);
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/city-moods.png", import.meta.url), encodePng(s, 3));
+    // A foreign city keeps its moods to itself.
+    city.owner = 1;
+    state.players[0]!.visible[city.y * state.map.width + city.x] = 1;
+    expect(flag()).not.toBe(C.LGREEN);
+    city.owner = 0;
+
+    // The Happy panel takes the resources box: five rows, the people after each stage, the Happy button lit.
+    city.celebrating = false;
+    drawCityScreen(s, state, { city: city.id, happy: true });
+    writeFileSync(new URL("./out/city-happy.png", import.meta.url), encodePng(s, 3));
+    expect(cityButtonAt(214 + 16, 188 + 6)).toBe("happy");
+    expect(cityButtonAt(250 + 16, 188 + 6)).toBe("view");
+    expect(textWidth(CITY_KEYS_HINT)).toBeLessThanOrEqual(214 - 8);
+    // Without the panel the resources are back.
+    drawCityScreen(s, state, { city: city.id });
     expect(s.data.some((c) => c !== 0)).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
-import type { Specialist } from "@civ/core";
+import { computeCity, type City, type GameState, type MoodStageKind, type Specialist } from "@civ/core";
+import type { IconName } from "./icons.js";
 import { hash } from "./hash.js";
 
 /** What a citizen is doing: their mood if they work the land, or their trade as a specialist. */
@@ -35,4 +36,21 @@ export function citizenLook(city: number, i: number): CitizenLook {
     hair: HAIR_ODDS[pick(74, HAIR_ODDS.length)]!,
     legs: pick(75, CITIZEN_LEGS),
   };
+}
+
+/** The Happy panel's word for each stage of the mood reckoning (`MOOD_STAGES`). */
+export const MOOD_STAGE_LABELS: Record<MoodStageKind, string> = { born: "Born", luxury: "Luxury", buildings: "Buildings", soldiers: "Soldiers", wonders: "Wonders" };
+/** And its icon, where the panel has no room for words. */
+export const MOOD_STAGE_ICONS: Record<MoodStageKind, IconName> = { born: "people", luxury: "gem", buildings: "house", soldiers: "swords", wonders: "star" };
+
+/** What the map flags about one of the viewer's cities: rioting, one lost happy citizen from it (`unrest`), or celebrating. */
+export type CityMood = "disorder" | "unrest" | "celebrating";
+
+/** The flag a city flies, from its moods as they stand now (a foreign city's are not ours to know: ask only for the viewer's). */
+export function cityMood(state: GameState, city: City): CityMood | null {
+  const r = computeCity(state, city);
+  if (r.disorder) return "disorder";
+  if (r.unhappy > 0 && r.unhappy === r.happy) return "unrest";
+  if (city.celebrating) return "celebrating";
+  return null;
 }

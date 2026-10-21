@@ -4,6 +4,7 @@ import {
   CITY_RADIUS,
   computeCity,
   cityCulture,
+  cityYieldGovernment,
   cultureRate,
   formatYear,
   getTile,
@@ -17,7 +18,7 @@ import {
   wonder,
   type GameState,
 } from "@civ/core";
-import { citizenLook, cityScene, cityUnits, coastPatch, DEEP, fieldSides, fogPatch, riverShape, SCENE_H, SCENE_W, type CityButton, type CityScreenView } from "@civ/renderer-api";
+import { citizenLook, cityMood, cityScene, cityUnits, coastPatch, DEEP, fieldSides, fogPatch, MOOD_STAGE_LABELS, riverShape, SCENE_H, SCENE_W, type CityButton, type CityScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import type { Context2D } from "../context.js";
@@ -52,11 +53,12 @@ export function cityExitHit(_px: number, py: number): boolean {
   return py > H - HINT_H;
 }
 
-/** The production card's buttons, under the price, and the city's picture under the resource map (View). */
+/** The production card's buttons, under the price, the city's picture under the resource map (View), and Happiness by the citizens. */
 const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: number; label: string }> = {
   change: { x: COL3_X, y: CITY_MAP_Y + 150, w: 128, h: 34, label: "Change" },
   buy: { x: COL3_X + 140, y: CITY_MAP_Y + 150, w: 128, h: 34, label: "Buy" },
   view: { x: CITY_MAP_X, y: CITY_MAP_Y + 292, w: TILE * 5, h: 170, label: "View city" },
+  happy: { x: W - 24 - 150, y: 46, w: 150, h: 30, label: "Happiness" },
 };
 /** The city's picture on the View button: the scene at this many canvas units to a retro pixel. */
 const PREVIEW_K = (TILE * 5) / SCENE_W;
@@ -115,7 +117,9 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   for (let i = 0; i < r.unhappy; i++, cx += 28) paintCitizen(ctx, cx, cy, "unhappy", citizenLook(city.id, n++));
   cx += 10;
   for (const sp of city.specialists) { paintCitizen(ctx, cx, cy, sp, citizenLook(city.id, n++)); cx += 28; }
-  if (r.disorder) text(ctx, W - 24, 52, "CIVIL DISORDER", { size: 16, weight: "bold", color: UI.danger, align: "right" });
+  if (r.disorder) text(ctx, W - 190, 52, "CIVIL DISORDER", { size: 16, weight: "bold", color: UI.danger, align: "right" });
+  else if (r.celebration) text(ctx, W - 190, 52, "CELEBRATING", { size: 16, weight: "bold", color: UI.ok, align: "right" });
+  button(ctx, CITY_BUTTONS.happy, view.happy ? "primary" : "plain");
 
   // Resource map.
   const me = state.players[state.currentPlayer]!;
@@ -156,9 +160,9 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
       if (tile.pollution) paintPollution(ctx, px, py);
       const worked = slot === 0 || city.worked.includes(slot);
       marks.push(() => {
-        if (slot === 0) paintCity(ctx, px, py, city, player.color);
+        if (slot === 0) paintCity(ctx, px, py, city, player.color, false, cityMood(state, city));
         if (worked) {
-          const y = tileYield(state, tile, slot === 0, player.government, city.owner);
+          const y = tileYield(state, tile, slot === 0, cityYieldGovernment(state, city), city.owner);
           fillRound(ctx, px + 2, py + TILE - 16, TILE - 4, 14, 4, "rgba(5, 8, 13, 0.8)");
           let ix = px + 6;
           for (let k = 0; k < y.food; k++, ix += 7) circle(ctx, ix + 2, py + TILE - 9, 3, UI.ok);
@@ -186,18 +190,25 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
     text(ctx, COL2_X + 150, y, val, { size: 14, color });
     y += 24;
   };
-  row("Food", `${r.food} (${r.foodSurplus >= 0 ? "+" : ""}${r.foodSurplus})`, r.foodSurplus < 0 ? UI.danger : UI.ink);
-  bar(ctx, COL2_X, y, 300, 10, city.food, r.foodBox, UI.ok);
-  y += 22;
-  row("Shields", `${r.shields}${r.unitShields ? ` (-${r.unitShields} upkeep)` : ""}`);
-  row("Trade", `${r.trade}${r.routes ? ` (${r.routes} from routes)` : ""}${r.corruption ? ` (-${r.corruption} corruption)` : ""}`);
-  row("Tax / Lux / Sci", `${r.tax} / ${r.lux} / ${r.science}`);
-  row("Upkeep", `${r.buildingUpkeep} gold`);
-  if (!state.fixedBorders) {
-    const next = nextBorderLevel(state, city);
-    row("Culture", `${cityCulture(state, city)}${next === null ? "" : ` of ${next} for a wider border`}${state.accruedCulture ? ` (+${cultureRate(state, city)} a turn)` : ""}`);
+  if (view.happy) {
+    // The Happy panel: the moods after each stage of the reckoning, and what the soldiers did.
+    for (const m of r.moods) row(MOOD_STAGE_LABELS[m.stage], `${m.happy} happy · ${m.content} content · ${m.unhappy} unhappy`);
+    if (r.martialLaw) row("Martial law", `${r.martialLaw} calmed by soldiers in the city`);
+    if (r.weariness) row("War weariness", `${r.weariness} soured by soldiers abroad`, UI.danger);
+  } else {
+    row("Food", `${r.food} (${r.foodSurplus >= 0 ? "+" : ""}${r.foodSurplus})`, r.foodSurplus < 0 ? UI.danger : UI.ink);
+    bar(ctx, COL2_X, y, 300, 10, city.food, r.foodBox, UI.ok);
+    y += 22;
+    row("Shields", `${r.shields}${r.unitShields ? ` (-${r.unitShields} upkeep)` : ""}`);
+    row("Trade", `${r.trade}${r.routes ? ` (${r.routes} from routes)` : ""}${r.corruption ? ` (-${r.corruption} corruption)` : ""}`);
+    row("Tax / Lux / Sci", `${r.tax} / ${r.lux} / ${r.science}`);
+    row("Upkeep", `${r.buildingUpkeep} gold`);
+    if (!state.fixedBorders) {
+      const next = nextBorderLevel(state, city);
+      row("Culture", `${cityCulture(state, city)}${next === null ? "" : ` of ${next} for a wider border`}${state.accruedCulture ? ` (+${cultureRate(state, city)} a turn)` : ""}`);
+    }
+    if (r.pollution > 0) row("Pollution", `${r.pollution}%`, UI.danger);
   }
-  if (r.pollution > 0) row("Pollution", `${r.pollution}%`, UI.danger);
   y += 6;
   text(ctx, COL2_X, y, "Improvements", { size: 14, color: UI.dim });
   y += 24;
