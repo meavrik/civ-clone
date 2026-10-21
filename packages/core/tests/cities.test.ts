@@ -10,7 +10,9 @@ import {
   lastTurnEvents,
   newGame,
   slotScore,
+  secondKind,
   specialOf,
+  TERRAIN_RULES,
   Terrain,
   tileYield,
   unitSupport,
@@ -84,22 +86,35 @@ describe("tile yields", () => {
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
     s.players[0]!.advances.push("refining");
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(5);
-    // A terrain without a second kind keeps its first.
+    // Hills' wine came with version 18; whales a version before.
     t.terrain = Terrain.Hills;
-    expect(specialOf(t)?.name).toBe("Coal");
+    expect(specialOf(t)?.name).toBe("Wine");
+    expect(secondKind(TERRAIN_RULES[Terrain.Hills], 17)).toBeUndefined();
+    expect(secondKind(TERRAIN_RULES[Terrain.Ocean], 17)?.name).toBe("Whales");
   });
 
-  it("scatters both kinds on new worlds, and only the first in worlds of older saves", () => {
-    const count = (oneSpecial: boolean) => {
-      const { map } = newGame(4, oneSpecial ? { oneSpecial } : {});
+  it("scatters both kinds on new worlds, and in an old save's world only the kinds it knew", () => {
+    // Eight worlds together, so even the rarer kinds turn up.
+    const count = (resources?: number) => {
       const names = new Map<string, number>();
-      for (const t of map.tiles) { const n = specialOf(t)?.name; if (n) names.set(n, (names.get(n) ?? 0) + 1); }
-      return { names, specials: map.tiles.filter((t) => t.special).length, terrains: map.tiles.map((t) => t.terrain).join() };
+      let specials = 0;
+      let terrains = "";
+      for (let seed = 1; seed <= 8; seed++) {
+        const { map } = newGame(seed, resources === undefined ? {} : { resources });
+        for (const t of map.tiles) { const n = specialOf(t)?.name; if (n) names.set(n, (names.get(n) ?? 0) + 1); }
+        specials += map.tiles.filter((t) => t.special).length;
+        terrains += map.tiles.map((t) => t.terrain).join();
+      }
+      return { names, specials, terrains };
     };
-    const now = count(false);
-    const old = count(true);
-    for (const n of ["Whales", "Wheat", "Cotton", "Iron"]) expect(now.names.get(n), n).toBeGreaterThan(0);
-    for (const n of ["Whales", "Wheat", "Cotton", "Oil", "Iron"]) expect(old.names.has(n), n).toBe(false);
+    const now = count();
+    const old = count(16);
+    const five = count(17);
+    for (const n of ["Whales", "Wheat", "Cotton", "Iron", "Oil", "Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(now.names.get(n) ?? 0, n).toBeGreaterThan(0);
+    for (const n of ["Whales", "Wheat", "Cotton", "Oil", "Iron", "Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(old.names.has(n), n).toBe(false);
+    for (const n of ["Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(five.names.has(n), n).toBe(false);
+    expect(five.names.get("Whales")).toBe(now.names.get("Whales"));
+    expect(five.specials).toBe(now.specials);
     // The same world, the same squares: only which kind changes.
     expect(now.terrains).toBe(old.terrains);
     expect(now.specials).toBe(old.specials);

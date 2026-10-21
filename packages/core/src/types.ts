@@ -224,8 +224,8 @@ export interface GameState {
   peaceOnContact?: boolean;
   /** A city works any of its 21 squares, inside its border or not (`slotInLand`). Set for saves before version 16. */
   workBeyondBorders?: boolean;
-  /** Every terrain has one kind of special, as the original (no `TerrainRule.second`). Set for saves before version 17. */
-  oneSpecial?: boolean;
+  /** Second specials only of those a save of this version knew (`SpecialRule.since`). Set for saves before version 18. */
+  resources?: number;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

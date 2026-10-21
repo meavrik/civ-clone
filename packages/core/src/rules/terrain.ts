@@ -17,6 +17,8 @@ export interface SpecialRule {
   shields?: number;
   trade?: number;
   learned?: { advance: string; food?: number; shields?: number; trade?: number };
+  /** The save version that brought it (second specials): worlds of older saves have none (`MapGenOptions.resources`). */
+  since?: number;
 }
 
 export interface TerrainRule {
@@ -29,8 +31,8 @@ export interface TerrainRule {
   special?: SpecialRule;
   /**
    * A second kind of special (our departure, asked for 2026-10-21, after Civilization II): about
-   * half the specials on this terrain are this one instead (`Tile.secondSpecial`). Worlds of saves
-   * before version 17 have none (`oneSpecial`).
+   * half the specials on this terrain are this one instead (`Tile.secondSpecial`), in worlds of
+   * saves from its `since` on.
    */
   second?: SpecialRule;
   /** Irrigation result: yield bonus, or a terrain change. Turns = settler-turns. */
@@ -58,14 +60,14 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     food: 1, shields: 0, trade: 2, moveCost: 1, defense: 1,
     special: { name: "Fish", food: 2 },
     // Whalers put to sea with Navigation.
-    second: { name: "Whales", food: 1, shields: 1, learned: { advance: "navigation", shields: 1 } },
+    second: { name: "Whales", food: 1, shields: 1, learned: { advance: "navigation", shields: 1 }, since: 17 },
     road: { trade: 0, turns: 0 },
   },
   [Terrain.Grassland]: {
     food: 2, shields: 0, trade: 0, moveCost: 1, defense: 1,
     // Grassland "resources" (the shield variant) are handled as a special.
     special: { name: "Resources", shields: 1 },
-    second: { name: "Cotton", trade: 2, learned: { advance: "weaving", shields: 1 } },
+    second: { name: "Cotton", trade: 2, learned: { advance: "weaving", shields: 1 }, since: 17 },
     irrigate: { food: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
   },
@@ -73,19 +75,22 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     food: 1, shields: 1, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Horses", shields: 2, learned: { advance: "animal_husbandry", food: 1 } },
     // Pots keep the harvest.
-    second: { name: "Wheat", food: 2, learned: { advance: "pottery", food: 1 } },
+    second: { name: "Wheat", food: 2, learned: { advance: "pottery", food: 1 }, since: 17 },
     irrigate: { food: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
   },
   [Terrain.Forest]: {
     food: 1, shields: 2, trade: 0, moveCost: 2, defense: 1.5,
     special: { name: "Game", food: 2, learned: { advance: "animal_husbandry", food: 1 } },
+    // Looms want silk.
+    second: { name: "Silk", trade: 3, learned: { advance: "weaving", trade: 1 }, since: 18 },
     irrigate: { becomes: Terrain.Plains, turns: 5 },
     road: { trade: 0, turns: 4 },
   },
   [Terrain.Hills]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 2,
     special: { name: "Coal", shields: 2 },
+    second: { name: "Wine", trade: 4, since: 18 },
     irrigate: { food: 1, turns: 10 },
     mine: { shields: 3, turns: 10 },
     road: { trade: 0, turns: 4 },
@@ -93,7 +98,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Mountains]: {
     food: 0, shields: 1, trade: 0, moveCost: 3, defense: 3,
     special: { name: "Gold", trade: 6 },
-    second: { name: "Iron", shields: 3, learned: { advance: "iron_working", shields: 1 } },
+    second: { name: "Iron", shields: 3, learned: { advance: "iron_working", shields: 1 }, since: 17 },
     mine: { shields: 1, turns: 10 },
     road: { trade: 0, turns: 6 },
     rough: true,
@@ -103,7 +108,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     food: 0, shields: 1, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Oasis", food: 3 },
     // A little bitumen until Refining makes it oil.
-    second: { name: "Oil", shields: 1, learned: { advance: "refining", shields: 3 } },
+    second: { name: "Oil", shields: 1, learned: { advance: "refining", shields: 3 }, since: 17 },
     irrigate: { food: 1, turns: 5 },
     mine: { shields: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
@@ -113,12 +118,14 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Tundra]: {
     food: 1, shields: 0, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Game", food: 2, learned: { advance: "animal_husbandry", food: 1 } },
+    second: { name: "Furs", food: 1, trade: 3, since: 18 },
     road: { trade: 0, turns: 2 },
     noBarbarians: true,
   },
   [Terrain.Arctic]: {
     food: 0, shields: 0, trade: 0, moveCost: 2, defense: 1,
     special: { name: "Seals", food: 2, learned: { advance: "animal_husbandry", food: 1 } },
+    second: { name: "Ivory", food: 1, shields: 1, trade: 4, since: 18 },
     road: { trade: 0, turns: 4 },
     rough: true,
     noBarbarians: true,
@@ -128,6 +135,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Swamp]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 1.5,
     special: { name: "Peat", shields: 4 },
+    second: { name: "Spices", food: 2, trade: 4, since: 18 },
     irrigate: { becomes: Terrain.Grassland, turns: 15 },
     road: { trade: 0, turns: 4 },
     rough: true,
@@ -135,11 +143,18 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Jungle]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 1.5,
     special: { name: "Gems", trade: 4 },
+    second: { name: "Fruit", food: 3, trade: 1, since: 18 },
     irrigate: { becomes: Terrain.Grassland, turns: 15 },
     road: { trade: 0, turns: 4 },
     rough: true,
   },
 };
+
+/** A terrain's second kind of special, if worlds of a save of version `resources` have it (all do when absent). */
+export function secondKind(rule: TerrainRule, resources?: number): SpecialRule | undefined {
+  const s = rule.second;
+  return s && (resources === undefined || (s.since ?? 0) <= resources) ? s : undefined;
+}
 
 /** The special on a square, if it has one: its terrain's second kind where the square says so, else the first. */
 export function specialOf(tile: { terrain: Terrain; special: boolean; secondSpecial?: boolean }): SpecialRule | undefined {

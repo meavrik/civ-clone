@@ -46,12 +46,13 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   over land and mountains (rain shadows), ranked so biome shares stay steady; mountains on noise ridges
   with hills as foothills; lone squares join their neighbours; rivers rise in wet highlands and run
   to the sea. `scatteredTerrain` keeps the first per-square generator for saves before version 6.
-  Specials (`SpecialRule`; read a square's with `specialOf(tile)`, never `TERRAIN_RULES[t].special`): five
-  terrains have a second kind (our departure, asked for 2026-10-21, after Civilization II: Whales at sea,
-  Cotton on grassland, Wheat on plains, Iron on mountains, Oil in the desert), on about half their lattice
-  squares (`Tile.secondSpecial`, a hash of the square, no RNG, so seeds keep their worlds); `learned` may add
-  food, shields or trade with an advance (Navigation, Weaving, Pottery, Iron Working, Refining). Saves
-  before version 17 load with `oneSpecial`.
+  Specials (`SpecialRule`; read a square's with `specialOf(tile)`, never `TERRAIN_RULES[t].special`): every
+  land terrain and the sea has a second kind (our departure, asked for 2026-10-21, after Civilization II:
+  Whales, Cotton, Wheat, Silk, Wine, Iron, Oil, Furs, Ivory, Spices, Fruit; tundra's Game is forest's),
+  on about half their lattice squares (`Tile.secondSpecial`, a hash of the square, no RNG, so seeds keep
+  their worlds); `learned` may add food, shields or trade with an advance (Navigation, Weaving, Pottery,
+  Iron Working, Refining). Each carries `since` (the save version that brought it); old saves load with
+  `resources` (their version), so their worlds have only the kinds they knew (`secondKind`).
   Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
   FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
   starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail

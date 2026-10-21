@@ -30,9 +30,10 @@ export interface SaveGame {
    * 13: saved while a city's culture mounted every turn; accrued culture.
    * 14: saved while civilizations made peace the moment they met; peace on contact.
    * 15: saved while cities worked squares beyond their border; work beyond borders.
-   * 16: saved while every terrain had one kind of special; one special (no whales, wheat, cotton, oil or iron).
+   * 16: saved while every terrain had one kind of special; `resources` (no second specials).
+   * 17: saved before wine, silk, furs, ivory, spices and fruit; `resources` (whales, cotton, wheat, iron and oil only).
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -47,7 +48,7 @@ export interface SaveGame {
   label?: string;
 }
 
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -68,7 +69,7 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
 export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
@@ -92,7 +93,7 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
   if (save.version < 14) options.accruedCulture = true;
   if (save.version < 15) options.peaceOnContact = true;
   if (save.version < 16) options.workBeyondBorders = true;
-  if (save.version < 17) options.oneSpecial = true;
+  if (save.version < 18) options.resources = save.version;
   const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {

@@ -274,14 +274,9 @@ export function fogSquare(map: WorldMap, explored: Explored, x: number, y: numbe
   return out;
 }
 
-/** Specials drawn with another's picture until they have their own: seals as whales, peat as iron ore. */
-const STAND_IN: Record<string, string> = { seals: "whales", peat: "iron" };
-
-/** A special's picture by its name: from the resources sheet, else the features sheet, else its stand-in's. */
+/** A special's picture by its name (lower case in the resources sheet). */
 export function specialSprite(name: string): Surface | null {
-  const key = name.toLowerCase();
-  const standIn = STAND_IN[key];
-  return spriteSurface(RESOURCE_SHEET, key) ?? spriteSurface(FEATURE_SHEET, key) ?? (standIn ? spriteSurface(RESOURCE_SHEET, standIn) : null);
+  return spriteSurface(RESOURCE_SHEET, name.toLowerCase());
 }
 
 /** A square's special resource, drawn over its terrain. */
