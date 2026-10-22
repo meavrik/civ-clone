@@ -46,6 +46,15 @@ export const VIEW_H = SCREEN_H - BAR_H; // 191 = 12 tiles (the last one cut)
 export const VIEW_TILES_X = Math.ceil(VIEW_W / TILE);
 export const VIEW_TILES_Y = Math.ceil(VIEW_H / TILE);
 
+/**
+ * The main screen may be drawn wider than the original's 320 (the mobile app fills a phone held
+ * sideways): the panel keeps its place at the left, the menu bar runs the whole width, and the map
+ * shows more squares across. Everything below takes the width from the surface it draws on.
+ */
+export function viewAcross(screenW: number): number {
+  return Math.ceil((screenW - PANEL_W) / TILE);
+}
+
 const BAR_X0 = 6;
 const BAR_GAP = 14;
 
@@ -72,8 +81,8 @@ export function menuBarAnchor(index: number): { x: number; y: number } {
 
 /** The menu bar: a light grey strip matching the status column, the open title in the selection's blue. */
 export function drawMenuBar(s: Surface, open?: number): void {
-  s.rect(0, 0, SCREEN_W, BAR_H, shade("panel", 6));
-  s.hline(0, BAR_H - 1, SCREEN_W, shade("panel", 2));
+  s.rect(0, 0, s.width, BAR_H, shade("panel", 6));
+  s.hline(0, BAR_H - 1, s.width, shade("panel", 2));
   menuBarLayout().forEach(({ x, w }, i) => {
     const on = i === open;
     if (on) s.rect(x - 4, 0, w + 8, BAR_H - 1, shade("azure", 2));
@@ -115,12 +124,12 @@ export function panOffset(view: MainScreenView): [number, number] {
   return [Math.round((view.panX ?? 0) * TILE), Math.round((view.panY ?? 0) * TILE)];
 }
 
-export function tileToScreen(state: GameState, view: MainScreenView, x: number, y: number): [number, number] | null {
+export function tileToScreen(state: GameState, view: MainScreenView, x: number, y: number, across = VIEW_TILES_X): [number, number] | null {
   const w = state.map.width;
   let tx = (((x - view.originX) % w) + w) % w;
   if (tx > w - 1) tx -= w; // a unit sliding out past the left edge, under the panel
   const ty = y - view.originY;
-  if (tx > VIEW_TILES_X || ty <= -1 || ty > VIEW_TILES_Y) return null;
+  if (tx > across || ty <= -1 || ty > VIEW_TILES_Y) return null;
   const [ox, oy] = panOffset(view);
   return [Math.round(VIEW_X + tx * TILE - ox), Math.round(VIEW_Y + ty * TILE - oy)];
 }
@@ -129,13 +138,15 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
   const [ox, oy] = panOffset(view);
+  const across = viewAcross(s.width);
+  const toScreen = (x: number, y: number) => tileToScreen(state, view, x, y, across);
   // Fog goes on last, over the borders; borders over every square, as their corners reach into the next one.
   const fogs: [Surface, number, number][] = [];
   const terr = view.borders ? territory(state) : null;
   for (let ty = 0; ty <= VIEW_TILES_Y; ty++) {
     const my = view.originY + ty;
     const dy = VIEW_Y + ty * TILE - oy;
-    for (let tx = 0; tx <= VIEW_TILES_X; tx++) {
+    for (let tx = 0; tx <= across; tx++) {
       const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
       const dx = VIEW_X + tx * TILE - ox;
       if (my < 0 || my >= map.height) {
@@ -165,7 +176,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   }
   if (terr)
     for (let ty = 0; ty <= VIEW_TILES_Y; ty++)
-      for (let tx = 0; tx <= VIEW_TILES_X; tx++) {
+      for (let tx = 0; tx <= across; tx++) {
         const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
         const my = view.originY + ty;
         if (my < 0 || my >= map.height || !me.explored[my * map.width + mx]) continue;
@@ -183,17 +194,17 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner));
   for (const c of shownCities) {
     const idx = c.y * map.width + c.x;
-    const pos = tileToScreen(state, view, c.x, c.y);
+    const pos = toScreen(c.x, c.y);
     if (pos) drawCity(s, pos[0], pos[1], c, cityLook(state, c), playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1));
   }
   // Their names under them, as the original showed them; drawn before the units so no unit is hidden by a name.
   for (const c of shownCities) {
-    const pos = tileToScreen(state, view, c.x, c.y);
+    const pos = toScreen(c.x, c.y);
     if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, c.size, playerColor(state, c.owner), c.owner === state.currentPlayer ? cityMood(state, c) : null);
   }
   // A planned move's route, under the units: a dot on each square on the way.
   if (view.plan) for (const [x, y] of view.plan.route.slice(0, -1)) {
-    const pos = tileToScreen(state, view, x, y);
+    const pos = toScreen(x, y);
     if (pos) drawRouteDot(s, pos[0] + (TILE >> 1), pos[1] + (TILE >> 1));
   }
 
@@ -210,7 +221,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   for (const u of units) {
     const idx = u.y * map.width + u.x;
     if (!me.visible[idx] || drawn.has(idx) || fogged(idx, u.owner)) continue;
-    const pos = tileToScreen(state, view, u.x, u.y);
+    const pos = toScreen(u.x, u.y);
     if (!pos) continue;
     const stack = units.filter((o) => o.x === u.x && o.y === u.y);
     const top = stack.find((o) => o.id === activeId) ?? stack[0]!;
@@ -225,7 +236,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   }
   for (const m of moving) {
     if (m.aboard !== undefined) continue;
-    const pos = tileToScreen(state, view, m.x, m.y);
+    const pos = toScreen(m.x, m.y);
     if (!pos) continue;
     drawUnit(s, { type: m.type, order: { kind: "none" } }, pos[0], pos[1], playerColor(state, m.owner), m.stacked === true || moving.some((o) => o.aboard === m.unit));
     const hp = m.hp ?? state.units.find((u) => u.id === m.unit)?.hp;
@@ -235,7 +246,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // The fight: the attacker lunges in, each blow flashes on the side it lands on, the loser bursts.
   if (battle)
     for (const f of [battle.defender, battle.attacker]) {
-      const pos = tileToScreen(state, view, f.x, f.y);
+      const pos = toScreen(f.x, f.y);
       if (!pos) continue;
       const color = playerColor(state, f.owner);
       const gone = f.dying > 0.35 || (f.dying > 0 && Math.floor(f.dying * 24) % 2 === 1);
@@ -250,13 +261,13 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // Goto destination of the active unit.
   const act = activeId !== null ? state.units.find((u) => u.id === activeId) : undefined;
   if (act?.order.kind === "goto") {
-    const pos = tileToScreen(state, view, act.order.x, act.order.y);
+    const pos = toScreen(act.order.x, act.order.y);
     if (pos) s.frame(pos[0], pos[1], TILE, TILE, C.YELLOW!);
   }
 
   // A planned move's end: corners round the square and the note (turns, odds), till the second click.
   if (view.plan) {
-    const pos = tileToScreen(state, view, view.plan.x, view.plan.y);
+    const pos = toScreen(view.plan.x, view.plan.y);
     if (pos) drawTargetCorners(s, pos[0], pos[1]);
     drawCallout(s, state, view, { x: view.plan.x, y: view.plan.y, text: view.plan.text });
   }
@@ -315,13 +326,13 @@ const CALLOUT_W = 150;
 
 /** A note beside a square of the map: a stone box above it (below it near the top), its point at the square. */
 function drawCallout(s: Surface, state: GameState, view: MainScreenView, c: Callout): void {
-  const pos = tileToScreen(state, view, c.x, c.y);
+  const pos = tileToScreen(state, view, c.x, c.y, viewAcross(s.width));
   if (!pos) return;
   const lines = wrapText(c.text, CALLOUT_W - 8).slice(0, 4);
   const w = Math.max(...lines.map(textWidth)) + 9;
   const h = lines.length * FONT_HEIGHT + 5;
   const cx = pos[0] + (TILE >> 1);
-  const x = Math.max(VIEW_X + 1, Math.min(SCREEN_W - 1 - w, cx - (w >> 1)));
+  const x = Math.max(VIEW_X + 1, Math.min(s.width - 1 - w, cx - (w >> 1)));
   const above = pos[1] - 5 - h >= VIEW_Y + 1;
   const y = above ? pos[1] - 5 - h : pos[1] + TILE + 5;
   s.frame(x, y, w, h, C.BLACK!);
@@ -597,7 +608,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   const k = minimapScale(map);
   const vx = ((view.originX % map.width) + map.width) % map.width;
   const vy = Math.max(0, view.originY);
-  const shows = zoomedTiles(viewZoom(view));
+  const shows = zoomedTiles(viewZoom(view), s.width);
   const vh = Math.min(map.height - vy, shows.y);
   const left = toPixel(k, vx);
   const right = toPixel(k, vx + shows.x - 1);
@@ -711,9 +722,9 @@ export function viewZoom(view: MainScreenView): number {
   return Math.max(1, Math.floor(view.zoom ?? 1));
 }
 
-/** Squares (or parts of one) that show across and down the viewport at a zoom. */
-export function zoomedTiles(zoom: number): { x: number; y: number } {
-  return { x: Math.ceil(VIEW_W / (TILE * zoom)), y: Math.ceil(VIEW_H / (TILE * zoom)) };
+/** Squares (or parts of one) that show across and down the viewport at a zoom, on a screen `screenW` wide. */
+export function zoomedTiles(zoom: number, screenW = SCREEN_W): { x: number; y: number } {
+  return { x: Math.ceil((screenW - PANEL_W) / (TILE * zoom)), y: Math.ceil(VIEW_H / (TILE * zoom)) };
 }
 
 /** A point on a zoomed viewport as the point of the map drawn at 1:1 under it (anywhere else as it is). */
@@ -734,6 +745,6 @@ function magnifyViewport(s: Surface, zoom: number): void {
   for (let y = VIEW_H * s.k - 1; y >= 0; y--) {
     const to = (y0 + y) * s.fw + x0;
     const from = (y0 + Math.floor(y / zoom)) * s.fw + x0;
-    for (let x = VIEW_W * s.k - 1; x >= 0; x--) s.data[to + x] = s.data[from + Math.floor(x / zoom)]!;
+    for (let x = (s.width - PANEL_W) * s.k - 1; x >= 0; x--) s.data[to + x] = s.data[from + Math.floor(x / zoom)]!;
   }
 }

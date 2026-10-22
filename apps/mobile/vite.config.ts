@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, normalizePath, type Plugin } from "vite";
-import { withoutDebugMenu } from "./debug-menu.js";
+import { droppedTitles, withoutTitles } from "./menu-bar.js";
 
 const here = (path: string) => normalizePath(fileURLToPath(new URL(path, import.meta.url)));
 
@@ -30,18 +30,21 @@ function webGame(): Plugin {
   };
 }
 
-/** No Debug menu in the deployed app (debug-menu.ts); the dev server keeps it. */
+/** The phone's menu bar (menu-bar.ts): no Orders, and no Debug in the deployed app. */
 const RENDERER_API = here("../../packages/renderer-api/src/index.ts");
 
-function noDebugMenu(): Plugin {
+function menuBar(): Plugin {
+  let drop: string[] = [];
   return {
-    name: "epochs-mobile:no-debug-menu",
-    apply: "build",
+    name: "epochs-mobile:menu-bar",
     enforce: "pre",
+    configResolved(config) {
+      drop = droppedTitles(config.command);
+    },
     transform(code, id) {
       if (normalizePath(id.split("?")[0]!) !== RENDERER_API) return null;
       try {
-        return withoutDebugMenu(code);
+        return withoutTitles(code, drop);
       } catch (err) {
         this.error((err as Error).message);
       }
@@ -97,5 +100,5 @@ export default defineConfig({
   server: { port: 5180 },
   preview: { port: 4180 },
   build: { target: "es2022" },
-  plugins: [webGame(), noDebugMenu(), serviceWorker()],
+  plugins: [webGame(), menuBar(), serviceWorker()],
 });

@@ -93,8 +93,10 @@ npm run preview:mobile   # serve that build (localhost counts as secure, so the 
 Netlify deploys it from `main` (https://civ-clone.netlify.app, settings in `apps/mobile/netlify.toml`).
 
 Installing it (Add to Home Screen) and playing offline need the build served over HTTPS (or from
-localhost). There are no buttons beside the screen, which fills the phone: everything is a touch.
-Tap = click (move a unit, open a city, the menu bar's Game, Orders, Advisors and World) · hold still =
+localhost). It plays with the phone held sideways (upright, it asks to be turned), the map as wide as the
+phone: the panel at its left edge, the map filling the rest. There are no buttons beside the screen:
+everything is a touch. Tap = click (move a unit, open a city, the menu bar's Game, Advisors and World) ·
+tap our unit to open its orders just above it (the phone's menu bar has no Orders) · hold still =
 right-click (the square's window) · drag the map to look around (it glides back when the game moves its
 view, another unit takes over, or a key is pressed) · pinch the map with two fingers to zoom it 2x or 3x
 (and back; the phone remembers the zoom) · swipe the research list · touch or slide a bar on

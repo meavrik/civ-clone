@@ -218,6 +218,10 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   gone after 4 s or at the next key or click. Both status panels show the research under way
   (`researchOutlook`: advance, beakers, turns to go), and nothing while none is picked. Disbanding
   (Shift+D, Orders > Disband) asks "Are you sure?" first, No by default (`confirmDisband`).
+  Width: the retro main screen draws as wide as its surface (`viewAcross`: the panel and bar as ever, the
+  map's viewport taking the rest), menus, prompts and the status line centre on the surface they are
+  drawn on, and the menu hit tests take the width (default 320); the web game draws 320 wide, the mobile
+  app as wide as the phone.
   Zoom (`MainScreenView.zoom`, set by the mobile app's pinch, never by the web game): retro draws the
   map as usual, then `magnifyViewport` blows the viewport's top-left 1/zoom up to fill it (fine pixels,
   in place) before the panel and bar; `zoomedTiles` sizes the minimap's box, `unzoomPoint` maps a tap
@@ -360,25 +364,34 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   peace only), a gift, or stay); an AI declaring war on us says so in an audience.
 - `apps/mobile` — the web game as a PWA for phones and tablets, asked for without changing the web game:
   `src/main.ts` imports `apps/web/src/main.ts` as it is, and `vite.config.ts` (`webGame`) hands that file
-  three stand-ins for its own modules: `display.ts` (the screen as large as it fits in the safe area,
-  `layout.ts`; no buttons beside it, asked for: minimum UI; `toLogical` from the canvas rect at any
-  scale), `renderer.ts` (the web retro renderer with the map drawn and hit-tested through `MapPan`: a
-  finger's drag, let go when the game moves its camera, the active unit changes or a key is pressed on
-  the map; zoomed by a pinch, `MainScreenView.zoom` 1-3 kept in localStorage, with `viewTilesX`/`viewTilesY`
-  getters that shrink with it so the game centres and follows in what shows, and taps mapped back with
-  `unzoomPoint`; keeps the frame's `TextInputState`) and
-  `storage.ts` (same slots; remembers the last autosave so `save.ts` can save the turn so far when the page
-  is hidden). Keep those three web modules' exports as they are (each stand-in `satisfies` its web
-  counterpart's type). It reads `window.civ` (`screen`, `state`, `log`) from web main.ts: keep that hook.
+  three stand-ins for its own modules: `display.ts` (the screen as wide as the phone held sideways allows,
+  `screenWidth`: 320 to 480 logical by 200, as large as it fits in the safe area, `layout.ts`; no buttons
+  beside it, asked for: minimum UI; `toLogical` from the canvas rect at any scale), `renderer.ts` (its own
+  retro adapter: the map's screen on a surface that wide, the panel at the left, the menu bar across, the
+  viewport taking the rest, `viewAcross` in renderer-retro; every other screen on the original's 320x200 in
+  the middle, its hit tests shifted by that inset, `narrowPoint`; menus and prompts over the map centre on
+  the whole width; the map drawn and hit-tested through `MapPan`: a finger's drag, let go when the game
+  moves its camera, the active unit changes or a key is pressed on the map; zoomed by a pinch,
+  `MainScreenView.zoom` 1-3 kept in localStorage; `width`, `viewTilesX`/`viewTilesY` getters that follow
+  the phone and the zoom so the game centres and follows in what shows; taps mapped back with
+  `unzoomPoint`; keeps the frame's `TextInputState`) and `storage.ts` (same slots; remembers the last
+  autosave so `save.ts` can save the turn so far when the page is hidden). Keep those three web modules'
+  exports as they are (each stand-in `satisfies` its web counterpart's type). It reads `window.civ`
+  (`screen`, `state`, `log`) from web main.ts: keep that hook. Sideways only (asked for): the manifest
+  asks for landscape, `touch.ts` locks it where the browser lets a page, and held upright index.html shows
+  "Turn your phone sideways" over the game.
   `touch.ts` turns fingers (`gestures.ts`) into the mouse the game knows: tap = mousedown 0, hold 450 ms
-  = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. What the
-  game takes from keys only is a touch there: a rates bar (`ratesAt` in renderer-retro) sets that rate by
-  arrow keys (`rates.ts`), a tap on a launchable spaceship is Enter, a hold on a city screen is N (rename).
-  `text.ts` shows a DOM field while the game asks for text, bound to the game's `TextInputState`,
-  OK/Cancel = Enter/Esc. A production build has no Debug menu (`debug-menu.ts` drops it from renderer-api's
-  `MENU_BAR` and fails the build if that list changes shape; the dev server keeps it). The build writes
-  `sw.js` from `service-worker.js` (every file precached under a content hash; pages network-first,
-  `ignoreVary`). `base: "./"`, so the build plays from any folder.
+  = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. A tap on
+  our units' square (not a city) brings one into play as the game would and opens its orders (the game's
+  Esc) just above it (`ordersAbove`: the next menu drawn is anchored over the unit, without its key
+  column). What the game takes from keys only is a touch there: a rates bar (`ratesAt` in renderer-retro)
+  sets that rate by arrow keys (`rates.ts`), a tap on a launchable spaceship is Enter, a hold on a city
+  screen is N (rename). `text.ts` shows a DOM field while the game asks for text, bound to the game's
+  `TextInputState`, OK/Cancel = Enter/Esc. The phone's menu bar (`menu-bar.ts` rewrites renderer-api's
+  `MENU_BAR` as it loads, failing the build if that list changes shape) has no Orders, and a production
+  build no Debug either (the dev server keeps it); the web game finds its menus by name, though its Alt
+  keys count places. The build writes `sw.js` from `service-worker.js` (every file precached under a
+  content hash; pages network-first, `ignoreVary`). `base: "./"`, so the build plays from any folder.
 - `tools/headless` — tournament harness: `runGame(config)` plays an `allAi` game through `runAiPlayers`, samples
   per-civ stats, fingerprints the final state; `AIS` registry seats a named AI per civ. `cli.ts` prints tables.
 - `tools/maps` — premade-world builder: `frames.ts` (lon/lat → grid breakpoints per world, homelands),

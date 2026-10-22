@@ -2,13 +2,23 @@ import { readFileSync } from "node:fs";
 import { MENU_BAR as DEV_MENU_BAR } from "@civ/renderer-api";
 import { ratesAt } from "@civ/renderer-retro";
 import { describe, expect, it } from "vitest";
-import { withoutDebugMenu } from "../debug-menu.js";
+import { droppedTitles, withoutTitles } from "../menu-bar.js";
 import { Pinch, Recognizer } from "../src/gestures.js";
-import { layoutFor } from "../src/layout.js";
+import { layoutFor, MAX_SCREEN_W, screenWidth } from "../src/layout.js";
 import { MapPan, RELEASE_MS } from "../src/pan.js";
 import { rateKeys } from "../src/rates.js";
 
 describe("layout", () => {
+  it("lays the game out as wide as a phone held sideways, from the original's 320 up to a limit", () => {
+    expect(screenWidth(844, 390, { top: 0, right: 47, bottom: 21, left: 47 })).toBe(Math.floor((200 * 750) / 369)); // 406
+    expect(screenWidth(1180, 820, { top: 24, right: 0, bottom: 20, left: 0 })).toBe(320); // a tablet: no wider than 16:10 allows
+    expect(screenWidth(2400, 600, { top: 0, right: 0, bottom: 0, left: 0 })).toBe(MAX_SCREEN_W);
+    const l = layoutFor(844, 390, { top: 0, right: 47, bottom: 21, left: 47 }, 406, 200);
+    expect(l.canvas.h).toBe(369); // the full height, and nearly the full width
+    expect(l.canvas.w).toBeGreaterThanOrEqual(748);
+  });
+
+
   it("fills the height of a phone held sideways, inside the notch and the home bar", () => {
     const l = layoutFor(844, 390, { top: 0, right: 47, bottom: 21, left: 47 }, 320, 200);
     expect(l.canvas.h).toBe(369);
@@ -155,16 +165,21 @@ describe("rates by touch", () => {
   });
 });
 
-describe("the deployed app", () => {
-  it("has no Debug menu: the menu bar's titles stop at World", () => {
-    const source = readFileSync(new URL("../../../packages/renderer-api/src/index.ts", import.meta.url), "utf8");
-    expect(DEV_MENU_BAR.at(-1)).toBe("Debug");
-    const built = withoutDebugMenu(source);
-    expect(built).toContain('export const MENU_BAR = ["Game", "Orders", "Advisors", "World"] as const;');
-    expect(built.replace(/export const MENU_BAR = [^\n]*/, "")).toBe(source.replace(/export const MENU_BAR = [^\n]*/, ""));
+describe("the phone's menu bar", () => {
+  const source = readFileSync(new URL("../../../packages/renderer-api/src/index.ts", import.meta.url), "utf8");
+  const bar = (code: string) => /export const MENU_BAR = [^\n]*/.exec(code)![0];
+
+  it("has no Orders (a tap on a unit opens them), and no Debug once deployed", () => {
+    expect(DEV_MENU_BAR).toEqual(["Game", "Orders", "Advisors", "World", "Debug"]);
+    expect(bar(withoutTitles(source, droppedTitles("serve")))).toBe('export const MENU_BAR = ["Game", "Advisors", "World", "Debug"] as const;');
+    const built = withoutTitles(source, droppedTitles("build"));
+    expect(bar(built)).toBe('export const MENU_BAR = ["Game", "Advisors", "World"] as const;');
+    expect(built.replace(bar(built), "")).toBe(source.replace(bar(source), ""));
   });
 
   it("refuses to build if the titles are no longer written as it expects", () => {
-    expect(() => withoutDebugMenu('export const MENU_BAR = ["Game", "Debug", "World"];')).toThrow(/Debug/);
+    expect(() => withoutTitles('export const MENU_BAR = ["Game", "World"] as const;', ["Orders"])).toThrow(/Orders/);
+    expect(() => withoutTitles("export const MENU_BAR = TITLES;", ["Orders"])).toThrow(/MENU_BAR/);
   });
 });
+

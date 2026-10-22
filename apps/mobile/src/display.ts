@@ -1,28 +1,35 @@
 import type * as WebDisplay from "../../web/src/display.js";
-import { layoutFor, type Insets, type Layout } from "./layout.js";
+import { layoutFor, screenWidth, type Insets, type Layout } from "./layout.js";
 
 /**
  * Stands in for apps/web/src/display.ts (vite.config.ts swaps it in): the same exports, but the
- * screen fills the phone at any scale, and points map back to the game's logical pixels from where
+ * screen fills the phone at any scale, as wide as the phone held sideways (`screenWidth`: the map
+ * shows more squares, renderer.ts), and points map back to the game's logical pixels from where
  * the canvas actually is, for the browser's mouse events and the ones the touch layer makes alike.
  */
 export const canvas = document.getElementById("screen") as HTMLCanvasElement;
 
-let logicalW = 320;
 let logicalH = 200;
+let logicalW = screenWidth(innerWidth, innerHeight, safeInsets(), logicalH);
 /** Canvas pixels to a logical pixel: the retro renderer's terrain is finer than its layout. */
 let density = 1;
 let current: Layout | null = null;
 
-export function configureDisplay(width: number, height: number, _pixelated: boolean, canvasDensity = 1): void {
-  logicalW = width;
+/** The game screen's width now (the renderer's own `width`): it follows the phone's shape. */
+export function screenW(): number {
+  return logicalW;
+}
+
+export function configureDisplay(_width: number, height: number, _pixelated: boolean, canvasDensity = 1): void {
   logicalH = height;
   density = canvasDensity;
   fitCanvas();
 }
 
 export function fitCanvas(): void {
-  const layout = layoutFor(innerWidth, innerHeight, safeInsets(), logicalW, logicalH);
+  const insets = safeInsets();
+  logicalW = screenWidth(innerWidth, innerHeight, insets, logicalH);
+  const layout = layoutFor(innerWidth, innerHeight, insets, logicalW, logicalH);
   current = layout;
   place(canvas, layout.canvas);
   if (canvas.width !== logicalW * density || canvas.height !== logicalH * density) {

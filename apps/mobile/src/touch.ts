@@ -4,7 +4,7 @@ import { game, press, screenKind } from "./civ.js";
 import { canvas, displayScale, logicalAt } from "./display.js";
 import { GESTURES, Pinch, Recognizer, type Gesture } from "./gestures.js";
 import { rateKeys } from "./rates.js";
-import { mapZoom, pan, setMapZoom, TILE_PX, tileUnder, ZOOMS } from "./renderer.js";
+import { mapZoom, narrowPoint, ordersAbove, pan, setMapZoom, TILE_PX, tileUnder, ZOOMS } from "./renderer.js";
 import { syncText } from "./text.js";
 
 /**
@@ -12,8 +12,9 @@ import { syncText } from "./text.js";
  * still is a right-click (the square's window), a drag pans the map or scrolls the research list,
  * and two fingers on the map pinch it in or out (`ZOOMS`).
  * There are no buttons beside the screen, so the few things the game takes from keys only are
- * touches here: a touch on a rates bar sets that rate, a tap on a spaceship ready to go asks to
- * launch it, and a press held on a city renames it. A real mouse is left to the browser.
+ * touches here: a tap on our unit opens its orders just above it (the menu bar has no Orders on a
+ * phone), a touch on a rates bar sets that rate, a tap on a spaceship ready to go asks to launch
+ * it, and a press held on a city renames it. A real mouse is left to the browser.
  */
 const fingers = new Recognizer();
 const ring = document.getElementById("ring")!;
@@ -35,10 +36,28 @@ function showRing(x: number, y: number, state: "" | "holding" | "fired"): void {
 
 /** Set the rate of the bar at point (x, y) to what the point stands for; false off the bars. */
 function setRate(x: number, y: number, held: boolean): boolean {
-  const hit = ratesAt(...logicalAt(x, y), held);
+  const hit = ratesAt(...narrowPoint(...logicalAt(x, y)), held);
   const me = game()?.state?.players[0];
   if (!hit || !me) return false;
   for (const key of rateKeys({ tax: me.taxRate, lux: me.luxRate }, hit.row, hit.value)) press(key, key);
+  return true;
+}
+
+/**
+ * A tap on a square of the map where our units stand (not in a city, which opens as ever): one of
+ * them comes into play as the game picks it, and its orders open over it (the game's Esc).
+ */
+function ordersAt(x: number, y: number): boolean {
+  const st = game()?.state;
+  const sq = tileUnder(...logicalAt(x, y));
+  if (!st || !sq || st.cities.some((c) => c.x === sq.x && c.y === sq.y)) return false;
+  const here = (id: number | null) => st.units.some((u) => u.id === id && u.x === sq.x && u.y === sq.y);
+  if (!st.units.some((u) => u.owner === 0 && u.x === sq.x && u.y === sq.y)) return false;
+  if (!here(st.activeUnit)) click(x, y, 0);
+  if (!here(st.activeUnit)) return true; // none of them can move this turn: the game said so
+  ordersAbove(st.activeUnit);
+  press("Escape", "Escape");
+  if (screenKind() !== "menu") ordersAbove(null);
   return true;
 }
 
@@ -56,6 +75,7 @@ function act(g: Gesture | null): void {
       showRing(g.x, g.y, "");
       if (screen === "rates" && setRate(g.x, g.y, false)) break;
       if (screen === "spaceship" && readyToLaunch()) { press("Enter", "Enter"); break; }
+      if (screen === "map" && ordersAt(g.x, g.y)) break;
       // A tap on the map shows that square: the view comes back from wherever it was dragged.
       if (screen === "map" && tileUnder(...logicalAt(g.x, g.y))) pan.letGo(performance.now());
       click(g.x, g.y, 0);
@@ -109,6 +129,7 @@ function spread(): { d: number; mid: [number, number] } {
 canvas.addEventListener("pointerdown", (e) => {
   if (e.pointerType === "mouse") return;
   e.preventDefault(); // no mouse events made up from the touch: this layer makes its own
+  lockSideways();
   touching.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (touching.size === 2 && !pinch && screenKind() === "map") {
     // A second finger on the map: the first one's tap, hold or drag is off, and the two pinch.
@@ -165,6 +186,15 @@ canvas.addEventListener("pointercancel", (e) => {
   act(fingers.cancel(e.pointerId));
   ring.className = "";
 });
+
+/** The game plays sideways only: where the browser lets a page hold the phone that way (an installed app, full screen), it does. */
+let locked = false;
+function lockSideways(): void {
+  if (locked) return;
+  locked = true;
+  const o = screen.orientation as ScreenOrientation & { lock?: (to: string) => Promise<void> };
+  o?.lock?.("landscape").catch(() => {});
+}
 
 // Safari makes mouse events and zooms from touches unless the touches themselves are refused.
 canvas.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });

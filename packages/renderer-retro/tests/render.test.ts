@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
+import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
 
 describe("retro renderer", () => {
   it("palette has 256 entries, EGA first", () => {
@@ -126,6 +126,22 @@ describe("retro renderer", () => {
     expect(zoomedTiles(1)).toEqual({ x: 15, y: 12 });
     expect(zoomedTiles(2)).toEqual({ x: 8, y: 6 });
     writeFileSync(new URL("./out/main-screen-zoom.png", import.meta.url), encodePng(z, 3));
+
+    // Drawn wider (the mobile app on a phone held sideways): the squares the original shows are as
+    // they were, more squares follow on the right, the menu bar runs across it all, and the
+    // minimap's box (all that differs in the panel) frames what shows.
+    const wide = new Surface(400, 200, undefined, DETAIL);
+    drawMainScreen(wide, state, view);
+    let changed = 0;
+    for (let y = VIEW_Y * DETAIL; y < 200 * DETAIL; y++)
+      for (let x = VIEW_X * DETAIL; x < 320 * DETAIL; x++) if (wide.fget(x, y) !== s.fget(x, y)) changed++;
+    expect(changed).toBe(0);
+    expect(wide.get(399, 2)).toBe(s.get(319, 2)); // the bar's stone at the far end
+    expect(viewAcross(400)).toBe(20);
+    let mapBeyond = 0;
+    for (let x = 320; x < 400; x++) if (wide.get(x, 100) !== C.BLACK) mapBeyond++;
+    expect(mapBeyond).toBeGreaterThan(0);
+    writeFileSync(new URL("./out/main-screen-wide.png", import.meta.url), encodePng(wide, 3));
 
     // A long message wraps inside the panel and never crosses into the map.
     view.message = "Trade route Rome-Capua: +45 gold and science, a long message that must wrap";

@@ -141,7 +141,8 @@ interface MenuLayout {
   rows: number; top: number;
 }
 
-function menuLayout(m: MenuState): MenuLayout {
+/** Where a menu goes on a screen `screenW` wide: centred, or at its anchor kept on the screen. */
+function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
   const buttons = menuButtons(m);
   const itemW = Math.max(0, ...m.items.map((i, k) => textWidth(i) + (m.right?.[k] ? textWidth(m.right[k]!) + 12 : 0)));
   const bw = buttons ? Math.max(BUTTON_MIN_W, itemW + 16) : 0;
@@ -164,14 +165,14 @@ function menuLayout(m: MenuState): MenuLayout {
   const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
   const itemsH = buttons ? m.items.length * BUTTON_ROW + 1 : rows * row;
   const h = head + picH + bodyH + itemsH + foot;
-  const x = m.anchor ? Math.max(0, Math.min(320 - w, m.anchor.x)) : Math.floor((320 - w) / 2);
+  const x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
   const y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
   return { x, y, w, h, lines, itemsY: y + head + picH + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, picH, rows, top };
 }
 
-export function menuRect(m: MenuState): { x: number; y: number; w: number; h: number } {
-  const { x, y, w, h } = menuLayout(m);
+export function menuRect(m: MenuState, screenW = SCREEN_W): { x: number; y: number; w: number; h: number } {
+  const { x, y, w, h } = menuLayout(m, screenW);
   return { x, y, w, h };
 }
 
@@ -192,8 +193,8 @@ function scrollBar(m: MenuState, l: MenuLayout): { x: number; y: number; h: numb
 }
 
 /** Where a point lies on a scrolling menu's bar: -1 above its thumb (the up arrow too), 1 below, 0 on it; null off the bar. */
-export function menuScrollAt(m: MenuState, px: number, py: number): number | null {
-  const l = menuLayout(m);
+export function menuScrollAt(m: MenuState, px: number, py: number, screenW = SCREEN_W): number | null {
+  const l = menuLayout(m, screenW);
   if (l.rows >= m.items.length) return null;
   const b = scrollBar(m, l);
   if (px < b.x - 1 || px > b.x + SCROLL_W || py < b.y || py >= b.y + b.h) return null;
@@ -201,7 +202,7 @@ export function menuScrollAt(m: MenuState, px: number, py: number): number | nul
 }
 
 export function drawMenu(s: Surface, m: MenuState): void {
-  const l = menuLayout(m);
+  const l = menuLayout(m, s.width);
   const { x, y, w, h, lines, itemsY, row, buttons, bx, bw, picH, rows, top } = l;
   const scrolls = rows < m.items.length;
   drawWindow(s, x, y, w, h, m.title);
@@ -261,8 +262,8 @@ function drawCloseBox(s: Surface, x: number, y: number): void {
 }
 
 /** Row index under a screen point, or -1. */
-export function menuHit(m: MenuState, px: number, py: number): number {
-  const { x, w, itemsY, row, buttons, bx, bw, rows, top } = menuLayout(m);
+export function menuHit(m: MenuState, px: number, py: number, screenW = SCREEN_W): number {
+  const { x, w, itemsY, row, buttons, bx, bw, rows, top } = menuLayout(m, screenW);
   if (buttons) {
     const off = py - itemsY - 1;
     const i = Math.floor(off / BUTTON_ROW);
@@ -279,7 +280,7 @@ export function menuHit(m: MenuState, px: number, py: number): number {
 export function drawTextInput(s: Surface, input: TextInputState, cursorOn: boolean): void {
   const w = 200;
   const h = 40;
-  const x = Math.floor((320 - w) / 2);
+  const x = Math.floor((s.width - w) / 2);
   const y = Math.floor((200 - h) / 2);
   drawWindow(s, x, y, w, h, input.title);
   s.rect(x + 8, y + 17, w - 16, 12, C.BLACK!);
@@ -291,7 +292,7 @@ export function drawTextInput(s: Surface, input: TextInputState, cursorOn: boole
 
 /** Small one-line message box at the bottom of the screen. */
 export function drawStatusLine(s: Surface, text: string): void {
-  s.frame(80, 188, 240, 12, C.BLACK!);
-  drawStone(s, 81, 189, 238, 11);
+  s.frame(80, 188, s.width - 80, 12, C.BLACK!);
+  drawStone(s, 81, 189, s.width - 82, 11);
   drawText(s, 84, 191, text, NOTE);
 }
