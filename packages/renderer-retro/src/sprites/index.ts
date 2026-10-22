@@ -1,3 +1,4 @@
+import citiesArt from "../art/cities.art.js";
 import citizensArt from "../art/citizens.art.js";
 import featuresArt from "../art/features.art.js";
 import iconsArt from "../art/icons.art.js";
@@ -16,15 +17,17 @@ import { CLEAR, OWNER, OWNER_DARK, parseSheet, SPRITE_CLEAR, spriteIndices, type
 /** Units stand free on the terrain, as fine as it: 32x32, two pixels to each screen pixel. */
 export const UNIT_SHEET = parseSheet("units", 32, unitsArt, ["hide", "steel", "grey"], DETAIL);
 export const TERRAIN_SHEET = parseSheet("terrain", 16 * DETAIL, terrainArt, ["grass", "earth", "stone"], DETAIL);
-/** Cities, villages and mines, as fine as the terrain: 32x32. */
+/** City walls, villages and mines, as fine as the terrain: 32x32. */
 export const FEATURE_SHEET = parseSheet("features", 32, featuresArt, ["earth", "stone", "grey"], DETAIL);
+/** Cities on the map by age and size (`cityLook`), as fine as the terrain: 32x32, named `ancient-village` and so on. */
+export const CITY_SHEET = parseSheet("cities", 32, citiesArt, ["town", "skin", "rock"], DETAIL);
 /** Special resources, as fine as the terrain they stand on: 32x32, named after the special. */
 export const RESOURCE_SHEET = parseSheet("resources", 32, resourcesArt, ["jewel", "hide", "steel"], DETAIL);
 /** 8x8 pictures (16x16 fine pixels) for the info panels and the badges on working units. */
 export const ICON_SHEET = parseSheet("icons", 16, iconsArt, ["grey", "earth", "stone"], DETAIL);
 /** The city screen's citizens, a man and a woman to each sprite (see citizens.ts). */
 export const CITIZEN_SHEET = parseSheet("citizens", 32, citizensArt, ["flesh", "earth", "grey"], DETAIL);
-export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRAIN_SHEET, features: FEATURE_SHEET, resources: RESOURCE_SHEET, icons: ICON_SHEET, citizens: CITIZEN_SHEET };
+export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRAIN_SHEET, features: FEATURE_SHEET, cities: CITY_SHEET, resources: RESOURCE_SHEET, icons: ICON_SHEET, citizens: CITIZEN_SHEET };
 
 /** An owner colour's darker partner in the EGA set, for shading the box and `p` pixels. */
 const DARKER: Record<number, number> = {

@@ -1,4 +1,4 @@
-// Draws the features sheet (city, walls, walls_front, hut, mine) as layered pixel art in the
+// Draws the features sheet (walls, walls_front, hut, mine) as layered pixel art in the
 // terrain's manner: lit from the upper left, two or three flat shades a face, each thing outlined
 // one pixel in the darkest of its own colours, layers back to front so a dark line parts them.
 // Run from the repo root: npx vite-node --script tools/sprites/draw/features.ts
@@ -32,104 +32,7 @@ const over = (base: G, layer: G): void => {
 };
 const text = (g: G): string => g.map((r) => r.join("")).join("\n");
 
-// ---- city: ramps=brick,hide,rock (0-7 roof tiles, a-h plaster and timber, A-H stone) ----------------
-
-/**
- * A house from the front and a little above: a pitched roof seen as a gable, the slope toward the
- * light bright and the other dark, over a short plastered wall with a door.
- */
-function house(x0: number, y0: number, w: number, roofRows: number, wallRows: number, thatch = false): G {
-  const g = blank();
-  const cx = x0 + (w - 1) / 2;
-  const [lit, ridge, dark, gleam] = thatch ? ["f", "e", "d", "g"] : ["6", "5", "4", "7"];
-  for (let k = 0; k < roofRows; k++) {
-    const half = Math.min((w - 1) / 2, k);
-    for (let x = cx - half; x <= cx + half; x++) put(g, x, y0 + k, x < cx ? lit! : x === cx ? ridge! : dark!);
-  }
-  put(g, cx - 1, y0 + 2, gleam!);
-  put(g, cx - 2, y0 + 3, gleam!);
-  const wy0 = y0 + roofRows;
-  const wy1 = wy0 + wallRows - 1;
-  rect(g, x0 + 1, wy0, x0 + w - 2, wy1, "g");
-  rect(g, x0 + w - 3, wy0, x0 + w - 2, wy1, "f");
-  rect(g, x0 + 1, wy0, x0 + w - 2, wy0, "f");
-  const dw = w >= 9 ? 1 : 0;
-  rect(g, cx - dw, wy1 - 1, cx, wy1, "b");
-  return outline(g, { "7": "0", "6": "0", "5": "0", "4": "0", g: "a", f: "a", e: "a", d: "a", b: "a" });
-}
-
-/** A longer house, its ridge running left to right: the whole front slope faces the light. */
-function longHouse(x0: number, y0: number, w: number, roofRows: number, wallRows: number, thatch = false): G {
-  const g = blank();
-  const [lit, mid, eave, gleam] = thatch ? ["f", "e", "d", "g"] : ["6", "5", "4", "7"];
-  for (let k = 0; k < roofRows; k++) {
-    const ins = Math.max(0, 2 - k);
-    rect(g, x0 + ins, y0 + k, x0 + w - 1 - ins, y0 + k, k === 0 ? lit! : k === roofRows - 1 ? eave! : mid!);
-  }
-  rect(g, x0 + 3, y0, x0 + 4, y0, gleam!);
-  const wy0 = y0 + roofRows;
-  const wy1 = wy0 + wallRows - 1;
-  rect(g, x0 + 1, wy0, x0 + w - 2, wy1, "g");
-  rect(g, x0 + w - 3, wy0, x0 + w - 2, wy1, "f");
-  rect(g, x0 + 1, wy0, x0 + w - 2, wy0, "f");
-  const dx = x0 + Math.floor(w / 2);
-  rect(g, dx, wy1 - 1, dx + 1, wy1, "b");
-  rect(g, x0 + 2, wy0 + 1, x0 + 2, wy0 + 1, "A");
-  return outline(g, { "7": "0", "6": "0", "5": "0", "4": "0", g: "a", f: "a", e: "a", d: "a", b: "a" });
-}
-
-/** A stone tower with battlements, its right side in shade, an arched door at the foot. */
-function tower(x0: number, y0: number, w: number, h: number, door: boolean, slit: boolean): G {
-  const g = blank();
-  for (let x = x0; x < x0 + w; x++) if ((x - x0) % 3 !== 2) rect(g, x, y0, x, y0 + 1, "E");
-  rect(g, x0, y0 + 2, x0 + w - 1, y0 + h - 1, "E");
-  rect(g, x0 + w - 2, y0 + 2, x0 + w - 1, y0 + h - 1, "C");
-  rect(g, x0, y0 + 2, x0 + w - 3, y0 + 2, "G");
-  for (const [mx, my] of [[1, 5], [3, 7], [2, 10], [4, 12], [1, 14]] as const) if (my < h - 6 && mx < w - 2) put(g, x0 + mx, y0 + my, "D");
-  const cx = x0 + Math.floor((w - 2) / 2);
-  if (slit) rect(g, cx, y0 + 4, cx, y0 + 6, "A");
-  if (door) {
-    rect(g, cx - 1, y0 + h - 4, cx + 1, y0 + h - 1, "A");
-    put(g, cx, y0 + h - 5, "A");
-  }
-  return outline(g, { E: "A", C: "A", G: "A", D: "A" });
-}
-
-/** The owner's banner on a pole, flying to the right. */
-function banner(px: number, top: number, poleH: number): G {
-  const g = blank();
-  rect(g, px, top, px, top + poleH - 1, "b");
-  const widths = [7, 7, 6, 4];
-  widths.forEach((wd, r) => {
-    rect(g, px + 1, top + r, px + wd, top + r, r === widths.length - 1 ? "p" : "P");
-    put(g, px + wd, top + r, "p");
-  });
-  return g;
-}
-
-/** A well: a ring of stone about dark water. */
-function well(x0: number, y0: number): G {
-  const g = blank();
-  rect(g, x0, y0, x0 + 7, y0 + 5, "E");
-  rect(g, x0, y0 + 5, x0 + 7, y0 + 5, "C");
-  rect(g, x0 + 2, y0 + 1, x0 + 5, y0 + 3, "A");
-  return outline(g, { E: "A", C: "A" });
-}
-
-function city(): G {
-  const g = blank();
-  over(g, longHouse(0, 6, 10, 4, 3));
-  over(g, house(23, 5, 9, 5, 3));
-  over(g, tower(10, 2, 12, 13, true, true));
-  over(g, banner(15, 0, 4));
-  over(g, house(1, 14, 9, 5, 3));
-  over(g, longHouse(22, 16, 10, 4, 3));
-  over(g, longHouse(11, 15, 11, 4, 3));
-  over(g, house(2, 23, 7, 4, 3, true));
-  over(g, longHouse(23, 24, 9, 3, 3, true));
-  over(g, well(12, 24));
-  return g;
-}
+// ---- walls: ramps=brick,hide,rock (A-H stone) -----------------------------------------------------------
 
 /** A wall ring with the corners cut, three courses thick: walkway, face and foot, merlons front and back. */
 function octRing(front: boolean): G {
@@ -252,7 +155,6 @@ function mine(): G {
 }
 
 const sprites: [string, string, G][] = [
-  ["city", "brick,hide,rock", city()],
   ["walls", "brick,hide,rock", octRing(false)],
   ["walls_front", "brick,hide,rock", octRing(true)],
   ["hut", "hide,wheat,brick", village()],
@@ -262,10 +164,10 @@ const sprites: [string, string, G][] = [
 const header = [
   "# Features, 32x32: two pixels to each screen pixel, drawn over the map, in the terrain's manner: lit",
   "# from the upper left, flat two- and three-shade faces, each thing outlined one pixel in the darkest of",
-  "# its own colours. The city stands free on its square: a stone keep flying the owner's banner (P/p)",
-  "# among tile-roofed houses about a well; walled, the wall ring goes behind it (walls) and before it",
-  "# (walls_front), its gate at the foot. The village (hut) is thatched round huts about a fire; the mine",
-  "# a rock mound with a timber-framed shaft. Special resources are in the resources sheet.",
+  "# its own colours. City walls ring a city's square: the back half behind its icon (walls), the front",
+  "# half before it (walls_front), the gate at the foot; the cities themselves are in the cities sheet.",
+  "# The village (hut) is thatched round huts about a fire; the mine a rock mound with a timber-framed",
+  "# shaft. Special resources are in the resources sheet.",
   "# Legend: . clear  k black  w white  P/p owner colour/dark",
   "#   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey (EGA)",
   "#   0-7 shades of ramp 1, a-h of ramp 2, A-H of ramp 3. Default ramps: earth, stone, grey.",

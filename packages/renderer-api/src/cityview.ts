@@ -402,6 +402,25 @@ export function homeAge(known: string[]): number {
   return knows(known, "automobile") ? 3 : knows(known, "industrialization") ? 2 : knows(known, "construction") ? 1 : 0;
 }
 
+export type CityEra = "ancient" | "medieval" | "industrial";
+export type CityTier = "village" | "town" | "city" | "capital";
+
+/** Size from which a city is drawn as a town, and as a city. */
+export const CITY_TIER_SIZES = { town: 4, city: 8 } as const;
+
+/**
+ * How a city looks on the map: the age of its owner's homes, as the city view shows them (ancient,
+ * medieval from Construction, industrial from Industrialization), and its size (village, town, city);
+ * the city with the Palace is drawn as the capital whatever its size.
+ */
+export function cityLook(state: GameState, city: City): { era: CityEra; tier: CityTier } {
+  const age = homeAge(state.players[city.owner]?.advances ?? []);
+  const era: CityEra = age >= 2 ? "industrial" : age === 1 ? "medieval" : "ancient";
+  const tier: CityTier = city.buildings.includes("palace") ? "capital"
+    : city.size >= CITY_TIER_SIZES.city ? "city" : city.size >= CITY_TIER_SIZES.town ? "town" : "village";
+  return { era, tier };
+}
+
 // ---- the scene ----------------------------------------------------------------------
 
 /** The city view's size in retro pixels; the modern renderer paints it three times larger. */

@@ -102,11 +102,14 @@ for (const [name, colors] of Object.entries(CHROME)) {
 // Deep brown skin for the city screen's citizens, darker than the flesh ramp reaches.
 C.SKIN = PALETTE.length;
 PALETTE.push(...ramp([52, 30, 20], [136, 86, 56], 8));
-// The city view's buildings and sky: warm marble, brick and tile, weathered copper, a day sky.
+// The city view's buildings and sky: warm marble, brick and tile, a day sky; and the colours of the
+// map's city icons (the user's sheet, 2026-10-22) that no other ramp holds, in the slots the city
+// view's weathered copper had: navy outline, slate blues, red roof tiles, warm plaster. Not a ramp
+// from dark to light: the icons name each colour, nothing shades through it.
 const BUILT: Record<string, Rgb[]> = {
   marble: ramp([96, 88, 80], [252, 248, 236], 8),
   brick: ramp([64, 20, 14], [236, 140, 96], 8),
-  copper: ramp([18, 64, 58], [138, 218, 190], 8),
+  town: [[34, 32, 52], [48, 96, 130], [91, 110, 139], [172, 50, 50], [155, 173, 183], [217, 87, 99], [217, 160, 102], [238, 195, 154]],
   sky: ramp([64, 112, 196], [214, 232, 250], 8),
 };
 for (const [name, colors] of Object.entries(BUILT)) {

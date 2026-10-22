@@ -26,7 +26,7 @@ const LOOK: Record<Material, [string, number] | "flat"> = {
   concrete: ["grey", 5],
   green: ["grass", 4],
   leaf: ["forest", 5],
-  copper: ["copper", 4],
+  copper: ["steel", 5], // weathered metal: the copper ramp's slots went to the map's city icons
   water: ["ocean", 4],
   white: ["marble", 7],
   light: "flat",

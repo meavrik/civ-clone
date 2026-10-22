@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CIV_COLORS, TERRAIN_RULES, Terrain, UNIT_TYPES } from "@civ/core";
 import {
   C,
+  CITY_SHEET,
   drawText,
   FEATURE_SHEET,
   RESOURCE_SHEET,
@@ -32,13 +33,20 @@ import { citizenSprite, CITIZEN_H, CITIZEN_W } from "../src/citizens.js";
 const MOODS = ["happy", "content", "unhappy", "entertainer", "taxman", "scientist"] as const;
 
 describe("sprite sheets", () => {
-  it("cover every unit, terrain and special resource, plus cities, walls, villages and mines", () => {
+  it("cover every unit, terrain and special resource, plus cities of every age and size, walls, villages and mines", () => {
     for (const t of UNIT_TYPES) expect(UNIT_SHEET.byName.has(t.id), t.id).toBe(true);
     for (const name of ["ocean", "grassland", "plains", "forest", "hills", "mountains", "desert", "tundra", "arctic", "swamp", "jungle"])
       expect(TERRAIN_SHEET.byName.has(name), name).toBe(true);
     for (const rule of Object.values(TERRAIN_RULES))
       for (const sp of [rule.special, rule.second]) if (sp) expect(specialSprite(sp.name), sp.name).not.toBeNull();
-    for (const name of ["city", "walls", "hut", "mine"]) expect(FEATURE_SHEET.byName.has(name), name).toBe(true);
+    for (const name of ["walls", "walls_front", "hut", "mine"]) expect(FEATURE_SHEET.byName.has(name), name).toBe(true);
+    // A city for every age and size, flying its owner's flag.
+    for (const era of ["ancient", "medieval", "industrial"])
+      for (const tier of ["village", "town", "city", "capital"]) {
+        const name = `${era}-${tier}`;
+        expect(CITY_SHEET.byName.has(name), name).toBe(true);
+        expect(CITY_SHEET.byName.get(name)!.rows.join("").includes("P"), `${name} flag`).toBe(true);
+      }
     // Every panel icon, at 8x8 so it sits in a line of text.
     expect(ICON_SHEET.size / ICON_SHEET.k).toBe(8); // as tall as a line of text, in screen pixels
     for (const name of ICONS) expect(ICON_SHEET.byName.has(name), name).toBe(true);

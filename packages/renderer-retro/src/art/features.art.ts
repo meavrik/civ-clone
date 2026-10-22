@@ -3,47 +3,13 @@
 export default String.raw`
 # Features, 32x32: two pixels to each screen pixel, drawn over the map, in the terrain's manner: lit
 # from the upper left, flat two- and three-shade faces, each thing outlined one pixel in the darkest of
-# its own colours. The city stands free on its square: a stone keep flying the owner's banner (P/p)
-# among tile-roofed houses about a well; walled, the wall ring goes behind it (walls) and before it
-# (walls_front), its gate at the foot. The village (hut) is thatched round huts about a fire; the mine
-# a rock mound with a timber-framed shaft. Special resources are in the resources sheet.
+# its own colours. City walls ring a city's square: the back half behind its icon (walls), the front
+# half before it (walls_front), the gate at the foot; the cities themselves are in the cities sheet.
+# The village (hut) is thatched round huts about a fire; the mine a rock mound with a timber-framed
+# shaft. Special resources are in the resources sheet.
 # Legend: . clear  k black  w white  P/p owner colour/dark
 #   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey (EGA)
 #   0-7 shades of ramp 1, a-h of ramp 2, A-H of ramp 3. Default ramps: earth, stone, grey.
-
-@city ramps=brick,hide,rock
-...............bPPPPPPp.........
-...............bPPPPPPp.........
-..........AA.AAbPPPPPp..........
-..........AA.AAbppppA...........
-..........AGAGGAGGAGCA..........
-..........AEEEEEEEEECA.....0....
-..000000..AEEEEAEEEECA....050...
-.05555550.ADEEEAEEEECA...07540..
-0555555550AEEEEAEEEECA..0765440.
-0444444440AEEEEEEEEECA.066654440
-.affffffa.AEEEEAEEEECA..afffffa.
-.aAggbbfa.AEEEAAAEEECA..agbbgfa.
-.aaaaaaaa.AEEEAAAEEECA..aaaaaaa.
-..........AEEEAAAEEECA..........
-.....0....AAAAAAAAAAAA..........
-....050......0000000............
-...07540....055555550...000000..
-..0765440..05555555550.05555550.
-.066654440.044444444400555555550
-..afffffa...afffffffa.0444444440
-..agbbgfa...aAggbbgfa..affffffa.
-..aaaaaaa...aaaaaaaaa..aAggbbfa.
-.......................aaaaaaaa.
-.....a..........................
-....aea.....AAAAAAAA.....aaaaa..
-...ageda....AEAAAAEA....aeeeeea.
-..agfedda...AEAAAAEA...addddddda
-...afffa....AEAAAAEA....afffffa.
-...agbfa....AEEEEEEA....aAgbbfa.
-...aaaaa....AAAAAAAA....aaaaaaa.
-................................
-................................
 
 @walls ramps=brick,hide,rock
 ................................

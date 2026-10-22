@@ -254,12 +254,19 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   Terrain (`terrain.art.ts`, recovered pixel for pixel from the user's reference sheet, no mirroring;
   two blues: coastal `ocean`, open `deep_ocean`), units (`units.art.ts`, the user's 32x32 sheet of the
   original's 28, standing free with the owner's shield in the top-left corner, `drawShield`/`SHIELD_AT`,
-  a second shield behind for a stack, hp as a strip across its top; no owner box), features
-  (`features.art.ts`: city, walls/walls_front, hut, mine, drawn by `tools/sprites/draw/features.ts` as
-  layers lit from the upper left with one-pixel outlines in the darkest of each thing's own colours,
-  ground showing between the houses about a well; the garrison shield and mood flag are code in
-  `map-city.ts`, and the population sits on a plate of the owner's colour before the city's name under
-  the square, `drawCityLabel` in `screens/main.ts`: asked for 2026-10-21 after a plate on the town hid it) and resources (`resources.art.ts`, named after the special; one-pixel outlines in dark
+  a second shield behind for a stack, hp as a strip across its top; no owner box), cities
+  (`cities.art.ts`, the user's 4x3 sheet of 2026-10-22 converted by `tools/sprites/draw/cities.ts` from
+  `cities.png`/`cities.json` beside it: ancient, medieval, industrial by village, town, city, capital,
+  each flying a flag in its owner's colour; renderer-api `cityLook` picks one: the age of the owner's
+  homes as the city view shows them (`homeAge`: medieval from Construction, industrial from
+  Industrialization), village below size 4, town below 8, city from 8 (`CITY_TIER_SIZES`), and the
+  capital for the city with the Palace whatever its size; `drawCity` in `map-city.ts` adds the wall ring
+  and the garrison shield), features (`features.art.ts`: walls/walls_front, hut, mine, drawn by
+  `tools/sprites/draw/features.ts` as layers lit from the upper left with one-pixel outlines in the
+  darkest of each thing's own colours). Nothing but the corner shield is drawn on a city's square: its
+  population sits on a plate of the owner's colour before its name under the square, and its mood
+  (the viewer's own cities) as a pennant before the plate (`drawCityLabel`, `drawMoodPennant` in
+  `screens/main.ts`; asked for 2026-10-21/22 after overlays on the town hid it) and resources (`resources.art.ts`, named after the special; one-pixel outlines in dark
   shades of their own colours, never thick black) are all 32x32 sheets with `k = 2`; icons are 16x16
   fine; citizens 32x32. Land borders blend: renderer-api `groundOwner` warps each fine pixel by world
   noise so the line between different grounds wanders, and each terrain sprite splits at load into
@@ -270,7 +277,8 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   dots; `FONT_HEIGHT` 8 stays. `drawTextPlate` puts text on an edged plate (the city size). The palette
   is FULL: ramps `hide`, `mire`, `canopy`, `rock`, `ice` (in the old ui/fog/swamp/jungle slots),
   `meadow`, `leaf`, `mound`, `wheat`, `dune`, `heath`, `sea`, `steel`, and `jewel` (6 colours, 249-254;
-  `shade` clamps to `RAMP_SIZE`); new art must reuse these ramps or free one. Panel icons (`icons.art.ts`,
+  `shade` clamps to `RAMP_SIZE`); `town` (the city icons' colours, not a dark-to-light ramp) took the
+  city view's `copper` slots, copper now drawn from `steel`; new art must reuse these ramps or free one. Panel icons (`icons.art.ts`,
   drawn with `src/icons.ts`) and the small marks (`drawMark`: tick, new, yield, moves) are hand-drawn
   16x16: food is an ear of wheat, `shield` (production) a hammer, `people` a man and a woman; roads,
   rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.

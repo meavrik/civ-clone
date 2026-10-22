@@ -1,0 +1,74 @@
+{
+  "cell_size": [
+    32,
+    32
+  ],
+  "sheet_size": [
+    128,
+    96
+  ],
+  "columns": 4,
+  "rows": 3,
+  "icons": [
+    {
+      "name": "ancient-village",
+      "column": 0,
+      "row": 0
+    },
+    {
+      "name": "ancient-town",
+      "column": 1,
+      "row": 0
+    },
+    {
+      "name": "ancient-city",
+      "column": 2,
+      "row": 0
+    },
+    {
+      "name": "ancient-capital",
+      "column": 3,
+      "row": 0
+    },
+    {
+      "name": "medieval-village",
+      "column": 0,
+      "row": 1
+    },
+    {
+      "name": "medieval-town",
+      "column": 1,
+      "row": 1
+    },
+    {
+      "name": "medieval-city",
+      "column": 2,
+      "row": 1
+    },
+    {
+      "name": "medieval-capital",
+      "column": 3,
+      "row": 1
+    },
+    {
+      "name": "industrial-village",
+      "column": 0,
+      "row": 2
+    },
+    {
+      "name": "industrial-town",
+      "column": 1,
+      "row": 2
+    },
+    {
+      "name": "industrial-city",
+      "column": 2,
+      "row": 2
+    },
+    {
+      "name": "industrial-capital",
+      "column": 3,
+      "row": 2
+    }
+  ]
+}

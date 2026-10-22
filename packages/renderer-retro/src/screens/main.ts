@@ -81,7 +81,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityMood, fieldSides, isDeepWater, researchOutlook, type Callout, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, fieldSides, isDeepWater, researchOutlook, type Callout, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -184,12 +184,12 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   for (const c of shownCities) {
     const idx = c.y * map.width + c.x;
     const pos = tileToScreen(state, view, c.x, c.y);
-    if (pos) drawCity(s, pos[0], pos[1], c, playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1), c.owner === state.currentPlayer ? cityMood(state, c) : null);
+    if (pos) drawCity(s, pos[0], pos[1], c, cityLook(state, c), playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1));
   }
   // Their names under them, as the original showed them; drawn before the units so no unit is hidden by a name.
   for (const c of shownCities) {
     const pos = tileToScreen(state, view, c.x, c.y);
-    if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, c.size, playerColor(state, c.owner));
+    if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, c.size, playerColor(state, c.owner), c.owner === state.currentPlayer ? cityMood(state, c) : null);
   }
 
   // Units: only those on tiles we currently see. Draw one per tile (top of stack).
@@ -260,14 +260,43 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
  * the plate edged and the name ringed in black, so they read on any ground; the figures black, or
  * white on a dark colour.
  */
-export function drawCityLabel(s: Surface, cx: number, y: number, name: string, size: number, color: number): void {
+export function drawCityLabel(s: Surface, cx: number, y: number, name: string, size: number, color: number, mood: CityMood | null = null): void {
   const n = String(size);
   const plate = textWidth(n) + 2;
-  const x0 = cx - Math.floor((plate + 2 + textWidth(name)) / 2);
+  const pennant = mood ? MOOD_PENNANT_W : 0;
+  const x0 = cx - Math.floor((pennant + plate + 2 + textWidth(name)) / 2);
+  if (mood) drawMoodPennant(s, x0, y, mood);
   const [r, g, b] = PALETTE[color]!;
   const ink = 0.299 * r + 0.587 * g + 0.114 * b > 140 ? C.BLACK! : C.WHITE!;
-  drawTextPlate(s, x0, y, n, color, C.BLACK!, ink);
-  drawTextRinged(s, x0 + plate + 2, y, name, color, C.BLACK!);
+  drawTextPlate(s, x0 + pennant, y, n, color, C.BLACK!, ink);
+  drawTextRinged(s, x0 + pennant + plate + 2, y, name, color, C.BLACK!);
+}
+
+/** Screen pixels a mood pennant takes before a city's size plate. */
+export const MOOD_PENNANT_W = 5;
+
+/** The fill of a mood pennant: red in disorder, yellow one lost happy citizen from it, green while the city celebrates. */
+export function moodColor(mood: CityMood): number {
+  return mood === "disorder" ? C.LRED! : mood === "unrest" ? C.YELLOW! : C.LGREEN!;
+}
+
+/**
+ * A city's mood (`cityMood`, the viewer's own cities only) as a pennant on a pole before its size
+ * plate, kept off the city's square, where the town flies its owner's flag: a black pole the height
+ * of the plate, the pennant tapering to the right, edged in black.
+ */
+export function drawMoodPennant(s: Surface, x: number, y: number, mood: CityMood): void {
+  const f = Math.max(1, s.k / 2);
+  const X = x * s.k;
+  const Y = y * s.k - f;
+  const fill = moodColor(mood);
+  s.frect(X, Y, f, (FONT_HEIGHT * s.k) + 2 * f, C.BLACK!);
+  // Rows of the pennant, in fine pixels from the pole: black edge, then the colour, narrowing.
+  const rows: [number, number][] = [[7, -1], [7, 5], [7, 5], [6, 4], [6, 4], [5, 3], [4, 2], [3, -1]];
+  rows.forEach(([w, inner], r) => {
+    s.frect(X + f, Y + r * f, w * f, f, C.BLACK!);
+    if (inner > 0) s.frect(X + f, Y + r * f, inner * f, f, r < 3 ? fill : darker(fill));
+  });
 }
 
 const CALLOUT_W = 150;

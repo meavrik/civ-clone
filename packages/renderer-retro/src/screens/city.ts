@@ -19,7 +19,7 @@ import {
   type CityReport,
   type GameState,
 } from "@civ/core";
-import { cityMood, cityUnits, fieldSides, MOOD_STAGE_ICONS, type IconName } from "@civ/renderer-api";
+import { cityLook, cityMood, cityUnits, fieldSides, MOOD_STAGE_ICONS, type IconName } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
@@ -297,7 +297,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       const worked = slot === 0 || city.worked.includes(slot);
       if (worked) {
         const y = tileYield(state, tile, slot === 0, cityYieldGovernment(state, city), city.owner);
-        if (slot === 0) drawCity(s, px, py - 1, city, playerColor(state, city.owner), false, cityMood(state, city));
+        if (slot === 0) drawCity(s, px, py - 1, city, cityLook(state, city), playerColor(state, city.owner));
         // The marks on a half-tone shade of the lower half, so they read without hiding the ground.
         for (let fy = (py + 8) * s.k; fy < (py + TILE) * s.k; fy++) for (let fx = px * s.k + (fy & 1); fx < (px + TILE) * s.k; fx += 2) s.fset(fx, fy, C.BLACK!);
         yieldIcons(s, px, py + 8, y.food, y.shields, y.trade);

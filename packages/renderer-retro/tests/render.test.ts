@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { DETAIL, FINE, isWater, terrainSquare } from "../src/index.js";
 
@@ -918,12 +918,17 @@ describe("moods", () => {
     state.players[0]!.difficulty = 4; // two born content
     const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false };
     const s = Surface.screen();
-    // The flag flies at the top right of the city square (fine pixels 27-30 across, 1-3 down).
+    // The mood flies as a pennant before the size plate, under the square (the town flies its owner's
+    // flag on the square itself); `flag` reads the pennant's cloth, where it would be.
+    const MOODS = [C.LRED, C.YELLOW, C.LGREEN];
     const flag = () => {
       drawMainScreen(s, state, view);
-      return s.get(80 + (city.x - view.originX) * 16 + 14, 9 + (city.y - view.originY) * 16 + 1);
+      const cx = 80 + (city.x - view.originX) * 16 + 8;
+      const y = 9 + (city.y - view.originY) * 16 + 17;
+      const x0 = cx - Math.floor((MOOD_PENNANT_W + textWidth(String(city.size)) + 2 + 2 + textWidth(city.name)) / 2);
+      return s.get(x0 + 1, y);
     };
-    const plain = flag(); // one content citizen: nothing to flag
+    expect(MOODS).not.toContain(flag()); // one content citizen: nothing to flag
     city.size = 5;
     autoAssignWorkers(state, city); // three unhappy against none happy: riots
     expect(flag()).toBe(C.LRED);
@@ -935,7 +940,7 @@ describe("moods", () => {
     expect(flag()).toBe(C.YELLOW);
     // A temple settles one of them: nothing to flag again; a festival flies green.
     city.buildings.push("temple");
-    expect(flag()).toBe(plain);
+    expect(MOODS).not.toContain(flag());
     city.celebrating = true;
     expect(flag()).toBe(C.LGREEN);
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
