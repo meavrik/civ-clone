@@ -1,4 +1,4 @@
-import type { MenuState, Renderer, SetupCards } from "@civ/renderer-api";
+import type { DiplomacyView, MenuState, Renderer, SetupCards } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, cityButtonAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
@@ -11,6 +11,9 @@ import { H, VIEW_TILES_X, VIEW_TILES_Y, W } from "./theme.js";
 
 export type { Context2D, Gradient } from "./context.js";
 export { H as MODERN_H, W as MODERN_W, TILE as MODERN_TILE } from "./theme.js";
+
+/** An audience's choices as a menu. */
+const talkMenu = (view: DiplomacyView): MenuState => ({ title: "", items: view.choices ?? [], selected: view.selected ?? 0, anchor: { x: 20, y: 20 } });
 
 /** A setup question's cards as a menu of their labels. */
 const cardMenu = (cards: SetupCards, selected: number): MenuState => ({ title: cards.title, items: cards.cards.map((c) => c.label), selected });
@@ -46,7 +49,12 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     science: (state) => drawScienceScreen(ctx, state),
     rates: (state) => drawRatesScreen(ctx, state),
     advisor: (state, which) => drawAdvisor(ctx, state, which),
-    diplomacy: (state, player, line) => drawDiplomacyScreen(ctx, state, player, line),
+    // Set aside (not in the app): its throne room with the choices as its menu.
+    diplomacy: (state, view) => {
+      drawDiplomacyScreen(ctx, state, view.player, view.line);
+      if (view.choices?.length) drawMenu(ctx, talkMenu(view));
+    },
+    diplomacyChoiceAt: (view, px, py) => (view.choices?.length ? menuHit(ctx, talkMenu(view), px, py) : -1),
     end: (lines, rank) => drawEndScreen(ctx, lines, rank),
     spaceship: (state) => drawSpaceshipScreen(ctx, state),
     menu: (menu) => drawMenu(ctx, menu),

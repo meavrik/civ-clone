@@ -4,6 +4,7 @@ import type { Lifting } from "./fog.js";
 import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
 import { setupQuestionCards, type SetupCards } from "./setup.js";
+import type { DiplomacyView } from "./audience.js";
 export * from "./motion.js";
 export * from "./icons.js";
 export * from "./citizens.js";
@@ -20,6 +21,7 @@ export * from "./plan.js";
 export * from "./watch.js";
 export * from "./intro.js";
 export * from "./setup.js";
+export * from "./audience.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
@@ -281,7 +283,12 @@ export interface Renderer {
   science(state: GameState): void;
   rates(state: GameState): void;
   advisor(state: GameState, which: AdvisorKind): void;
-  diplomacy(state: GameState, player: number, line: string): void;
+  /** The audience with a foreign leader: the realm, the leader in their palace, their words, our choices as buttons. */
+  diplomacy(state: GameState, view: DiplomacyView): void;
+  /** The audience's choice under a point, or -1. */
+  diplomacyChoiceAt(view: DiplomacyView, px: number, py: number): number;
+  /** A game starts or loads: a renderer may fetch the art its civilizations will want (their leaders' scenes). */
+  prepare?(state: GameState): void;
   end(lines: string[], rank: string): void;
   spaceship(state: GameState): void;
   /** Overlays drawn on top of whatever screen is underneath. */

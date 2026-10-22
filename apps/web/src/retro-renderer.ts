@@ -7,7 +7,9 @@ import {
   cityViewAt,
   drawCityScreen,
   drawCityView,
+  diplomacyChoiceAt,
   drawDiplomacyScreen,
+  prepareScenes,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -93,7 +95,9 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       else if (which === "foreign") drawForeignAdvisor(screen, state);
       else drawScoreScreen(screen, state);
     },
-    diplomacy: (state, player, line) => drawDiplomacyScreen(screen, state, player, line),
+    diplomacy: (state, view) => drawDiplomacyScreen(screen, state, view),
+    diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px, py),
+    prepare: (state) => { void prepareScenes(state); },
     end: (lines, rank) => drawEndScreen(screen, lines, rank),
     spaceship: (state) => drawSpaceshipScreen(screen, state),
     menu: (menu: MenuState) => drawMenu(screen, menu),

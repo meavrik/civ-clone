@@ -86,6 +86,7 @@ import {
   researchTarget,
   DIFFICULTIES,
   leaderLine,
+  AUDIENCE_CHOICES,
   FogLifter,
   INTRO_MS,
   MotionPlayer,
@@ -101,6 +102,7 @@ import {
   type ResearchView,
   type CityScreenView,
   type CityViewState,
+  type DiplomacyView,
   type MainScreenView,
   type MenuState,
   type Renderer,
@@ -181,7 +183,7 @@ type Screen =
   | { kind: "science" }
   | { kind: "rates" }
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
-  | { kind: "diplomacy"; player: number; line: string }
+  | { kind: "diplomacy"; player: number; line: string; talk?: Talk }
   | { kind: "beat"; until: number; then: () => void } // the map, held a moment on something about to be talked of
   | { kind: "end"; lines: string[]; rank: string }
   | { kind: "spaceship" }
@@ -189,6 +191,9 @@ type Screen =
   | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number }
   | { kind: "report"; page: ReportPage }
   | { kind: "worldMap" };
+
+/** Our choices in an audience: buttons under the leader's words, never more than AUDIENCE_CHOICES. */
+interface Talk { items: string[]; selected: number; onPick: (i: number) => void; onCancel: () => void }
 
 let screenState: Screen = { kind: "title" };
 /** The opening plays under the title from the first frame (`introStart`); `titleAt` is how far it has come. */
@@ -430,6 +435,7 @@ function saveLabel(s: SaveGame): string {
 function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0): void {
   options = opts;
   state = newGame(seed, opts);
+  renderer.prepare?.(state);
   log = [];
   announced.clear();
   resetMotion();
@@ -447,6 +453,7 @@ function resumeGame(save: SaveGame): void {
   try {
     const loaded = loadSave(save, aiTurn);
     state = loaded.state;
+    renderer.prepare?.(state);
     log = loaded.log;
     options = loaded.options; // an old save keeps its one-roll fights
     announced.clear();
@@ -1093,10 +1100,54 @@ function endBeat(sc: Extract<Screen, { kind: "beat" }>): void {
   sc.then();
 }
 
-/** A menu on the audience screen, top left, clear of the leader and their words. */
-function talkMenu(title: string, items: string[], onPick: (i: number) => void, onCancel: () => void): void {
-  const anchor = { x: Math.round(renderer.width * 0.02), y: Math.round(renderer.height * 0.03) };
-  screenState = { kind: "menu", under: screenState, menu: { title, items, selected: 0, anchor }, onPick, onCancel };
+/**
+ * Our choices on the audience screen now showing, as its buttons. Each screen offers at most
+ * AUDIENCE_CHOICES (asked for); longer lists go through `pagedChoices`.
+ */
+function talkMenu(items: string[], onPick: (i: number) => void, onCancel: () => void): void {
+  const sc = screenState;
+  if (sc.kind !== "diplomacy") return;
+  if (items.length > AUDIENCE_CHOICES) console.warn(`audience: ${items.length} choices, showing ${AUDIENCE_CHOICES}`);
+  screenState = { ...sc, talk: { items: items.slice(0, AUDIENCE_CHOICES), selected: 0, onPick, onCancel } };
+}
+
+/** A long list as audience screens: two at a time with More... and Never mind, the last few with Never mind alone. */
+function pagedChoices(labels: string[], onPick: (i: number) => void, onCancel: () => void, start = 0): void {
+  const rest = labels.length - start;
+  const shown = rest <= AUDIENCE_CHOICES - 1 ? rest : AUDIENCE_CHOICES - 2;
+  const items = labels.slice(start, start + shown);
+  const more = shown < rest;
+  talkMenu([...items, ...(more ? ["More..."] : []), "Never mind"], (i) => {
+    if (i < shown) onPick(start + i);
+    else if (more && i === shown) pagedChoices(labels, onPick, onCancel, start + shown);
+    else onCancel();
+  }, onCancel);
+}
+
+/** Pick an audience choice: the screen loses its buttons, then the choice runs (and usually shows new ones). */
+function pickTalk(sc: Extract<Screen, { kind: "diplomacy" }>, i: number): void {
+  const t = sc.talk;
+  if (!t || i < 0 || i >= t.items.length) return;
+  screenState = { kind: "diplomacy", player: sc.player, line: sc.line };
+  t.onPick(i);
+}
+
+/** Keys on the audience screen: arrows move among the buttons (two to a row), Enter or 1-4 picks, Esc steps back. */
+function diplomacyKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "diplomacy" }>): void {
+  const t = sc.talk;
+  if (!t) { screenState = { kind: "map" }; return; }
+  const n = t.items.length;
+  const move = (d: number) => { t.selected = (t.selected + d + n) % n; };
+  const digit = /^(?:Digit|Numpad)([1-4])$/.exec(e.code);
+  if (digit) { pickTalk(sc, Number(digit[1]) - 1); return; }
+  switch (e.code) {
+    case "ArrowLeft": move(-1); break;
+    case "ArrowRight": move(1); break;
+    case "ArrowUp": move(n > 2 ? -2 : -1); break;
+    case "ArrowDown": move(n > 2 ? 2 : 1); break;
+    case "Enter": case "NumpadEnter": case "Space": pickTalk(sc, t.selected); break;
+    case "Escape": screenState = { kind: "diplomacy", player: sc.player, line: sc.line }; t.onCancel(); break;
+  }
 }
 
 /** Where we met civilization `player`: the unit (one we can see) or city of theirs nearest one of ours. */
@@ -1141,57 +1192,77 @@ function meet(player: number, then: () => void): void {
 }
 
 /**
- * An audience with a foreign leader: the throne room, their words and our
- * proposals. Each proposal is made once an audience; the leader's answer
- * becomes their words and the talk goes on until Farewell.
+ * An audience with a foreign leader: their palace, their words and our proposals, at most four at a
+ * time: peace (or, at peace, borders and maps), gifts and trade, war, farewell; borders and maps, and
+ * gifts and trade, open screens of their own. Each proposal is made once an audience; the leader's
+ * answer becomes their words and the talk goes on until Farewell.
  */
 function audience(player: number, line: string, done: () => void = () => { screenState = { kind: "map" }; }, first = false): void {
   const them = state.players[player]!;
   const tried = new Set<string>();
-  const talk = (words: string): void => {
-    screenState = { kind: "diplomacy", player, line: words };
+  const speak = (words: string) => { screenState = { kind: "diplomacy", player, line: words }; };
+  /** Proposals not yet made, each marked made when picked. */
+  const fresh = (list: [string, () => void][]): [string, () => void][] =>
+    list.filter(([label]) => !tried.has(label)).map(([label, fn]) => [label, () => { tried.add(label); fn(); }]);
+  const bordersAndMaps = (): [string, () => void][] => fresh([
+    bordersOpen(state, 0, player)
+      ? ["Close borders", () => { dispatch({ type: "closeBorders", player }); talk("As you wish. Keep to your lands, and we to ours."); }]
+      : ["Open borders", () => proposeBorders(player, talk, () => talk("Our lands are open to your people, and yours to ours."))],
+    ["Exchange maps", () => {
+      if (!acceptsMapSwap(state, player, 0)) { talk("Our maps are not for your eyes."); return; }
+      dispatch({ type: "shareMaps", player });
+      talk("Our scribes copy your maps, and yours ours.");
+    }],
+  ]);
+  const giftsAndTrade = (): [string, () => void][] => {
     const me = state.players[0]!;
-    const items: [string, () => void][] = [];
-    const offer = (label: string, fn: () => void) => { if (!tried.has(label)) items.push([label, () => { tried.add(label); fn(); }]); };
-    if (atWar(state, 0, player)) {
-      offer("Propose peace", () => {
-        // A rival that is winning, with its armies at our gates, will not stop now.
-        if (!acceptsPeace(state, player, 0)) { talk("Not while our armies stand at your gates."); return; }
-        dispatch({ type: "makePeace", player });
-        talk("Peace, then. Let the dead rest.");
-      });
-    } else {
-      // Met but without a treaty: peace comes first, and with it open borders and maps.
-      if (!atPeace(state, 0, player)) offer("Propose peace", () => proposePeace(player, talk));
-      else {
-        if (bordersOpen(state, 0, player)) offer("Close borders", () => { dispatch({ type: "closeBorders", player }); talk("As you wish. Keep to your lands, and we to ours."); });
-        else offer("Open borders", () => proposeBorders(player, talk, () => talk("Our lands are open to your people, and yours to ours.")));
-        offer("Exchange maps", () => {
-          if (!acceptsMapSwap(state, player, 0)) { talk("Our maps are not for your eyes."); return; }
-          dispatch({ type: "shareMaps", player });
-          talk("Our scribes copy your maps, and yours ours.");
-        });
-      }
-      if (them.advances.some((a) => !me.advances.includes(a)) && tradeAsk(state, player, 0)) offer("Trade knowledge", () => tradeKnowledge(player, talk));
-      if (me.gold >= 50) offer("Give 50 gold", () => { dispatch({ type: "giveGold", player, amount: 50 }); talk("Your generosity will be remembered."); });
-      offer("Demand tribute", () => {
+    return fresh([
+      ...(them.advances.some((a) => !me.advances.includes(a)) && tradeAsk(state, player, 0) ? [["Trade knowledge", () => tradeKnowledge(player, talk)] as [string, () => void]] : []),
+      ...(me.gold >= 50 ? [["Give 50 gold", () => { dispatch({ type: "giveGold", player, amount: 50 }); talk("Your generosity will be remembered."); }] as [string, () => void]] : []),
+      ["Demand tribute", () => {
         const gold = tributeOffer(state, player, 0);
         if (gold > 0) { dispatch({ type: "tribute", player, amount: gold }); talk(`Take these ${gold} gold, and leave us in peace.`); return; }
         const paid = state.tributePaid?.[`${player}>0`];
         talk(paid !== undefined && state.turn - paid < 20 ? "We paid you not long ago. Do not ask again so soon."
           : them.gold < 10 ? "Our treasury is bare; there is nothing to give."
           : "We pay tribute to no one. Come and take it, if you dare.");
-      });
+      }],
+    ]);
+  };
+  /** A screen of proposals with Back to the first. */
+  const sub = (words: string, items: [string, () => void][]) => {
+    speak(words);
+    const all: [string, () => void][] = [...items, ["Back", () => talk(words)]];
+    talkMenu(all.map((i) => i[0]), (i) => all[i]?.[1](), () => talk(words));
+  };
+  const talk = (words: string): void => {
+    speak(words);
+    const items: [string, () => void][] = [];
+    if (atWar(state, 0, player)) {
+      items.push(...fresh([["Propose peace", () => {
+        // A rival that is winning, with its armies at our gates, will not stop now.
+        if (!acceptsPeace(state, player, 0)) { talk("Not while our armies stand at your gates."); return; }
+        dispatch({ type: "makePeace", player });
+        talk("Peace, then. Let the dead rest.");
+      }]]));
+    } else {
+      // Met but without a treaty: peace comes first, and with it open borders and maps.
       const treaty = atPeace(state, 0, player);
-      items.push(["Declare war", () => talkMenu(treaty ? `Break the treaty with the ${them.name}?` : `War on the ${them.name}?`, ["Keep the peace", "Declare war!"], (i) => {
-        if (i !== 1) { talk(words); return; }
-        dispatch({ type: "declareWar", player });
-        tried.add("Propose peace");
-        talk("So be it. Our armies will answer you.");
-      }, () => talk(words))]);
+      if (!treaty) items.push(...fresh([["Propose peace", () => proposePeace(player, talk)]]));
+      else if (bordersAndMaps().length) items.push(["Borders and maps", () => sub(words, bordersAndMaps())]);
+      if (giftsAndTrade().length) items.push(["Gifts and trade", () => sub(words, giftsAndTrade())]);
+      items.push([treaty ? "Break the treaty" : "Declare war", () => {
+        speak(treaty ? `Would you break our treaty?` : "Would you make war on us?");
+        talkMenu(["Keep the peace", "Declare war!"], (i) => {
+          if (i !== 1) { talk(words); return; }
+          dispatch({ type: "declareWar", player });
+          tried.add("Propose peace");
+          talk("So be it. Our armies will answer you.");
+        }, () => talk(words));
+      }]);
     }
     items.push([first ? "Part in peace" : "Farewell", done]);
-    talkMenu("Your proposal?", items.map((i) => i[0]), (i) => items[i]?.[1](), done);
+    talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), done);
   };
   talk(line);
 }
@@ -1230,7 +1301,7 @@ function proposeDeal(player: number, answer: "yes" | "for gold" | "no", price: n
   if (answer === "yes") { agreed(); return; }
   if (state.players[0]!.gold < price) { talk(`For ${price} gold we might. You have not so much.`); return; }
   screenState = { kind: "diplomacy", player, line: words.price };
-  talkMenu(words.question, ["Yes, pay", "No"], (i) => {
+  talkMenu([`Pay ${price} gold`, "No"], (i) => {
     if (i !== 0) { talk(words.declined); return; }
     dispatch({ type: "giveGold", player, amount: price });
     agreed();
@@ -1243,11 +1314,12 @@ function tradeKnowledge(player: number, talk: (words: string) => void): void {
   const theirs = state.players[player]!.advances.filter((a) => !me.advances.includes(a)).slice(-12);
   const give = tradeAsk(state, player, 0);
   if (!give || !theirs.length) { talk("We have nothing to trade with you."); return; }
-  talkMenu("Which of their advances?", [...theirs.map((a) => advance(a).name), "Never mind"], (i) => {
+  screenState = { kind: "diplomacy", player, line: "Which of our advances would you learn?" };
+  pagedChoices(theirs.map((a) => advance(a).name), (i) => {
     const receive = theirs[i];
     if (!receive) { talk("As you wish."); return; }
     screenState = { kind: "diplomacy", player, line: `For ${advance(receive).name}, we ask ${advance(give).name}.` };
-    talkMenu(`Trade ${advance(give).name} for ${advance(receive).name}?`, ["Yes", "No"], (k) => {
+    talkMenu(["Trade", "No"], (k) => {
       if (k !== 0 || !dispatch({ type: "exchangeAdvances", player, give, receive })) { talk("As you wish."); return; }
       showFound([receive], () => talk("Knowledge for knowledge: a fair trade."));
     }, () => talk("As you wish."));
@@ -1295,7 +1367,7 @@ function askToLeave(owner: number, warnings: number, then: () => void, at?: { x:
           say(`${leader} takes the gold and looks away, for now.`, 3500);
         }]);
       items.push(["We stay", () => { then(); say(`${leader}: "Then you have been warned."`, 3500); }]);
-      talkMenu("Your answer?", items.map((i) => i[0]), (i) => items[i]?.[1](), then);
+      talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), then);
     };
     talk(leaveWords(warnings));
   });
@@ -1350,7 +1422,7 @@ function peaceOfferAudience(player: number, then: () => void): void {
     : "Let our peoples be at peace, by treaty.";
   screenState = { kind: "diplomacy", player, line: words };
   const refuse = () => { then(); say(`${civ(state.players[player]!.civ).leader}: "The offer will not stand forever."`, 3500); };
-  talkMenu(`The ${state.players[player]!.name} offer peace`, ["Sign the treaty", "Refuse"], (i) => {
+  talkMenu(["Sign the treaty", "Refuse"], (i) => {
     if (i !== 0) { refuse(); return; }
     dispatch({ type: "makePeace", player });
     audience(player, "It is done. May it last.", then);
@@ -1360,7 +1432,7 @@ function peaceOfferAudience(player: number, then: () => void): void {
 /** A civilization declares war on us: its leader says so. */
 function warAudience(player: number, reason: "trespass" | undefined, then: () => void): void {
   screenState = { kind: "diplomacy", player, line: reason === "trespass" ? "You were warned. Now our armies will drive you from our land." : "Enough words. Our armies march against you." };
-  talkMenu(`The ${state.players[player]!.name} declare war!`, ["So be it"], () => then(), then);
+  talkMenu(["So be it"], () => then(), then);
 }
 
 function openDiplomacy(player: number): void {
@@ -1810,7 +1882,7 @@ addEventListener("keydown", (e) => {
       else advisorHotkey(e);
       break;
     case "research": treeKey(e, sc); break;
-    case "diplomacy": screenState = { kind: "map" }; break;
+    case "diplomacy": diplomacyKey(e, sc); break;
     case "beat": e.preventDefault(); endBeat(sc); break;
     case "end": screenState = { kind: "title" }; break;
     case "spaceship":
@@ -1863,9 +1935,20 @@ canvas.addEventListener("wheel", (e) => {
   if (rows) { wheelRows -= rows; treeScroll(sc, rows); }
 }, { passive: false });
 let wheelRows = 0;
-// The setup's cards light up under the pointer.
+/** What the audience screen shows: the leader's words and our choices. */
+function diplomacyView(sc: Extract<Screen, { kind: "diplomacy" }>): DiplomacyView {
+  return { player: sc.player, line: sc.line, ...(sc.talk ? { choices: sc.talk.items, selected: sc.talk.selected } : {}) };
+}
+
+// The setup's cards, and the audience's buttons, light up under the pointer.
 canvas.addEventListener("mousemove", (e) => {
   const sc = screenState;
+  if (sc.kind === "diplomacy" && sc.talk) {
+    const [px, py] = toLogical(e);
+    const i = renderer.diplomacyChoiceAt(diplomacyView(sc), px, py);
+    if (i >= 0) sc.talk.selected = i;
+    return;
+  }
   if (sc.kind !== "setup") return;
   const cards = setupCards(sc.setup);
   if (!cards) return;
@@ -1913,7 +1996,12 @@ canvas.addEventListener("mousedown", (e) => {
     case "report": case "worldMap": screenState = { kind: "map" }; return;
     case "research": if (e.button === 0) treeClick(sc, px, py); return;
     case "end": screenState = { kind: "title" }; return;
-    case "diplomacy": screenState = { kind: "map" }; return;
+    case "diplomacy": {
+      // A button picks its choice; elsewhere nothing (no talk on screen: back to the map).
+      if (!sc.talk) { screenState = { kind: "map" }; return; }
+      pickTalk(sc, renderer.diplomacyChoiceAt(diplomacyView(sc), px, py));
+      return;
+    }
     case "beat": endBeat(sc); return;
     case "rates": case "science": case "spaceship": screenState = { kind: "map" }; return;
     case "input": return;
@@ -2035,7 +2123,7 @@ function draw(sc: Screen): void {
     case "science": renderer.science(state); break;
     case "rates": renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;
-    case "diplomacy": renderer.diplomacy(state, sc.player, sc.line); break;
+    case "diplomacy": renderer.diplomacy(state, diplomacyView(sc)); break;
     case "end": renderer.end(sc.lines, sc.rank); break;
     case "spaceship": renderer.spaceship(state); break;
     case "input":

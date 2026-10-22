@@ -99,7 +99,7 @@ describe("modern renderer", () => {
     r.science(state);
     r.rates(state);
     for (const which of ["domestic", "military", "foreign", "score"] as const) r.advisor(state, which);
-    r.diplomacy(state, 1, "Greetings.");
+    r.diplomacy(state, { player: 1, line: "Greetings.", choices: ["Propose peace", "Farewell"] });
     r.end(["Citizens: 3", "Total score: 12"], "Modest");
     r.spaceship(state);
     r.report({ title: "Wonders of the World", lines: [{ text: "Pyramids", right: "Rome (Romans)", slot: 0 }], hint: "1 of 21 built" });

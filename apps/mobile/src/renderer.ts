@@ -10,7 +10,9 @@ import {
   DETAIL,
   drawCityScreen,
   drawCityView,
+  diplomacyChoiceAt,
   drawDiplomacyScreen,
+  prepareScenes,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -244,6 +246,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       else drawScoreScreen(s, state);
     }),
     diplomacy: screen(drawDiplomacyScreen),
+    diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px - inset(), py),
+    prepare: (state) => { void prepareScenes(state); },
     end: screen(drawEndScreen),
     spaceship: screen(drawSpaceshipScreen),
     report: screen(drawReportScreen),
