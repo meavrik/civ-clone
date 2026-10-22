@@ -46,37 +46,7 @@
         image-rendering: crisp-edges;
         touch-action: none;
       }
-      .pane {
-        position: absolute;
-        box-sizing: border-box;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 8px;
-      }
-      #pad {
-        display: grid;
-        grid-template-columns: repeat(3, var(--cell, 44px));
-        grid-template-rows: repeat(3, var(--cell, 44px));
-        gap: 6px;
-        align-content: center;
-        justify-content: center;
-        align-items: stretch;
-      }
-      #keys {
-        flex-direction: column;
-        gap: 8px;
-      }
-      /* Upright, the controls sit low, where the thumbs are. */
-      body[data-layout="below"] .pane { padding-bottom: 24px; }
-      body[data-layout="below"] #pad { align-content: end; }
-      body[data-layout="below"] #keys {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 132px));
-        align-content: end;
-        justify-content: center;
-        gap: 8px;
-      }
+      /* The prompt's buttons. */
       button {
         font: inherit;
         color: var(--ink);
@@ -85,27 +55,9 @@
         border-color: var(--stone-lit) var(--stone-shade) var(--stone-shade) var(--stone-lit);
         border-radius: 3px;
         padding: 0;
-        touch-action: none;
+        touch-action: manipulation;
         outline: none;
         cursor: pointer;
-      }
-      button.down {
-        color: #fff;
-        background: var(--azure);
-        border-color: var(--azure-lit) var(--ink) var(--ink) var(--azure-lit);
-      }
-      .key {
-        width: 100%;
-        max-width: 132px;
-        min-height: 44px;
-        padding: 4px 6px;
-      }
-      .dir svg {
-        width: 60%;
-        height: 60%;
-        fill: currentColor;
-        display: block;
-        margin: auto;
       }
       /* The prompt for a city's name, at the top, clear of the phone's keyboard. */
       #ask {
@@ -180,8 +132,6 @@
   <body>
     <div id="safe"></div>
     <canvas id="screen" width="320" height="200"></canvas>
-    <div id="pad" class="pane"></div>
-    <div id="keys" class="pane"></div>
     <div id="ring"></div>
     <form id="ask" hidden autocomplete="off">
       <span class="title"></span>

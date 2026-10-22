@@ -52,3 +52,9 @@ export function syncText(): void {
     form.hidden = true;
   }
 }
+
+function frame(): void {
+  syncText();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);

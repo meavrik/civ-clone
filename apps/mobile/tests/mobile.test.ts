@@ -1,41 +1,25 @@
+import { readFileSync } from "node:fs";
+import { MENU_BAR as DEV_MENU_BAR } from "@civ/renderer-api";
+import { ratesAt } from "@civ/renderer-retro";
 import { describe, expect, it } from "vitest";
+import { withoutDebugMenu } from "../debug-menu.js";
 import { Recognizer } from "../src/gestures.js";
-import { keysFor, padFor } from "../src/keys.js";
-import { BELOW, KEYS_W, layoutFor, PAD_W } from "../src/layout.js";
+import { layoutFor } from "../src/layout.js";
 import { MapPan, RELEASE_MS } from "../src/pan.js";
-
-const NONE = { top: 0, right: 0, bottom: 0, left: 0 };
+import { rateKeys } from "../src/rates.js";
 
 describe("layout", () => {
-  it("puts the controls either side of the screen on a phone held sideways", () => {
+  it("fills the height of a phone held sideways, inside the notch and the home bar", () => {
     const l = layoutFor(844, 390, { top: 0, right: 47, bottom: 21, left: 47 }, 320, 200);
-    expect(l.mode).toBe("sides");
-    expect(l.canvas.x).toBeGreaterThanOrEqual(47 + PAD_W);
-    expect(l.canvas.x + l.canvas.w).toBeLessThanOrEqual(844 - 47 - KEYS_W);
-    expect(l.canvas.h).toBeLessThanOrEqual(390 - 21);
-    expect(l.canvas.w / l.canvas.h).toBeCloseTo(320 / 200, 1);
-    expect(l.pad.x + l.pad.w).toBe(l.canvas.x);
-    expect(l.keys.x).toBe(l.canvas.x + l.canvas.w);
+    expect(l.canvas.h).toBe(369);
+    expect(l.canvas.w).toBe(590);
+    expect(l.canvas.x).toBe(47 + Math.round((750 - 590) / 2));
+    expect(l.scale).toBeCloseTo(590 / 320, 5);
   });
 
-  it("puts them below the screen on a phone held upright, the screen as wide as the phone", () => {
+  it("fills the width of a phone held upright, centred top to bottom", () => {
     const l = layoutFor(390, 844, { top: 47, right: 0, bottom: 34, left: 0 }, 320, 200);
-    expect(l.mode).toBe("below");
-    expect(l.canvas).toEqual({ x: 0, y: 47, w: 390, h: 244 });
-    expect(l.pad.y).toBe(47 + 244);
-    expect(l.pad.h).toBeGreaterThanOrEqual(BELOW);
-    expect(l.keys.x).toBe(l.pad.x + l.pad.w);
-  });
-
-  it("picks whichever leaves the bigger screen", () => {
-    for (const [w, h] of [[1180, 820], [820, 1180], [667, 375], [1024, 600], [600, 1024]] as const) {
-      const l = layoutFor(w, h, NONE, 320, 200);
-      const sides = Math.min((w - PAD_W - KEYS_W) / 320, h / 200);
-      const below = Math.min(w / 320, (h - BELOW) / 200);
-      expect(l.scale).toBeCloseTo(Math.max(sides, below), 2);
-      expect(l.canvas.x).toBeGreaterThanOrEqual(0);
-      expect(l.canvas.y + l.canvas.h).toBeLessThanOrEqual(h);
-    }
+    expect(l.canvas).toEqual({ x: 0, y: 47 + Math.round((763 - 244) / 2), w: 390, h: 244 });
   });
 });
 
@@ -138,21 +122,35 @@ describe("map pan", () => {
   });
 });
 
-describe("controls", () => {
-  it("offers what each screen of the web game answers to", () => {
-    expect(keysFor({ screen: "map", activeUnit: false }).map((k) => k.code)).toEqual(["Enter", "F10"]);
-    expect(keysFor({ screen: "map", activeUnit: true }).map((k) => k.code)).toContain("Escape");
-    expect(keysFor({ screen: "city", activeUnit: true }).map((k) => k.code)).toEqual(["KeyC", "KeyB", "KeyH", "KeyV", "KeyN", "Escape"]);
-    expect(keysFor({ screen: "input", activeUnit: true })).toEqual([]);
-    expect(keysFor({ screen: "diplomacy", activeUnit: false }).map((k) => k.code)).toEqual(["Enter"]);
+describe("rates by touch", () => {
+  it("knows the bars and the rate each point of them stands for", () => {
+    expect(ratesAt(110, 66)).toEqual({ row: "tax", value: 0 });
+    expect(ratesAt(170, 84)).toEqual({ row: "lux", value: 5 });
+    expect(ratesAt(236, 102)).toEqual({ row: "sci", value: 10 });
+    expect(ratesAt(170, 130)).toBeNull();
+    expect(ratesAt(60, 66)).toBeNull(); // the label
+    expect(ratesAt(60, 66, true)).toEqual({ row: "tax", value: 0 }); // a finger sliding off the end keeps the bar
   });
 
-  it("moves units in eight directions on the map and walks menus with the arrows", () => {
-    const map = padFor("map")!;
-    expect(map).toHaveLength(9);
-    expect(new Set(map.map((p) => `${p.col},${p.row}`)).size).toBe(9);
-    expect(map.find((p) => p.col === 0 && p.row === 0)!.code).toBe("Numpad7");
-    expect(padFor("menu")!.map((p) => p.code).sort()).toEqual(["ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUp"]);
-    expect(padFor("city")).toBeNull();
+  it("walks the rates to the one touched with the arrows the game takes", () => {
+    const now = { tax: 4, lux: 2 };
+    expect(rateKeys(now, "tax", 6)).toEqual(["ArrowRight", "ArrowRight"]);
+    expect(rateKeys(now, "lux", 0)).toEqual(["ArrowDown", "ArrowDown"]);
+    expect(rateKeys(now, "sci", 6)).toEqual(["ArrowLeft", "ArrowLeft"]); // science 4 to 6: tax 4 to 2
+    expect(rateKeys(now, "tax", 4)).toEqual([]);
+  });
+});
+
+describe("the deployed app", () => {
+  it("has no Debug menu: the menu bar's titles stop at World", () => {
+    const source = readFileSync(new URL("../../../packages/renderer-api/src/index.ts", import.meta.url), "utf8");
+    expect(DEV_MENU_BAR.at(-1)).toBe("Debug");
+    const built = withoutDebugMenu(source);
+    expect(built).toContain('export const MENU_BAR = ["Game", "Orders", "Advisors", "World"] as const;');
+    expect(built.replace(/export const MENU_BAR = [^\n]*/, "")).toBe(source.replace(/export const MENU_BAR = [^\n]*/, ""));
+  });
+
+  it("refuses to build if the titles are no longer written as it expects", () => {
+    expect(() => withoutDebugMenu('export const MENU_BAR = ["Game", "Debug", "World"];')).toThrow(/Debug/);
   });
 });

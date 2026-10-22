@@ -3,12 +3,13 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, normalizePath, type Plugin } from "vite";
+import { withoutDebugMenu } from "./debug-menu.js";
 
 const here = (path: string) => normalizePath(fileURLToPath(new URL(path, import.meta.url)));
 
 /**
  * The web game's main.ts, unchanged, with three of its modules swapped for the phone's: the
- * display (the screen fills the phone beside the touch controls), the renderer (the map pans
+ * display (the screen fills the phone), the renderer (the map pans
  * under a finger) and the save slots (the turn so far is saved when the phone puts the game away).
  */
 const WEB_MAIN = here("../web/src/main.ts");
@@ -25,6 +26,25 @@ function webGame(): Plugin {
     resolveId(source, importer) {
       if (!importer || normalizePath(importer.split("?")[0]!) !== WEB_MAIN) return null;
       return SWAPS[source] ?? null;
+    },
+  };
+}
+
+/** No Debug menu in the deployed app (debug-menu.ts); the dev server keeps it. */
+const RENDERER_API = here("../../packages/renderer-api/src/index.ts");
+
+function noDebugMenu(): Plugin {
+  return {
+    name: "epochs-mobile:no-debug-menu",
+    apply: "build",
+    enforce: "pre",
+    transform(code, id) {
+      if (normalizePath(id.split("?")[0]!) !== RENDERER_API) return null;
+      try {
+        return withoutDebugMenu(code);
+      } catch (err) {
+        this.error((err as Error).message);
+      }
     },
   };
 }
@@ -77,5 +97,5 @@ export default defineConfig({
   server: { port: 5180 },
   preview: { port: 4180 },
   build: { target: "es2022" },
-  plugins: [webGame(), serviceWorker()],
+  plugins: [webGame(), noDebugMenu(), serviceWorker()],
 });

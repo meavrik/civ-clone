@@ -3,9 +3,8 @@ import { layoutFor, type Insets, type Layout } from "./layout.js";
 
 /**
  * Stands in for apps/web/src/display.ts (vite.config.ts swaps it in): the same exports, but the
- * screen fills the phone beside the touch controls at any scale, and points map back to the
- * game's logical pixels from where the canvas actually is, for the browser's mouse events and
- * the ones the touch layer makes alike.
+ * screen fills the phone at any scale, and points map back to the game's logical pixels from where
+ * the canvas actually is, for the browser's mouse events and the ones the touch layer makes alike.
  */
 export const canvas = document.getElementById("screen") as HTMLCanvasElement;
 
@@ -14,7 +13,6 @@ let logicalH = 200;
 /** Canvas pixels to a logical pixel: the retro renderer's terrain is finer than its layout. */
 let density = 1;
 let current: Layout | null = null;
-const listeners: ((layout: Layout) => void)[] = [];
 
 export function configureDisplay(width: number, height: number, _pixelated: boolean, canvasDensity = 1): void {
   logicalW = width;
@@ -31,13 +29,6 @@ export function fitCanvas(): void {
     canvas.width = logicalW * density;
     canvas.height = logicalH * density;
   }
-  for (const fn of listeners) fn(layout);
-}
-
-/** Run `fn` with the layout now and whenever it changes. */
-export function onLayout(fn: (layout: Layout) => void): void {
-  listeners.push(fn);
-  if (current) fn(current);
 }
 
 export function backingScale(): number {

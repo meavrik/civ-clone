@@ -92,12 +92,13 @@ npm run preview:mobile   # serve that build (localhost counts as secure, so the 
 Netlify deploys it from `main` (https://civ-clone.netlify.app, settings in `apps/mobile/netlify.toml`).
 
 Installing it (Add to Home Screen) and playing offline need the build served over HTTPS (or from
-localhost). Touch: tap = click · hold still = right-click (a unit's orders, a step onto the square
-beside it, the terrain window) · drag the map to look around (it glides back when the game moves its
-view, another unit takes over, or a key is pressed) · swipe the tech tree. Beside the screen (below it
-when the phone is upright): a direction pad (the middle centres on the unit) and the keys each screen
-answers to (Orders, Skip, Wait, End turn, Menu; Change, Buy, View, Rename, Exit in a city; OK and Back
-in menus). Naming a city brings up the phone's keyboard in a field at the top.
+localhost). There are no buttons beside the screen, which fills the phone: everything is a touch.
+Tap = click (move a unit, open a city, the menu bar's Game, Orders, Advisors and World) · hold still =
+right-click (the square's window) · drag the map to look around (it glides back when the game moves its
+view, another unit takes over, or a key is pressed) · swipe the research list · touch or slide a bar on
+the rates screen to set it · tap the spaceship screen to launch once the ship is ready · hold on a city
+screen to rename the city. Naming a city brings up the phone's keyboard in a field at the top. The
+deployed build has no Debug menu (the dev server keeps it).
 
 ## Working from a Linux shell on this machine
 

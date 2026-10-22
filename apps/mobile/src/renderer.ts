@@ -8,7 +8,7 @@ import { MapPan } from "./pan.js";
 /**
  * Stands in for apps/web/src/retro-renderer.ts (vite.config.ts swaps it in): the web game's own
  * renderer, with the map drawn and hit-tested where the player's finger has dragged it, and what
- * the last frame showed kept for the touch controls.
+ * the last frame showed kept for the touch layer.
  */
 export const pan = new MapPan();
 

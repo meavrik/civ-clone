@@ -352,20 +352,23 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   peace only), a gift, or stay); an AI declaring war on us says so in an audience.
 - `apps/mobile` — the web game as a PWA for phones and tablets, asked for without changing the web game:
   `src/main.ts` imports `apps/web/src/main.ts` as it is, and `vite.config.ts` (`webGame`) hands that file
-  three stand-ins for its own modules: `display.ts` (screen and controls laid out by `layout.ts`: a pad
-  column left and a keys column right, or a band below when upright, whichever leaves the bigger screen;
-  safe-area insets; `toLogical` from the canvas rect at any scale), `renderer.ts` (the web retro renderer
+  three stand-ins for its own modules: `display.ts` (the screen as large as it fits in the safe area,
+  `layout.ts`; no buttons beside it, asked for: minimum UI; `toLogical` from the canvas rect at any
+  scale), `renderer.ts` (the web retro renderer
   with the map drawn and hit-tested through `MapPan`: a finger's drag, let go when the game moves its
   camera, the active unit changes or a key is pressed on the map; keeps the frame's `TextInputState`) and
   `storage.ts` (same slots; remembers the last autosave so `save.ts` can save the turn so far when the page
   is hidden). Keep those three web modules' exports as they are (each stand-in `satisfies` its web
   counterpart's type). It reads `window.civ` (`screen`, `state`, `log`) from web main.ts: keep that hook.
   `touch.ts` turns fingers (`gestures.ts`) into the mouse the game knows: tap = mousedown 0, hold 450 ms
-  = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. `controls.ts`
-  presses the keys `keys.ts` lists per screen kind (the pad: Numpad diagonals and C on the map, arrows in
-  menus). `text.ts` shows a DOM field while the game asks for text, bound to the game's `TextInputState`,
-  OK/Cancel = Enter/Esc. The build writes `sw.js` from `service-worker.js` (every file precached under a
-  content hash; pages network-first, `ignoreVary`). `base: "./"`, so the build plays from any folder.
+  = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. What the
+  game takes from keys only is a touch there: a rates bar (`ratesAt` in renderer-retro) sets that rate by
+  arrow keys (`rates.ts`), a tap on a launchable spaceship is Enter, a hold on a city screen is N (rename).
+  `text.ts` shows a DOM field while the game asks for text, bound to the game's `TextInputState`,
+  OK/Cancel = Enter/Esc. A production build has no Debug menu (`debug-menu.ts` drops it from renderer-api's
+  `MENU_BAR` and fails the build if that list changes shape; the dev server keeps it). The build writes
+  `sw.js` from `service-worker.js` (every file precached under a content hash; pages network-first,
+  `ignoreVary`). `base: "./"`, so the build plays from any folder.
 - `tools/headless` — tournament harness: `runGame(config)` plays an `allAi` game through `runAiPlayers`, samples
   per-civ stats, fingerprints the final state; `AIS` registry seats a named AI per civ. `cli.ts` prints tables.
 - `tools/maps` — premade-world builder: `frames.ts` (lon/lat → grid breakpoints per world, homelands),

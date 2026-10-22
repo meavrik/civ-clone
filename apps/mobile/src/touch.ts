@@ -1,18 +1,26 @@
-import { screenKind } from "./civ.js";
+import { shipStats } from "@civ/core";
+import { ratesAt } from "@civ/renderer-retro";
+import { game, press, screenKind } from "./civ.js";
 import { canvas, displayScale, logicalAt } from "./display.js";
 import { GESTURES, Recognizer, type Gesture } from "./gestures.js";
+import { rateKeys } from "./rates.js";
 import { pan, TILE_PX, tileUnder } from "./renderer.js";
 import { syncText } from "./text.js";
 
 /**
  * Fingers on the game screen become the mouse the web game knows: a tap is a click, a press held
- * still is a right-click (a unit's orders, a step onto the square next to it, the terrain window),
- * a drag pans the map or scrolls the tech tree. A real mouse is left to the browser.
+ * still is a right-click (the square's window), a drag pans the map or scrolls the research list.
+ * There are no buttons beside the screen, so the few things the game takes from keys only are
+ * touches here: a touch on a rates bar sets that rate, a tap on a spaceship ready to go asks to
+ * launch it, and a press held on a city renames it. A real mouse is left to the browser.
  */
 const fingers = new Recognizer();
 const ring = document.getElementById("ring")!;
 let holdTimer = 0;
-let dragging: "map" | "list" | null = null;
+let dragging: "map" | "list" | "rates" | null = null;
+/** Where the dragging finger is now, and where a drag along a rates bar started (it keeps that bar). */
+const at = { x: 0, y: 0 };
+let barY = 0;
 
 function click(x: number, y: number, button: 0 | 2): void {
   canvas.dispatchEvent(new MouseEvent("mousedown", { clientX: x, clientY: y, button, buttons: button === 2 ? 2 : 1, bubbles: true, cancelable: true }));
@@ -24,13 +32,31 @@ function showRing(x: number, y: number, state: "" | "holding" | "fired"): void {
   ring.style.top = `${y}px`;
 }
 
+/** Set the rate of the bar at point (x, y) to what the point stands for; false off the bars. */
+function setRate(x: number, y: number, held: boolean): boolean {
+  const hit = ratesAt(...logicalAt(x, y), held);
+  const me = game()?.state?.players[0];
+  if (!hit || !me) return false;
+  for (const key of rateKeys({ tax: me.taxRate, lux: me.luxRate }, hit.row, hit.value)) press(key, key);
+  return true;
+}
+
+/** Our spaceship is built enough to go and still on the ground. */
+function readyToLaunch(): boolean {
+  const ship = game()?.state?.players[0]?.spaceship;
+  return !!ship && ship.launched === null && shipStats(ship).launchable;
+}
+
 function act(g: Gesture | null): void {
   if (!g) return;
+  const screen = screenKind();
   switch (g.kind) {
     case "tap": {
       showRing(g.x, g.y, "");
+      if (screen === "rates" && setRate(g.x, g.y, false)) break;
+      if (screen === "spaceship" && readyToLaunch()) { press("Enter", "Enter"); break; }
       // A tap on the map shows that square: the view comes back from wherever it was dragged.
-      if (screenKind() === "map" && tileUnder(...logicalAt(g.x, g.y))) pan.letGo(performance.now());
+      if (screen === "map" && tileUnder(...logicalAt(g.x, g.y))) pan.letGo(performance.now());
       click(g.x, g.y, 0);
       syncText(); // a prompt this opened takes the keyboard while the tap still counts as the player's
       break;
@@ -38,21 +64,29 @@ function act(g: Gesture | null): void {
     case "long":
       showRing(g.x, g.y, "fired");
       navigator.vibrate?.(12);
-      click(g.x, g.y, 2);
+      if (screen === "city") press("KeyN", "n"); // the city's name, in the game's prompt
+      else click(g.x, g.y, 2);
       syncText();
       break;
-    case "dragStart":
+    case "dragStart": {
       showRing(g.x, g.y, "");
-      dragging = screenKind() === "map" && tileUnder(...logicalAt(g.x, g.y)) ? "map" : screenKind() === "research" ? "list" : null;
+      at.x = g.x;
+      at.y = g.y;
+      const [px, py] = logicalAt(g.x, g.y);
+      dragging = screen === "rates" && ratesAt(px, py) ? "rates" : screen === "map" && tileUnder(px, py) ? "map" : screen === "research" ? "list" : null;
+      if (dragging === "rates") setRate(g.x, (barY = g.y), true);
       if (dragging === "map") pan.grab();
       break;
+    }
     case "drag": {
+      at.x += g.dx;
+      at.y += g.dy;
       const scale = displayScale();
       if (dragging === "map") pan.drag(-g.dx / (scale * TILE_PX), -g.dy / (scale * TILE_PX));
       else if (dragging === "list") {
         // The research list scrolls with the finger: the wheel it answers to moves a row for every 30 of its pixels, a row being 9 logical ones.
         canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: (-g.dy / scale / 9) * 30, deltaMode: 0, bubbles: true, cancelable: true }));
-      }
+      } else if (dragging === "rates") setRate(at.x, barY, true);
       break;
     }
     case "dragEnd":
@@ -98,7 +132,7 @@ canvas.addEventListener("pointercancel", (e) => {
 // Safari makes mouse events and zooms from touches unless the touches themselves are refused.
 canvas.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
 
-// Any key on the map (the pad, the buttons or a keyboard) brings the view back to the game's camera.
+// Any key on the map (a keyboard's) brings the view back to the game's camera.
 addEventListener("keydown", () => {
   if (screenKind() === "map") pan.letGo(performance.now());
 }, { capture: true });
