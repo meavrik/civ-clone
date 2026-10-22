@@ -1,4 +1,5 @@
 import type { UnitAction, UnitBattle, UnitStep } from "@civ/core";
+import type { Callout } from "./refusal.js";
 
 /** A unit drawn somewhere other than its square this frame: sliding, or waiting for its turn to move or fight. */
 export interface UnitMotion {
@@ -38,9 +39,18 @@ export interface BattleFrame {
   defender: BattleFighter;
 }
 
+/** The map held a moment between moves (`MotionPlayer.hold`): where the camera should go, and a note beside a square. */
+export interface HoldFrame {
+  /** Counts holds, so a new one can be told from the one before. */
+  seq: number;
+  centre?: { x: number; y: number };
+  note?: Callout;
+}
+
 export interface MotionFrame {
   moving: UnitMotion[];
   battle?: BattleFrame;
+  hold?: HoldFrame;
 }
 
 export interface MotionTiming {
@@ -53,6 +63,8 @@ export interface MotionTiming {
   /** Longest a single fight takes; many fights share `battleTotalMs` and are sped up to fit. */
   battleMs?: number;
   battleTotalMs?: number;
+  /** Longest a round of a fight takes (110 ms unless given). */
+  roundMaxMs?: number;
 }
 
 /** Parts of a fight: the attacker closes in, the rounds, the loser's end. */
@@ -89,6 +101,7 @@ interface Slide {
 
 type Beat =
   | { kind: "slide"; slides: Slide[]; start: number; end: number }
+  | { kind: "hold"; hold: HoldFrame; start: number; end: number }
   | { kind: "nudge"; unit: NudgedUnit; dx: number; dy: number; start: number; end: number }
   | { kind: "battle"; battle: UnitBattle; dx: number; dy: number; roundMs: number; start: number; end: number };
 
@@ -111,6 +124,39 @@ function hpAfter(b: UnitBattle, n: number): [number, number] {
   return [a, d];
 }
 
+type Paced =
+  | { kind: "slide"; slides: Slide[]; ms: number }
+  | { kind: "battle"; battle: UnitBattle; roundMs: number; ms: number };
+
+/** Actions as the beats they play in (a ship's cargo travels in the ship's beat), each with its length. */
+function paced(actions: readonly UnitAction[], timing: MotionTiming): Paced[] {
+  type Group = { kind: "slide"; slides: Slide[] } | { kind: "battle"; battle: UnitBattle };
+  const groups: Group[] = [];
+  for (const act of actions) {
+    if (act.kind === "battle") { groups.push({ kind: "battle", battle: act }); continue; }
+    const slide = { step: act, dx: seamDx(act.toX - act.fromX, timing.width), dy: act.toY - act.fromY };
+    const last = groups.at(-1);
+    if (act.aboard !== undefined && last?.kind === "slide" && last.slides[0]!.step.unit === act.aboard) last.slides.push(slide);
+    else groups.push({ kind: "slide", slides: [slide] });
+  }
+  const slides = groups.filter((g) => g.kind === "slide").length;
+  const fights = groups.length - slides;
+  const stepMs = slides ? Math.min(timing.stepMs, timing.maxMs / slides) : timing.stepMs;
+  const fightMs = Math.min(timing.battleMs ?? 1600, Math.max(LUNGE_MS + DEATH_MS + ROUND_MS.min, (timing.battleTotalMs ?? 6000) / Math.max(1, fights)));
+  const roundMax = timing.roundMaxMs ?? ROUND_MS.max;
+  return groups.map((g): Paced => {
+    if (g.kind === "slide") return { kind: "slide", slides: g.slides, ms: stepMs };
+    const n = Math.max(1, g.battle.rounds.length);
+    const roundMs = Math.max(ROUND_MS.min, Math.min(roundMax, (fightMs - LUNGE_MS - DEATH_MS) / n));
+    return { kind: "battle", battle: g.battle, roundMs, ms: LUNGE_MS + n * roundMs + DEATH_MS };
+  });
+}
+
+/** How long `MotionPlayer.play` takes over these actions at this pace. */
+export function motionMs(actions: readonly UnitAction[], timing: MotionTiming): number {
+  return paced(actions, timing).reduce((sum, p) => sum + p.ms, 0);
+}
+
 /**
  * Plays unit steps and fights in order, the way the original walked units
  * across the map: a step is a slide between squares (a ship's cargo travels
@@ -120,37 +166,28 @@ function hpAfter(b: UnitBattle, n: number): [number, number] {
  */
 export class MotionPlayer {
   private beats: Beat[] = [];
+  private holds = 0;
 
   /** Queue actions after whatever is still playing. */
   play(actions: readonly UnitAction[], now: number, timing: MotionTiming): void {
-    type Group = { kind: "slide"; slides: Slide[] } | { kind: "battle"; battle: UnitBattle };
-    const groups: Group[] = [];
-    for (const act of actions) {
-      if (act.kind === "battle") { groups.push({ kind: "battle", battle: act }); continue; }
-      const slide = { step: act, dx: seamDx(act.toX - act.fromX, timing.width), dy: act.toY - act.fromY };
-      const last = groups.at(-1);
-      if (act.aboard !== undefined && last?.kind === "slide" && last.slides[0]!.step.unit === act.aboard) last.slides.push(slide);
-      else groups.push({ kind: "slide", slides: [slide] });
-    }
-    if (!groups.length) return;
-    const slides = groups.filter((g) => g.kind === "slide").length;
-    const fights = groups.length - slides;
-    const stepMs = slides ? Math.min(timing.stepMs, timing.maxMs / slides) : timing.stepMs;
-    const fightMs = Math.min(timing.battleMs ?? 1600, Math.max(LUNGE_MS + DEATH_MS + ROUND_MS.min, (timing.battleTotalMs ?? 6000) / Math.max(1, fights)));
     let t = Math.max(now, this.beats.at(-1)?.end ?? now);
-    for (const g of groups) {
-      if (g.kind === "slide") {
-        this.beats.push({ kind: "slide", slides: g.slides, start: t, end: t + stepMs });
-        t += stepMs;
-        continue;
+    for (const p of paced(actions, timing)) {
+      if (p.kind === "slide") this.beats.push({ kind: "slide", slides: p.slides, start: t, end: t + p.ms });
+      else {
+        const b = p.battle;
+        this.beats.push({ kind: "battle", battle: b, dx: seamDx(b.defender.x - b.attacker.x, timing.width), dy: b.defender.y - b.attacker.y, roundMs: p.roundMs, start: t, end: t + p.ms });
       }
-      const b = g.battle;
-      const n = Math.max(1, b.rounds.length);
-      const roundMs = Math.max(ROUND_MS.min, Math.min(ROUND_MS.max, (fightMs - LUNGE_MS - DEATH_MS) / n));
-      const end = t + LUNGE_MS + n * roundMs + DEATH_MS;
-      this.beats.push({ kind: "battle", battle: b, dx: seamDx(b.defender.x - b.attacker.x, timing.width), dy: b.defender.y - b.attacker.y, roundMs, start: t, end });
-      t = end;
+      t += p.ms;
     }
+  }
+
+  /**
+   * Hold the map a moment after whatever is still playing: the camera may glide to `centre`
+   * and a note stand beside a square. Nothing moves meanwhile.
+   */
+  hold(ms: number, now: number, what: { centre?: { x: number; y: number }; note?: Callout } = {}): void {
+    const start = Math.max(now, this.beats.at(-1)?.end ?? now);
+    this.beats.push({ kind: "hold", hold: { seq: ++this.holds, ...what }, start, end: start + ms });
   }
 
   /**
@@ -168,7 +205,12 @@ export class MotionPlayer {
     while (this.beats.length && this.beats[0]!.end <= now) this.beats.shift();
     const seen = new Map<number, UnitMotion>();
     let battle: BattleFrame | undefined;
+    let hold: HoldFrame | undefined;
     for (const beat of this.beats) {
+      if (beat.kind === "hold") {
+        if (now >= beat.start && !hold) hold = beat.hold;
+        continue;
+      }
       if (beat.kind === "nudge") {
         const { unit } = beat;
         if (seen.has(unit.id)) continue;
@@ -206,6 +248,7 @@ export class MotionPlayer {
     const moving = [...seen.values()].filter((m) => !Number.isNaN(m.x));
     const frame: MotionFrame = { moving };
     if (battle) frame.battle = battle;
+    if (hold) frame.hold = hold;
     return frame;
   }
 

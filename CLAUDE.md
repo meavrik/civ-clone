@@ -208,6 +208,15 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `lastActions` (a UI side channel like `lastTurnEvents`, emptied by `endTurn`, never read by replays or
   AI); `MotionPlayer` (`renderer-api/src/motion.ts`) times them into `view.moving` (slides) and
   `view.battle` (lunge, blows, hp draining, the loser's burst), and renderers draw from those.
+  The other civilizations' turns (asked for 2026-10-22: enemies "come as a surprise, too swift"):
+  `watchTurn` (`renderer-api/src/watch.ts`) plans the playback from their actions and the squares we
+  saw before or after: every move of a civ at war with us (or barbarians) on seen squares, one unit at a
+  time at a slow pace, a `MotionPlayer.hold` first gliding the camera there when it is not well on screen;
+  each fight with our units is announced beside the attacker ("Babylonian Legion attacks!"), played
+  slower, and its outcome said beside our square ("Phalanx destroyed"); other civs' moves play only
+  where the map already looks. A long turn is sped up to `WATCH_BUDGET_MS` (at most ~3x). Any key or
+  click skips the rest. Then an "Under attack!" window lists the turn's fights with our units
+  (`fightReport`), then the news; a war declared on us by a civ we already knew is told before the playback.
   Coasts: `coast.ts` gives both renderers one shoreline field (square depth 0 land / 1 water touching
   land / 2 open sea, interpolated between square centres plus noise that wraps with the map), so shores
   and the edge of deep water wander across square borders while every square's centre keeps its kind.

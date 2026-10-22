@@ -16,6 +16,7 @@ export * from "./refusal.js";
 export * from "./works.js";
 export * from "./cityview.js";
 export * from "./plan.js";
+export * from "./watch.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {

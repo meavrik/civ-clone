@@ -69,6 +69,7 @@ import {
   type TurnEvent,
   type CombatReport,
   type UnitAction,
+  type UnitBattle,
   type WorldSize,
 } from "@civ/core";
 import {
@@ -105,6 +106,10 @@ import {
   topCitiesReport,
   civilizationsReport,
   wondersReport,
+  fightReport,
+  watchTurn,
+  type Callout,
+  type HoldFrame,
   type SetupState,
   type TextInputState,
 } from "@civ/renderer-api";
@@ -191,13 +196,16 @@ const CAMERA_MS = 280;
  * Units slide from square to square instead of jumping. The state has
  * already moved; this only times the drawing. Our own moves play at once
  * (a new order snaps any slide still running); after the other
- * civilizations' turns, the moves we could see on screen play back in order.
+ * civilizations' turns, what we could see of them plays back in order
+ * (`watchTurn`): the map follows each enemy unit and stops on each fight
+ * with ours.
  */
 const motion = new MotionPlayer();
 /** Fog lifting off squares as they are explored. */
 const lifter = new FogLifter();
 const OWN_PACE = { stepMs: 120, maxMs: 1000, battleMs: 1600, battleTotalMs: 1600 };
-const OTHERS_PACE = { stepMs: 110, maxMs: 2500, battleMs: 1400, battleTotalMs: 6000 };
+/** True while the other civilizations' turns play back; any key or click skips the rest. */
+let watching = false;
 /** Things to show once every slide has landed (a village's gift, an audience, the turn's news). */
 const afterSlides: (() => void)[] = [];
 
@@ -207,6 +215,7 @@ function whenStill(fn: () => void): void {
 
 function resetMotion(): void {
   motion.clear();
+  watching = false;
   afterSlides.length = 0;
   handoff = null;
   view.focus = undefined;
@@ -254,26 +263,60 @@ function stepHandoff(now: number, animating: boolean): void {
 /** Show what our units just did: slides along their steps, and any fight. */
 function slideOwn(actions: readonly UnitAction[]): void {
   if (!actions.length) return;
-  motion.clear();
+  skipWatch();
   motion.play(actions, performance.now(), { ...OWN_PACE, width: state.map.width });
 }
 
-/** True if a square is in (or one square around) the part of the map on screen. */
-function onScreen(x: number, y: number): boolean {
-  const w = state.map.width;
-  const rx = (((x - view.originX) % w) + w) % w;
-  const ry = y - view.originY;
-  return (rx <= renderer.viewTilesX || rx >= w - 1) && ry >= -1 && ry <= renderer.viewTilesY;
-}
-
-/** Steps and fights out of our turn that we could have watched: seen squares on screen. */
-function watchable(actions: readonly UnitAction[]): UnitAction[] {
+/**
+ * Play back what we saw of the other civilizations' turns, and our gotos as ours began:
+ * squares we saw before those turns or see now, the camera taken from where it is headed.
+ */
+function watchOthers(actions: readonly UnitAction[], sawBefore: Uint8Array): void {
   const me = state.players[0]!;
   const w = state.map.width;
-  const sees = (x: number, y: number) => me.visible[y * w + x] === 1 && onScreen(x, y);
-  return actions.filter((a) => a.kind === "step"
-    ? sees(a.fromX, a.fromY) || sees(a.toX, a.toY)
-    : sees(a.attacker.x, a.attacker.y) || sees(a.defender.x, a.defender.y));
+  const seen = (x: number, y: number) => {
+    const i = y * w + x;
+    return me.explored[i] === 1 && (sawBefore[i] === 1 || me.visible[i] === 1);
+  };
+  const camera = {
+    originX: ((Math.round(cam.animating ? cam.toX : cam.x) % w) + w) % w,
+    originY: Math.round(cam.animating ? cam.toY : cam.y),
+    tilesX: renderer.viewTilesX,
+    tilesY: renderer.viewTilesY,
+  };
+  const now = performance.now();
+  for (const b of watchTurn(state, actions, { viewer: 0, camera, seen, glideMs: CAMERA_MS })) {
+    if (b.kind === "hold") motion.hold(b.ms, now, b);
+    else motion.play(b.actions, now, b.timing);
+  }
+  watching = motion.busy(now);
+}
+
+function skipWatch(): void {
+  motion.clear();
+  watching = false;
+}
+
+/** Each frame: a hold in the playback moves the camera once as it begins, and its note stands while it lasts. */
+let holdSeq = 0;
+let holdNote: Callout | undefined;
+function showHold(h: HoldFrame | undefined): void {
+  if (h && h.seq !== holdSeq) {
+    holdSeq = h.seq;
+    if (h.centre) centerOn(h.centre.x, h.centre.y);
+  }
+  if (h?.note) { view.callout = h.note; holdNote = h.note; }
+  else if (holdNote) {
+    if (view.callout === holdNote) view.callout = undefined;
+    holdNote = undefined;
+  }
+}
+
+/** The fights with our units in the other civilizations' turns, in one window. */
+function battleReport(fights: readonly UnitBattle[], then: () => void): void {
+  const lines = fightReport(state, fights, 0);
+  if (!lines.length) { then(); return; }
+  modal("Under attack!", lines, ["OK"], () => then(), 0, then);
 }
 
 /** The turn ends by itself once nothing needs orders (game menu toggles it; remembered per browser). */
@@ -1455,12 +1498,14 @@ function concernsUs(ev: TurnEvent): boolean {
 
 function endTurn(): void {
   // Last turn's news has not been shown yet (slides still running): show it first.
-  if (afterSlides.length) { motion.clear(); return; }
-  motion.clear();
+  if (afterSlides.length) { skipWatch(); return; }
+  skipWatch();
   handoff = null;
   view.focus = undefined;
-  const watched: UnitAction[] = [];
+  const actions: UnitAction[] = [];
   askedLeave.clear();
+  // What we can see now; a unit lost in the turns to come takes its sight with it.
+  const sawBefore = state.players[0]!.visible.slice();
   dispatch({ type: "endTurn" });
   // Our own end of turn (contacts come from the relations; other civs' villages are theirs).
   const events: TurnEvent[] = lastTurnEvents.filter((ev) => ev.kind !== "contact" && !(ev.kind === "hut" && ev.player !== 0));
@@ -1470,24 +1515,31 @@ function endTurn(): void {
   while (state.players[state.currentPlayer]!.isAi && guard++ < 16) {
     aiTurn(state);
     for (const ev of lastTurnEvents.slice(seen)) if (concernsUs(ev)) events.push(ev);
-    watched.push(...watchable(lastActions));
+    actions.push(...lastActions);
     applyCommand(state, { type: "endTurn" });
     seen = 0;
   }
   // The last civ's end of turn and the start of ours (a goto may have reached a village).
   for (const ev of lastTurnEvents) if (concernsUs(ev) || (ev.kind === "hut" && ev.player === 0)) events.push(ev);
+  actions.push(...lastActions);
   // Whom we met comes first: a new neighbour's other words make sense only after the greeting.
-  events.unshift(...newContacts());
+  const contacts = newContacts();
+  // A declaration of war from someone we know comes before their attack is seen, so it explains it.
+  const met = new Set(contacts.map((ev) => (ev.kind === "contact" ? ev.player : -1)));
+  const wars = events.filter((ev) => ev.kind === "warDeclared" && ev.on === 0 && !met.has(ev.player));
+  const news = [...contacts, ...events.filter((ev) => !wars.includes(ev))];
+  const fights = actions.filter((a): a is UnitBattle => a.kind === "battle" && (a.attacker.owner === 0 || a.defender.owner === 0));
   void runAiPlayers; // replay helper lives in core; here the loop above also harvests events
   autosave();
-  // Their moves we could see, then our gotos (begun as our turn started), then the news.
-  const now = performance.now();
-  motion.play(watched, now, { ...OTHERS_PACE, width: state.map.width });
-  motion.play(watchable(lastActions.filter((a) => a.kind === "step" && a.owner === 0)), now, { ...OWN_PACE, width: state.map.width });
-  whenStill(() => presentEvents(events, () => {
-    const end = checkGameEnd(state, FINAL_TURN);
-    if (end) endGame(end);
-  }));
+  // Their moves we could see, then our gotos (begun as our turn started), then the fights told, then the news.
+  const watch = (): void => {
+    watchOthers(actions, sawBefore);
+    whenStill(() => battleReport(fights, () => presentEvents(news, () => {
+      const end = checkGameEnd(state, FINAL_TURN);
+      if (end) endGame(end);
+    })));
+  };
+  if (wars.length) presentEvents(wars, watch); else watch();
 }
 
 // ---- input: keyboard --------------------------------------------------------
@@ -1527,6 +1579,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
 }
 
 function mapKey(e: KeyboardEvent): void {
+  if (watching && motion.busy(performance.now())) { e.preventDefault(); skipWatch(); return; }
   if (handoff && !/^F\d+$/.test(e.code)) { e.preventDefault(); finishHandoff(); return; }
   const active = state.activeUnit;
   const mv = MOVES[e.code];
@@ -1836,6 +1889,7 @@ canvas.addEventListener("mousedown", (e) => {
     case "map": break;
   }
 
+  if (watching && motion.busy(performance.now())) { skipWatch(); return; }
   const bar = renderer.menuBarHit(px, py);
   if (bar >= 0) { openBarMenu(bar); return; }
   const mm = renderer.minimapAt(state, px, py);
@@ -1936,10 +1990,12 @@ function frame(t: number): void {
   const shown = motion.at(t);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;
+  showHold(shown.hold);
   // No game yet on the title screen and its menus.
   const lifting = (state as GameState | undefined) ? lifter.update(state, t, shown.moving) : undefined;
   view.lifting = lifting?.size ? lifting : undefined;
   const animating = motion.busy(t);
+  if (!animating) watching = false;
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
   if (!animating && afterSlides.length && screenState.kind === "map") for (const fn of afterSlides.splice(0)) fn();
