@@ -967,7 +967,7 @@ function barEntries(index: number): MenuEntry[] {
         [`Borders: ${borders ? "On" : "Off"}`, "", () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
         ["Save Game", "", () => void openSaveMenu()],
         ["Load Game", "", () => void openLoadMenu()],
-        ["Back to an Earlier Turn", "", () => openRewindMenu(makeSave(state, options, log), true)],
+        ["Back to an Earlier Turn", "", () => openRewindMenu(makeSave(state, options, log))],
         ["Retire", "", () => endGame({ kind: "time" })],
         ["New Game", "", () => { screenState = { kind: "title" }; }],
       ];
@@ -1059,18 +1059,14 @@ async function openLoadMenu(): Promise<void> {
 /** How many turns back the game can be taken from its menu. */
 const REWIND_TURNS = 8;
 
-/**
- * Go back to the start of an earlier turn of a save (the autosave from the title, the game
- * in play from the Game menu): its log cut back there and replayed. In play, ask first.
- */
-function openRewindMenu(save: SaveGame, confirm: boolean): void {
+/** Go back to the start of an earlier turn of the game in play (Game menu): its log cut back there and replayed, after asking. */
+function openRewindMenu(save: SaveGame): void {
   const turns = turnStarts(save).slice(-REWIND_TURNS).reverse();
   const label = (turn: number) => `${formatYear(turnToYear(turn))}${turn === save.turn ? " (this turn)" : ""}`;
   menu("Back to the start of which turn?", [...turns.map((t) => label(t.turn)), "Never mind"], (i) => {
     const t = turns[i];
     const back = t && rewindSave(save, t.turn);
     if (!back) return;
-    if (!confirm) { resumeGame(back); return; }
     modal(`Back to ${formatYear(turnToYear(t.turn))}?`, ["Everything since then is lost, unless saved."], ["Go back", "Stay"], (k) => { if (k === 0) resumeGame(back); }, 1);
   });
 }
@@ -1742,7 +1738,7 @@ function skipIntro(): void {
   void openTitleMenu();
 }
 
-/** The title menu, opened once the opening is over; with an autosave, the game left last can be picked up, or an earlier turn of it. */
+/** The title menu, opened once the opening is over; with an autosave, the game left last can be picked up. */
 let titleMenuPending = false;
 async function openTitleMenu(): Promise<void> {
   if (titleMenuPending) return;
@@ -1756,7 +1752,6 @@ async function openTitleMenu(): Promise<void> {
     ["Play on a premade world", () => openSetup("world")],
     ["Customize world", () => openSetup("size")],
     ["Load a saved game", () => void openLoadMenu()],
-    ...(auto && auto.log.length ? [["Back to an earlier turn", () => openRewindMenu(auto, false)] as [string, () => void]] : []),
   ];
   screenState = {
     kind: "menu",

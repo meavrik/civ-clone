@@ -359,9 +359,9 @@ Never ship the original's sprites, palette art, fonts or text.
   set aside for now, still built and tested but not offered), `retro-renderer.ts` (adapter), `display.ts`
   (canvas fitting: crisp integer scale for retro, DPR-aware for modern), `storage.ts` (IndexedDB saves,
   per browser: slot 0 is the autosave, written as every turn begins and when a game starts or loads).
-  The title offers "Continue" (the autosave) and, like the Game menu, "Back to an earlier turn": a save
-  is a seed and the player's commands, so `turnStarts`/`rewindSave` (core `save.ts`) cut its log back
-  to the start of any turn it saw. A loaded game holds Auto End Turn until the next key or click.
+  The title offers "Continue" (the autosave; its "Back to an earlier turn" was dropped, asked for
+  2026-10-22) and the Game menu "Back to an Earlier Turn": a save is a seed and the player's commands,
+  so `turnStarts`/`rewindSave` (core `save.ts`) cut its log back to the start of any turn it saw. A loaded game holds Auto End Turn until the next key or click.
   Diplomacy: a meeting first holds the map on whom we met (the `beat` screen:
   a callout, 1.6 s or any key), then their leader receives us (`audience`: without a treaty propose
   peace (`proposePeace`: yes, a gift first, or no); at peace open or close borders and exchange maps;
