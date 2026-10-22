@@ -12,8 +12,33 @@ export function drawIcon(s: Surface, name: IconName, x: number, y: number): void
   if (sprite) s.blit(sprite, x, y, SPRITE_CLEAR);
 }
 
-/** The icon sheet's small marks (tick, new, yield_*, move*), each at its cell's top left. */
-export type MarkName = "tick" | "new" | "yield_food" | "yield_shield" | "yield_trade" | "move" | "move_part" | "move_none";
+/** An icon with its cell's top left at fine pixel (fx, fy) (two to a screen pixel). */
+export function drawIconFine(s: Surface, name: IconName, fx: number, fy: number): void {
+  const sprite = spriteSurface(ICON_SHEET, name);
+  if (!sprite) return;
+  if (sprite.k === s.k) s.fblit(sprite, fx, fy, SPRITE_CLEAR);
+  else s.blit(sprite, Math.floor(fx / 2), Math.floor(fy / 2), SPRITE_CLEAR);
+}
+
+const inked = new Map<IconName, { x: number; w: number }>();
+/** The columns an icon's pixels take in its cell, in fine pixels: where the first one is and how many. */
+export function iconInk(name: IconName): { x: number; w: number } {
+  const hit = inked.get(name);
+  if (hit) return hit;
+  const sprite = spriteSurface(ICON_SHEET, name);
+  let x0 = Infinity;
+  let x1 = -1;
+  if (sprite)
+    for (let y = 0; y < sprite.fh; y++)
+      for (let x = 0; x < sprite.fw; x++)
+        if (sprite.fget(x, y) !== SPRITE_CLEAR) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+  const ink = x1 < 0 ? { x: 0, w: 0 } : { x: x0, w: x1 - x0 + 1 };
+  inked.set(name, ink);
+  return ink;
+}
+
+/** The icon sheet's small marks (tick, new, move*), each at its cell's top left. */
+export type MarkName = "tick" | "new" | "move" | "move_part" | "move_none";
 
 /** A small mark with its top left at fine pixel (fx, fy) (two to a screen pixel). */
 export function drawMark(s: Surface, name: MarkName, fx: number, fy: number): void {

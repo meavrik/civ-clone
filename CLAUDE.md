@@ -153,8 +153,11 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   in its own logical size, hit-test menus/city map/city buttons/tiles/minimap/menu bar), the shared view types and the
   DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`, `builtNotice`).
   City screen: Change and Buy buttons in the production box (`cityButtonAt`); the worked squares of its
-  map carry their yield marks on a half-tone shade of the square's lower half (asked for 2026-10-21: no
-  black box); Esc, Enter (not held) or a click
+  map carry their yield in the City Resources box's own icons (wheat ear food, hammer shields, arrows
+  trade), straight on the ground with no shade: food along the top half, shields then trade along the
+  bottom, overlapping when a row is long (asked for 2026-10-22: the shade looked bad and the old 3x3
+  marks could not be told apart); the box names each row (Food, Shields, Trade; Tax, Lux, Sci before
+  their shares of the trade). Esc, Enter (not held) or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. The build menu (`openProductionMenu` in the web app) shows beside
   each choice only the turns it takes from here, counting the shields a change would keep ("never"
@@ -279,7 +282,7 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `meadow`, `leaf`, `mound`, `wheat`, `dune`, `heath`, `sea`, `steel`, and `jewel` (6 colours, 249-254;
   `shade` clamps to `RAMP_SIZE`); `town` (the city icons' colours, not a dark-to-light ramp) took the
   city view's `copper` slots, copper now drawn from `steel`; new art must reuse these ramps or free one. Panel icons (`icons.art.ts`,
-  drawn with `src/icons.ts`) and the small marks (`drawMark`: tick, new, yield, moves) are hand-drawn
+  drawn with `src/icons.ts`) and the small marks (`drawMark`: tick, new, moves) are hand-drawn
   16x16: food is an ear of wheat, `shield` (production) a hammer, `people` a man and a woman; roads,
   rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.
   Citizens (city screen) are whole figures: `citizens.art.ts` holds a man and a woman to each sprite,

@@ -27,7 +27,7 @@ import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, GOLD, GOOD, INK, stipple, TITLE_H } from "../widgets.js";
 import { CITIZEN_H, CITIZEN_W, drawCitizen } from "../citizens.js";
-import { drawIcon, drawIconLine, drawMark, ICON } from "../icons.js";
+import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
@@ -121,16 +121,30 @@ function drawBox(s: Surface, x: number, y: number, w: number, h: number, title =
   drawWindow(s, x, y, w, h, title, right ? { right } : {});
 }
 
+/**
+ * A worked square's yield in the City Resources box's own icons, straight on the ground (they carry
+ * their outlines): food along the top half, shields then trade along the bottom, one row centred when
+ * the other is empty. A row too long for the square closes up until its icons overlap.
+ */
 function yieldIcons(s: Surface, x: number, y: number, food: number, shields: number, trade: number): void {
-  // Tiny marks a screen pixel apart (3x3 screen pixels each): food, shields, trade. Up to 4 per row.
-  let i = 0;
-  const put = (mark: "yield_food" | "yield_shield" | "yield_trade") => {
-    drawMark(s, mark, (x + 1 + (i % 4) * 4) * 2, (y + 1 + Math.floor(i / 4) * 4) * 2);
-    i++;
-  };
-  for (let k = 0; k < food; k++) put("yield_food");
-  for (let k = 0; k < shields; k++) put("yield_shield");
-  for (let k = 0; k < trade; k++) put("yield_trade");
+  const half = (TILE * s.k) / 2;
+  // A margin at each side, so a square's row never runs on into its neighbour's.
+  const margin = 2;
+  const side = TILE * s.k - 2 * margin;
+  const rows: IconName[][] = [Array<IconName>(food).fill("food"), [...Array<IconName>(shields).fill("shield"), ...Array<IconName>(trade).fill("trade")]].filter((r) => r.length > 0);
+  rows.forEach((icons, r) => {
+    const fy = y * s.k + (rows.length === 1 ? half / 2 : r * half);
+    const inks = icons.map(iconInk);
+    const natural = inks.reduce((t, k) => t + k.w, 0) + icons.length - 1;
+    const widest = Math.max(...inks.map((k) => k.w));
+    const step = natural <= side ? null : (side - widest) / (icons.length - 1);
+    let at = step === null ? Math.floor((side - natural) / 2) : 0;
+    icons.forEach((icon, i) => {
+      const ink = inks[i]!;
+      drawIconFine(s, icon, x * s.k + margin + (step === null ? at : Math.round(i * step)) - ink.x, fy);
+      at += ink.w + 1;
+    });
+  });
 }
 
 /**
@@ -167,38 +181,56 @@ function storeGrid(s: Surface, x: number, y: number, w: number, maxRows: number,
   return rows * (ICON + 1) + 1;
 }
 
-/** The resources box: food, shields and trade as rows of icons with what is left or lost, then where the trade goes. */
+/**
+ * The resources box: food, shields and trade as rows of icons, each named, with what is left or lost,
+ * then where the trade goes (tax, luxuries, science). The map's squares carry the same icons.
+ */
 function drawResources(s: Surface, r: CityReport): void {
   drawBox(s, LEFT.x, ROW1.y, LEFT.w, ROW1.h, "City Resources");
-  const rx = LEFT.x + 3;
-  const rw = LEFT.w - 26;
+  const lx = LEFT.x + 3;
+  const rx = lx + textWidth("Shields") + 3;
+  const rw = LEFT.x + LEFT.w - 17 - rx;
   const num = (y: number, text: string, color: number) => say(s, LEFT.x + LEFT.w - 3 - textWidth(text), y, text, color);
   let y = ROW1.y + BOX_HEAD + 3;
   const surplus = Math.max(0, r.foodSurplus);
+  say(s, lx, y, "Food", LABEL);
   iconRow(s, rx, y, rw, [["food", r.food - surplus], ["food", surplus]]);
   num(y, `${r.foodSurplus > 0 ? "+" : ""}${r.foodSurplus}`, r.foodSurplus < 0 ? BAD : r.foodSurplus > 0 ? GOOD : INK);
   y += 10;
   // Shields that go to unit support, and trade lost to corruption, stand apart at the end of their row.
   const upkeep = Math.min(r.shields, r.unitShields);
+  say(s, lx, y, "Shields", LABEL);
   iconRow(s, rx, y, rw, [["shield", r.shields - upkeep], ["shield", upkeep]]);
   if (r.unitShields) num(y, `-${r.unitShields}`, BAD);
   y += 10;
+  say(s, lx, y, "Trade", LABEL);
   iconRow(s, rx, y, rw, [["trade", r.trade - r.corruption], ["trade", r.corruption]]);
   if (r.corruption) num(y, `-${r.corruption}`, BAD);
   y += 10;
-  iconRow(s, rx, y, LEFT.w - 6, [["coin", r.tax], ["gem", r.lux], ["bulb", r.science]]);
+  // Where the trade goes, each share named before its icons.
+  const shares = ([["Tax", "coin", r.tax], ["Lux", "gem", r.lux], ["Sci", "bulb", r.science]] as const).filter(([, , n]) => n > 0);
+  const words = shares.reduce((t, [w]) => t + textWidth(w) + 1, 0);
+  const icons = shares.reduce((t, [, , n]) => t + n, 0);
+  const room = LEFT.w - 6 - words - 4 * (shares.length - 1);
+  const step = icons > shares.length ? Math.min(ICON + 1, (room - ICON * shares.length) / (icons - shares.length)) : 0;
+  let sx = lx;
+  for (const [word, icon, n] of shares) {
+    sx = say(s, sx, y, word, LABEL) + 1;
+    for (let i = 0; i < n; i++) drawIcon(s, icon, Math.round(sx + i * step), y);
+    sx = Math.round(sx + (n - 1) * step) + ICON + 4;
+  }
   y += 11;
-  say(s, rx, y, "Upkeep", LABEL);
+  say(s, lx, y, "Upkeep", LABEL);
   num(y, `${r.buildingUpkeep}$`, INK);
   y += 9;
   if (r.routes) {
-    say(s, rx, y, "Routes", LABEL);
+    say(s, lx, y, "Routes", LABEL);
     num(y, `+${r.routes}`, INK);
     y += 9;
   }
   if (r.pollution > 0) {
-    drawIcon(s, "pollution", rx, y);
-    say(s, rx + ICON + 2, y, "Smog", LABEL);
+    drawIcon(s, "pollution", lx, y);
+    say(s, lx + ICON + 2, y, "Smog", LABEL);
     num(y, `${r.pollution}%`, BAD);
   }
 }
@@ -298,9 +330,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       if (worked) {
         const y = tileYield(state, tile, slot === 0, cityYieldGovernment(state, city), city.owner);
         if (slot === 0) drawCity(s, px, py - 1, city, cityLook(state, city), playerColor(state, city.owner));
-        // The marks on a half-tone shade of the lower half, so they read without hiding the ground.
-        for (let fy = (py + 8) * s.k; fy < (py + TILE) * s.k; fy++) for (let fx = px * s.k + (fy & 1); fx < (px + TILE) * s.k; fx += 2) s.fset(fx, fy, C.BLACK!);
-        yieldIcons(s, px, py + 8, y.food, y.shields, y.trade);
+        yieldIcons(s, px, py, y.food, y.shields, y.trade);
       } else if (!slotInLand(state, city, slot)) {
         // Beyond the city's border (or on a rival's land): shaded, it cannot be worked.
         for (let yy = 0; yy < TILE; yy++) for (let xx = (yy & 1); xx < TILE; xx += 2) s.set(px + xx, py + yy, C.BLACK!);
