@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, MOOD_PENNANT_W, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { DETAIL, FINE, isWater, terrainSquare } from "../src/index.js";
 
@@ -905,6 +905,34 @@ describe("title, advisors, diplomacy, end", () => {
     drawEndScreen(s, ["You have conquered the world!", "", "Total score: 123"], "Great");
     writeFileSync(new URL("./out/end.png", import.meta.url), encodePng(s, 3));
     expect(s.data.some((c) => c !== 0)).toBe(true);
+  });
+});
+
+describe("planned moves", () => {
+  it("draw the route as dots, corners round its end and the note there, until the second click", () => {
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    revealAround(state, 0, u.x, u.y, 9);
+    for (let dx = -1; dx <= 5; dx++) for (let dy = -2; dy <= 2; dy++) Object.assign(getTile(state.map, u.x + dx, u.y + dy)!, { terrain: Terrain.Grassland, road: false, river: false, special: false, hut: false });
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false };
+    const plan = planMove(state, u.id, u.x + 4, u.y);
+    expect(plan).not.toBe("step");
+    expect(plan).not.toBeNull();
+    const s = Surface.screen();
+    drawMainScreen(s, state, { ...view, plan: plan as MovePlan });
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/move-plan.png", import.meta.url), encodePng(s, 3));
+    const at = (mx: number, my: number, i: number, j: number) => s.get(80 + (mx - view.originX) * 16 + i, 9 + (my - view.originY) * 16 + j);
+    // A dot in the middle of the first square on the way, white ringed in black; the end's corners white.
+    const [fx, fy] = (plan as MovePlan).route[0]!;
+    expect(at(fx, fy, 8, 8)).toBe(C.WHITE);
+    expect(at(fx, fy, 6, 6)).toBe(C.BLACK);
+    expect(at(u.x + 4, u.y, 0, 0)).toBe(C.WHITE);
+    expect(at(u.x + 4, u.y, 15, 15)).toBe(C.WHITE);
+    // Without the plan: no dot, no corners.
+    drawMainScreen(s, state, view);
+    expect(at(fx, fy, 8, 8)).not.toBe(C.WHITE);
+    expect(at(u.x + 4, u.y, 0, 0)).not.toBe(C.WHITE);
   });
 });
 

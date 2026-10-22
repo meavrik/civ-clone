@@ -23,7 +23,6 @@ import {
   defaultCityName,
   esteem,
   FINAL_TURN,
-  checkMove,
   findPath,
   formatYear,
   getTile,
@@ -89,6 +88,7 @@ import {
   moveRefusal,
   PICTURES,
   setupChoose,
+  planMove,
   setupMenu,
   setupOptions,
   terrainInfo,
@@ -586,21 +586,6 @@ function sendTo(unit: number, tx: number, ty: number): void {
   const gate = cityAt(state, tx, ty);
   if (d && gate && gate.owner !== 0 && gate.owner !== state.barbarians && unitType(d.type).flags?.includes("diplomat") && d.movesLeft > 0 && isAdjacent(d, tx, ty))
     openDiplomatMenu(d.id, gate.id);
-}
-
-/**
- * Whether a left-click on the square moves the unit: a step next door it may take (an attack or a
- * diplomat's mission included, as the keys would), or a square further off it has a route to.
- */
-function canGoTo(u: { id: number; x: number; y: number }, tx: number, ty: number): boolean {
-  if (u.x === tx && u.y === ty) return false;
-  const unit = unitById(state, u.id);
-  if (!unit) return false;
-  if (isAdjacent(unit, tx, ty)) {
-    const r = checkMove(state, unit, stepTo(unit, tx), ty - unit.y);
-    return r.ok || r.reason === "attack";
-  }
-  return findPath(state, unit, tx, ty) !== null;
 }
 
 /** The east-west step from a unit to an adjacent column, the short way round the wrap. */
@@ -1711,6 +1696,7 @@ addEventListener("keydown", (e) => {
   noteInput();
   view.inspect = undefined;
   view.callout = undefined;
+  view.plan = undefined;
   const sc = screenState;
   switch (sc.kind) {
     case "title": void openTitleMenu(); break;
@@ -1787,6 +1773,9 @@ canvas.addEventListener("mousedown", (e) => {
   const [px, py] = toLogical(e);
   noteInput();
   view.callout = undefined;
+  // A planned move lasts one click: carried out if that click is on its square, dropped otherwise.
+  const pending = view.plan;
+  view.plan = undefined;
   const sc = screenState;
   switch (sc.kind) {
     case "title": void openTitleMenu(); return;
@@ -1864,18 +1853,16 @@ canvas.addEventListener("mousedown", (e) => {
 
   // Right-click: the square's window (terrain, what is on it, and a few things to do about it).
   if (e.button === 2) { openTerrainInfo(tx, ty); return; }
-  // Left-click: the active unit goes to the square if it can (a step next door, a route further off).
-  if (active && canGoTo(active, tx, ty)) {
+  // Left-click on a planned move's square, a second time: the unit goes (or fights, or takes the city).
+  if (pending && active && pending.unit === active.id && pending.x === tx && pending.y === ty) {
     if (isAdjacent(active, tx, ty)) tryMove(active.id, stepTo(active, tx), ty - active.y);
     else sendTo(active.id, tx, ty);
     return;
   }
-  // Otherwise the map centres on the square and shows it in the panel. It opens your city there,
-  // or picks your unit there (the next of a stack on the active unit's square).
-  centerOn(tx, ty);
+  // Our city opens, and our unit is picked (the next of a stack on the active unit's square).
   const city = cityAt(state, tx, ty);
-  if (city && city.owner === 0) { openCity(city.id); return; }
   const mine = unitAt(state, tx, ty).filter((u) => u.owner === 0);
+  if (city && city.owner === 0) { centerOn(tx, ty); openCity(city.id); return; }
   if (active && active.x === tx && active.y === ty) {
     const ready = mine.filter((u) => u.movesLeft > 0);
     const nextUnit = ready[(ready.findIndex((u) => u.id === active.id) + 1) % ready.length];
@@ -1884,10 +1871,18 @@ canvas.addEventListener("mousedown", (e) => {
   }
   const own = mine.find((u) => u.movesLeft > 0) ?? mine[0];
   if (own) {
+    centerOn(tx, ty);
     dispatch({ type: "activate", unit: own.id });
     if (state.activeUnit !== own.id) say("No moves left this turn");
     return;
   }
+  // The active unit: a step next door at once; a fight, a city to take or a square further off is
+  // shown first (route, turns, odds) and goes on a second click on the same square.
+  const move = active ? planMove(state, active.id, tx, ty) : null;
+  if (active && move === "step") { tryMove(active.id, stepTo(active, tx), ty - active.y); return; }
+  if (move && move !== "step") { view.plan = move; return; }
+  // Anywhere else the map centres on the square and shows it in the panel.
+  centerOn(tx, ty);
   view.inspect = { x: tx, y: ty };
 });
 
@@ -1936,6 +1931,7 @@ function frame(t: number): void {
   if (screenState.kind !== "title" && screenState.kind !== "setup") stepCamera(t);
   if (status && t > statusUntil) status = undefined;
   if (view.callout && t > calloutUntil) view.callout = undefined;
+  if (view.plan && view.plan.unit !== state.activeUnit) view.plan = undefined;
   if (screenState.kind === "beat" && t >= screenState.until) endBeat(screenState);
   const shown = motion.at(t);
   view.moving = shown.moving.length ? shown.moving : undefined;

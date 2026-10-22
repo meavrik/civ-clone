@@ -191,6 +191,11 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     const pos = tileToScreen(state, view, c.x, c.y);
     if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, c.size, playerColor(state, c.owner), c.owner === state.currentPlayer ? cityMood(state, c) : null);
   }
+  // A planned move's route, under the units: a dot on each square on the way.
+  if (view.plan) for (const [x, y] of view.plan.route.slice(0, -1)) {
+    const pos = tileToScreen(state, view, x, y);
+    if (pos) drawRouteDot(s, pos[0] + (TILE >> 1), pos[1] + (TILE >> 1));
+  }
 
   // Units: only those on tiles we currently see. Draw one per tile (top of stack).
   // A unit sliding between squares is drawn after the rest, where it is now.
@@ -247,6 +252,13 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   if (act?.order.kind === "goto") {
     const pos = tileToScreen(state, view, act.order.x, act.order.y);
     if (pos) s.frame(pos[0], pos[1], TILE, TILE, C.YELLOW!);
+  }
+
+  // A planned move's end: corners round the square and the note (turns, odds), till the second click.
+  if (view.plan) {
+    const pos = tileToScreen(state, view, view.plan.x, view.plan.y);
+    if (pos) drawTargetCorners(s, pos[0], pos[1]);
+    drawCallout(s, state, view, { x: view.plan.x, y: view.plan.y, text: view.plan.text });
   }
 
   if (view.callout) drawCallout(s, state, view, view.callout);
@@ -321,6 +333,27 @@ function drawCallout(s: Surface, state: GameState, view: MainScreenView, c: Call
     const row = above ? y + h - 1 + i : y - i;
     s.hline(px - (3 - i), row, 2 * (3 - i) + 1, C.BLACK!);
     if (i < 3) s.hline(px - (2 - i), row, 2 * (2 - i) + 1, shade("panel", 5));
+  }
+}
+
+/** A dot on a planned route: white, ringed in black so it reads on any ground. */
+function drawRouteDot(s: Surface, cx: number, cy: number): void {
+  s.rect(cx - 2, cy - 2, 4, 4, C.BLACK!);
+  s.rect(cx - 1, cy - 1, 2, 2, C.WHITE!);
+}
+
+/** The corners of a planned move's square: white brackets edged in black. */
+function drawTargetCorners(s: Surface, x: number, y: number): void {
+  const L = 5;
+  for (const [cx, cy, sx, sy] of [[x, y, 1, 1], [x + TILE - 1, y, -1, 1], [x, y + TILE - 1, 1, -1], [x + TILE - 1, y + TILE - 1, -1, -1]] as const) {
+    for (let i = 0; i < L; i++) {
+      s.set(cx + i * sx, cy + sy, C.BLACK!);
+      s.set(cx + sx, cy + i * sy, C.BLACK!);
+    }
+    for (let i = 0; i < L; i++) {
+      s.set(cx + i * sx, cy, C.WHITE!);
+      s.set(cx, cy + i * sy, C.WHITE!);
+    }
   }
 }
 

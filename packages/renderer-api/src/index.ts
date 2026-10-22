@@ -1,4 +1,5 @@
 import type { BattleFrame, UnitMotion } from "./motion.js";
+import type { MovePlan } from "./plan.js";
 import type { Lifting } from "./fog.js";
 import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
@@ -14,6 +15,7 @@ export * from "./research.js";
 export * from "./refusal.js";
 export * from "./works.js";
 export * from "./cityview.js";
+export * from "./plan.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
@@ -83,6 +85,8 @@ export interface MainScreenView {
   message?: string | undefined;
   /** A note on the map beside a square: why the unit there could not move. */
   callout?: Callout | undefined;
+  /** A move waiting for a second click on its square (`planMove`): its route and a note at its end. */
+  plan?: MovePlan | undefined;
   /** Tile the player clicked to inspect; shown instead of the message. */
   inspect?: { x: number; y: number } | undefined;
   /** The turn ends by itself once no unit needs orders. */

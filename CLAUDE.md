@@ -190,9 +190,12 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `MenuState.top` kept by `keepInView`, `Renderer.menuRows` and `menuScrollAt` (retro draws a bar with
   arrows); arrows, PgUp/PgDn, Home/End, the wheel and clicks on the bar move through it.
   Debug's entries (reveal map, gold, research, production, moves, contact) are the core `cheat` command, logged and replayed like any order.
-  Map clicks (asked for 2026-10-22): left-click sends the active unit to the square when it can go
-  (`canGoTo`: a step next door by `checkMove`, an attack included, or a route further off by `findPath`,
-  then `goto`); otherwise the map centres on the square, opening our city or picking our unit there.
+  Map clicks (asked for 2026-10-22): left-click opens our city or picks our unit as ever; otherwise,
+  with a unit in play, `planMove` (renderer-api `plan.ts`) decides: a step next door goes at once (a
+  refused one says why); a fight ("Attack: 62%", `attackOdds`), an empty enemy city ("Take Rome") or a
+  square further off (the `findPath` route, "This turn"/"3 turns" by `routeTurns`) becomes `view.plan`,
+  drawn as dots on the way, corners round the end and the note, and goes only on a second click on the
+  same square; any other click or key drops it. With nothing to do for the unit the map centres.
   Right-click opens the square's window (`terrainInfo`: title "Jungle (Cotton)", the resource and river
   beside the terrain; an Improvements line; buttons Go here, Open city, Close). On the phone a tap is a
   left-click and a hold a right-click.
