@@ -390,11 +390,9 @@ export function setupMenu(setup: SetupState): { title: string; items: string[]; 
   }
 }
 
-/** The setup's current question as cards with pictures (difficulty, the count, the tribe), or null for a plain menu. */
+/** The setup's current question as cards with portraits (difficulty, the tribe), or null for a plain menu. */
 export function setupCards(setup: SetupState): SetupCards | null {
-  const counts: number[] = [];
-  for (let n = 3; n <= setupMaxCivs(setup); n++) counts.push(n);
-  return setupQuestionCards(setup.step, { counts, civs: setupCivs(setup) });
+  return setupQuestionCards(setup.step, setupCivs(setup));
 }
 
 /**

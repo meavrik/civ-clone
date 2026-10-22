@@ -2,6 +2,7 @@ import citiesArt from "../art/cities.art.js";
 import citizensArt from "../art/citizens.art.js";
 import featuresArt from "../art/features.art.js";
 import iconsArt from "../art/icons.art.js";
+import portraitsArt from "../art/portraits.art.js";
 import resourcesArt from "../art/resources.art.js";
 import terrainArt from "../art/terrain.art.js";
 import unitsArt from "../art/units.art.js";
@@ -27,7 +28,9 @@ export const RESOURCE_SHEET = parseSheet("resources", 32, resourcesArt, ["jewel"
 export const ICON_SHEET = parseSheet("icons", 16, iconsArt, ["grey", "earth", "stone"], DETAIL);
 /** The city screen's citizens, a man and a woman to each sprite (see citizens.ts). */
 export const CITIZEN_SHEET = parseSheet("citizens", 32, citizensArt, ["flesh", "earth", "grey"], DETAIL);
-export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRAIN_SHEET, features: FEATURE_SHEET, cities: CITY_SHEET, resources: RESOURCE_SHEET, icons: ICON_SHEET, citizens: CITIZEN_SHEET };
+/** The setup's rulers: the difficulty levels and each tribe's leader, 48x48 busts (tools/sprites/draw/portraits.ts). */
+export const PORTRAIT_SHEET = parseSheet("portraits", 48, portraitsArt, ["flesh", "earth", "brick"], DETAIL);
+export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRAIN_SHEET, features: FEATURE_SHEET, cities: CITY_SHEET, resources: RESOURCE_SHEET, icons: ICON_SHEET, citizens: CITIZEN_SHEET, portraits: PORTRAIT_SHEET };
 
 /** An owner colour's darker partner in the EGA set, for shading the box and `p` pixels. */
 const DARKER: Record<number, number> = {

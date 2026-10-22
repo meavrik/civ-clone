@@ -153,19 +153,3 @@ export function drawPicture(s: Surface, pic: Picture, x: number, y: number, owne
       if (c >= 0) s.set(left + i, top + j, c);
     }
 }
-
-/** As `drawPicture`, a fine pixel to each of the picture's: half the size, as fine as the map's art (`fx`, `fy` in fine pixels). */
-export function drawPictureFine(s: Surface, pic: Picture, fx: number, fy: number, owner: number): void {
-  let byOwner = cache.get(pic);
-  if (!byOwner) cache.set(pic, (byOwner = new Map()));
-  let px = byOwner.get(owner);
-  if (!px) byOwner.set(owner, (px = rasterize(pic, owner)));
-  const gw = pic.w + 2;
-  const top = fy - pic.h - 1;
-  const left = fx - 1;
-  for (let j = 0; j < pic.h + 2; j++)
-    for (let i = 0; i < gw; i++) {
-      const c = px[j * gw + i]!;
-      if (c >= 0) s.fset(left + i, top + j, c);
-    }
-}

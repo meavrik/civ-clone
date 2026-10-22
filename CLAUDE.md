@@ -213,18 +213,18 @@ Never ship the original's sprites, palette art, fonts or text.
   draws it in `screens/title.ts`: the planet lit per fine pixel from hashed noise maps (made a few rows a
   frame while only the stars show), the name in our own slab capitals in chiselled gold; modern keeps a
   still title with the name.
-  Setup cards (`setup.ts`; asked for 2026-10-22: a picture for every choice, and the tribes as more than
-  a long list): `setupCards(setup)` gives difficulty, the number of civilizations and the tribe as cards
-  in `setupMenu`'s order (null for the other questions, still plain menus). Difficulty: a row of the
-  ruler's seat growing grander (hut, palisade, keep, castle, palace), the panel under them saying what
-  the level changes (`DIFFICULTY_RULES`). The count: a patch of the map's grassland with that many towns,
-  each under its own colour's shield. Tribes: a grid of emblems (`EMBLEMS`: a landmark each, some the
-  city view's wonders, the rest `SETUP_PICTURES`, built from the same `shapes.ts` as `PICTURES`), framed
-  in the tribe's colour, the panel showing its emblem large, leader, trait, first advance and capital.
-  `Renderer.setup`/`setupHit`; retro's `screens/setup.ts` stands them on the opening's stars and draws the
-  small emblems a fine pixel to each of theirs (`drawPictureFine`). The web app lights the card under
-  the pointer and picks it on a click (a first tap on the phone lights it); arrows move in two
-  dimensions, Enter picks. Modern shows the cards' labels as its old menu.
+  Setup cards (`setup.ts`; asked for 2026-10-22, then redone the same day: the first pictures, seats of
+  power, town patches and landmarks, were not liked): `setupCards(setup)` gives difficulty and the tribe as
+  cards with portraits, in `setupMenu`'s order (null for the rest, the number of civilizations included:
+  plain menus). Difficulty: a row of its rulers (chieftain, warlord, prince, king, emperor, as the original
+  showed them), the panel under them saying what the level changes (`DIFFICULTY_RULES`). Tribes: a grid of
+  their leaders (`LEADER_PORTRAITS`, `TRIBE_COLUMNS` across), framed in the tribe's colour, beside a panel
+  with the leader large, the trait, the first advance and the capital. Portraits are the retro sheet
+  `portraits` (48x48, `PORTRAIT_SHEET`, drawn small a fine pixel each and large a screen pixel each), made
+  by `tools/sprites/draw/portraits.ts` from one bust with each ruler's skin, hair, beard, headgear and dress
+  (rerun it, or edit the sheet as a PNG like any other). `Renderer.setup`/`setupHit`; the web app lights
+  the card under the pointer and picks it on a click (a first tap on the phone lights it); arrows move in
+  two dimensions, Enter picks. Modern shows the cards' labels as its old menu.
   Map clicks (asked for 2026-10-22): left-click opens our city or picks our unit as ever; otherwise,
   with a unit in play, `planMove` (renderer-api `plan.ts`) decides: a step next door goes at once (a
   refused one says why); a fight ("Attack: 62%", `attackOdds`), an empty enemy city ("Take Rome") or a
