@@ -156,9 +156,9 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   map carry their yield marks on a half-tone shade of the square's lower half (asked for 2026-10-21: no
   black box); Esc, Enter (not held) or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
-  price against the treasury first. The build menu (`openProductionMenu` in the web app) shows for each
-  choice only what is left: the shields still needed beyond those a change would keep and the turns
-  that takes ("never" without a surplus), the title saying how many shields are stored. A change of production keeps the box for the kind it was
+  price against the treasury first. The build menu (`openProductionMenu` in the web app) shows beside
+  each choice only the turns it takes from here, counting the shields a change would keep ("never"
+  without a surplus); no costs or shield counts (asked for). A change of production keeps the box for the kind it was
   gathered for and half of it for another kind (`shieldsAfterChange`: reckoned from the box as the turn
   began, `City.turnShields`/`turnKind`, or as bought, so changing and changing back in a turn costs
   nothing; FreeCiv's model). Saves before version 21 load with `compoundingPenalty`: every change of
