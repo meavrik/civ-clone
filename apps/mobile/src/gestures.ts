@@ -74,3 +74,29 @@ export class Recognizer {
     return f.phase === "drag" ? { kind: "dragEnd" } : null;
   }
 }
+
+/**
+ * Two fingers on the map: spread them to zoom in a step, pinch them to zoom out a step. Each step
+ * asks the fingers to move apart (or together) by `step` again; at either end of the levels the
+ * fingers going further only moves where the next step back starts.
+ */
+export class Pinch {
+  private base: number;
+
+  constructor(distance: number, private level: number, private readonly levels: readonly number[], private readonly step = 1.35) {
+    this.base = distance;
+  }
+
+  /** The zoom the fingers ask for, when it changes; null while it does not. */
+  move(distance: number): number | null {
+    const i = this.levels.indexOf(this.level);
+    const next = distance >= this.base * this.step ? this.levels[i + 1] : distance <= this.base / this.step ? this.levels[i - 1] : undefined;
+    if (next !== undefined) {
+      this.level = next;
+      this.base = distance;
+      return next;
+    }
+    if (i === this.levels.length - 1 ? distance > this.base : i === 0 && distance < this.base) this.base = distance;
+    return null;
+  }
+}

@@ -80,6 +80,11 @@ export interface MainScreenView {
   /** Fraction (0..1) of a tile the camera sits past the origin, while it glides; the view shifts up/left by it. */
   panX?: number | undefined;
   panY?: number | undefined;
+  /**
+   * The map's squares drawn this many times larger (a whole number; 1 when unset), the viewport's
+   * top-left corner held: fewer squares show, from the origin. The mobile app's pinch sets it.
+   */
+  zoom?: number | undefined;
   /** Blink phase for the active unit. */
   blink: boolean;
   /** Status message under the unit box (e.g. a refused move); wrapped to the panel. */

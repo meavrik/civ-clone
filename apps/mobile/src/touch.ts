@@ -2,14 +2,15 @@ import { shipStats } from "@civ/core";
 import { ratesAt } from "@civ/renderer-retro";
 import { game, press, screenKind } from "./civ.js";
 import { canvas, displayScale, logicalAt } from "./display.js";
-import { GESTURES, Recognizer, type Gesture } from "./gestures.js";
+import { GESTURES, Pinch, Recognizer, type Gesture } from "./gestures.js";
 import { rateKeys } from "./rates.js";
-import { pan, TILE_PX, tileUnder } from "./renderer.js";
+import { mapZoom, pan, setMapZoom, TILE_PX, tileUnder, ZOOMS } from "./renderer.js";
 import { syncText } from "./text.js";
 
 /**
  * Fingers on the game screen become the mouse the web game knows: a tap is a click, a press held
- * still is a right-click (the square's window), a drag pans the map or scrolls the research list.
+ * still is a right-click (the square's window), a drag pans the map or scrolls the research list,
+ * and two fingers on the map pinch it in or out (`ZOOMS`).
  * There are no buttons beside the screen, so the few things the game takes from keys only are
  * touches here: a touch on a rates bar sets that rate, a tap on a spaceship ready to go asks to
  * launch it, and a press held on a city renames it. A real mouse is left to the browser.
@@ -82,7 +83,7 @@ function act(g: Gesture | null): void {
       at.x += g.dx;
       at.y += g.dy;
       const scale = displayScale();
-      if (dragging === "map") pan.drag(-g.dx / (scale * TILE_PX), -g.dy / (scale * TILE_PX));
+      if (dragging === "map") pan.drag(-g.dx / (scale * TILE_PX * mapZoom()), -g.dy / (scale * TILE_PX * mapZoom()));
       else if (dragging === "list") {
         // The research list scrolls with the finger: the wheel it answers to moves a row for every 30 of its pixels, a row being 9 logical ones.
         canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: (-g.dy / scale / 9) * 30, deltaMode: 0, bubbles: true, cancelable: true }));
@@ -96,10 +97,28 @@ function act(g: Gesture | null): void {
   }
 }
 
+/** The fingers on the screen, and the pinch two of them are making on the map. */
+const touching = new Map<number, { x: number; y: number }>();
+let pinch: Pinch | null = null;
+
+function spread(): { d: number; mid: [number, number] } {
+  const [a, b] = [...touching.values()];
+  return { d: Math.hypot(b!.x - a!.x, b!.y - a!.y), mid: [(a!.x + b!.x) / 2, (a!.y + b!.y) / 2] };
+}
+
 canvas.addEventListener("pointerdown", (e) => {
   if (e.pointerType === "mouse") return;
   e.preventDefault(); // no mouse events made up from the touch: this layer makes its own
-  if (fingers.busy) return;
+  touching.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (touching.size === 2 && !pinch && screenKind() === "map") {
+    // A second finger on the map: the first one's tap, hold or drag is off, and the two pinch.
+    clearTimeout(holdTimer);
+    for (const id of touching.keys()) act(fingers.cancel(id));
+    ring.className = "";
+    pinch = new Pinch(spread().d, mapZoom(), ZOOMS);
+    return;
+  }
+  if (pinch || fingers.busy) return;
   fingers.down(e.pointerId, e.clientX, e.clientY, performance.now());
   try {
     canvas.setPointerCapture(e.pointerId); // the finger's moves stay ours off the canvas
@@ -111,6 +130,17 @@ canvas.addEventListener("pointerdown", (e) => {
 
 canvas.addEventListener("pointermove", (e) => {
   if (e.pointerType === "mouse") return;
+  if (touching.has(e.pointerId)) touching.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch) {
+    if (touching.size < 2) return;
+    const { d, mid } = spread();
+    const z = pinch.move(d);
+    if (z !== null) {
+      setMapZoom(z, logicalAt(...mid));
+      navigator.vibrate?.(8);
+    }
+    return;
+  }
   const gs = fingers.move(e.pointerId, e.clientX, e.clientY);
   if (gs.length) clearTimeout(holdTimer);
   for (const g of gs) act(g);
@@ -118,12 +148,19 @@ canvas.addEventListener("pointermove", (e) => {
 
 canvas.addEventListener("pointerup", (e) => {
   if (e.pointerType === "mouse") return;
+  touching.delete(e.pointerId);
+  if (pinch) {
+    if (!touching.size) pinch = null; // the pinch is over once every finger is off
+    return;
+  }
   clearTimeout(holdTimer);
   act(fingers.up(e.pointerId, performance.now()));
   if (ring.className === "holding") ring.className = "";
 });
 
 canvas.addEventListener("pointercancel", (e) => {
+  touching.delete(e.pointerId);
+  if (pinch && !touching.size) pinch = null;
   clearTimeout(holdTimer);
   act(fingers.cancel(e.pointerId));
   ring.className = "";

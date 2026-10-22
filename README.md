@@ -95,7 +95,8 @@ Installing it (Add to Home Screen) and playing offline need the build served ove
 localhost). There are no buttons beside the screen, which fills the phone: everything is a touch.
 Tap = click (move a unit, open a city, the menu bar's Game, Orders, Advisors and World) · hold still =
 right-click (the square's window) · drag the map to look around (it glides back when the game moves its
-view, another unit takes over, or a key is pressed) · swipe the research list · touch or slide a bar on
+view, another unit takes over, or a key is pressed) · pinch the map with two fingers to zoom it 2x or 3x
+(and back; the phone remembers the zoom) · swipe the research list · touch or slide a bar on
 the rates screen to set it · tap the spaceship screen to launch once the ship is ready · hold on a city
 screen to rename the city. Naming a city brings up the phone's keyboard in a field at the top. The
 deployed build has no Debug menu (the dev server keeps it).

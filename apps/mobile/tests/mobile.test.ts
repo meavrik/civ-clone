@@ -3,7 +3,7 @@ import { MENU_BAR as DEV_MENU_BAR } from "@civ/renderer-api";
 import { ratesAt } from "@civ/renderer-retro";
 import { describe, expect, it } from "vitest";
 import { withoutDebugMenu } from "../debug-menu.js";
-import { Recognizer } from "../src/gestures.js";
+import { Pinch, Recognizer } from "../src/gestures.js";
 import { layoutFor } from "../src/layout.js";
 import { MapPan, RELEASE_MS } from "../src/pan.js";
 import { rateKeys } from "../src/rates.js";
@@ -64,6 +64,20 @@ describe("gestures", () => {
     expect(r.move(2, 200, 200)).toEqual([]);
     expect(r.up(2, 20)).toBeNull();
     expect(r.up(1, 30)).toEqual({ kind: "tap", x: 0, y: 0 });
+  });
+});
+
+describe("pinch zoom", () => {
+  it("zooms in a step each time the fingers spread by a third again, and back out as they close", () => {
+    const p = new Pinch(100, 1, [1, 2, 3]);
+    expect(p.move(120)).toBeNull();
+    expect(p.move(140)).toBe(2);
+    expect(p.move(170)).toBeNull();
+    expect(p.move(190)).toBe(3);
+    expect(p.move(400)).toBeNull(); // no level past the last
+    expect(p.move(290)).toBe(2); // and the way back starts from where the fingers got to
+    expect(p.move(210)).toBe(1);
+    expect(p.move(50)).toBeNull();
   });
 });
 

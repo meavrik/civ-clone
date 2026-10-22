@@ -214,6 +214,10 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   gone after 4 s or at the next key or click. Both status panels show the research under way
   (`researchOutlook`: advance, beakers, turns to go), and nothing while none is picked. Disbanding
   (Shift+D, Orders > Disband) asks "Are you sure?" first, No by default (`confirmDisband`).
+  Zoom (`MainScreenView.zoom`, set by the mobile app's pinch, never by the web game): retro draws the
+  map as usual, then `magnifyViewport` blows the viewport's top-left 1/zoom up to fill it (fine pixels,
+  in place) before the panel and bar; `zoomedTiles` sizes the minimap's box, `unzoomPoint` maps a tap
+  back. The modern renderer ignores it.
   Unit animation: core appends every step (`applyMove`) and fight (`resolveCombat`, round by round) to
   `lastActions` (a UI side channel like `lastTurnEvents`, emptied by `endTurn`, never read by replays or
   AI); `MotionPlayer` (`renderer-api/src/motion.ts`) times them into `view.moving` (slides) and
@@ -354,9 +358,11 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `src/main.ts` imports `apps/web/src/main.ts` as it is, and `vite.config.ts` (`webGame`) hands that file
   three stand-ins for its own modules: `display.ts` (the screen as large as it fits in the safe area,
   `layout.ts`; no buttons beside it, asked for: minimum UI; `toLogical` from the canvas rect at any
-  scale), `renderer.ts` (the web retro renderer
-  with the map drawn and hit-tested through `MapPan`: a finger's drag, let go when the game moves its
-  camera, the active unit changes or a key is pressed on the map; keeps the frame's `TextInputState`) and
+  scale), `renderer.ts` (the web retro renderer with the map drawn and hit-tested through `MapPan`: a
+  finger's drag, let go when the game moves its camera, the active unit changes or a key is pressed on
+  the map; zoomed by a pinch, `MainScreenView.zoom` 1-3 kept in localStorage, with `viewTilesX`/`viewTilesY`
+  getters that shrink with it so the game centres and follows in what shows, and taps mapped back with
+  `unzoomPoint`; keeps the frame's `TextInputState`) and
   `storage.ts` (same slots; remembers the last autosave so `save.ts` can save the turn so far when the page
   is hidden). Keep those three web modules' exports as they are (each stand-in `satisfies` its web
   counterpart's type). It reads `window.civ` (`screen`, `state`, `log`) from web main.ts: keep that hook.

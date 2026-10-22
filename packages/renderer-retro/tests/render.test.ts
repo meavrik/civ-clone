@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { DETAIL, FINE, isWater, terrainSquare } from "../src/index.js";
+import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
 
 describe("retro renderer", () => {
   it("palette has 256 entries, EGA first", () => {
@@ -95,6 +95,22 @@ describe("retro renderer", () => {
     expect(s.data.length).toBe(320 * 200 * DETAIL * DETAIL);
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/main-screen.png", import.meta.url), encodePng(s, 3));
+
+    // Zoomed in twice (the mobile app's pinch): the viewport shows its top-left quarter, each fine
+    // pixel as four; the menu bar stays as it was, and a point on the zoomed map finds its square.
+    const z = Surface.screen();
+    drawMainScreen(z, state, { ...view, zoom: 2 });
+    let off = 0;
+    for (let y = 0; y < VIEW_H * DETAIL; y++)
+      for (let x = 0; x < VIEW_W * DETAIL; x++)
+        if (z.fget(VIEW_X * DETAIL + x, VIEW_Y * DETAIL + y) !== s.fget(VIEW_X * DETAIL + (x >> 1), VIEW_Y * DETAIL + (y >> 1))) off++;
+    expect(off).toBe(0);
+    expect(z.data.subarray(0, VIEW_Y * DETAIL * z.fw)).toEqual(s.data.subarray(0, VIEW_Y * DETAIL * s.fw));
+    expect(unzoomPoint({ ...view, zoom: 2 }, VIEW_X + 33, VIEW_Y + 21)).toEqual([VIEW_X + 16, VIEW_Y + 10]);
+    expect(unzoomPoint(view, VIEW_X + 33, VIEW_Y + 21)).toEqual([VIEW_X + 33, VIEW_Y + 21]);
+    expect(zoomedTiles(1)).toEqual({ x: 15, y: 12 });
+    expect(zoomedTiles(2)).toEqual({ x: 8, y: 6 });
+    writeFileSync(new URL("./out/main-screen-zoom.png", import.meta.url), encodePng(z, 3));
 
     // A long message wraps inside the panel and never crosses into the map.
     view.message = "Trade route Rome-Capua: +45 gold and science, a long message that must wrap";

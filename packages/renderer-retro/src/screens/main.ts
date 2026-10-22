@@ -597,9 +597,10 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   const k = minimapScale(map);
   const vx = ((view.originX % map.width) + map.width) % map.width;
   const vy = Math.max(0, view.originY);
-  const vh = Math.min(map.height - vy, VIEW_TILES_Y);
+  const shows = zoomedTiles(viewZoom(view));
+  const vh = Math.min(map.height - vy, shows.y);
   const left = toPixel(k, vx);
-  const right = toPixel(k, vx + VIEW_TILES_X - 1);
+  const right = toPixel(k, vx + shows.x - 1);
   const topY = mmY + toPixel(k, vy);
   const bottomY = mmY + toPixel(k, vy + vh - 1);
   for (let px = left; px <= right; px++) {
@@ -700,6 +701,39 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
 export function drawMainScreen(s: Surface, state: GameState, view: MainScreenView): void {
   s.fill(C.BLACK!);
   drawMapViewport(s, state, view);
+  magnifyViewport(s, viewZoom(view));
   drawStatusPanel(s, state, view);
   drawMenuBar(s, view.menuOpen);
+}
+
+/** How many times larger the view draws the map's squares (`MainScreenView.zoom`): a whole number, 1 when unset. */
+export function viewZoom(view: MainScreenView): number {
+  return Math.max(1, Math.floor(view.zoom ?? 1));
+}
+
+/** Squares (or parts of one) that show across and down the viewport at a zoom. */
+export function zoomedTiles(zoom: number): { x: number; y: number } {
+  return { x: Math.ceil(VIEW_W / (TILE * zoom)), y: Math.ceil(VIEW_H / (TILE * zoom)) };
+}
+
+/** A point on a zoomed viewport as the point of the map drawn at 1:1 under it (anywhere else as it is). */
+export function unzoomPoint(view: MainScreenView, px: number, py: number): [number, number] {
+  const z = viewZoom(view);
+  if (z === 1 || px < VIEW_X || py < VIEW_Y) return [px, py];
+  return [VIEW_X + Math.floor((px - VIEW_X) / z), VIEW_Y + Math.floor((py - VIEW_Y) / z)];
+}
+
+/**
+ * Zoom: the viewport's top-left 1/zoom, drawn as usual, blown up to fill it, fine pixel by fine pixel.
+ * In place, from the far corner back: each pixel reads one up and left of it, not yet overwritten.
+ */
+function magnifyViewport(s: Surface, zoom: number): void {
+  if (zoom <= 1) return;
+  const x0 = VIEW_X * s.k;
+  const y0 = VIEW_Y * s.k;
+  for (let y = VIEW_H * s.k - 1; y >= 0; y--) {
+    const to = (y0 + y) * s.fw + x0;
+    const from = (y0 + Math.floor(y / zoom)) * s.fw + x0;
+    for (let x = VIEW_W * s.k - 1; x >= 0; x--) s.data[to + x] = s.data[from + Math.floor(x / zoom)]!;
+  }
 }
