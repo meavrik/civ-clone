@@ -2,7 +2,8 @@
 
 Browser reimplementation of a 1991-style 4X empire game: same rules and
 320x200/256-colour presentation, all artwork and text original. Working title
-"Epochs". Never ship the original's name, sprites, palette art, fonts or text.
+"Epochs", but the opening and title name the game "Civilization" (the user's call, 2026-10-22).
+Never ship the original's sprites, palette art, fonts or text.
 
 ## Commands
 
@@ -201,6 +202,16 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `MenuState.top` kept by `keepInView`, `Renderer.menuRows` and `menuScrollAt` (retro draws a bar with
   arrows); arrows, PgUp/PgDn, Home/End, the wheel and clicks on the bar move through it.
   Debug's entries (reveal map, gold, research, production, moves, contact) are the core `cheat` command, logged and replayed like any order.
+  Opening and title (`intro.ts`; asked for 2026-10-22, after the original's intro, in place of the old
+  sunrise and its "an empire game" line): one timeline, `introAt(ms)`, `INTRO_MS` (27.5 s) long: stars,
+  a planet turning in space as it forms (molten, cooling, seas, clouds, green land, towns' lights on its
+  night side) under five lines of story in our own words (`INTRO_CAPTIONS`), then the name CIVILIZATION
+  over it. `Renderer.title(at)` draws it `at` ms in; from `INTRO_MS` the title stands complete, the
+  planet still turning. The web app starts it on the first frame; a key or click skips to the end, and
+  the title menu (no header) opens by itself once it is over and whenever the title shows again. Retro
+  draws it in `screens/title.ts`: the planet lit per fine pixel from hashed noise maps (made a few rows a
+  frame while only the stars show), the name in our own slab capitals in chiselled gold; modern keeps a
+  still title with the name.
   Map clicks (asked for 2026-10-22): left-click opens our city or picks our unit as ever; otherwise,
   with a unit in play, `planMove` (renderer-api `plan.ts`) decides: a step next door goes at once (a
   refused one says why); a fight ("Attack: 62%", `attackOdds`), an empty enemy city ("Take Rome") or a

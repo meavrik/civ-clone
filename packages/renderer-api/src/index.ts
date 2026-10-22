@@ -17,6 +17,7 @@ export * from "./works.js";
 export * from "./cityview.js";
 export * from "./plan.js";
 export * from "./watch.js";
+export * from "./intro.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
@@ -263,7 +264,8 @@ export interface Renderer {
   /** Called once per frame after drawing; pushes the frame to the display. */
   present(): void;
 
-  title(blink: boolean): void;
+  /** The opening and title screen, `at` ms since the opening began (`introAt`; from `INTRO_MS` the title stands complete). */
+  title(at: number): void;
   main(state: GameState, view: MainScreenView): void;
   city(state: GameState, view: CityScreenView): void;
   /** The city as a picture: its improvements, wonders and homes on its own ground. */

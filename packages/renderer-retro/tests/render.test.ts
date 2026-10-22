@@ -898,7 +898,7 @@ describe("civilization traits", () => {
     const { drawTitleScreen, drawReportScreen } = await import("../src/index.js");
     const { civilizationsReport, setupMenu } = await import("@civ/renderer-api");
     const s = Surface.screen();
-    drawTitleScreen(s, false);
+    drawTitleScreen(s);
     const m = setupMenu({ step: "civ", world: null, historical: false, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
     expect(m.items).toHaveLength(20);
     expect(m.right![0]).toBe("Fast roads");
@@ -932,7 +932,7 @@ describe("title, advisors, diplomacy, end", () => {
     state.relations["0:1"] = "peace";
     state.relations["0:2"] = "war";
     const s = Surface.screen();
-    drawTitleScreen(s, true);
+    drawTitleScreen(s);
     writeFileSync(new URL("./out/title.png", import.meta.url), encodePng(s, 3));
     drawDomesticAdvisor(s, state);
     writeFileSync(new URL("./out/advisor-domestic.png", import.meta.url), encodePng(s, 3));

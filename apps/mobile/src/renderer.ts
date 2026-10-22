@@ -218,7 +218,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       }
       ctx.putImageData(image, 0, 0);
     },
-    title: screen((s, blink: boolean) => drawTitleScreen(s, blink)),
+    title: screen((s, at: number) => drawTitleScreen(s, at)),
     main(state, view) {
       wideFrame = true;
       const moved = pan.shift(view, state.map, zoomedTiles(zoom).y, state.activeUnit, performance.now());

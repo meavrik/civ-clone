@@ -76,7 +76,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       }
       ctx.putImageData(image, 0, 0);
     },
-    title: (blink) => drawTitleScreen(screen, blink),
+    title: (at) => drawTitleScreen(screen, at),
     main: (state, view) => drawMainScreen(screen, state, view),
     city: (state, view: CityScreenView) => drawCityScreen(screen, state, view),
     cityView: (state, view) => drawCityView(screen, state, view),

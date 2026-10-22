@@ -82,7 +82,7 @@ describe("modern renderer", () => {
     const r = createModernRenderer(ctx, () => 2);
     const { state, view } = world();
     r.beginFrame();
-    r.title(true);
+    r.title(0);
     r.main(state, view);
     r.main(state, { ...view, inspect: { x: state.cities[0]!.x + 1, y: state.cities[0]!.y }, message: undefined, autoEnd: true });
     r.city(state, { city: state.cities[0]!.id });
@@ -155,7 +155,7 @@ describe("modern renderer", () => {
     r.present();
     expect(ctx.calls.get("setTransform")).toBe(1);
     expect(ctx.calls.get("fillText")!).toBeGreaterThan(50);
-    expect(ctx.texts).toContain("E P O C H S");
+    expect(ctx.texts).toContain("CIVILIZATION");
     expect(ctx.texts).toContain("Spaceship");
     for (const t of ["Game", "Orders", "Advisors", "World", "Wonders of the World", "City Status"]) expect(ctx.texts).toContain(t);
     expect(ctx.texts.some((t) => t.includes("Name the new city"))).toBe(true);

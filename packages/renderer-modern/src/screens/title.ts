@@ -2,8 +2,8 @@ import type { Context2D } from "../context.js";
 import { circle, page, text } from "../draw.js";
 import { H, UI, W } from "../theme.js";
 
-/** Title: a dawn over the sea in soft gradients, the hills in silhouette, the name set wide. Original art. */
-export function drawTitleScreen(ctx: Context2D, blink: boolean): void {
+/** Title: a dawn over the sea in soft gradients, the hills in silhouette, the name set wide. Original art. (The opening is retro's alone.) */
+export function drawTitleScreen(ctx: Context2D): void {
   const horizon = Math.round(H * 0.6);
   const sky = ctx.createLinearGradient(0, 0, 0, horizon);
   sky.addColorStop(0, "#0b1a3a");
@@ -70,10 +70,8 @@ export function drawTitleScreen(ctx: Context2D, blink: boolean): void {
   ctx.shadowBlur = 18;
   ctx.shadowOffsetY = 4;
   ctx.fillStyle = "#ffffff";
-  ctx.fillText("E P O C H S", W / 2, 54);
+  ctx.fillText("CIVILIZATION", W / 2, 54);
   ctx.restore();
-  text(ctx, W / 2, 132, "an empire game in the 1991 style", { size: 18, color: "#ffe8b0", align: "center", shadow: true });
-  if (blink) text(ctx, W / 2, H - 48, "Press any key", { size: 16, color: "#ffffff", align: "center", shadow: true });
 }
 
 /** End of game: score sheet and rank. */

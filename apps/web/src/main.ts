@@ -87,6 +87,7 @@ import {
   DIFFICULTIES,
   leaderLine,
   FogLifter,
+  INTRO_MS,
   MotionPlayer,
   moveRefusal,
   PICTURES,
@@ -189,6 +190,9 @@ type Screen =
   | { kind: "worldMap" };
 
 let screenState: Screen = { kind: "title" };
+/** The opening plays under the title from the first frame (`introStart`); `titleAt` is how far it has come. */
+let introStart: number | undefined;
+let titleAt = 0;
 const view: MainScreenView = { originX: 0, originY: 0, blink: true };
 /** The camera in fractional tile units; it glides to each new target so the eye can follow. */
 const cam = { x: 0, y: 0, fromX: 0, fromY: 0, toX: 0, toY: 0, start: 0, animating: false, ready: false };
@@ -1732,9 +1736,19 @@ function openSetup(step: SetupState["step"]): void {
   setupSelection = setupMenu(setup).selected;
 }
 
-/** The title menu; with an autosave, the game left last can be picked up, or an earlier turn of it. */
+/** A key or click on the title: the opening skips to its end and the menu opens. */
+function skipIntro(): void {
+  if (titleAt < INTRO_MS) introStart = performance.now() - INTRO_MS;
+  void openTitleMenu();
+}
+
+/** The title menu, opened once the opening is over; with an autosave, the game left last can be picked up, or an earlier turn of it. */
+let titleMenuPending = false;
 async function openTitleMenu(): Promise<void> {
+  if (titleMenuPending) return;
+  titleMenuPending = true;
   const auto = await readSlot(0).catch(() => undefined);
+  titleMenuPending = false;
   if (screenState.kind !== "title") return;
   const items: [string, () => void][] = [
     ...(auto ? [[`Continue: ${saveLabel(auto)}`, () => resumeGame(auto)] as [string, () => void]] : []),
@@ -1747,7 +1761,8 @@ async function openTitleMenu(): Promise<void> {
   screenState = {
     kind: "menu",
     under: { kind: "title" },
-    menu: { title: "Epochs", items: items.map((i) => i[0]), selected: 0 },
+    // No header: the name stands over it, as the original's menu sat under its title.
+    menu: { title: "", items: items.map((i) => i[0]), selected: 0 },
     onPick: (i) => items[i]?.[1](),
   };
 }
@@ -1772,7 +1787,7 @@ addEventListener("keydown", (e) => {
   view.plan = undefined;
   const sc = screenState;
   switch (sc.kind) {
-    case "title": void openTitleMenu(); break;
+    case "title": skipIntro(); break;
     case "setup": setupKey(e, sc); break;
     case "map": mapKey(e); break;
     case "city": cityKey(e, sc); break;
@@ -1851,7 +1866,7 @@ canvas.addEventListener("mousedown", (e) => {
   view.plan = undefined;
   const sc = screenState;
   switch (sc.kind) {
-    case "title": void openTitleMenu(); return;
+    case "title": skipIntro(); return;
     case "setup": {
       const m = setupMenu(sc.setup);
       const i = renderer.menuHit({ ...m }, px, py);
@@ -1978,9 +1993,9 @@ let lastClick: { px: number; py: number; x: number; y: number; at: number } | nu
 // ---- frame loop ---------------------------------------------------------------
 function draw(sc: Screen): void {
   switch (sc.kind) {
-    case "title": renderer.title(blinkOn); break;
+    case "title": renderer.title(titleAt); break;
     case "setup": {
-      renderer.title(false);
+      renderer.title(titleAt);
       const m = setupMenu(sc.setup);
       renderer.menu({ ...m, selected: setupSelection });
       break;
@@ -2012,6 +2027,9 @@ function draw(sc: Screen): void {
 }
 
 function frame(t: number): void {
+  introStart ??= t;
+  titleAt = t - introStart;
+  if (screenState.kind === "title" && titleAt >= INTRO_MS) void openTitleMenu();
   if (t - lastBlink > 400) { blinkOn = !blinkOn; lastBlink = t; }
   view.blink = blinkOn;
   view.autoEnd = autoEnd;

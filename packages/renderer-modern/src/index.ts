@@ -32,7 +32,7 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
       ctx.setTransform(s, 0, 0, s, 0, 0);
     },
     present() {},
-    title: (blink) => drawTitleScreen(ctx, blink),
+    title: () => drawTitleScreen(ctx),
     main: (state, view) => drawMainScreen(ctx, state, view),
     city: (state, view) => drawCityScreen(ctx, state, view),
     cityView: (state, view) => drawCityView(ctx, state, view),
