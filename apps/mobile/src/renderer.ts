@@ -1,5 +1,5 @@
 import { wrapX, type GameState } from "@civ/core";
-import type { AdvisorKind, MainScreenView, MenuState, Renderer, SetupCards, TextInputState } from "@civ/renderer-api";
+import type { AdvisorKind, DiplomacyView, MainScreenView, MenuState, Renderer, SetupCards, TextInputState } from "@civ/renderer-api";
 import {
   BAR_H,
   cityButtonAt,
@@ -12,7 +12,7 @@ import {
   drawCityView,
   diplomacyChoiceAt,
   drawDiplomacyScreen,
-  prepareScenes,
+  AUDIENCE_PICTURE,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -56,6 +56,7 @@ import {
 } from "@civ/renderer-retro";
 import type * as WebRenderer from "../../web/src/retro-renderer.js";
 import { screenW } from "./display.js";
+import { preloadScenes, sceneOf, showScene, type ScenePlace } from "../../web/src/scene.js";
 import { MapPan } from "./pan.js";
 
 /**
@@ -168,6 +169,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
   let wide = new Surface(screenW(), SCREEN_H, undefined, DETAIL);
   let image = ctx.createImageData(wide.fw, wide.fh);
   let wideFrame = false;
+  /** The audience picture this frame shows, if any (`showScene` places it as the frame is presented). */
+  let picture: ScenePlace | null = null;
   const surface = () => (wideFrame ? wide : narrow);
   /** A 320x200 screen: drawn as the web game draws it. */
   const screen = <A extends unknown[]>(draw: (s: Surface, ...args: A) => void) => (...args: A) => {
@@ -192,6 +195,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     researchListRows: RESEARCH_LIST_ROWS,
     beginFrame() {
+      picture = null;
       shown.input = undefined;
       wideFrame = false;
       if (wide.width !== screenW()) {
@@ -221,6 +225,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
           for (let x = 0; x < narrow.fw; x++) paint((y * wide.fw + off + x) * 4, narrow.data[y * narrow.fw + x]!);
       }
       ctx.putImageData(image, 0, 0);
+      showScene(canvas, picture);
     },
     title: screen((s, at: number) => drawTitleScreen(s, at)),
     setup: screen((s, cards: SetupCards, selected: number, at: number) => drawSetupScreen(s, cards, selected, at)),
@@ -245,9 +250,14 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       else if (which === "foreign") drawForeignAdvisor(s, state);
       else drawScoreScreen(s, state);
     }),
-    diplomacy: screen(drawDiplomacyScreen),
+    diplomacy: screen((s, state: GameState, view: DiplomacyView) => {
+      drawDiplomacyScreen(s, state, view);
+      // The leader's picture as it is, over the room the screen leaves for it (the screen in the middle).
+      const name = sceneOf(state, view.player);
+      picture = name ? { name, ...AUDIENCE_PICTURE, x: AUDIENCE_PICTURE.x + inset(), logicalW: screenW(), logicalH: SCREEN_H } : null;
+    }),
     diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px - inset(), py),
-    prepare: (state) => { void prepareScenes(state); },
+    prepare: (state) => preloadScenes(state),
     end: screen(drawEndScreen),
     spaceship: screen(drawSpaceshipScreen),
     report: screen(drawReportScreen),

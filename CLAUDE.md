@@ -367,11 +367,7 @@ Never ship the original's sprites, palette art, fonts or text.
   draws the mobile app's icons (a walled city, `icons.ts`) into `apps/mobile/public/icons`. A sprite may
   name up to five ramps (`ramps=a,b,c,d,e`; characters 0-7, a-h, A-H, JKLMOQST, jloqstvx), for pictures
   of many colours (the portraits). `draw/*.ts` make sheets: `rulers.ts` (the user's portraits, the rulers
-  and the leaders), `scenes.ts` (the user's audience pictures into `src/art/scenes/<leader>.ts`: whole,
-  224x126 as fine as the screen, run-length coded; the 1672x941 sources are too large for the repo, so
-  it takes their folder as an argument), `cities.ts`, `features.ts`. The scenes load lazily (`scenes.ts` in
-  renderer-retro: one chunk each, a game's leaders fetched as it starts or loads, `Renderer.prepare`; the
-  portrait stands in until one arrives).
+  and the leaders), `cities.ts`, `features.ts`.
 - `packages/renderer-modern` — canvas-2D renderer on a 960x600 logical surface (same panel/
   viewport split, 48px tiles): `theme.ts` (all colours and fonts), `draw.ts` (panels, wrapped
   text, bars), `tiles.ts`/`markers.ts` (terrain, overlays, units, cities), `screens/*`. It draws
@@ -391,11 +387,19 @@ Never ship the original's sprites, palette art, fonts or text.
   becomes the leader's words; greetings name admiration or scorn). The audience screen (redone
   2026-10-22 after the user's mock-up "Caesar Welcomes You to Rome", asked for): the realm across the
   top (`realmName`: "The Roman Empire", Kingdom, Republic... by government), the user's picture of the
-  leader in their palace whole, frame and all (asked for: "use the images as is"), then the leader's
-  name, their words and our choices as buttons (`DiplomacyView`, `Renderer.diplomacy` and
+  leader in their palace whole, frame and all, then the leader's name, their words and our choices as
+  the game's stone buttons (`DiplomacyView`, `Renderer.diplomacy` and
   `diplomacyChoiceAt`): never more than `AUDIENCE_CHOICES` (4, asked for) at once, so the proposals
   are grouped into screens with Back, and long lists (their advances) page with More... (`talkMenu`,
-  `pagedChoices` in the web app; arrows, Enter or 1-4 pick, Esc steps back, the pointer lights a button). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
+  `pagedChoices` in the web app; arrows, Enter or 1-4 pick, Esc steps back, the pointer lights a button).
+  The pictures are shown as they are, full size and true colour (asked for, 2026-10-22: squeezed into the
+  palette at 224x126 they looked "bad and distorted"): `apps/web/src/scenes/<leader>.webp` (the PNGs as
+  supplied, WebP quality 92), laid over the canvas as an <img> by `scene.ts` (`showScene`, once a frame
+  from each retro adapter's `present`; it lets clicks through) in the room the screen leaves for them
+  (`AUDIENCE_PICTURE` in renderer-retro, which draws the leader's portrait there beneath, seen until the
+  picture loads); `Renderer.prepare` preloads a game's leaders as it starts or loads. The one place the
+  retro look is not drawn through the palette. The phone app caches each picture when first shown,
+  not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
   into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
   whether they admire or scorn us (`regardWords`). Stepping onto land that minds us (once a
   civ a turn, later steps get a callout) and the AI's demands after its turn show our unit, then the
@@ -594,8 +598,8 @@ text), second special resources with reaches (save version 20; the branch's own 
   as large portraits (`tools/sprites/draw/rulers/*.png` as supplied, `leaders/*.png` kept at a third of
   their size) and converted by `rulers.ts` (cropped, laid on a 104 or 48 grid, each cell
   the palette colour most of its pixels are nearest to, from five ramps picked per picture; the palette
-  has no purple, so the emperor's purple robe came out royal blue); and the twenty audience pictures
-  (`scenes.ts`, used whole, nothing drawn or cut: the user said not to generate new images); new art drawn here follows their manner (see `packages/renderer-retro` above) and
+  has no purple, so the emperor's purple robe came out royal blue); the twenty audience pictures are shown
+  as supplied, not converted (see the audience screen above; the user said not to generate new images); new art drawn here follows their manner (see `packages/renderer-retro` above) and
   the user's pixel-art rules: even chunky strokes, one-pixel outlines in dark shades of the thing's own
   colours (no heavy black), the blocky 5x7 text, nothing algorithmically thinned or smoothed.
 - Commit per phase or per feature; messages in imperative mood.

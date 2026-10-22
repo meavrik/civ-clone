@@ -62,7 +62,10 @@ function filesIn(dir: string): string[] {
   }
 }
 
-/** sw.js: service-worker.js with every file of the build to cache, under a name that changes when any of them does. */
+/**
+ * sw.js: service-worker.js with every file of the build to cache, under a name that changes when any of
+ * them does; but the leaders' pictures (.webp, ~8 MB) are cached as each is first shown, not at install.
+ */
 function serviceWorker(): Plugin {
   let publicDir = "";
   return {
@@ -77,7 +80,7 @@ function serviceWorker(): Plugin {
       const hash = createHash("sha256").update(template);
       const files: string[] = [];
       for (const [name, out] of Object.entries(bundle)) {
-        if (name.endsWith(".map")) continue;
+        if (name.endsWith(".map") || name.endsWith(".webp")) continue;
         files.push(name);
         hash.update(name).update(out.type === "chunk" ? out.code : out.source);
       }

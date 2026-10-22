@@ -2,22 +2,23 @@ import { civ, type GameState } from "@civ/core";
 import { AUDIENCE_CHOICES, leaderTitle, LEADER_PORTRAITS, realmName, type DiplomacyView } from "@civ/renderer-api";
 import { drawText, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { C, shade } from "../palette.js";
-import { sceneFor } from "../scenes.js";
 import { RULER_SHEET, spriteSurface } from "../sprites/index.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_W, type Surface } from "../surface.js";
-import { drawStone } from "../widgets.js";
+import { drawStone, INK } from "../widgets.js";
 
 /**
  * The audience with a foreign leader, after the user's mock-up (2026-10-22): the realm's name in gold on a
- * navy strip, the user's picture of the leader in their palace whole, its own ornate frame and all (their
- * portrait until it has loaded), on stone, then a navy panel with the leader's name, their words and our
- * choices as up to four buttons.
+ * navy strip, room on stone for the user's picture of the leader in their palace (`AUDIENCE_PICTURE`: the
+ * apps lay the picture itself over the canvas there, as it is, since this screen's 256 colours cannot hold
+ * it; beneath, the leader's portrait stands in), then a navy panel with the leader's name, their words and
+ * our choices as up to four of the game's stone buttons.
  */
 
 const TITLE = { y: 0, h: 12 };
-/** The picture, 16 by 9, centred between the title and the panel. */
-const SCENE = { x: 48, y: 12, w: 224, h: 126 };
+/** Where the leader's picture goes (16 by 9, as the pictures are), centred between the title and the panel. */
+export const AUDIENCE_PICTURE = { x: 48, y: 12, w: 224, h: 126 } as const;
+const SCENE = AUDIENCE_PICTURE;
 const PANEL = { y: 138, h: 62 };
 const BUTTON_H = 13;
 
@@ -74,11 +75,9 @@ export function drawDiplomacyScreen(s: Surface, state: GameState, view: Diplomac
   buttonRects(choices.length).forEach((b, i) => drawChoice(s, b, choices[i]!, i === (view.selected ?? 0)));
 }
 
-/** The leader in their palace (the user's picture as it is); until it has loaded, their portrait on a dusk sky. */
+/** What lies under the leader's picture: their portrait on a dusk sky (seen until the picture has loaded). */
 function drawScene(s: Surface, state: GameState, player: number): void {
   const name = LEADER_PORTRAITS[civ(state.players[player]!.civ).id];
-  const scene = name ? sceneFor(name) : undefined;
-  if (scene) { s.blit(scene, SCENE.x, SCENE.y); return; }
   const k = s.k;
   for (let fy = 0; fy < SCENE.h * k; fy++) {
     const f = (fy / (SCENE.h * k)) * 3;
@@ -88,13 +87,9 @@ function drawScene(s: Surface, state: GameState, player: number): void {
   if (portrait) s.fblit(portrait, (SCENE.x + SCENE.w - 70) * k, (SCENE.y + SCENE.h) * k - portrait.fh, SPRITE_CLEAR);
 }
 
-/** A choice: a grey stone button, its words in white; the lit one framed in gold. */
+/** A choice: the game's stone, raised, its words in ink; the lit one framed in gold. */
 function drawChoice(s: Surface, b: { x: number; y: number; w: number; h: number }, label: string, lit: boolean): void {
   if (lit) s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, GOLD_INK());
-  s.rect(b.x, b.y, b.w, b.h, shade("panel", lit ? 3 : 2));
-  s.hline(b.x, b.y, b.w, shade("panel", 5));
-  s.vline(b.x, b.y, b.h, shade("panel", 5));
-  s.hline(b.x, b.y + b.h - 1, b.w, shade("panel", 0));
-  s.vline(b.x + b.w - 1, b.y, b.h, shade("panel", 0));
-  drawText(s, b.x + Math.floor((b.w - textWidth(label)) / 2), b.y + 2, label, C.WHITE!, C.BLACK!);
+  drawStone(s, b.x, b.y, b.w, b.h);
+  drawText(s, b.x + Math.floor((b.w - textWidth(label)) / 2), b.y + 3, label, INK);
 }

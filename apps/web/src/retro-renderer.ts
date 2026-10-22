@@ -9,7 +9,7 @@ import {
   drawCityView,
   diplomacyChoiceAt,
   drawDiplomacyScreen,
-  prepareScenes,
+  AUDIENCE_PICTURE,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -50,6 +50,7 @@ import {
   DETAIL,
 } from "@civ/renderer-retro";
 import { wrapX, type GameState } from "@civ/core";
+import { preloadScenes, sceneOf, showScene, type ScenePlace } from "./scene.js";
 
 /**
  * The 1991-style renderer behind the screen API: an indexed framebuffer laid out on 320x200,
@@ -59,6 +60,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
   const ctx = canvas.getContext("2d", { alpha: false })!;
   const screen = Surface.screen();
   const image = ctx.createImageData(screen.fw, screen.fh);
+  /** The audience picture this frame shows, if any (`showScene` places it as the frame is presented). */
+  let picture: ScenePlace | null = null;
   return {
     id: "retro",
     width: SCREEN_W,
@@ -67,7 +70,9 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     viewTilesX: VIEW_TILES_X,
     viewTilesY: VIEW_TILES_Y,
     researchListRows: RESEARCH_LIST_ROWS,
-    beginFrame() {},
+    beginFrame() {
+      picture = null;
+    },
     present() {
       const px = image.data;
       const src = screen.data;
@@ -79,6 +84,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
         px[j + 3] = 255;
       }
       ctx.putImageData(image, 0, 0);
+      showScene(canvas, picture);
     },
     title: (at) => drawTitleScreen(screen, at),
     setup: (cards, selected, at) => drawSetupScreen(screen, cards, selected, at),
@@ -95,9 +101,14 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       else if (which === "foreign") drawForeignAdvisor(screen, state);
       else drawScoreScreen(screen, state);
     },
-    diplomacy: (state, view) => drawDiplomacyScreen(screen, state, view),
+    diplomacy: (state, view) => {
+      drawDiplomacyScreen(screen, state, view);
+      // The leader's picture as it is, over the room the screen leaves for it.
+      const name = sceneOf(state, view.player);
+      picture = name ? { name, ...AUDIENCE_PICTURE, logicalW: SCREEN_W, logicalH: SCREEN_H } : null;
+    },
     diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px, py),
-    prepare: (state) => { void prepareScenes(state); },
+    prepare: (state) => preloadScenes(state),
     end: (lines, rank) => drawEndScreen(screen, lines, rank),
     spaceship: (state) => drawSpaceshipScreen(screen, state),
     menu: (menu: MenuState) => drawMenu(screen, menu),

@@ -17,7 +17,8 @@ self.addEventListener("activate", (event) => {
 
 // The page from the network while there is one, so a new version comes through, else the cached
 // game; everything else from the cache (the build's file names change with their contents). Vary
-// is ignored: servers vary on Origin, which a module script sends and the install did not.
+// is ignored: servers vary on Origin, which a module script sends and the install did not. The
+// leaders' pictures are not installed with the rest: each is kept the first time it is fetched.
 const SAME = { ignoreVary: true };
 
 self.addEventListener("fetch", (event) => {
@@ -27,5 +28,11 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(fetch(req).catch(() => caches.match("./index.html", SAME).then((hit) => hit ?? Response.error())));
     return;
   }
-  event.respondWith(caches.match(req, SAME).then((hit) => hit ?? fetch(req)));
+  event.respondWith(caches.match(req, SAME).then((hit) => hit ?? fetch(req).then((res) => {
+    if (res.ok && new URL(req.url).pathname.endsWith(".webp")) {
+      const copy = res.clone();
+      void caches.open(CACHE).then((cache) => cache.put(req, copy));
+    }
+    return res;
+  })));
 });
