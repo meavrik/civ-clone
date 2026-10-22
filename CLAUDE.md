@@ -217,7 +217,8 @@ Never ship the original's sprites, palette art, fonts or text.
   power, town patches and landmarks, were not liked): `setupCards(setup)` gives difficulty and the tribe as
   cards with portraits, in `setupMenu`'s order (null for the rest, the number of civilizations included:
   plain menus). Difficulty: a row of its rulers (chieftain, warlord, prince, king, emperor, as the original
-  showed them), the panel under them saying what the level changes (`DIFFICULTY_RULES`). Tribes: a grid of
+  showed them; the user's portraits, the `rulers` sheet, 104x104 drawn a fine pixel each), the panel under
+  them saying what the level changes (`DIFFICULTY_RULES`). Tribes: a grid of
   their leaders (`LEADER_PORTRAITS`, `TRIBE_COLUMNS` across), framed in the tribe's colour, beside a panel
   with the leader large, the trait, the first advance and the capital. Portraits are the retro sheet
   `portraits` (48x48, `PORTRAIT_SHEET`, drawn small a fine pixel each and large a screen pixel each), made
@@ -363,7 +364,10 @@ Never ship the original's sprites, palette art, fonts or text.
 - `tools/sprites` — `npm run sprites -- export [dir]` writes the sheets as PNGs (8 sprites wide,
   1:1, magenta = owner colour); `npm run sprites -- import <sheet>.png` writes an edited sheet
   back into `src/art`, rejecting any pixel outside the sprite's palette legend; `npm run sprites -- icons`
-  draws the mobile app's icons (a walled city, `icons.ts`) into `apps/mobile/public/icons`.
+  draws the mobile app's icons (a walled city, `icons.ts`) into `apps/mobile/public/icons`. A sprite may
+  name up to five ramps (`ramps=a,b,c,d,e`; characters 0-7, a-h, A-H, JKLMOQST, jloqstvx), for pictures
+  of many colours (the rulers). `draw/*.ts` make sheets: `portraits.ts` (the tribes' leaders, drawn from
+  one bust), `rulers.ts` (the user's ruler portraits), `cities.ts`, `features.ts`.
 - `packages/renderer-modern` — canvas-2D renderer on a 960x600 logical surface (same panel/
   viewport split, 48px tiles): `theme.ts` (all colours and fonts), `draw.ts` (panels, wrapped
   text, bars), `tiles.ts`/`markers.ts` (terrain, overlays, units, cities), `screens/*`. It draws
@@ -575,7 +579,10 @@ text), second special resources with reaches (save version 20; the branch's own 
 - Art is ours: draw new sprites in the text grids or a paint program and import them. Do not use
   image generators or the original game's files for shipped art. Exception the user made (2026-10-21):
   the terrain, unit and resource sheets were supplied by the user as reference images and copied in
-  pixel for pixel; new art drawn here follows their manner (see `packages/renderer-retro` above) and
+  pixel for pixel; likewise (2026-10-22) the five difficulty rulers, supplied as large portraits
+  (`tools/sprites/draw/rulers/*.png`) and converted by `rulers.ts` (cropped, laid on a 104 grid, each cell
+  the palette colour most of its pixels are nearest to, from five ramps picked per picture; the palette
+  has no purple, so the emperor's purple robe came out royal blue); new art drawn here follows their manner (see `packages/renderer-retro` above) and
   the user's pixel-art rules: even chunky strokes, one-pixel outlines in dark shades of the thing's own
   colours (no heavy black), the blocky 5x7 text, nothing algorithmically thinned or smoothed.
 - Commit per phase or per feature; messages in imperative mood.

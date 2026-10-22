@@ -2,7 +2,7 @@ import { TRIBE_COLUMNS, type SetupCard, type SetupCards } from "@civ/renderer-ap
 import { drawTextCentered, FONT_HEIGHT, wrapText } from "../font.js";
 import { drawIconLine, wrapIcons } from "../icons.js";
 import { C, shade, slotColor } from "../palette.js";
-import { PORTRAIT_SHEET, spriteSurface } from "../sprites/index.js";
+import { PORTRAIT_SHEET, RULER_SHEET, spriteSurface } from "../sprites/index.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { DIM, drawStone, drawWindow, INK, NOTE } from "../widgets.js";
@@ -94,9 +94,12 @@ function drawCard(s: Surface, card: SetupCard, b: Box, inset: Box, large: boolea
 function drawPortrait(s: Surface, card: SetupCard, b: Box, large: boolean): void {
   s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, card.band !== undefined ? slotColor(card.band) : C.BLACK!);
   backdrop(s, b);
+  const k = s.k;
+  // The difficulty levels' rulers: the user's portraits, a pixel to each fine pixel.
+  const ruler = spriteSurface(RULER_SHEET, card.portrait);
+  if (ruler) { s.fblit(ruler, b.x * k + Math.floor((b.w * k - ruler.fw) / 2), (b.y + b.h) * k - ruler.fh, SPRITE_CLEAR); return; }
   const sprite = spriteSurface(PORTRAIT_SHEET, card.portrait);
   if (!sprite) return;
-  const k = s.k;
   if (large) s.blit(coarse(card.portrait, sprite), b.x + Math.floor((b.w - PORTRAIT) / 2), b.y + b.h - PORTRAIT, SPRITE_CLEAR);
   else s.fblit(sprite, b.x * k + Math.floor((b.w * k - PORTRAIT) / 2), (b.y + b.h) * k - PORTRAIT, SPRITE_CLEAR);
 }

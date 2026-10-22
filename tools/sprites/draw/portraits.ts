@@ -1,4 +1,4 @@
-// Draws the portraits sheet: the rulers of the difficulty levels and each tribe's leader, 48x48 busts
+// Draws the portraits sheet: each tribe's leader, 48x48 busts
 // in the manner of the terrain and features: two or three flat shades a face, lit from the upper left,
 // each part outlined one pixel in the darkest of its own colours, laid back to front so a dark line
 // parts them. Each portrait is a shared bust (head, neck, shoulders) with its own skin, hair, beard,
@@ -389,13 +389,7 @@ function collar(g: G, l: Look): void {
 // ---- the rulers ------------------------------------------------------------------------------------------
 
 const LOOKS: Look[] = [
-  // The difficulty levels, Chieftain to Emperor.
-  { name: "chieftain", ramps: ["flesh", "steel", "hide"], skin: "tan", hair: "long", hat: "headband", dress: "fur", collar: "bones" },
-  { name: "warlord", ramps: ["flesh", "hide", "brick"], hair: "short", beard: "full", hat: "helmet", dress: "robe", collar: "fur" },
-  { name: "prince", ramps: ["flesh", "sand", "ocean"], skin: "light", hair: "short", hat: "circlet", dress: "robe", collar: "necklace" },
-  { name: "king", ramps: ["flesh", "earth", "brick"], hair: "short", beard: "full", hat: "crown", dress: "robe", collar: "ermine" },
-  { name: "emperor", ramps: ["flesh", "grey", "azure"], hairTone: "light", hair: "short", beard: "long", hat: "imperial", dress: "robe", collar: "ermine" },
-  // Each tribe's leader.
+  // Each tribe's leader (the difficulty levels' rulers are the user's portraits: rulers.ts).
   { name: "caesar", ramps: ["flesh", "earth", "marble"], hair: "receding", hat: "laurel", dress: "toga" },
   { name: "hammurabi", ramps: ["flesh", "earth", "ocean"], skin: "tan", hairTone: "dark", hair: "long", beard: "square", hat: "cap", dress: "robe" },
   { name: "ramesses", ramps: ["flesh", "steel", "wheat"], skin: "tan", hair: "none", beard: "pharaoh", hat: "nemes", dress: "bare", collar: "broad" },
@@ -419,8 +413,8 @@ const LOOKS: Look[] = [
 ];
 
 const LEGEND = [
-  "# Portraits, 48x48: two pixels to each screen pixel (drawn large, one to each). The setup's rulers:",
-  "# the difficulty levels, chieftain to emperor, then each tribe's leader, named in lower case. Drawn by",
+  "# Portraits, 48x48: two pixels to each screen pixel (drawn large, one to each). The tribes' leaders",
+  "# for the setup, named in lower case (the difficulty levels' rulers are the rulers sheet). Drawn by",
   "# tools/sprites/draw/portraits.ts as a shared bust with its own hair, beard, headgear and dress; edit freely.",
   "# Legend: . clear  0-7 skin (first ramp)  a-h hair and beard (second)  A-H dress (third)",
   "#   y/Y gold  w/Z/z white and greys  k black  r/R red  u/U blue  n/N green  i/I cyan",

@@ -81,8 +81,8 @@ describe("sprite sheets", () => {
 
   it("reject a character outside the legend, and say where", () => {
     const rows = Array.from({ length: 4 }, () => "....");
-    rows[2] = "..q.";
-    expect(() => parseSheet("test", 4, `@thing\n${rows.join("\n")}`, ["grass"])).toThrow(/test\/thing \(2,2\): 'q' is not in the sprite legend/);
+    rows[2] = "..m.";
+    expect(() => parseSheet("test", 4, `@thing\n${rows.join("\n")}`, ["grass"])).toThrow(/test\/thing \(2,2\): 'm' is not in the sprite legend/);
     expect(() => parseSheet("test", 4, "@thing\n....\n....", ["grass"])).toThrow(/2 rows, expected 4/);
   });
 

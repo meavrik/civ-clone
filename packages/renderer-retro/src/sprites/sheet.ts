@@ -13,6 +13,7 @@ import { C, PALETTE, shade, type Rgb } from "../palette.js";
  *   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey  (EGA)
  *   0-7  shades of the sprite's first ramp (dark to light)
  *   a-h  shades of its second ramp,  A-H  shades of its third
+ *   JKLMOQST  its fourth,  jloqstvx  its fifth (letters the rest leave free; for pictures of many colours)
  * A sheet has default ramps; a sprite may name its own: `@forest ramps=forest,grass,earth`.
  */
 
@@ -21,6 +22,9 @@ export const SPRITE_CLEAR = 255;
 export const CLEAR = -1;
 export const OWNER = -2;
 export const OWNER_DARK = -3;
+
+/** The characters of each ramp a sprite names, dark to light. */
+const RAMP_CHARS = ["01234567", "abcdefgh", "ABCDEFGH", "JKLMOQST", "jloqstvx"];
 
 const FIXED: Record<string, number> = {
   k: C.BLACK!, w: C.WHITE!, r: C.RED!, R: C.LRED!, y: C.YELLOW!, Y: C.BROWN!, u: C.BLUE!, U: C.LBLUE!,
@@ -60,10 +64,10 @@ export function colourOf(ch: string, ramps: string[]): number {
     if (!ramp) throw new Error(`'${ch}' needs a ramp ${r + 1}, but only ${ramps.length} are named`);
     return shade(ramp, n);
   };
-  const code = ch.charCodeAt(0);
-  if (ch >= "0" && ch <= "7") return pick(0, code - 48);
-  if (ch >= "a" && ch <= "h") return pick(1, code - 97);
-  if (ch >= "A" && ch <= "H") return pick(2, code - 65);
+  for (let r = 0; r < RAMP_CHARS.length; r++) {
+    const n = RAMP_CHARS[r]!.indexOf(ch);
+    if (n >= 0) return pick(r, n);
+  }
   throw new Error(`'${ch}' is not in the sprite legend`);
 }
 
@@ -192,7 +196,7 @@ export function sheetFromImage(sheet: Sheet, img: RgbaImage): string {
       list.push(ch);
       options.set(key, list);
     };
-    for (const ch of "01234567abcdefghABCDEFGH") add(ch);
+    for (const ch of RAMP_CHARS.join("")) add(ch);
     for (const ch of Object.keys(FIXED)) add(ch);
     add("P");
     add("p");
