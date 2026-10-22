@@ -89,6 +89,8 @@ npm run build:mobile     # apps/mobile/dist: a static site, playable from any fo
 npm run preview:mobile   # serve that build (localhost counts as secure, so the service worker runs)
 ```
 
+Netlify deploys it from `main` (https://civ-clone.netlify.app, settings in `apps/mobile/netlify.toml`).
+
 Installing it (Add to Home Screen) and playing offline need the build served over HTTPS (or from
 localhost). Touch: tap = click · hold still = right-click (a unit's orders, a step onto the square
 beside it, the terrain window) · drag the map to look around (it glides back when the game moves its

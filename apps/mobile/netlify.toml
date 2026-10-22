@@ -1,0 +1,10 @@
+# The mobile app on Netlify (site civ-clone: package directory apps/mobile, base directory the
+# repository root). Netlify runs the install and this command from the root, and `publish` is a path
+# from the root. It installs with npm from package-lock.json; a pnpm-lock.yaml in the root would
+# switch it to pnpm, so none is kept (.gitignore).
+[build]
+  command = "npm --workspace @civ/mobile run build"
+  publish = "apps/mobile/dist"
+
+[build.environment]
+  NODE_VERSION = "22"

@@ -6,3 +6,5 @@ art-export
 tools/maps/.cache
 tools/maps/out
 apps/mobile/dist-types
+# package-lock.json is the lockfile; a pnpm-lock.yaml would make Netlify install with pnpm
+pnpm-lock.yaml

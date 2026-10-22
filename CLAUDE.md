@@ -15,7 +15,10 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   seeded all-AI tournaments (`tools/headless`); `--verify` replays each game from its save and checks the state digest
 - `npm run maps [-- europe]` — rebuild the premade worlds from Natural Earth data (`tools/maps`, cached in `tools/maps/.cache`,
   previews in `tools/maps/out/<world>-<size>.png`; look at them after any change)
-- npm and pnpm both work (`workspaces` + `*` deps, `.npmrc` links workspace packages for pnpm)
+- npm and pnpm both work (`workspaces` + `*` deps, `.npmrc` links workspace packages for pnpm); `package-lock.json` is
+  the one lockfile (a committed `pnpm-lock.yaml` would make Netlify install with pnpm, and it went stale)
+- Netlify (site civ-clone, https://civ-clone.netlify.app) builds the mobile app from `main` on every push:
+  `apps/mobile/netlify.toml` (package directory apps/mobile, publish `apps/mobile/dist`, Node 22)
 
 ## Layout
 
