@@ -91,6 +91,7 @@ import {
   MotionPlayer,
   moveRefusal,
   PICTURES,
+  setupCards,
   setupChoose,
   planMove,
   setupMenu,
@@ -1716,9 +1717,19 @@ function setupKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "setup" }>): voi
   const m = setupMenu(sc.setup);
   const apply = (i: number) => { if (setupChoose(sc.setup, i)) startGame(setupOptions(sc.setup)); };
   setupSelection = Math.min(setupSelection, m.items.length - 1);
+  // Cards in rows: left and right step along, up and down a row (one row: the same as left and right).
+  const cards = setupCards(sc.setup);
+  const n = m.items.length;
+  const across = cards && cards.columns < n ? cards.columns : 1;
+  const step = (d: number) => {
+    const to = setupSelection + d;
+    setupSelection = Math.abs(d) > 1 ? (to >= 0 && to < n ? to : setupSelection) : (to + n) % n;
+  };
   switch (e.code) {
-    case "ArrowUp": case "Numpad8": setupSelection = (setupSelection + m.items.length - 1) % m.items.length; break;
-    case "ArrowDown": case "Numpad2": setupSelection = (setupSelection + 1) % m.items.length; break;
+    case "ArrowLeft": case "Numpad4": if (cards) step(-1); break;
+    case "ArrowRight": case "Numpad6": if (cards) step(1); break;
+    case "ArrowUp": case "Numpad8": step(-across); break;
+    case "ArrowDown": case "Numpad2": step(across); break;
     case "Enter": case "NumpadEnter": case "Space": apply(setupSelection); if (screenState === sc) setupSelection = setupMenu(sc.setup).selected; break;
     case "Escape": screenState = { kind: "title" }; break;
   }
@@ -1852,6 +1863,16 @@ canvas.addEventListener("wheel", (e) => {
   if (rows) { wheelRows -= rows; treeScroll(sc, rows); }
 }, { passive: false });
 let wheelRows = 0;
+// The setup's cards light up under the pointer.
+canvas.addEventListener("mousemove", (e) => {
+  const sc = screenState;
+  if (sc.kind !== "setup") return;
+  const cards = setupCards(sc.setup);
+  if (!cards) return;
+  const [px, py] = toLogical(e);
+  const i = renderer.setupHit(cards, px, py);
+  if (i >= 0) setupSelection = i;
+});
 canvas.addEventListener("mousedown", (e) => {
   const [px, py] = toLogical(e);
   noteInput();
@@ -1863,6 +1884,14 @@ canvas.addEventListener("mousedown", (e) => {
   switch (sc.kind) {
     case "title": skipIntro(); return;
     case "setup": {
+      // A card is picked when it is clicked lit (the pointer lights it on the way, a first tap on a phone).
+      const cards = setupCards(sc.setup);
+      if (cards) {
+        const i = renderer.setupHit(cards, px, py);
+        if (i >= 0 && i === setupSelection) setupKey({ code: "Enter" } as KeyboardEvent, sc);
+        else if (i >= 0) setupSelection = i;
+        return;
+      }
       const m = setupMenu(sc.setup);
       const i = renderer.menuHit({ ...m }, px, py);
       if (i >= 0) { setupSelection = i; setupKey({ code: "Enter" } as KeyboardEvent, sc); }
@@ -1990,6 +2019,8 @@ function draw(sc: Screen): void {
   switch (sc.kind) {
     case "title": renderer.title(titleAt); break;
     case "setup": {
+      const cards = setupCards(sc.setup);
+      if (cards) { renderer.setup(cards, setupSelection, titleAt); break; }
       renderer.title(titleAt);
       const m = setupMenu(sc.setup);
       renderer.menu({ ...m, selected: setupSelection });

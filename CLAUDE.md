@@ -109,7 +109,8 @@ Never ship the original's sprites, palette art, fonts or text.
   Saves before version 10 load with `farContact` and `noTrespass` (meeting at two squares, no stop),
   saves before version 12 with `fixedBorders` (each city its 21 squares, the nearer then older winning).
   Moods (`computeCity`; asked for 2026-10-21, checked against FreeCiv's civ1 ruleset): citizens are born
-  content up to the difficulty's base (6 Chieftain .. 2 Emperor; our departure, FreeCiv plays 4) and unhappy
+  content up to the difficulty's base (6 Chieftain .. 2 Emperor, `DIFFICULTY_RULES` in `rules/difficulty.ts`
+  with each level's starting gold, settlers and research cost; our departure, FreeCiv plays 4) and unhappy
   beyond; an empire holding more cities than its government's `empireSize` (Anarchy 9 .. Democracy 14) loses one
   content citizen a city, one more per `EMPIRE_SIZE_STEP` (10) cities. Then stage by stage (`CityReport.moods`,
   shown by the city screen's Happy panel, H or its button, as the original's Happy analysis did): luxuries (two
@@ -212,6 +213,18 @@ Never ship the original's sprites, palette art, fonts or text.
   draws it in `screens/title.ts`: the planet lit per fine pixel from hashed noise maps (made a few rows a
   frame while only the stars show), the name in our own slab capitals in chiselled gold; modern keeps a
   still title with the name.
+  Setup cards (`setup.ts`; asked for 2026-10-22: a picture for every choice, and the tribes as more than
+  a long list): `setupCards(setup)` gives difficulty, the number of civilizations and the tribe as cards
+  in `setupMenu`'s order (null for the other questions, still plain menus). Difficulty: a row of the
+  ruler's seat growing grander (hut, palisade, keep, castle, palace), the panel under them saying what
+  the level changes (`DIFFICULTY_RULES`). The count: a patch of the map's grassland with that many towns,
+  each under its own colour's shield. Tribes: a grid of emblems (`EMBLEMS`: a landmark each, some the
+  city view's wonders, the rest `SETUP_PICTURES`, built from the same `shapes.ts` as `PICTURES`), framed
+  in the tribe's colour, the panel showing its emblem large, leader, trait, first advance and capital.
+  `Renderer.setup`/`setupHit`; retro's `screens/setup.ts` stands them on the opening's stars and draws the
+  small emblems a fine pixel to each of theirs (`drawPictureFine`). The web app lights the card under
+  the pointer and picks it on a click (a first tap on the phone lights it); arrows move in two
+  dimensions, Enter picks. Modern shows the cards' labels as its old menu.
   Map clicks (asked for 2026-10-22): left-click opens our city or picks our unit as ever; otherwise,
   with a unit in play, `planMove` (renderer-api `plan.ts`) decides: a step next door goes at once (a
   refused one says why); a fight ("Attack: 62%", `attackOdds`), an empty enemy city ("Take Rome") or a

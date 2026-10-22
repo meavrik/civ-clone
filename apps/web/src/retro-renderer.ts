@@ -22,6 +22,8 @@ import {
   drawResearch,
   drawTextInput,
   drawTitleScreen,
+  drawSetupScreen,
+  setupCardAt,
   menuHit,
   menuRows,
   menuScrollAt,
@@ -77,6 +79,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.putImageData(image, 0, 0);
     },
     title: (at) => drawTitleScreen(screen, at),
+    setup: (cards, selected, at) => drawSetupScreen(screen, cards, selected, at),
+    setupHit: (cards, px, py) => setupCardAt(cards, px, py),
     main: (state, view) => drawMainScreen(screen, state, view),
     city: (state, view: CityScreenView) => drawCityScreen(screen, state, view),
     cityView: (state, view) => drawCityView(screen, state, view),

@@ -1,4 +1,4 @@
-import type { Renderer } from "@civ/renderer-api";
+import type { MenuState, Renderer, SetupCards } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, cityButtonAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
@@ -11,6 +11,9 @@ import { H, VIEW_TILES_X, VIEW_TILES_Y, W } from "./theme.js";
 
 export type { Context2D, Gradient } from "./context.js";
 export { H as MODERN_H, W as MODERN_W, TILE as MODERN_TILE } from "./theme.js";
+
+/** A setup question's cards as a menu of their labels. */
+const cardMenu = (cards: SetupCards, selected: number): MenuState => ({ title: cards.title, items: cards.cards.map((c) => c.label), selected });
 
 /**
  * The modern renderer: the same screens as the retro one, drawn with
@@ -33,6 +36,9 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     },
     present() {},
     title: () => drawTitleScreen(ctx),
+    // Set aside (not in the app): the setup's cards as the plain list they were.
+    setup: (cards, selected) => { drawTitleScreen(ctx); drawMenu(ctx, cardMenu(cards, selected)); },
+    setupHit: (cards, px, py) => menuHit(ctx, cardMenu(cards, 0), px, py),
     main: (state, view) => drawMainScreen(ctx, state, view),
     city: (state, view) => drawCityScreen(ctx, state, view),
     cityView: (state, view) => drawCityView(ctx, state, view),

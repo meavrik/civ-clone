@@ -24,7 +24,8 @@ export function drawTitleScreen(s: Surface, at = INTRO_MS): void {
 
 const STARS = 280;
 
-function drawStars(s: Surface, at: number): void {
+/** The night sky of the opening, its stars twinkling with `at` (the setup screens stand on it too). */
+export function drawStars(s: Surface, at: number): void {
   const k = s.k;
   // They come out over the first second.
   const out = Math.min(1, at / 1000);

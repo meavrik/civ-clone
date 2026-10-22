@@ -3,6 +3,7 @@ import type { MovePlan } from "./plan.js";
 import type { Lifting } from "./fog.js";
 import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
+import { setupQuestionCards, type SetupCards } from "./setup.js";
 export * from "./motion.js";
 export * from "./icons.js";
 export * from "./citizens.js";
@@ -18,6 +19,7 @@ export * from "./cityview.js";
 export * from "./plan.js";
 export * from "./watch.js";
 export * from "./intro.js";
+export * from "./setup.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
@@ -266,6 +268,10 @@ export interface Renderer {
 
   /** The opening and title screen, `at` ms since the opening began (`introAt`; from `INTRO_MS` the title stands complete). */
   title(at: number): void;
+  /** A setup question as cards with pictures (`setupCards`), `selected` lit and told of; `at` as the title's. */
+  setup(cards: SetupCards, selected: number, at: number): void;
+  /** The setup card under a point, or -1. */
+  setupHit(cards: SetupCards, px: number, py: number): number;
   main(state: GameState, view: MainScreenView): void;
   city(state: GameState, view: CityScreenView): void;
   /** The city as a picture: its improvements, wonders and homes on its own ground. */
@@ -382,6 +388,13 @@ export function setupMenu(setup: SetupState): { title: string; items: string[]; 
     default:
       return { title: "", items: [], selected: 0 };
   }
+}
+
+/** The setup's current question as cards with pictures (difficulty, the count, the tribe), or null for a plain menu. */
+export function setupCards(setup: SetupState): SetupCards | null {
+  const counts: number[] = [];
+  for (let n = 3; n <= setupMaxCivs(setup); n++) counts.push(n);
+  return setupQuestionCards(setup.step, { counts, civs: setupCivs(setup) });
 }
 
 /**

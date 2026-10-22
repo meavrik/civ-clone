@@ -6,6 +6,7 @@ import { building, BUILDINGS } from "./rules/buildings.js";
 import { wonder, WONDERS, type WonderRule } from "./rules/wonders.js";
 import { CELEBRATION_SIZE, EMPIRE_SIZE_STEP, government } from "./rules/governments.js";
 import { civ } from "./rules/civs.js";
+import { difficultyRule } from "./rules/difficulty.js";
 import { BALANCED_WEIGHTS, focusRule, type FocusRule } from "./rules/focus.js";
 import { nextCityName } from "./rules/names.js";
 import { specialOf, TERRAIN_RULES } from "./rules/terrain.js";
@@ -478,7 +479,7 @@ export function canHelpWonder(state: GameState, u: Unit, city: City): string | n
  */
 export function contentBase(state: GameState, owner: number): number {
   const p = state.players[owner]!;
-  const base = [6, 5, 4, 3, 2][p.difficulty] ?? 4;
+  const base = difficultyRule(p.difficulty).content;
   const cities = state.cities.filter((c) => c.owner === owner).length;
   if (state.simpleMoods) return Math.max(0, base - Math.floor(Math.max(0, cities - 8) / 4));
   const limit = government(p.government).empireSize;

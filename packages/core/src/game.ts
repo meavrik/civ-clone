@@ -4,6 +4,7 @@ import { premadeMap, premadeStarts, premadeWorld, type PremadeWorld } from "./ma
 import { createRng, nextInt } from "./rng.js";
 import { advancesFor } from "./rules/advances.js";
 import { civ, CIVS, colorSlot } from "./rules/civs.js";
+import { difficultyRule } from "./rules/difficulty.js";
 import { newSpaceship } from "./rules/spaceship.js";
 import { MAP_WIDTH, Terrain, type GameState, type Player, type WorldMap } from "./types.js";
 import { createUnit } from "./units.js";
@@ -199,7 +200,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {
     p.difficulty = difficulty;
-    p.gold = [100, 50, 0, 0, 0][difficulty] ?? 0;
+    p.gold = difficultyRule(difficulty).gold;
     // Each civilization begins with the advance of its trait, and whatever it needs (Horseback Riding: Animal Husbandry).
     const start = civ(p.civ).trait?.start;
     if (start && !state.classicCivs) {
@@ -241,7 +242,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
         if (tries === 199 || far(x, y)) { sx = x; sy = y; break; }
       }
     starts.push([sx, sy]);
-    const settlers = difficulty <= 1 || p.isAi ? 2 : 1;
+    const settlers = p.isAi ? 2 : difficultyRule(difficulty).settlers;
     for (let i = 0; i < settlers; i++) createUnit(state, "settlers", p.id, sx, sy);
     recomputeVisibility(state, p.id);
     p.explored.set(p.visible);

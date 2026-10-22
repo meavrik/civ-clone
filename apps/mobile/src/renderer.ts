@@ -1,5 +1,5 @@
 import { wrapX, type GameState } from "@civ/core";
-import type { AdvisorKind, MainScreenView, MenuState, Renderer, TextInputState } from "@civ/renderer-api";
+import type { AdvisorKind, MainScreenView, MenuState, Renderer, SetupCards, TextInputState } from "@civ/renderer-api";
 import {
   BAR_H,
   cityButtonAt,
@@ -26,6 +26,8 @@ import {
   drawStatusLine,
   drawTextInput,
   drawTitleScreen,
+  drawSetupScreen,
+  setupCardAt,
   drawWorldMap,
   menuBarAnchor,
   menuBarHit,
@@ -219,6 +221,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.putImageData(image, 0, 0);
     },
     title: screen((s, at: number) => drawTitleScreen(s, at)),
+    setup: screen((s, cards: SetupCards, selected: number, at: number) => drawSetupScreen(s, cards, selected, at)),
+    setupHit: (cards, px, py) => setupCardAt(cards, px - inset(), py),
     main(state, view) {
       wideFrame = true;
       const moved = pan.shift(view, state.map, zoomedTiles(zoom).y, state.activeUnit, performance.now());

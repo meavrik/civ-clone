@@ -1,3 +1,5 @@
+import { difficultyRule } from "./difficulty.js";
+
 /**
  * The tech tree. Each advance has at most two prerequisites, as in the
  * original. Names are the historical concepts; the 1991 graph was checked
@@ -141,6 +143,5 @@ export function availableAdvances(known: string[], tree: readonly AdvanceRule[])
 
 /** Beakers needed for the next advance: grows with each advance known. */
 export function researchCost(knownCount: number, difficulty: number): number {
-  const perTech = [8, 10, 12, 14, 16][difficulty] ?? 12;
-  return (knownCount + 1) * perTech;
+  return (knownCount + 1) * difficultyRule(difficulty).techCost;
 }
