@@ -4,7 +4,7 @@ import { drawIconLine, wrapIcons } from "../icons.js";
 import { C, shade, slotColor } from "../palette.js";
 import { PORTRAIT_SHEET, RULER_SHEET, spriteSurface } from "../sprites/index.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
-import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
+import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
 import { DIM, drawStone, drawWindow, INK, NOTE } from "../widgets.js";
 import { drawStars } from "./title.js";
 
@@ -28,8 +28,6 @@ const TOP = 13;
 const ROW = { w: 60, h: 80, gap: 4, panel: 56 };
 /** The tribes' grid, beside the panel. */
 const GRID = { cols: TRIBE_COLUMNS, w: 52, h: 35, gap: 1 };
-/** A portrait: 48 fine pixels square in the grid, 48 screen pixels drawn large. */
-const PORTRAIT = 48;
 
 function layout(cards: SetupCards): SetupLayout {
   const n = cards.cards.length;
@@ -95,21 +93,9 @@ function drawPortrait(s: Surface, card: SetupCard, b: Box, large: boolean): void
   s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, card.band !== undefined ? slotColor(card.band) : C.BLACK!);
   backdrop(s, b);
   const k = s.k;
-  // The difficulty levels' rulers: the user's portraits, a pixel to each fine pixel.
-  const ruler = spriteSurface(RULER_SHEET, card.portrait);
-  if (ruler) { s.fblit(ruler, b.x * k + Math.floor((b.w * k - ruler.fw) / 2), (b.y + b.h) * k - ruler.fh, SPRITE_CLEAR); return; }
-  const sprite = spriteSurface(PORTRAIT_SHEET, card.portrait);
-  if (!sprite) return;
-  if (large) s.blit(coarse(card.portrait, sprite), b.x + Math.floor((b.w - PORTRAIT) / 2), b.y + b.h - PORTRAIT, SPRITE_CLEAR);
-  else s.fblit(sprite, b.x * k + Math.floor((b.w * k - PORTRAIT) / 2), (b.y + b.h) * k - PORTRAIT, SPRITE_CLEAR);
-}
-
-const enlarged = new Map<string, Surface>();
-/** A portrait a screen pixel to each of its pixels: twice the size it has in the grid. */
-function coarse(name: string, sprite: Surface): Surface {
-  let c = enlarged.get(name);
-  if (!c) enlarged.set(name, (c = new Surface(PORTRAIT, PORTRAIT, sprite.data, 1)));
-  return c;
+  // The user's portraits, a pixel to each fine pixel: large (the rulers sheet) or small (the tribes' grid).
+  const sprite = spriteSurface(large ? RULER_SHEET : PORTRAIT_SHEET, card.portrait);
+  if (sprite) s.fblit(sprite, b.x * k + Math.floor((b.w * k - sprite.fw) / 2), (b.y + b.h) * k - sprite.fh, SPRITE_CLEAR);
 }
 
 /** A sky-blue ground behind a portrait, lighter toward the foot, dithered between its bands. */

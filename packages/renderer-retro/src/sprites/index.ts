@@ -29,9 +29,9 @@ export const RESOURCE_SHEET = parseSheet("resources", 32, resourcesArt, ["jewel"
 export const ICON_SHEET = parseSheet("icons", 16, iconsArt, ["grey", "earth", "stone"], DETAIL);
 /** The city screen's citizens, a man and a woman to each sprite (see citizens.ts). */
 export const CITIZEN_SHEET = parseSheet("citizens", 32, citizensArt, ["flesh", "earth", "grey"], DETAIL);
-/** The setup's rulers: the difficulty levels and each tribe's leader, 48x48 busts (tools/sprites/draw/portraits.ts). */
+/** The tribes' leaders small, 48x48 a pixel to each fine pixel: the setup's grid (the user's portraits, tools/sprites/draw/rulers.ts). */
 export const PORTRAIT_SHEET = parseSheet("portraits", 48, portraitsArt, ["flesh", "earth", "brick"], DETAIL);
-/** The difficulty levels' rulers, the user's portraits (tools/sprites/draw/rulers.ts): 104x104, a pixel to each fine pixel. */
+/** The difficulty levels' rulers and the tribes' leaders large, 104x104 a pixel to each fine pixel (the user's portraits, tools/sprites/draw/rulers.ts). */
 export const RULER_SHEET = parseSheet("rulers", 104, rulersArt, ["hide", "flesh", "brick"], DETAIL);
 export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRAIN_SHEET, features: FEATURE_SHEET, cities: CITY_SHEET, resources: RESOURCE_SHEET, icons: ICON_SHEET, citizens: CITIZEN_SHEET, portraits: PORTRAIT_SHEET, rulers: RULER_SHEET };
 

@@ -12,7 +12,10 @@ const setup = (step: SetupState["step"], extra: Partial<SetupState> = {}): Setup
 
 describe("setup cards", () => {
   it("has a portrait for every level's ruler and every tribe's leader", () => {
-    for (const c of CIVS.filter((c) => c.id !== "barbarians")) expect(PORTRAIT_SHEET.byName.has(LEADER_PORTRAITS[c.id] ?? ""), c.id).toBe(true);
+    for (const c of CIVS.filter((c) => c.id !== "barbarians")) {
+      expect(PORTRAIT_SHEET.byName.has(LEADER_PORTRAITS[c.id] ?? ""), c.id).toBe(true);
+      expect(RULER_SHEET.byName.has(LEADER_PORTRAITS[c.id] ?? ""), c.id).toBe(true);
+    }
     for (const card of setupCards(setup("difficulty"))!.cards) expect(RULER_SHEET.byName.has(card.portrait), card.portrait).toBe(true);
   });
 
