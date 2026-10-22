@@ -615,7 +615,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     if (r.irrigate) work.push(r.irrigate.becomes !== undefined ? `{irrigate} into ${TERRAIN_NAMES[r.irrigate.becomes]}` : `{irrigate} +${r.irrigate.food ?? 0} {food}`);
     if (r.mine) work.push(r.mine.becomes !== undefined ? `{mine} into ${TERRAIN_NAMES[r.mine.becomes]}` : `{mine} +${r.mine.shields ?? 0} {shield}`);
     if (r.road.trade > 0) work.push(`{road} +${r.road.trade} {trade}`);
-    if (work.length) lines.push(`Settlers:  ${work.join("  ")}`);
+    if (work.length) lines.push(`Improvements:  ${work.join("  ")}`);
   }
   if (city) lines.push(`{city} ${city.name} (${state.players[city.owner]!.name}), size ${city.size}`);
   if (me.visible[idx]) {
@@ -635,7 +635,9 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
       if (hurt.length) lines.push(hurt.map((u) => `{heart} ${unitType(u.type).name} ${u.hp}/${maxHp(state, u.type)}`).join("  "));
     }
   }
-  return { title: `${TERRAIN_NAMES[t.terrain]}${t.river ? " (River)" : ""}`, lines };
+  // The title names the square's resource and river beside its terrain: "Jungle (Cotton)".
+  const extras = [specialOf(t)?.name, t.river ? "River" : undefined].filter(Boolean);
+  return { title: `${TERRAIN_NAMES[t.terrain]}${extras.length ? ` (${extras.join(", ")})` : ""}`, lines };
 }
 
 /** Colour slots (see CIV_COLORS in core); renderers map each slot to their own palette. */

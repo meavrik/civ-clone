@@ -23,6 +23,7 @@ import {
   defaultCityName,
   esteem,
   FINAL_TURN,
+  checkMove,
   findPath,
   formatYear,
   getTile,
@@ -574,26 +575,50 @@ function hutModal(r: HutResult, then: () => void): void {
   modal("A Tribal Village", body, ["OK"], () => after(), 0, after);
 }
 
+/** Send a unit to a square on its route there (`goto`). */
+function sendTo(unit: number, tx: number, ty: number): void {
+  const before = state.activeUnit;
+  const mark = lastActions.length;
+  if (dispatch({ type: "goto", unit, x: tx, y: ty })) say("Going to...", 1500);
+  afterUnitOrder(before, mark);
+  // A diplomat that reaches the gate of the foreign city it was sent to asks what to do there.
+  const d = unitById(state, unit);
+  const gate = cityAt(state, tx, ty);
+  if (d && gate && gate.owner !== 0 && gate.owner !== state.barbarians && unitType(d.type).flags?.includes("diplomat") && d.movesLeft > 0 && isAdjacent(d, tx, ty))
+    openDiplomatMenu(d.id, gate.id);
+}
+
+/**
+ * Whether a left-click on the square moves the unit: a step next door it may take (an attack or a
+ * diplomat's mission included, as the keys would), or a square further off it has a route to.
+ */
+function canGoTo(u: { id: number; x: number; y: number }, tx: number, ty: number): boolean {
+  if (u.x === tx && u.y === ty) return false;
+  const unit = unitById(state, u.id);
+  if (!unit) return false;
+  if (isAdjacent(unit, tx, ty)) {
+    const r = checkMove(state, unit, stepTo(unit, tx), ty - unit.y);
+    return r.ok || r.reason === "attack";
+  }
+  return findPath(state, unit, tx, ty) !== null;
+}
+
+/** The east-west step from a unit to an adjacent column, the short way round the wrap. */
+function stepTo(u: { x: number }, tx: number): number {
+  let dx = tx - u.x;
+  if (dx > 1) dx -= state.map.width;
+  if (dx < -1) dx += state.map.width;
+  return dx;
+}
+
 /** Right-click on the map: what is known about the square, with a few things to do about it. */
 function openTerrainInfo(tx: number, ty: number): void {
   const info = terrainInfo(state, tx, ty);
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
   const items: [string, () => void][] = [];
-  if (active && !(active.x === tx && active.y === ty))
-    items.push([`Send ${unitType(active.type).name} here`, () => {
-      const before = state.activeUnit;
-      const mark = lastActions.length;
-      if (dispatch({ type: "goto", unit: active.id, x: tx, y: ty })) say("Going to...", 1500);
-      afterUnitOrder(before, mark);
-      // A diplomat that reaches the gate of the foreign city it was sent to asks what to do there.
-      const d = unitById(state, active.id);
-      const gate = cityAt(state, tx, ty);
-      if (d && gate && gate.owner !== 0 && gate.owner !== state.barbarians && unitType(d.type).flags?.includes("diplomat") && d.movesLeft > 0 && isAdjacent(d, tx, ty))
-        openDiplomatMenu(d.id, gate.id);
-    }]);
+  if (active && !(active.x === tx && active.y === ty)) items.push(["Go here", () => sendTo(active.id, tx, ty)]);
   const city = cityAt(state, tx, ty);
   if (city && city.owner === 0) items.push(["Open city", () => openCity(city.id)]);
-  items.push(["Center here", () => centerOn(tx, ty)]);
   items.push(["Close", () => {}]);
   modal(info.title, info.lines, items.map((i) => i[0]), (i) => items[i]?.[1](), items.length - 1);
 }
@@ -1837,23 +1862,16 @@ canvas.addEventListener("mousedown", (e) => {
   }
   const { x: tx, y: ty } = hit;
 
-  // Right-click: step the active unit onto an adjacent square, open its orders on its own square,
-  // and anywhere else show the terrain window (which can also send the unit there).
-  if (e.button === 2) {
-    if (active && active.x === tx && active.y === ty) { openActionMenu(active.id); return; }
-    if (active && isAdjacent(active, tx, ty)) {
-      let dx = tx - active.x;
-      if (dx > 1) dx -= state.map.width;
-      if (dx < -1) dx += state.map.width;
-      tryMove(active.id, dx, ty - active.y);
-      return;
-    }
-    openTerrainInfo(tx, ty);
+  // Right-click: the square's window (terrain, what is on it, and a few things to do about it).
+  if (e.button === 2) { openTerrainInfo(tx, ty); return; }
+  // Left-click: the active unit goes to the square if it can (a step next door, a route further off).
+  if (active && canGoTo(active, tx, ty)) {
+    if (isAdjacent(active, tx, ty)) tryMove(active.id, stepTo(active, tx), ty - active.y);
+    else sendTo(active.id, tx, ty);
     return;
   }
-  // Left-click centres the map on the square and shows it in the panel. It opens your city there,
-  // or picks your unit there (the next of a stack on the active unit's square), but never moves a
-  // unit: moves are the keys, right-click and the terrain window.
+  // Otherwise the map centres on the square and shows it in the panel. It opens your city there,
+  // or picks your unit there (the next of a stack on the active unit's square).
   centerOn(tx, ty);
   const city = cityAt(state, tx, ty);
   if (city && city.owner === 0) { openCity(city.id); return; }

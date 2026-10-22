@@ -190,6 +190,12 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   `MenuState.top` kept by `keepInView`, `Renderer.menuRows` and `menuScrollAt` (retro draws a bar with
   arrows); arrows, PgUp/PgDn, Home/End, the wheel and clicks on the bar move through it.
   Debug's entries (reveal map, gold, research, production, moves, contact) are the core `cheat` command, logged and replayed like any order.
+  Map clicks (asked for 2026-10-22): left-click sends the active unit to the square when it can go
+  (`canGoTo`: a step next door by `checkMove`, an attack included, or a route further off by `findPath`,
+  then `goto`); otherwise the map centres on the square, opening our city or picking our unit there.
+  Right-click opens the square's window (`terrainInfo`: title "Jungle (Cotton)", the resource and river
+  beside the terrain; an Improvements line; buttons Go here, Open city, Close). On the phone a tap is a
+  left-click and a hold a right-click.
   A refused move (`tryMove` in the web app) nudges the unit toward the square (`MotionPlayer.nudge`,
   a UI-only beat) and puts a note beside it (`view.callout`, words from `moveRefusal` in `refusal.ts`),
   gone after 4 s or at the next key or click. Both status panels show the research under way

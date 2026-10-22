@@ -71,11 +71,18 @@ describe("terrain info", () => {
     const working = createUnit(s, "settlers", 0, u.x + 1, u.y);
     working.order = { kind: "work", work: "road", turnsLeft: 2 };
     const info = terrainInfo(s, u.x + 1, u.y);
-    expect(info.title).toBe("Grassland (River)");
+    // The title names the resource and the river beside the terrain.
+    expect(info.title).toBe("Grassland (Resources, River)");
+    t.river = false;
+    expect(terrainInfo(s, u.x + 1, u.y).title).toBe("Grassland (Resources)");
+    t.special = false;
+    expect(terrainInfo(s, u.x + 1, u.y).title).toBe("Grassland");
+    t.river = true;
+    t.special = true;
     // Pictures stand in for the words: yields and movement on one line, features with their names.
     expect(info.lines[0]).toMatch(/^\{food\} \d+  \{shield\} \d+  \{trade\} \d+  \{boot\} 1$/);
     expect(info.lines).toContain("{star} Resources  {river} River  {road} Road");
-    expect(info.lines.some((l) => l.startsWith("Settlers:  {irrigate} +1 {food}"))).toBe(true);
+    expect(info.lines.some((l) => l.startsWith("Improvements:  {irrigate} +1 {food}"))).toBe(true);
     expect(info.lines).toContain("{swords} 2 Militia, Settlers (ours)");
     expect(info.lines).toContain("{road} Building a road, 2 turns");
     for (const line of info.lines) for (const seg of iconSegments(line)) if ("icon" in seg) expect(ICONS).toContain(seg.icon);
