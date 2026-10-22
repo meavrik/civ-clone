@@ -50,7 +50,8 @@ import { newSpaceship, shipStats } from "./rules/spaceship.js";
 import { MOVE_FRAC, TERRAIN_RULES, WARMING_LIMIT, WARMING_THRESHOLD } from "./rules/terrain.js";
 import { HEALING, unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
-import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type GameState, type Player, type Production, type Specialist, type Unit, type WorkKind } from "./types.js";
+import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type CityFocus, type GameState, type Player, type Production, type Specialist, type Unit, type WorkKind } from "./types.js";
+import { FOCI } from "./rules/focus.js";
 import { applyMove, attrition, cargo, checkMove, createUnit, fullMoves, lastActions, maxHp, unitById, workOptions } from "./units.js";
 import { traitAnarchyCap, traitFriendlyVillages, traitMoves } from "./traits.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
@@ -75,6 +76,7 @@ export type Command =
   | { type: "toggleTile"; city: number; slot: number }
   | { type: "workTile"; city: number; slot: number } // a free citizen, else the worker on the weakest square, moves here
   | { type: "arrangeCity"; city: number } // every citizen on the best squares
+  | { type: "setFocus"; city: number; focus: CityFocus } // what the city works its squares for, then arranged for it
   | { type: "setSpecialist"; city: number; index: number; specialist: Specialist }
   | { type: "buy"; city: number }
   | { type: "renameCity"; city: number; name: string }
@@ -308,6 +310,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     case "toggleTile":
     case "workTile":
     case "arrangeCity":
+    case "setFocus":
     case "setSpecialist":
     case "buy":
     case "renameCity":
@@ -790,6 +793,12 @@ function applyCityCommand(
       return { ok: true };
     }
     case "arrangeCity":
+      arrangeCity(state, city);
+      return { ok: true };
+    case "setFocus":
+      if (state.balancedWorkers) return { ok: false, reason: "no focus in this game" };
+      if (!FOCI.some((f) => f.id === cmd.focus)) return { ok: false, reason: "no such focus" };
+      city.focus = cmd.focus;
       arrangeCity(state, city);
       return { ok: true };
     case "setSpecialist": {

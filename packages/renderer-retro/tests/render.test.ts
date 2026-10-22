@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
 
@@ -22,6 +22,21 @@ describe("retro renderer", () => {
     expect(menuHit(box, 160, okRow - 12)).toBe(-1);
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/modal.png", import.meta.url), encodePng(s, 3));
+  });
+
+  it("puts an X in the title strip of a window that only closes", () => {
+    const s = Surface.screen();
+    s.fill(0);
+    const win = { title: "Grassland (12, 30)", body: ["{food} 2  {shield} 0  {trade} 0"], items: [], selected: -1, close: true };
+    drawMenu(s, win);
+    const r = menuRect(win);
+    // The X's two strokes cross in the middle of a small box at the strip's right end.
+    const bx = r.x + r.w - 3 - 9;
+    expect(s.get(bx + 2, r.y + 3 + 2)).toBe(C.BLACK);
+    expect(s.get(bx + 6, r.y + 3 + 2)).toBe(C.BLACK);
+    expect(menuHit(win, bx + 4, r.y + 7)).toBe(-1); // a click there picks nothing: the window closes
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/modal-close.png", import.meta.url), encodePng(s, 3));
   });
 
   it("draws a text prompt with a cursor", () => {
@@ -1001,7 +1016,14 @@ describe("moods", () => {
     writeFileSync(new URL("./out/city-happy.png", import.meta.url), encodePng(s, 3));
     expect(cityButtonAt(214 + 16, 188 + 6)).toBe("happy");
     expect(cityButtonAt(250 + 16, 188 + 6)).toBe("view");
-    expect(textWidth(CITY_KEYS_HINT)).toBeLessThanOrEqual(214 - 8);
+    expect(cityButtonAt(159 + 26, 188 + 6)).toBe("focus");
+    expect(textWidth(CITY_KEYS_HINT)).toBeLessThanOrEqual(159 - 4);
+    // The Focus button names the city's focus: Growth unless the player picked another.
+    const bar = (t: Surface) => Array.from({ length: 52 * DETAIL }, (_, i) => t.fget(159 * DETAIL + i, (188 + 6) * DETAIL)).join();
+    const before = bar(s);
+    applyCommand(state, { type: "setFocus", city: city.id, focus: "production" });
+    drawCityScreen(s, state, { city: city.id, happy: true });
+    expect(bar(s)).not.toBe(before);
     // Without the panel the resources are back.
     drawCityScreen(s, state, { city: city.id });
     expect(s.data.some((c) => c !== 0)).toBe(true);

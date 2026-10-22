@@ -1,6 +1,7 @@
 import {
   building,
   buyCost,
+  cityFocus,
   CITY_RADIUS,
   computeCity,
   cityCulture,
@@ -57,15 +58,17 @@ import type { CityButton, CityScreenView } from "@civ/renderer-api";
 
 const EXIT = { x: SCREEN_W - 34, y: BAR_Y + 1, w: 33, h: 11 };
 
-/** The production box's buttons, under its title strip, and Happy and View on the bottom bar beside Exit. */
+/** The production box's buttons, under its title strip, and Focus, Happy and View on the bottom bar beside Exit. */
 const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: number; label: string }> = {
   change: { x: RIGHT.x + 3, y: ROW2.y + BOX_HEAD + 2, w: 50, h: 11, label: "Change" },
   buy: { x: RIGHT.x + RIGHT.w - 51, y: ROW2.y + BOX_HEAD + 2, w: 48, h: 11, label: "Buy" },
   view: { x: EXIT.x - 36, y: BAR_Y + 1, w: 33, h: 11, label: "View" },
   happy: { x: EXIT.x - 72, y: BAR_Y + 1, w: 33, h: 11, label: "Happy" },
+  // Named for the city's focus (`cityFocus`): the widest, Production, fits.
+  focus: { x: EXIT.x - 127, y: BAR_Y + 1, w: 52, h: 11, label: "Focus" },
 };
-/** The keys the bottom bar names (View and Exit are buttons there); it must fit before the Happy button. */
-export const CITY_KEYS_HINT = "C Change  B Buy  H Happy  N Rename";
+/** The keys the bottom bar names (its buttons say the rest); it must fit before the Focus button. */
+export const CITY_KEYS_HINT = "C Change  B Buy  F Focus  N Rename";
 
 export function cityButtonAt(px: number, py: number): CityButton | null {
   for (const [id, b] of Object.entries(CITY_BUTTONS) as [CityButton, (typeof CITY_BUTTONS)[CityButton]][])
@@ -427,9 +430,11 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
 
   // Hints, or the latest word, and the way out.
   drawStone(s, 0, BAR_Y, SCREEN_W, SCREEN_H - BAR_Y);
-  const { view: viewButton, happy: happyButton } = CITY_BUTTONS;
-  if (view.message) drawTextWrapped(s, 4, BAR_Y + 3, happyButton.x - 8, view.message, C.BLUE!, 1);
+  const { view: viewButton, happy: happyButton, focus: focusButton } = CITY_BUTTONS;
+  if (view.message) drawTextWrapped(s, 4, BAR_Y + 3, focusButton.x - 8, view.message, C.BLUE!, 1);
   else drawText(s, 4, BAR_Y + 3, CITY_KEYS_HINT, DIM);
+  const focus = cityFocus(state, city);
+  if (focus) drawButton(s, focusButton.x, focusButton.y, focusButton.w, focusButton.h, focus.name);
   drawButton(s, happyButton.x, happyButton.y, happyButton.w, happyButton.h, happyButton.label, true, view.happy === true);
   drawButton(s, viewButton.x, viewButton.y, viewButton.w, viewButton.h, viewButton.label);
   s.rect(EXIT.x, EXIT.y, EXIT.w, EXIT.h, C.RED!);

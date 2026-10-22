@@ -57,12 +57,13 @@ in rounds: the attacker lunges, each blow flashes on the side it lands on and dr
 bursts. Survivors keep their wounds (a bar on the unit) and heal by resting a turn: a tenth in the field, a
 quarter in a fortress, a third in a city, all of it in a city with Barracks. `&combat=classic` on the URL
 plays with the original one-roll fights; games saved before hit points load that way.
-Mouse: right-click an adjacent tile to move or attack · right-click any other square for its terrain window (yields, movement, specials, city, units, with "Send here") · right-click the active unit for its orders ·
-left-click a square to centre the map on it and see it in the panel (terrain, yields, what stands there); left-click never moves a unit ·
+Mouse: left-click a square next to the active unit to step there; a square further off, a fight or a city to take shows
+the route (turns, odds) first, and a second click on it goes · double-click a square to centre the map on it ·
+right-click a square for its window (terrain, yields, specials, city, units, with "Go here"; its X closes it) ·
 the camera glides to each newly active unit ·
 click your own unit to activate it · click the active unit to cycle the stack ·
-click your city to open it · right-click for the orders menu (caravans: help wonder / trade route; diplomats at a foreign city: steal / sabotage / incite) · click the minimap to scroll.
-City screen: click a worked tile to make its citizen an entertainer · click an unworked tile to work it (a free citizen, or the worker on the weakest tile moves there) · click the city square to put every citizen on the best tiles (keeping just enough entertainers for order) · `C` change production · `B` buy · `N` rename (in-game prompt) · `Esc`.
+click your city to open it · click the minimap to scroll.
+City screen: click a worked tile to make its citizen an entertainer · click an unworked tile to work it (a free citizen, or the worker on the weakest tile moves there) · click the city square to put every citizen on the best tiles (keeping just enough entertainers for order) · the Focus button (or `F`) picks what the city works its squares for: Growth (food first, the default), Production (shields first), Science or Trade (trade first, spare citizens become scientists or taxmen); every focus but Growth keeps the city fed · `C` change production · `B` buy · `N` rename (in-game prompt) · `Esc`.
 Founding a city asks for its name (Enter accepts the suggested one).
 
 URL options skip the setup screens: `?seed=1234&difficulty=2&opponents=6&civ=greeks` (6 rivals = 7 civilizations, the default);

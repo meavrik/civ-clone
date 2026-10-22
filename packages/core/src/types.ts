@@ -117,6 +117,9 @@ export type Relation = "none" | "contact" | "peace" | "war";
 
 export type Specialist = "entertainer" | "taxman" | "scientist";
 
+/** What a city works its squares for (`FOCI` in rules/focus.ts). */
+export type CityFocus = "growth" | "production" | "science" | "trade";
+
 export type Production =
   | { kind: "unit"; id: string }
   | { kind: "building"; id: string }
@@ -157,6 +160,11 @@ export interface City {
   celebrating: boolean;
   /** Ids of cities this one trades with (caravan routes, mutual, at most three). */
   routes: number[];
+  /**
+   * What its citizens are put to work for, as chosen on the city screen (`setFocus`). Unset, a city
+   * of the player's works for growth and a computer player's weighs squares as it always did (`cityFocus`).
+   */
+  focus?: CityFocus;
   /** Culture gathered since it was founded, in saves before version 14 (`accruedCulture`); since then a city's culture is what it holds (`cityCulture` in territory.ts) and this stays 0. */
   culture: number;
 }
@@ -253,6 +261,8 @@ export interface GameState {
    * allow two squares apart), as it did before version 22; since then it keeps its cities apart.
    */
   packedCities?: boolean;
+  /** Every city weighs its squares food 3, shields 2, trade 1 and has no focus, as before version 23. */
+  balancedWorkers?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

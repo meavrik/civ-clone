@@ -152,7 +152,7 @@ function menuLayout(m: MenuState): MenuLayout {
   // A list that will not fit even with its rows closed up scrolls at the usual row height, beside its bar.
   const roomGuess = 200 - (m.anchor?.y ?? 0) - head - picH - foot - (m.body?.length ? m.body.length * FONT_HEIGHT + 5 : 0);
   const scrolls = !buttons && m.items.length * FONT_HEIGHT > roomGuess;
-  const need = Math.max(textWidth(m.title) + 16, buttons ? bw + 24 : itemW + 24 + (scrolls ? SCROLL_W + 4 : 0));
+  const need = Math.max(textWidth(m.title) + 16 + (m.close ? TITLE_H : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? SCROLL_W + 4 : 0));
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) + 20 : 0;
   const w = Math.min(300, Math.max(need, Math.min(bodyW, Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0, pic ? pic.w + 24 : 0));
   const lines = (m.body ?? []).flatMap((l) => wrapIcons(l, w - 20));
@@ -205,6 +205,7 @@ export function drawMenu(s: Surface, m: MenuState): void {
   const { x, y, w, h, lines, itemsY, row, buttons, bx, bw, picH, rows, top } = l;
   const scrolls = rows < m.items.length;
   drawWindow(s, x, y, w, h, m.title);
+  if (m.close && m.title) drawCloseBox(s, x + w - 3 - (TITLE_H - 2), y + 3);
   const pic = m.picture ? PICTURES[m.picture.id] : undefined;
   if (pic && m.picture) {
     // The building on a strip of grass, as it stands in the city view.
@@ -214,7 +215,7 @@ export function drawMenu(s: Surface, m: MenuState): void {
     drawPicture(s, pic, px, ground, slotColor(m.picture.slot));
   }
   lines.forEach((line, i) => drawIconLine(s, x + 10, y + (m.title ? 17 : 4) + picH + i * FONT_HEIGHT, line, C.BLACK!));
-  if (lines.length) {
+  if (lines.length && m.items.length) {
     s.hline(x + 4, itemsY - 4, w - 8, shade("panel", 2));
     s.hline(x + 4, itemsY - 3, w - 8, shade("panel", 7));
   }
@@ -246,6 +247,16 @@ function drawScrollBar(s: Surface, m: MenuState, l: MenuLayout): void {
     const ay = up ? b.y + 1 : b.y + b.h - 2;
     // A small triangle, its point toward the hidden rows.
     for (let k = 0; k < 3; k++) s.hline(b.x + 2 - k, up ? ay + k : ay - k, 1 + 2 * k, ink);
+  }
+}
+
+/** A window's close box: a small stone button in its title strip with an X on it. */
+function drawCloseBox(s: Surface, x: number, y: number): void {
+  const n = TITLE_H - 2;
+  drawButton(s, x, y, n, n, "");
+  for (let i = 0; i < n - 4; i++) {
+    s.set(x + 2 + i, y + 2 + i, C.BLACK!);
+    s.set(x + n - 3 - i, y + 2 + i, C.BLACK!);
   }
 }
 

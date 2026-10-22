@@ -9,6 +9,8 @@ import {
   bordersOpen,
   buildOptions,
   computeCity,
+  cityFocus,
+  FOCI,
   shieldsAfterChange,
   buyCost,
   canFoundCity,
@@ -647,8 +649,25 @@ function openTerrainInfo(tx: number, ty: number): void {
   if (active && !(active.x === tx && active.y === ty)) items.push(["Go here", () => sendTo(active.id, tx, ty)]);
   const city = cityAt(state, tx, ty);
   if (city && city.owner === 0) items.push(["Open city", () => openCity(city.id)]);
-  items.push(["Close", () => {}]);
-  modal(info.title, info.lines, items.map((i) => i[0]), (i) => items[i]?.[1](), items.length - 1);
+  // Closed by its X (or any click off its choices, or Esc); nothing is picked until a choice is.
+  modal(info.title, info.lines, items.map((i) => i[0]), (i) => items[i]?.[1](), -1);
+  if (screenState.kind === "menu") screenState.menu.close = true;
+}
+
+/** What the city works its squares for (its Focus button, or F): every citizen is put to work for it at once. */
+function openFocusMenu(cityId: number): void {
+  const city = state.cities.find((c) => c.id === cityId);
+  const now = city && cityFocus(state, city);
+  if (!city || !now) return;
+  screenState = {
+    kind: "menu",
+    under: screenState,
+    menu: { title: `${city.name} works for...`, items: FOCI.map((f) => f.name), right: FOCI.map((f) => f.text), selected: FOCI.indexOf(now) },
+    onPick: (i) => {
+      const f = FOCI[i];
+      if (f && dispatch({ type: "setFocus", city: cityId, focus: f.id })) say(`${city.name} works for ${f.name.toLowerCase()}`);
+    },
+  };
 }
 
 /** Ask for a line of text in-game (no browser prompt): Enter submits, Esc cancels. */
@@ -1658,6 +1677,7 @@ function cityKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "city" }>): void 
     case "KeyB": askBuy(cv.city); break;
     case "KeyV": openCityView(sc); break;
     case "KeyH": cv.happy = !cv.happy; break;
+    case "KeyF": openFocusMenu(cv.city); break;
     case "KeyN": {
       const city = state.cities.find((c) => c.id === cv.city);
       if (city) askText("Rename the city", city.name, (name) => dispatch({ type: "renameCity", city: cv.city, name }));
@@ -1867,6 +1887,7 @@ canvas.addEventListener("mousedown", (e) => {
       if (button === "buy") { askBuy(sc.view.city); return; }
       if (button === "view") { openCityView(sc); return; }
       if (button === "happy") { sc.view.happy = !sc.view.happy; return; }
+      if (button === "focus") { openFocusMenu(sc.view.city); return; }
       const unit = renderer.cityUnitAt(state, sc.view, px, py);
       if (unit !== null) { activateFromCity(sc, unit); return; }
       // A worked square frees its citizen; an unworked one takes a free citizen or the worker on the
@@ -1907,6 +1928,16 @@ canvas.addEventListener("mousedown", (e) => {
 
   // Right-click: the square's window (terrain, what is on it, and a few things to do about it).
   if (e.button === 2) { openTerrainInfo(tx, ty); return; }
+  // A double click centres the map on its square (the move its first click showed is dropped, not made).
+  // Its second click is matched by where it lands on the screen: the first may have set the map gliding.
+  const now = performance.now();
+  const first = lastClick;
+  lastClick = { px, py, x: tx, y: ty, at: now };
+  if (first && now - first.at < DOUBLE_CLICK_MS && Math.abs(px - first.px) <= 4 && Math.abs(py - first.py) <= 4) {
+    lastClick = null;
+    centerOn(first.x, first.y);
+    return;
+  }
   // Left-click on a planned move's square, a second time: the unit goes (or fights, or takes the city).
   if (pending && active && pending.unit === active.id && pending.x === tx && pending.y === ty) {
     if (isAdjacent(active, tx, ty)) tryMove(active.id, stepTo(active, tx), ty - active.y);
@@ -1939,6 +1970,10 @@ canvas.addEventListener("mousedown", (e) => {
   centerOn(tx, ty);
   view.inspect = { x: tx, y: ty };
 });
+
+/** Two left clicks on the map this close together, in time and on the screen, are a double click. */
+const DOUBLE_CLICK_MS = 300;
+let lastClick: { px: number; py: number; x: number; y: number; at: number } | null = null;
 
 // ---- frame loop ---------------------------------------------------------------
 function draw(sc: Screen): void {

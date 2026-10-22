@@ -127,8 +127,8 @@ export interface CityScreenView {
   happy?: boolean | undefined;
 }
 
-/** The city screen's buttons: change what is built or buy it now (the production box), view the city, and the Happy panel. */
-export type CityButton = "change" | "buy" | "view" | "happy";
+/** The city screen's buttons: change what is built or buy it now (the production box), view the city, the Happy panel, and the city's focus. */
+export type CityButton = "change" | "buy" | "view" | "happy" | "focus";
 
 /** The city view, a picture of the city (`cityScene`); `picked` is the improvement or wonder last clicked. */
 export interface CityViewState {
@@ -175,6 +175,8 @@ export interface MenuState {
   right?: string[];
   /** The first row shown, when the list is longer than the window holds (`Renderer.menuRows`); it scrolls. */
   top?: number;
+  /** An X at the right of the title strip, for a window with nothing to choose but to close it (a click off the choices closes any window). */
+  close?: boolean;
 }
 
 /** A menu's first row shown, moved as little as it must be to keep the selected row among the `rows` on view. */
@@ -558,7 +560,7 @@ export function builtNotice(state: GameState, cityId: number, p: Production): { 
     case "unit": {
       const u = unitType(p.id);
       if (!u.flags?.includes("settler")) return null;
-      return { title: `${city.name} builds ${u.name}`, lines: [`{people} ${city.name} gave one of its people to them.`, `{shield} More ${u.name} shrink it again: pick what to build next.`] };
+      return { title: `${city.name} generates ${u.name}`, lines: [`{people} One of its people goes with them.`] };
     }
     case "building": {
       const b = building(p.id);

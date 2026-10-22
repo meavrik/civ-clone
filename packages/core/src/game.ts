@@ -63,6 +63,8 @@ export interface NewGameOptions extends MapGenOptions {
   compoundingPenalty?: boolean;
   /** Computer civilizations found cities wherever the rules allow, not only well apart. Old saves load with it. */
   packedCities?: boolean;
+  /** No city focus: every city weighs its squares as before version 23. Old saves load with it. */
+  balancedWorkers?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -192,6 +194,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.resources !== undefined ? { resources: opts.resources } : {}),
     ...(opts.compoundingPenalty ? { compoundingPenalty: true } : {}),
     ...(opts.packedCities ? { packedCities: true } : {}),
+    ...(opts.balancedWorkers ? { balancedWorkers: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

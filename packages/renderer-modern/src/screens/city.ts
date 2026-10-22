@@ -1,4 +1,5 @@
 import {
+  cityFocus,
   building,
   buyCost,
   CITY_RADIUS,
@@ -59,6 +60,7 @@ const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: num
   buy: { x: COL3_X + 140, y: CITY_MAP_Y + 150, w: 128, h: 34, label: "Buy" },
   view: { x: CITY_MAP_X, y: CITY_MAP_Y + 292, w: TILE * 5, h: 170, label: "View city" },
   happy: { x: W - 24 - 150, y: 46, w: 150, h: 30, label: "Happiness" },
+  focus: { x: W - 24 - 150 - 12 - 150, y: 46, w: 150, h: 30, label: "Focus" },
 };
 /** The city's picture on the View button: the scene at this many canvas units to a retro pixel. */
 const PREVIEW_K = (TILE * 5) / SCENE_W;
@@ -120,6 +122,8 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   if (r.disorder) text(ctx, W - 190, 52, "CIVIL DISORDER", { size: 16, weight: "bold", color: UI.danger, align: "right" });
   else if (r.celebration) text(ctx, W - 190, 52, "CELEBRATING", { size: 16, weight: "bold", color: UI.ok, align: "right" });
   button(ctx, CITY_BUTTONS.happy, view.happy ? "primary" : "plain");
+  const focus = cityFocus(state, city);
+  if (focus) button(ctx, { ...CITY_BUTTONS.focus, label: focus.name }, "plain");
 
   // Resource map.
   const me = state.players[state.currentPlayer]!;

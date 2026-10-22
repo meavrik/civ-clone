@@ -6,6 +6,7 @@ import { building, BUILDINGS } from "./rules/buildings.js";
 import { wonder, WONDERS, type WonderRule } from "./rules/wonders.js";
 import { CELEBRATION_SIZE, EMPIRE_SIZE_STEP, government } from "./rules/governments.js";
 import { civ } from "./rules/civs.js";
+import { BALANCED_WEIGHTS, focusRule, type FocusRule } from "./rules/focus.js";
 import { nextCityName } from "./rules/names.js";
 import { specialOf, TERRAIN_RULES } from "./rules/terrain.js";
 import { UNIT_TYPES, unitType } from "./rules/units.js";
@@ -178,15 +179,32 @@ export function slotAvailable(state: GameState, city: City, slot: number): boole
   return true;
 }
 
-/** How much a worker on this square is worth to the city: food first, then shields, then trade. */
-export function slotScore(state: GameState, city: City, slot: number): number {
-  const t = radiusTile(state, city, slot);
-  if (!t) return -Infinity;
-  const y = tileYield(state, t, false, state.players[city.owner]!.government, city.owner);
-  return y.food * 3 + y.shields * 2 + y.trade;
+/**
+ * What a city works its squares for: the focus picked for it, else Growth for the player's
+ * cities; null (the old balance, `BALANCED_WEIGHTS`) for a computer player's city with none
+ * picked, and for every city of a game saved before foci.
+ */
+export function cityFocus(state: GameState, city: City): FocusRule | null {
+  if (state.balancedWorkers) return null;
+  if (city.focus) return focusRule(city.focus);
+  return state.players[city.owner]?.isAi ? null : focusRule("growth");
 }
 
-/** Greedy worker placement: food first, then shields, then trade. */
+/** What a worker on this square yields the city, or null off the map. */
+function slotYield(state: GameState, city: City, slot: number): { food: number; shields: number; trade: number } | null {
+  const t = radiusTile(state, city, slot);
+  return t ? tileYield(state, t, false, state.players[city.owner]!.government, city.owner) : null;
+}
+
+/** How much a worker on this square is worth to the city, by its focus (`cityFocus`). */
+export function slotScore(state: GameState, city: City, slot: number): number {
+  const y = slotYield(state, city, slot);
+  if (!y) return -Infinity;
+  const w = cityFocus(state, city)?.weights ?? BALANCED_WEIGHTS;
+  return y.food * w.food + y.shields * w.shields + y.trade * w.trade;
+}
+
+/** Greedy worker placement on the squares worth most to the city's focus; a focus keeps the city fed. */
 export function autoAssignWorkers(state: GameState, city: City): void {
   city.worked = [];
   const wanted = city.size - city.specialists.length;
@@ -199,6 +217,25 @@ export function autoAssignWorkers(state: GameState, city: City): void {
   city.worked = scored.slice(0, Math.max(0, wanted)).map((s) => s.slot);
   // Not enough tiles: surplus citizens become entertainers.
   while (city.worked.length + city.specialists.length < city.size) city.specialists.push("entertainer");
+  if (cityFocus(state, city)) keepFed(state, city);
+}
+
+/**
+ * A city working for shields or trade may pick squares that leave it short of food: while it is,
+ * the worked square with least food (and least worth) gives way to the free one with most, as long
+ * as that one feeds it better.
+ */
+function keepFed(state: GameState, city: City): void {
+  for (let guard = 0; guard < CITY_RADIUS.length && computeCity(state, city).foodSurplus < 0; guard++) {
+    const food = (slot: number) => slotYield(state, city, slot)?.food ?? 0;
+    const pick = (slots: number[], better: (a: number, b: number) => boolean) => slots.reduce((b, s) => (b < 0 || better(s, b) ? s : b), -1);
+    const worst = pick(city.worked, (a, b) => food(a) < food(b) || (food(a) === food(b) && slotScore(state, city, a) < slotScore(state, city, b)));
+    const free: number[] = [];
+    for (let slot = 1; slot < CITY_RADIUS.length; slot++) if (!city.worked.includes(slot) && slotAvailable(state, city, slot)) free.push(slot);
+    const best = pick(free, (a, b) => food(a) > food(b) || (food(a) === food(b) && slotScore(state, city, a) > slotScore(state, city, b)));
+    if (worst < 0 || best < 0 || food(best) <= food(worst)) return;
+    city.worked[city.worked.indexOf(worst)] = best;
+  }
 }
 
 /**
@@ -242,6 +279,14 @@ export function arrangeCity(state: GameState, city: City): void {
     const worst = weakestWorked(state, city)!;
     city.worked.splice(city.worked.indexOf(worst), 1);
     city.specialists.push("entertainer");
+  }
+  // A focus on science or trade turns spare entertainers into scientists or taxmen, each only if order holds.
+  const spare = cityFocus(state, city)?.spare ?? "entertainer";
+  if (spare === "entertainer") return;
+  for (let i = 0; i < city.specialists.length; i++) {
+    if (city.specialists[i] !== "entertainer") continue;
+    city.specialists[i] = spare;
+    if (computeCity(state, city).disorder) city.specialists[i] = "entertainer";
   }
 }
 
