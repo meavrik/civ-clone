@@ -79,6 +79,13 @@ describe("save/load", () => {
     expect(loadSave({ ...makeSave(state, opts, []), version: 7 as const }, skipAll).state.looseUpkeep).toBe(true);
     expect(loadSave(makeSave(state, opts, []), skipAll).state.looseUpkeep).toBeUndefined();
   });
+
+  it("replays a save from before the AI kept its cities apart with its old habit", () => {
+    const opts = { opponents: 1 as const };
+    const state = newGame(321, opts);
+    expect(loadSave({ ...makeSave(state, opts, []), version: 21 as const }, skipAll).state.packedCities).toBe(true);
+    expect(loadSave(makeSave(state, opts, []), skipAll).state.packedCities).toBeUndefined();
+  });
 });
 
 describe("saves before celebrations", () => {

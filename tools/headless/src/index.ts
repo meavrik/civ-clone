@@ -60,6 +60,8 @@ export interface GameConfig {
   workBeyondBorders?: boolean;
   /** Our first moods: no celebrations, martial law capped at three, no Democracy toppled by riots (saves before version 17). */
   simpleMoods?: boolean;
+  /** The planner founds cities wherever the rules allow, not only well apart (saves before version 22). */
+  packedCities?: boolean;
 }
 
 export interface PlayerStats {
@@ -145,6 +147,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.looseUpkeep ? { looseUpkeep: true } : {}),
     ...(config.workBeyondBorders ? { workBeyondBorders: true } : {}),
     ...(config.simpleMoods ? { simpleMoods: true } : {}),
+    ...(config.packedCities ? { packedCities: true } : {}),
   };
 }
 

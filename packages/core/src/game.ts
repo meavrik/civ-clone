@@ -61,6 +61,8 @@ export interface NewGameOptions extends MapGenOptions {
   joinedIslands?: boolean;
   /** Every change of production kind halves the box again, even a change back. Old saves load with it. */
   compoundingPenalty?: boolean;
+  /** Computer civilizations found cities wherever the rules allow, not only well apart. Old saves load with it. */
+  packedCities?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -189,6 +191,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.simpleMoods ? { simpleMoods: true } : {}),
     ...(opts.resources !== undefined ? { resources: opts.resources } : {}),
     ...(opts.compoundingPenalty ? { compoundingPenalty: true } : {}),
+    ...(opts.packedCities ? { packedCities: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

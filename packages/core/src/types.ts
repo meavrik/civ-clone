@@ -248,6 +248,11 @@ export interface GameState {
   resources?: number;
   /** Every change of production kind halves the box again, even a change back. Set for saves before version 21. */
   compoundingPenalty?: boolean;
+  /**
+   * The AI planner founds a city on any fit square it stands on, however near another city (the rules
+   * allow two squares apart), as it did before version 22; since then it keeps its cities apart.
+   */
+  packedCities?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

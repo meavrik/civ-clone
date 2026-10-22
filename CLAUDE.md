@@ -149,6 +149,13 @@ Browser reimplementation of a 1991-style 4X empire game: same rules and
   stateless between turns: it re-derives the empire picture (`analyse`) from `GameState` every turn
   (units' goto orders are its only memory, and they are game state), so replays stay exact.
   `describePlan` exposes its view (sites, colony plan, campaign) for tests.
+  City spacing (asked for 2026-10-22: AI cities went down two or three squares apart): a new city keeps
+  `CITY_SPACING` (4 squares from its own cities, 5 from anyone else's; `roomForCity`) at every founding
+  (listed sites, a settler standing on a fit square, a first city, colonists put ashore), and two settlers
+  never aim within 4 of each other. The rules still allow two squares (the player may). Saves before version
+  22 load with `packedCities` (the old habit, so their AI turns replay; headless `--packed-cities`).
+  Head to head (planner vs v2, 16 x 300): packed 13-3, score 136 vs 94, cities 15.9 vs 7.1; spaced
+  12-4, 124 vs 99, cities 13.0 vs 8.4 (4 from every city was worse: 10-6, 116 vs 104).
 - `packages/renderer-api` — the `Renderer` interface every renderer implements (draw each screen
   in its own logical size, hit-test menus/city map/city buttons/tiles/minimap/menu bar), the shared view types and the
   DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`, `builtNotice`).
