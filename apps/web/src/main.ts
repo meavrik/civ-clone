@@ -627,15 +627,13 @@ function openProductionMenu(cityId: number): void {
   const city = state.cities.find((c) => c.id === cityId)!;
   const opts = buildOptions(state, city);
   const surplus = computeCity(state, city).shieldSurplus;
-  // Turns to finish each choice from the shields the change would keep (all of the box for its own
-  // kind of production, half for another, as the rules take); "never" while the city makes no shields.
-  const turns = (p: Production): string => {
-    const have = shieldsAfterChange(state, city, p);
-    const left = Math.max(0, costFor(state, city.owner, p) - have);
-    if (left === 0) return "1 turn";
-    if (surplus <= 0) return "never";
-    const n = Math.ceil(left / surplus);
-    return `${n} turn${n === 1 ? "" : "s"}`;
+  // What each choice still needs beyond the shields the change would keep (all of the box for its own
+  // kind of production, half for another, as the rules take), and the turns that takes; "never"
+  // while the city makes no shields.
+  const toGo = (p: Production): string => {
+    const left = Math.max(0, costFor(state, city.owner, p) - shieldsAfterChange(state, city, p));
+    const turns = left === 0 ? "1 turn" : surplus <= 0 ? "never" : `${Math.ceil(left / surplus)} turn${Math.ceil(left / surplus) === 1 ? "" : "s"}`;
+    return `${left} left, ${turns}`;
   };
   const stored = city.turnShields ?? city.shields;
   screenState = {
@@ -646,8 +644,7 @@ function openProductionMenu(cityId: number): void {
       items: opts.map((p) => productionName(p)),
       right: opts.map((p) => {
         const t = p.kind === "unit" ? unitType(p.id) : null;
-        const cost = costFor(state, city.owner, p);
-        return `${t ? `${t.attack}/${t.defense}/${t.moves + traitMoves(state, city.owner, p.id)} ` : ""}${cost}, ${turns(p)}`;
+        return `${t ? `${t.attack}/${t.defense}/${t.moves + traitMoves(state, city.owner, p.id)} ` : ""}${toGo(p)}`;
       }),
       selected: Math.max(0, opts.findIndex((p) => p.kind === city.production.kind && p.id === city.production.id)),
     },
