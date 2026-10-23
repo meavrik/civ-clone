@@ -1,5 +1,5 @@
 import { wrapX, type GameState } from "@civ/core";
-import type { AdvisorKind, DiplomacyView, MainScreenView, MenuState, Renderer, SetupCards, TextInputState } from "@civ/renderer-api";
+import type { AdvisorKind, DiplomacyView, MainScreenView, MenuState, NewTechView, Renderer, SetupCards, TextInputState } from "@civ/renderer-api";
 import {
   BAR_H,
   cityButtonAt,
@@ -13,6 +13,9 @@ import {
   diplomacyChoiceAt,
   drawDiplomacyScreen,
   AUDIENCE_PICTURE,
+  drawNewTech,
+  NEW_TECH_PICTURE,
+  newTechHit,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -57,7 +60,7 @@ import {
 } from "@civ/renderer-retro";
 import type * as WebRenderer from "../../web/src/retro-renderer.js";
 import { screenW } from "./display.js";
-import { portraitPlace, preloadScenes, scenePlace, showPictures, type PicturePlace } from "../../web/src/pictures.js";
+import { portraitPlace, preloadScenes, preloadTech, scenePlace, showPictures, techPlace, type PicturePlace } from "../../web/src/pictures.js";
 import { MapPan } from "./pan.js";
 
 /**
@@ -244,6 +247,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       shown.view = view;
       shown.drawn = drawn;
       drawMainScreen(wide, state, drawn);
+      preloadTech(state.players[state.currentPlayer]?.researching);
     },
     city: screen(drawCityScreen),
     cityView: screen(drawCityView),
@@ -263,6 +267,12 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if (scene) pictures.push(scene);
     }),
     diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px - inset(), py),
+    newTech: screen((s, state: GameState, view: NewTechView) => {
+      drawNewTech(s, state, view);
+      const picture = techPlace(view.advance, onScreen(NEW_TECH_PICTURE));
+      if (picture) pictures.push(picture);
+    }),
+    newTechHit: (view, px, py) => newTechHit(view, px - inset(), py),
     prepare: (state) => preloadScenes(state),
     end: screen(drawEndScreen),
     spaceship: screen(drawSpaceshipScreen),

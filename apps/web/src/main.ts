@@ -103,6 +103,7 @@ import {
   type CityScreenView,
   type CityViewState,
   type DiplomacyView,
+  type NewTechView,
   type MainScreenView,
   type MenuState,
   type Renderer,
@@ -180,6 +181,8 @@ type Screen =
   | { kind: "city"; view: CityScreenView; then?: () => void } // `then`: the turn's news that waits for the city to close
   | { kind: "cityView"; view: CityViewState; city: Extract<Screen, { kind: "city" }> } // the city as a picture, over its city screen
   | { kind: "research"; view: ResearchView; back: Screen; then: () => void }
+  // An advance just found, `found[at]` of those found together; the research is `due` to be picked after.
+  | { kind: "newTech"; view: NewTechView; found: string[]; at: number; due: boolean; back: Screen; then: () => void }
   | { kind: "science" }
   | { kind: "rates" }
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
@@ -754,10 +757,44 @@ function openTree(opts: { discovered?: string[]; choosing: boolean; closable: bo
   screenState = { kind: "research", view, back, then };
 }
 
-/** Advances gained along the way (a village, a diplomat, a treaty): the panel shows them, and the research can be changed there. */
+/** Advances gained along the way (a village, a diplomat, a treaty): a New Technology window for each. */
 function showFound(ids: string[], then: () => void = () => {}): void {
   if (!ids.length) { then(); return; }
-  openTree({ discovered: ids, choosing: true, closable: true }, then, screenState);
+  announce(ids, false, then, screenState);
+}
+
+// ---- the New Technology window -------------------------------------------------------
+type NewTechScreen = Extract<Screen, { kind: "newTech" }>;
+
+/**
+ * The New Technology window (asked for 2026-10-23, after the user's template) for each advance found,
+ * one after another; then, when the research is `due`, the research panel to pick the next. View Tech
+ * Tree opens the panel at once on the advance; Continue, the close box and Esc go on.
+ */
+function announce(found: string[], due: boolean, then: () => void, back: Screen = { kind: "map" }, at = 0): void {
+  screenState = { kind: "newTech", view: { advance: found[at]!, selected: 1 }, found, at, due, back, then };
+}
+
+function leaveNewTech(sc: NewTechScreen, tree: boolean): void {
+  if (tree) {
+    openTree({ discovered: sc.found, choosing: true, closable: !sc.due }, sc.then, sc.back);
+    if (screenState.kind === "research") treeSelect(screenState, sc.view.advance);
+  } else if (sc.at + 1 < sc.found.length) announce(sc.found, sc.due, sc.then, sc.back, sc.at + 1);
+  else if (sc.due) openTree({ discovered: sc.found, choosing: true, closable: false }, sc.then, sc.back);
+  else {
+    screenState = sc.back;
+    sc.then();
+  }
+}
+
+/** Keys on the window: Left, Right or Tab move between its buttons, Enter (not held) presses the lit one, T the tree, Esc goes on. */
+function newTechKey(e: KeyboardEvent, sc: NewTechScreen): void {
+  switch (e.code) {
+    case "ArrowLeft": case "ArrowRight": case "Tab": e.preventDefault(); sc.view.selected = 1 - sc.view.selected; break;
+    case "Enter": case "NumpadEnter": case "Space": e.preventDefault(); if (!e.repeat) leaveNewTech(sc, sc.view.selected === 0); break;
+    case "KeyT": leaveNewTech(sc, true); break;
+    case "Escape": leaveNewTech(sc, false); break;
+  }
 }
 
 /** The research is due: pick the next advance in the panel. */
@@ -1517,7 +1554,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       }
       const due = events.findIndex((e) => e.kind === "chooseResearch");
       if (due >= 0) events.splice(due, 1);
-      openTree({ discovered: found, choosing: true, closable: due < 0 }, next);
+      announce(found, due >= 0, next);
     }
     else if (ev.kind === "hut") hutModal(ev.result, next);
     else if (ev.kind === "disbanded") {
@@ -1882,6 +1919,7 @@ addEventListener("keydown", (e) => {
       else advisorHotkey(e);
       break;
     case "research": treeKey(e, sc); break;
+    case "newTech": newTechKey(e, sc); break;
     case "diplomacy": diplomacyKey(e, sc); break;
     case "beat": e.preventDefault(); endBeat(sc); break;
     case "end": screenState = { kind: "title" }; break;
@@ -1940,9 +1978,15 @@ function diplomacyView(sc: Extract<Screen, { kind: "diplomacy" }>): DiplomacyVie
   return { player: sc.player, line: sc.line, ...(sc.talk ? { choices: sc.talk.items, selected: sc.talk.selected } : {}) };
 }
 
-// The setup's cards, and the audience's buttons, light up under the pointer.
+// The setup's cards, and the audience's and New Technology window's buttons, light up under the pointer.
 canvas.addEventListener("mousemove", (e) => {
   const sc = screenState;
+  if (sc.kind === "newTech") {
+    const [px, py] = toLogical(e);
+    const hit = renderer.newTechHit(sc.view, px, py);
+    if (hit === "tree" || hit === "continue") sc.view.selected = hit === "tree" ? 0 : 1;
+    return;
+  }
   if (sc.kind === "diplomacy" && sc.talk) {
     const [px, py] = toLogical(e);
     const i = renderer.diplomacyChoiceAt(diplomacyView(sc), px, py);
@@ -1995,6 +2039,11 @@ canvas.addEventListener("mousedown", (e) => {
     }
     case "report": case "worldMap": screenState = { kind: "map" }; return;
     case "research": if (e.button === 0) treeClick(sc, px, py); return;
+    case "newTech": {
+      const hit = e.button === 0 ? renderer.newTechHit(sc.view, px, py) : null;
+      if (hit) leaveNewTech(sc, hit === "tree");
+      return;
+    }
     case "end": screenState = { kind: "title" }; return;
     case "diplomacy": {
       // A button picks its choice; elsewhere nothing (no talk on screen: back to the map).
@@ -2120,6 +2169,7 @@ function draw(sc: Screen): void {
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
     case "cityView": renderer.cityView(state, sc.view); break;
     case "research": renderer.research(state, sc.view); break;
+    case "newTech": renderer.newTech(state, sc.view); break;
     case "science": renderer.science(state); break;
     case "rates": renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;

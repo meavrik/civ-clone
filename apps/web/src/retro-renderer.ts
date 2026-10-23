@@ -10,6 +10,9 @@ import {
   diplomacyChoiceAt,
   drawDiplomacyScreen,
   AUDIENCE_PICTURE,
+  drawNewTech,
+  NEW_TECH_PICTURE,
+  newTechHit,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -51,7 +54,7 @@ import {
   DETAIL,
 } from "@civ/renderer-retro";
 import { wrapX, type GameState } from "@civ/core";
-import { portraitPlace, preloadScenes, scenePlace, showPictures, type PicturePlace } from "./pictures.js";
+import { portraitPlace, preloadScenes, preloadTech, scenePlace, showPictures, techPlace, type PicturePlace } from "./pictures.js";
 
 /**
  * The 1991-style renderer behind the screen API: an indexed framebuffer laid out on 320x200,
@@ -94,7 +97,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       for (const { portrait, ...box } of setupPictureSpots(cards, selected)) pictures.push(portraitPlace(portrait, { ...box, ...screenBox }));
     },
     setupHit: (cards, px, py) => setupCardAt(cards, px, py),
-    main: (state, view) => drawMainScreen(screen, state, view),
+    main: (state, view) => {
+      drawMainScreen(screen, state, view);
+      preloadTech(state.players[state.currentPlayer]?.researching);
+    },
     city: (state, view: CityScreenView) => drawCityScreen(screen, state, view),
     cityView: (state, view) => drawCityView(screen, state, view),
     research: (state, view) => drawResearch(screen, state, view),
@@ -113,6 +119,13 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if (scene) pictures.push(scene);
     },
     diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px, py),
+    newTech: (state, view) => {
+      drawNewTech(screen, state, view);
+      // The advance's picture as it is, in its frame.
+      const picture = techPlace(view.advance, { ...NEW_TECH_PICTURE, ...screenBox });
+      if (picture) pictures.push(picture);
+    },
+    newTechHit: (view, px, py) => newTechHit(view, px, py),
     prepare: (state) => preloadScenes(state),
     end: (lines, rank) => drawEndScreen(screen, lines, rank),
     spaceship: (state) => drawSpaceshipScreen(screen, state),

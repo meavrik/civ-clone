@@ -1,6 +1,6 @@
 import type { GameState } from "@civ/core";
 import { AUDIENCE_CHOICES, leaderTitle, realmName, type DiplomacyView } from "@civ/renderer-api";
-import { drawText, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
+import { drawSpaced, drawText, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_W, type Surface } from "../surface.js";
 import { drawStone, INK } from "../widgets.js";
@@ -31,14 +31,6 @@ function framed(s: Surface, x: number, y: number, w: number, h: number, fill: nu
   s.hline(x, y + h - 1, w, shade("panel", 1));
   s.vline(x + w - 1, y, h, shade("panel", 1));
   s.rect(x + 2, y + 2, w - 4, h - 4, fill);
-}
-
-/** Capitals spread a pixel apart, centred on `cx`. */
-function drawSpaced(s: Surface, cx: number, y: number, text: string, color: number): void {
-  const caps = text.toUpperCase();
-  const w = [...caps].reduce((n, ch) => n + textWidth(ch) + 1, -1);
-  let x = Math.floor(cx - w / 2);
-  for (const ch of caps) x = drawText(s, x, y, ch, color) + 1;
 }
 
 /** Where each of `n` choices sits: one row for one or two, two rows for three or four. */

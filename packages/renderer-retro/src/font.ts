@@ -141,6 +141,30 @@ export function drawText(
   return cx;
 }
 
+/** Text `scale` times as large, each dot a `scale` by `scale` block of screen pixels (a window's headline); returns the x after it. */
+export function drawTextLarge(s: Surface, x: number, y: number, text: string, color: number, scale = 2): number {
+  let cx = x;
+  for (const ch of text) {
+    const g = GLYPHS.get(ch) ?? GLYPHS.get("?")!;
+    for (const [c, r] of g.dots) s.rect(cx + c * scale, y + (TEXT_TOP + r) * scale, scale, scale, color);
+    cx += g.advance * scale;
+  }
+  return cx;
+}
+
+/** Capitals spread a pixel apart, centred on `cx` (title strips). */
+export function drawSpaced(s: Surface, cx: number, y: number, text: string, color: number): void {
+  const caps = text.toUpperCase();
+  const w = [...caps].reduce((n, ch) => n + textWidth(ch) + 1, -1);
+  let x = Math.floor(cx - w / 2);
+  for (const ch of caps) x = drawText(s, x, y, ch, color) + 1;
+}
+
+/** Width of `drawSpaced` text. */
+export function spacedWidth(text: string): number {
+  return [...text.toUpperCase()].reduce((n, ch) => n + textWidth(ch) + 1, -1);
+}
+
 /** Text ringed in another colour, the ring one of the surface's finest pixels wide, so it reads on any ground. */
 export function drawTextRinged(s: Surface, x: number, y: number, text: string, color: number, ring: number): void {
   const scratch = new Surface(textWidth(text) + 2, FONT_HEIGHT + 2, undefined, s.k);

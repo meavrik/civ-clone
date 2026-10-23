@@ -5,6 +5,7 @@ import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
 import { setupQuestionCards, type SetupCards } from "./setup.js";
 import type { DiplomacyView } from "./audience.js";
+import type { NewTechHit, NewTechView } from "./newtech.js";
 export * from "./motion.js";
 export * from "./icons.js";
 export * from "./citizens.js";
@@ -22,6 +23,7 @@ export * from "./watch.js";
 export * from "./intro.js";
 export * from "./setup.js";
 export * from "./audience.js";
+export * from "./newtech.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
@@ -287,6 +289,10 @@ export interface Renderer {
   diplomacy(state: GameState, view: DiplomacyView): void;
   /** The audience's choice under a point, or -1. */
   diplomacyChoiceAt(view: DiplomacyView, px: number, py: number): number;
+  /** The New Technology window: an advance just found, its picture, what it is, unlocks and needed. */
+  newTech(state: GameState, view: NewTechView): void;
+  /** The New Technology window's button (or close box) under a point, or null. */
+  newTechHit(view: NewTechView, px: number, py: number): NewTechHit | null;
   /** A game starts or loads: a renderer may fetch the art its civilizations will want (their leaders' scenes). */
   prepare?(state: GameState): void;
   end(lines: string[], rank: string): void;

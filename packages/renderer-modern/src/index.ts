@@ -1,4 +1,4 @@
-import type { DiplomacyView, MenuState, Renderer, SetupCards } from "@civ/renderer-api";
+import { NEW_TECH_BUTTONS, newTechCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, cityButtonAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
@@ -26,6 +26,8 @@ const cardMenu = (cards: SetupCards, selected: number): MenuState => ({ title: c
  * only ever draws in its own units.
  */
 export function createModernRenderer(ctx: Context2D, scale: () => number = () => 1): Renderer {
+  /** The New Technology window last drawn, as the modal it is here, for its hit test. */
+  let newTechShown: MenuState | null = null;
   return {
     id: "modern",
     width: W,
@@ -55,6 +57,16 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
       if (view.choices?.length) drawMenu(ctx, talkMenu(view));
     },
     diplomacyChoiceAt: (view, px, py) => (view.choices?.length ? menuHit(ctx, talkMenu(view), px, py) : -1),
+    // Set aside (not in the app): the New Technology window as a modal with its two buttons.
+    newTech: (state, view) => {
+      const card = newTechCard(state, view.advance);
+      newTechShown = { title: `New Technology: ${card.name}`, body: [card.text], items: [...NEW_TECH_BUTTONS], selected: view.selected };
+      drawMenu(ctx, newTechShown);
+    },
+    newTechHit: (_view, px, py) => {
+      const i = newTechShown ? menuHit(ctx, newTechShown, px, py) : -1;
+      return i === 0 ? "tree" : i === 1 ? "continue" : null;
+    },
     end: (lines, rank) => drawEndScreen(ctx, lines, rank),
     spaceship: (state) => drawSpaceshipScreen(ctx, state),
     menu: (menu) => drawMenu(ctx, menu),

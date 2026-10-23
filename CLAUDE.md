@@ -297,9 +297,19 @@ Never ship the original's sprites, palette art, fonts or text.
   pictures of its wonders and buildings and its units' sprites where there is room. The Research button
   studies `researchTarget`: the advance, or for one further on the first step toward it. Keys: Up/Down,
   PgUp/PgDn, Home/End, Tab (the next choice), Enter, Esc. `Renderer.research`/`researchHit`. The web app
-  opens it (`openTree`) on every advance found (end of turn, village, diplomat, treaty) and wherever
-  research is picked (science advisor A, Advisors > Research, and a click on the status panel's research
-  row: `Renderer.statusAt`); when research is due it closes only on a pick.
+  opens it (`openTree`) after the New Technology windows when research is due, from their View Tech Tree,
+  and wherever research is picked (science advisor A, Advisors > Research, and a click on the status
+  panel's research row: `Renderer.statusAt`); when research is due it closes only on a pick.
+  New Technology window (`newtech.ts`; asked for 2026-10-23 with the user's template and a picture for
+  each advance): every advance found (end of turn, village, diplomat, treaty, Debug) gets one, in turn
+  (`announce` in the web app), before the research panel. A navy title strip (bulb, NEW TECHNOLOGY, close
+  box), the name large over its era, the user's picture of the advance in a gold frame, then parchment
+  panels: Description (`AdvanceRule.text`, a sentence of our own; `era` from `ERAS`, ours too), Unlocks
+  (`newTechCard`: the research card's gifts, units standing in their boxes; "Leads to" the next advances
+  when it brings nothing itself) and Prerequisites; View Tech Tree (the panel on that advance's card) and
+  Continue (the next window, else the panel when research is due, else back). Left/Right/Tab, Enter (not
+  held), T, Esc; the pointer lights a button. `Renderer.newTech`/`newTechHit`; retro draws it in
+  `screens/newtech.ts` (`NEW_TECH_PICTURE` is where the picture goes), modern as a plain modal.
   Borders (`territory.ts`, toggled in the Game menu, which hides only the drawing): core's `claims`
   from the cities the viewer knows, the same land the rules read for trespass; `borderSides` gives the edges and
   where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimaps
@@ -398,8 +408,10 @@ Never ship the original's sprites, palette art, fonts or text.
   supplied, WebP quality 92), laid over the canvas as an <img> by `pictures.ts` (`showPictures`, once a
   frame from each retro adapter's `present`; they let clicks through) in the room the screen leaves for
   them (`AUDIENCE_PICTURE` in renderer-retro, which draws a dusk sky there beneath, seen until the picture
-  loads); `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits,
-  the only things the retro look does not draw through the palette. The phone app caches each picture when first shown,
+  loads); `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits
+  and the advances' pictures (`techs/<advance>.webp`, 1254 square, WebP quality 92; `techPicture`: all but
+  the 1991 tree's Future Tech., which shows the frame's bed; each adapter's `main` fetches the picture
+  of the research under way, `preloadTech`), the only things the retro look does not draw through the palette. The phone app caches each picture when first shown,
   not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
   into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
   whether they admire or scorn us (`regardWords`). Stepping onto land that minds us (once a
@@ -596,7 +608,7 @@ text), second special resources with reaches (save version 20; the branch's own 
   image generators or the original game's files for shipped art. Exception the user made (2026-10-21):
   the terrain, unit and resource sheets were supplied by the user as reference images and copied in
   pixel for pixel. The user's portraits (2026-10-22: the five difficulty rulers, the twenty leaders, the
-  twenty audience scenes) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
+  twenty audience scenes; 2026-10-23: the 74 advances) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
   (asked for, twice, emphatically: conversions into the palette looked "bad and distorted", and new
   images must not be generated); see the setup cards and the audience screen above; new art drawn here follows their manner (see `packages/renderer-retro` above) and
   the user's pixel-art rules: even chunky strokes, one-pixel outlines in dark shades of the thing's own

@@ -64,7 +64,7 @@ function filesIn(dir: string): string[] {
 
 /**
  * sw.js: service-worker.js with every file of the build to cache, under a name that changes when any of
- * them does; but the leaders' pictures (.webp, ~8 MB) are cached as each is first shown, not at install.
+ * them does; but the user's pictures (.webp: leaders, portraits, advances, ~31 MB) are cached as each is first shown, not at install.
  */
 function serviceWorker(): Plugin {
   let publicDir = "";

@@ -1,17 +1,19 @@
 import { civ, type GameState } from "@civ/core";
-import { LEADER_PORTRAITS } from "@civ/renderer-api";
+import { LEADER_PORTRAITS, techPicture } from "@civ/renderer-api";
 
 /**
  * The user's own pictures (2026-10-22), shown as they are: full size and true colour, not drawn into
  * the 320x200 palette screen, which cannot hold them (asked for: "use the original images, don't change
  * or distort"). The leaders in their palaces for the audience (scenes/<leader>.webp) and the portraits of
- * the setup (portraits/<name>.webp: the difficulty levels' rulers and the tribes' leaders), kept as WebP
- * at quality 92 (alpha exact) at their supplied sizes. Each is an image laid over the canvas where the
- * screen leaves room for it; they let clicks through to the canvas.
+ * the setup (portraits/<name>.webp: the difficulty levels' rulers and the tribes' leaders), and the
+ * advances for the New Technology window (techs/<advance>.webp, 2026-10-23), kept as WebP at quality 92
+ * (alpha exact) at their supplied sizes. Each is an image laid over the canvas where the screen leaves
+ * room for it; they let clicks through to the canvas.
  */
 
 const sceneUrl = (name: string): string => new URL(`./scenes/${name}.webp`, import.meta.url).href;
 const portraitUrl = (name: string): string => new URL(`./portraits/${name}.webp`, import.meta.url).href;
+const techUrl = (id: string): string => new URL(`./techs/${id}.webp`, import.meta.url).href;
 
 export interface PicturePlace {
   url: string;
@@ -31,6 +33,22 @@ export function scenePlace(state: GameState, player: number, box: Omit<PicturePl
 /** A setup portrait (a ruler or a leader, by name) in a box of the canvas, whole and standing on its foot. */
 export function portraitPlace(name: string, box: Omit<PicturePlace, "url" | "fit">): PicturePlace {
   return { url: portraitUrl(name), fit: "contain", ...box };
+}
+
+/** The picture of an advance for the New Technology window, whole in a box of the canvas; null if it has none. */
+export function techPlace(id: string, box: Omit<PicturePlace, "url" | "fit">): PicturePlace | null {
+  const name = techPicture(id);
+  return name ? { url: techUrl(name), fit: "contain", ...box } : null;
+}
+
+const fetched = new Set<string>();
+
+/** Fetch the picture of the advance under research before it is found, so its window never waits for it. */
+export function preloadTech(id: string | null | undefined): void {
+  const name = id && techPicture(id);
+  if (!name || fetched.has(name)) return;
+  fetched.add(name);
+  new Image().src = techUrl(name);
 }
 
 /** Fetch the audience pictures of a game's leaders as it starts, so an audience never waits for one. */

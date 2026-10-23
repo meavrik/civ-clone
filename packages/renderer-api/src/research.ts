@@ -103,8 +103,8 @@ export interface TechDetails {
   status: TechStatus;
   /** Where it stands for us, in one line: discovered, how far the research is, or what it still needs. */
   standing: string;
-  /** What it brings, a row per kind (units, improvements...). */
-  rows: { icon: IconName; label: string; items: string[] }[];
+  /** What it brings, a row per kind (units, improvements...); units carry their ids, for their sprites. */
+  rows: { icon: IconName; label: string; items: string[]; ids?: string[] }[];
   /** What it needs, and the advances it opens the way to (even those not in sight yet). */
   needs: TechLink[];
   opens: TechLink[];
@@ -142,9 +142,10 @@ export function techDetails(state: GameState, id: string): TechDetails {
     standing = `Later: needs ${and(missing)} first (${techPath(state, id).length} steps)`;
   }
   const rows: TechDetails["rows"] = [];
-  const add = (icon: IconName, label: string, items: string[]): void => { if (items.length) rows.push({ icon, label, items }); };
+  const add = (icon: IconName, label: string, items: string[], ids?: string[]): void => { if (items.length) rows.push({ icon, label, items, ...(ids ? { ids } : {}) }); };
   add("crown", "Government", a.government ? [government(a.government).name] : []);
-  add("swords", "Units", UNIT_TYPES.filter((u) => u.requires === id).map((u) => `${u.name} ${u.attack}/${u.defense}/${u.moves}`));
+  const units = UNIT_TYPES.filter((u) => u.requires === id);
+  add("swords", "Units", units.map((u) => `${u.name} ${u.attack}/${u.defense}/${u.moves}`), units.map((u) => u.id));
   add("house", "Buildings", [
     ...BUILDINGS.filter((b) => b.requires === id).map((b) => b.name),
     ...SPACE_PARTS.filter((s) => s.requires === id).map((s) => s.name),
