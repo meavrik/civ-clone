@@ -1,4 +1,4 @@
-import { unitById, unitType, type GameState } from "@civ/core";
+import { advance, unitById, unitType, type GameState } from "@civ/core";
 
 /** What a note on the map says and which square it points at (the unit that was refused). */
 export interface Callout {
@@ -41,5 +41,37 @@ export function moveRefusal(state: GameState, unitId: number, _dx: number, _dy: 
       return "Nothing to do there.";
     default:
       return `${capitalise(reason)}.`;
+  }
+}
+
+/**
+ * Why a settler cannot take up a job, in a few words for the note beside it. `reason` is the code
+ * the work order came back with (`whyNoWork` in core).
+ */
+export function workRefusal(reason: string): string {
+  if (reason === "needs:bridge_building") return "A road across the river needs Bridge Building.";
+  if (reason.startsWith("needs:")) {
+    let name = reason.slice(6);
+    try { name = advance(name).name; } catch { /* an advance since renamed */ }
+    return `Needs ${name}.`;
+  }
+  switch (reason) {
+    case "not a settler": return "Only settlers can do that.";
+    case "aboard": return "Not while aboard a ship.";
+    case "has road": return "Already has a road.";
+    case "no road here": return "No road can be built here.";
+    case "has railroad": return "Already has a railroad.";
+    case "needs road": return "Needs a road first.";
+    case "no railroad here": return "No railroad can be laid here.";
+    case "cannot irrigate": return "Can't irrigate here.";
+    case "irrigated": return "Already irrigated.";
+    case "needs water": return "Needs water beside it: a river, the sea or irrigation.";
+    case "cannot mine": return "Can't mine here.";
+    case "has mine": return "Already has a mine.";
+    case "has fortress": return "Already has a fortress.";
+    case "in city": return "Not inside a city.";
+    case "no fortress here": return "No fortress can be built here.";
+    case "no pollution": return "No pollution here.";
+    default: return `${capitalise(reason)}.`;
   }
 }

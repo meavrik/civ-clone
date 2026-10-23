@@ -111,7 +111,7 @@ export interface TechDetails {
 }
 
 /** Settler work the engine unlocks by advance (see `workOptions` in core). */
-const SETTLER_WORK: Record<string, string> = { railroad: "Lay railroads", construction: "Build fortresses" };
+const SETTLER_WORK: Record<string, string> = { railroad: "Lay railroads", construction: "Build fortresses", bridge_building: "Build roads across rivers" };
 
 const and = (names: string[]): string =>
   names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;

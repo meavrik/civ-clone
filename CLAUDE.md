@@ -247,7 +247,11 @@ Never ship the original's sprites, palette art, fonts or text.
   A unit's own move still brings the camera back when it steps out of view (`followActive`).
   A refused move (`tryMove` in the web app) nudges the unit toward the square (`MotionPlayer.nudge`,
   a UI-only beat) and puts a note beside it (`view.callout`, words from `moveRefusal` in `refusal.ts`),
-  gone after 4 s or at the next key or click. Both status panels show the research under way
+  gone after 4 s or at the next key or click. A refused settler job does the same without the nudge
+  (core `whyNoWork` gives the code, "needs:<advance>" for a missing advance; `workRefusal` the words);
+  R asks for a road where the square has none, rails only on a road. A river takes a road once its civ
+  knows Bridge Building, as in the original (before, never; no save version: the planner builds no
+  roads on rivers and an old log holds no refused order). Both status panels show the research under way
   (`researchOutlook`: advance, beakers, turns to go), and nothing while none is picked. Disbanding
   (Shift+D, Orders > Disband) asks "Are you sure?" first, No by default (`confirmDisband`).
   Width: the retro main screen draws as wide as its surface (`viewAcross`: the panel and bar as ever, the

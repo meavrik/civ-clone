@@ -52,7 +52,7 @@ import { HEALING, unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
 import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type CityFocus, type GameState, type Player, type Production, type Specialist, type Unit, type WorkKind } from "./types.js";
 import { FOCI } from "./rules/focus.js";
-import { applyMove, attrition, cargo, checkMove, createUnit, fullMoves, lastActions, maxHp, unitById, workOptions } from "./units.js";
+import { applyMove, attrition, cargo, checkMove, createUnit, fullMoves, lastActions, maxHp, unitById, whyNoWork, workOptions } from "./units.js";
 import { traitAnarchyCap, traitFriendlyVillages, traitMoves } from "./traits.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
@@ -361,7 +361,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     case "work": {
       const opts = workOptions(state, u);
       const turns = opts[cmd.work];
-      if (turns === undefined) return { ok: false, reason: `cannot ${cmd.work} here` };
+      if (turns === undefined) return { ok: false, reason: whyNoWork(state, u, cmd.work) ?? `cannot ${cmd.work} here` };
       u.order = { kind: "work", work: cmd.work, turnsLeft: turns };
       u.movesLeft = 0;
       selectNextUnit(state, u.id);

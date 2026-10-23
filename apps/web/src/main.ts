@@ -91,6 +91,7 @@ import {
   INTRO_MS,
   MotionPlayer,
   moveRefusal,
+  workRefusal,
   PICTURES,
   setupCards,
   setupChoose,
@@ -158,6 +159,15 @@ function refuseMove(unit: number, dx: number, dy: number, reason: string): void 
   motion.nudge({ id: u.id, type: u.type, owner: u.owner, x: u.x, y: u.y }, dx, dy, now);
   view.callout = { x: u.x, y: u.y, text: moveRefusal(state, unit, dx, dy, reason) };
   calloutUntil = now + CALLOUT_MS;
+}
+
+/** A job the settler cannot take up here: a note beside it says why. */
+function refuseWork(unit: number, reason: string): void {
+  const u = unitById(state, unit);
+  const text = workRefusal(reason);
+  if (!u) { say(text); return; }
+  view.callout = { x: u.x, y: u.y, text };
+  calloutUntil = performance.now() + CALLOUT_MS;
 }
 
 const REASONS: Record<string, string> = {
@@ -405,7 +415,8 @@ function dispatch(cmd: Command): boolean {
     if (cmd.type !== "endTurn") slideOwn(lastActions.slice(mark));
     if (cmd.type === "move" && lastCombat) reportCombat(lastCombat);
     if (cmd.type !== "endTurn") afterAction();
-  } else say(REASONS[r.reason] ?? r.reason);
+  } else if (cmd.type === "work") refuseWork(cmd.unit, r.reason);
+  else say(REASONS[r.reason] ?? r.reason);
   blinkOn = true;
   lastBlink = performance.now();
   return r.ok;
@@ -1784,7 +1795,8 @@ function mapKey(e: KeyboardEvent): void {
     case "KeyM": order({ type: "work", unit: active!, work: "mine" }); break;
     case "KeyR": {
       const u = active !== null ? unitById(state, active) : undefined;
-      order({ type: "work", unit: active!, work: u && workOptions(state, u).road === undefined ? "railroad" : "road" });
+      // A road where there is none, rails on a road; a refusal says why (a river wants Bridge Building).
+      order({ type: "work", unit: active!, work: u && getTile(state.map, u.x, u.y)?.road ? "railroad" : "road" });
       break;
     }
     case "KeyP": {

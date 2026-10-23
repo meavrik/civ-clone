@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, building, BUILDINGS, createUnit, getTile, newGame, revealAround, SPACE_PARTS, Terrain, wonder, WONDERS, type UnitBattle } from "@civ/core";
-import { builtNotice, cityUnits, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, moveRefusal, NUDGE_MS, researchOutlook, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
+import { builtNotice, cityUnits, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, moveRefusal, workRefusal, NUDGE_MS, researchOutlook, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
 const fresh = (step: SetupState["step"]): SetupState => ({ step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
 
@@ -373,6 +373,14 @@ describe("refused moves", () => {
     expect(moveRefusal(s, u.id, 0, 1, "zoc")).toBe("Enemy too close.");
     // A reason without its own words still reads as a sentence.
     expect(moveRefusal(s, u.id, 0, 1, "too close to home")).toBe("Too close to home.");
+  });
+
+  it("say why a settler cannot take up a job", () => {
+    expect(workRefusal("needs:bridge_building")).toBe("A road across the river needs Bridge Building.");
+    expect(workRefusal("needs:railroad")).toBe("Needs Railroad.");
+    expect(workRefusal("has road")).toBe("Already has a road.");
+    expect(workRefusal("needs water")).toBe("Needs water beside it: a river, the sea or irrigation.");
+    expect(workRefusal("something new")).toBe("Something new.");
   });
 });
 

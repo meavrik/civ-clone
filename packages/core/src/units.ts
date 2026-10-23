@@ -273,7 +273,8 @@ export function workOptions(state: GameState, u: Unit): Partial<Record<WorkKind,
   if (r.irrigate && !t.irrigation && (r.irrigate.becomes !== undefined || hasWaterNearby(state, u.x, u.y)))
     out.irrigate = r.irrigate.turns;
   if (r.mine && !t.mine) out.mine = r.mine.turns;
-  if (r.road.turns > 0 && !t.road && !t.river) out.road = r.road.turns;
+  // A river takes a road once its civilization knows Bridge Building, as in the original.
+  if (r.road.turns > 0 && !t.road && (!t.river || knows(known, "bridge_building"))) out.road = r.road.turns;
   if (t.road && !t.railroad && knows(known, "railroad")) out.railroad = Math.max(2, r.road.turns * RAILROAD_TURNS_FACTOR);
   if (!t.fortress && t.terrain !== Terrain.Ocean && knows(known, "construction") && !state.cities.some((c) => c.x === u.x && c.y === u.y))
     out.fortress = FORTRESS_TURNS;
@@ -281,6 +282,41 @@ export function workOptions(state: GameState, u: Unit): Partial<Record<WorkKind,
   // A civilization quick at a job finishes it in half the turns.
   for (const work of Object.keys(out) as WorkKind[]) if (traitFastWork(state, u.owner, work)) out[work] = Math.max(1, Math.ceil(out[work]! / 2));
   return out;
+}
+
+/**
+ * Why a unit cannot take up a job where it stands, as a code (`workRefusal` in renderer-api puts it
+ * in words), or null when it can (`workOptions` lists it). "needs:<advance>" names what is missing.
+ */
+export function whyNoWork(state: GameState, u: Unit, work: WorkKind): string | null {
+  if (workOptions(state, u)[work] !== undefined) return null;
+  if (!unitType(u.type).flags?.includes("settler")) return "not a settler";
+  if (u.aboard !== null) return "aboard";
+  const t = getTile(state.map, u.x, u.y)!;
+  const r = TERRAIN_RULES[t.terrain];
+  const known = state.players[u.owner]!.advances;
+  switch (work) {
+    case "road":
+      if (t.road) return "has road";
+      if (t.river && r.road.turns > 0) return "needs:bridge_building";
+      return "no road here";
+    case "railroad":
+      if (t.railroad) return "has railroad";
+      if (!t.road) return "needs road";
+      return knows(known, "railroad") ? "no railroad here" : "needs:railroad";
+    case "irrigate":
+      if (!r.irrigate) return "cannot irrigate";
+      if (t.irrigation) return "irrigated";
+      return "needs water";
+    case "mine":
+      return r.mine ? "has mine" : "cannot mine";
+    case "fortress":
+      if (t.fortress) return "has fortress";
+      if (state.cities.some((c) => c.x === u.x && c.y === u.y)) return "in city";
+      return knows(known, "construction") ? "no fortress here" : "needs:construction";
+    case "clean":
+      return "no pollution";
+  }
 }
 
 /** Irrigation needs an adjacent (orthogonal) ocean, river or irrigated tile. */

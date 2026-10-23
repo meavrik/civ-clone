@@ -14,6 +14,7 @@ import {
   setRelation,
   Terrain,
   unitType,
+  whyNoWork,
   workOptions,
   type GameState,
   type NewGameOptions,
@@ -97,6 +98,37 @@ describe("rough ground", () => {
     const attack = findPath(s, chariot, 12, 9)!;
     expect(attack).toHaveLength(2);
     expect(attack[1]).toEqual([12, 9]);
+  });
+});
+
+describe("settler jobs", () => {
+  it("lay a road across a river only with Bridge Building, and say why not", () => {
+    const s = flatWorld();
+    getTile(s.map, 10, 10)!.river = true;
+    const u = createUnit(s, "settlers", 0, 10, 10);
+    expect(workOptions(s, u).road).toBeUndefined();
+    expect(applyCommand(s, { type: "work", unit: u.id, work: "road" })).toEqual({ ok: false, reason: "needs:bridge_building" });
+    s.players[0]!.advances.push("bridge_building");
+    expect(workOptions(s, u).road).toBeGreaterThan(0);
+    expect(applyCommand(s, { type: "work", unit: u.id, work: "road" }).ok).toBe(true);
+  });
+
+  it("name what stops each job", () => {
+    const s = flatWorld();
+    const u = createUnit(s, "settlers", 0, 10, 10);
+    const soldier = createUnit(s, "militia", 0, 10, 10);
+    expect(whyNoWork(s, u, "road")).toBeNull();
+    expect(whyNoWork(s, soldier, "road")).toBe("not a settler");
+    expect(whyNoWork(s, u, "railroad")).toBe("needs road");
+    getTile(s.map, 10, 10)!.road = true;
+    expect(whyNoWork(s, u, "road")).toBe("has road");
+    expect(whyNoWork(s, u, "railroad")).toBe("needs:railroad");
+    expect(whyNoWork(s, u, "irrigate")).toBe("needs water");
+    expect(whyNoWork(s, u, "fortress")).toBe("needs:construction");
+    expect(whyNoWork(s, u, "clean")).toBe("no pollution");
+    getTile(s.map, 10, 10)!.mine = true;
+    getTile(s.map, 10, 10)!.terrain = Terrain.Hills;
+    expect(whyNoWork(s, u, "mine")).toBe("has mine");
   });
 });
 
