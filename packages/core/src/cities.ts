@@ -43,7 +43,8 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
   let food = r.food;
   let shields = r.shields;
   let trade = r.trade;
-  const sp = specialOf(tile);
+  // Grassland's first special counts only in games before version 26; since then its shields lie on the original's bands.
+  const sp = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial ? undefined : specialOf(tile);
   if (sp) {
     food += sp.food ?? 0;
     shields += sp.shields ?? 0;
@@ -55,14 +56,21 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
       trade += learned.trade ?? 0;
     }
   }
+  if (tile.grassShield && tile.terrain === Terrain.Grassland) shields += 1;
   if (tile.river) trade += 1;
-  if (tile.road) trade += r.road.trade;
+  // A road adds no trade on a river (the original), except in games before version 26.
+  if (tile.road && (!tile.river || state.freecivYields)) trade += r.road.trade;
   // The centre tile counts as irrigated where irrigation is possible, and
   // always yields at least one shield.
   if ((tile.irrigation || isCentre) && r.irrigate?.food && !tile.mine) food += r.irrigate.food;
   if (tile.mine && r.mine?.shields) shields += r.mine.shields;
-  if (isCentre && shields < 1) shields = 1;
-  if (tile.railroad) shields += Math.floor(shields / 2);
+  // Before version 26 a city's own square always made a shield; the original's has no such minimum.
+  if (isCentre && shields < 1 && state.freecivYields) shields = 1;
+  if (tile.railroad) {
+    shields += Math.floor(shields / 2);
+    // The original's railroads add half again to food as well (rounded down).
+    if (!state.freecivYields) food += Math.floor(food / 2);
+  }
   const gov = government(govId);
   // The city's own square is spared the penalty (our departure, asked for 2026-10-23: young cities grew too slowly).
   if (gov.tilePenalty && (!isCentre || state.centrePenalty)) {

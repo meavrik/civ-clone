@@ -1361,20 +1361,24 @@ function governCity(state: GameState, ctx: Ctx, c: City): void {
   const growthTarget = c.size >= cap ? 0 : c.size < 4 ? 2 : 1;
   const tradeWeight = ctx.turn > 5 && ctx.science < ctx.cities.length ? 3 : 1.5 + gov.tradeBonus * 0.5;
   let food = centre.food - c.size * 2 - settlerFood;
+  // A city's square makes no shield of its own in the original's yields: a city without one works for it first.
+  let shields = centre.shields;
   const chosen: number[] = [];
   const left = [...slots];
   for (let i = 0; i < workers && left.length > 0; i++) {
     const fw = food < growthTarget ? 4 : 1.2;
+    const sw = shields < 1 ? 4 : 2;
     let bestIdx = 0;
     let bestV = -Infinity;
     for (let k = 0; k < left.length; k++) {
       const s = left[k]!;
-      const v = s.food * fw + s.shields * 2 + s.trade * tradeWeight;
+      const v = s.food * fw + s.shields * sw + s.trade * tradeWeight;
       if (v > bestV) { bestV = v; bestIdx = k; }
     }
     const [s] = left.splice(bestIdx, 1);
     chosen.push(s!.slot);
     food += s!.food;
+    shields += s!.shields;
   }
   const remove = c.worked.filter((s) => !chosen.includes(s));
   const add = chosen.filter((s) => !c.worked.includes(s));

@@ -21,6 +21,7 @@ import {
   drawForeignAdvisor,
   drawMainScreen,
   drawMenu,
+  squarePainter,
   drawMilitaryAdvisor,
   drawRatesScreen,
   drawReportScreen,
@@ -279,7 +280,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     report: screen(drawReportScreen),
     worldMap: screen(drawWorldMap),
     // Overlays go on whatever screen this frame drew.
-    menu: (m) => drawMenu(surface(), wideFrame ? place(m) : m),
+    menu: (m, state) => drawMenu(surface(), wideFrame ? place(m) : m, squarePainter(m, state)),
     textInput(input, cursorOn) {
       shown.input = input;
       drawTextInput(surface(), input, cursorOn);

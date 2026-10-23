@@ -21,7 +21,7 @@ import {
   specialOf,
 } from "@civ/core";
 import { drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
-import { drawBorderSide, drawBurst, drawFortress, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
+import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade, slotColor, PALETTE } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
@@ -163,6 +163,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       const ground = terrainSquare(map, mx, my, me.explored);
       s.blit(ground, dx, dy);
       if (tile.irrigation) drawIrrigation(s, dx, dy, ground, tile.terrain, mx, my, fieldSides(map, me.explored, mx, my));
+      if (tile.grassShield && tile.terrain === Terrain.Grassland) drawGrassShield(s, dx, dy, ground);
       // Every square, as roads between two of its neighbours cut across its corners.
       drawRoad(s, dx, dy, map, me.explored, mx, my, ground);
       drawRailroad(s, dx, dy, map, me.explored, mx, my);

@@ -4,6 +4,7 @@ export * from "./palette.js";
 export * from "./font.js";
 export * from "./tiles.js";
 export * from "./screens/main.js";
+export * from "./screens/square.js";
 export * from "./overlays.js";
 export * from "./widgets.js";
 export * from "./sprites/sheet.js";

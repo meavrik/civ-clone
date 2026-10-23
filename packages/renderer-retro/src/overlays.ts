@@ -173,6 +173,28 @@ export function drawRailroad(s: Surface, dx: number, dy: number, map: WorldMap, 
   if (ways) s.blit(wayPixels(ways, x, y, true).sprite, dx, dy, SPRITE_CLEAR);
 }
 
+/**
+ * Shield grassland (the original's bands, `Tile.grassShield`): a small stone in the middle of the
+ * square, as the 1991 game marked it, lit from the upper left with a one-pixel outline in its darkest
+ * grey; where the ground there is water (a river) the stone keeps out of it.
+ */
+const STONE = [
+  ".oooo.",
+  "olllmo",
+  "olmmdo",
+  ".oooo.",
+];
+export function drawGrassShield(s: Surface, dx: number, dy: number, ground?: Surface): void {
+  const c: Record<string, number> = { o: shade("rock", 0), l: shade("rock", 6), m: shade("rock", 4), d: shade("rock", 2) };
+  const fx = dx * s.k + (FINE >> 1) - 3;
+  const fy = dy * s.k + (FINE >> 1) + 3;
+  STONE.forEach((row, j) => [...row].forEach((ch, i) => {
+    if (ch === ".") return;
+    if (ground && ground.k === s.k && isWater(ground.fget((FINE >> 1) - 3 + i, (FINE >> 1) + 3 + j))) return;
+    s.fset(fx + i, fy + j, c[ch]!);
+  }));
+}
+
 /** Fortress: a square rampart with corner towers. */
 export function drawFortress(s: Surface, dx: number, dy: number): void {
   const wall = shade("stone", 5);

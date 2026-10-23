@@ -103,8 +103,8 @@ describe("research", () => {
     expect(applyCommand(s, { type: "research", advance: "alphabet" }).ok).toBe(true);
     p.science = researchCost(0, p.difficulty) - 1;
     s.cities[0]!.buildings.push("library");
-    // Give the city some trade so science > 0.
-    s.map.tiles[10 * 80 + 10]!.river = true;
+    // Give the city some trade so science > 0: rivers everywhere, a trade on each square.
+    for (const t of s.map.tiles) t.river = true;
     applyCommand(s, { type: "endTurn" });
     expect(p.advances).toContain("alphabet");
     expect(lastTurnEvents.some((e) => e.kind === "discovered")).toBe(true);
@@ -159,7 +159,7 @@ describe("governments", () => {
     const c = s.cities[0]!;
     c.size = 3;
     applyCommand(s, { type: "endTurn" });
-    s.map.tiles[10 * 80 + 10]!.river = true;
+    for (const t of s.map.tiles) t.river = true;
     c.buildings.push("library");
     const before = computeCity(s, c);
     c.wonders.push("seti_program");

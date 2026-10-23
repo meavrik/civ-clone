@@ -10,6 +10,7 @@ import { MAP_WIDTH, Terrain, type GameState, type Player, type WorldMap } from "
 import { createUnit } from "./units.js";
 import { recomputeVisibility } from "./visibility.js";
 import { siteScore } from "./sites.js";
+import { grassShieldAt } from "./rules/terrain.js";
 
 export interface NewGameOptions extends MapGenOptions {
   /** Difficulty 0 (Chieftain) .. 4 (Emperor). */
@@ -73,6 +74,8 @@ export interface NewGameOptions extends MapGenOptions {
   settlerShields?: boolean;
   /** Each civilization starts on the square drawn for it, good land or not. Old saves load with it. */
   randomStarts?: boolean;
+  /** Our first yields (FreeCiv's civ1 numbers, see `GameState.freecivYields`). Old saves load with it. */
+  freecivYields?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -173,6 +176,12 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const world = opts.world ? premadeWorld(opts.world) : undefined;
   const map = opts.world ? premadeMap(rng, opts.world, opts.size, opts.joinedIslands, opts.resources) : generateMap(rng, opts);
   const homes = world && opts.historical ? premadeStarts(world, opts.size, opts.joinedIslands) : undefined;
+  // The original's yields: shield grassland on its diagonal bands, and no other first special on grassland.
+  if (!opts.freecivYields)
+    map.tiles.forEach((t, i) => {
+      if (grassShieldAt(i % map.width, Math.floor(i / map.width))) t.grassShield = true;
+      if (t.terrain === Terrain.Grassland && t.special && !t.secondSpecial) t.special = false;
+    });
   const humanCiv = opts.civ ?? "romans";
   const roster = opts.roster;
   const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians" && (!homes || homes[c.id] !== undefined) && (roster === undefined || (c.since ?? 0) <= roster));
@@ -232,6 +241,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.balancedWorkers ? { balancedWorkers: true } : {}),
     ...(opts.centrePenalty ? { centrePenalty: true } : {}),
     ...(opts.settlerShields ? { settlerShields: true } : {}),
+    ...(opts.freecivYields ? { freecivYields: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

@@ -64,6 +64,10 @@ export interface GameConfig {
   packedCities?: boolean;
   /** Our support before version 24: the city's own square suffers Despotism's -1 and settlers pay shields. */
   oldSupport?: boolean;
+  /** Starts on the squares drawn, before they moved onto good sites (saves before version 25). */
+  randomStarts?: boolean;
+  /** FreeCiv's civ1 yields, before the original's (saves before version 26). */
+  freecivYields?: boolean;
 }
 
 export interface PlayerStats {
@@ -151,6 +155,8 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.simpleMoods ? { simpleMoods: true } : {}),
     ...(config.packedCities ? { packedCities: true } : {}),
     ...(config.oldSupport ? { centrePenalty: true, settlerShields: true } : {}),
+    ...(config.randomStarts ? { randomStarts: true } : {}),
+    ...(config.freecivYields ? { freecivYields: true } : {}),
   };
 }
 

@@ -932,6 +932,8 @@ export function endTurn(state: GameState): void {
           if (rule.irrigate?.becomes !== undefined) t.terrain = rule.irrigate.becomes;
           else t.irrigation = true;
           t.mine = false;
+          // Land drained into grassland keeps no first special (the original's grassland has none; its shields lie on the bands).
+          if (!state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial) t.special = false;
         } else if (u.order.work === "mine") {
           if (rule.mine?.becomes !== undefined) t.terrain = rule.mine.becomes;
           else t.mine = true;

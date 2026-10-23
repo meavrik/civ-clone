@@ -242,7 +242,12 @@ Never ship the original's sprites, palette art, fonts or text.
   A double click (two left clicks within `DOUBLE_CLICK_MS`, 300 ms, on the same screen point: the first
   may set the map gliding) centres the map on the first click's square and drops its plan, unmade.
   Right-click opens the square's window (`terrainInfo`: title "Jungle (Cotton)", the resource and river
-  beside the terrain; an Improvements line; buttons Go here, Open city; it opens clear of the square
+  beside the terrain; headed by the square itself as the map draws it, twice the size in a sunken frame
+  (`MenuState.square`, retro's `drawSquarePicture`/`squarePainter`, `Renderer.menu(menu, state)`; asked for
+  2026-10-23: "more stylish, add the terrain image, more details"), beside it the yields, movement and
+  defence, a few words on the terrain (`TERRAIN_TEXT`, our own) and what the resource, river and shield
+  grassland add; then improvements, whose land it is and which of our cities works it, the city, units
+  and jobs, and the site note for settlers; an Improvements line; buttons Go here, Open city; it opens clear of the square
   clicked, `MenuState.avoid`, so a second click there closes it and never lands on Go here), closed by the X in its title
   strip (`MenuState.close`; retro draws it, modern ignores it; any click off a window's choices closes
   it). On the phone a tap is a left-click and a hold a right-click.
@@ -550,7 +555,22 @@ text), second special resources with reaches (save version 20; the branch's own 
 ## Known gaps / next steps
 
 1. Rules data verified against FreeCiv's civ1 ruleset (2026-10-16): tech edges, unit/building/
-   wonder/terrain numbers. Deliberate departures: rivers give +1 trade, Michelangelo's acts as a
+   wonder/terrain numbers. Square yields then set to the 1991 game's own (2026-10-23, asked for: "same as
+   civilization 1, the original", not FreeCiv; from CivFanatics' Civ1 terrain chart and the game's data
+   tables): the basic terrains were already equal; since save version 26 shield grassland lies on the
+   original's diagonal bands two squares wide ((x + y) mod 4 of 0 or 3, `grassShieldAt`, `Tile.grassShield`,
+   rivers on grassland too, drained land shows it; drawn as a small stone, `drawGrassShield`) in place of
+   grassland's scattered Resources; a road adds no trade on a river (needs Bridge Building), a river square
+   defends at +50% (the original's River: grassland with a river yields its 2/0/1); grassland, plains, swamp
+   and jungle mine into forest; railroads add half again to food as well as shields; a city's square has no
+   free shield. Saves before version 26 load with `freecivYields` (headless `--freeciv-yields`; the
+   moved starts `--random-starts`). Still ours: second specials and the advances' bonuses on specials, the
+   city square spared Despotism's -1, settlers costing food only. Head to head (planner vs v2, 16 x 300):
+   old starts and yields 13-3, score 149 vs 108; moved starts 10-6, 144 vs 136; the original's yields 9-7,
+   154 vs 139; both 6-10, 143 vs 156, and 8-8, 141 vs 154 (pop 48 vs 71) once the planner's citizens work
+   for a shield first while their city has none (`governCity`). Both changes favour v2, which still packs
+   its cities (13.9 vs 12.2): tuning the planner to the new land is open.
+   Other deliberate departures: rivers give +1 trade (on grassland that is the original's River), Michelangelo's acts as a
    cathedral everywhere, Colossus boosts ocean tiles. Units have hit points and firepower (`hp`,
    `firepower` in `rules/units.ts`: 10 ancient, 20 gunpowder, 30-40 mechanised/steel; heavy guns hit
    for 2): fights go in rounds won with A/(A+D), survivors keep wounds and heal by resting (`HEALING`).

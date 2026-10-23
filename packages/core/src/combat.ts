@@ -19,7 +19,8 @@ export function defenseStrength(state: GameState, d: Unit, attacker: Unit): numb
   const type = unitType(d.type);
   const tile = getTile(state.map, d.x, d.y)!;
   let s = type.defense;
-  if (type.domain === "land") s *= TERRAIN_RULES[tile.terrain].defense;
+  // A river square defends at +50% (the original's River), unless its terrain gives more; not before version 26.
+  if (type.domain === "land") s *= tile.river && !state.freecivYields ? Math.max(1.5, TERRAIN_RULES[tile.terrain].defense) : TERRAIN_RULES[tile.terrain].defense;
   if (d.veteran) s *= 1.5;
   const city = cityAt(state, d.x, d.y);
   if (tile.fortress && !city && type.domain === "land") s *= 2;

@@ -740,6 +740,8 @@ function openTerrainInfo(tx: number, ty: number, at?: { x: number; y: number }):
   modal(info.title, info.lines, items.map((i) => i[0]), (i) => items[i]?.[1](), -1);
   if (screenState.kind === "menu") {
     screenState.menu.close = true;
+    // The square itself heads the window, as the map draws it.
+    screenState.menu.square = { x: tx, y: ty };
     // Opened by a click on the map: the window stands clear of that square, so a second click there
     // only closes it; going there takes the Go here button (asked for 2026-10-23).
     if (at) screenState.menu.avoid = at;
@@ -2240,7 +2242,7 @@ function draw(sc: Screen): void {
       view.menuOpen = sc.bar;
       draw(sc.under);
       view.menuOpen = undefined;
-      renderer.menu(sc.menu);
+      renderer.menu(sc.menu, state as GameState | undefined);
       if (status && sc.under.kind !== "map") renderer.statusLine(status);
       break;
   }

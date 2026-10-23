@@ -62,7 +62,7 @@ describe("terrain info", () => {
     const u = s.units[0]!;
     revealAround(s, 0, u.x, u.y, 3);
     const t = getTile(s.map, u.x + 1, u.y)!;
-    t.terrain = Terrain.Grassland;
+    t.terrain = Terrain.Plains;
     t.river = true;
     t.road = true;
     t.special = true;
@@ -72,16 +72,22 @@ describe("terrain info", () => {
     working.order = { kind: "work", work: "road", turnsLeft: 2 };
     const info = terrainInfo(s, u.x + 1, u.y);
     // The title names the resource and the river beside the terrain.
-    expect(info.title).toBe("Grassland (Resources, River)");
+    expect(info.title).toBe("Plains (Horses, River)");
     t.river = false;
-    expect(terrainInfo(s, u.x + 1, u.y).title).toBe("Grassland (Resources)");
+    expect(terrainInfo(s, u.x + 1, u.y).title).toBe("Plains (Horses)");
     t.special = false;
-    expect(terrainInfo(s, u.x + 1, u.y).title).toBe("Grassland");
-    t.river = true;
+    expect(terrainInfo(s, u.x + 1, u.y).title).toBe("Plains");
+    // Grassland has no first special in the original: a special flag there names nothing.
+    t.terrain = Terrain.Grassland;
     t.special = true;
-    // Pictures stand in for the words: yields and movement on one line, features with their names.
-    expect(info.lines[0]).toMatch(/^\{food\} \d+  \{shield\} \d+  \{trade\} \d+  \{boot\} 1$/);
-    expect(info.lines).toContain("{star} Resources  {river} River  {road} Road");
+    expect(terrainInfo(s, u.x + 1, u.y).title).toBe("Grassland");
+    t.terrain = Terrain.Plains;
+    t.river = true;
+    // Pictures stand in for the words: yields, movement and a river's defence on one line, then a word on the
+    // terrain, then the features with what each adds.
+    expect(info.lines[0]).toMatch(/^\{food\} \d+  \{shield\} \d+  \{trade\} \d+  \{boot\} 1  \{tower\} \+50%$/);
+    expect(info.lines[1]).toBe("Open land for fields and herds, with a little timber.");
+    expect(info.lines).toContain("{star} Horses +2 {shield}  {river} River +1 {trade}, no road trade  {road} Road");
     expect(info.lines.some((l) => l.startsWith("Improvements:  {irrigate} +1 {food}"))).toBe(true);
     expect(info.lines).toContain("{swords} 2 Militia, Settlers (ours)");
     expect(info.lines).toContain("{road} Building a road, 2 turns");

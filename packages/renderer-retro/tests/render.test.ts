@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { settlerSites } from "@civ/renderer-api";
+import { settlerSites, TERRAIN_TEXT } from "@civ/renderer-api";
+import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
 
 describe("retro renderer", () => {
@@ -256,8 +257,16 @@ describe("retro renderer", () => {
     expect(blue).toBeGreaterThan(4);
     // The terrain window speaks in the same pictures.
     const info = terrainInfo(state, worker.x, worker.y);
-    drawMenu(s, { title: info.title, body: info.lines, items: ["Center the map here", "Close"], selected: 1 });
+    // Headed by the square itself, as the map draws it, twice its size in a dark frame.
+    const window = { title: info.title, body: info.lines, items: ["Go here"], selected: -1, close: true, square: { x: worker.x, y: worker.y } };
+    drawMenu(s, window, squarePainter(window, state));
     writeFileSync(new URL("./out/terrain-window.png", import.meta.url), encodePng(s, 3));
+    expect(info.lines[1]).toBe(TERRAIN_TEXT[getTile(state.map, worker.x, worker.y)!.terrain]);
+    const r = menuRect(window);
+    const pic = Surface.fine(32, 32);
+    drawSquarePicture(pic, state, worker.x, worker.y, 0, 0);
+    // The picture's middle in the window is the picture's middle.
+    expect(s.fget((r.x + 12 + 16) * s.k, (r.y + 18 + 2 + 16) * s.k)).toBe(pic.fget(16 * pic.k, 16 * pic.k));
   });
 
   it("draws the menu bar above the map, with dropdowns under their titles", async () => {

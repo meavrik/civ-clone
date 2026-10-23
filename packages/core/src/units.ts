@@ -272,7 +272,8 @@ export function workOptions(state: GameState, u: Unit): Partial<Record<WorkKind,
   const out: Partial<Record<WorkKind, number>> = {};
   if (r.irrigate && !t.irrigation && (r.irrigate.becomes !== undefined || hasWaterNearby(state, u.x, u.y)))
     out.irrigate = r.irrigate.turns;
-  if (r.mine && !t.mine) out.mine = r.mine.turns;
+  // Mining grassland, plains, swamp or jungle into forest came with the original's rules (version 26).
+  if (r.mine && !t.mine && !(r.mine.becomes !== undefined && state.freecivYields)) out.mine = r.mine.turns;
   // A river takes a road once its civilization knows Bridge Building, as in the original.
   if (r.road.turns > 0 && !t.road && (!t.river || knows(known, "bridge_building"))) out.road = r.road.turns;
   if (t.road && !t.railroad && knows(known, "railroad")) out.railroad = Math.max(2, r.road.turns * RAILROAD_TURNS_FACTOR);

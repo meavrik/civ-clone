@@ -144,9 +144,18 @@ const SCROLL_W = 5;
 
 interface MenuLayout {
   x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number; picH: number;
+  /** How far in each body line starts: past the square's picture (`MenuState.square`) for the lines beside it. */
+  indents: number[];
   /** Rows on view, and the first of them; `rows` is short of the items when the list scrolls. */
   rows: number; top: number;
 }
+
+/** A window's map square (`MenuState.square`): its picture's side in screen pixels (twice a map square), framed, and the gap after it. */
+export const SQUARE_PIC = 32;
+const SQUARE_FRAME = SQUARE_PIC + 4;
+const SQUARE_SIDE = SQUARE_FRAME + 6;
+/** A window with a map square is at least this wide, so the lines beside the picture have room. */
+const SQUARE_WINDOW_W = 236;
 
 /** How far round the point a window keeps clear of (`MenuState.avoid`): a square of the map either way. */
 const AVOID = 16;
@@ -179,9 +188,15 @@ function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
   const scrolls = !buttons && m.items.length * FONT_HEIGHT > roomGuess;
   const need = Math.max(textWidth(m.title) + 16 + (m.close ? TITLE_H : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? SCROLL_W + 4 : 0));
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) + 20 : 0;
-  const w = Math.min(300, Math.max(need, Math.min(bodyW, Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0, pic ? pic.w + 24 : 0));
-  const lines = (m.body ?? []).flatMap((l) => wrapIcons(l, w - 20));
-  const bodyH = lines.length ? lines.length * FONT_HEIGHT + 5 : 0;
+  const w = Math.min(300, Math.max(need, Math.min(bodyW + (m.square ? SQUARE_SIDE : 0), Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0, pic ? pic.w + 24 : 0, m.square ? SQUARE_WINDOW_W : 0));
+  // The paragraphs that begin beside a map square's picture wrap to the room left of it.
+  const lines: string[] = [];
+  const indents: number[] = [];
+  for (const l of m.body ?? []) {
+    const indent = m.square && lines.length * FONT_HEIGHT < SQUARE_FRAME ? SQUARE_SIDE : 0;
+    for (const piece of wrapIcons(l, w - 20 - indent)) { lines.push(piece); indents.push(indent); }
+  }
+  const bodyH = lines.length || m.square ? Math.max(lines.length * FONT_HEIGHT, m.square ? SQUARE_FRAME + 2 : 0) + 5 : 0;
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
   const room = 200 - (m.anchor?.y ?? 0) - head - picH - bodyH - foot;
   const fits = m.items.length * FONT_HEIGHT <= room;
@@ -193,7 +208,7 @@ function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
   let y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
   if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
-  return { x, y, w, h, lines, itemsY: y + head + picH + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, picH, rows, top };
+  return { x, y, w, h, lines, indents, itemsY: y + head + picH + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, picH, rows, top };
 }
 
 export function menuRect(m: MenuState, screenW = SCREEN_W): { x: number; y: number; w: number; h: number } {
@@ -226,9 +241,13 @@ export function menuScrollAt(m: MenuState, px: number, py: number, screenW = SCR
   return py < b.thumbY ? -1 : py >= b.thumbY + b.thumbH ? 1 : 0;
 }
 
-export function drawMenu(s: Surface, m: MenuState): void {
+/**
+ * A window or dropdown. `square` paints the window's map square (`MenuState.square`) with its top left
+ * at a screen point, `SQUARE_PIC` pixels a side; without it the square's place stays bare.
+ */
+export function drawMenu(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void): void {
   const l = menuLayout(m, s.width);
-  const { x, y, w, h, lines, itemsY, row, buttons, bx, bw, picH, rows, top } = l;
+  const { x, y, w, h, lines, indents, itemsY, row, buttons, bx, bw, picH, rows, top } = l;
   const scrolls = rows < m.items.length;
   drawWindow(s, x, y, w, h, m.title);
   if (m.close && m.title) drawCloseBox(s, x + w - 3 - (TITLE_H - 2), y + 3);
@@ -240,7 +259,19 @@ export function drawMenu(s: Surface, m: MenuState): void {
     s.rect(px - 4, ground, pic.w + 8, 2, shade("grass", 4));
     drawPicture(s, pic, px, ground, slotColor(m.picture.slot));
   }
-  lines.forEach((line, i) => drawIconLine(s, x + 10, y + (m.title ? 17 : 4) + picH + i * FONT_HEIGHT, line, C.BLACK!));
+  const bodyY = y + (m.title ? 17 : 4) + picH;
+  if (m.square) {
+    // The square in a dark frame, sunk into the stone: shade along the top and left, light along the foot and right.
+    const fx = x + 10;
+    const fy = bodyY + 1;
+    s.frame(fx, fy, SQUARE_FRAME, SQUARE_FRAME, shade("panel", 2));
+    s.hline(fx, fy + SQUARE_FRAME, SQUARE_FRAME + 1, shade("panel", 7));
+    s.rect(fx + SQUARE_FRAME, fy, 1, SQUARE_FRAME + 1, shade("panel", 7));
+    s.frame(fx + 1, fy + 1, SQUARE_FRAME - 2, SQUARE_FRAME - 2, C.BLACK!);
+    if (square) square(s, fx + 2, fy + 2);
+    else s.rect(fx + 2, fy + 2, SQUARE_PIC, SQUARE_PIC, C.BLACK!);
+  }
+  lines.forEach((line, i) => drawIconLine(s, x + 10 + (indents[i] ?? 0), bodyY + i * FONT_HEIGHT, line, C.BLACK!));
   if (lines.length && m.items.length) {
     s.hline(x + 4, itemsY - 4, w - 8, shade("panel", 2));
     s.hline(x + 4, itemsY - 3, w - 8, shade("panel", 7));

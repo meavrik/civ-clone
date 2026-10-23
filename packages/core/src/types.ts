@@ -69,6 +69,12 @@ export interface Tile {
   pollution: boolean;
   /** Id of the continent (land) or ocean body this tile belongs to; 0 = unassigned. */
   continent: number;
+  /**
+   * On the original's diagonal bands of shield grassland (`grassShieldAt`): grassland here, river or
+   * not, yields a shield more, and land drained into grassland here shows it. Set for games from save
+   * version 26; their grassland has no other first special.
+   */
+  grassShield?: boolean;
 }
 
 export interface WorldMap {
@@ -267,6 +273,12 @@ export interface GameState {
   centrePenalty?: boolean;
   /** Settlers take a free unit and pay a shield beyond it like any unit, besides their food, as before version 24. */
   settlerShields?: boolean;
+  /**
+   * Our first yields, FreeCiv's civ1 numbers, before version 26: grassland's shields as a scattered
+   * Resources special, roads adding trade on rivers, rivers no defence, nothing mined into forest,
+   * railroads adding shields only, and a city's own square always making a shield.
+   */
+  freecivYields?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

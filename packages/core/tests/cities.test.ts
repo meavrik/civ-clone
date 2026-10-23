@@ -7,6 +7,9 @@ import {
   cityYieldGovernment,
   computeCity,
   contentBase,
+  defenseStrength,
+  grassShieldAt,
+  workOptions,
   createUnit,
   getTile,
   lastTurnEvents,
@@ -36,11 +39,73 @@ function flatWorld(): GameState {
   return s;
 }
 
+describe("the original's yields", () => {
+  it("lay shield grassland on diagonal bands two squares wide, rivers and drained land included", () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map((x) => grassShieldAt(x, 0))).toEqual([true, false, false, true, true, false, false, true]);
+    expect(grassShieldAt(5, 3)).toBe(true);
+    const s = newGame(5);
+    let grass = 0, banded = 0;
+    for (let i = 0; i < s.map.tiles.length; i++) {
+      const t = s.map.tiles[i]!;
+      expect(t.grassShield === true).toBe(grassShieldAt(i % s.map.width, Math.floor(i / s.map.width)));
+      // No grassland has a first special: its shields are the bands.
+      if (t.terrain === Terrain.Grassland) { grass++; if (t.grassShield) banded++; expect(t.special && !t.secondSpecial).toBe(false); }
+    }
+    expect(banded / grass).toBeGreaterThan(0.35);
+    expect(banded / grass).toBeLessThan(0.65);
+    // A river square on the band yields as the original's River with its shield: 2 food, 1 shield, 1 trade.
+    const t = s.map.tiles.find((x) => x.terrain === Terrain.Grassland && x.grassShield)!;
+    Object.assign(t, { river: true, road: false, irrigation: false, mine: false, railroad: false, pollution: false, special: false });
+    expect(tileYield(s, t, false, "monarchy")).toEqual({ food: 2, shields: 1, trade: 1 });
+  });
+
+  it("add no trade for a road on a river, half again food and shields for a railroad, and no free shield on a city's square", () => {
+    const s = newGame(5);
+    const t = s.map.tiles.find((x) => x.terrain === Terrain.Grassland && !x.grassShield)!;
+    Object.assign(t, { river: true, road: true, irrigation: false, mine: false, railroad: false, pollution: false, special: false });
+    expect(tileYield(s, t, false, "monarchy")).toEqual({ food: 2, shields: 0, trade: 1 });
+    t.river = false;
+    expect(tileYield(s, t, false, "monarchy").trade).toBe(1);
+    Object.assign(t, { irrigation: true, railroad: true, terrain: Terrain.Grassland });
+    expect(tileYield(s, t, false, "monarchy")).toEqual({ food: 4, shields: 0, trade: 1 }); // 3 food, half again rounded down
+    expect(tileYield(s, t, true, "monarchy").shields).toBe(0);
+    // An old save's world: roads trading on rivers, rails for shields only, a shield on the city's square.
+    s.freecivYields = true;
+    t.railroad = false;
+    t.river = true;
+    expect(tileYield(s, t, true, "monarchy")).toEqual({ food: 3, shields: 1, trade: 2 });
+  });
+
+  it("mine grassland, plains, swamp and jungle into forest, drain land into grassland without a special, and defend rivers at half again", () => {
+    const s = flatWorld();
+    const u = createUnit(s, "settlers", 0, 12, 12);
+    for (const terrain of [Terrain.Grassland, Terrain.Plains, Terrain.Swamp, Terrain.Jungle]) {
+      getTile(s.map, 12, 12)!.terrain = terrain;
+      expect(workOptions(s, u).mine, String(terrain)).toBeGreaterThan(0);
+    }
+    s.freecivYields = true;
+    expect(workOptions(s, u).mine).toBeUndefined();
+    delete s.freecivYields;
+    // Drained, the swamp's Peat is gone: the original's grassland has no special.
+    Object.assign(getTile(s.map, 12, 12)!, { terrain: Terrain.Swamp, special: true });
+    applyCommand(s, { type: "work", unit: u.id, work: "irrigate" });
+    for (let i = 0; i < 16; i++) { u.order.kind === "work" && (u.order.turnsLeft = 1); applyCommand(s, { type: "endTurn" }); if (getTile(s.map, 12, 12)!.terrain === Terrain.Grassland) break; }
+    expect(getTile(s.map, 12, 12)!).toMatchObject({ terrain: Terrain.Grassland, special: false });
+    const d = createUnit(s, "phalanx", 0, 14, 12);
+    const a = createUnit(s, "legion", 1, 15, 12);
+    const flat = defenseStrength(s, d, a);
+    getTile(s.map, 14, 12)!.river = true;
+    expect(defenseStrength(s, d, a)).toBeCloseTo(flat * 1.5);
+  });
+});
+
 describe("tile yields", () => {
   it("applies the despotism penalty and improvements", () => {
     const s = flatWorld();
-    const t = getTile(s.map, 10, 10)!;
+    // (10, 11) lies off the bands of shield grassland; (10, 10) on them, a shield more.
+    const t = getTile(s.map, 10, 11)!;
     expect(tileYield(s, t, false, "despotism")).toEqual({ food: 2, shields: 0, trade: 0 });
+    expect(tileYield(s, getTile(s.map, 10, 10)!, false, "despotism")).toEqual({ food: 2, shields: 1, trade: 0 });
     t.irrigation = true;
     t.road = true;
     // 3 food -> 2 under despotism; road adds 1 trade on grassland
@@ -111,9 +176,11 @@ describe("tile yields", () => {
       let specials = 0;
       let terrains = "";
       for (let seed = 1; seed <= 8; seed++) {
-        const { map } = newGame(seed, resources === undefined ? {} : { resources });
+        // An old save's world comes with its old yields too (grassland's scattered Resources).
+        const { map } = newGame(seed, resources === undefined ? {} : { resources, freecivYields: true });
         for (const t of map.tiles) { const n = specialOf(t)?.name; if (n) names.set(n, (names.get(n) ?? 0) + 1); }
-        specials += map.tiles.filter((t) => t.special).length;
+        // Grassland's first kind is gone from new worlds (the original's grassland has none): count the squares off grassland.
+        specials += map.tiles.filter((t) => t.special && t.terrain !== Terrain.Grassland).length;
         terrains += map.tiles.map((t) => t.terrain).join();
       }
       return { names, specials, terrains };
@@ -130,6 +197,8 @@ describe("tile yields", () => {
     // The same world, the same squares: only which kind changes.
     expect(now.terrains).toBe(old.terrains);
     expect(now.specials).toBe(old.specials);
+    expect(now.names.has("Resources")).toBe(false);
+    expect(old.names.get("Resources") ?? 0).toBeGreaterThan(0);
   });
 
   it("keeps fish within two squares of land and whales in deep water", () => {
@@ -190,7 +259,8 @@ describe("cities", () => {
     const r = computeCity(s, c);
     expect(r.food).toBe(5); // centre 3 (irrigated, spared the despot's penalty) + one grassland 2
     expect(r.foodSurplus).toBe(3);
-    expect(r.shields).toBe(1);
+    // The centre's shield comes from the band of shield grassland it stands on, the worker's likewise (Growth picks it).
+    expect(r.shields).toBe(2);
   });
 
   it("refuses to found adjacent to another city", () => {

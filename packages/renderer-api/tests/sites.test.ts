@@ -8,7 +8,8 @@ function field(): { s: GameState; id: number } {
   s.units = [];
   s.cities = [];
   for (const t of s.map.tiles) Object.assign(t, { terrain: Terrain.Ocean, river: false, special: false, hut: false, continent: 0 });
-  for (let y = 8; y < 32; y++) for (let x = 8; x < 32; x++) Object.assign(getTile(s.map, x, y)!, { terrain: Terrain.Grassland, continent: 1 });
+  // Even grassland: no bands of shield grassland, so the nearest square is best.
+  for (let y = 8; y < 32; y++) for (let x = 8; x < 32; x++) Object.assign(getTile(s.map, x, y)!, { terrain: Terrain.Grassland, continent: 1, grassShield: false });
   s.players[0]!.explored.fill(1);
   const u = createUnit(s, "settlers", 0, 20, 20);
   return { s, id: u.id };

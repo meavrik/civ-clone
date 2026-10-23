@@ -89,6 +89,15 @@ describe("save/load", () => {
     expect([now.centrePenalty, now.settlerShields]).toEqual([undefined, undefined]);
   });
 
+  it("replays a save from before the original's yields with FreeCiv's civ1 numbers", () => {
+    const opts = { opponents: 1 as const };
+    const state = newGame(321, opts);
+    const old = loadSave({ ...makeSave(state, opts, []), version: 25 as const }, skipAll).state;
+    expect(old.freecivYields).toBe(true);
+    expect(old.map.tiles.some((t) => t.grassShield)).toBe(false);
+    expect(loadSave(makeSave(state, opts, []), skipAll).state.freecivYields).toBeUndefined();
+  });
+
   it("replays a save from before the AI kept its cities apart with its old habit", () => {
     const opts = { opponents: 1 as const };
     const state = newGame(321, opts);

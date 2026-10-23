@@ -22,6 +22,7 @@ export * from "./plan.js";
 export * from "./watch.js";
 export * from "./sites.js";
 import { settlerSites, siteNote } from "./sites.js";
+import { ownerAt, territory } from "./territory.js";
 export * from "./intro.js";
 export * from "./setup.js";
 export * from "./audience.js";
@@ -30,6 +31,7 @@ export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
   ACCRUED_CULTURE,
+  CITY_RADIUS,
   advance,
   attrition,
   attritionCure,
@@ -194,6 +196,12 @@ export interface MenuState {
    * pointer and a second click there only closes it. Modern ignores it.
    */
   avoid?: { x: number; y: number };
+  /**
+   * A map square shown at the head of the window beside its first lines, twice the map's size and as the
+   * map draws it (the square's window, `terrainInfo`); drawn when `Renderer.menu` is handed the game.
+   * Modern ignores it.
+   */
+  square?: { x: number; y: number };
 }
 
 /** A menu's first row shown, moved as little as it must be to keep the selected row among the `rows` on view. */
@@ -313,7 +321,8 @@ export interface Renderer {
   end(lines: string[], rank: string): void;
   spaceship(state: GameState): void;
   /** Overlays drawn on top of whatever screen is underneath. */
-  menu(menu: MenuState): void;
+  /** A window or dropdown over the current screen; `state`, when a game is on, draws its `square`. */
+  menu(menu: MenuState, state?: GameState): void;
   textInput(input: TextInputState, cursorOn: boolean): void;
   statusLine(text: string): void;
 
@@ -635,6 +644,26 @@ export function opponentsForChoice(index: number): number {
  * ground wears units down, what settlers could do there, and the city and
  * units on it. Plain ASCII so every font can draw it.
  */
+/** A few words on each terrain for the square's window: what it is good for (our own words). */
+export const TERRAIN_TEXT: Record<Terrain, string> = {
+  [Terrain.Ocean]: "Open sea: fish to eat, and trade along the coast.",
+  [Terrain.Grassland]: "Rich open land, the best for farms.",
+  [Terrain.Plains]: "Open land for fields and herds, with a little timber.",
+  [Terrain.Forest]: "Timber for building; slow going for armies.",
+  [Terrain.Hills]: "Easy to hold, and rich in ore once mined.",
+  [Terrain.Mountains]: "A wall to armies, with gold and iron in the rock.",
+  [Terrain.Desert]: "Dry and poor, until water is brought to it.",
+  [Terrain.Tundra]: "Cold, thin land at the edge of the ice.",
+  [Terrain.Arctic]: "Ice where nothing grows.",
+  [Terrain.Swamp]: "Wet and slow; drained, it becomes grassland.",
+  [Terrain.Jungle]: "Thick and wet; cleared, it becomes grassland.",
+};
+
+/** What a special adds to its square, in icons: "+2 {shield}". */
+function specialGain(sp: { food?: number; shields?: number; trade?: number }): string {
+  return [sp.food && `+${sp.food} {food}`, sp.shields && `+${sp.shields} {shield}`, sp.trade && `+${sp.trade} {trade}`].filter(Boolean).join(" ");
+}
+
 export function terrainInfo(state: GameState, x: number, y: number): { title: string; lines: string[] } {
   const me = state.players[state.currentPlayer]!;
   const { map } = state;
@@ -646,11 +675,17 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   const yld = tileYield(state, t, city !== undefined, me.government, me.id);
   // Lines with {icon} tokens are drawn with pictures; "  " separates groups that may wrap apart.
   const lines: string[] = [];
-  const defence = r.defense === 1 ? "" : `  {tower} +${Math.round((r.defense - 1) * 100)}%`;
+  // A river square defends at half again (the original's River), unless its terrain gives more.
+  const defenseMul = t.river && !state.freecivYields ? Math.max(1.5, r.defense) : r.defense;
+  const defence = defenseMul === 1 ? "" : `  {tower} +${Math.round((defenseMul - 1) * 100)}%`;
   lines.push(`{food} ${yld.food}  {shield} ${yld.shields}  {trade} ${yld.trade}  {boot} ${r.moveCost}${defence}`);
+  lines.push(TERRAIN_TEXT[t.terrain]);
+  // Grassland's first special counts only in games before version 26 (`tileYield`).
+  const sp = !state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial ? undefined : specialOf(t);
   const features = [
-    specialOf(t) && `{star} ${specialOf(t)!.name}`,
-    t.river && "{river} River",
+    sp && `{star} ${sp.name} ${specialGain(sp)}`,
+    t.grassShield && t.terrain === Terrain.Grassland && "{shield} Shield grassland +1 {shield}",
+    t.river && `{river} River +1 {trade}${state.freecivYields ? "" : ", no road trade"}`,
     t.railroad ? "{railroad} Railroad" : t.road && "{road} Road",
     t.irrigation && "{irrigate} Irrigation",
     t.mine && "{mine} Mine",
@@ -671,6 +706,17 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     if (work.length) lines.push(`Improvements:  ${work.join("  ")}`);
   }
   if (city) lines.push(`{city} ${city.name} (${state.players[city.owner]!.name}), size ${city.size}`);
+  else {
+    // Whose land it is, by the borders of the cities we know, and which city of ours works it.
+    const owner = ownerAt(territory(state), x, y);
+    const worker = state.cities.find((c) => c.owner === me.id && c.worked.some((slot) => {
+      const [dx, dy] = CITY_RADIUS[slot]!;
+      return wrapX(map, c.x + dx) === wrapX(map, x) && c.y + dy === y;
+    }));
+    const land = owner >= 0 ? (owner === me.id ? "Our land" : `Land of the ${state.players[owner]?.name ?? "unknown"}`) : "";
+    const worked = worker ? `${land ? "worked" : "Worked"} by ${worker.name}` : "";
+    if (land || worked) lines.push(`{crown} ${[land, worked].filter(Boolean).join(", ")}`);
+  }
   // A square the map suggests for the settlers in play says why.
   const site = settlerSites(state, state.activeUnit).find((s) => s.x === wrapX(map, x) && s.y === y);
   if (site) lines.push(`{city} ${siteNote(state, site, me.id)}`);
@@ -692,7 +738,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     }
   }
   // The title names the square's resource and river beside its terrain: "Jungle (Cotton)".
-  const extras = [specialOf(t)?.name, t.river ? "River" : undefined].filter(Boolean);
+  const extras = [sp?.name, t.river ? "River" : undefined].filter(Boolean);
   return { title: `${TERRAIN_NAMES[t.terrain]}${extras.length ? ` (${extras.join(", ")})` : ""}`, lines };
 }
 

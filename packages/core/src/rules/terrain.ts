@@ -3,9 +3,11 @@ import { Terrain } from "../types.js";
 /**
  * Terrain ruleset. Yields are food/shields/trade per worked tile; move cost is
  * in whole movement points (stored internally in thirds); defense is a
- * multiplier applied to the defender. Values were checked against FreeCiv's
- * civ1 ruleset: only forest, swamp and jungle change terrain under the
- * plough, nothing is mined into forest, and mountains mine for +1.
+ * multiplier applied to the defender. Values follow the 1991 game's own tables
+ * (asked for 2026-10-23: "same as civilization 1, the original"): forest, swamp
+ * and jungle change terrain under the plough, grassland, plains, swamp and
+ * jungle are mined into forest (games before save version 26, `freecivYields`,
+ * had FreeCiv's civ1 numbers: nothing mined into forest), mountains mine for +1.
  */
 /**
  * A special resource and what it adds to its square; `learned` adds more for a worker whose
@@ -73,9 +75,11 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Grassland]: {
     food: 2, shields: 0, trade: 0, moveCost: 1, defense: 1,
     // Grassland "resources" (the shield variant) are handled as a special.
+    // Games before version 26 only: since then grassland's shields lie on the original's bands (`grassShieldAt`).
     special: { name: "Resources", shields: 1 },
     second: { name: "Cotton", trade: 2, learned: { advance: "weaving", shields: 1 }, since: 17 },
     irrigate: { food: 1, turns: 5 },
+    mine: { becomes: Terrain.Forest, turns: 10 },
     road: { trade: 1, turns: 2 },
   },
   [Terrain.Plains]: {
@@ -84,6 +88,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     // Pots keep the harvest.
     second: { name: "Wheat", food: 2, learned: { advance: "pottery", food: 1 }, since: 17 },
     irrigate: { food: 1, turns: 5 },
+    mine: { becomes: Terrain.Forest, turns: 15 },
     road: { trade: 1, turns: 2 },
   },
   [Terrain.Forest]: {
@@ -144,6 +149,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     special: { name: "Peat", shields: 4 },
     second: { name: "Spices", food: 2, trade: 4, since: 18 },
     irrigate: { becomes: Terrain.Grassland, turns: 15 },
+    mine: { becomes: Terrain.Forest, turns: 15 },
     road: { trade: 0, turns: 4 },
     rough: true,
   },
@@ -152,6 +158,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     special: { name: "Gems", trade: 4 },
     second: { name: "Fruit", food: 3, trade: 1, since: 18 },
     irrigate: { becomes: Terrain.Grassland, turns: 15 },
+    mine: { becomes: Terrain.Forest, turns: 15 },
     road: { trade: 0, turns: 4 },
     rough: true,
   },
@@ -164,6 +171,15 @@ export function secondKind(rule: TerrainRule, resources?: number): SpecialRule |
 }
 
 /** The special on a square, if it has one: its terrain's second kind where the square says so, else the first. */
+/**
+ * Whether square (x, y) lies on the original's bands of shield grassland: diagonal stripes two squares
+ * wide, every other pair (x + y modulo 4 being 0 or 3), as the 1991 game lays them on grassland and rivers.
+ */
+export function grassShieldAt(x: number, y: number): boolean {
+  const m = (x + y) % 4;
+  return m === 0 || m === 3;
+}
+
 export function specialOf(tile: { terrain: Terrain; special: boolean; secondSpecial?: boolean }): SpecialRule | undefined {
   if (!tile.special) return undefined;
   const r = TERRAIN_RULES[tile.terrain];

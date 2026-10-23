@@ -119,7 +119,9 @@ describe("civilization traits", () => {
   it("adds science, tax and content citizens, and cuts corruption", () => {
     for (const [civ, field] of [["greeks", "science"], ["persians", "tax"]] as const) {
       const s = world(civ);
-      for (const t of s.map.tiles) { t.river = true; t.road = true; }
+      // Sea all round the city, two trade a square, so a quarter more shows.
+      for (const t of s.map.tiles) t.terrain = Terrain.Ocean;
+      getTile(s.map, 10, 10)!.terrain = Terrain.Grassland;
       const c = foundCity(s, 0, 10, 10);
       c.size = 4;
       autoAssignWorkers(s, c);

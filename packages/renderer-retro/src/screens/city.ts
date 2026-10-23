@@ -13,6 +13,7 @@ import {
   productionName,
   slotAvailable,
   slotInLand,
+  Terrain,
   tileYield,
   turnToYear,
   wonder,
@@ -22,7 +23,7 @@ import {
 } from "@civ/core";
 import { cityLook, cityMood, cityUnits, fieldSides, MOOD_STAGE_ICONS, type IconName } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
-import { drawFortress, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
+import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
@@ -322,6 +323,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       const ground = terrainSquare(state.map, wx, my, me.explored);
       s.blit(ground, px, py);
       if (tile.irrigation) drawIrrigation(s, px, py, ground, tile.terrain, wx, my, fieldSides(state.map, me.explored, wx, my));
+      if (tile.grassShield && tile.terrain === Terrain.Grassland) drawGrassShield(s, px, py, ground);
       drawRoad(s, px, py, state.map, me.explored, wx, my, ground);
       drawRailroad(s, px, py, state.map, me.explored, wx, my);
       if (tile.mine) drawMine(s, px, py);
