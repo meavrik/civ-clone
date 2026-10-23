@@ -1,9 +1,7 @@
-import { civ, type GameState } from "@civ/core";
-import { AUDIENCE_CHOICES, leaderTitle, LEADER_PORTRAITS, realmName, type DiplomacyView } from "@civ/renderer-api";
+import type { GameState } from "@civ/core";
+import { AUDIENCE_CHOICES, leaderTitle, realmName, type DiplomacyView } from "@civ/renderer-api";
 import { drawText, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { C, shade } from "../palette.js";
-import { RULER_SHEET, spriteSurface } from "../sprites/index.js";
-import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_W, type Surface } from "../surface.js";
 import { drawStone, INK } from "../widgets.js";
 
@@ -11,7 +9,7 @@ import { drawStone, INK } from "../widgets.js";
  * The audience with a foreign leader, after the user's mock-up (2026-10-22): the realm's name in gold on a
  * navy strip, room on stone for the user's picture of the leader in their palace (`AUDIENCE_PICTURE`: the
  * apps lay the picture itself over the canvas there, as it is, since this screen's 256 colours cannot hold
- * it; beneath, the leader's portrait stands in), then a navy panel with the leader's name, their words and
+ * it; beneath, a dusk sky), then a navy panel with the leader's name, their words and
  * our choices as up to four of the game's stone buttons.
  */
 
@@ -67,7 +65,7 @@ export function drawDiplomacyScreen(s: Surface, state: GameState, view: Diplomac
   framed(s, 0, TITLE.y, SCREEN_W, TITLE.h, NAVY());
   drawSpaced(s, SCREEN_W / 2, TITLE.y + 2, realmName(state, view.player), GOLD_INK());
   drawStone(s, 0, SCENE.y, SCREEN_W, SCENE.h);
-  drawScene(s, state, view.player);
+  drawScene(s);
   framed(s, 0, PANEL.y, SCREEN_W, PANEL.h, NAVY());
   drawSpaced(s, SCREEN_W / 2, PANEL.y + 3, leaderTitle(state, view.player), GOLD_INK());
   wrapText(view.line, SCREEN_W - 20).slice(0, 2).forEach((l, i) => drawText(s, Math.floor((SCREEN_W - textWidth(l)) / 2), PANEL.y + 11 + i * FONT_HEIGHT, l, C.WHITE!));
@@ -75,16 +73,13 @@ export function drawDiplomacyScreen(s: Surface, state: GameState, view: Diplomac
   buttonRects(choices.length).forEach((b, i) => drawChoice(s, b, choices[i]!, i === (view.selected ?? 0)));
 }
 
-/** What lies under the leader's picture: their portrait on a dusk sky (seen until the picture has loaded). */
-function drawScene(s: Surface, state: GameState, player: number): void {
-  const name = LEADER_PORTRAITS[civ(state.players[player]!.civ).id];
+/** What lies under the leader's picture: a dusk sky (seen only until the picture has loaded). */
+function drawScene(s: Surface): void {
   const k = s.k;
   for (let fy = 0; fy < SCENE.h * k; fy++) {
     const f = (fy / (SCENE.h * k)) * 3;
     for (let fx = 0; fx < SCENE.w * k; fx++) s.fset(SCENE.x * k + fx, SCENE.y * k + fy, shade("azure", Math.floor(f + ((fx + fy) % 2) * 0.5)));
   }
-  const portrait = name ? spriteSurface(RULER_SHEET, name) : null;
-  if (portrait) s.fblit(portrait, (SCENE.x + SCENE.w - 70) * k, (SCENE.y + SCENE.h) * k - portrait.fh, SPRITE_CLEAR);
 }
 
 /** A choice: the game's stone, raised, its words in ink; the lit one framed in gold. */

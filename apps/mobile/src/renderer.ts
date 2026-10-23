@@ -30,6 +30,7 @@ import {
   drawTitleScreen,
   drawSetupScreen,
   setupCardAt,
+  setupPictureSpots,
   drawWorldMap,
   menuBarAnchor,
   menuBarHit,
@@ -56,7 +57,7 @@ import {
 } from "@civ/renderer-retro";
 import type * as WebRenderer from "../../web/src/retro-renderer.js";
 import { screenW } from "./display.js";
-import { preloadScenes, sceneOf, showScene, type ScenePlace } from "../../web/src/scene.js";
+import { portraitPlace, preloadScenes, scenePlace, showPictures, type PicturePlace } from "../../web/src/pictures.js";
 import { MapPan } from "./pan.js";
 
 /**
@@ -169,8 +170,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
   let wide = new Surface(screenW(), SCREEN_H, undefined, DETAIL);
   let image = ctx.createImageData(wide.fw, wide.fh);
   let wideFrame = false;
-  /** The audience picture this frame shows, if any (`showScene` places it as the frame is presented). */
-  let picture: ScenePlace | null = null;
+  /** The user's pictures this frame shows (`showPictures` lays them over the canvas as the frame is presented). */
+  let pictures: PicturePlace[] = [];
+  /** A box of the 320x200 screen, in the middle of the wide canvas. */
+  const onScreen = (b: { x: number; y: number; w: number; h: number }) => ({ ...b, x: b.x + inset(), logicalW: screenW(), logicalH: SCREEN_H });
   const surface = () => (wideFrame ? wide : narrow);
   /** A 320x200 screen: drawn as the web game draws it. */
   const screen = <A extends unknown[]>(draw: (s: Surface, ...args: A) => void) => (...args: A) => {
@@ -195,7 +198,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     researchListRows: RESEARCH_LIST_ROWS,
     beginFrame() {
-      picture = null;
+      pictures = [];
       shown.input = undefined;
       wideFrame = false;
       if (wide.width !== screenW()) {
@@ -225,10 +228,13 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
           for (let x = 0; x < narrow.fw; x++) paint((y * wide.fw + off + x) * 4, narrow.data[y * narrow.fw + x]!);
       }
       ctx.putImageData(image, 0, 0);
-      showScene(canvas, picture);
+      showPictures(canvas, pictures);
     },
     title: screen((s, at: number) => drawTitleScreen(s, at)),
-    setup: screen((s, cards: SetupCards, selected: number, at: number) => drawSetupScreen(s, cards, selected, at)),
+    setup: screen((s, cards: SetupCards, selected: number, at: number) => {
+      drawSetupScreen(s, cards, selected, at);
+      for (const { portrait, ...box } of setupPictureSpots(cards, selected)) pictures.push(portraitPlace(portrait, onScreen(box)));
+    }),
     setupHit: (cards, px, py) => setupCardAt(cards, px - inset(), py),
     main(state, view) {
       wideFrame = true;
@@ -253,8 +259,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     diplomacy: screen((s, state: GameState, view: DiplomacyView) => {
       drawDiplomacyScreen(s, state, view);
       // The leader's picture as it is, over the room the screen leaves for it (the screen in the middle).
-      const name = sceneOf(state, view.player);
-      picture = name ? { name, ...AUDIENCE_PICTURE, x: AUDIENCE_PICTURE.x + inset(), logicalW: screenW(), logicalH: SCREEN_H } : null;
+      const scene = scenePlace(state, view.player, onScreen(AUDIENCE_PICTURE));
+      if (scene) pictures.push(scene);
     }),
     diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px - inset(), py),
     prepare: (state) => preloadScenes(state),

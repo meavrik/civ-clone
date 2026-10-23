@@ -26,6 +26,7 @@ import {
   drawTitleScreen,
   drawSetupScreen,
   setupCardAt,
+  setupPictureSpots,
   menuHit,
   menuRows,
   menuScrollAt,
@@ -50,7 +51,7 @@ import {
   DETAIL,
 } from "@civ/renderer-retro";
 import { wrapX, type GameState } from "@civ/core";
-import { preloadScenes, sceneOf, showScene, type ScenePlace } from "./scene.js";
+import { portraitPlace, preloadScenes, scenePlace, showPictures, type PicturePlace } from "./pictures.js";
 
 /**
  * The 1991-style renderer behind the screen API: an indexed framebuffer laid out on 320x200,
@@ -60,8 +61,9 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
   const ctx = canvas.getContext("2d", { alpha: false })!;
   const screen = Surface.screen();
   const image = ctx.createImageData(screen.fw, screen.fh);
-  /** The audience picture this frame shows, if any (`showScene` places it as the frame is presented). */
-  let picture: ScenePlace | null = null;
+  /** The user's pictures this frame shows (`showPictures` lays them over the canvas as the frame is presented). */
+  let pictures: PicturePlace[] = [];
+  const screenBox = { logicalW: SCREEN_W, logicalH: SCREEN_H };
   return {
     id: "retro",
     width: SCREEN_W,
@@ -71,7 +73,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     viewTilesY: VIEW_TILES_Y,
     researchListRows: RESEARCH_LIST_ROWS,
     beginFrame() {
-      picture = null;
+      pictures = [];
     },
     present() {
       const px = image.data;
@@ -84,10 +86,13 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
         px[j + 3] = 255;
       }
       ctx.putImageData(image, 0, 0);
-      showScene(canvas, picture);
+      showPictures(canvas, pictures);
     },
     title: (at) => drawTitleScreen(screen, at),
-    setup: (cards, selected, at) => drawSetupScreen(screen, cards, selected, at),
+    setup: (cards, selected, at) => {
+      drawSetupScreen(screen, cards, selected, at);
+      for (const { portrait, ...box } of setupPictureSpots(cards, selected)) pictures.push(portraitPlace(portrait, { ...box, ...screenBox }));
+    },
     setupHit: (cards, px, py) => setupCardAt(cards, px, py),
     main: (state, view) => drawMainScreen(screen, state, view),
     city: (state, view: CityScreenView) => drawCityScreen(screen, state, view),
@@ -104,8 +109,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     diplomacy: (state, view) => {
       drawDiplomacyScreen(screen, state, view);
       // The leader's picture as it is, over the room the screen leaves for it.
-      const name = sceneOf(state, view.player);
-      picture = name ? { name, ...AUDIENCE_PICTURE, logicalW: SCREEN_W, logicalH: SCREEN_H } : null;
+      const scene = scenePlace(state, view.player, { ...AUDIENCE_PICTURE, ...screenBox });
+      if (scene) pictures.push(scene);
     },
     diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px, py),
     prepare: (state) => preloadScenes(state),

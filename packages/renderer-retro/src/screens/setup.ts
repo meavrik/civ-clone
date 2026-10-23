@@ -2,17 +2,16 @@ import { TRIBE_COLUMNS, type SetupCard, type SetupCards } from "@civ/renderer-ap
 import { drawTextCentered, FONT_HEIGHT, wrapText } from "../font.js";
 import { drawIconLine, wrapIcons } from "../icons.js";
 import { C, shade, slotColor } from "../palette.js";
-import { PORTRAIT_SHEET, RULER_SHEET, spriteSurface } from "../sprites/index.js";
-import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
 import { DIM, drawStone, drawWindow, INK, NOTE } from "../widgets.js";
 import { drawStars } from "./title.js";
 
 /**
  * The setup questions with portraits (`setupCards`), on the opening's night sky under the question:
- * difficulty as a row of tall cards, each ruler large, the panel under them saying what the level
- * changes; the tribes as a grid of small cards, each leader as fine as the map's art, beside a panel
- * with the selected leader large and what the tribe brings.
+ * difficulty as a row of tall cards, the panel under them saying what the level changes; the tribes as a
+ * grid of small cards beside a panel with the selected leader large and what the tribe brings. The
+ * portraits are the user's pictures as they are, which the apps lay over the canvas where this screen
+ * leaves room for them (`setupPictureSpots`); here only the sky behind them is drawn.
  */
 
 interface Box { x: number; y: number; w: number; h: number }
@@ -54,6 +53,20 @@ function layout(cards: SetupCards): SetupLayout {
   return { cards: out, insets, panel: { x: px, y: TOP, w: SCREEN_W - 3 - px, h: SCREEN_H - 2 - TOP } };
 }
 
+/** Where each portrait goes, in screen pixels: every card's, then for the tribes the selected one's large in the panel. */
+export function setupPictureSpots(cards: SetupCards, selected: number): { portrait: string; x: number; y: number; w: number; h: number }[] {
+  const l = layout(cards);
+  const spots = cards.cards.map((c, i) => ({ portrait: c.portrait, ...l.insets[i]! }));
+  const card = cards.cards[selected];
+  if (cards.grid && card) spots.push({ portrait: card.portrait, ...panelInset(l.panel) });
+  return spots;
+}
+
+/** The large portrait's place in the tribes' panel. */
+function panelInset(b: Box): Box {
+  return { x: b.x + Math.floor((b.w - 54) / 2), y: b.y + 16, w: 54, h: 52 };
+}
+
 /** The card under a point, or -1. */
 export function setupCardAt(cards: SetupCards, px: number, py: number): number {
   return layout(cards).cards.findIndex((b) => px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h);
@@ -77,7 +90,7 @@ function drawCard(s: Surface, card: SetupCard, b: Box, inset: Box, large: boolea
     s.frame(b.x, b.y, b.w, b.h, shade("azure", 5));
   } else drawStone(s, b.x, b.y, b.w, b.h);
   if (card.band !== undefined) s.rect(b.x + 1, b.y + 1, b.w - 2, 1, slotColor(card.band));
-  drawPortrait(s, card, inset, large);
+  drawPortrait(s, card, inset);
   const ink = lit ? C.WHITE! : INK;
   if (!large) {
     drawTextCentered(s, b.x + b.w / 2, inset.y + inset.h, card.label, ink);
@@ -88,14 +101,10 @@ function drawCard(s: Surface, card: SetupCard, b: Box, inset: Box, large: boolea
   if (card.note) drawTextCentered(s, b.x + b.w / 2, y + FONT_HEIGHT, card.note, lit ? shade("azure", 7) : DIM);
 }
 
-/** A portrait on a soft backdrop, framed (in the tribe's colour if it has one), its shoulders on the inset's foot. */
-function drawPortrait(s: Surface, card: SetupCard, b: Box, large: boolean): void {
+/** A portrait's place: a soft sky framed (in the tribe's colour if it has one); the portrait itself is laid over it. */
+function drawPortrait(s: Surface, card: SetupCard, b: Box): void {
   s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, card.band !== undefined ? slotColor(card.band) : C.BLACK!);
   backdrop(s, b);
-  const k = s.k;
-  // The user's portraits, a pixel to each fine pixel: large (the rulers sheet) or small (the tribes' grid).
-  const sprite = spriteSurface(large ? RULER_SHEET : PORTRAIT_SHEET, card.portrait);
-  if (sprite) s.fblit(sprite, b.x * k + Math.floor((b.w * k - sprite.fw) / 2), (b.y + b.h) * k - sprite.fh, SPRITE_CLEAR);
 }
 
 /** A sky-blue ground behind a portrait, lighter toward the foot, dithered between its bands. */
@@ -121,8 +130,8 @@ function drawPanel(s: Surface, card: SetupCard, b: Box): void {
 /** Beside the tribes: the tribe's name, its leader large and named, the trait picked out, then the rest. */
 function drawSidePanel(s: Surface, card: SetupCard, b: Box): void {
   drawWindow(s, b.x, b.y, b.w, b.h, card.heading, { centred: true });
-  const inset = { x: b.x + Math.floor((b.w - 54) / 2), y: b.y + 16, w: 54, h: 52 };
-  drawPortrait(s, card, inset, true);
+  const inset = panelInset(b);
+  drawPortrait(s, card, inset);
   let y = inset.y + inset.h + 4;
   if (card.subtitle) { drawTextCentered(s, b.x + b.w / 2, y, card.subtitle, INK); y += FONT_HEIGHT + 4; }
   drawLines(s, card, b.x + 6, y, b.w - 11, b.y + b.h - 1);

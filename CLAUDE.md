@@ -217,13 +217,15 @@ Never ship the original's sprites, palette art, fonts or text.
   power, town patches and landmarks, were not liked): `setupCards(setup)` gives difficulty and the tribe as
   cards with portraits, in `setupMenu`'s order (null for the rest, the number of civilizations included:
   plain menus). Difficulty: a row of its rulers (chieftain, warlord, prince, king, emperor, as the original
-  showed them; the user's portraits, the `rulers` sheet, 104x104 drawn a fine pixel each), the panel under
+  showed them), the panel under
   them saying what the level changes (`DIFFICULTY_RULES`). Tribes: a grid of
   their leaders (`LEADER_PORTRAITS`, `TRIBE_COLUMNS` across), framed in the tribe's colour, beside a panel
   with the leader large, the trait, the first advance and the capital. All of them are the user's
-  portraits: the `rulers` sheet (104x104, the five rulers and the twenty leaders, drawn large a fine pixel
-  each) and `portraits` (the leaders at 48x48 for the grid), both made by `tools/sprites/draw/rulers.ts`
-  (rerun it after changing a picture, or edit the sheets as PNGs like any other). `Renderer.setup`/`setupHit`; the web app lights
+  portraits shown as supplied (asked for 2026-10-22, "don't change or distort": converted into the palette
+  they had lost detail and colour): `apps/web/src/portraits/<name>.webp` (the PNGs at their own sizes,
+  WebP quality 92 with exact alpha), laid over the canvas whole, shape kept, standing on the foot of the
+  places `setupPictureSpots` gives (every card's, and the panel's), the screen drawing only a sky
+  behind them; `pictures.ts` in the web app as for the audience. `Renderer.setup`/`setupHit`; the web app lights
   the card under the pointer and picks it on a click (a first tap on the phone lights it); arrows move in
   two dimensions, Enter picks. Modern shows the cards' labels as its old menu.
   Map clicks (asked for 2026-10-22): left-click opens our city or picks our unit as ever; otherwise,
@@ -366,8 +368,7 @@ Never ship the original's sprites, palette art, fonts or text.
   back into `src/art`, rejecting any pixel outside the sprite's palette legend; `npm run sprites -- icons`
   draws the mobile app's icons (a walled city, `icons.ts`) into `apps/mobile/public/icons`. A sprite may
   name up to five ramps (`ramps=a,b,c,d,e`; characters 0-7, a-h, A-H, JKLMOQST, jloqstvx), for pictures
-  of many colours (the portraits). `draw/*.ts` make sheets: `rulers.ts` (the user's portraits, the rulers
-  and the leaders), `cities.ts`, `features.ts`.
+  of many colours. `draw/*.ts` make sheets: `cities.ts`, `features.ts`.
 - `packages/renderer-modern` — canvas-2D renderer on a 960x600 logical surface (same panel/
   viewport split, 48px tiles): `theme.ts` (all colours and fonts), `draw.ts` (panels, wrapped
   text, bars), `tiles.ts`/`markers.ts` (terrain, overlays, units, cities), `screens/*`. It draws
@@ -394,11 +395,11 @@ Never ship the original's sprites, palette art, fonts or text.
   `pagedChoices` in the web app; arrows, Enter or 1-4 pick, Esc steps back, the pointer lights a button).
   The pictures are shown as they are, full size and true colour (asked for, 2026-10-22: squeezed into the
   palette at 224x126 they looked "bad and distorted"): `apps/web/src/scenes/<leader>.webp` (the PNGs as
-  supplied, WebP quality 92), laid over the canvas as an <img> by `scene.ts` (`showScene`, once a frame
-  from each retro adapter's `present`; it lets clicks through) in the room the screen leaves for them
-  (`AUDIENCE_PICTURE` in renderer-retro, which draws the leader's portrait there beneath, seen until the
-  picture loads); `Renderer.prepare` preloads a game's leaders as it starts or loads. The one place the
-  retro look is not drawn through the palette. The phone app caches each picture when first shown,
+  supplied, WebP quality 92), laid over the canvas as an <img> by `pictures.ts` (`showPictures`, once a
+  frame from each retro adapter's `present`; they let clicks through) in the room the screen leaves for
+  them (`AUDIENCE_PICTURE` in renderer-retro, which draws a dusk sky there beneath, seen until the picture
+  loads); `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits,
+  the only things the retro look does not draw through the palette. The phone app caches each picture when first shown,
   not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
   into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
   whether they admire or scorn us (`regardWords`). Stepping onto land that minds us (once a
@@ -594,12 +595,10 @@ text), second special resources with reaches (save version 20; the branch's own 
 - Art is ours: draw new sprites in the text grids or a paint program and import them. Do not use
   image generators or the original game's files for shipped art. Exception the user made (2026-10-21):
   the terrain, unit and resource sheets were supplied by the user as reference images and copied in
-  pixel for pixel; likewise (2026-10-22) the five difficulty rulers and the twenty tribal leaders, supplied
-  as large portraits (`tools/sprites/draw/rulers/*.png` as supplied, `leaders/*.png` kept at a third of
-  their size) and converted by `rulers.ts` (cropped, laid on a 104 or 48 grid, each cell
-  the palette colour most of its pixels are nearest to, from five ramps picked per picture; the palette
-  has no purple, so the emperor's purple robe came out royal blue); the twenty audience pictures are shown
-  as supplied, not converted (see the audience screen above; the user said not to generate new images); new art drawn here follows their manner (see `packages/renderer-retro` above) and
+  pixel for pixel. The user's portraits (2026-10-22: the five difficulty rulers, the twenty leaders, the
+  twenty audience scenes) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
+  (asked for, twice, emphatically: conversions into the palette looked "bad and distorted", and new
+  images must not be generated); see the setup cards and the audience screen above; new art drawn here follows their manner (see `packages/renderer-retro` above) and
   the user's pixel-art rules: even chunky strokes, one-pixel outlines in dark shades of the thing's own
   colours (no heavy black), the blocky 5x7 text, nothing algorithmically thinned or smoothed.
 - Commit per phase or per feature; messages in imperative mood.
