@@ -148,6 +148,23 @@ interface MenuLayout {
   rows: number; top: number;
 }
 
+/** How far round the point a window keeps clear of (`MenuState.avoid`): a square of the map either way. */
+const AVOID = 16;
+
+/**
+ * A window at (x, y), moved off the point it must keep clear of: below the point if it fits there,
+ * else above, else to its right or left; where it already stands clear it stays.
+ */
+function clearOf(p: { x: number; y: number }, x: number, y: number, w: number, h: number, screenW: number): [number, number] {
+  const covers = (wx: number, wy: number) => wx < p.x + AVOID && wx + w > p.x - AVOID && wy < p.y + AVOID && wy + h > p.y - AVOID;
+  if (!covers(x, y)) return [x, y];
+  if (p.y + AVOID + h <= SCREEN_H) return [x, p.y + AVOID];
+  if (p.y - AVOID - h >= 0) return [x, p.y - AVOID - h];
+  const ty = Math.max(0, Math.min(SCREEN_H - h, Math.floor((SCREEN_H - h) / 2)));
+  if (p.x + AVOID + w <= screenW) return [p.x + AVOID, ty];
+  return [Math.max(0, p.x - AVOID - w), ty];
+}
+
 /** Where a menu goes on a screen `screenW` wide: centred, or at its anchor kept on the screen. */
 function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
   const buttons = menuButtons(m);
@@ -172,8 +189,9 @@ function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
   const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
   const itemsH = buttons ? m.items.length * BUTTON_ROW + 1 : rows * row;
   const h = head + picH + bodyH + itemsH + foot;
-  const x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
-  const y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
+  let x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
+  let y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
+  if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
   return { x, y, w, h, lines, itemsY: y + head + picH + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, picH, rows, top };
 }

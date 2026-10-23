@@ -717,7 +717,7 @@ function stepTo(u: { x: number }, tx: number): number {
 }
 
 /** Right-click on the map: what is known about the square, with a few things to do about it. */
-function openTerrainInfo(tx: number, ty: number): void {
+function openTerrainInfo(tx: number, ty: number, at?: { x: number; y: number }): void {
   const info = terrainInfo(state, tx, ty);
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
   const items: [string, () => void][] = [];
@@ -726,7 +726,12 @@ function openTerrainInfo(tx: number, ty: number): void {
   if (city && city.owner === 0) items.push(["Open city", () => openCity(city.id)]);
   // Closed by its X (or any click off its choices, or Esc); nothing is picked until a choice is.
   modal(info.title, info.lines, items.map((i) => i[0]), (i) => items[i]?.[1](), -1);
-  if (screenState.kind === "menu") screenState.menu.close = true;
+  if (screenState.kind === "menu") {
+    screenState.menu.close = true;
+    // Opened by a click on the map: the window stands clear of that square, so a second click there
+    // only closes it; going there takes the Go here button (asked for 2026-10-23).
+    if (at) screenState.menu.avoid = at;
+  }
 }
 
 /** What the city works its squares for (its Focus button, or F): every citizen is put to work for it at once. */
@@ -2173,7 +2178,7 @@ canvas.addEventListener("mousedown", (e) => {
   const { x: tx, y: ty } = hit;
 
   // Right-click: the square's window (terrain, what is on it, and a few things to do about it).
-  if (e.button === 2) { openTerrainInfo(tx, ty); return; }
+  if (e.button === 2) { openTerrainInfo(tx, ty, { x: px, y: py }); return; }
   // A double click centres the map on its square (the move its first click showed is dropped, not made).
   // Its second click is matched by where it lands on the screen: the first may have set the map gliding.
   const now = performance.now();

@@ -40,6 +40,22 @@ describe("menus", () => {
     writeFileSync(new URL("./out/menu-scroll.png", import.meta.url), encodePng(s, 3));
   });
 
+  it("open a square's window clear of the square clicked, so a second click there picks nothing", () => {
+    const at = (x: number, y: number): MenuState => ({ title: "Jungle", body: ["{food} 1  {shield} 0", "Improvements: {irrigate} into Grassland"], items: ["Go here"], selected: -1, close: true, avoid: { x, y } });
+    const centred = menuRect({ ...at(0, 0), avoid: undefined } as MenuState);
+    // Wherever the click falls, nothing of the window lies within a square of it.
+    for (const [x, y] of [[centred.x + centred.w / 2, centred.y + centred.h - 8], [200, 100], [200, 180], [200, 20], [90, 100], [310, 100]] as const) {
+      const m = at(x, y);
+      const r = menuRect(m);
+      expect(r.x < x + 16 && r.x + r.w > x - 16 && r.y < y + 16 && r.y + r.h > y - 16).toBe(false);
+      expect(menuHit(m, x, y)).toBe(-1);
+      expect(r.x).toBeGreaterThanOrEqual(0);
+      expect(r.y + r.h).toBeLessThanOrEqual(200);
+    }
+    // Clear of the point already: it stays centred.
+    expect(menuRect(at(300, 190))).toEqual(centred);
+  });
+
   it("move the window as little as it must to show the choice", () => {
     const m = longList(0);
     expect(keepInView(m, 10)).toBe(0);

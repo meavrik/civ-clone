@@ -184,6 +184,12 @@ export interface MenuState {
   top?: number;
   /** An X at the right of the title strip, for a window with nothing to choose but to close it (a click off the choices closes any window). */
   close?: boolean;
+  /**
+   * A point on the screen (the square right-clicked) the window keeps clear of, by about a square
+   * all round, moving above or below it (else beside it), so none of its buttons opens under the
+   * pointer and a second click there only closes it. Modern ignores it.
+   */
+  avoid?: { x: number; y: number };
 }
 
 /** A menu's first row shown, moved as little as it must be to keep the selected row among the `rows` on view. */

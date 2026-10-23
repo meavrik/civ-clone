@@ -237,7 +237,8 @@ Never ship the original's sprites, palette art, fonts or text.
   A double click (two left clicks within `DOUBLE_CLICK_MS`, 300 ms, on the same screen point: the first
   may set the map gliding) centres the map on the first click's square and drops its plan, unmade.
   Right-click opens the square's window (`terrainInfo`: title "Jungle (Cotton)", the resource and river
-  beside the terrain; an Improvements line; buttons Go here, Open city), closed by the X in its title
+  beside the terrain; an Improvements line; buttons Go here, Open city; it opens clear of the square
+  clicked, `MenuState.avoid`, so a second click there closes it and never lands on Go here), closed by the X in its title
   strip (`MenuState.close`; retro draws it, modern ignores it; any click off a window's choices closes
   it). On the phone a tap is a left-click and a hold a right-click.
   Edge scrolling (asked for 2026-10-23): a mouse resting in the band along an edge of the map
