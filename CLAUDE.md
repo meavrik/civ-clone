@@ -333,9 +333,9 @@ Never ship the original's sprites, palette art, fonts or text.
   end whichever square asks; every square draws whole courses clipped to itself, and the two squares
   beside a diagonal draw their part of it too (`roadWays`), so roads join without seams. Railroads
   lay rails and sleepers (spaced evenly along each course) on the same courses. Retro draws both at the
-  fine grain in the terrain art's manner (asked for 2026-10-23; `wayPixels` in `overlays.ts`): a road
-  is packed earth about 4 fine pixels wide, lighter along its crown, flecked with pebbles, outlined a
-  pixel wide in dark earth; a railroad lays dark sleepers across it with a bright steel rail either
+  fine grain in the terrain art's manner (asked for 2026-10-23, then "too wide, more subtle": `ROAD`,
+  `RAIL` in `overlays.ts`): a road is packed earth about 3 fine pixels wide, lighter along its crown,
+  a few pebbles, outlined a pixel wide in a mid earth; a railroad lays dark sleepers across it with a bright steel rail either
   side shadowed outside. Over a river's water (Bridge Building) the road is a timber deck with its
   planks across the way and a dark railing; elsewhere water under a course stays water. Irrigation is fields:
   plots of crops in rows either side of an east-west canal (`fieldLayout`), running on into

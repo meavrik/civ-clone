@@ -15,16 +15,16 @@ import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sp
  */
 const ROAD = {
   /** Packed earth out to here, lighter along the crown; then the one-pixel outline. */
-  crown: 1.1,
-  fill: 2.1,
-  outline: 3.0,
+  crown: 0.6,
+  fill: 1.5,
+  outline: 2.3,
 };
 const RAIL = {
   /** Sleepers of dark timber across the road beneath; a steel rail either side, bright on top, shadowed outside. */
-  sleeper: 3.2,
-  railIn: 1.2,
-  railTop: 2.0,
-  railOut: 2.7,
+  sleeper: 2.6,
+  railIn: 0.9,
+  railTop: 1.6,
+  railOut: 2.2,
 };
 /** A railroad's sleepers lie across it this many fine pixels apart (as near as fits along each course), two pixels thick. */
 const SLEEPER_GAP = 4;
@@ -43,7 +43,7 @@ const enum Way { None, Outline, Edge, Crown, Speck, Pebble, Sleeper, RailTop, Ra
 /** The colour of each kind of pixel: road and railroad on land, and the timber deck where a road crosses water. */
 const LAND_WAY: Record<Way, number> = {
   [Way.None]: -1,
-  [Way.Outline]: shade("earth", 1),
+  [Way.Outline]: shade("earth", 3),
   [Way.Edge]: shade("earth", 5),
   [Way.Crown]: shade("earth", 6),
   [Way.Speck]: shade("earth", 7),
@@ -95,8 +95,8 @@ function wayPixels(ways: RoadWays, x: number, y: number, rail: boolean): WayPixe
         if (d >= RAIL.railIn && d < RAIL.railTop) k = Way.RailTop;
         else if (d >= RAIL.railTop && d < RAIL.railOut) k = Way.RailFoot;
         else if (d < RAIL.sleeper && (onSleeper || ways.patch)) k = Way.Sleeper;
-      } else if (d < ROAD.crown) k = grain < 0.12 ? Way.Pebble : Way.Crown;
-      else if (d < ROAD.fill) k = grain < 0.1 ? Way.Speck : grain > 0.92 ? Way.Pebble : Way.Edge;
+      } else if (d < ROAD.crown) k = grain < 0.06 ? Way.Pebble : Way.Crown;
+      else if (d < ROAD.fill) k = grain < 0.06 ? Way.Speck : grain > 0.96 ? Way.Pebble : Way.Edge;
       else if (d < ROAD.outline) k = Way.Outline;
       kinds[j * FINE + i] = k;
       seams[j * FINE + i] = Math.floor(along) % PLANK_GAP === 0 ? 1 : 0;
