@@ -91,6 +91,8 @@ import {
   MotionPlayer,
   moveRefusal,
   workRefusal,
+  settlerSites,
+  siteNote,
   PICTURES,
   setupCards,
   setupChoose,
@@ -579,6 +581,17 @@ function edgeDirection(): { dx: number; dy: number } | null {
   const dx = x < area.x + band ? -1 : x >= area.x + area.width - band ? 1 : 0;
   const dy = y < area.y + band ? -1 : y >= area.y + area.height - band ? 1 : 0;
   return dx || dy ? { dx, dy } : null;
+}
+
+/** Each frame: the mouse over a square the map suggests for our settlers says why it is good (`view.hint`). */
+function siteHint(): void {
+  view.hint = undefined;
+  if (!pointer || screenState.kind !== "map" || watching || handoff) return;
+  const hit = renderer.tileAt(state, view, pointer.x, pointer.y);
+  const active = state.activeUnit;
+  if (!hit || active === null) return;
+  const site = settlerSites(state, active).find((s) => s.x === hit.x && s.y === hit.y);
+  if (site) view.hint = { x: site.x, y: site.y, text: siteNote(state, site, 0) };
 }
 
 /** Each frame: pan the camera while the pointer rests in an edge band. */
@@ -2242,7 +2255,7 @@ function frame(t: number): void {
   view.autoEnd = autoEnd;
   view.borders = borders;
   if (screenState.kind === "research") screenState.view.blink = blinkOn;
-  if (screenState.kind !== "title" && screenState.kind !== "setup") { stepCamera(t); stepEdgePan(t); }
+  if (screenState.kind !== "title" && screenState.kind !== "setup") { stepCamera(t); stepEdgePan(t); siteHint(); }
   if (status && t > statusUntil) status = undefined;
   if (view.callout && t > calloutUntil) view.callout = undefined;
   if (view.plan && view.plan.unit !== state.activeUnit) view.plan = undefined;

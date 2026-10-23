@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CITY_SPACING, createUnit, foundCity, getTile, mapDistance, newGame, Terrain, type GameState } from "@civ/core";
-import { settlerSites } from "../src/index.js";
+import { settlerSites, siteNote, terrainInfo } from "../src/index.js";
 
 /** Grassland round (20, 20), all of it seen by player 0, one landmass; the settlers in the middle. */
 function field(): { s: GameState; id: number } {
@@ -49,5 +49,22 @@ describe("suggested city sites", () => {
     const militia = createUnit(s, "militia", 0, 20, 20);
     expect(settlerSites(s, militia.id)).toEqual([]);
     expect(settlerSites(s, null)).toEqual([]);
+  });
+
+  it("say why a site is good, from what the player has seen, in its note and in the square's window", () => {
+    const { s, id } = field();
+    s.activeUnit = id;
+    Object.assign(getTile(s.map, 20, 20)!, { river: true, terrain: Terrain.Hills });
+    getTile(s.map, 21, 21)!.terrain = Terrain.Ocean;
+    getTile(s.map, 18, 19)!.special = true;
+    const best = settlerSites(s, id)[0]!;
+    expect(best).toMatchObject({ x: 20, y: 20, best: true });
+    expect(siteNote(s, best, 0)).toBe("Best place for a city: by a river, on the coast, on hills, easy to hold.");
+    expect(siteNote(s, { x: 26, y: 26, best: false }, 0)).toBe("A good place for a city: rich farmland.");
+    // A resource the player has not seen is not counted.
+    s.players[0]!.explored[19 * s.map.width + 18] = 0;
+    expect(siteNote(s, { x: 18, y: 21, best: false }, 0)).not.toContain("resource");
+    expect(terrainInfo(s, 20, 20).lines).toContain(`{city} ${siteNote(s, best, 0)}`);
+    expect(terrainInfo(s, 12, 12).lines.some((l) => l.includes("place for a city"))).toBe(false);
   });
 });

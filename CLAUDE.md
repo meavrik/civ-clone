@@ -254,8 +254,11 @@ Never ship the original's sprites, palette art, fonts or text.
   City sites (asked for 2026-10-23): while our settlers are in play the map pins the best few squares near
   them to found a city on (`settlerSites` in renderer-api: within 6 squares on their own landmass, scored by
   core `siteScore` from what the player has seen, unseen squares counting a plain grassland's worth, clear of
-  known cities by `CITY_SPACING`, apart from each other, nearer preferred): the city icon on a dark plate,
-  rimmed gold for the best, pale for the rest; under the settlers themselves the square's edge is rimmed.
+  known cities by `CITY_SPACING`, apart from each other, nearer preferred), marked quietly (the first pins
+  were "bad": "more abstract, subtle"): a dotted edge round the square (`drawSiteMark`), gold for the best,
+  pale for the rest. The mouse resting on one shows why beside it (`siteNote`: "Best place for a city: by a
+  river, on the coast, 2 resources nearby.", `MainScreenView.hint`, set each frame by the web app's
+  `siteHint`), and the square's window (right-click, or a hold on the phone) carries the same line.
   A refused move (`tryMove` in the web app) nudges the unit toward the square (`MotionPlayer.nudge`,
   a UI-only beat) and puts a note beside it (`view.callout`, words from `moveRefusal` in `refusal.ts`),
   gone after 4 s or at the next key or click. A refused settler job does the same without the nudge

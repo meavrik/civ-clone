@@ -470,7 +470,7 @@ describe("land borders", () => {
 });
 
 describe("settler sites", () => {
-  it("pins the best squares near settlers in play to found a city on, the best rimmed in gold", () => {
+  it("dot the edge of the best squares near settlers in play to found a city on, the best in gold", () => {
     const state = newGame(2026);
     const u = state.units.find((x) => x.id === state.activeUnit)!;
     revealAround(state, 0, u.x, u.y, 7);
@@ -479,22 +479,23 @@ describe("settler sites", () => {
     drawMainScreen(s, state, view);
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/settler-sites.png", import.meta.url), encodePng(s, 3));
-    const sites = settlerSites(state, u.id);
+    const sites = settlerSites(state, u.id).filter((site) => site.x !== u.x || site.y !== u.y);
     expect(sites.length).toBeGreaterThan(0);
-    // The pin's rim at its top edge, a pixel in from its rounded corner; under the settlers, the square's own edge.
-    const rim = (x: number, y: number) => x === u.x && y === u.y
-      ? s.fget((VIEW_X + (x - view.originX) * 16 + 8) * s.k, (VIEW_Y + (y - view.originY) * 16) * s.k)
-      : s.fget((VIEW_X + (x - view.originX) * 16 + 4) * s.k, (VIEW_Y + (y - view.originY) * 16 + 3) * s.k);
-    for (const site of sites) expect(rim(site.x, site.y)).toBe(site.best ? shade("wheat", 6) : shade("panel", 6));
-    // No pins for any other unit in play.
-    const best = sites[0]!;
-    state.units = state.units.filter((x) => x.owner !== 0 || x.type !== "settlers");
+    // A dot on the top edge (fine pixels 3..4, 2..3 of the square), clear of the middle of the square.
+    const dot = (t: Surface, x: number, y: number) => t.fget((VIEW_X + (x - view.originX) * 16) * t.k + 3, (VIEW_Y + (y - view.originY) * 16) * t.k + 2);
+    const middle = (t: Surface, x: number, y: number) => t.fget((VIEW_X + (x - view.originX) * 16) * t.k + 16, (VIEW_Y + (y - view.originY) * 16) * t.k + 16);
+    const bare = Surface.screen();
+    const plain = { ...view };
+    // The same squares drawn with no settlers in play: only the dots differ, never the middle.
     const militia = createUnit(state, "militia", 0, u.x, u.y);
+    for (const site of sites) expect(dot(s, site.x, site.y)).toBe(site.best ? shade("wheat", 7) : shade("panel", 7));
+    state.units = state.units.filter((x) => x.owner !== 0 || x.type !== "settlers");
     state.activeUnit = militia.id;
-    const t = Surface.screen();
-    drawMainScreen(t, state, view);
-    const edge = best.x === u.x && best.y === u.y ? [8, 0] : [4, 3];
-    expect(t.fget((VIEW_X + (best.x - view.originX) * 16 + edge[0]!) * t.k, (VIEW_Y + (best.y - view.originY) * 16 + edge[1]!) * t.k)).not.toBe(shade("wheat", 6));
+    drawMainScreen(bare, state, plain);
+    for (const site of sites) {
+      expect(dot(bare, site.x, site.y)).not.toBe(dot(s, site.x, site.y));
+      expect(middle(bare, site.x, site.y)).toBe(middle(s, site.x, site.y));
+    }
   });
 });
 

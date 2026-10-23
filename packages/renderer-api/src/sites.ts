@@ -1,4 +1,4 @@
-import { canFoundCity, CITY_SPACING, getTile, mapDistance, siteScore, unitById, unitType, wrapX, type GameState } from "@civ/core";
+import { canFoundCity, CITY_RADIUS, CITY_SPACING, getTile, mapDistance, siteScore, specialOf, Terrain, tileYield, unitById, unitType, wrapX, type GameState } from "@civ/core";
 
 /** A square the map suggests for a city while settlers are in play; `best` marks the one to prefer. */
 export interface SuggestedSite {
@@ -72,4 +72,41 @@ export function settlerSites(state: GameState, unitId: number | null): Suggested
   }
   memo.set(state, { key, sites });
   return sites;
+}
+
+/**
+ * Why a suggested site is good, in a line for the note under the mouse and the square's window:
+ * "Best place for a city: by a river, on the coast, 2 resources nearby." Only what `viewer` has seen counts.
+ */
+export function siteNote(state: GameState, site: SuggestedSite, viewer: number): string {
+  const { map } = state;
+  const known = state.players[viewer]?.explored;
+  const t = getTile(map, site.x, site.y)!;
+  let specials = 0;
+  let coast = false;
+  let land = 0;
+  let food = 0;
+  let shields = 0;
+  for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
+    const [dx, dy] = CITY_RADIUS[slot]!;
+    const x = wrapX(map, site.x + dx);
+    const y = site.y + dy;
+    if (y < 0 || y >= map.height || (known && !known[y * map.width + x])) continue;
+    const n = map.tiles[y * map.width + x]!;
+    if (specialOf(n)) specials++;
+    if (n.terrain === Terrain.Ocean) { if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) coast = true; continue; }
+    const yld = tileYield(state, n, false, "monarchy");
+    land++;
+    food += yld.food;
+    shields += yld.shields;
+  }
+  const reasons: string[] = [];
+  if (t.river) reasons.push("by a river");
+  if (coast) reasons.push("on the coast");
+  if (t.terrain === Terrain.Hills) reasons.push("on hills, easy to hold");
+  if (specials) reasons.push(`${specials} resource${specials === 1 ? "" : "s"} nearby`);
+  if (land && food / land >= 2) reasons.push("rich farmland");
+  else if (land && shields / land >= 1.2) reasons.push("plenty of timber and stone");
+  if (!reasons.length) reasons.push("open land all round");
+  return `${site.best ? "Best place for a city" : "A good place for a city"}: ${reasons.slice(0, 3).join(", ")}.`;
 }

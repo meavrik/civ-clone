@@ -207,7 +207,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const settler = active !== null ? state.units.find((u) => u.id === active && u.owner === me.id) : undefined;
   if (settler) for (const site of settlerSites(state, settler.id)) {
     const pos = toScreen(site.x, site.y);
-    if (pos) drawSitePin(s, pos[0], pos[1], site.best, site.x === settler.x && site.y === settler.y);
+    if (pos) drawSiteMark(s, pos[0], pos[1], site.best);
   }
   // A planned move's route, under the units: a dot on each square on the way.
   if (view.plan) for (const [x, y] of view.plan.route.slice(0, -1)) {
@@ -280,6 +280,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   }
 
   if (view.callout) drawCallout(s, state, view, view.callout);
+  else if (view.hint) drawCallout(s, state, view, view.hint);
 
   // Letterbox the bottom half-row like the original's hard panel edge.
   void VIEW_H;
@@ -355,35 +356,25 @@ function drawCallout(s: Surface, state: GameState, view: MainScreenView, c: Call
 }
 
 /**
- * A suggested city site: the city icon on a small dark plate in the middle of the square, rimmed in gold
- * for the best site and in pale stone for the others. Under the settlers themselves (`here`), where the
- * unit would hide a pin, the square's own edge is rimmed instead.
+ * A suggested city site, kept abstract and quiet (asked for 2026-10-23: the pins were "bad"): a dotted
+ * edge round the square, a dot of one screen pixel every few along each side, gold for the best site and
+ * pale for the others. The mouse over it explains the site (`view.hint`).
  */
-function drawSitePin(s: Surface, x: number, y: number, best: boolean, here: boolean): void {
-  const rim = best ? shade("wheat", 6) : shade("panel", 6);
-  const plate = shade("steel", 1);
+const SITE_DOTS = [3, 9, 15, 21, 27];
+function drawSiteMark(s: Surface, x: number, y: number, best: boolean): void {
+  const c = best ? shade("wheat", 7) : shade("panel", 7);
   const k = s.k;
-  if (here) {
-    // A frame a pixel wide round the square, its corners left open.
-    for (let i = k; i < TILE * k - k; i++) {
-      s.fset(x * k + i, y * k, rim);
-      s.fset(x * k + i, y * k + TILE * k - 1, rim);
-      s.fset(x * k, y * k + i, rim);
-      s.fset(x * k + TILE * k - 1, y * k + i, rim);
-    }
-    return;
+  const last = TILE * k - 2 * k;
+  const dot = (i: number, j: number) => {
+    for (let b = 0; b < k; b++) for (let a = 0; a < k; a++) s.fset(x * k + i + a, y * k + j + b, c);
+  };
+  for (const p of SITE_DOTS) {
+    const q = Math.round((p * k) / 2);
+    dot(q, k);
+    dot(q, last);
+    dot(k, q);
+    dot(last, q);
   }
-  const fx = (x + 3) * k;
-  const fy = (y + 3) * k;
-  const n = 10 * k;
-  for (let j = 0; j < n; j++)
-    for (let i = 0; i < n; i++) {
-      const edge = i < k || j < k || i >= n - k || j >= n - k;
-      const corner = (i < k || i >= n - k) && (j < k || j >= n - k);
-      if (corner) continue;
-      s.fset(fx + i, fy + j, edge ? rim : plate);
-    }
-  drawIcon(s, "city", x + 4, y + 4);
 }
 
 /** A dot on a planned route: white, ringed in black so it reads on any ground. */

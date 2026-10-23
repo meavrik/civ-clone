@@ -21,6 +21,7 @@ export * from "./cityview.js";
 export * from "./plan.js";
 export * from "./watch.js";
 export * from "./sites.js";
+import { settlerSites, siteNote } from "./sites.js";
 export * from "./intro.js";
 export * from "./setup.js";
 export * from "./audience.js";
@@ -99,6 +100,8 @@ export interface MainScreenView {
   message?: string | undefined;
   /** A note on the map beside a square: why the unit there could not move. */
   callout?: Callout | undefined;
+  /** A note beside the square under the mouse (why it is a good city site), shown when no `callout` is. */
+  hint?: Callout | undefined;
   /** A move waiting for a second click on its square (`planMove`): its route and a note at its end. */
   plan?: MovePlan | undefined;
   /** Tile the player clicked to inspect; shown instead of the message. */
@@ -668,6 +671,9 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     if (work.length) lines.push(`Improvements:  ${work.join("  ")}`);
   }
   if (city) lines.push(`{city} ${city.name} (${state.players[city.owner]!.name}), size ${city.size}`);
+  // A square the map suggests for the settlers in play says why.
+  const site = settlerSites(state, state.activeUnit).find((s) => s.x === wrapX(map, x) && s.y === y);
+  if (site) lines.push(`{city} ${siteNote(state, site, me.id)}`);
   if (me.visible[idx]) {
     const units = unitAt(state, x, y);
     if (units.length) {
