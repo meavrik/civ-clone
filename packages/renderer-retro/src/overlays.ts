@@ -9,14 +9,15 @@ import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sprites/index.js";
 
 /**
- * Roads and railroads at the fine grain of the terrain art (32 pixels a square), in its manner: flat
- * fills with a one-pixel outline in the darkest of the thing's own colours (asked for 2026-10-23: the old
- * one-pixel track on the coarse grid did not match the terrain). Widths are fine pixels from the course.
+ * Roads and railroads at the fine grain of the terrain art (32 pixels a square), in its flat fills
+ * (asked for 2026-10-23: the old one-pixel track on the coarse grid did not match the terrain; then
+ * "too wide, more subtle" and "drop the outline"). Widths are fine pixels from the course.
  */
 const ROAD = {
-  /** Packed earth out to here, lighter along the crown; then the one-pixel outline. */
+  /** Packed earth out to here, lighter along the crown; no outline on land. */
   crown: 0.6,
   fill: 1.5,
+  /** A bridge's railing, one pixel beyond the deck, where it crosses water. */
   outline: 2.3,
 };
 const RAIL = {
@@ -43,7 +44,7 @@ const enum Way { None, Outline, Edge, Crown, Speck, Pebble, Sleeper, RailTop, Ra
 /** The colour of each kind of pixel: road and railroad on land, and the timber deck where a road crosses water. */
 const LAND_WAY: Record<Way, number> = {
   [Way.None]: -1,
-  [Way.Outline]: shade("earth", 3),
+  [Way.Outline]: -1, // only a bridge's railing
   [Way.Edge]: shade("earth", 5),
   [Way.Crown]: shade("earth", 6),
   [Way.Speck]: shade("earth", 7),
@@ -60,8 +61,8 @@ const wayCache = new Map<string, WayPixels>();
 
 /**
  * A road or railroad across one square (see `roadWays`): each fine pixel's kind and the sprite of
- * it on land, keyed by SPRITE_CLEAR. A road is packed earth, lighter along its crown, flecked with
- * pebbles, outlined a pixel wide in dark earth; a railroad lays dark sleepers across the road with a
+ * it on land, keyed by SPRITE_CLEAR. A road is packed earth, lighter along its crown, with a few
+ * pebbles and no outline; a railroad lays dark sleepers across the road with a
  * steel rail either side, bright on top and shadowed outside, the sleepers spaced evenly along each
  * course so they meet the next square's. A road square with no links is a round patch.
  */
@@ -100,7 +101,7 @@ function wayPixels(ways: RoadWays, x: number, y: number, rail: boolean): WayPixe
       else if (d < ROAD.outline) k = Way.Outline;
       kinds[j * FINE + i] = k;
       seams[j * FINE + i] = Math.floor(along) % PLANK_GAP === 0 ? 1 : 0;
-      if (k !== Way.None) sprite.fset(i, j, LAND_WAY[k]);
+      if (LAND_WAY[k] >= 0) sprite.fset(i, j, LAND_WAY[k]);
     }
   const out = { kinds, seams, sprite };
   if (wayCache.size > 4096) wayCache.clear();
@@ -124,7 +125,7 @@ export function drawRoad(s: Surface, dx: number, dy: number, map: WorldMap, expl
     for (let j = 0; j < FINE; j++)
       for (let i = 0; i < FINE; i++) {
         const k = kinds[j * FINE + i]!;
-        if (k !== Way.None && !isWater(wet.fget(i, j))) s.fset(dx * s.k + i, dy * s.k + j, LAND_WAY[k as Way]);
+        if (LAND_WAY[k as Way] >= 0 && !isWater(wet.fget(i, j))) s.fset(dx * s.k + i, dy * s.k + j, LAND_WAY[k as Way]);
       }
     return;
   }
@@ -139,7 +140,7 @@ export function drawRoad(s: Surface, dx: number, dy: number, map: WorldMap, expl
         if (k === Way.Outline) c = DECK.rail;
         else c = seams[j * FINE + i] ? DECK.seam : DECK.plank;
       }
-      s.fset(dx * s.k + i, dy * s.k + j, c);
+      if (c >= 0) s.fset(dx * s.k + i, dy * s.k + j, c);
     }
 }
 
