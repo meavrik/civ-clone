@@ -7,7 +7,7 @@ import { drawAdvisor, drawDiplomacyScreen, drawRatesScreen, drawReport, drawScie
 import { drawResearch, RESEARCH_LIST_ROWS, researchHit } from "./screens/research.js";
 import { drawEndScreen, drawTitleScreen } from "./screens/title.js";
 import { drawMenu, drawStatusLine, drawTextInput, menuHit } from "./screens/widgets.js";
-import { H, VIEW_TILES_X, VIEW_TILES_Y, W } from "./theme.js";
+import { BAR_H, H, VIEW_TILES_X, VIEW_TILES_Y, VIEW_W, VIEW_X, VIEW_Y, W } from "./theme.js";
 
 export type { Context2D, Gradient } from "./context.js";
 export { H as MODERN_H, W as MODERN_W, TILE as MODERN_TILE } from "./theme.js";
@@ -34,6 +34,7 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     height: H,
     viewTilesX: VIEW_TILES_X,
     viewTilesY: VIEW_TILES_Y,
+    mapView: { x: VIEW_X, y: VIEW_Y, width: VIEW_W, height: H - BAR_H },
     researchListRows: RESEARCH_LIST_ROWS,
     beginFrame() {
       const s = scale();

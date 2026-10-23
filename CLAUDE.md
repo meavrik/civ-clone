@@ -240,6 +240,11 @@ Never ship the original's sprites, palette art, fonts or text.
   beside the terrain; an Improvements line; buttons Go here, Open city), closed by the X in its title
   strip (`MenuState.close`; retro draws it, modern ignores it; any click off a window's choices closes
   it). On the phone a tap is a left-click and a hold a right-click.
+  Edge scrolling (asked for 2026-10-23): a mouse resting in the band along an edge of the map
+  (`Renderer.mapView`, the band 6% of its shorter side) pans the camera that way after 220 ms, gathering
+  speed to 8 squares a second (`stepEdgePan` in the web app); not over the panel or the menu bar, not
+  while the other civs' turns play back, and only for a mouse (the phone drags its map: no `mapView`).
+  A unit's own move still brings the camera back when it steps out of view (`followActive`).
   A refused move (`tryMove` in the web app) nudges the unit toward the square (`MotionPlayer.nudge`,
   a UI-only beat) and puts a note beside it (`view.callout`, words from `moveRefusal` in `refusal.ts`),
   gone after 4 s or at the next key or click. Both status panels show the research under way

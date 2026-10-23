@@ -539,6 +539,55 @@ function stepCamera(now: number): void {
   applyCamera();
 }
 
+/**
+ * Edge scrolling (asked for 2026-10-23): the mouse resting near an edge of the map pans the camera
+ * that way, gathering speed, after a moment's pause so a pointer passing on to the panel or the menu
+ * bar does not move it. Only a mouse does this; fingers drag the map on the phone (no `mapView`).
+ */
+const EDGE = {
+  /** Depth of the band along each edge, as a share of the map's shorter side. */
+  zone: 0.06,
+  /** The pointer waits this long in the band before the map moves. */
+  delayMs: 220,
+  /** Squares a second at full speed, reached after `rampMs`. */
+  speed: 8,
+  rampMs: 350,
+};
+/** The mouse over the canvas, in logical pixels; null when it is elsewhere. */
+let pointer: { x: number; y: number } | null = null;
+let edgeSince: number | null = null;
+let edgeLast = 0;
+
+/** Which way the pointer asks the map to move: -1, 0 or 1 across and down; null when it asks nothing. */
+function edgeDirection(): { dx: number; dy: number } | null {
+  const area = renderer.mapView;
+  if (!area || !pointer || screenState.kind !== "map" || watching || !cam.ready) return null;
+  const { x, y } = pointer;
+  // Over the panel or the menu bar: nothing.
+  if (x < area.x || y < area.y || x >= area.x + area.width || y >= area.y + area.height) return null;
+  const band = Math.max(4, Math.round(Math.min(area.width, area.height) * EDGE.zone));
+  const dx = x < area.x + band ? -1 : x >= area.x + area.width - band ? 1 : 0;
+  const dy = y < area.y + band ? -1 : y >= area.y + area.height - band ? 1 : 0;
+  return dx || dy ? { dx, dy } : null;
+}
+
+/** Each frame: pan the camera while the pointer rests in an edge band. */
+function stepEdgePan(now: number): void {
+  const dt = Math.min(100, now - edgeLast);
+  edgeLast = now;
+  const dir = edgeDirection();
+  if (!dir) { edgeSince = null; return; }
+  edgeSince ??= now;
+  const held = now - edgeSince - EDGE.delayMs;
+  if (held <= 0) return;
+  const step = (EDGE.speed * Math.min(1, held / EDGE.rampMs) * dt) / 1000;
+  const w = state.map.width;
+  cam.animating = false;
+  cam.x = (((cam.x + dir.dx * step) % w) + w) % w;
+  cam.y = Math.max(0, Math.min(state.map.height - renderer.viewTilesY, cam.y + dir.dy * step));
+  applyCamera();
+}
+
 function followActive(force = false): void {
   if (handoff || state.activeUnit === null) return;
   const u = unitById(state, state.activeUnit);
@@ -1978,6 +2027,15 @@ function diplomacyView(sc: Extract<Screen, { kind: "diplomacy" }>): DiplomacyVie
   return { player: sc.player, line: sc.line, ...(sc.talk ? { choices: sc.talk.items, selected: sc.talk.selected } : {}) };
 }
 
+// Where the mouse is, for edge scrolling (a finger's pointer is not a mouse).
+canvas.addEventListener("pointermove", (e) => {
+  if (e.pointerType !== "mouse") return;
+  const [x, y] = toLogical(e);
+  pointer = { x, y };
+});
+canvas.addEventListener("pointerleave", () => { pointer = null; });
+addEventListener("blur", () => { pointer = null; });
+
 // The setup's cards, and the audience's and New Technology window's buttons, light up under the pointer.
 canvas.addEventListener("mousemove", (e) => {
   const sc = screenState;
@@ -2199,7 +2257,7 @@ function frame(t: number): void {
   view.autoEnd = autoEnd;
   view.borders = borders;
   if (screenState.kind === "research") screenState.view.blink = blinkOn;
-  if (screenState.kind !== "title" && screenState.kind !== "setup") stepCamera(t);
+  if (screenState.kind !== "title" && screenState.kind !== "setup") { stepCamera(t); stepEdgePan(t); }
   if (status && t > statusUntil) status = undefined;
   if (view.callout && t > calloutUntil) view.callout = undefined;
   if (view.plan && view.plan.unit !== state.activeUnit) view.plan = undefined;

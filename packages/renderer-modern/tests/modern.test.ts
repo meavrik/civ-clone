@@ -200,6 +200,13 @@ describe("modern renderer", () => {
     const bar = 30; // the menu bar sits above the map and the panel
     expect(r.tileAt(state, view, 100, 100)).toBeNull();
     expect(r.tileAt(state, view, 400, 10)).toBeNull();
+    // The map's area (for edge scrolling) is where its squares answer, and nothing beyond.
+    const m = r.mapView!;
+    expect(m).toEqual({ x: 240, y: bar, width: 720, height: 600 - bar });
+    expect(r.tileAt(state, view, m.x, m.y)).not.toBeNull();
+    expect(r.tileAt(state, view, m.x + m.width - 1, m.y + m.height - 1)).not.toBeNull();
+    expect(r.tileAt(state, view, m.x - 1, m.y)).toBeNull();
+    expect(r.tileAt(state, view, m.x, m.y - 1)).toBeNull();
     const hit = r.tileAt(state, view, 240 + 48 * 3 + 5, bar + 48 * 2 + 5);
     expect(hit).toEqual({ x: ((view.originX + 3) % 80 + 80) % 80, y: view.originY + 2 });
     // Half a tile of camera pan shifts which tile sits under the same point.

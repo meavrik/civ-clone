@@ -262,6 +262,11 @@ export interface Renderer {
   /** Map tiles that fit in the main screen's viewport. */
   readonly viewTilesX: number;
   readonly viewTilesY: number;
+  /**
+   * Where the main screen's map lies, in logical pixels: a mouse resting near its edges pans the
+   * camera. Absent on a renderer whose map is moved another way (the phone's drag).
+   */
+  readonly mapView?: { x: number; y: number; width: number; height: number };
   /** Rows of the research panel's list on view at once; a longer list scrolls (`ResearchView.top`). */
   readonly researchListRows: number;
 

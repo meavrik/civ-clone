@@ -45,6 +45,8 @@ import {
   TILE,
   VIEW_TILES_X,
   VIEW_TILES_Y,
+  VIEW_H,
+  VIEW_W,
   VIEW_X,
   VIEW_Y,
   drawReportScreen,
@@ -74,6 +76,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     density: DETAIL,
     viewTilesX: VIEW_TILES_X,
     viewTilesY: VIEW_TILES_Y,
+    mapView: { x: VIEW_X, y: VIEW_Y, width: VIEW_W, height: VIEW_H },
     researchListRows: RESEARCH_LIST_ROWS,
     beginFrame() {
       pictures = [];
