@@ -731,9 +731,8 @@ function stepTo(u: { x: number }, tx: number): number {
 /** Right-click on the map: what is known about the square, with a few things to do about it. */
 function openTerrainInfo(tx: number, ty: number, at?: { x: number; y: number }): void {
   const info = terrainInfo(state, tx, ty);
-  const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
+  // Only our city's square has a button (no Go here, asked for 2026-10-23: units move from the map).
   const items: [string, () => void][] = [];
-  if (active && !(active.x === tx && active.y === ty)) items.push(["Go here", () => sendTo(active.id, tx, ty)]);
   const city = cityAt(state, tx, ty);
   if (city && city.owner === 0) items.push(["Open city", () => openCity(city.id)]);
   // Closed by its X (or any click off its choices, or Esc); nothing is picked until a choice is.
@@ -742,8 +741,7 @@ function openTerrainInfo(tx: number, ty: number, at?: { x: number; y: number }):
     screenState.menu.close = true;
     // The square itself heads the window, as the map draws it.
     screenState.menu.square = { x: tx, y: ty };
-    // Opened by a click on the map: the window stands clear of that square, so a second click there
-    // only closes it; going there takes the Go here button (asked for 2026-10-23).
+    // Opened by a click on the map: the window stands clear of that square, so a second click there only closes it.
     if (at) screenState.menu.avoid = at;
   }
 }

@@ -247,8 +247,9 @@ Never ship the original's sprites, palette art, fonts or text.
   2026-10-23: "more stylish, add the terrain image, more details"), beside it the yields, movement and
   defence, a few words on the terrain (`TERRAIN_TEXT`, our own) and what the resource, river and shield
   grassland add; then improvements, whose land it is and which of our cities works it, the city, units
-  and jobs, and the site note for settlers; an Improvements line; buttons Go here, Open city; it opens clear of the square
-  clicked, `MenuState.avoid`, so a second click there closes it and never lands on Go here), closed by the X in its title
+  and jobs, and the site note for settlers; an Improvements line; the only button Open city, on our city (Go
+  here removed 2026-10-23, asked for); it opens clear of the square clicked, `MenuState.avoid`, so a second
+  click there closes it), closed by the X in its title
   strip (`MenuState.close`; retro draws it, modern ignores it; any click off a window's choices closes
   it). On the phone a tap is a left-click and a hold a right-click.
   Edge scrolling (asked for 2026-10-23): a mouse resting in the band along an edge of the map

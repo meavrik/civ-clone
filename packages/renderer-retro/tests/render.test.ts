@@ -258,7 +258,7 @@ describe("retro renderer", () => {
     // The terrain window speaks in the same pictures.
     const info = terrainInfo(state, worker.x, worker.y);
     // Headed by the square itself, as the map draws it, twice its size in a dark frame.
-    const window = { title: info.title, body: info.lines, items: ["Go here"], selected: -1, close: true, square: { x: worker.x, y: worker.y } };
+    const window = { title: info.title, body: info.lines, items: [], selected: -1, close: true, square: { x: worker.x, y: worker.y } };
     drawMenu(s, window, squarePainter(window, state));
     writeFileSync(new URL("./out/terrain-window.png", import.meta.url), encodePng(s, 3));
     expect(info.lines[1]).toBe(TERRAIN_TEXT[getTile(state.map, worker.x, worker.y)!.terrain]);
