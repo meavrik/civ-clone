@@ -1,4 +1,4 @@
-import { acceptsMapSwap, acceptsPeace, aiTurn, attitude, bordersAnswer, BORDERS_PRICE, peaceAnswer, PEACE_PRICE, tradeAsk, tributeOffer } from "@civ/ai";
+import { acceptsPeace, aiTurn, attitude, peaceAnswer, PEACE_PRICE, tradeAsk, tributeOffer } from "@civ/ai";
 import {
   advance,
   applyCommand,
@@ -6,7 +6,6 @@ import {
   atWar,
   advancesFor,
   availableAdvances,
-  bordersOpen,
   buildOptions,
   computeCity,
   cityFocus,
@@ -1295,8 +1294,8 @@ function meet(player: number, then: () => void): void {
 
 /**
  * An audience with a foreign leader: their palace, their words and our proposals, at most four at a
- * time: peace (or, at peace, borders and maps), gifts and trade, war, farewell; borders and maps, and
- * gifts and trade, open screens of their own. Each proposal is made once an audience; the leader's
+ * time: peace, gifts and trade (a screen of its own), war, farewell. Open borders and the exchange of
+ * maps are not offered (asked for 2026-10-23). Each proposal is made once an audience; the leader's
  * answer becomes their words and the talk goes on until Farewell.
  */
 function audience(player: number, line: string, done: () => void = () => { screenState = { kind: "map" }; }, first = false): void {
@@ -1306,16 +1305,6 @@ function audience(player: number, line: string, done: () => void = () => { scree
   /** Proposals not yet made, each marked made when picked. */
   const fresh = (list: [string, () => void][]): [string, () => void][] =>
     list.filter(([label]) => !tried.has(label)).map(([label, fn]) => [label, () => { tried.add(label); fn(); }]);
-  const bordersAndMaps = (): [string, () => void][] => fresh([
-    bordersOpen(state, 0, player)
-      ? ["Close borders", () => { dispatch({ type: "closeBorders", player }); talk("As you wish. Keep to your lands, and we to ours."); }]
-      : ["Open borders", () => proposeBorders(player, talk, () => talk("Our lands are open to your people, and yours to ours."))],
-    ["Exchange maps", () => {
-      if (!acceptsMapSwap(state, player, 0)) { talk("Our maps are not for your eyes."); return; }
-      dispatch({ type: "shareMaps", player });
-      talk("Our scribes copy your maps, and yours ours.");
-    }],
-  ]);
   const giftsAndTrade = (): [string, () => void][] => {
     const me = state.players[0]!;
     return fresh([
@@ -1348,10 +1337,9 @@ function audience(player: number, line: string, done: () => void = () => { scree
         talk("Peace, then. Let the dead rest.");
       }]]));
     } else {
-      // Met but without a treaty: peace comes first, and with it open borders and maps.
+      // Met but without a treaty: peace comes first.
       const treaty = atPeace(state, 0, player);
       if (!treaty) items.push(...fresh([["Propose peace", () => proposePeace(player, talk)]]));
-      else if (bordersAndMaps().length) items.push(["Borders and maps", () => sub(words, bordersAndMaps())]);
       if (giftsAndTrade().length) items.push(["Gifts and trade", () => sub(words, giftsAndTrade())]);
       items.push([treaty ? "Break the treaty" : "Declare war", () => {
         speak(treaty ? `Would you break our treaty?` : "Would you make war on us?");
@@ -1367,20 +1355,6 @@ function audience(player: number, line: string, done: () => void = () => { scree
     talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), done);
   };
   talk(line);
-}
-
-/**
- * Ask `player` to open borders: a friendly civilization agrees, a wary one
- * asks a gift first, a hostile one refuses. `talk` carries the answer;
- * `agreed` runs once borders are open.
- */
-function proposeBorders(player: number, talk: (words: string) => void, agreed: () => void): void {
-  proposeDeal(player, bordersAnswer(state, player, 0), BORDERS_PRICE, talk, {
-    no: "We will not have your soldiers roam our lands.",
-    price: `For a gift of ${BORDERS_PRICE} gold, our lands are open to you.`,
-    question: `Pay ${BORDERS_PRICE} gold for open borders?`,
-    declined: "Then our borders stay closed.",
-  }, () => { dispatch({ type: "openBorders", player }); agreed(); });
 }
 
 /** Ask `player`, met without a treaty, for peace: a friendly civilization signs, a wary one asks a gift first, a hostile one refuses. */
@@ -1448,7 +1422,6 @@ function askToLeave(owner: number, warnings: number, then: () => void, at?: { x:
   const leader = civ(them.civ).leader;
   const where = at ?? ours[0]!;
   beat(where.x, where.y, `Land of the ${them.name}`, () => {
-    const tried = new Set<string>();
     const talk = (words: string): void => {
       screenState = { kind: "diplomacy", player: owner, line: words };
       const items: [string, () => void][] = [];
@@ -1457,11 +1430,6 @@ function askToLeave(owner: number, warnings: number, then: () => void, at?: { x:
         then();
         say(n ? `Our units leave the land of the ${them.name}.` : "Our units find no way out.", 3000);
       }]);
-      if (!tried.has("borders") && atPeace(state, owner, 0) && bordersAnswer(state, owner, 0) !== "no")
-        items.push(["Open borders?", () => {
-          tried.add("borders");
-          proposeBorders(owner, talk, () => { then(); say(`The ${them.name} open their lands to us.`, 3000); });
-        }]);
       if (state.players[0]!.gold >= 50)
         items.push(["Give 50 gold", () => {
           dispatch({ type: "giveGold", player: owner, amount: 50 });

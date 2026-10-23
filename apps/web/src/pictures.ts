@@ -48,52 +48,65 @@ export function preloadTech(id: string | null | undefined): void {
   const name = id && techPicture(id);
   if (!name || fetched.has(name)) return;
   fetched.add(name);
-  new Image().src = techUrl(name);
+  imageFor(techUrl(name));
 }
 
-/** Fetch the audience pictures of a game's leaders as it starts, so an audience never waits for one. */
+/** Fetch and decode the audience pictures of a game's leaders as it starts, so an audience never waits for one. */
 export function preloadScenes(state: GameState): void {
   for (const p of state.players) {
     const name = LEADER_PORTRAITS[civ(p.civ).id];
-    if (name) new Image().src = sceneUrl(name);
+    if (name) imageFor(sceneUrl(name));
   }
 }
 
-const pool: { img: HTMLImageElement; key: string; url: string }[] = [];
+/**
+ * One image element per picture (and per copy of it on screen at once), never one element handed a new
+ * `src`: Chrome keeps painting an element's old picture until its new one is decoded, so a reused element
+ * flashed the last leader met before the new one (2026-10-23). Each is shown only once decoded.
+ */
+interface Shown { img: HTMLImageElement; key: string; ready: boolean }
+const images = new Map<string, Shown>();
 
-function makeImage(): { img: HTMLImageElement; key: string; url: string } {
+/** The element for picture `url` (`id` names a second copy on screen at once), made and decoding on first ask, hidden. */
+function imageFor(url: string, id = url): Shown {
+  let s = images.get(id);
+  if (s) return s;
   const img = document.createElement("img");
   img.alt = "";
   img.draggable = false;
-  Object.assign(img.style, { position: "fixed", pointerEvents: "none", userSelect: "none", imageRendering: "auto", zIndex: "1", display: "none" });
-  img.addEventListener("load", () => { img.style.visibility = "visible"; });
+  Object.assign(img.style, { position: "fixed", pointerEvents: "none", userSelect: "none", imageRendering: "auto", zIndex: "1", display: "none", visibility: "hidden" });
+  const shown: Shown = { img, key: "", ready: false };
+  const reveal = () => { shown.ready = true; img.style.visibility = "visible"; };
+  img.src = url;
+  img.decode().then(reveal, () => img.addEventListener("load", reveal, { once: true }));
   document.body.appendChild(img);
-  return { img, key: "", url: "" };
+  images.set(id, shown);
+  return shown;
 }
 
 /** Show these pictures over `canvas` and no others. Call once a frame; it changes the page only where something moved. */
 export function showPictures(canvas: HTMLCanvasElement, places: PicturePlace[]): void {
   const r = places.length ? canvas.getBoundingClientRect() : null;
-  places.forEach((at, i) => {
-    const slot = (pool[i] ??= makeImage());
+  const used = new Set<Shown>();
+  const copies = new Map<string, number>();
+  for (const at of places) {
+    const n = copies.get(at.url) ?? 0;
+    copies.set(at.url, n + 1);
+    const slot = imageFor(at.url, n ? `${at.url}#${n}` : at.url);
+    used.add(slot);
     const sx = r!.width / at.logicalW, sy = r!.height / at.logicalH;
     const box = [r!.left + at.x * sx, r!.top + at.y * sy, at.w * sx, at.h * sy].map((v) => Math.round(v * 100) / 100);
-    const key = `${at.url} ${at.fit} ${box.join(" ")}`;
-    if (key === slot.key) return;
-    if (slot.url !== at.url) {
-      slot.img.style.visibility = "hidden";
-      slot.img.src = at.url;
-      slot.url = at.url;
-      if (slot.img.complete && slot.img.naturalWidth) slot.img.style.visibility = "visible";
-    }
+    const key = `${at.fit} ${box.join(" ")}`;
+    if (key === slot.key) continue;
     Object.assign(slot.img.style, {
       display: "block", left: `${box[0]}px`, top: `${box[1]}px`, width: `${box[2]}px`, height: `${box[3]}px`,
       objectFit: at.fit === "contain" ? "contain" : "fill", objectPosition: "50% 100%",
     });
     slot.key = key;
-  });
-  for (let i = places.length; i < pool.length; i++) {
-    const slot = pool[i]!;
-    if (slot.key) { slot.img.style.display = "none"; slot.key = ""; }
+  }
+  for (const slot of images.values()) {
+    if (used.has(slot) || !slot.key) continue;
+    slot.img.style.display = "none";
+    slot.key = "";
   }
 }

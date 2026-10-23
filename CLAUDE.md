@@ -407,8 +407,8 @@ Never ship the original's sprites, palette art, fonts or text.
   so `turnStarts`/`rewindSave` (core `save.ts`) cut its log back to the start of any turn it saw. A loaded game holds Auto End Turn until the next key or click.
   Diplomacy: a meeting first holds the map on whom we met (the `beat` screen:
   a callout, 1.6 s or any key), then their leader receives us (`audience`: without a treaty propose
-  peace (`proposePeace`: yes, a gift first, or no); at peace "Borders and maps" (open or close borders,
-  exchange maps); "Gifts and trade" (trade knowledge: pick theirs, they name ours; give gold; demand
+  peace (`proposePeace`: yes, a gift first, or no); open borders and exchanging maps are not offered
+  (removed 2026-10-23, asked for; core's commands stay); "Gifts and trade" (trade knowledge: pick theirs, they name ours; give gold; demand
   tribute); declare war ("break the treaty" at peace, confirmed); farewell; each once a talk, the answer
   becomes the leader's words; greetings name admiration or scorn). The audience screen (redone
   2026-10-22 after the user's mock-up "Caesar Welcomes You to Rome", asked for): the realm across the
@@ -421,7 +421,9 @@ Never ship the original's sprites, palette art, fonts or text.
   The pictures are shown as they are, full size and true colour (asked for, 2026-10-22: squeezed into the
   palette at 224x126 they looked "bad and distorted"): `apps/web/src/scenes/<leader>.webp` (the PNGs as
   supplied, WebP quality 92), laid over the canvas as an <img> by `pictures.ts` (`showPictures`, once a
-  frame from each retro adapter's `present`; they let clicks through) in the room the screen leaves for
+  frame from each retro adapter's `present`; they let clicks through; one element per picture, made and
+  decoded by the preloads and shown only once decoded: a reused element given a new `src` kept painting
+  the last leader met for a moment, 2026-10-23) in the room the screen leaves for
   them (`AUDIENCE_PICTURE` in renderer-retro, which draws a dusk sky there beneath, seen until the picture
   loads); `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits
   and the advances' pictures (`techs/<advance>.webp`, 1254 square, WebP quality 92; `techPicture`: all but
@@ -431,8 +433,7 @@ Never ship the original's sprites, palette art, fonts or text.
   into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
   whether they admire or scorn us (`regardWords`). Stepping onto land that minds us (once a
   civ a turn, later steps get a callout) and the AI's demands after its turn show our unit, then the
-  leader asks us out (`askToLeave`: leave = gotos to the nearest square outside, open borders (at
-  peace only), a gift, or stay); an AI declaring war on us says so in an audience.
+  leader asks us out (`askToLeave`: leave = gotos to the nearest square outside, a gift, or stay); an AI declaring war on us says so in an audience.
 - `apps/mobile` — the web game as a PWA for phones and tablets, asked for without changing the web game:
   `src/main.ts` imports `apps/web/src/main.ts` as it is, and `vite.config.ts` (`webGame`) hands that file
   three stand-ins for its own modules: `display.ts` (the screen as wide as the phone held sideways allows,
