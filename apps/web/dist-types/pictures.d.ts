@@ -19,7 +19,7 @@ export declare function portraitPlace(name: string, box: Omit<PicturePlace, "url
 export declare function techPlace(id: string, box: Omit<PicturePlace, "url" | "fit">): PicturePlace | null;
 /** Fetch the picture of the advance under research before it is found, so its window never waits for it. */
 export declare function preloadTech(id: string | null | undefined): void;
-/** Fetch the audience pictures of a game's leaders as it starts, so an audience never waits for one. */
+/** Fetch and decode the audience pictures of a game's leaders as it starts, so an audience never waits for one. */
 export declare function preloadScenes(state: GameState): void;
 /** Show these pictures over `canvas` and no others. Call once a frame; it changes the page only where something moved. */
 export declare function showPictures(canvas: HTMLCanvasElement, places: PicturePlace[]): void;
