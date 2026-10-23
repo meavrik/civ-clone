@@ -9,6 +9,7 @@ import { newSpaceship } from "./rules/spaceship.js";
 import { MAP_WIDTH, Terrain, type GameState, type Player, type WorldMap } from "./types.js";
 import { createUnit } from "./units.js";
 import { recomputeVisibility } from "./visibility.js";
+import { siteScore } from "./sites.js";
 
 export interface NewGameOptions extends MapGenOptions {
   /** Difficulty 0 (Chieftain) .. 4 (Emperor). */
@@ -70,6 +71,8 @@ export interface NewGameOptions extends MapGenOptions {
   centrePenalty?: boolean;
   /** Settlers draw on their city's free units and pay shields like other units. Old saves load with it. */
   settlerShields?: boolean;
+  /** Each civilization starts on the square drawn for it, good land or not. Old saves load with it. */
+  randomStarts?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -103,6 +106,33 @@ function makePlayer(map: WorldMap, id: number, civId: string, isAi: boolean): Pl
 const HOMELAND_ROOM = 3;
 /** Starts nudged off a crowded homeland keep at least this far apart. */
 const START_SPACING = 3;
+/** A start drawn at random moves up to this far onto the best city site near it (asked for 2026-10-23). */
+const START_NUDGE = 2;
+
+/**
+ * The best city site (`siteScore`) within `START_NUDGE` of a start drawn at (x0, y0), on the same land and
+ * passing `ok`; the square drawn when nothing near is better. No randomness: the seed's world stays.
+ */
+function siteNear(state: GameState, x0: number, y0: number, ok: (x: number, y: number) => boolean): [number, number] {
+  const map = state.map;
+  const land = map.tiles[y0 * map.width + x0]!.continent;
+  let best: [number, number] = [x0, y0];
+  let bestScore = siteScore(state, x0, y0) ?? -Infinity;
+  for (let r = 1; r <= START_NUDGE; r++)
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = (((x0 + dx) % map.width) + map.width) % map.width;
+        const y = y0 + dy;
+        if (y < 0 || y >= map.height) continue;
+        const t = map.tiles[y * map.width + x]!;
+        if (t.terrain === Terrain.Ocean || t.continent !== land || !ok(x, y)) continue;
+        const s = siteScore(state, x, y);
+        // Nearer squares come first, so a square only as good as a nearer one never wins.
+        if (s !== null && s > bestScore) { best = [x, y]; bestScore = s; }
+      }
+  return best;
+}
 
 function squareDist(map: WorldMap, a: readonly [number, number], b: readonly [number, number]): number {
   const dx = Math.abs(a[0] - b[0]);
@@ -232,8 +262,10 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
         candidates.push(y * map.width + x);
     }
   const starts: [number, number][] = [];
+  // The squares drawn, before any moved onto a better site: they keep the draws as they always were.
+  const drawn: [number, number][] = [];
   const far = (x: number, y: number) =>
-    starts.every(([sx, sy]) => Math.max(Math.min(Math.abs(sx - x), map.width - Math.abs(sx - x)), Math.abs(sy - y)) >= 10 * k);
+    drawn.every(([sx, sy]) => Math.max(Math.min(Math.abs(sx - x), map.width - Math.abs(sx - x)), Math.abs(sy - y)) >= 10 * k);
   for (const p of players) {
     if (p.id === barbarians) continue;
     let sx = 0;
@@ -247,6 +279,10 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
         const y = Math.floor(pick / map.width);
         if (tries === 199 || far(x, y)) { sx = x; sy = y; break; }
       }
+    drawn.push([sx, sy]);
+    // A drawn start moves onto the best site near it, clear of the other starts (a homeland stays).
+    if (!home && !opts.randomStarts && candidates.length)
+      [sx, sy] = siteNear(state, sx, sy, (x, y) => starts.every((o) => squareDist(map, o, [x, y]) >= START_SPACING));
     starts.push([sx, sy]);
     const settlers = p.isAi ? 2 : difficultyRule(difficulty).settlers;
     for (let i = 0; i < settlers; i++) createUnit(state, "settlers", p.id, sx, sy);

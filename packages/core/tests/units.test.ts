@@ -8,6 +8,7 @@ import {
   newGame,
   Terrain,
   type GameState,
+  siteScore,
 } from "../src/index.js";
 
 /** Flat test world: all grassland except the poles, one unit placed by caller. */
@@ -108,15 +109,36 @@ describe("settler work and turns", () => {
 });
 
 describe("new game", () => {
-  it("starts with settlers on open land with visibility", () => {
+  it("starts with settlers on a city site with visibility", () => {
     const s = newGame(77);
     expect(s.units.length).toBeGreaterThanOrEqual(1);
     const u = s.units[0]!;
     const t = getTile(s.map, u.x, u.y)!;
-    expect([Terrain.Grassland, Terrain.Plains]).toContain(t.terrain);
+    expect(siteScore(s, u.x, u.y)).not.toBeNull();
     expect(s.players[0]!.visible[u.y * 80 + u.x]).toBe(1);
     expect(s.activeUnit).toBe(u.id);
     expect(t.continent).toBeGreaterThan(0);
+  });
+
+  it("moves each start onto the best site within two squares of the square drawn; old saves keep the square drawn", () => {
+    let better = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const drawn = newGame(seed, { opponents: 3, randomStarts: true });
+      const now = newGame(seed, { opponents: 3 });
+      for (const p of now.players) {
+        if (p.id === now.barbarians) continue;
+        const a = drawn.units.find((x) => x.owner === p.id)!;
+        const b = now.units.find((x) => x.owner === p.id)!;
+        // The old starts are plain open land, as before.
+        expect([Terrain.Grassland, Terrain.Plains]).toContain(getTile(drawn.map, a.x, a.y)!.terrain);
+        expect(Math.max(Math.min(Math.abs(a.x - b.x), 80 - Math.abs(a.x - b.x)), Math.abs(a.y - b.y))).toBeLessThanOrEqual(2);
+        expect(siteScore(now, b.x, b.y)!).toBeGreaterThanOrEqual(siteScore(drawn, a.x, a.y) ?? -Infinity);
+        if (a.x !== b.x || a.y !== b.y) better++;
+      }
+      // The same world either way: only the starts moved.
+      expect(now.map.tiles.map((t) => t.terrain)).toEqual(drawn.map.tiles.map((t) => t.terrain));
+    }
+    expect(better).toBeGreaterThan(20);
   });
 });
 

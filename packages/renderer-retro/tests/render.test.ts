@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
+import { settlerSites } from "@civ/renderer-api";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
 
 describe("retro renderer", () => {
@@ -465,6 +466,35 @@ describe("land borders", () => {
     }
     expect(peaks).toBeGreaterThan(100);
     expect([...ringed.data].some(sandy)).toBe(true);
+  });
+});
+
+describe("settler sites", () => {
+  it("pins the best squares near settlers in play to found a city on, the best rimmed in gold", () => {
+    const state = newGame(2026);
+    const u = state.units.find((x) => x.id === state.activeUnit)!;
+    revealAround(state, 0, u.x, u.y, 7);
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true };
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/settler-sites.png", import.meta.url), encodePng(s, 3));
+    const sites = settlerSites(state, u.id);
+    expect(sites.length).toBeGreaterThan(0);
+    // The pin's rim at its top edge, a pixel in from its rounded corner; under the settlers, the square's own edge.
+    const rim = (x: number, y: number) => x === u.x && y === u.y
+      ? s.fget((VIEW_X + (x - view.originX) * 16 + 8) * s.k, (VIEW_Y + (y - view.originY) * 16) * s.k)
+      : s.fget((VIEW_X + (x - view.originX) * 16 + 4) * s.k, (VIEW_Y + (y - view.originY) * 16 + 3) * s.k);
+    for (const site of sites) expect(rim(site.x, site.y)).toBe(site.best ? shade("wheat", 6) : shade("panel", 6));
+    // No pins for any other unit in play.
+    const best = sites[0]!;
+    state.units = state.units.filter((x) => x.owner !== 0 || x.type !== "settlers");
+    const militia = createUnit(state, "militia", 0, u.x, u.y);
+    state.activeUnit = militia.id;
+    const t = Surface.screen();
+    drawMainScreen(t, state, view);
+    const edge = best.x === u.x && best.y === u.y ? [8, 0] : [4, 3];
+    expect(t.fget((VIEW_X + (best.x - view.originX) * 16 + edge[0]!) * t.k, (VIEW_Y + (best.y - view.originY) * 16 + edge[1]!) * t.k)).not.toBe(shade("wheat", 6));
   });
 });
 

@@ -20,6 +20,7 @@ export * from "./works.js";
 export * from "./cityview.js";
 export * from "./plan.js";
 export * from "./watch.js";
+export * from "./sites.js";
 export * from "./intro.js";
 export * from "./setup.js";
 export * from "./audience.js";

@@ -42,8 +42,9 @@ export interface SaveGame {
    * 21: saved while the AI founded cities wherever the rules allowed; packed cities.
    * 22: saved before cities had a focus (the player's working for growth); balanced workers.
    * 23: saved while Despotism's -1 reached the city's own square and settlers paid shields; centre penalty, settler shields.
+   * 24: saved while every civilization started on the square drawn for it; random starts.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -58,7 +59,7 @@ export interface SaveGame {
   label?: string;
 }
 
-export const SAVE_VERSION = 24;
+export const SAVE_VERSION = 25;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -79,7 +80,7 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
 export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
@@ -115,6 +116,7 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
     options.centrePenalty = true;
     options.settlerShields = true;
   }
+  if (save.version < 25) options.randomStarts = true;
   const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {

@@ -46,6 +46,9 @@ import {
   radiusTile,
   shipStats,
   CITY_RADIUS,
+  CITY_SPACING,
+  SITE_CENTRES,
+  siteScore,
   Terrain,
   TERRAIN_RULES,
   tileTrade,
@@ -480,20 +483,17 @@ function findSpyTarget(state: GameState, me: number, cities: City[], continents:
 
 // ---- city sites ----------------------------------------------------------------
 
-const CENTRE_OK = new Set([Terrain.Grassland, Terrain.Plains, Terrain.Hills, Terrain.Desert, Terrain.Forest]);
+const CENTRE_OK = SITE_CENTRES;
+export { CITY_SPACING, siteScore };
 
 /** How far (in steps over land) settlers are sent from our cities; land beyond, or behind rival cities, is reached by sea. */
 const REACH = 18;
 
 /**
- * How near (squares, either way) a new city may stand to one of ours and to anyone else's (asked for
- * 2026-10-22: settlers founded wherever they stood, often two squares from a city). Saves before
- * version 22 (`packedCities`) keep the old habit: four squares from a listed site, anywhere the rules
- * allow for a settler already standing on a fit square.
+ * Far enough from every city for a new one of `me`'s (`CITY_SPACING`, in core). Saves before version 22
+ * (`packedCities`) keep the old habit: four squares from a listed site, anywhere the rules allow for a
+ * settler already standing on a fit square.
  */
-export const CITY_SPACING = { own: 4, foreign: 5 };
-
-/** Far enough from every city for a new one of `me`'s. */
 export function roomForCity(state: GameState, me: number, x: number, y: number): boolean {
   for (const c of state.cities) {
     const d = dist(state, c.x, c.y, x, y);
@@ -531,31 +531,6 @@ function landReach(state: GameState, me: number, cities: City[]): Uint8Array {
     }
   }
   return reach;
-}
-
-/** Value of founding a city at (x, y): yields of the 21-tile radius plus terrain bonuses; null if unfit. */
-export function siteScore(state: GameState, x: number, y: number): number | null {
-  const t = getTile(state.map, x, y);
-  if (!t || !CENTRE_OK.has(t.terrain)) return null;
-  if ((t.terrain === Terrain.Desert || t.terrain === Terrain.Forest) && !t.river) return null;
-  let score = 0;
-  let land = 0;
-  let sea = 0;
-  for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
-    const [dx, dy] = CITY_RADIUS[slot]!;
-    const n = getTile(state.map, x + dx, y + dy);
-    if (!n) continue;
-    if (n.terrain === Terrain.Ocean) sea++;
-    else land++;
-    const yld = tileYield(state, n, false, "monarchy");
-    score += yld.food * 3 + yld.shields * 2 + yld.trade * 1.5;
-    if (n.special) score += 2;
-  }
-  if (land < 7) return null;
-  if (t.river) score += 5;
-  if (t.terrain === Terrain.Hills) score += 3;
-  if (sea > 0) score += 2;
-  return score;
 }
 
 function findSites(state: GameState, me: number, continents: Set<number>, cities: City[], reach: Uint8Array | null): Site[] {

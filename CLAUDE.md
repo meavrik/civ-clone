@@ -50,6 +50,11 @@ Never ship the original's sprites, palette art, fonts or text.
   over land and mountains (rain shadows), ranked so biome shares stay steady; mountains on noise ridges
   with hills as foothills; lone squares join their neighbours; rivers rise in wet highlands and run
   to the sea. `scatteredTerrain` keeps the first per-square generator for saves before version 6.
+  Starts (`newGame`): drawn at random on grassland or plains of a big landmass, spread apart, then each
+  moved onto the best city site (`siteScore`, `sites.ts`, the planner's score moved to core) within
+  `START_NUDGE` (2) squares on the same land (asked for 2026-10-23; no randomness, so a seed keeps its
+  world and its draws; historical homelands stay). Starts score 126 on average over 50 seeds (109 as drawn),
+  none unfit for a city (3 of 350). Saves before version 25 load with `randomStarts` (the squares drawn).
   Specials (`SpecialRule`; read a square's with `specialOf(tile)`, never `TERRAIN_RULES[t].special`): every
   land terrain and the sea has a second kind (our departure, asked for 2026-10-21, after Civilization II:
   Whales, Cotton, Wheat, Silk, Wine, Iron, Oil, Furs, Ivory, Spices, Fruit; tundra's Game is forest's),
@@ -246,6 +251,11 @@ Never ship the original's sprites, palette art, fonts or text.
   speed to 8 squares a second (`stepEdgePan` in the web app); not over the panel or the menu bar, not
   while the other civs' turns play back, and only for a mouse (the phone drags its map: no `mapView`).
   A unit's own move still brings the camera back when it steps out of view (`followActive`).
+  City sites (asked for 2026-10-23): while our settlers are in play the map pins the best few squares near
+  them to found a city on (`settlerSites` in renderer-api: within 6 squares on their own landmass, scored by
+  core `siteScore` from what the player has seen, unseen squares counting a plain grassland's worth, clear of
+  known cities by `CITY_SPACING`, apart from each other, nearer preferred): the city icon on a dark plate,
+  rimmed gold for the best, pale for the rest; under the settlers themselves the square's edge is rimmed.
   A refused move (`tryMove` in the web app) nudges the unit toward the square (`MotionPlayer.nudge`,
   a UI-only beat) and puts a note beside it (`view.callout`, words from `moveRefusal` in `refusal.ts`),
   gone after 4 s or at the next key or click. A refused settler job does the same without the nudge

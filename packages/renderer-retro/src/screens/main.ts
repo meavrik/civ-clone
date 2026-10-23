@@ -90,7 +90,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, fieldSides, isDeepWater, researchOutlook, type Callout, MENU_BAR, ownerAt, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, fieldSides, isDeepWater, researchOutlook, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -201,6 +201,13 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   for (const c of shownCities) {
     const pos = toScreen(c.x, c.y);
     if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, c.size, playerColor(state, c.owner), c.owner === state.currentPlayer ? cityMood(state, c) : null);
+  }
+  // Settlers in play: pins on the best squares near them to found a city on (`settlerSites`), under the units.
+  const active = shownActive(state, view);
+  const settler = active !== null ? state.units.find((u) => u.id === active && u.owner === me.id) : undefined;
+  if (settler) for (const site of settlerSites(state, settler.id)) {
+    const pos = toScreen(site.x, site.y);
+    if (pos) drawSitePin(s, pos[0], pos[1], site.best, site.x === settler.x && site.y === settler.y);
   }
   // A planned move's route, under the units: a dot on each square on the way.
   if (view.plan) for (const [x, y] of view.plan.route.slice(0, -1)) {
@@ -345,6 +352,38 @@ function drawCallout(s: Surface, state: GameState, view: MainScreenView, c: Call
     s.hline(px - (3 - i), row, 2 * (3 - i) + 1, C.BLACK!);
     if (i < 3) s.hline(px - (2 - i), row, 2 * (2 - i) + 1, shade("panel", 5));
   }
+}
+
+/**
+ * A suggested city site: the city icon on a small dark plate in the middle of the square, rimmed in gold
+ * for the best site and in pale stone for the others. Under the settlers themselves (`here`), where the
+ * unit would hide a pin, the square's own edge is rimmed instead.
+ */
+function drawSitePin(s: Surface, x: number, y: number, best: boolean, here: boolean): void {
+  const rim = best ? shade("wheat", 6) : shade("panel", 6);
+  const plate = shade("steel", 1);
+  const k = s.k;
+  if (here) {
+    // A frame a pixel wide round the square, its corners left open.
+    for (let i = k; i < TILE * k - k; i++) {
+      s.fset(x * k + i, y * k, rim);
+      s.fset(x * k + i, y * k + TILE * k - 1, rim);
+      s.fset(x * k, y * k + i, rim);
+      s.fset(x * k + TILE * k - 1, y * k + i, rim);
+    }
+    return;
+  }
+  const fx = (x + 3) * k;
+  const fy = (y + 3) * k;
+  const n = 10 * k;
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++) {
+      const edge = i < k || j < k || i >= n - k || j >= n - k;
+      const corner = (i < k || i >= n - k) && (j < k || j >= n - k);
+      if (corner) continue;
+      s.fset(fx + i, fy + j, edge ? rim : plate);
+    }
+  drawIcon(s, "city", x + 4, y + 4);
 }
 
 /** A dot on a planned route: white, ringed in black so it reads on any ground. */
