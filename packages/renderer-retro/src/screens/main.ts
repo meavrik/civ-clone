@@ -164,7 +164,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       s.blit(ground, dx, dy);
       if (tile.irrigation) drawIrrigation(s, dx, dy, ground, tile.terrain, mx, my, fieldSides(map, me.explored, mx, my));
       // Every square, as roads between two of its neighbours cut across its corners.
-      drawRoad(s, dx, dy, map, me.explored, mx, my);
+      drawRoad(s, dx, dy, map, me.explored, mx, my, ground);
       drawRailroad(s, dx, dy, map, me.explored, mx, my);
       if (tile.mine) drawMine(s, dx, dy);
       if (tile.special) drawSpecial(s, dx, dy, tile);

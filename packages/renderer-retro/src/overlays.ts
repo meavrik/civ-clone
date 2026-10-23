@@ -4,18 +4,32 @@ import { drawIcon } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, shade } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
-import { isWater, TILE, WATER } from "./tiles.js";
+import { FINE, isWater, TILE, WATER } from "./tiles.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sprites/index.js";
 
-/** Half-widths of a road in pixels: its beaten track, and the worn edge the grass breaks into. */
-const ROAD_CORE = 0.6;
-const ROAD_EDGE = 1.25;
-/** Half-widths of a railroad: its sleepers on gravel, and the rails either side. */
-const RAIL_CORE = 1;
-const RAIL_EDGE = 2;
-/** A railroad's sleepers lie across the road this many pixels apart (as near as fits along each course). */
-const SLEEPER_GAP = 3;
+/**
+ * Roads and railroads at the fine grain of the terrain art (32 pixels a square), in its manner: flat
+ * fills with a one-pixel outline in the darkest of the thing's own colours (asked for 2026-10-23: the old
+ * one-pixel track on the coarse grid did not match the terrain). Widths are fine pixels from the course.
+ */
+const ROAD = {
+  /** Packed earth out to here, lighter along the crown; then the one-pixel outline. */
+  crown: 1.1,
+  fill: 2.1,
+  outline: 3.0,
+};
+const RAIL = {
+  /** Sleepers of dark timber across the road beneath; a steel rail either side, bright on top, shadowed outside. */
+  sleeper: 3.2,
+  railIn: 1.2,
+  railTop: 2.0,
+  railOut: 2.7,
+};
+/** A railroad's sleepers lie across it this many fine pixels apart (as near as fits along each course), two pixels thick. */
+const SLEEPER_GAP = 4;
+/** A bridge's planks lie across it this many fine pixels apart. */
+const PLANK_GAP = 3;
 
 /** Whether palette index `c` lies in a ramp. */
 function inRamp(c: number, ramp: string): boolean {
@@ -23,67 +37,139 @@ function inRamp(c: number, ramp: string): boolean {
   return c >= base && c < base + 8;
 }
 
-const wayCache = new Map<string, Surface>();
+/** What each fine pixel of a way is, before the ground decides (a bridge over water). */
+const enum Way { None, Outline, Edge, Crown, Speck, Pebble, Sleeper, RailTop, RailFoot }
+
+/** The colour of each kind of pixel: road and railroad on land, and the timber deck where a road crosses water. */
+const LAND_WAY: Record<Way, number> = {
+  [Way.None]: -1,
+  [Way.Outline]: shade("earth", 1),
+  [Way.Edge]: shade("earth", 5),
+  [Way.Crown]: shade("earth", 6),
+  [Way.Speck]: shade("earth", 7),
+  [Way.Pebble]: shade("earth", 3),
+  [Way.Sleeper]: shade("earth", 1),
+  [Way.RailTop]: shade("steel", 7),
+  [Way.RailFoot]: shade("steel", 2),
+};
+const DECK = { outline: shade("earth", 0), plank: shade("earth", 4), seam: shade("earth", 2), rail: shade("earth", 1) };
+
+/** A way's pixels: what each is (`Way`), whether a bridge's plank seam falls there, and the sprite on land. */
+interface WayPixels { kinds: Uint8Array; seams: Uint8Array; sprite: Surface }
+const wayCache = new Map<string, WayPixels>();
 
 /**
- * A road or railroad across one square (see `roadWays`), as a sprite keyed by
- * SPRITE_CLEAR. A road is a narrow track of beaten earth, worn here and there,
- * its edge broken by the grass; a railroad lays bright rails either side of
- * dark sleepers on gravel, spaced evenly along each course
- * so they meet the next square's. A road square with no links is a small
- * round patch.
+ * A road or railroad across one square (see `roadWays`): each fine pixel's kind and the sprite of
+ * it on land, keyed by SPRITE_CLEAR. A road is packed earth, lighter along its crown, flecked with
+ * pebbles, outlined a pixel wide in dark earth; a railroad lays dark sleepers across the road with a
+ * steel rail either side, bright on top and shadowed outside, the sleepers spaced evenly along each
+ * course so they meet the next square's. A road square with no links is a round patch.
  */
-function waySurface(ways: RoadWays, x: number, y: number, rail: boolean): Surface {
+function wayPixels(ways: RoadWays, x: number, y: number, rail: boolean): WayPixels {
   const key = `${rail ? "r" : "w"}${ways.key}`;
   const hit = wayCache.get(key);
   if (hit) return hit;
-  const out = new Surface(TILE, TILE);
-  out.fill(SPRITE_CLEAR);
-  const surface = shade("earth", 6);
-  const worn = shade("earth", 5);
-  const edge = shade("earth", 2);
-  const steel = shade("stone", 6);
-  const ballast = shade("stone", 3);
-  const sleeper = shade("earth", 1);
-  for (let j = 0; j < TILE; j++)
-    for (let i = 0; i < TILE; i++) {
-      const u = (i + 0.5) / TILE;
-      const v = (j + 0.5) / TILE;
+  const kinds = new Uint8Array(FINE * FINE);
+  const seams = new Uint8Array(FINE * FINE);
+  const sprite = Surface.fine(TILE, TILE);
+  sprite.fill(SPRITE_CLEAR);
+  for (let j = 0; j < FINE; j++)
+    for (let i = 0; i < FINE; i++) {
+      const u = (i + 0.5) / FINE;
+      const v = (j + 0.5) / FINE;
       let d = Infinity;
       let along = 0;
       let gap = SLEEPER_GAP;
       for (const c of ways.courses) {
         const g = courseGap(c, u, v);
-        if (g.gap * TILE >= d) continue;
-        d = g.gap * TILE;
-        along = g.along * TILE;
-        gap = (g.length * TILE) / Math.max(1, Math.round((g.length * TILE) / SLEEPER_GAP));
+        if (g.gap * FINE >= d) continue;
+        d = g.gap * FINE;
+        along = g.along * FINE;
+        gap = (g.length * FINE) / Math.max(1, Math.round((g.length * FINE) / SLEEPER_GAP));
       }
-      if (ways.patch) d = Math.hypot(u - ways.patch[0], v - ways.patch[1]) * TILE - 1.5;
-      const grain = hash(x * TILE + i, y * TILE + j, 7);
-      let c = -1;
+      if (ways.patch) d = Math.max(0, Math.hypot(u - ways.patch[0], v - ways.patch[1]) * FINE - 2.5);
+      const grain = hash(x * FINE + i, y * FINE + j, 7);
+      let k = Way.None;
       if (rail) {
-        if (d >= RAIL_CORE && d < RAIL_EDGE) c = steel;
-        else if (d < RAIL_CORE) c = Math.abs(along / gap - Math.round(along / gap)) * gap < 0.5 ? sleeper : ballast;
-      } else if (d < ROAD_CORE) c = grain < 0.25 ? worn : surface;
-      else if (d < ROAD_EDGE && grain > 0.6) c = edge;
-      if (c >= 0) out.set(i, j, c);
+        const onSleeper = Math.abs(along / gap - Math.round(along / gap)) * gap < 1;
+        if (d >= RAIL.railIn && d < RAIL.railTop) k = Way.RailTop;
+        else if (d >= RAIL.railTop && d < RAIL.railOut) k = Way.RailFoot;
+        else if (d < RAIL.sleeper && (onSleeper || ways.patch)) k = Way.Sleeper;
+      } else if (d < ROAD.crown) k = grain < 0.12 ? Way.Pebble : Way.Crown;
+      else if (d < ROAD.fill) k = grain < 0.1 ? Way.Speck : grain > 0.92 ? Way.Pebble : Way.Edge;
+      else if (d < ROAD.outline) k = Way.Outline;
+      kinds[j * FINE + i] = k;
+      seams[j * FINE + i] = Math.floor(along) % PLANK_GAP === 0 ? 1 : 0;
+      if (k !== Way.None) sprite.fset(i, j, LAND_WAY[k]);
     }
+  const out = { kinds, seams, sprite };
   if (wayCache.size > 4096) wayCache.clear();
   wayCache.set(key, out);
   return out;
 }
 
-/** The road across square (x, y), as the viewer knows it (`explored`). */
-export function drawRoad(s: Surface, dx: number, dy: number, map: WorldMap, explored: Explored, x: number, y: number): void {
+/**
+ * The road across square (x, y), as the viewer knows it (`explored`), over `ground` (the square as
+ * drawn beneath). Where a river's water runs under it the road is a bridge: a timber deck, its planks
+ * across the way, railed in dark wood; elsewhere water stays water (a shore the course brushes).
+ */
+export function drawRoad(s: Surface, dx: number, dy: number, map: WorldMap, explored: Explored, x: number, y: number, ground?: Surface): void {
   const ways = roadWays(map, explored, x, y);
-  if (ways) s.blit(waySurface(ways, x, y, false), dx, dy, SPRITE_CLEAR);
+  if (!ways) return;
+  const { kinds, seams, sprite } = wayPixels(ways, x, y, false);
+  const wet = ground && ground.k === DETAIL && hasWater(ground) ? ground : null;
+  if (!wet || !map.tiles[y * map.width + x]?.river) {
+    if (!wet) { s.blit(sprite, dx, dy, SPRITE_CLEAR); return; }
+    // Off the river, the road keeps to dry land: water under its course stays water.
+    for (let j = 0; j < FINE; j++)
+      for (let i = 0; i < FINE; i++) {
+        const k = kinds[j * FINE + i]!;
+        if (k !== Way.None && !isWater(wet.fget(i, j))) s.fset(dx * s.k + i, dy * s.k + j, LAND_WAY[k as Way]);
+      }
+    return;
+  }
+  // Over a river: the deck is the road's width; its planks run across it, its outline is the railing.
+  const deck = (i: number, j: number) => isWater(wet.fget(i, j));
+  for (let j = 0; j < FINE; j++)
+    for (let i = 0; i < FINE; i++) {
+      const k = kinds[j * FINE + i]! as Way;
+      if (k === Way.None) continue;
+      let c = LAND_WAY[k];
+      if (deck(i, j) || (k === Way.Outline && neighbourWet(deck, i, j))) {
+        if (k === Way.Outline) c = DECK.rail;
+        else c = seams[j * FINE + i] ? DECK.seam : DECK.plank;
+      }
+      s.fset(dx * s.k + i, dy * s.k + j, c);
+    }
+}
+
+/** Ground pictures (cached and shared) with any water in them, remembered: most have none. */
+const watery = new WeakMap<Surface, boolean>();
+function hasWater(ground: Surface): boolean {
+  let w = watery.get(ground);
+  if (w === undefined) {
+    w = false;
+    for (let j = 0; j < FINE && !w; j++) for (let i = 0; i < FINE; i++) if (isWater(ground.fget(i, j))) { w = true; break; }
+    watery.set(ground, w);
+  }
+  return w;
+}
+
+/** Whether a fine pixel beside (i, j), side or corner, is water. */
+function neighbourWet(wet: (i: number, j: number) => boolean, i: number, j: number): boolean {
+  for (let b = -1; b <= 1; b++)
+    for (let a = -1; a <= 1; a++) {
+      const ni = i + a;
+      const nj = j + b;
+      if ((a || b) && ni >= 0 && nj >= 0 && ni < FINE && nj < FINE && wet(ni, nj)) return true;
+    }
+  return false;
 }
 
 /** The railroad across square (x, y), over its road. */
 export function drawRailroad(s: Surface, dx: number, dy: number, map: WorldMap, explored: Explored, x: number, y: number): void {
   const ways = roadWays(map, explored, x, y, true);
-  if (ways) s.blit(waySurface(ways, x, y, true), dx, dy, SPRITE_CLEAR);
+  if (ways) s.blit(wayPixels(ways, x, y, true).sprite, dx, dy, SPRITE_CLEAR);
 }
 
 /** Fortress: a square rampart with corner towers. */

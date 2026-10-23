@@ -553,6 +553,15 @@ describe("terrain works", () => {
     let corner = 0;
     for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) if (earth(at(x0 + 6, y0 + 1, i, j)) || earth(at(x0 + 7, y0 + 2, i, j))) corner++;
     expect(corner).toBeGreaterThan(0);
+    // Where the road crosses the river it is a bridge: timber planks over the water, none on dry road squares.
+    const planks = (mx: number, my: number) => {
+      let n = 0;
+      for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) if (fine(mx, my, i, j) === shade("earth", 4)) n++;
+      return n;
+    };
+    expect(getTile(state.map, x0 + 9, y0 + 4)!.river).toBe(true);
+    expect(planks(x0 + 9, y0 + 4)).toBeGreaterThan(0);
+    expect(planks(x0 + 2, y0 + 3)).toBe(0);
     // Fields: a canal runs through the middle and on into the irrigated neighbour; a strip of terrain shows toward the rest.
     expect(water(at(x0 + 3, y0 + 4, 15, 7)) && water(at(x0 + 4, y0 + 4, 0, 7))).toBe(true);
     const ground = (c: number) => c >= C.MEADOW! && c < C.MEADOW! + 8;

@@ -322,7 +322,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       const ground = terrainSquare(state.map, wx, my, me.explored);
       s.blit(ground, px, py);
       if (tile.irrigation) drawIrrigation(s, px, py, ground, tile.terrain, wx, my, fieldSides(state.map, me.explored, wx, my));
-      drawRoad(s, px, py, state.map, me.explored, wx, my);
+      drawRoad(s, px, py, state.map, me.explored, wx, my, ground);
       drawRailroad(s, px, py, state.map, me.explored, wx, my);
       if (tile.mine) drawMine(s, px, py);
       if (tile.special) drawSpecial(s, px, py, tile);
