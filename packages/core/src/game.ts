@@ -66,6 +66,10 @@ export interface NewGameOptions extends MapGenOptions {
   packedCities?: boolean;
   /** No city focus: every city weighs its squares as before version 23. Old saves load with it. */
   balancedWorkers?: boolean;
+  /** The city's own square suffers Despotism's and Anarchy's -1 like any other. Old saves load with it. */
+  centrePenalty?: boolean;
+  /** Settlers draw on their city's free units and pay shields like other units. Old saves load with it. */
+  settlerShields?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -196,6 +200,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.compoundingPenalty ? { compoundingPenalty: true } : {}),
     ...(opts.packedCities ? { packedCities: true } : {}),
     ...(opts.balancedWorkers ? { balancedWorkers: true } : {}),
+    ...(opts.centrePenalty ? { centrePenalty: true } : {}),
+    ...(opts.settlerShields ? { settlerShields: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

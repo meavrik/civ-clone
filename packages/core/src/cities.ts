@@ -64,7 +64,8 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
   if (isCentre && shields < 1) shields = 1;
   if (tile.railroad) shields += Math.floor(shields / 2);
   const gov = government(govId);
-  if (gov.tilePenalty) {
+  // The city's own square is spared the penalty (our departure, asked for 2026-10-23: young cities grew too slowly).
+  if (gov.tilePenalty && (!isCentre || state.centrePenalty)) {
     if (food > 2) food--;
     if (shields > 2) shields--;
     if (trade > 2) trade--;
@@ -112,14 +113,23 @@ export function freeUnits(state: GameState, city: City): number {
 }
 
 /**
+ * Does this unit draw on its home city's free units and shields? Settlers cost only their food
+ * (our departure, asked for 2026-10-23: cities could not afford them); old saves (`settlerShields`) paid for them too.
+ */
+export function paysShields(state: GameState, unit: Unit): boolean {
+  return state.settlerShields === true || !unitType(unit.type).flags?.includes("settler");
+}
+
+/**
  * What each unit a city supports costs it a turn, oldest first: the oldest ride on the
- * government's free units, the rest pay shields, and settlers eat food besides.
+ * government's free units, the rest pay shields; settlers only eat.
  */
 export function unitSupport(state: GameState, city: City): { unit: Unit; shields: number; food: number }[] {
   const gov = government(state.players[city.owner]!.government);
   let free = freeUnits(state, city);
   return state.units.filter((u) => u.homeCity === city.id).map((unit) => {
     const food = unitType(unit.type).flags?.includes("settler") ? gov.settlerFood : 0;
+    if (!paysShields(state, unit)) return { unit, shields: 0, food };
     if (free > 0) { free--; return { unit, shields: 0, food }; }
     return { unit, shields: gov.unitUpkeep, food };
   });

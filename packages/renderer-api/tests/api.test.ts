@@ -205,11 +205,13 @@ describe("city units", () => {
     const away = createUnit(s, "militia", 0, c.x, c.y + 2, c.id);
     const home = createUnit(s, "settlers", 0, c.x, c.y, c.id);
     const guest = createUnit(s, "phalanx", 0, c.x, c.y, null);
-    // Size 1 under Despotism: the first unit it supports (the one away) is free, the settlers pay a shield and eat.
+    const second = createUnit(s, "militia", 0, c.x + 2, c.y, c.id);
+    // Size 1 under Despotism: the first soldier it supports (the one away) is free, the second pays a shield; the settlers only eat.
     expect(cityUnits(s, c).map(({ unit, here, shields, food }) => [unit.id, here, shields, food])).toEqual([
-      [home.id, true, 1, 1],
+      [home.id, true, 0, 1],
       [guest.id, true, 0, 0],
       [away.id, false, 0, 0],
+      [second.id, false, 1, 0],
     ]);
   });
 });

@@ -263,6 +263,10 @@ export interface GameState {
   packedCities?: boolean;
   /** Every city weighs its squares food 3, shields 2, trade 1 and has no focus, as before version 23. */
   balancedWorkers?: boolean;
+  /** Despotism's and Anarchy's -1 on yields over 2 reaches the city's own square too, as before version 24. */
+  centrePenalty?: boolean;
+  /** Settlers take a free unit and pay a shield beyond it like any unit, besides their food, as before version 24. */
+  settlerShields?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

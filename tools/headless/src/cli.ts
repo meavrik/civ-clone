@@ -29,6 +29,7 @@ interface Options {
   workBeyondBorders: boolean;
   simpleMoods: boolean;
   packedCities: boolean;
+  oldSupport: boolean;
 }
 
 const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
@@ -51,12 +52,13 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --work-beyond-borders  cities work all 21 squares, inside their border or not (saves before version 16)
   --simple-moods   our first moods: no celebrations, martial law capped at three, no Democracy toppled by riots (saves before version 17)
   --packed-cities  the planner founds cities wherever the rules allow, not only well apart (saves before version 22)
+  --old-support    Despotism's -1 on the city's own square, settlers paying shields (saves before version 24)
   --verify         replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -89,6 +91,7 @@ function parseArgs(argv: string[]): Options {
       case "work-beyond-borders": o.workBeyondBorders = true; break;
       case "simple-moods": o.simpleMoods = true; break;
       case "packed-cities": o.packedCities = true; break;
+      case "old-support": o.oldSupport = true; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
       default: throw new Error(`unknown option --${key}\n\n${HELP}`);
@@ -205,6 +208,7 @@ function main(argv: string[]): number {
       ...(o.workBeyondBorders ? { workBeyondBorders: true } : {}),
       ...(o.simpleMoods ? { simpleMoods: true } : {}),
       ...(o.packedCities ? { packedCities: true } : {}),
+      ...(o.oldSupport ? { oldSupport: true } : {}),
     });
     if (!o.quiet && o.every > 0) {
       console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).join(", ")}`);

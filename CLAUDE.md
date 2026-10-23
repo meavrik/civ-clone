@@ -541,11 +541,21 @@ text), second special resources with reaches (save version 20; the branch's own 
    Unit upkeep follows the original (`unitSupport`, `freeUnits` in `cities.ts`, `freeUnits` per
    government in `rules/governments.ts`): Despotism and Anarchy support as many units free as a city's
    size, every other government pays a shield for each unit; settlers eat 1 food (2 under Republic and
-   Democracy). A city that cannot pay disbands units at once, newest first and settlers last (cargo of a
+   Democracy). A city that cannot pay disbands units at once, newest first and settlers last (old saves; they pay none now) (cargo of a
    ship at sea sinks with it), without touching its shield box; the `home` command (H) moves a unit's
    support to the city it stands in. Both city screens mark each supported unit's cost. `looseUpkeep`
    (saves before version 8, headless `--loose-upkeep`) keeps our first upkeep: 3 free units a city
    under Monarchy and Communism too, debts paid from the shield box.
+   Growth (asked for 2026-10-23: young cities grew too slowly and could not support settlers; two of four
+   measured proposals picked; our departures): the city's own square is spared Despotism's and Anarchy's
+   -1 (`tileYield`, an irrigated grassland centre gives 3 food), and settlers cost only their food, never
+   shields: they take no free unit and are never disbanded for upkeep (`paysShields`; the planner's
+   `affordsSettlers` knows it). A player city on 40 starts (Growth focus): size 4 by turn 32 (was 45),
+   size 5 by 49 (was 71); one keeping two settlers home no longer goes without spare shields (12% of
+   turns before). Saves before version 24 load with `centrePenalty` and `settlerShields` (headless
+   `--old-support`). Head to head (planner vs v2, 16 x 300): old rules 12-4, score 124 vs 99, pop 40 vs 39;
+   new 13-3, score 149 vs 108, pop 50 vs 45. Still open: AI cities stay small (the planner's balanced weights prefer forest to
+   grassland and it keeps building settlers), and the border rule keeps young cities to their 8 squares.
    City focus (asked for; our departure: the original weighed every city alike): `City.focus`
    (`rules/focus.ts`: Growth, Production, Science, Trade) ranks the squares `autoAssignWorkers` and
    `arrangeCity` pick (`slotScore`), never starving the city when another square would feed it

@@ -62,6 +62,8 @@ export interface GameConfig {
   simpleMoods?: boolean;
   /** The planner founds cities wherever the rules allow, not only well apart (saves before version 22). */
   packedCities?: boolean;
+  /** Our support before version 24: the city's own square suffers Despotism's -1 and settlers pay shields. */
+  oldSupport?: boolean;
 }
 
 export interface PlayerStats {
@@ -148,6 +150,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.workBeyondBorders ? { workBeyondBorders: true } : {}),
     ...(config.simpleMoods ? { simpleMoods: true } : {}),
     ...(config.packedCities ? { packedCities: true } : {}),
+    ...(config.oldSupport ? { centrePenalty: true, settlerShields: true } : {}),
   };
 }
 

@@ -52,9 +52,15 @@ describe("tile yields", () => {
     expect(tileYield(s, t, false, "monarchy").shields).toBe(3);
   });
 
-  it("centre tile is auto-irrigated and yields at least one shield", () => {
+  it("centre tile is auto-irrigated, spared the despot's penalty and yields at least one shield", () => {
     const s = flatWorld();
     const t = getTile(s.map, 10, 10)!;
+    expect(tileYield(s, t, true, "despotism")).toEqual({ food: 3, shields: 1, trade: 0 });
+    // Any other square still loses the third food.
+    t.irrigation = true;
+    expect(tileYield(s, t, false, "despotism").food).toBe(2);
+    // Saves before version 24 penalised the city's own square too.
+    s.centrePenalty = true;
     expect(tileYield(s, t, true, "despotism")).toEqual({ food: 2, shields: 1, trade: 0 });
   });
 
@@ -182,8 +188,8 @@ describe("cities", () => {
     expect(c.worked.length).toBe(1);
     expect(getTile(s.map, 10, 10)!.road).toBe(true);
     const r = computeCity(s, c);
-    expect(r.food).toBe(4); // centre 2 (+irrigation capped by despotism) + one grassland 2
-    expect(r.foodSurplus).toBe(2);
+    expect(r.food).toBe(5); // centre 3 (irrigated, spared the despot's penalty) + one grassland 2
+    expect(r.foodSurplus).toBe(3);
     expect(r.shields).toBe(1);
   });
 
@@ -200,13 +206,14 @@ describe("cities", () => {
     const u = createUnit(s, "settlers", 0, 10, 10);
     applyCommand(s, { type: "found", unit: u.id });
     const c = s.cities[0]!;
-    // Size 1 box is 20; surplus 2/turn -> grows on the 10th turn.
-    for (let i = 0; i < 10; i++) applyCommand(s, { type: "endTurn" });
+    // Size 1 box is 20; surplus 3/turn -> grows on the 7th turn.
+    for (let i = 0; i < 7; i++) applyCommand(s, { type: "endTurn" });
     expect(c.size).toBe(2);
     expect(c.worked.length).toBe(2);
-    // Militia costs 10 at 1 shield/turn: built on turn 10.
-    expect(s.units.some((x) => x.type === "militia" && x.homeCity === c.id)).toBe(true);
     expect(lastTurnEvents.some((e) => e.kind === "grew")).toBe(true);
+    // Militia costs 10 at 1 shield/turn: built on turn 10.
+    for (let i = 0; i < 3; i++) applyCommand(s, { type: "endTurn" });
+    expect(s.units.some((x) => x.type === "militia" && x.homeCity === c.id)).toBe(true);
   });
 
   it("switching production kind halves the box, switching back restores it; buying completes it", () => {
@@ -368,9 +375,10 @@ describe("cities", () => {
 });
 
 describe("unit upkeep", () => {
-  function cityWith(units: string[], gov = "despotism", opts: { looseUpkeep?: boolean } = {}): { s: GameState; c: City } {
+  function cityWith(units: string[], gov = "despotism", opts: { looseUpkeep?: boolean; settlerShields?: boolean } = {}): { s: GameState; c: City } {
     const s = flatWorld();
     if (opts.looseUpkeep) s.looseUpkeep = true;
+    if (opts.settlerShields) s.settlerShields = true;
     applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
     const c = s.cities[0]!;
     s.players[0]!.government = gov;
@@ -378,37 +386,46 @@ describe("unit upkeep", () => {
     return { s, c };
   }
 
-  it("lets a city support as many units free as its size under Despotism, none under Monarchy, as in the original", () => {
-    const { s, c } = cityWith(["militia", "militia", "militia", "settlers"]);
+  it("lets a city support as many units free as its size under Despotism, none under Monarchy, as in the original; settlers only eat", () => {
+    const { s, c } = cityWith(["settlers", "militia", "militia", "militia", "militia"]);
     c.size = 3;
-    expect(unitSupport(s, c).map((x) => [x.shields, x.food])).toEqual([[0, 0], [0, 0], [0, 0], [1, 1]]);
+    // Settlers take no free unit and pay no shield, whatever the government: they cost their food.
+    expect(unitSupport(s, c).map((x) => [x.shields, x.food])).toEqual([[0, 1], [0, 0], [0, 0], [0, 0], [1, 0]]);
     s.players[0]!.government = "monarchy";
-    expect(unitSupport(s, c).map((x) => x.shields)).toEqual([1, 1, 1, 1]);
+    expect(unitSupport(s, c).map((x) => x.shields)).toEqual([0, 1, 1, 1, 1]);
     s.players[0]!.government = "republic";
-    expect(unitSupport(s, c).map((x) => x.food)).toEqual([0, 0, 0, 2]);
+    expect(unitSupport(s, c).map((x) => x.food)).toEqual([2, 0, 0, 0, 0]);
+    // Saves before version 24: settlers took the first free unit and paid beyond it like any unit.
+    s.settlerShields = true;
+    s.players[0]!.government = "despotism";
+    expect(unitSupport(s, c).map((x) => [x.shields, x.food])).toEqual([[0, 1], [0, 0], [0, 0], [1, 0], [1, 0]]);
+    s.players[0]!.government = "monarchy";
+    expect(unitSupport(s, c).map((x) => x.shields)).toEqual([1, 1, 1, 1, 1]);
+    delete s.settlerShields;
+    s.players[0]!.government = "republic";
     // Saves before version 8 keep three free units under every government but Republic and Democracy.
     s.looseUpkeep = true;
     s.players[0]!.government = "monarchy";
     expect(computeCity(s, c).unitShields).toBe(1);
   });
 
-  it("disbands units its city cannot pay for at once, newest first and settlers last, keeping the shield box", () => {
-    const { s, c } = cityWith(["settlers", "militia", "militia", "militia", "militia"], "monarchy");
-    // Forest all round: the city works one square of 2 shields beside its own 1, and owes 5.
-    for (const [dx, dy] of CITY_RADIUS) if (dx || dy) getTile(s.map, c.x + dx, c.y + dy)!.terrain = Terrain.Forest;
-    autoAssignWorkers(s, c);
-    c.shields = 7;
-    const militia = s.units.filter((u) => u.homeCity === c.id && u.type === "militia").map((u) => u.id);
-    const r = computeCity(s, c);
-    expect(r.unitShields - r.shields).toBe(2);
-    applyCommand(s, { type: "endTurn" });
-    const left = s.units.filter((u) => u.homeCity === c.id).map((u) => u.type === "settlers" ? "settlers" : u.id);
-    expect(left).toEqual(["settlers", militia[0], militia[1]]);
-    expect(lastTurnEvents.filter((e) => e.kind === "disbanded")).toEqual([
-      { city: c.id, kind: "disbanded", detail: "Militia" },
-      { city: c.id, kind: "disbanded", detail: "Militia" },
-    ]);
-    expect(c.shields).toBe(7);
+  it("disbands units its city cannot pay for at once, newest first, keeping the shield box; settlers cost no shields", () => {
+    for (const settlerShields of [false, true]) {
+      const { s, c } = cityWith(["settlers", "militia", "militia", "militia", "militia"], "monarchy", { settlerShields });
+      // Forest all round: the city works one square of 2 shields beside its own 1, and owes 4 (5 when settlers paid, before version 24).
+      for (const [dx, dy] of CITY_RADIUS) if (dx || dy) getTile(s.map, c.x + dx, c.y + dy)!.terrain = Terrain.Forest;
+      autoAssignWorkers(s, c);
+      c.shields = 7;
+      const militia = s.units.filter((u) => u.homeCity === c.id && u.type === "militia").map((u) => u.id);
+      const r = computeCity(s, c);
+      expect(r.unitShields - r.shields).toBe(settlerShields ? 2 : 1);
+      applyCommand(s, { type: "endTurn" });
+      const left = s.units.filter((u) => u.homeCity === c.id).map((u) => u.type === "settlers" ? "settlers" : u.id);
+      // Settlers, carrying a citizen, went last when they paid; now they never pay.
+      expect(left).toEqual(settlerShields ? ["settlers", militia[0], militia[1]] : ["settlers", militia[0], militia[1], militia[2]]);
+      expect(lastTurnEvents.filter((e) => e.kind === "disbanded")).toHaveLength(settlerShields ? 2 : 1);
+      expect(c.shields).toBe(7);
+    }
   });
 
   it("before version 8, paid upkeep debts from the shield box first", () => {
@@ -553,12 +570,12 @@ describe("moods", () => {
     expect(r.celebration).toBe(true);
     expect(c.celebrating).toBe(false);
     expect(cityYieldGovernment(s, c)).toBe("despotism");
-    const penalised = r.food; // the centre and the irrigated square each lose a food to the despot
+    const penalised = r.food; // the irrigated square loses a food to the despot (the city's own square is spared)
     applyCommand(s, { type: "endTurn" });
     expect(c.celebrating).toBe(true);
     expect(lastTurnEvents.some((e) => e.kind === "celebration")).toBe(true);
     expect(cityYieldGovernment(s, c)).toBe("monarchy");
-    expect(computeCity(s, c).food).toBe(penalised + 2);
+    expect(computeCity(s, c).food).toBe(penalised + 1);
     // A celebrating Republic grows a citizen every turn it has food to spare, and keeps its store.
     s.players[0]!.government = "republic";
     getTile(s.map, 9, 10)!.irrigation = true;

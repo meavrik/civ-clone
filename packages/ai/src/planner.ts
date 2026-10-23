@@ -28,6 +28,7 @@ import {
   findPath,
   firepower,
   freeUnits,
+  paysShields,
   getTile,
   government,
   governmentsAvailable,
@@ -1078,8 +1079,10 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   const wanted = ctx.wanted.get(c.id) ?? 1;
   const p = ctx.p;
   // One more unit rides on a free unit or costs a shield a turn: only build it where `keep` shields are left over.
-  const upkeepNext = state.units.filter((u) => u.homeCity === c.id).length < freeUnits(state, c) ? 0 : government(p.government).unitUpkeep;
+  const upkeepNext = state.units.filter((u) => u.homeCity === c.id && paysShields(state, u)).length < freeUnits(state, c) ? 0 : government(p.government).unitUpkeep;
   const affords = (keep: number) => r.shieldSurplus - upkeepNext >= keep;
+  // Settlers cost only food (saves before version 24, `settlerShields`, paid for them like any unit).
+  const affordsSettlers = state.settlerShields ? affords : (keep: number) => r.shieldSurplus >= keep;
 
   if (here < wanted) return bestUnit(options, "defense");
   // A ship to carry settlers overseas, from a port with no room left at home.
@@ -1126,13 +1129,13 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   const allowance = ctx.cities.length < 8 ? Math.max(2, Math.ceil(ctx.cities.length / 2)) : Math.ceil(ctx.cities.length / 3);
   // Settlers for land this city can walk to, or (from a port) for a colony across the sea.
   const colonists = !homeSites && coastal(state, c) && ctx.overseasSettlers < 2 && ctx.wantOverseas();
-  if (colonists && settlersOut < allowance + 1 && r.foodSurplus >= 1 && c.size >= 3 && affords(0)) {
+  if (colonists && settlersOut < allowance + 1 && r.foodSurplus >= 1 && c.size >= 3 && affordsSettlers(0)) {
     const s = pick("unit", "settlers");
     if (s) { ctx.overseasSettlers++; return s; }
   }
   const sitesLeft = homeSites;
   // Settlers off to found a city pay upkeep only until they do.
-  if (sitesLeft && settlersOut < allowance && r.foodSurplus >= 1 && (c.size >= 2 || r.foodSurplus >= 2) && affords(0)) {
+  if (sitesLeft && settlersOut < allowance && r.foodSurplus >= 1 && (c.size >= 2 || r.foodSurplus >= 2) && affordsSettlers(0)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -1141,7 +1144,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     if (t) return t;
   }
   const workers = ctx.units.filter((u) => unitType(u.type).flags?.includes("settler") && u.order.kind === "work").length;
-  if (workers < ctx.workersWanted && c.size >= 3 && r.foodSurplus >= 2 && settlersOut <= allowance && affords(1)) {
+  if (workers < ctx.workersWanted && c.size >= 3 && r.foodSurplus >= 2 && settlersOut <= allowance && affordsSettlers(1)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -1206,7 +1209,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     const a = bestUnit(options, "attack", ctx.campaignFoot ? state : null);
     if (a) return a;
   }
-  if (sitesLeft && r.foodSurplus >= 1 && affords(0)) {
+  if (sitesLeft && r.foodSurplus >= 1 && affordsSettlers(0)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -1226,7 +1229,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     }
     if (cheapest) return cheapest;
   }
-  if (r.foodSurplus >= 2 && settlersOut + workers < ctx.workersWanted + (sitesLeft ? allowance : 0) && affords(1)) {
+  if (r.foodSurplus >= 2 && settlersOut + workers < ctx.workersWanted + (sitesLeft ? allowance : 0) && affordsSettlers(1)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -1309,7 +1312,7 @@ function manageUpkeep(state: GameState, ctx: Ctx): void {
     if (!here || here.owner !== ctx.me || u.homeCity === here.id) continue;
     const home = ctx.cities.find((c) => c.id === u.homeCity);
     if (!home || !pays(home, u)) continue;
-    const spareHere = state.units.filter((o) => o.homeCity === here.id).length < freeUnits(state, here);
+    const spareHere = state.units.filter((o) => o.homeCity === here.id && paysShields(state, o)).length < freeUnits(state, here);
     if (spareHere || (surplus(home) < 0 && surplus(here) >= 2 + upkeep)) applyCommand(state, { type: "home", unit: u.id });
   }
   for (const c of ctx.cities) {

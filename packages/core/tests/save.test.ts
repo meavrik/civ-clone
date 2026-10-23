@@ -80,6 +80,15 @@ describe("save/load", () => {
     expect(loadSave(makeSave(state, opts, []), skipAll).state.looseUpkeep).toBeUndefined();
   });
 
+  it("replays a save from before the city's square was spared the despot and settlers stopped paying shields", () => {
+    const opts = { opponents: 1 as const };
+    const state = newGame(321, opts);
+    const old = loadSave({ ...makeSave(state, opts, []), version: 23 as const }, skipAll).state;
+    expect([old.centrePenalty, old.settlerShields]).toEqual([true, true]);
+    const now = loadSave(makeSave(state, opts, []), skipAll).state;
+    expect([now.centrePenalty, now.settlerShields]).toEqual([undefined, undefined]);
+  });
+
   it("replays a save from before the AI kept its cities apart with its old habit", () => {
     const opts = { opponents: 1 as const };
     const state = newGame(321, opts);
