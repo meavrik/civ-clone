@@ -38,6 +38,49 @@ export function citizenLook(city: number, i: number): CitizenLook {
   };
 }
 
+/**
+ * The people in a city's row, in the order the city screen shows them: those working the land by
+ * their mood (happy, content, unhappy), then the specialists in the city's own order.
+ */
+export function citizenRow(state: GameState, city: City): CitizenMood[] {
+  const r = computeCity(state, city);
+  return [
+    ...Array<CitizenMood>(r.happy).fill("happy"),
+    ...Array<CitizenMood>(r.content).fill("content"),
+    ...Array<CitizenMood>(r.unhappy).fill("unhappy"),
+    ...city.specialists,
+  ];
+}
+
+/** True for a person who works the land, false for a specialist. */
+export function isWorker(who: CitizenMood): who is "happy" | "content" | "unhappy" {
+  return who === "happy" || who === "content" || who === "unhappy";
+}
+
+/** The trade a specialist takes on when clicked, as in the original: entertainer, taxman, scientist, round again. */
+export function nextSpecialist(s: Specialist): Specialist {
+  return s === "entertainer" ? "taxman" : s === "taxman" ? "scientist" : "entertainer";
+}
+
+/** What each specialist gives the city (two of a kind, `computeCity`). */
+export const SPECIALIST_GIVES: Record<Specialist, string> = { entertainer: "+2 luxuries", taxman: "+2 tax", scientist: "+2 science" };
+
+const NAME: Record<CitizenMood, string> = { happy: "Happy", content: "Content", unhappy: "Unhappy", entertainer: "Entertainer", taxman: "Taxman", scientist: "Scientist" };
+const AN: Record<Specialist, string> = { entertainer: "an entertainer", taxman: "a taxman", scientist: "a scientist" };
+
+/** Who a person in the city's row is: "Content worker", "Taxman, +2 tax". */
+export function citizenRole(who: CitizenMood): string {
+  return isWorker(who) ? `${NAME[who]} worker` : `${NAME[who]}, ${SPECIALIST_GIVES[who]}`;
+}
+
+/** What the city screen says of a person in its row: who they are, and what a click makes of them. */
+export function citizenNote(who: CitizenMood): string {
+  return `${citizenRole(who)}. Click for ${AN[isWorker(who) ? "entertainer" : nextSpecialist(who)]}`;
+}
+
+/** The city screen's word on its row of people while none is pointed at. */
+export const CITIZENS_HINT = "Click a citizen to change their job";
+
 /** The Happy panel's word for each stage of the mood reckoning (`MOOD_STAGES`). */
 export const MOOD_STAGE_LABELS: Record<MoodStageKind, string> = { born: "Born", luxury: "Luxury", buildings: "Buildings", soldiers: "Soldiers", wonders: "Wonders" };
 /** And its icon, where the panel has no room for words. */

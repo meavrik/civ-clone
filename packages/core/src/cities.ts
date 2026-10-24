@@ -388,6 +388,12 @@ export function cityFoodBox(state: GameState, city: City): number {
   return pct === 0 ? foodBox(city) : Math.max(1, Math.round((foodBox(city) * (100 + pct)) / 100));
 }
 
+/** The food a growing city keeps in store: half its box with a Granary, or its owner's trait's share, whichever is more. */
+export function foodKept(state: GameState, city: City, box = cityFoodBox(state, city)): number {
+  const keep = Math.max(city.buildings.some((b) => building(b).granary) ? 1 / 2 : 0, traitGrowthKeep(state, city.owner));
+  return Math.floor(box * keep);
+}
+
 /** The rules' cost of a production, before any civilization's trait. */
 export function productionCost(p: Production): number {
   return p.kind === "unit" ? unitType(p.id).cost : p.kind === "wonder" ? wonder(p.id).cost : p.kind === "spaceship" ? spacePart(p.id).cost : building(p.id).cost;
@@ -839,8 +845,7 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
       city.size++;
       // A full granary empties into the new citizen (a Granary keeps half); a festival's growth leaves the store be.
       if (city.food >= r.foodBox) {
-        const keep = Math.max(city.buildings.includes("granary") ? 1 / 2 : 0, traitGrowthKeep(state, city.owner));
-        city.food = Math.floor(r.foodBox * keep);
+        city.food = foodKept(state, city, r.foodBox);
       }
       events.push({ city: city.id, kind: "grew" });
       autoAssignWorkers(state, city);

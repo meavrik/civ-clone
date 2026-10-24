@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { settlerSites, TERRAIN_TEXT } from "@civ/renderer-api";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
@@ -668,6 +668,68 @@ describe("city screen", () => {
     });
     writeFileSync(new URL("./out/city-menu.png", import.meta.url), encodePng(s, 3));
     expect(s.data.some((c) => c !== 0)).toBe(true);
+  });
+
+  it("finds each citizen in the row under a click, lights the one pointed at, and lines off what a Granary keeps", () => {
+    const state = newGame(2026);
+    applyCommand(state, { type: "found", unit: state.units[0]!.id });
+    const city = state.cities[0]!;
+    city.size = 6;
+    city.food = 20;
+    autoAssignWorkers(state, city);
+    applyCommand(state, { type: "toggleTile", city: city.id, slot: city.worked[0]! });
+    applyCommand(state, { type: "setSpecialist", city: city.id, index: 0, specialist: "taxman" });
+    const view = { city: city.id };
+    // Along the row, every person once and in order; nothing past them or below the top window.
+    const seen: number[] = [];
+    const first = new Map<number, number>();
+    for (let x = 0; x < 320; x++) {
+      const i = cityCitizenAt(state, view, x, 22);
+      if (i === null) continue;
+      if (seen[seen.length - 1] !== i) seen.push(i);
+      if (!first.has(i)) first.set(i, x);
+    }
+    expect(seen).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(cityCitizenAt(state, view, 300, 22)).toBeNull();
+    expect(cityCitizenAt(state, view, first.get(0)! + 2, 60)).toBeNull();
+    // The taxman pointed at stands on a lit patch.
+    const lit = (hover?: number) => {
+      const s = Surface.screen();
+      drawCityScreen(s, state, { city: city.id, hover });
+      let n = 0;
+      for (let y = 14; y < 28; y++) for (let x = first.get(5)!; x < first.get(5)! + 9; x++) if (s.get(x, y) === shade("panel", 7)) n++;
+      return n;
+    };
+    expect(lit(5)).toBeGreaterThan(lit() + 20);
+    // A Granary's half of the food store sits above a line in the box (a long run of its ink).
+    const line = () => {
+      const s = Surface.screen();
+      drawCityScreen(s, state, view);
+      let longest = 0;
+      for (let y = 116; y < 188; y++) for (let x = 1, run = 0; x < 107; x++) { run = s.get(x, y) === C.BROWN ? run + 1 : 0; longest = Math.max(longest, run); }
+      return { s, longest };
+    };
+    expect(line().longest).toBe(0);
+    city.buildings.push("granary");
+    const { s, longest } = line();
+    expect(longest).toBeGreaterThan(40);
+    writeFileSync(new URL("./out/city-granary.png", import.meta.url), encodePng(s, 3));
+  });
+
+  it("lays a store out at a readable step, an icon standing for more than one only when the box is big", () => {
+    for (const box of [10, 20, 30, 50, 80, 100, 150, 210, 400, 600])
+      for (const keep of [0, Math.floor(box / 3), Math.floor(box / 2)]) {
+        const blocks = keep ? [keep, box - keep] : [box];
+        const rows = keep ? 4 : 5;
+        const { per, perRow, slots } = storeLayout(100, rows, blocks);
+        expect(slots.reduce((t, n) => t + Math.ceil(n / perRow), 0)).toBeLessThanOrEqual(rows);
+        expect((100 - 8 - 2) / (perRow - 1)).toBeGreaterThanOrEqual(6);
+        expect(slots).toEqual(blocks.map((n) => Math.ceil(n / per)));
+      }
+    expect(storeLayout(100, 5, [50]).per).toBe(1);
+    expect(storeLayout(100, 4, [25, 25]).per).toBe(1);
+    expect(storeLayout(100, 5, [80]).per).toBe(1);
+    expect(storeLayout(100, 4, [50, 50]).per).toBe(2);
   });
 
   it("draws Change and Buy buttons in the production box and hit-tests them", () => {

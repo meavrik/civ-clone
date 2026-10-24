@@ -139,6 +139,8 @@ export interface CityScreenView {
   message?: string | undefined;
   /** The Happy panel up: the citizens after each stage of the mood reckoning (`CityReport.moods`) in the resources box's place. */
   happy?: boolean | undefined;
+  /** The person in the row of citizens under the pointer (`citizenRow`), lit and told of. */
+  hover?: number | undefined;
 }
 
 /** The city screen's buttons: change what is built or buy it now (the production box), view the city, the Happy panel, and the city's focus. */
@@ -341,6 +343,8 @@ export interface Renderer {
   cityButtonAt(px: number, py: number): CityButton | null;
   /** The unit (id) under a point in the city screen's units (`cityUnits`), or null. */
   cityUnitAt(state: GameState, view: CityScreenView, px: number, py: number): number | null;
+  /** The person (their place in `citizenRow`) under a point in the city screen's row of citizens, or null. */
+  cityCitizenAt(state: GameState, view: CityScreenView, px: number, py: number): number | null;
   /** The improvement or wonder (id) under a point of the city view, or null. */
   cityViewAt(state: GameState, view: CityViewState, px: number, py: number): string | null;
   /** Map tile under a point in the main screen's viewport, or null. */

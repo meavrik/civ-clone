@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
+import { foodKept,
   ADVANCE_BY_ID,
   CLASSIC_ADVANCES,
   applyCommand,
@@ -149,6 +149,10 @@ describe("civilization traits", () => {
     processCityTurn(china, c);
     expect(c.size).toBe(2);
     expect(c.food).toBe(Math.floor(((1 + 1) * 10) / 3));
+    // The share the city screen marks in its food store: a third by the trait, half with a Granary.
+    expect(foodKept(china, c)).toBe(Math.floor(30 / 3));
+    c.buildings.push("granary");
+    expect(foodKept(china, c)).toBe(15);
 
     const aztecs = world("aztecs");
     const t = foundCity(aztecs, 0, 10, 10);

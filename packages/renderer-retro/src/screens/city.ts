@@ -8,6 +8,7 @@ import {
   cityCulture,
   cityYieldGovernment,
   cultureRate,
+  foodKept,
   formatYear,
   getTile,
   nextBorderLevel,
@@ -22,15 +23,15 @@ import {
   type CityReport,
   type GameState,
 } from "@civ/core";
-import { cityLook, cityMood, cityUnits, fieldSides, MOOD_STAGE_ICONS, type IconName } from "@civ/renderer-api";
+import { citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityLook, cityUnits, fieldSides, isWorker, MOOD_STAGE_ICONS, type CitizenMood, type IconName } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
-import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, GOLD, GOOD, INK, stipple, TITLE_H } from "../widgets.js";
+import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, FADED, GOLD, GOOD, INK, stipple, TITLE_H } from "../widgets.js";
 import { CITIZEN_H, CITIZEN_W, drawCitizen } from "../citizens.js";
-import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk } from "../icons.js";
+import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk, iconLineWidth } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
@@ -111,6 +112,36 @@ export function cityUnitAt(state: GameState, view: CityScreenView, px: number, p
   return null;
 }
 
+/** The row of citizens: each person standing on the top window's bottom edge, the specialists after a gap. */
+const ROW_Y = TOP.y + TOP.h - 1 - CITIZEN_H;
+const ROW_X = 5;
+const SPECIALIST_GAP = 5;
+/** The row keeps clear of the note beside it up to here, closing up for a big city. */
+const ROW_END = 200;
+
+/** Where each person of the row (`citizenRow`) stands, and how far apart they stand. */
+function citizenSpots(row: readonly CitizenMood[]): { xs: number[]; pitch: number } {
+  const gap = row.some(isWorker) && row.some((w) => !isWorker(w)) ? SPECIALIST_GAP : 0;
+  const pitch = Math.max(3, Math.min(CITIZEN_W + 2, Math.floor((ROW_END - ROW_X - gap) / Math.max(1, row.length))));
+  const xs: number[] = [];
+  let x = ROW_X;
+  row.forEach((who, i) => {
+    if (i > 0 && !isWorker(who) && isWorker(row[i - 1]!)) x += gap;
+    xs.push(x);
+    x += pitch;
+  });
+  return { xs, pitch };
+}
+
+/** The person under a point in the row of citizens: a click changes their job (the web app's `changeCitizen`). */
+export function cityCitizenAt(state: GameState, view: CityScreenView, px: number, py: number): number | null {
+  const city = state.cities.find((c) => c.id === view.city);
+  if (!city || py < ROW_Y - 1 || py >= TOP.y + TOP.h) return null;
+  const { xs, pitch } = citizenSpots(citizenRow(state, city));
+  for (let i = xs.length - 1; i >= 0; i--) if (px >= xs[i]! - 1 && px < xs[i]! + Math.max(pitch, CITIZEN_W) - 1) return i;
+  return null;
+}
+
 /** A unit away from the city: every other pixel of its square goes back to stone. */
 function ghost(s: Surface, x: number, y: number): void {
   for (let dy = 0; dy < TILE; dy++) for (let dx = dy & 1; dx < TILE; dx += 2) stipple(s, x + dx, y + dy, 1, 1, "panel");
@@ -169,75 +200,102 @@ function iconRow(s: Surface, x: number, y: number, w: number, groups: [IconName,
   });
 }
 
+/** When an icon of a store stands for more than one, says how many ("{food}=2"), ending at x (or starting there). */
+function storeKey(s: Surface, x: number, y: number, icon: IconName, per: number, endsAt = true): void {
+  if (per <= 1) return;
+  const key = `{${icon}}=${per}`;
+  drawIconLine(s, endsAt ? x - iconLineWidth(key) : x, y, key, LABEL);
+}
+
+/** Icons in a store stand at least this far apart, so its rows never smear together. */
+const STORE_STEP = 6;
+/** Height of a store's row of icons. */
+const STORE_ROW = ICON + 1;
+/** The band between a store's two blocks, where the line a granary keeps is drawn and named. */
+const KEEP_BAND = FONT_HEIGHT;
+
 /**
- * A store of goods as rows of icons (food in the granary, shields toward the build):
- * a darker bed the size of the box, filled from the top-left. Big boxes let one icon
- * stand for several units, so the rows never smear into a bar.
+ * How a store of goods fills rows of icons no wider than `w`: one icon for `per` goods
+ * (more than one only when the box is too big for the rows), `perRow` icons to a row,
+ * and the icons each block holds. Each block starts on a row of its own.
  */
-function storeGrid(s: Surface, x: number, y: number, w: number, maxRows: number, icon: IconName, have: number, box: number): number {
-  const per = Math.max(1, Math.ceil(box / (maxRows * 24)));
-  const slots = Math.ceil(box / per);
-  const perRow = Math.max(10, Math.ceil(slots / maxRows));
-  const rows = Math.ceil(slots / perRow);
-  const step = (w - ICON - 2) / (perRow - 1);
-  s.rect(x, y, w, rows * (ICON + 1) + 1, shade("panel", 3));
-  const filled = Math.min(slots, Math.floor(have / per));
-  for (let i = 0; i < filled; i++) drawIcon(s, icon, x + 1 + Math.round((i % perRow) * step), y + 1 + Math.floor(i / perRow) * (ICON + 1));
-  return rows * (ICON + 1) + 1;
+export function storeLayout(w: number, maxRows: number, blocks: readonly number[]): { per: number; perRow: number; slots: number[] } {
+  const most = Math.max(1, Math.floor((w - ICON - 2) / STORE_STEP) + 1);
+  // Every block takes a row at least, however many goods an icon stands for.
+  maxRows = Math.max(maxRows, blocks.length);
+  for (let per = 1; ; per++) {
+    const slots = blocks.map((n) => Math.ceil(n / per));
+    for (let perRow = Math.min(10, most); perRow <= most; perRow++)
+      if (slots.reduce((t, n) => t + Math.ceil(n / perRow), 0) <= maxRows) return { per, perRow, slots };
+  }
 }
 
 /**
- * The resources box: food, shields and trade as rows of icons, each named, with what is left or lost,
- * then where the trade goes (tax, luxuries, science). The map's squares carry the same icons.
+ * A store of goods as rows of icons (food toward the next citizen, shields toward the build) in a
+ * well sunk in the stone, filled from the top left. With `keep`, the goods that stay in store when
+ * the city grows (a Granary's half) fill rows of their own above a line named `keepLabel`.
+ * Returns the height drawn and how many goods an icon stands for.
+ */
+function drawStore(s: Surface, x: number, y: number, w: number, maxRows: number, icon: IconName, have: number, box: number, keep = 0, keepLabel = ""): { h: number; per: number } {
+  const blocks = keep > 0 && keep < box ? [keep, box - keep] : [box];
+  const { per, perRow, slots } = storeLayout(w, blocks.length > 1 ? maxRows - 1 : maxRows, blocks);
+  const step = perRow > 1 ? Math.min(ICON + 1, (w - ICON - 2) / (perRow - 1)) : 0;
+  let top = y;
+  let start = 0;
+  blocks.forEach((goods, b) => {
+    if (b > 0) {
+      // The granary's line: what stands above it is kept when the city grows.
+      const lw = textWidth(keepLabel);
+      s.rect(x, top + 3, w - lw - 3, 1, GOLD);
+      drawText(s, x + w - lw, top, keepLabel, GOLD);
+      top += KEEP_BAND;
+    }
+    const rows = Math.ceil(slots[b]! / perRow);
+    const h = rows * STORE_ROW + 2;
+    drawStone(s, x, top, w, h, true);
+    const filled = have >= start + goods ? slots[b]! : Math.max(0, Math.min(slots[b]!, Math.floor((have - start) / per)));
+    for (let i = 0; i < filled; i++) drawIcon(s, icon, x + 1 + Math.round((i % perRow) * step), top + 1 + Math.floor(i / perRow) * STORE_ROW);
+    top += h;
+    start += goods;
+  });
+  return { h: top - y, per };
+}
+
+/**
+ * The resources box: a row for each of food, shields and trade, then for each share of the trade
+ * (tax, luxuries, science): its name, its icons, and at the right what is left or lost. The map's
+ * squares carry the same icons; the buildings' upkeep heads the improvements.
  */
 function drawResources(s: Surface, r: CityReport): void {
   drawBox(s, LEFT.x, ROW1.y, LEFT.w, ROW1.h, "City Resources");
   const lx = LEFT.x + 3;
-  const rx = lx + textWidth("Shields") + 3;
-  const rw = LEFT.x + LEFT.w - 17 - rx;
+  const rx = lx + textWidth("Shields") + 4;
+  const rw = LEFT.x + LEFT.w - 15 - rx;
   const num = (y: number, text: string, color: number) => say(s, LEFT.x + LEFT.w - 3 - textWidth(text), y, text, color);
   let y = ROW1.y + BOX_HEAD + 3;
+  const line = (label: string, groups: [IconName, number][]) => {
+    say(s, lx, y, label, LABEL);
+    iconRow(s, rx, y, rw, groups);
+  };
   const surplus = Math.max(0, r.foodSurplus);
-  say(s, lx, y, "Food", LABEL);
-  iconRow(s, rx, y, rw, [["food", r.food - surplus], ["food", surplus]]);
+  line("Food", [["food", r.food - surplus], ["food", surplus]]);
   num(y, `${r.foodSurplus > 0 ? "+" : ""}${r.foodSurplus}`, r.foodSurplus < 0 ? BAD : r.foodSurplus > 0 ? GOOD : INK);
   y += 10;
   // Shields that go to unit support, and trade lost to corruption, stand apart at the end of their row.
   const upkeep = Math.min(r.shields, r.unitShields);
-  say(s, lx, y, "Shields", LABEL);
-  iconRow(s, rx, y, rw, [["shield", r.shields - upkeep], ["shield", upkeep]]);
+  line("Shields", [["shield", r.shields - upkeep], ["shield", upkeep]]);
   if (r.unitShields) num(y, `-${r.unitShields}`, BAD);
   y += 10;
-  say(s, lx, y, "Trade", LABEL);
-  iconRow(s, rx, y, rw, [["trade", r.trade - r.corruption], ["trade", r.corruption]]);
+  line("Trade", [["trade", r.trade - r.corruption], ["trade", r.corruption]]);
   if (r.corruption) num(y, `-${r.corruption}`, BAD);
   y += 10;
-  // Where the trade goes, each share named before its icons.
-  const shares = ([["Tax", "coin", r.tax], ["Lux", "gem", r.lux], ["Sci", "bulb", r.science]] as const).filter(([, , n]) => n > 0);
-  const words = shares.reduce((t, [w]) => t + textWidth(w) + 1, 0);
-  const icons = shares.reduce((t, [, , n]) => t + n, 0);
-  const room = LEFT.w - 6 - words - 4 * (shares.length - 1);
-  const step = icons > shares.length ? Math.min(ICON + 1, (room - ICON * shares.length) / (icons - shares.length)) : 0;
-  let sx = lx;
-  for (const [word, icon, n] of shares) {
-    sx = say(s, sx, y, word, LABEL) + 1;
-    for (let i = 0; i < n; i++) drawIcon(s, icon, Math.round(sx + i * step), y);
-    sx = Math.round(sx + (n - 1) * step) + ICON + 4;
+  // Where the trade goes, a row each, always in the same places.
+  for (const [label, icon, n] of [["Tax", "coin", r.tax], ["Lux", "gem", r.lux], ["Sci", "bulb", r.science]] as const) {
+    line(label, [[icon, n]]);
+    y += 10;
   }
-  y += 11;
-  say(s, lx, y, "Upkeep", LABEL);
-  num(y, `${r.buildingUpkeep}$`, INK);
-  y += 9;
-  if (r.routes) {
-    say(s, lx, y, "Routes", LABEL);
-    num(y, `+${r.routes}`, INK);
-    y += 9;
-  }
-  if (r.pollution > 0) {
-    drawIcon(s, "pollution", lx, y);
-    say(s, lx + ICON + 2, y, "Smog", LABEL);
-    num(y, `${r.pollution}%`, BAD);
-  }
+  const extra = [r.routes ? `Routes +${r.routes}` : "", r.pollution > 0 ? `{pollution} ${r.pollution}%` : ""].filter(Boolean);
+  if (extra.length) drawIconLine(s, lx, y, extra.join("  "), LABEL);
 }
 
 /**
@@ -280,18 +338,22 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   // Title and citizens; the strip turns red while the city riots.
   drawBox(s, LEFT.x, TOP.y, SCREEN_W - 2, TOP.h);
   drawTitleStrip(s, LEFT.x + 2, TOP.y + 2, SCREEN_W - 6, `${city.name} (Pop ${city.size})   ${formatYear(turnToYear(state.turn))}`, { centred: true, ...(r.disorder ? { color: C.RED! } : {}) });
-  // Each citizen a person of their own (`citizenLook`), standing on the window's bottom edge.
-  let cx = 5;
-  let n = 0;
-  const cy = TOP.y + TOP.h - 1 - CITIZEN_H;
-  for (let i = 0; i < r.happy; i++, cx += 8) drawCitizen(s, cx, cy, "happy", city.id, n++);
-  for (let i = 0; i < r.content; i++, cx += 8) drawCitizen(s, cx, cy, "content", city.id, n++);
-  for (let i = 0; i < r.unhappy; i++, cx += 8) drawCitizen(s, cx, cy, "unhappy", city.id, n++);
-  cx += 4;
-  for (const sp of city.specialists) { drawCitizen(s, cx, cy, sp, city.id, n++); cx += 8; }
+  // Each citizen a person of their own (`citizenLook`), standing on the window's bottom edge; the one
+  // under the pointer lit, and told of beside the row (a click changes their job).
+  const row = citizenRow(state, city);
+  const { xs, pitch } = citizenSpots(row);
+  const lit = view.hover !== undefined && view.hover < row.length ? view.hover : null;
+  if (lit !== null) s.rect(xs[lit]! - 1, ROW_Y - 1, Math.max(pitch, CITIZEN_W) + 1, CITIZEN_H + 1, shade("panel", 7));
+  row.forEach((who, i) => drawCitizen(s, xs[i]!, ROW_Y, who, city.id, i));
   // The city's standing, as it is now: riots, a festival, or one lost happy citizen from riots.
   const standing = r.disorder ? (["CIVIL DISORDER", BAD] as const) : r.celebration ? (["CELEBRATING", GOOD] as const) : r.unhappy > 0 && r.unhappy === r.happy ? (["UNREST", GOLD] as const) : null;
-  if (standing) say(s, SCREEN_W - 6 - textWidth(standing[0]), TOP.y + BOX_HEAD + 4, standing[0], standing[1]);
+  const standX = standing ? SCREEN_W - 6 - textWidth(standing[0]) : SCREEN_W - 4;
+  if (standing) say(s, standX, TOP.y + BOX_HEAD + 4, standing[0], standing[1]);
+  const noteX = (xs.length ? xs[xs.length - 1]! + pitch : ROW_X) + 6;
+  // A big city's row leaves room for who they are only.
+  const room = standX - 6 - noteX;
+  const note = lit === null ? CITIZENS_HINT : textWidth(citizenNote(row[lit]!)) <= room ? citizenNote(row[lit]!) : citizenRole(row[lit]!);
+  if (textWidth(note) <= room) say(s, noteX, TOP.y + BOX_HEAD + 4, note, lit !== null ? INK : FADED);
 
   if (view.happy) drawMoods(s, city, r);
   else drawResources(s, r);
@@ -363,7 +425,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
     }
 
   // Improvements, wonders in yellow, each building with its upkeep.
-  drawBox(s, RIGHT.x, ROW1.y, RIGHT.w, ROW1.h, "Improvements");
+  drawBox(s, RIGHT.x, ROW1.y, RIGHT.w, ROW1.h, "Improvements", r.buildingUpkeep ? `Upkeep ${r.buildingUpkeep}$` : "");
   const lines = [
     ...city.wonders.map((w) => ({ name: wonder(w).name, color: GOLD, upkeep: 0 })),
     ...city.buildings.map((b) => ({ name: building(b).name, color: INK, upkeep: building(b).upkeep })),
@@ -390,12 +452,14 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
     }
   }
 
-  // Food store: the granary fills toward the next citizen.
+  // Food store, filling toward the next citizen; a Granary's half (or a trait's share) above its line.
   drawBox(s, LEFT.x, ROW2.y, LEFT.w, ROW2.h, "Food", `${city.food}/${r.foodBox}`);
-  y = ROW2.y + BOX_HEAD + 2;
-  y += storeGrid(s, LEFT.x + 3, y, LEFT.w - 6, 5, "food", city.food, r.foodBox) + 2;
+  const kept = foodKept(state, city, r.foodBox);
+  const keptBy = city.buildings.some((b) => building(b).granary) ? "Granary" : "Kept";
+  const food = drawStore(s, LEFT.x + 3, ROW2.y + BOX_HEAD + 2, LEFT.w - 6, 5, "food", city.food, r.foodBox, kept, keptBy);
   const grow = r.foodSurplus > 0 ? Math.ceil(Math.max(0, r.foodBox - city.food) / r.foodSurplus) : null;
   say(s, LEFT.x + 3, ROW2.y + ROW2.h - 10, r.foodSurplus < 0 ? "Starving!" : grow === null ? "Not growing" : `Grows in ${grow} turn${grow === 1 ? "" : "s"}`, r.foodSurplus < 0 ? BAD : LABEL);
+  storeKey(s, LEFT.x + LEFT.w - 3, ROW2.y + ROW2.h - 10, "food", food.per);
 
   // Units in the city, then those it supports elsewhere (half hidden in the stone), each with what
   // it costs the city: a shield beyond the free ones, food for settlers.
@@ -424,10 +488,11 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
     s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), gx, y, SPRITE_CLEAR);
     gx += 19;
   }
-  storeGrid(s, gx, y, RIGHT.x + RIGHT.w - 3 - gx, 3, "shield", city.shields, r.productionCost);
+  const store = drawStore(s, gx, y, RIGHT.x + RIGHT.w - 3 - gx, 3, "shield", city.shields, r.productionCost);
   const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
   const by = ROW2.y + ROW2.h - 10;
-  say(s, RIGHT.x + 3, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
+  const tx = say(s, RIGHT.x + 3, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
+  storeKey(s, tx + 6, by, "shield", store.per, false);
   const price = cost ? `Buy ${cost}$` : "Complete";
   say(s, RIGHT.x + RIGHT.w - 3 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);
 

@@ -1,6 +1,6 @@
 import { NEW_TECH_BUTTONS, newTechCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
-import { drawCityScreen, cityButtonAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
+import { drawCityScreen, cityButtonAt, cityCitizenAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
 import { drawMainScreen, menuBarAnchor, menuBarHit, minimapAt, statusPanelAt, tileAt } from "./screens/main.js";
 import { drawAdvisor, drawDiplomacyScreen, drawRatesScreen, drawReport, drawScienceScreen, drawSpaceshipScreen, drawWorldMap } from "./screens/pages.js";
@@ -81,6 +81,7 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     cityExitHit: (px, py) => cityExitHit(px, py),
     cityButtonAt: (px, py) => cityButtonAt(px, py),
     cityUnitAt: (state, view, px, py) => cityUnitAt(state, view, px, py),
+    cityCitizenAt: (state, view, px, py) => cityCitizenAt(state, view, px, py),
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px, py),
     tileAt: (state, view, px, py) => tileAt(state, view, px, py),
     minimapAt: (state, px, py) => minimapAt(state, px, py),

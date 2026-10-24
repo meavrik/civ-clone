@@ -57,6 +57,7 @@ import {
   unitAt,
   unitById,
   unitType,
+  weakestWorked,
   workOptions,
   WORLD_SIZES,
   type Cheat,
@@ -77,6 +78,10 @@ import {
 import {
   builtNotice,
   canResearch,
+  citizenRole,
+  citizenRow,
+  isWorker,
+  nextSpecialist,
   keepResearchInView,
   nextChoice,
   openResearch,
@@ -147,6 +152,25 @@ let lastBlink = 0;
 function say(text: string, ms = 2500): void {
   status = text;
   statusUntil = performance.now() + ms;
+}
+
+/**
+ * A click on a person in a city's row of citizens (`citizenRow`), as in the original: a worker leaves the
+ * square worth least to entertain; a specialist takes the next trade (entertainer, taxman, scientist).
+ */
+function changeCitizen(cityId: number, i: number): void {
+  const city = state.cities.find((c) => c.id === cityId);
+  const row = city ? citizenRow(state, city) : [];
+  const who = row[i];
+  if (!city || !who) return;
+  if (isWorker(who)) {
+    const slot = weakestWorked(state, city);
+    if (slot !== undefined && dispatch({ type: "toggleTile", city: city.id, slot })) say(`Now an ${citizenRole("entertainer").toLowerCase()}`);
+    return;
+  }
+  const next = nextSpecialist(who);
+  const index = i - row.filter(isWorker).length;
+  if (dispatch({ type: "setSpecialist", city: city.id, index, specialist: next })) say(`Now a${next === "entertainer" ? "n" : ""} ${citizenRole(next).toLowerCase()}`);
 }
 
 /** When the note beside a refused unit goes (any key or click takes it sooner). */
@@ -2044,6 +2068,11 @@ canvas.addEventListener("mousemove", (e) => {
     if (hit === "tree" || hit === "continue") sc.view.selected = hit === "tree" ? 0 : 1;
     return;
   }
+  if (sc.kind === "city") {
+    const [px, py] = toLogical(e);
+    sc.view.hover = renderer.cityCitizenAt(state, sc.view, px, py) ?? undefined;
+    return;
+  }
   if (sc.kind === "diplomacy" && sc.talk) {
     const [px, py] = toLogical(e);
     const i = renderer.diplomacyChoiceAt(diplomacyView(sc), px, py);
@@ -2123,6 +2152,8 @@ canvas.addEventListener("mousedown", (e) => {
       if (button === "focus") { openFocusMenu(sc.view.city); return; }
       const unit = renderer.cityUnitAt(state, sc.view, px, py);
       if (unit !== null) { activateFromCity(sc, unit); return; }
+      const person = renderer.cityCitizenAt(state, sc.view, px, py);
+      if (person !== null) { changeCitizen(sc.view.city, person); return; }
       // A worked square frees its citizen; an unworked one takes a free citizen or the worker on the
       // weakest square; the city's own square puts every citizen on the best squares. A click on
       // nothing that answers leaves the city, as Exit, Esc and Enter do.

@@ -174,8 +174,18 @@ Never ship the original's sprites, palette art, fonts or text.
   map carry their yield in the City Resources box's own icons (wheat ear food, hammer shields, arrows
   trade), straight on the ground with no shade: food along the top half, shields then trade along the
   bottom, overlapping when a row is long (asked for 2026-10-22: the shade looked bad and the old 3x3
-  marks could not be told apart); the box names each row (Food, Shields, Trade; Tax, Lux, Sci before
-  their shares of the trade). Esc, Enter (not held) or a click
+  marks could not be told apart); the box gives each a named row of icons (Food, Shields, Trade, then
+  Tax, Lux and Sci a row each; the buildings' upkeep heads the Improvements box). Tidied 2026-10-24
+  (asked for: "a bit chaotic", a granary indication, citizens to click "like in the original civ"):
+  the row of citizens (`citizenRow` in renderer-api: workers by mood, then specialists) is clickable
+  (`cityCitizenAt`; the web app's `changeCitizen`): a worker leaves the square worth least to entertain
+  (`toggleTile` on `weakestWorked`), a specialist turns entertainer, taxman, scientist, round again
+  (`setSpecialist`, `nextSpecialist`); the person under the pointer is lit (`CityScreenView.hover`) and
+  told of beside the row (`citizenNote`), else a faint hint. The food and shield stores (`drawStore`,
+  `storeLayout`) are wells sunk in the stone, icons at least 6 pixels apart, one standing for more
+  only when the box is too big (then "{food}=2" under it); what a growing city keeps (core `foodKept`:
+  a Granary's half, or a trait's share) fills rows of its own above a brown line named Granary (or
+  Kept). Taxmen and scientists need no size of city (the 1991 game is said to want size 5: not checked, not asked for). Esc, Enter (not held) or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. The build menu (`openProductionMenu` in the web app) shows beside
   each choice only the turns it takes from here, counting the shields a change would keep ("never"

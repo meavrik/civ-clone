@@ -19,7 +19,7 @@ import { cityTileYield,
   wonder,
   type GameState,
 } from "@civ/core";
-import { citizenLook, cityMood, cityScene, cityUnits, coastPatch, DEEP, fieldSides, fogPatch, MOOD_STAGE_LABELS, riverShape, SCENE_H, SCENE_W, type CityButton, type CityScreenView } from "@civ/renderer-api";
+import { citizenLook, citizenNote, citizenRow, CITIZENS_HINT, isWorker, cityMood, cityScene, cityUnits, coastPatch, DEEP, fieldSides, fogPatch, MOOD_STAGE_LABELS, riverShape, SCENE_H, SCENE_W, type CityButton, type CityScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import type { Context2D } from "../context.js";
@@ -89,6 +89,31 @@ export function cityUnitAt(state: GameState, view: CityScreenView, px: number, p
   return null;
 }
 
+/** The row of citizens: where each person's centre line stands (`citizenRow`), the specialists after a gap. */
+const CITIZEN_Y = 43;
+const CITIZEN_PITCH = 28;
+function citizenXs(state: GameState, view: CityScreenView): number[] {
+  const city = state.cities.find((c) => c.id === view.city);
+  if (!city) return [];
+  const row = citizenRow(state, city);
+  const xs: number[] = [];
+  let x = 30;
+  row.forEach((who, i) => {
+    if (i > 0 && !isWorker(who) && isWorker(row[i - 1]!)) x += 10;
+    xs.push(x);
+    x += CITIZEN_PITCH;
+  });
+  return xs;
+}
+
+/** The person under a point in the row of citizens: a click changes their job. */
+export function cityCitizenAt(state: GameState, view: CityScreenView, px: number, py: number): number | null {
+  if (py < CITIZEN_Y || py >= CITIZEN_Y + 44) return null;
+  const xs = citizenXs(state, view);
+  const i = xs.findIndex((x) => px >= x - CITIZEN_PITCH / 2 && px < x + CITIZEN_PITCH / 2);
+  return i >= 0 ? i : null;
+}
+
 /** A pill button: filled when it is the one to press, outlined otherwise, faded when it cannot be pressed. */
 function button(ctx: Context2D, b: (typeof CITY_BUTTONS)[CityButton], style: "primary" | "plain" | "off"): void {
   if (style === "primary") fillRound(ctx, b.x, b.y, b.w, b.h, 10, BUTTON.fill);
@@ -110,15 +135,14 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   ctx.fillRect(0, 0, W, 40);
   text(ctx, W / 2, 9, `${city.name}  ·  population ${city.size}  ·  ${formatYear(turnToYear(state.turn))}`, { size: 18, weight: "600", align: "center" });
 
-  // Citizens, each a person of their own (`citizenLook`).
-  let cx = 30;
-  let n = 0;
-  const cy = 43;
-  for (let i = 0; i < r.happy; i++, cx += 28) paintCitizen(ctx, cx, cy, "happy", citizenLook(city.id, n++));
-  for (let i = 0; i < r.content; i++, cx += 28) paintCitizen(ctx, cx, cy, "content", citizenLook(city.id, n++));
-  for (let i = 0; i < r.unhappy; i++, cx += 28) paintCitizen(ctx, cx, cy, "unhappy", citizenLook(city.id, n++));
-  cx += 10;
-  for (const sp of city.specialists) { paintCitizen(ctx, cx, cy, sp, citizenLook(city.id, n++)); cx += 28; }
+  // Citizens, each a person of their own (`citizenLook`); the one under the pointer lit and told of.
+  const people = citizenRow(state, city);
+  const xs = citizenXs(state, view);
+  const lit = view.hover !== undefined && view.hover < people.length ? view.hover : null;
+  if (lit !== null) fillRound(ctx, xs[lit]! - CITIZEN_PITCH / 2, CITIZEN_Y - 2, CITIZEN_PITCH, 46, 6, UI.selection);
+  people.forEach((who, i) => paintCitizen(ctx, xs[i]!, CITIZEN_Y, who, citizenLook(city.id, i)));
+  const noteX = (xs.length ? xs[xs.length - 1]! : 30) + CITIZEN_PITCH;
+  text(ctx, noteX, 56, lit !== null ? citizenNote(people[lit]!) : CITIZENS_HINT, { size: 13, color: lit !== null ? UI.ink : UI.faint });
   if (r.disorder) text(ctx, W - 190, 52, "CIVIL DISORDER", { size: 16, weight: "bold", color: UI.danger, align: "right" });
   else if (r.celebration) text(ctx, W - 190, 52, "CELEBRATING", { size: 16, weight: "bold", color: UI.ok, align: "right" });
   button(ctx, CITY_BUTTONS.happy, view.happy ? "primary" : "plain");
