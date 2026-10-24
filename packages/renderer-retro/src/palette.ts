@@ -155,16 +155,12 @@ export function shade(rampName: string, n: number): number {
   return base + Math.max(0, Math.min((RAMP_SIZE[rampName.toLowerCase()] ?? 8) - 1, n));
 }
 
-/**
- * Each colour's darkened twin, for the backdrop behind a window (asked for 2026-10-24: "when open
- * modal, show darkened backdrop"): the palette entry nearest to a little under half the colour's
- * light. Built once from the palette, so the renderer still draws indices only. 255 (clear) keeps.
- */
-export const DIMMED: Uint8Array = (() => {
+/** Each colour's twin at `light` of its brightness: the nearest palette entry. 255 (clear) keeps. */
+function darkTwins(light: number): Uint8Array {
   const t = new Uint8Array(256);
   for (let i = 0; i < 255; i++) {
     const [r, g, b] = PALETTE[i]!;
-    const wr = r * 0.45, wg = g * 0.45, wb = b * 0.45;
+    const wr = r * light, wg = g * light, wb = b * light;
     let best = 0;
     let bestD = Infinity;
     for (let j = 0; j < 255; j++) {
@@ -176,7 +172,17 @@ export const DIMMED: Uint8Array = (() => {
   }
   t[255] = 255;
   return t;
-})();
+}
+
+/**
+ * Each colour's darkened twin, for the backdrop behind a window (asked for 2026-10-24: "when open
+ * modal, show darkened backdrop"): the palette entry nearest to a little under half the colour's
+ * light. Built once from the palette, so the renderer still draws indices only.
+ */
+export const DIMMED: Uint8Array = darkTwins(0.45);
+
+/** Each colour's shaded twin, for explored squares out of the viewer's sight (`unseenSquare`): darker, still easy to read. */
+export const UNSEEN: Uint8Array = darkTwins(0.62);
 
 /** RGBA lookup table (256*4) for fast framebuffer conversion. */
 export const PALETTE_RGBA: Uint8ClampedArray = (() => {

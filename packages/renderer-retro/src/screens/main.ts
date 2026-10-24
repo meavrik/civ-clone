@@ -22,9 +22,9 @@ import {
 } from "@civ/core";
 import { drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, textPlateWidth, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
-import { C, shade, slotColor, PALETTE } from "../palette.js";
+import { C, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawHut, drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
+import { drawHut, drawSpecial, fogSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
 import { BAD, DIM, drawStone, drawSwatch, INK, NOTE } from "../widgets.js";
@@ -142,6 +142,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const toScreen = (x: number, y: number) => tileToScreen(state, view, x, y, across);
   // Fog goes on last, over the borders; borders over every square, as their corners reach into the next one.
   const fogs: [Surface, number, number][] = [];
+  // Explored squares out of sight (core's `visible`: our land and a square beyond it, and round our units) are
+  // shaded over their borders, under the fog; a city's square once the city is drawn, so the city is shaded too.
+  const unseen: [Uint8Array | "all", number, number, number][] = [];
   const terr = view.borders ? territory(state) : null;
   for (let ty = 0; ty <= VIEW_TILES_Y; ty++) {
     const my = view.originY + ty;
@@ -173,6 +176,8 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       if (tile.fortress) drawFortress(s, dx, dy);
       if (tile.pollution) drawPollution(s, dx, dy);
       if (fog) fogs.push([fog, dx, dy]);
+      const shaded = unseenSquare(map, me.visible, mx, my);
+      if (shaded) unseen.push([shaded, dx, dy, my * map.width + mx]);
     }
   }
   if (terr)
@@ -186,18 +191,21 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
         const color = playerColor(state, owner);
         for (const b of borderSides(terr, mx, my)) drawBorderSide(s, VIEW_X + tx * TILE - ox, VIEW_Y + ty * TILE - oy, b.side, b.startOut, b.endOut, color, darker(color));
       }
-  for (const [fog, dx, dy] of fogs) s.blit(fog, dx, dy, SPRITE_CLEAR);
-
   // Cities on explored tiles. Foreign cities and units wait for fog lifting off their square to thin.
   const fogged = (idx: number, owner: number) => owner !== state.currentPlayer && (view.lifting?.get(idx) ?? 0) >= 0.5;
+  const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner));
+  const citySquares = new Set(shownCities.map((c) => c.y * map.width + c.x));
+  for (const [mask, dx, dy, idx] of unseen) if (!citySquares.has(idx)) shadeUnseen(s, dx, dy, mask);
+  for (const [fog, dx, dy] of fogs) s.blit(fog, dx, dy, SPRITE_CLEAR);
+
   // A city with units inside shows a shield: always on our own, on others' while we see the square.
   const held = new Set(state.units.map((u) => u.y * map.width + u.x));
-  const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner));
   for (const c of shownCities) {
     const idx = c.y * map.width + c.x;
     const pos = toScreen(c.x, c.y);
     if (pos) drawCity(s, pos[0], pos[1], c, cityLook(state, c), playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1));
   }
+  for (const [mask, dx, dy, idx] of unseen) if (citySquares.has(idx)) shadeUnseen(s, dx, dy, mask);
   // Their names under them, as the original showed them; drawn before the units so no unit is hidden by a name.
   for (const c of shownCities) {
     const pos = toScreen(c.x, c.y);
@@ -552,7 +560,7 @@ const fromPixel = (k: number, p: number) => Math.ceil(p * k);
 /**
  * The minimap, one pixel a square on the original's world (a block of squares on a bigger
  * one: the first explored land in it, else its sea, so islands still show): explored squares
- * in their terrain's colour; with borders shown, a line of the owner's colour along the inside
+ * in their terrain's colour, shaded out of sight (`UNSEEN`); with borders shown, a line of the owner's colour along the inside
  * edge of the land its cities reach; units we see in their owner's colour; and each known city
  * as a white dot in a cross of its owner's colour (a darker shade inside a border, so the city
  * stands out from the line round it).
@@ -582,7 +590,12 @@ function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: nu
         }
       shown[py * w + px] = pick;
       owned[py * w + px] = pick >= 0 ? pick : y0 * map.width + x0;
-      if (pick >= 0) s.set(px, top + py, minimapColor(map, pick % map.width, Math.floor(pick / map.width), me.explored));
+      if (pick < 0) continue;
+      // Shaded, as on the map, where no square of the block is in sight.
+      let lit = false;
+      for (let y = y0; y < y1 && !lit; y++) for (let x = x0; x < x1 && !lit; x++) lit = me.visible[y * map.width + x] === 1;
+      const color = minimapColor(map, pick % map.width, Math.floor(pick / map.width), me.explored);
+      s.set(px, top + py, lit ? color : UNSEEN[color]!);
     }
   if (view.borders) {
     const terr = territory(state);

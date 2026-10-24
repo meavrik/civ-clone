@@ -78,6 +78,8 @@ export interface GameConfig {
   noInfluenceYields?: boolean;
   /** Free units by city size under Despotism, settlers free of shields (saves before version 29). */
   sizeFreeUnits?: boolean;
+  /** Sight round units and next to cities only (`GameState.narrowSight`). */
+  narrowSight?: boolean;
 }
 
 export interface PlayerStats {
@@ -172,6 +174,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.slowCulture ? { slowCulture: true } : {}),
     ...(config.noInfluenceYields ? { noInfluenceYields: true } : {}),
     ...(config.sizeFreeUnits ? { sizeFreeUnits: true } : {}),
+    ...(config.narrowSight ? { narrowSight: true } : {}),
   };
 }
 

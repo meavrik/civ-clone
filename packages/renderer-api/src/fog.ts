@@ -55,6 +55,26 @@ export function fogPatch(map: WorldMap, explored: Explored, x: number, y: number
 }
 
 /**
+ * The shade over squares the player has explored but does not see now (the
+ * area it observes, core's `visible`: its land and a square beyond, and round
+ * its units), as a patch like the fog's: 1 on a square out of sight, 0 on one
+ * in sight, and the shade drifting a little way into a square in sight beside
+ * one, its edge ragged as the fog's (`fogLevel`). Unexplored squares count as
+ * out of sight (the fog covers them anyway); off the map as in sight.
+ */
+export function sightPatch(map: WorldMap, visible: Explored, x: number, y: number): FogPatch {
+  const cover: number[] = [];
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const yy = y + dy;
+      if (yy < 0 || yy >= map.height) { cover.push(0); continue; }
+      const xx = (((x + dx) % map.width) + map.width) % map.width;
+      cover.push(visible[yy * map.width + xx] ? 0 : 1);
+    }
+  return makeFogPatch(map.width, x, y, cover);
+}
+
+/**
  * How thick the fog is at (u, v), each 0..1 across the patch's square: 1 on
  * an unexplored square, 0 clear. `soft` (0..1) narrows the band where fog
  * drifting in from a neighbour fades, for a crisper edge.

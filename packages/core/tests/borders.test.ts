@@ -138,8 +138,19 @@ describe("contact", () => {
     expect(scout.movesLeft).toBeGreaterThan(0);
   });
 
-  it("lets cities see the squares next to them", () => {
+  it("lets a civilization see its land and a square beyond it", () => {
     const s = neighbours();
+    const w = s.map.width;
+    s.units = [];
+    applyCommand(s, { type: "endTurn" });
+    applyCommand(s, { type: "endTurn" });
+    expect(s.currentPlayer).toBe(0);
+    expect(s.players[0]!.visible[10 * w + 13]).toBe(1); // the border reaches two out, sight one more
+    expect(s.players[0]!.visible[10 * w + 14]).toBe(0);
+  });
+
+  it("lets cities see only the squares next to them in saves before version 30", () => {
+    const s = neighbours({ narrowSight: true });
     const w = s.map.width;
     s.units = [];
     applyCommand(s, { type: "endTurn" });

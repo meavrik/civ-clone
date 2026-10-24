@@ -189,7 +189,7 @@ export interface Player {
   /** Colour slot (index into CIV_COLORS), fixed by the civilization. */
   color: number;
   explored: Uint8Array;
-  /** Tiles currently seen by a unit/city; recomputed when units move. */
+  /** Squares seen now: round its units and over its land and a square beyond (`recomputeVisibility`); recomputed when units move. */
   visible: Uint8Array;
   gold: number;
   /** Rates in tenths; they sum to 10. */
@@ -249,6 +249,11 @@ export interface GameState {
   farContact?: boolean;
   /** No civilization minds foreign units on its land (no demands to leave, no wars over it). Set for saves before version 10. */
   noTrespass?: boolean;
+  /**
+   * Sight as before version 30: round units only, one square out but for warships and aircraft, and the
+   * squares next to cities (from version 10), not a civilization's land and a square beyond (`visibility.ts`).
+   */
+  narrowSight?: boolean;
   /** Every city's land is the 21 squares it works, whatever its culture. Set for saves before version 12. */
   fixedBorders?: boolean;
   /** Culture mounts every turn (`City.culture`, `cultureRate`) rather than being what a city's people, buildings and wonders make it. Set for saves before version 14. */

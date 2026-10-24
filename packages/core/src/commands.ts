@@ -55,7 +55,7 @@ import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type CityF
 import { FOCI } from "./rules/focus.js";
 import { applyMove, attrition, cargo, checkMove, createUnit, fullMoves, lastActions, maxHp, unitById, whyNoWork, workOptions } from "./units.js";
 import { traitAnarchyCap, traitFriendlyVillages, traitMoves } from "./traits.js";
-import { recomputeVisibility, revealAround } from "./visibility.js";
+import { recomputeVisibility, revealAround, unitSight } from "./visibility.js";
 
 /**
  * Everything that changes a game comes through here as a Command. Human
@@ -484,10 +484,12 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
     lastTurnEvents.push({ kind: cap.captured ? "cityCaptured" : "cityLost", name, player: prevOwner, by: u.owner });
     if (cap.shipLost) lastTurnEvents.push({ kind: "spaceLost", player: prevOwner });
     for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
+    // The city's land, and the sight of it, leaves its old owner at once.
+    if (state.players[prevOwner]?.alive && !state.narrowSight) recomputeVisibility(state, prevOwner);
   }
   const wasOn = trespassOn(state, u);
   applyMove(state, u, dx, dy, r);
-  revealAround(state, u.owner, u.x, u.y, unitType(u.type).sight);
+  revealAround(state, u.owner, u.x, u.y, unitSight(state, u));
   for (const c of cargo(state, u)) revealAround(state, u.owner, c.x, c.y, 1);
   enterHut(state, u);
   recomputeVisibility(state, u.owner);
@@ -589,6 +591,8 @@ function spy(state: GameState, u: Unit, action: DiplomatAction, x: number, y: nu
   lastTurnEvents.push({ kind: "spy", action, detail, target: city.name });
   removeUnit(state, u);
   recomputeVisibility(state, me.id);
+  // A city bought away takes its land, and the sight of it, from its old owner at once.
+  if (action === "incite" && victim.alive && !state.narrowSight) recomputeVisibility(state, victim.id);
   return { ok: true };
 }
 
@@ -700,7 +704,7 @@ export function runGoto(state: GameState, u: Unit, planned?: [number, number][])
     const goal: Unit["order"] = u.order;
     const wasOn = trespassOn(state, u);
     applyMove(state, u, dx, dy, r);
-    revealAround(state, u.owner, u.x, u.y, unitType(u.type).sight);
+    revealAround(state, u.owner, u.x, u.y, unitSight(state, u));
     enterHut(state, u);
     if (r.board !== undefined) return; // boarded: stay sentried on the ship
     u.order = goal; // applyMove clears standing orders

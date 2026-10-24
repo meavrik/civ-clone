@@ -17,6 +17,8 @@ export interface UnitTypeRule {
   domain: UnitDomain;
   /** Tiles seen around the unit (1 = adjacent only). */
   sight: number;
+  /** A scout's longer sight came with this save version; before it (`GameState.narrowSight`) it saw one square out. */
+  sightSince?: number;
   /** Carrying capacity for sea units. */
   capacity?: number;
   /** Air units must return within this many turns. */
@@ -54,14 +56,17 @@ const U = (
  * mechanised and steel) and the heaviest guns hit for 2. Wheeled units
  * (chariots, siege guns, vehicles) need roads over rough ground, another
  * departure: in the original every land unit goes everywhere. Barbarian
- * roles and the Barbarian Leader follow the same ruleset.
+ * roles and the Barbarian Leader follow the same ruleset. Sight is the
+ * original's (one square, two for warships and aircraft) but for the scouts,
+ * horsemen and diplomats, who see two squares out (our departure, save
+ * version 30).
  */
 export const UNIT_TYPES: UnitTypeRule[] = [
   U("settlers", "Settlers", 0, 1, 1, 40, "land", { flags: ["settler"] }),
   U("militia", "Militia", 1, 1, 1, 10),
   U("phalanx", "Phalanx", 1, 2, 1, 20, "land", { requires: "bronze_working" }),
   U("legion", "Legion", 3, 1, 1, 20, "land", { requires: "iron_working", barbarian: { as: ["sea", "build"] } }),
-  U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding", barbarian: { as: ["land"] } }),
+  U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding", sight: 2, sightSince: 30, barbarian: { as: ["land"] } }),
   U("chariot", "Chariot", 4, 1, 2, 40, "land", { requires: "the_wheel", wheeled: true }),
   U("catapult", "Catapult", 6, 1, 1, 40, "land", { requires: "mathematics", wheeled: true }),
   U("knights", "Knights", 4, 2, 2, 40, "land", { requires: "chivalry", barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
@@ -71,7 +76,7 @@ export const UNIT_TYPES: UnitTypeRule[] = [
   U("mech_inf", "Mech. Inf.", 6, 6, 3, 50, "land", { requires: "labor_union", hp: 30, wheeled: true }),
   U("armor", "Armor", 10, 5, 3, 80, "land", { requires: "automobile", hp: 30, wheeled: true }),
   U("artillery", "Artillery", 12, 2, 2, 60, "land", { requires: "robotics", hp: 20, firepower: 2, wheeled: true }),
-  U("diplomat", "Diplomat", 0, 0, 2, 30, "land", { requires: "writing", flags: ["diplomat", "ignoreZoc"] }),
+  U("diplomat", "Diplomat", 0, 0, 2, 30, "land", { requires: "writing", sight: 2, sightSince: 30, flags: ["diplomat", "ignoreZoc"] }),
   U("caravan", "Caravan", 0, 1, 1, 50, "land", { requires: "trade", flags: ["caravan", "ignoreZoc"] }),
   U("barbarian_leader", "Barbarian Leader", 0, 0, 2, 40, "land", { flags: ["leader", "ignoreZoc"] }),
   U("trireme", "Trireme", 1, 0, 3, 40, "sea", { requires: "map_making", capacity: 2 }),

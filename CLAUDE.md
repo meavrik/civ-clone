@@ -83,7 +83,7 @@ Never ship the original's sprites, palette art, fonts or text.
   `?civs=classic`, `--classic-civs`) turns them all off. Tests of base rules play classic civs.
   Diplomacy (`diplomacy.ts`): civilizations meet face to face (`contactRange` 1, as the original), and
   the unit that walked into the meeting stops for the turn, on a goto too (`meetAround`), so each side
-  sees whom it met; cities see the squares next to them. Meeting leaves them in contact, no treaty
+  sees whom it met; a civilization sees its land and a square beyond it (Sight below). Meeting leaves them in contact, no treaty
   (`Relation` "contact", `metRelation`; asked for 2026-10-20): neither may attack before `declareWar`,
   and `openBorders`/`shareMaps` wait for a peace treaty (`makePeace`, `atPeace`); a computer leader's
   envoy offers one with `offerPeace` (`state.peaceOffers`, a `peaceOffer` event the player answers with
@@ -127,6 +127,18 @@ Never ship the original's sprites, palette art, fonts or text.
   `tribute` (`tributePaid`). `warDeclared` says who declared on whom (`on`) and why (`reason`).
   Saves before version 10 load with `farContact` and `noTrespass` (meeting at two squares, no stop),
   saves before version 12 with `fixedBorders` (each city its 21 squares, the nearer then older winning).
+  Sight (`visibility.ts`; asked for 2026-10-24: "an area of observability: one tile beyond the empire's
+  influence and borders + surrounding each unit outside the borders; some units can have a bigger
+  observability; in this area the player should see every other civ's activity and units"): `Player.visible`
+  is a civilization's land (`claims`) and one square beyond it all round (`landSight`, cached until a city
+  is founded, lost or changes culture), and the squares round each unit as far as its sight (`unitSight`:
+  one; two for warships and aircraft, as in the original, and for horsemen (`cavalry`) and diplomats, our
+  departure, `sightSince` 30). What it sees it has explored, so a growing border uncovers land. Foreign
+  units show only there (map, minimap, the square's window, the other civs' playback); a city taken or
+  bought away leaves its old owner's sight at once. Saves before version 30 load with `narrowSight`
+  (headless `--narrow-sight`): round units, scouts one square out, and the squares next to cities.
+  Head to head (planner vs v2, 16 x 300, version 29 upkeep): narrow sight 0-16, score 133 vs 237; this
+  sight 1-15, 127 vs 229, both replaying exactly, ~5% slower.
   Moods (`computeCity`; asked for 2026-10-21, checked against FreeCiv's civ1 ruleset): citizens are born
   content up to the difficulty's base (6 Chieftain .. 2 Emperor, `DIFFICULTY_RULES` in `rules/difficulty.ts`
   with each level's starting gold, settlers and research cost; our departure, FreeCiv plays 4) and unhappy
@@ -408,6 +420,12 @@ Never ship the original's sprites, palette art, fonts or text.
   modern (set aside) still draws grey clouds (`cloudTone`): `Clouds` gathers the view's fog and fills
   each layer as one path (per-square fills leave seams, and thousands of tiny polygons cost ~600 ms a
   frame), lifting squares as alpha layers grouped by fog left, bodies before billows (else edges show).
+  Explored squares out of sight (core's `visible`, see Sight above) are shaded, so the area observed
+  shows on the map (2026-10-24): retro `unseenSquare`/`shadeUnseen` map what is drawn through `UNSEEN`
+  (palette.ts: each colour's twin at 62% light, as `DIMMED` is at 45%), over the borders and under the
+  fog, the shade drifting into squares in sight beside them with the fog's ragged dithered edge
+  (`sightPatch`); a city there is shaded with its square, its name not; the minimap shades a block with
+  no square in sight; the square's window says "Out of sight". Modern (set aside) does not shade.
   Research panel (`research.ts`; redesigned 2026-10-20, asked for: the old tier graph was confusing and
   disliked, so it is gone): built round the choice. Under the title a band with the research under way
   (bulb, beaker bar, turns) or what the advance just found brings (`researchBand`); on the left a list

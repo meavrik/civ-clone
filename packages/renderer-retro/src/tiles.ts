@@ -1,8 +1,8 @@
 import { specialOf, Terrain, type Tile, type WorldMap } from "@civ/core";
-import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, BLEND_REACH, groundOwner, LAND, landOwner, riverShape, SHORE, strokeDistance, type CoastPatch, type Explored, type Lifting } from "@civ/renderer-api";
+import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, sightPatch, BLEND_REACH, groundOwner, LAND, landOwner, riverShape, SHORE, strokeDistance, type CoastPatch, type Explored, type Lifting } from "@civ/renderer-api";
 import { FEATURE_SHEET, RESOURCE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
-import { C, PALETTE, shade } from "./palette.js";
+import { C, PALETTE, shade, UNSEEN } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
 
 /**
@@ -281,6 +281,45 @@ export function fogSquare(map: WorldMap, explored: Explored, x: number, y: numbe
   if (fogCache.size > 4096) fogCache.clear();
   fogCache.set(p.key, out);
   return out;
+}
+
+const unseenCache = new Map<string, Uint8Array | "all">();
+
+/**
+ * Which pixels of square (x, y) lie out of the viewer's sight (core's
+ * `visible`), for `shadeUnseen`: "all" on a square out of sight, null on one
+ * in sight with nothing out of sight beside it, else a mask (TILE x TILE, 1 to
+ * shade) where the shade drifts in from a neighbour out of sight, dithered as
+ * the fog's edge is.
+ */
+export function unseenSquare(map: WorldMap, visible: Explored, x: number, y: number): Uint8Array | "all" | null {
+  const p = sightPatch(map, visible, x, y);
+  if (p.cover[4]! >= 1) return "all";
+  if (!p.edge) return null;
+  const hit = unseenCache.get(p.key);
+  if (hit) return hit;
+  const out = new Uint8Array(TILE * TILE);
+  for (let j = 0; j < TILE; j++)
+    for (let i = 0; i < TILE; i++)
+      out[j * TILE + i] = fogLevel(p, (i + 0.5) / TILE, (j + 0.5) / TILE, FOG_EDGE) > BAYER[(j & 3) * 4 + (i & 3)]! ? 1 : 0;
+  if (unseenCache.size > 4096) unseenCache.clear();
+  unseenCache.set(p.key, out);
+  return out;
+}
+
+/** Shades what is drawn on the square at (dx, dy) through `UNSEEN`, where `mask` (from `unseenSquare`) says it is out of sight. */
+export function shadeUnseen(s: Surface, dx: number, dy: number, mask: Uint8Array | "all"): void {
+  const k = s.k;
+  for (let j = 0; j < TILE; j++) {
+    const y = dy + j;
+    if (y < 0 || y >= s.height) continue;
+    for (let i = 0; i < TILE; i++) {
+      const x = dx + i;
+      if (x < 0 || x >= s.width || (mask !== "all" && !mask[j * TILE + i])) continue;
+      let o = y * k * s.fw + x * k;
+      for (let b = 0; b < k; b++, o += s.fw) for (let a = 0; a < k; a++) s.data[o + a] = UNSEEN[s.data[o + a]!]!;
+    }
+  }
 }
 
 /** A special's picture by its name (lower case in the resources sheet). */
