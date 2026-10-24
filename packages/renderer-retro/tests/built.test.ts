@@ -26,8 +26,8 @@ describe("the user's pictures of buildings", () => {
       expect(existsSync(new URL(`${id}.webp`, dir)), id).toBe(true);
       expect(x >= 0 && y >= 0 && w > 100 && h > 100 && x + w <= ART_SIZE && y + h <= ART_SIZE, id).toBe(true);
     }
-    // All but three of the 50 have one.
-    expect(ids.size - Object.keys(BUILDING_ART).length).toBe(3);
+    // Every one of the 50 has one.
+    expect(Object.keys(BUILDING_ART).length).toBe(ids.size);
   });
 
   it("lay a picture so its drawing fills a box, shape kept, on the box's foot or in its middle", () => {
@@ -42,7 +42,7 @@ describe("the user's pictures of buildings", () => {
       if (middle) expect(drawn.y + drawn.h / 2).toBeCloseTo(70);
       else expect(drawn.y + drawn.h).toBeCloseTo(100);
     }
-    expect(artPlace({ ...box, id: "granary" })).toBeNull();
+    expect(artPlace({ ...box, id: "hut" })).toBeNull();
   });
 });
 
@@ -81,8 +81,7 @@ describe("Building Completed window", () => {
       s.art = [];
       drawBuilt(s, state, { city, production: { kind, id } as Production, selected: 1 });
       writeFileSync(new URL(`./out/built-${id}.png`, import.meta.url), encodePng(s, 3));
-      // The granary has no picture of the user's yet: its drawn one stands in the frame instead.
-      expect(s.art).toEqual(id === "granary" ? [] : [{ id, ...builtPicture(), middle: true }]);
+      expect(s.art).toEqual([{ id, ...builtPicture(), middle: true }]);
     }
     const view = { city, production: { kind: "building", id: "temple" } as Production, selected: 1 };
     const hits = new Set<string | null>();

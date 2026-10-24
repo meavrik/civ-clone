@@ -4,7 +4,8 @@
  * over the canvas (`apps/web/src/buildings/<id>.webp`, the PNGs as supplied, WebP quality 92, alpha exact).
  * Each is `ART_SIZE` square, the building standing in it on clear ground; `BUILDING_ART` gives the box its
  * drawing fills (x, y, w, h, measured from the PNGs), so a screen fits the building, not its empty margin,
- * to a place. Barracks, Granary and the Great Library have none yet: they keep their drawn pictures.
+ * to a place. Every one of the 50 has one (Barracks, Granary and the Great Library came last, 2026-10-24);
+ * the drawn pictures stay as the fallback for an id without one.
  */
 export const ART_SIZE = 1254;
 
@@ -13,6 +14,7 @@ export const BUILDING_ART: Readonly<Record<string, readonly [number, number, num
   aqueduct: [39, 353, 1176, 627],
   automated_office: [272, 232, 711, 816],
   bank: [142, 186, 972, 889],
+  barracks: [105, 334, 1044, 668],
   cathedral: [151, 155, 953, 980],
   cell_tower: [438, 115, 382, 1044],
   city_walls: [67, 371, 1121, 591],
@@ -25,6 +27,8 @@ export const BUILDING_ART: Readonly<Record<string, readonly [number, number, num
   darwins_voyage: [191, 123, 873, 1015],
   data_center: [168, 223, 918, 782],
   factory: [176, 238, 902, 836],
+  granary: [169, 261, 988, 818],
+  great_library: [99, 130, 1057, 998],
   great_wall: [76, 342, 1102, 529],
   hanging_gardens: [148, 269, 981, 716],
   hoover_dam: [51, 370, 1153, 569],

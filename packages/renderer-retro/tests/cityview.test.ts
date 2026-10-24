@@ -102,10 +102,9 @@ describe("city view", () => {
     const scene = cityScene(state, city);
     const s = Surface.screen();
     drawCityView(s, state, { city: id, picked: "temple" });
-    // Every building with a picture of the user's has a spot of its lot's size; the granary (none yet) is drawn.
+    // Every building has a picture of the user's and gets a spot of its lot's size.
     const spotted = s.art.map((a) => a.id);
-    expect(spotted.sort()).toEqual(["city_walls", "colossus", "library", "palace", "pyramids", "temple"].sort());
-    expect(BUILDING_ART.granary).toBeUndefined();
+    expect(spotted.sort()).toEqual(["city_walls", "colossus", "granary", "library", "palace", "pyramids", "temple"].sort());
     const temple = scene.items.find((it) => it.id === "temple")!;
     expect(temple).toMatchObject(artLot("temple", PICTURES.temple!));
     expect(s.art.find((a) => a.id === "temple")).toEqual({ id: "temple", x: SCENE_X + temple.x, y: SCENE_Y + temple.y - temple.h, w: temple.w, h: temple.h, lit: true });
@@ -122,7 +121,7 @@ describe("city view", () => {
   it("gives each picture about the room of the drawn one, in its own shape", () => {
     for (const [id, pic] of Object.entries(PICTURES)) {
       const lot = artLot(id, pic);
-      if (!BUILDING_ART[id]) { expect(lot).toEqual({ w: pic.w, h: pic.h }); continue; }
+      expect(BUILDING_ART[id], id).toBeDefined(); // every drawn picture has one of the user's now
       expect(lot.h, id).toBeLessThanOrEqual(46);
       expect(lot.w * lot.h, id).toBeGreaterThan(pic.w * pic.h * 0.6);
       expect(lot.w * lot.h, id).toBeLessThan(pic.w * pic.h * 1.2);

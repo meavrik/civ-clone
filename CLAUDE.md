@@ -225,8 +225,9 @@ Never ship the original's sprites, palette art, fonts or text.
   front row, the land to the north on the horizon, a river if the city has one), hashed, never the RNG. Retro
   fills the shapes pixel by pixel (`pictures.ts`: lit left, shaded right, outlined in black); modern paints
   them as paths three times larger. The user's pictures of buildings (2026-10-24, asked for: "use the attached
-  images for game buildings ... replace buildings also in the city view"; 47 of the 50, none yet for Barracks,
-  Granary and the Great Library, which keep their drawn ones) stand in their place: `BUILDING_ART` (`art.ts`)
+  images for game buildings ... replace buildings also in the city view"; all 50 since Barracks, Granary and
+  the Great Library came later that day; the drawn ones stay as the fallback for an id without a picture)
+  stand in their place: `BUILDING_ART` (`art.ts`)
   gives the box each one's drawing fills in its 1254 square, `artLot` the room it takes in the city view
   (the drawn picture's area in the picture's own shape, at most 46 high; `SceneItem.w`/`h`), and the walls'
   picture stands as their gatehouse over the drawn run (`kind: "gate"`). Retro draws buildings through
@@ -764,7 +765,7 @@ text), second special resources with reaches (save version 20; the branch's own 
   image generators or the original game's files for shipped art. Exception the user made (2026-10-21):
   the terrain, unit and resource sheets were supplied by the user as reference images and copied in
   pixel for pixel. The user's portraits (2026-10-22: the five difficulty rulers, the twenty leaders, the
-  twenty audience scenes; 2026-10-23: the 74 advances; 2026-10-24: 47 improvements, wonders and spaceship
+  twenty audience scenes; 2026-10-23: the 74 advances; 2026-10-24: all 50 improvements, wonders and spaceship
   parts) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
   (asked for, twice, emphatically: conversions into the palette looked "bad and distorted", and new
   images must not be generated); see the setup cards and the audience screen above; new art drawn here follows their manner (see `packages/renderer-retro` above) and
