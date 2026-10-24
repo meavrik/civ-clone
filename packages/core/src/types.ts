@@ -296,6 +296,13 @@ export interface GameState {
   slowCulture?: boolean;
   /** Specials inside a city's border beyond the squares it works bring it nothing, as before version 28 (`INFLUENCE_YIELD`). */
   noInfluenceYields?: boolean;
+  /**
+   * Unit upkeep as before version 29: a city supports as many units free as its size under Anarchy and
+   * Despotism and none under the others (`GovernmentRule.sizeFreeUnits`), and settlers cost only their
+   * food (from version 24; `settlerShields` before). Since 29 the allowance is fixed (2, 3 or none) and
+   * settlers count like any unit.
+   */
+  sizeFreeUnits?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */

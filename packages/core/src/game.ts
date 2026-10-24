@@ -84,6 +84,8 @@ export interface NewGameOptions extends MapGenOptions {
   slowCulture?: boolean;
   /** No trade from specials beyond a city's worked squares (see `GameState.noInfluenceYields`). Old saves load with it. */
   noInfluenceYields?: boolean;
+  /** Free units by city size and settlers free of shields (see `GameState.sizeFreeUnits`). Old saves load with it. */
+  sizeFreeUnits?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -254,6 +256,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.halvedCarryOver ? { halvedCarryOver: true } : {}),
     ...(opts.slowCulture ? { slowCulture: true } : {}),
     ...(opts.noInfluenceYields ? { noInfluenceYields: true } : {}),
+    ...(opts.sizeFreeUnits ? { sizeFreeUnits: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

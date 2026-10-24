@@ -8,10 +8,15 @@ export interface GovernmentRule {
   /** Tiles already yielding 3+ of a resource lose 1 (the despotism penalty). */
   tilePenalty: boolean;
   /**
-   * Units a city supports for free before paying shields: as many as the city's
-   * size under Anarchy and Despotism, none under the others, as in the original.
+   * Units a city supports for free before paying shields (since save version 29; asked for
+   * 2026-10-24, "units should take resources from the city, otherwise can generate infinite
+   * units": a fixed allowance, not one that grows with the city): two under Anarchy and
+   * Despotism, three under Monarchy and Communism (the original's), none under a Republic or
+   * Democracy. Settlers count like any unit, and eat.
    */
-  freeUnits: number | "size";
+  freeUnits: number;
+  /** Free units in saves of versions 8 to 28 (`sizeFreeUnits`): as many as the city's size under Anarchy and Despotism, none under the others. */
+  sizeFreeUnits: number | "size";
   /** Free units per city in saves before version 8 (`looseUpkeep`). */
   looseFreeUnits: number;
   /** Shield upkeep per unit beyond the free ones. */
@@ -57,27 +62,27 @@ export const CELEBRATION_SIZE = 3;
 
 export const GOVERNMENTS: Record<string, GovernmentRule> = {
   anarchy: {
-    id: "anarchy", name: "Anarchy", tilePenalty: true, freeUnits: "size", looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
+    id: "anarchy", name: "Anarchy", tilePenalty: true, freeUnits: 2, sizeFreeUnits: "size", looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
     martialLaw: Infinity, warWeariness: 0, empireSize: 9, corruptionPerDistance: 3, maxRate: 6, tradeBonus: 0, sciencePct: 0,
   },
   despotism: {
-    id: "despotism", name: "Despotism", tilePenalty: true, freeUnits: "size", looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
+    id: "despotism", name: "Despotism", tilePenalty: true, freeUnits: 2, sizeFreeUnits: "size", looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
     martialLaw: Infinity, warWeariness: 0, empireSize: 10, celebration: { yieldsAs: "monarchy" }, corruptionPerDistance: 2, maxRate: 6, tradeBonus: 0, sciencePct: 100,
   },
   monarchy: {
-    id: "monarchy", name: "Monarchy", tilePenalty: false, freeUnits: 0, looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
+    id: "monarchy", name: "Monarchy", tilePenalty: false, freeUnits: 3, sizeFreeUnits: 0, looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
     martialLaw: 3, warWeariness: 0, empireSize: 11, celebration: { yieldsAs: "democracy" }, corruptionPerDistance: 1, maxRate: 7, tradeBonus: 0, sciencePct: 100,
   },
   communism: {
-    id: "communism", name: "Communism", tilePenalty: false, freeUnits: 0, looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
+    id: "communism", name: "Communism", tilePenalty: false, freeUnits: 3, sizeFreeUnits: 0, looseFreeUnits: 3, unitUpkeep: 1, settlerFood: 1,
     martialLaw: Infinity, warWeariness: 0, empireSize: 12, celebration: { yieldsAs: "democracy" }, corruptionPerDistance: 0, maxRate: 8, tradeBonus: 0, sciencePct: 100,
   },
   republic: {
-    id: "republic", name: "Republic", tilePenalty: false, freeUnits: 0, looseFreeUnits: 0, unitUpkeep: 1, settlerFood: 2,
+    id: "republic", name: "Republic", tilePenalty: false, freeUnits: 0, sizeFreeUnits: 0, looseFreeUnits: 0, unitUpkeep: 1, settlerFood: 2,
     martialLaw: 0, warWeariness: 1, empireSize: 13, celebration: { grow: true }, corruptionPerDistance: 1, maxRate: 8, tradeBonus: 1, sciencePct: 100,
   },
   democracy: {
-    id: "democracy", name: "Democracy", tilePenalty: false, freeUnits: 0, looseFreeUnits: 0, unitUpkeep: 1, settlerFood: 2,
+    id: "democracy", name: "Democracy", tilePenalty: false, freeUnits: 0, sizeFreeUnits: 0, looseFreeUnits: 0, unitUpkeep: 1, settlerFood: 2,
     martialLaw: 0, warWeariness: 2, empireSize: 14, celebration: { grow: true }, revolutionAfter: 2, corruptionPerDistance: 0, maxRate: 10, tradeBonus: 1, sciencePct: 100,
   },
 };

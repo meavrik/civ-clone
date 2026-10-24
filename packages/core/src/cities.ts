@@ -119,15 +119,19 @@ export function pollutionChance(state: GameState, city: City, shields: number): 
 /** Units a city supports without paying shields under its owner's government. */
 export function freeUnits(state: GameState, city: City): number {
   const gov = government(state.players[city.owner]!.government);
-  return state.looseUpkeep ? gov.looseFreeUnits : gov.freeUnits === "size" ? city.size : gov.freeUnits;
+  if (state.looseUpkeep) return gov.looseFreeUnits;
+  if (state.sizeFreeUnits) return gov.sizeFreeUnits === "size" ? city.size : gov.sizeFreeUnits;
+  return gov.freeUnits;
 }
 
 /**
- * Does this unit draw on its home city's free units and shields? Settlers cost only their food
- * (our departure, asked for 2026-10-23: cities could not afford them); old saves (`settlerShields`) paid for them too.
+ * Does this unit draw on its home city's free units and shields? Every unit does since version 29
+ * (asked for 2026-10-24: units should cost the city); in saves of versions 24 to 28 settlers cost only
+ * their food (`sizeFreeUnits` without `settlerShields`), and before 24 they paid like any unit.
  */
 export function paysShields(state: GameState, unit: Unit): boolean {
-  return state.settlerShields === true || !unitType(unit.type).flags?.includes("settler");
+  if (!unitType(unit.type).flags?.includes("settler")) return true;
+  return !state.sizeFreeUnits || state.settlerShields === true;
 }
 
 /**

@@ -76,6 +76,8 @@ export interface GameConfig {
   slowCulture?: boolean;
   /** No trade from specials beyond a city's worked squares (saves before version 28). */
   noInfluenceYields?: boolean;
+  /** Free units by city size under Despotism, settlers free of shields (saves before version 29). */
+  sizeFreeUnits?: boolean;
 }
 
 export interface PlayerStats {
@@ -169,6 +171,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.halvedCarryOver ? { halvedCarryOver: true } : {}),
     ...(config.slowCulture ? { slowCulture: true } : {}),
     ...(config.noInfluenceYields ? { noInfluenceYields: true } : {}),
+    ...(config.sizeFreeUnits ? { sizeFreeUnits: true } : {}),
   };
 }
 

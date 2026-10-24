@@ -770,7 +770,7 @@ describe("city screen", () => {
     const s = Surface.screen();
     drawCityScreen(s, state, { city: city.id });
     writeFileSync(new URL("./out/city-upkeep.png", import.meta.url), encodePng(s, 3));
-    // Under each unit's sprite: a size-1 city under Despotism keeps its first unit free.
+    // Under each unit's sprite: a city under Despotism keeps its first two units free (since version 29).
     const under = (i: number) => {
       const { x, y } = cityUnitSlot(i);
       let painted = 0;
@@ -778,17 +778,19 @@ describe("city screen", () => {
       return painted;
     };
     expect(under(0)).toBe(0);
-    expect(under(1)).toBeGreaterThan(0);
-    // Settlers cost food, not a shield (since version 24): the wheat under them, no shield's blue.
+    expect(under(1)).toBe(0);
+    expect(under(3)).toBeGreaterThan(0);
+    // Settlers beyond the free ones cost a shield and their food: the shield's blue and the wheat under them.
     const colours = (i: number) => {
       const { x, y } = cityUnitSlot(i);
       const set = new Set<number>();
       for (let dy = 0; dy < 8; dy++) for (let dx = 0; dx < 16; dx++) if (!isStone(s.get(x + dx, y + 17 + dy))) set.add(s.get(x + dx, y + 17 + dy));
       return set;
     };
-    expect(under(2)).toBeGreaterThan(0);
-    expect(colours(1).has(shade("sea", 7))).toBe(true);
-    expect(colours(2).has(shade("sea", 7))).toBe(false);
+    expect(under(2)).toBeGreaterThan(under(3));
+    expect(colours(3).has(shade("sea", 7))).toBe(true);
+    expect(colours(2).has(shade("sea", 7))).toBe(true);
+    expect(colours(2).size).toBeGreaterThan(colours(3).size);
   });
 
   it("shows the units in the city, then those away faded, and picks a unit by its sprite or cost", () => {

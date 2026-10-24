@@ -518,9 +518,9 @@ describe("cities", () => {
     applyCommand(s, { type: "found", unit: u.id });
     const c = s.cities[0]!;
     for (let i = 0; i < 5; i++) createUnit(s, "militia", 0, 10, 10, c.id);
-    // Despotism: a size-1 city supports one unit free, the other four cost a shield each.
+    // Despotism: a city supports two units free (since version 29), the other three cost a shield each.
     const r = computeCity(s, c);
-    expect(r.unitShields).toBe(4);
+    expect(r.unitShields).toBe(3);
     c.buildings.push("temple");
     const gold = s.players[0]!.gold;
     applyCommand(s, { type: "endTurn" });
@@ -529,8 +529,10 @@ describe("cities", () => {
 });
 
 describe("unit upkeep", () => {
-  function cityWith(units: string[], gov = "despotism", opts: { looseUpkeep?: boolean; settlerShields?: boolean } = {}): { s: GameState; c: City } {
+  function cityWith(units: string[], gov = "despotism", opts: { looseUpkeep?: boolean; settlerShields?: boolean; current?: boolean } = {}): { s: GameState; c: City } {
     const s = flatWorld();
+    // The upkeep of versions 8 to 28 unless `current`: free units by city size, settlers free of shields from 24.
+    if (!opts.current) s.sizeFreeUnits = true;
     if (opts.looseUpkeep) s.looseUpkeep = true;
     if (opts.settlerShields) s.settlerShields = true;
     applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
@@ -540,7 +542,21 @@ describe("unit upkeep", () => {
     return { s, c };
   }
 
-  it("lets a city support as many units free as its size under Despotism, none under Monarchy, as in the original; settlers only eat", () => {
+  it("supports two units free under Despotism, three under Monarchy and none under a Republic, settlers counted and eating (since version 29)", () => {
+    const { s, c } = cityWith(["settlers", "militia", "militia", "militia", "militia"], "despotism", { current: true });
+    c.size = 5; // the allowance no longer grows with the city
+    expect(unitSupport(s, c).map((x) => [x.shields, x.food])).toEqual([[0, 1], [0, 0], [1, 0], [1, 0], [1, 0]]);
+    s.players[0]!.government = "monarchy";
+    expect(unitSupport(s, c).map((x) => x.shields)).toEqual([0, 0, 0, 1, 1]);
+    s.players[0]!.government = "republic";
+    expect(unitSupport(s, c).map((x) => [x.shields, x.food])).toEqual([[1, 2], [1, 0], [1, 0], [1, 0], [1, 0]]);
+    // An old save keeps its rule, a new game has none of the old flags.
+    const save = { ...makeSave(newGame(3, { opponents: 1 }), { opponents: 1 }, []), version: 28 as const };
+    expect(loadSave(save, () => {}).state.sizeFreeUnits).toBe(true);
+    expect(loadSave(makeSave(newGame(3, { opponents: 1 }), { opponents: 1 }, []), () => {}).state.sizeFreeUnits).toBeUndefined();
+  });
+
+  it("let a city support as many units free as its size under Despotism, none under Monarchy, in saves of versions 8 to 28; settlers only ate from 24", () => {
     const { s, c } = cityWith(["settlers", "militia", "militia", "militia", "militia"]);
     c.size = 3;
     // Settlers take no free unit and pay no shield, whatever the government: they cost their food.

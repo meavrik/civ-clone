@@ -1068,8 +1068,8 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   // One more unit rides on a free unit or costs a shield a turn: only build it where `keep` shields are left over.
   const upkeepNext = state.units.filter((u) => u.homeCity === c.id && paysShields(state, u)).length < freeUnits(state, c) ? 0 : government(p.government).unitUpkeep;
   const affords = (keep: number) => r.shieldSurplus - upkeepNext >= keep;
-  // Settlers cost only food (saves before version 24, `settlerShields`, paid for them like any unit).
-  const affordsSettlers = state.settlerShields ? affords : (keep: number) => r.shieldSurplus >= keep;
+  // Settlers cost only food in saves of versions 24 to 28 (`sizeFreeUnits` without `settlerShields`); otherwise they pay like any unit.
+  const affordsSettlers = state.sizeFreeUnits && !state.settlerShields ? (keep: number) => r.shieldSurplus >= keep : affords;
 
   if (here < wanted) return bestUnit(options, "defense");
   // A ship to carry settlers overseas, from a port with no room left at home.

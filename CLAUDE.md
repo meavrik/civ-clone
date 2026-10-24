@@ -730,19 +730,26 @@ text), second special resources with reaches (save version 20; the branch's own 
    them. `classicTerrain` (saves before version 3, `?terrain=classic`) turns both off.
    Legion 3/1, Musketeers 2/3, Riflemen 3/5 follow the ruleset even though the 1991 manual is often
    quoted as 4/2, 3/3, 5/4.
-   Unit upkeep follows the original (`unitSupport`, `freeUnits` in `cities.ts`, `freeUnits` per
-   government in `rules/governments.ts`): Despotism and Anarchy support as many units free as a city's
-   size, every other government pays a shield for each unit; settlers eat 1 food (2 under Republic and
-   Democracy). A city that cannot pay disbands units at once, newest first and settlers last (old saves; they pay none now) (cargo of a
-   ship at sea sinks with it), without touching its shield box; the `home` command (H) moves a unit's
-   support to the city it stands in. Both city screens mark each supported unit's cost. `looseUpkeep`
+   Unit upkeep (`unitSupport`, `freeUnits` in `cities.ts`, `freeUnits` per government in
+   `rules/governments.ts`; since save version 29, asked for 2026-10-24: "units should take resources
+   from the city, otherwise can generate infinite units and fast"): a city supports a fixed number of
+   units free, two under Anarchy and Despotism (our departure: the original's allowance was the city's
+   size, so armies grew with the city for nothing), three under Monarchy and Communism (the original's),
+   none under a Republic or Democracy, and pays a shield for each beyond; settlers count like any unit
+   and eat 1 food (2 under Republic and Democracy). A city that cannot pay disbands units at once,
+   newest first and settlers last (cargo of a ship at sea sinks with it), without touching its shield
+   box; the `home` command (H) moves a unit's support to the city it stands in. Both city screens mark
+   each supported unit's cost. Saves of versions 8 to 28 load with `sizeFreeUnits` (headless
+   `--size-free-units`): free units by city size under Despotism and Anarchy, none under the others,
+   settlers free of shields from version 24 (`settlerShields` before). 6 planner games x 250 turns, old
+   vs new: units a seat 49 vs 38 (military 38 vs 29), cities 12.3 vs 11.6, pop 47 vs 45, score 142 vs 125. `looseUpkeep`
    (saves before version 8, headless `--loose-upkeep`) keeps our first upkeep: 3 free units a city
    under Monarchy and Communism too, debts paid from the shield box.
    Growth (asked for 2026-10-23: young cities grew too slowly and could not support settlers; two of four
    measured proposals picked; our departures): the city's own square is spared Despotism's and Anarchy's
-   -1 (`tileYield`, an irrigated grassland centre gives 3 food), and settlers cost only their food, never
-   shields: they take no free unit and are never disbanded for upkeep (`paysShields`; the planner's
-   `affordsSettlers` knows it). A player city on 40 starts (Growth focus): size 4 by turn 32 (was 45),
+   -1 (`tileYield`, an irrigated grassland centre gives 3 food), and, in versions 24 to 28, settlers cost
+   only their food, never shields (`paysShields`; the planner's `affordsSettlers` knows it; since 29 they
+   pay like any unit again, see upkeep above). A player city on 40 starts (Growth focus): size 4 by turn 32 (was 45),
    size 5 by 49 (was 71); one keeping two settlers home no longer goes without spare shields (12% of
    turns before). Saves before version 24 load with `centrePenalty` and `settlerShields` (headless
    `--old-support`). Head to head (planner vs v2, 16 x 300): old rules 12-4, score 124 vs 99, pop 40 vs 39;
