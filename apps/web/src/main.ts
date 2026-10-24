@@ -60,6 +60,7 @@ import {
   workOptions,
   WORLD_SIZES,
   type Cheat,
+  type CityTurnEvent,
   type Command,
   type DiplomatAction,
   type GameState,
@@ -665,9 +666,9 @@ function activateFromCity(sc: Extract<Screen, { kind: "city" }>, unit: number): 
  * the city says what it does, then the city's builders ask what comes next. Leaving the city goes
  * on with the turn's news.
  */
-function builtWindow(cityId: number, p: Production, then: () => void): void {
+function builtWindow(cityId: number, p: Production, then: () => void, change?: CityTurnEvent["change"]): void {
   const city = state.cities.find((c) => c.id === cityId);
-  const notice = builtNotice(state, cityId, p);
+  const notice = builtNotice(state, cityId, p, change);
   if (!city || city.owner !== 0 || !notice) { then(); return; }
   openCity(cityId, then);
   modal(notice.title, notice.lines, ["Build next..."], () => openProductionMenu(cityId));
@@ -1613,7 +1614,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       const lines = lost.map((e) => `{shield} ${state.cities.find((c) => c.id === e.city)?.name ?? "A city"} can't support its ${e.detail}`);
       modal(lost.length > 1 ? "Units disbanded" : "Unit disbanded", [...lines, "Extra units cost a shield a turn."], ["OK"], () => next(), 0, next);
     }
-    else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && builtNotice(state, ev.city, ev.production)) builtWindow(ev.city, ev.production, next);
+    else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && builtNotice(state, ev.city, ev.production)) builtWindow(ev.city, ev.production, next, ev.change);
     else if (ev.kind === "contact") meet(ev.player, next);
     else if (ev.kind === "trespass" || ev.kind === "leaveDemand") {
       // One request a civilization at a time: the latest says how far it has gone.

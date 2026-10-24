@@ -759,6 +759,11 @@ export interface CityTurnEvent {
   detail?: string;
   /** What was finished ("built", "wonder"). */
   production?: Production;
+  /**
+   * A unit that took a citizen (Settlers): the city's size and its surplus food, shields and trade a turn
+   * just before and just after, for the notice (a UI side channel, like the event itself).
+   */
+  change?: { size: [number, number]; food: [number, number]; shields: [number, number]; trade: [number, number] };
 }
 
 /** End-of-turn pass for one city. Returns events for the UI. */
@@ -868,9 +873,13 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
   if (city.shields >= cost) {
     const p = city.production;
     if (p.kind === "unit") {
+      const settler = unitType(p.id).flags?.includes("settler") === true;
+      // What the city has before the settlers take their citizen (for the notice; computing changes nothing).
+      const was = settler && city.size > 1 ? computeCity(state, city) : null;
+      const before = city.size;
       const u = createUnit(state, p.id, city.owner, city.x, city.y, city.id);
       if ((city.buildings.includes("barracks") && unitType(p.id).domain === "land") || traitVeteran(state, city.owner, p.id)) u.veteran = true;
-      if (unitType(p.id).flags?.includes("settler")) {
+      if (settler) {
         if (city.size > 1) city.size--;
         else {
           // A size-1 city can't produce settlers; keep the shields and wait.
@@ -880,7 +889,12 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
         autoAssignWorkers(state, city);
       }
       city.shields -= cost;
-      events.push({ city: city.id, kind: "built", detail: unitType(p.id).name, production: { ...p } });
+      const ev: CityTurnEvent = { city: city.id, kind: "built", detail: unitType(p.id).name, production: { ...p } };
+      if (was) {
+        const now = computeCity(state, city);
+        ev.change = { size: [before, city.size], food: [was.foodSurplus, now.foodSurplus], shields: [was.shieldSurplus, now.shieldSurplus], trade: [was.trade, now.trade] };
+      }
+      events.push(ev);
     } else if (p.kind === "spaceship") {
       addPart(player.spaceship, p.id);
       city.shields -= cost;

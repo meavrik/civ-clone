@@ -39,6 +39,29 @@ function flatWorld(): GameState {
   return s;
 }
 
+describe("settlers built", () => {
+  it("tell the city's size and surplus just before and after they take their citizen", () => {
+    const s = flatWorld();
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    c.size = 3;
+    autoAssignWorkers(s, c);
+    c.production = { kind: "unit", id: "settlers" };
+    c.shields = 60;
+    const before = computeCity(s, c);
+    applyCommand(s, { type: "endTurn" });
+    const ev = lastTurnEvents.find((e) => "city" in e && e.kind === "built");
+    expect(c.size).toBe(2);
+    const after = computeCity(s, c);
+    expect(ev && "change" in ev ? ev.change : null).toEqual({
+      size: [3, 2],
+      food: [before.foodSurplus, after.foodSurplus],
+      shields: [before.shieldSurplus, after.shieldSurplus],
+      trade: [before.trade, after.trade],
+    });
+  });
+});
+
 describe("the original's yields", () => {
   it("lay shield grassland on diagonal bands two squares wide, rivers and drained land included", () => {
     expect([0, 1, 2, 3, 4, 5, 6, 7].map((x) => grassShieldAt(x, 0))).toEqual([true, false, false, true, true, false, false, true]);

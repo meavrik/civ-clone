@@ -189,7 +189,9 @@ Never ship the original's sprites, palette art, fonts or text.
   over its city screen with a window saying what it does (`text` on each rule in `rules/buildings.ts`,
   `wonders.ts`, `spaceship.ts`), then asks what to build next; leaving the city goes on with the turn's news
   (the city `Screen`'s `then`). Finished units say nothing (the city goes on building them), except Settlers: they cost a
-  citizen, so their window asks what to build next. That window
+  citizen, so their window asks what to build next, short and in numbers (asked for 2026-10-24): "Rome generates
+  a group of Settlers", then Population 3 → 2 and each of food, shields and trade a turn that changed (core
+  records them on the `built` event, `CityTurnEvent.change`; the font has a → for it). That window
   is headed by the building's picture (`MenuState.picture`). City view (`cityview.ts`, the original's View:
   the city screen's View button or V; the modern city screen shows it small as the button): every improvement
   and wonder has a `PICTURES` entry made of shapes (`Part`: rect, poly, oval, line, each of a `Material`) on a

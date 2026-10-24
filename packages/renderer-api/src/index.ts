@@ -64,6 +64,7 @@ import {
   WORLD_SIZES,
   wrapX,
   type BuildingRule,
+  type CityTurnEvent,
   type City,
   type GameState,
   type MapGenOptions,
@@ -601,7 +602,7 @@ function buildingIcon(b: BuildingRule): IconName {
  * building them. Settlers cost the city a citizen, so it asks before
  * shrinking again.
  */
-export function builtNotice(state: GameState, cityId: number, p: Production): { title: string; lines: string[] } | null {
+export function builtNotice(state: GameState, cityId: number, p: Production, change?: CityTurnEvent["change"]): { title: string; lines: string[] } | null {
   const city = state.cities.find((c) => c.id === cityId);
   if (!city) return null;
   // Culture is what a city holds; old saves gathered it every turn.
@@ -610,7 +611,17 @@ export function builtNotice(state: GameState, cityId: number, p: Production): { 
     case "unit": {
       const u = unitType(p.id);
       if (!u.flags?.includes("settler")) return null;
-      return { title: `${city.name} generates ${u.name}`, lines: [`{people} One of its people goes with them.`] };
+      // Short and in numbers (asked for 2026-10-24): what the city has before and after, each a line.
+      const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+      const lines = change
+        ? [
+            `{people} Population ${change.size[0]} → ${change.size[1]}`,
+            ...([["food", "Food", change.food], ["shield", "Shields", change.shields], ["trade", "Trade", change.trade]] as const)
+              .filter(([, , [a, b]]) => a !== b)
+              .map(([icon, name, [a, b]]) => `{${icon}} ${name} ${signed(a)} → ${signed(b)} a turn`),
+          ]
+        : [`{people} Population ${city.size}`];
+      return { title: `${city.name} generates a group of ${u.name}`, lines };
     }
     case "building": {
       const b = building(p.id);

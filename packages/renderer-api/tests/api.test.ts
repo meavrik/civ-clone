@@ -168,8 +168,14 @@ describe("finished builds", () => {
     applyCommand(s, { type: "found", unit: s.units[0]!.id });
     const c = s.cities[0]!;
     expect(builtNotice(s, c.id, { kind: "unit", id: "militia" })).toBeNull();
-    // Settlers cost the city a citizen, so it asks what to build next.
-    expect(builtNotice(s, c.id, { kind: "unit", id: "settlers" })).toEqual({ title: `${c.name} generates Settlers`, lines: ["{people} One of its people goes with them."] });
+    // Settlers cost the city a citizen, so it asks what to build next, and says in numbers what the city gave.
+    expect(builtNotice(s, c.id, { kind: "unit", id: "settlers" })).toEqual({ title: `${c.name} generates a group of Settlers`, lines: [`{people} Population ${c.size}`] });
+    const change = { size: [3, 2] as [number, number], food: [3, 0] as [number, number], shields: [2, 2] as [number, number], trade: [2, 1] as [number, number] };
+    expect(builtNotice(s, c.id, { kind: "unit", id: "settlers" }, change)!.lines).toEqual([
+      "{people} Population 3 → 2",
+      "{food} Food +3 → 0 a turn",
+      "{trade} Trade +2 → +1 a turn",
+    ]);
     expect(builtNotice(s, 9999, { kind: "building", id: "granary" })).toBeNull();
     expect(builtNotice(s, c.id, { kind: "building", id: "granary" })).toEqual({
       title: `${c.name} builds Granary`,
