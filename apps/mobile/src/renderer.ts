@@ -283,7 +283,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       const s = surface();
       drawNewTech(s, state, view);
       const box = newTechPicture(s.width);
-      const picture = techPlace(view.advance, wideFrame ? { ...box, logicalW: screenW(), logicalH: SCREEN_H } : onScreen(box));
+      const picture = (view.enter ?? 1) >= 1 ? techPlace(view.advance, wideFrame ? { ...box, logicalW: screenW(), logicalH: SCREEN_H } : onScreen(box)) : null;
       if (picture) pictures.push(picture);
     },
     newTechHit: (view, px, py) => (shown.wide ? newTechHit(view, px, py, screenW()) : newTechHit(view, px - inset(), py)),

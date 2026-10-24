@@ -215,65 +215,61 @@ function iconRow(s: Surface, x: number, y: number, w: number, groups: [IconName,
   });
 }
 
-/** When an icon of a store stands for more than one, says how many ("{food}=2"), ending at x (or starting there). */
-function storeKey(s: Surface, x: number, y: number, icon: IconName, per: number, endsAt = true): void {
-  if (per <= 1) return;
+/** When a slot of a store stands for more than one, says how many ("{food}=2"), ending at x (or starting there); returns where it starts. */
+function storeKey(s: Surface, x: number, y: number, icon: IconName, per: number, endsAt = true): number {
+  if (per <= 1) return x;
   const key = `{${icon}}=${per}`;
-  drawIconLine(s, endsAt ? x - iconLineWidth(key) : x, y, key, LABEL);
+  const at = endsAt ? x - iconLineWidth(key) : x;
+  drawIconLine(s, at, y, key, LABEL);
+  return at;
 }
 
-/** Icons in a store stand at least this far apart, so its rows never smear together. */
-const STORE_STEP = 6;
-/** Height of a store's row of icons. */
-const STORE_ROW = ICON + 1;
-/** The band between a store's two blocks, where the line a granary keeps is drawn and named. */
-const KEEP_BAND = FONT_HEIGHT;
+/** The room a box leaves for its store between `top` and `bottom`: inside its frame, a few pixels in from every side. */
+function storeRegion(box: { x: number; w: number }, top: number, bottom: number): Rect {
+  const pad = 4;
+  return { x: box.x + pad, y: top + pad, w: box.w - 2 * pad, h: bottom - top - 2 * pad };
+}
+
+/** A store's slots: ten across (the boxes count in tens), each an icon's size, a pixel apart. */
+const STORE_COLS = 10;
+const SLOT_PITCH = ICON + 1;
 
 /**
- * How a store of goods fills rows of icons no wider than `w`: one icon for `per` goods
- * (more than one only when the box is too big for the rows), `perRow` icons to a row,
- * and the icons each block holds. Each block starts on a row of its own.
+ * How a store of `box` goods fills its slots in a region: one slot for `per` goods (more than one only
+ * when the box has more goods than the region has slots), `rows` of STORE_COLS, the grid's top left at
+ * (x, y) so that it stands in the middle of the region, the same room either side and above as below.
  */
-export function storeLayout(w: number, maxRows: number, blocks: readonly number[]): { per: number; perRow: number; slots: number[] } {
-  const most = Math.max(1, Math.floor((w - ICON - 2) / STORE_STEP) + 1);
-  // Every block takes a row at least, however many goods an icon stands for.
-  maxRows = Math.max(maxRows, blocks.length);
-  for (let per = 1; ; per++) {
-    const slots = blocks.map((n) => Math.ceil(n / per));
-    for (let perRow = Math.min(10, most); perRow <= most; perRow++)
-      if (slots.reduce((t, n) => t + Math.ceil(n / perRow), 0) <= maxRows) return { per, perRow, slots };
+export function storeLayout(region: Rect, box: number): { per: number; slots: number; rows: number; x: number; y: number } {
+  const maxRows = Math.max(1, Math.floor((region.h + 1) / SLOT_PITCH));
+  const per = Math.max(1, Math.ceil(box / (STORE_COLS * maxRows)));
+  const slots = Math.ceil(box / per);
+  const rows = Math.ceil(slots / STORE_COLS);
+  const w = STORE_COLS * SLOT_PITCH - 1;
+  const h = rows * SLOT_PITCH - 1;
+  return { per, slots, rows, x: region.x + Math.floor((region.w - w) / 2), y: region.y + Math.floor((region.h - h) / 2) };
+}
+
+/**
+ * A store of goods (food toward the next citizen, shields toward the build) as empty slots waiting to
+ * be filled, `have` of them holding the icon. The first `keep` goods' slots (what a Granary keeps when
+ * the city grows) are edged in gold. Returns how many goods a slot stands for.
+ */
+function drawStore(s: Surface, region: Rect, icon: IconName, have: number, box: number, keep = 0): number {
+  const { per, slots, x, y } = storeLayout(region, box);
+  const filled = Math.min(slots, Math.floor(have / per));
+  const kept = Math.floor(keep / per);
+  for (let i = 0; i < slots; i++) {
+    const sx = x + (i % STORE_COLS) * SLOT_PITCH;
+    const sy = y + Math.floor(i / STORE_COLS) * SLOT_PITCH;
+    s.rect(sx, sy, ICON, ICON, shade("panel", 4));
+    const edge = i < kept ? shade("wheat", 1) : shade("panel", 3);
+    s.frect(sx * s.k, sy * s.k, ICON * s.k, 1, edge);
+    s.frect(sx * s.k, (sy + ICON) * s.k - 1, ICON * s.k, 1, edge);
+    s.frect(sx * s.k, sy * s.k, 1, ICON * s.k, edge);
+    s.frect((sx + ICON) * s.k - 1, sy * s.k, 1, ICON * s.k, edge);
+    if (i < filled) drawIcon(s, icon, sx, sy);
   }
-}
-
-/**
- * A store of goods as rows of icons (food toward the next citizen, shields toward the build) in a
- * well sunk in the stone, filled from the top left. With `keep`, the goods that stay in store when
- * the city grows (a Granary's half) fill rows of their own above a line named `keepLabel`.
- * Returns the height drawn and how many goods an icon stands for.
- */
-function drawStore(s: Surface, x: number, y: number, w: number, maxRows: number, icon: IconName, have: number, box: number, keep = 0, keepLabel = ""): { h: number; per: number } {
-  const blocks = keep > 0 && keep < box ? [keep, box - keep] : [box];
-  const { per, perRow, slots } = storeLayout(w, blocks.length > 1 ? maxRows - 1 : maxRows, blocks);
-  const step = perRow > 1 ? Math.min(ICON + 1, (w - ICON - 2) / (perRow - 1)) : 0;
-  let top = y;
-  let start = 0;
-  blocks.forEach((goods, b) => {
-    if (b > 0) {
-      // The granary's line: what stands above it is kept when the city grows.
-      const lw = textWidth(keepLabel);
-      s.rect(x, top + 3, w - lw - 3, 1, GOLD);
-      drawText(s, x + w - lw, top, keepLabel, GOLD);
-      top += KEEP_BAND;
-    }
-    const rows = Math.ceil(slots[b]! / perRow);
-    const h = rows * STORE_ROW + 2;
-    drawStone(s, x, top, w, h, true);
-    const filled = have >= start + goods ? slots[b]! : Math.max(0, Math.min(slots[b]!, Math.floor((have - start) / per)));
-    for (let i = 0; i < filled; i++) drawIcon(s, icon, x + 1 + Math.round((i % perRow) * step), top + 1 + Math.floor(i / perRow) * STORE_ROW);
-    top += h;
-    start += goods;
-  });
-  return { h: top - y, per };
+  return per;
 }
 
 /**
@@ -490,10 +486,13 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawBox(s, LEFT.x, ROW2.y, LEFT.w, ROW2.h, "Food", `${city.food}/${r.foodBox}`);
   const kept = foodKept(state, city, r.foodBox);
   const keptBy = city.buildings.some((b) => building(b).granary) ? "Granary" : "Kept";
-  const food = drawStore(s, LEFT.x + 3, ROW2.y + BOX_HEAD + 2, LEFT.w - 6, 6, "food", city.food, r.foodBox, kept, keptBy);
+  const footY = ROW2.y + ROW2.h - 10;
+  const foodPer = drawStore(s, storeRegion(LEFT, ROW2.y + BOX_HEAD + 1, footY - 1), "food", city.food, r.foodBox, kept);
   const grow = r.foodSurplus > 0 ? Math.ceil(Math.max(0, r.foodBox - city.food) / r.foodSurplus) : null;
-  say(s, LEFT.x + 3, ROW2.y + ROW2.h - 10, r.foodSurplus < 0 ? "Starving!" : grow === null ? "Not growing" : `Grows in ${grow} turn${grow === 1 ? "" : "s"}`, r.foodSurplus < 0 ? BAD : LABEL);
-  storeKey(s, LEFT.x + LEFT.w - 3, ROW2.y + ROW2.h - 10, "food", food.per);
+  const growX = say(s, LEFT.x + 4, footY, r.foodSurplus < 0 ? "Starving!" : grow === null ? "Not growing" : `Grows in ${grow} turn${grow === 1 ? "" : "s"}`, r.foodSurplus < 0 ? BAD : LABEL);
+  const keyX = storeKey(s, LEFT.x + LEFT.w - 4, footY, "food", foodPer);
+  // The gold-edged slots are what the Granary keeps (or a trait's share): named in gold, room allowing.
+  if (kept > 0 && keyX - 4 - textWidth(keptBy) > growX + 4) say(s, keyX - 4 - textWidth(keptBy), footY, keptBy, GOLD);
 
   // Units in the city, then those it supports elsewhere (half hidden in the stone), each with what
   // it costs the city: a shield beyond the free ones, food for settlers.
@@ -517,19 +516,20 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const buy = CITY_BUTTONS.buy!;
   drawButton(s, change.x, change.y, change.w, change.h, "Change");
   drawButton(s, buy.x, buy.y, buy.w, buy.h, "Buy", cost > 0 && player.gold >= cost);
-  y = change.y + change.h + 3;
-  let gx = RIGHT.x + 3;
-  if (p.kind === "unit") {
-    s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), gx, y, SPRITE_CLEAR);
-    gx += 19;
-  }
-  const store = drawStore(s, gx, y, RIGHT.x + RIGHT.w - 3 - gx, 4, "shield", city.shields, r.productionCost);
-  const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
+  // The shields' slots between the buttons and the foot, beside the unit being built.
   const by = ROW2.y + ROW2.h - 10;
-  const tx = say(s, RIGHT.x + 3, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
-  storeKey(s, tx + 6, by, "shield", store.per, false);
+  const top = change.y + change.h;
+  let region = storeRegion(RIGHT, top, by - 1);
+  if (p.kind === "unit") {
+    s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), RIGHT.x + 4, top + Math.floor((by - 1 - top - TILE) / 2), SPRITE_CLEAR);
+    region = { ...region, x: region.x + 18, w: region.w - 18 };
+  }
+  const shieldPer = drawStore(s, region, "shield", city.shields, r.productionCost);
+  const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
+  const tx = say(s, RIGHT.x + 4, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
+  storeKey(s, tx + 6, by, "shield", shieldPer, false);
   const price = cost ? `Buy ${cost}$` : "Complete";
-  say(s, RIGHT.x + RIGHT.w - 3 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);
+  say(s, RIGHT.x + RIGHT.w - 4 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);
 
 }
 

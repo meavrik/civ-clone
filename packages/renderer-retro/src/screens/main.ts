@@ -717,9 +717,12 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     ].filter(Boolean) as string[];
     if (keys.length) y += 9 * drawIconsWrapped(s, TEXT_X, y, TEXT_W, keys.join("  "), ink, Math.min(2, linesLeft(y)));
   } else if (view.focus === undefined) {
-    drawIconLine(s, TEXT_X, y, "{hourglass} End of Turn", ink);
+    // Nothing awaits orders: End of Turn, lit blue and white every other beat so the eye finds it.
+    const lit = view.blink === true;
+    if (lit) s.rect(TEXT_X - 2, y - 2, TEXT_W + 4, 2 * FONT_HEIGHT + 5, shade("azure", 2));
+    drawIconLine(s, TEXT_X, y, "{hourglass} End of Turn", lit ? C.WHITE! : ink);
     y += FONT_HEIGHT + 1;
-    drawText(s, TEXT_X, y, "Press Enter", dim);
+    drawText(s, TEXT_X, y, "Press Enter", lit ? shade("azure", 7) : dim);
     y += FONT_HEIGHT;
   }
   y += 2;

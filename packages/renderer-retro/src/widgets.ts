@@ -1,7 +1,8 @@
 import { drawText, FONT_HEIGHT, textWidth } from "./font.js";
 import { drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
 import { C, shade } from "./palette.js";
-import { SCREEN_H, SCREEN_W, type Surface } from "./surface.js";
+import { SPRITE_CLEAR } from "./sprites/sheet.js";
+import { SCREEN_H, SCREEN_W, Surface } from "./surface.js";
 
 /**
  * Inks for text on the stone, every panel in the game: black, a dark grey for what matters
@@ -242,7 +243,46 @@ export function menuScrollAt(m: MenuState, px: number, py: number, screenW = SCR
  * A window or dropdown. `square` paints the window's map square (`MenuState.square`) with its top left
  * at a screen point, `SQUARE_PIC` pixels a side; without it the square's place stays bare.
  */
+/**
+ * A window on its way open (`enter` 0..1): drawn whole on a scratch screen, then laid on the screen
+ * grown about its centre to `enter` of its size (from two fifths), each fine pixel from the nearest
+ * of the whole. At 1 it is drawn in place.
+ */
+export function drawEntering(s: Surface, enter: number, rect: { x: number; y: number; w: number; h: number }, draw: (s: Surface) => void): void {
+  if (enter >= 1) { draw(s); return; }
+  const scratch = new Surface(s.width, s.height, undefined, s.k);
+  scratch.fill(SPRITE_CLEAR);
+  draw(scratch);
+  const k = s.k;
+  // The window and the shadow it casts two pixels down and right.
+  const x0 = rect.x * k;
+  const y0 = rect.y * k;
+  const w = (rect.w + 2) * k;
+  const h = (rect.h + 2) * k;
+  const f = 0.4 + 0.6 * Math.max(0, enter);
+  const tw = Math.max(1, Math.round(w * f));
+  const th = Math.max(1, Math.round(h * f));
+  const tx = Math.round(x0 + (w - tw) / 2);
+  const ty = Math.round(y0 + (h - th) / 2);
+  for (let y = 0; y < th; y++) {
+    const sy = y0 + Math.min(h - 1, Math.floor((y * h) / th));
+    for (let x = 0; x < tw; x++) {
+      const c = scratch.fget(x0 + Math.min(w - 1, Math.floor((x * w) / tw)), sy);
+      if (c !== SPRITE_CLEAR) s.fset(tx + x, ty + y, c);
+    }
+  }
+}
+
 export function drawMenu(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void): void {
+  // A window (not a dropdown) still opening grows into place.
+  if (m.enter !== undefined && m.enter < 1 && !m.anchor) {
+    drawEntering(s, m.enter, menuRect(m, s.width), (t) => drawMenuNow(t, m, square));
+    return;
+  }
+  drawMenuNow(s, m, square);
+}
+
+function drawMenuNow(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void): void {
   const l = menuLayout(m, s.width);
   const { x, y, w, h, lines, indents, itemsY, row, buttons, bx, bw, rows, top } = l;
   const scrolls = rows < m.items.length;

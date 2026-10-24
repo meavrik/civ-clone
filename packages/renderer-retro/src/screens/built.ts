@@ -5,7 +5,7 @@ import { drawIcon, ICON } from "../icons.js";
 import { C, shade, slotColor } from "../palette.js";
 import { rasterize } from "../pictures.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { drawStone, INK, speckle } from "../widgets.js";
+import { drawEntering, drawStone, INK, speckle } from "../widgets.js";
 import { drawModalName, drawModalTitle, drawWindowButton, modalHit, modalRect } from "./newtech.js";
 
 /**
@@ -90,6 +90,12 @@ function drawEnlarged(s: Surface, b: Rect, px: Int16Array, gw: number, gh: numbe
 }
 
 export function drawBuilt(s: Surface, state: GameState, view: BuiltView): void {
+  const enter = view.enter ?? 1;
+  if (enter < 1) { drawEntering(s, enter, modalRect(s.width), (t) => drawBuiltNow(t, state, view)); return; }
+  drawBuiltNow(s, state, view);
+}
+
+function drawBuiltNow(s: Surface, state: GameState, view: BuiltView): void {
   const card = builtCard(state, view);
   if (!card) return;
   const o = modalRect(s.width);
@@ -112,7 +118,8 @@ export function drawBuilt(s: Surface, state: GameState, view: BuiltView): void {
   s.hline(frame.x + 1, frame.y + 1, frame.w - 2, shade("steel", 3));
   s.vline(frame.x + 1, frame.y + 1, frame.h - 2, shade("steel", 3));
   const id = view.production.id;
-  if (buildingArt(id)) s.art.push({ id, ...l.picture, middle: true });
+  // The picture itself is laid over the canvas once the window stands whole (it would cover the window growing).
+  if (buildingArt(id)) { if ((view.enter ?? 1) >= 1) s.art.push({ id, ...l.picture, middle: true }); }
   else {
     // No picture of the user's yet (Barracks, Granary, the Great Library): the city view's drawn one, enlarged.
     const pic = PICTURES[id];

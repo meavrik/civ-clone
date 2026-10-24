@@ -210,7 +210,12 @@ export interface MenuState {
    * Modern ignores it.
    */
   square?: { x: number; y: number };
+  /** How far a window has grown on opening, 0..1 (`WINDOW_ENTER_MS`); absent or 1, it stands whole. Dropdowns ignore it. */
+  enter?: number | undefined;
 }
+
+/** How long a window takes to grow to its full size as it opens (asked for 2026-10-24: "animate window modals entrance"). */
+export const WINDOW_ENTER_MS = 160;
 
 /** A menu's first row shown, moved as little as it must be to keep the selected row among the `rows` on view. */
 export function keepInView(m: MenuState, rows: number): number {

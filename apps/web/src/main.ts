@@ -107,6 +107,7 @@ import {
   setupOptions,
   terrainInfo,
   TEXT_INPUT_MAX,
+  WINDOW_ENTER_MS,
   type ResearchView,
   type CityScreenView,
   type CityViewState,
@@ -372,8 +373,15 @@ function battleReport(fights: readonly UnitBattle[], then: () => void): void {
   modal("Under attack!", lines, ["OK"], () => then(), 0, then);
 }
 
-// The turn never ends by itself (asked for 2026-10-24: "player needs to click enter for next turn - like
-// in the original"): once nothing needs orders the panel says End of Turn, and Enter (or a click on it) ends it.
+/**
+ * The turn ends by itself only once the player has ordered the last unit awaiting orders this turn
+ * (asked for 2026-10-24: "auto next turn when no actions left, but not auto when no actions at all"):
+ * a moment after the last order the turn ends; a turn that began with nothing to order waits for Enter
+ * (or a click on the panel's End of Turn), as the original did.
+ */
+let actedThisTurn = false;
+let autoEndAt: number | null = null;
+const AUTO_END_MS = 1000;
 
 /** Civilization borders on the map (game menu toggles them; remembered per browser). The original has none. */
 let borders = (() => { try { return localStorage.getItem("epochs.borders") !== "off"; } catch { return true; } })();
@@ -428,6 +436,7 @@ function dispatch(cmd: Command): boolean {
   const r = applyCommand(state, cmd);
   if (r.ok) {
     log.push(cmd);
+    if ("unit" in cmd) actedThisTurn = true;
     if (cmd.type !== "endTurn") slideOwn(lastActions.slice(mark));
     if (cmd.type === "move" && lastCombat) reportCombat(lastCombat);
     if (cmd.type !== "endTurn") afterAction();
@@ -1730,6 +1739,8 @@ function endTurn(): void {
   skipWatch();
   handoff = null;
   view.focus = undefined;
+  actedThisTurn = false;
+  autoEndAt = null;
   const actions: UnitAction[] = [];
   askedLeave.clear();
   // What we can see now; a unit lost in the turns to come takes its sight with it.
@@ -2283,6 +2294,15 @@ const DOUBLE_CLICK_MS = 300;
 let lastClick: { px: number; py: number; x: number; y: number; at: number } | null = null;
 
 // ---- frame loop ---------------------------------------------------------------
+/** When each window first drew, so it can grow in (`WINDOW_ENTER_MS`); keyed by the window's own state. */
+const opened = new WeakMap<object, number>();
+let frameNow = 0;
+function enterOf(window: object): number {
+  let at = opened.get(window);
+  if (at === undefined) { at = frameNow; opened.set(window, at); }
+  return Math.min(1, (frameNow - at) / WINDOW_ENTER_MS);
+}
+
 function draw(sc: Screen): void {
   switch (sc.kind) {
     case "title": renderer.title(titleAt); break;
@@ -2301,8 +2321,8 @@ function draw(sc: Screen): void {
     case "cityView": renderer.cityView(state, sc.view); break;
     case "research": renderer.research(state, sc.view); break;
     // The small windows over the screen they opened on.
-    case "newTech": draw(sc.back); renderer.newTech(state, sc.view); break;
-    case "built": draw(sc.under); renderer.built(state, sc.view); break;
+    case "newTech": draw(sc.back); sc.view.enter = enterOf(sc.view); renderer.newTech(state, sc.view); break;
+    case "built": draw(sc.under); sc.view.enter = enterOf(sc.view); renderer.built(state, sc.view); break;
     case "science": renderer.science(state); break;
     case "rates": renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;
@@ -2317,6 +2337,7 @@ function draw(sc: Screen): void {
       view.menuOpen = sc.bar;
       draw(sc.under);
       view.menuOpen = undefined;
+      if (sc.bar === undefined) sc.menu.enter = enterOf(sc.menu);
       renderer.menu(sc.menu, state as GameState | undefined);
       if (status && sc.under.kind !== "map") renderer.statusLine(status);
       break;
@@ -2324,6 +2345,7 @@ function draw(sc: Screen): void {
 }
 
 function frame(t: number): void {
+  frameNow = t;
   introStart ??= t;
   titleAt = t - introStart;
   if (screenState.kind === "title" && titleAt >= INTRO_MS) void openTitleMenu();
@@ -2348,6 +2370,12 @@ function frame(t: number): void {
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
   if (!animating && afterSlides.length && screenState.kind === "map") for (const fn of afterSlides.splice(0)) fn();
+  // The last unit ordered this turn: the turn ends by itself a moment later (see `actedThisTurn`).
+  const idle = screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length && !handoff;
+  if (actedThisTurn && idle) {
+    autoEndAt ??= t + AUTO_END_MS;
+    if (t >= autoEndAt) { autoEndAt = null; endTurn(); }
+  } else autoEndAt = null;
   renderer.beginFrame();
   draw(screenState);
   renderer.present();

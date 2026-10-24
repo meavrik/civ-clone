@@ -51,25 +51,29 @@ describe("sprite sheets", () => {
     expect(ICON_SHEET.size / ICON_SHEET.k).toBe(8); // as tall as a line of text, in screen pixels
     for (const name of ICONS) expect(ICON_SHEET.byName.has(name), name).toBe(true);
     // Every mood and trade of citizen, in both looks.
-    for (const mood of MOODS) for (const name of [mood, `${mood}-2`]) expect(CITIZEN_SHEET.byName.has(name), name).toBe(true);
+    expect([...CITIZEN_SHEET.byName.keys()]).toEqual(["person"]); // one figure for every citizen
   });
 
-  it("dress each citizen in their own colours, the mood's clothes kept", () => {
-    const man = citizenSprite("content", { woman: false, style: 0, skin: 0, hair: 0, legs: 0 });
-    const other = citizenSprite("content", { woman: false, style: 0, skin: 5, hair: 4, legs: 3 });
-    expect([man.width, man.height]).toEqual([CITIZEN_W, CITIZEN_H]);
-    // Content citizens wear white, whoever they are.
-    expect(man.data.includes(shade("marble", 7))).toBe(true);
-    expect(other.data.includes(shade("marble", 7))).toBe(true);
-    expect(Array.from(man.data).join()).not.toBe(Array.from(other.data).join());
-    // No stand-in colour survives the swap (in colours that share no index with one); outlines are never black.
-    const standIns = [shade("flesh", 6), shade("flesh", 4), shade("flesh", 2), shade("earth", 4), shade("earth", 2), shade("earth", 0), shade("grey", 2), shade("grey", 1), shade("grey", 0)];
-    for (const mood of MOODS) for (const woman of [false, true]) for (const style of [0, 1] as const) {
-      const s = citizenSprite(mood, { woman, style, skin: 5, hair: 4, legs: 3 });
-      for (const c of [...standIns, ...(mood === "unhappy" ? [] : [C.RED!])]) expect(s.data.includes(c), `${mood} ${woman} ${style}`).toBe(false);
-      // Only the eyes are black (the taxman's bowler is black too).
-      if (mood !== "taxman") expect(s.data.filter((c) => c === C.BLACK).length, mood).toBeLessThanOrEqual(2);
+  it("draw every citizen as one plain figure, the head in their skin and the body in the mood's colour", () => {
+    const fair = citizenSprite("content", { woman: false, style: 0, skin: 0, hair: 0, legs: 0 });
+    const deep = citizenSprite("content", { woman: true, style: 1, skin: 5, hair: 4, legs: 3 });
+    expect([fair.width, fair.height]).toEqual([CITIZEN_W, CITIZEN_H]);
+    // Content citizens wear white, whoever they are; only the head differs.
+    expect(fair.data.includes(shade("marble", 7))).toBe(true);
+    expect(deep.data.includes(shade("marble", 7))).toBe(true);
+    expect(Array.from(fair.data).join()).not.toBe(Array.from(deep.data).join());
+    // The same figure whatever else the look says: hair, trousers and the woman's half play no part.
+    const again = citizenSprite("content", { woman: false, style: 0, skin: 5, hair: 0, legs: 0 });
+    expect(Array.from(again.data).join()).toBe(Array.from(deep.data).join());
+    // Each mood or trade its own colour; no stand-in survives the swap, nothing is black.
+    const bodies = new Set<number>();
+    for (const mood of MOODS) {
+      const s = citizenSprite(mood, { woman: false, style: 0, skin: 5, hair: 0, legs: 0 });
+      for (const c of [shade("flesh", 6), shade("flesh", 4), shade("flesh", 2), ...(mood === "unhappy" ? [] : [C.RED!])]) expect(s.data.includes(c), mood).toBe(false);
+      expect(s.data.includes(C.BLACK!), mood).toBe(false);
+      bodies.add(s.data[(18 * s.fw) + 9]!);
     }
+    expect(bodies.size).toBe(MOODS.length);
   });
 
   it("round-trip through an image unchanged", () => {

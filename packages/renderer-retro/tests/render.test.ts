@@ -701,35 +701,36 @@ describe("city screen", () => {
       return n;
     };
     expect(lit(5)).toBeGreaterThan(lit() + 20);
-    // A Granary's half of the food store sits above a line in the box (a long run of its ink).
-    const line = () => {
+    // The slots a Granary keeps full when the city grows are edged in gold in the food box.
+    const gold = () => {
       const s = Surface.screen();
       drawCityScreen(s, state, view);
-      let longest = 0;
-      for (let y = 116; y < 188; y++) for (let x = 1, run = 0; x < 107; x++) { run = s.get(x, y) === C.BROWN ? run + 1 : 0; longest = Math.max(longest, run); }
-      return { s, longest };
+      let n = 0;
+      for (let y = 116; y < 200; y++) for (let x = 1; x < 107; x++) if (s.get(x, y) === shade("wheat", 1)) n++;
+      return { s, n };
     };
-    expect(line().longest).toBe(0);
+    expect(gold().n).toBe(0);
     city.buildings.push("granary");
-    const { s, longest } = line();
-    expect(longest).toBeGreaterThan(40);
+    const { s, n } = gold();
+    expect(n).toBeGreaterThan(40);
     writeFileSync(new URL("./out/city-granary.png", import.meta.url), encodePng(s, 3));
   });
 
-  it("lays a store out at a readable step, an icon standing for more than one only when the box is big", () => {
-    for (const box of [10, 20, 30, 50, 80, 100, 150, 210, 400, 600])
-      for (const keep of [0, Math.floor(box / 3), Math.floor(box / 2)]) {
-        const blocks = keep ? [keep, box - keep] : [box];
-        const rows = keep ? 4 : 5;
-        const { per, perRow, slots } = storeLayout(100, rows, blocks);
-        expect(slots.reduce((t, n) => t + Math.ceil(n / perRow), 0)).toBeLessThanOrEqual(rows);
-        expect((100 - 8 - 2) / (perRow - 1)).toBeGreaterThanOrEqual(6);
-        expect(slots).toEqual(blocks.map((n) => Math.ceil(n / per)));
-      }
-    expect(storeLayout(100, 5, [50]).per).toBe(1);
-    expect(storeLayout(100, 4, [25, 25]).per).toBe(1);
-    expect(storeLayout(100, 5, [80]).per).toBe(1);
-    expect(storeLayout(100, 4, [50, 50]).per).toBe(2);
+  it("lays a store's slots out ten to a row in the middle of its region, a slot standing for more than one only when the box is big", () => {
+    const region = { x: 5, y: 120, w: 98, h: 60 };
+    const gridW = 10 * 9 - 1;
+    for (const box of [10, 20, 30, 50, 60, 80, 100, 150, 210, 400, 600]) {
+      const { per, slots, rows, x, y } = storeLayout(region, box);
+      expect(slots * per).toBeGreaterThanOrEqual(box);
+      expect(rows * 10).toBeGreaterThanOrEqual(slots);
+      expect(rows * 9 - 1).toBeLessThanOrEqual(region.h);
+      // The same room either side, and above as below (a pixel over when the room is odd).
+      expect(Math.abs((x - region.x) - (region.x + region.w - (x + gridW)))).toBeLessThanOrEqual(1);
+      expect(Math.abs((y - region.y) - (region.y + region.h - (y + rows * 9 - 1)))).toBeLessThanOrEqual(1);
+    }
+    expect(storeLayout(region, 50).per).toBe(1);
+    expect(storeLayout(region, 60).per).toBe(1); // six rows of ten fit
+    expect(storeLayout(region, 100).per).toBe(2);
   });
 
   it("draws Change and Buy buttons in the production box and hit-tests them", () => {
@@ -776,7 +777,16 @@ describe("city screen", () => {
     };
     expect(under(0)).toBe(0);
     expect(under(1)).toBeGreaterThan(0);
-    expect(under(2)).toBeGreaterThan(under(1)); // settlers: a shield and food
+    // Settlers cost food, not a shield (since version 24): the wheat under them, no shield's blue.
+    const colours = (i: number) => {
+      const { x, y } = cityUnitSlot(i);
+      const set = new Set<number>();
+      for (let dy = 0; dy < 8; dy++) for (let dx = 0; dx < 16; dx++) if (!isStone(s.get(x + dx, y + 17 + dy))) set.add(s.get(x + dx, y + 17 + dy));
+      return set;
+    };
+    expect(under(2)).toBeGreaterThan(0);
+    expect(colours(1).has(shade("sea", 7))).toBe(true);
+    expect(colours(2).has(shade("sea", 7))).toBe(false);
   });
 
   it("shows the units in the city, then those away faded, and picks a unit by its sprite or cost", () => {

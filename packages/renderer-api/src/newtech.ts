@@ -11,6 +11,8 @@ export interface NewTechView {
   advance: string;
   /** The lit button: 0 View Tech Tree, 1 Continue. */
   selected: number;
+  /** How far the window has grown on opening, 0..1 (`WINDOW_ENTER_MS`); absent or 1, it stands whole. */
+  enter?: number | undefined;
 }
 
 export const NEW_TECH_BUTTONS = ["View Tech Tree", "Continue"] as const;

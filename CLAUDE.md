@@ -188,10 +188,11 @@ Never ship the original's sprites, palette art, fonts or text.
   (`toggleTile` on `weakestWorked`), a specialist turns entertainer, taxman, scientist, round again
   (`setSpecialist`, `nextSpecialist`); the person under the pointer is lit (`CityScreenView.hover`) and
   told of beside the row (`citizenNote`), else a faint hint. The food and shield stores (`drawStore`,
-  `storeLayout`) are wells sunk in the stone, icons at least 6 pixels apart, one standing for more
-  only when the box is too big (then "{food}=2" under it); what a growing city keeps (core `foodKept`:
-  a Granary's half, or a trait's share) fills rows of its own above a brown line named Granary (or
-  Kept). Taxmen and scientists need no size of city (the 1991 game is said to want size 5: not checked, not asked for).
+  `storeLayout`) are grids of empty slots waiting to be filled (asked for 2026-10-24), ten to a row,
+  the grid in the middle of its box's room with the same padding on every side (`storeRegion`), a slot
+  standing for more than one good only when the box has more goods than the room has slots (then
+  "{food}=2" at the foot); the slots of what a growing city keeps (core `foodKept`: a Granary's half, or
+  a trait's share) are edged in gold and named Granary (or Kept) at the foot, room allowing. Taxmen and scientists need no size of city (the 1991 game is said to want size 5: not checked, not asked for).
   Esc, Enter (not held), the close box or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. The build menu (`openProductionMenu` in the web app) shows beside
@@ -368,7 +369,12 @@ Never ship the original's sprites, palette art, fonts or text.
   each advance): every advance found (end of turn, village, diplomat, treaty, Debug) gets one, in turn
   (`announce` in the web app), before the research panel; a small window over the game since 2026-10-24
   (`modalRect`, 236x147, centred on the screen it opens over, which the web app draws first: the
-  screen's `back`; the Building Completed window shares the size and frame). A navy title strip (bulb,
+  screen's `back`; the Building Completed window shares the size and frame). Windows grow into place as
+  they open (asked for 2026-10-24, "animate window modals entrance"): `WINDOW_ENTER_MS` (160) from two
+  fifths of their size, `enter` 0..1 on `NewTechView`, `BuiltView` and `MenuState` (the web app's
+  `enterOf`, timed from the window's first frame; dropdowns never), retro's `drawEntering` drawing the
+  whole window on a scratch screen and laying it on grown about its centre; the user's pictures wait for
+  the window to stand whole. A navy title strip (bulb,
   NEW TECHNOLOGY, close box), the name large over its era, the user's picture of the advance in a gold
   frame, then parchment panels: Description (`AdvanceRule.text`, a sentence of our own; `era` from `ERAS`,
   ours too) with "Needs ..." under it, Unlocks (`newTechCard`: the research card's gifts, one or two in
@@ -440,17 +446,16 @@ Never ship the original's sprites, palette art, fonts or text.
   `shade` clamps to `RAMP_SIZE`); `town` (the city icons' colours, not a dark-to-light ramp) took the
   city view's `copper` slots, copper now drawn from `steel`; new art must reuse these ramps or free one. Panel icons (`icons.art.ts`,
   drawn with `src/icons.ts`) and the small marks (`drawMark`: tick, new, moves) are hand-drawn
-  16x16: food is an ear of wheat, `shield` (production) a hammer, `people` a man and a woman; roads,
+  16x16: food is an ear of wheat, `shield` (production) a steel-rimmed blue shield as the original showed
+  it (a hammer until 2026-10-24, "not good"), `people` a man and a woman; roads,
   rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.
-  Citizens (city screen) are whole figures 16x26 fine pixels (`CITIZEN_W` 8 x `CITIZEN_H` 13), drawn
-  anew 2026-10-24 (asked for: the Scale2x'd 16x16 figures with black outlines were "really BAD"; a first
-  redraw with big heads and dot faces was "childish" and "odd") as grown people in the units' manner: a
-  head five rows of twenty-six, a slim body, long legs, no eyes or mouths, every part outlined in a dark
-  shade of its own colour, lit from the upper left (black only for the taxman's bowler). `citizens.art.ts`
-  holds a man and a woman to each sprite, one per mood or trade, plus a "-2" look (beard; a hood in her
-  clothes' colour); arms up happy, at the sides content, crossed unhappy; the entertainer a jester's cap
-  and a lute, the taxman a bowler and purse, the scientist a long coat and a flask. Clothes: yellow
-  happy, white content, red unhappy, magenta, orange, cyan. The sheet is composed from hand-drawn part grids
+  Citizens (city screen) are one plain figure, 16x26 fine pixels (`CITIZEN_W` 8 x `CITIZEN_H` 13): a
+  round head over a body and two legs, nothing more (asked for 2026-10-24 after three rounds of detailed
+  people, each "bad": "do the most simple basic human presentation possible - dont over complicate").
+  `citizens.art.ts` holds that `person`; `citizens.ts` colours its head with each person's skin (six
+  tones, `citizenLook`) and its body with the mood or trade: yellow happy, white content, red unhappy,
+  magenta entertainer, orange taxman, cyan scientist. Hair, trousers and the man/woman looks play no
+  part now. The sheet is composed from hand-drawn part grids
   (heads, upper bodies, legs or dress, hats); `citizens.ts` swaps its stand-ins, three tones each (lit,
   shade, outline: skin 6/4/2, hair e/c/a, clothes P/p/r, trousers C/B/A), for each person's.
   Who stands where is `citizenLook(city, i)` in renderer-api (a hash, so the same people every frame);
@@ -477,9 +482,12 @@ Never ship the original's sprites, palette art, fonts or text.
   per browser: slot 0 is the autosave, written as every turn begins and when a game starts or loads).
   The title offers "Continue" (the autosave; its "Back to an earlier turn" was dropped, asked for
   2026-10-22) and the Game menu "Back to an Earlier Turn": a save is a seed and the player's commands,
-  so `turnStarts`/`rewindSave` (core `save.ts`) cut its log back to the start of any turn it saw. The turn never ends by itself (auto end turn removed 2026-10-24, asked for: "player needs to click
-  enter for next turn - like in the original civ1"): with nothing to order the status panel says End of Turn,
-  Press Enter, and Enter or a click on it (`statusAt` "endTurn") ends the turn, the phone's way too.
+  so `turnStarts`/`rewindSave` (core `save.ts`) cut its log back to the start of any turn it saw. The turn ends by itself only once the player has ordered the last unit awaiting orders that turn
+  (`actedThisTurn`, `AUTO_END_MS` after; asked for 2026-10-24: "auto next turn when no actions left, but
+  not auto when no actions at all. auto only for 1 turn", after the always-on Auto End Turn was dropped
+  that morning for "click enter for next turn - like in the original"): a turn that begins with nothing to
+  order waits, the status panel's End of Turn / Press Enter blinking blue, and Enter or a click on it
+  (`statusAt` "endTurn") ends the turn, the phone's way too.
   Diplomacy: a meeting first holds the map on whom we met (the `beat` screen:
   a callout, 1.6 s or any key), then their leader receives us (`audience`: without a treaty propose
   peace (`proposePeace`: yes, a gift first, or no); open borders and exchanging maps are not offered

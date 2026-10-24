@@ -132,7 +132,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     newTech: (state, view) => {
       drawNewTech(screen, state, view);
       // The advance's picture as it is, in its frame.
-      const picture = techPlace(view.advance, { ...newTechPicture(), ...screenBox });
+      const picture = (view.enter ?? 1) >= 1 ? techPlace(view.advance, { ...newTechPicture(), ...screenBox }) : null;
       if (picture) pictures.push(picture);
     },
     newTechHit: (view, px, py) => newTechHit(view, px, py),

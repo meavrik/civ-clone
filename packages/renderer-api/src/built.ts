@@ -16,6 +16,8 @@ export interface BuiltView {
   production: Production;
   /** The lit button: 0 View City, 1 Continue. */
   selected: number;
+  /** How far the window has grown on opening, 0..1 (`WINDOW_ENTER_MS`); absent or 1, it stands whole. */
+  enter?: number | undefined;
 }
 
 export const BUILT_BUTTONS = ["View City", "Continue"] as const;
