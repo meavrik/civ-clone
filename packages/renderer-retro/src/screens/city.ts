@@ -215,13 +215,12 @@ function iconRow(s: Surface, x: number, y: number, w: number, groups: [IconName,
   });
 }
 
-/** When a slot of a store stands for more than one, says how many ("{food}=2"), ending at x (or starting there); returns where it starts. */
-function storeKey(s: Surface, x: number, y: number, icon: IconName, per: number, endsAt = true): number {
-  if (per <= 1) return x;
-  const key = `{${icon}}=${per}`;
-  const at = endsAt ? x - iconLineWidth(key) : x;
-  drawIconLine(s, at, y, key, LABEL);
-  return at;
+/**
+ * A slot's goods: one icon, or when a slot stands for more than one a stack of them, each a fine pixel
+ * up and right of the one under it, up to three deep (asked for 2026-10-24, in place of a "{shield}=2" key).
+ */
+function drawStack(s: Surface, icon: IconName, x: number, y: number, n: number): void {
+  for (let i = Math.min(3, n) - 1; i >= 0; i--) drawIconFine(s, icon, x * s.k + i, y * s.k - i);
 }
 
 /** The room a box leaves for its store between `top` and `bottom`: inside its frame, a few pixels in from every side. */
@@ -251,10 +250,10 @@ export function storeLayout(region: Rect, box: number): { per: number; slots: nu
 
 /**
  * A store of goods (food toward the next citizen, shields toward the build) as empty slots waiting to
- * be filled, `have` of them holding the icon. The first `keep` goods' slots (what a Granary keeps when
- * the city grows) are edged in gold. Returns how many goods a slot stands for.
+ * be filled, `have` of them holding the icon (a stack of them when a slot stands for more than one).
+ * The first `keep` goods' slots (what a Granary keeps when the city grows) are edged in gold.
  */
-function drawStore(s: Surface, region: Rect, icon: IconName, have: number, box: number, keep = 0): number {
+function drawStore(s: Surface, region: Rect, icon: IconName, have: number, box: number, keep = 0): void {
   const { per, slots, x, y } = storeLayout(region, box);
   const filled = Math.min(slots, Math.floor(have / per));
   const kept = Math.floor(keep / per);
@@ -267,9 +266,8 @@ function drawStore(s: Surface, region: Rect, icon: IconName, have: number, box: 
     s.frect(sx * s.k, (sy + ICON) * s.k - 1, ICON * s.k, 1, edge);
     s.frect(sx * s.k, sy * s.k, 1, ICON * s.k, edge);
     s.frect((sx + ICON) * s.k - 1, sy * s.k, 1, ICON * s.k, edge);
-    if (i < filled) drawIcon(s, icon, sx, sy);
+    if (i < filled) drawStack(s, icon, sx, sy, per);
   }
-  return per;
 }
 
 /**
@@ -305,7 +303,7 @@ function drawResources(s: Surface, r: CityReport): void {
     line(label, [[icon, n]]);
     y += 10;
   }
-  const extra = [r.routes ? `Routes +${r.routes}` : "", r.pollution > 0 ? `{pollution} ${r.pollution}%` : ""].filter(Boolean);
+  const extra = [r.routes ? `Routes +${r.routes}` : "", r.influence ? `Influence +${r.influence}` : "", r.pollution > 0 ? `{pollution} ${r.pollution}%` : ""].filter(Boolean);
   if (extra.length) drawIconLine(s, lx, y, extra.join("  "), LABEL);
 }
 
@@ -487,12 +485,12 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const kept = foodKept(state, city, r.foodBox);
   const keptBy = city.buildings.some((b) => building(b).granary) ? "Granary" : "Kept";
   const footY = ROW2.y + ROW2.h - 10;
-  const foodPer = drawStore(s, storeRegion(LEFT, ROW2.y + BOX_HEAD + 1, footY - 1), "food", city.food, r.foodBox, kept);
+  drawStore(s, storeRegion(LEFT, ROW2.y + BOX_HEAD + 1, footY - 1), "food", city.food, r.foodBox, kept);
   const grow = r.foodSurplus > 0 ? Math.ceil(Math.max(0, r.foodBox - city.food) / r.foodSurplus) : null;
   const growX = say(s, LEFT.x + 4, footY, r.foodSurplus < 0 ? "Starving!" : grow === null ? "Not growing" : `Grows in ${grow} turn${grow === 1 ? "" : "s"}`, r.foodSurplus < 0 ? BAD : LABEL);
-  const keyX = storeKey(s, LEFT.x + LEFT.w - 4, footY, "food", foodPer);
   // The gold-edged slots are what the Granary keeps (or a trait's share): named in gold, room allowing.
-  if (kept > 0 && keyX - 4 - textWidth(keptBy) > growX + 4) say(s, keyX - 4 - textWidth(keptBy), footY, keptBy, GOLD);
+  const keyX = LEFT.x + LEFT.w - 4;
+  if (kept > 0 && keyX - textWidth(keptBy) > growX + 4) say(s, keyX - textWidth(keptBy), footY, keptBy, GOLD);
 
   // Units in the city, then those it supports elsewhere (half hidden in the stone), each with what
   // it costs the city: a shield beyond the free ones, food for settlers.
@@ -524,10 +522,9 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
     s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), RIGHT.x + 4, top + Math.floor((by - 1 - top - TILE) / 2), SPRITE_CLEAR);
     region = { ...region, x: region.x + 18, w: region.w - 18 };
   }
-  const shieldPer = drawStore(s, region, "shield", city.shields, r.productionCost);
+  drawStore(s, region, "shield", city.shields, r.productionCost);
   const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
-  const tx = say(s, RIGHT.x + 4, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
-  storeKey(s, tx + 6, by, "shield", shieldPer, false);
+  say(s, RIGHT.x + 4, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
   const price = cost ? `Buy ${cost}$` : "Complete";
   say(s, RIGHT.x + RIGHT.w - 4 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);
 

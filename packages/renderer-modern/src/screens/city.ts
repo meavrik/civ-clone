@@ -228,7 +228,7 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
     bar(ctx, COL2_X, y, 300, 10, city.food, r.foodBox, UI.ok);
     y += 22;
     row("Shields", `${r.shields}${r.unitShields ? ` (-${r.unitShields} upkeep)` : ""}`);
-    row("Trade", `${r.trade}${r.routes ? ` (${r.routes} from routes)` : ""}${r.corruption ? ` (-${r.corruption} corruption)` : ""}`);
+    row("Trade", `${r.trade}${r.routes ? ` (${r.routes} from routes)` : ""}${r.influence ? ` (${r.influence} from influence)` : ""}${r.corruption ? ` (-${r.corruption} corruption)` : ""}`);
     row("Tax / Lux / Sci", `${r.tax} / ${r.lux} / ${r.science}`);
     row("Upkeep", `${r.buildingUpkeep} gold`);
     if (!state.fixedBorders) {

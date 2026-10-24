@@ -19,6 +19,8 @@ export interface DiplomacyView {
    * in place of the palace; `line` is then how we stand with them.
    */
   card?: string[];
+  /** How far the window has grown on opening, 0..1 (`WINDOW_ENTER_MS`); absent or 1, it stands whole. */
+  enter?: number | undefined;
 }
 
 /**

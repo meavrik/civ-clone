@@ -23,7 +23,7 @@ import { drawBuilding } from "../pictures.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { DIM, drawBox, drawButton, drawStone, drawTitleStrip, FADED, GOLD, GOOD, INK, NOTE, TITLE_H } from "../widgets.js";
+import { DIM, drawBox, drawButton, drawCloseBox, drawStone, drawTitleStrip, FADED, GOLD, GOOD, INK, NOTE, TITLE_H } from "../widgets.js";
 
 /**
  * The research panel, built round the choice: under the title a band with the
@@ -295,7 +295,6 @@ function buttons(state: GameState, view: ResearchView): Button[] {
     out.push({ x, w, label: text, hit, primary });
     x -= 4;
   };
-  if (view.closable) add("Close", { kind: "close" });
   const target = researchTarget(state, view);
   if (target) add(target === view.selected ? "Research" : `Research ${label(target)}`, { kind: "research" }, true);
   return out;
@@ -305,7 +304,12 @@ export function drawResearch(s: Surface, state: GameState, view: ResearchView): 
   const rows = researchRows(state, view);
   s.fill(C.BLACK!);
   const known = state.players[state.currentPlayer]!.advances.length;
-  drawTitleStrip(s, 0, 0, SCREEN_W, researchTitle(state, view), { right: `${known}/${advancesFor(state).length}`, ...(view.discovered.length ? { color: shade("azure", 2) } : {}) });
+  // The count of advances at the strip's right, and when the panel may be left a close box after it (in place of a Close button, 2026-10-24).
+  const count = `${known}/${advancesFor(state).length}`;
+  drawTitleStrip(s, 0, 0, SCREEN_W, researchTitle(state, view), view.discovered.length ? { color: shade("azure", 2) } : {});
+  const close = closeBox(view);
+  drawText(s, (close ? close.x - 4 : SCREEN_W - 4) - textWidth(count), 2, count, shade("azure", 7));
+  if (close) drawCloseBox(s, close.x, close.y);
   drawStone(s, 0, TITLE_H, SCREEN_W, SCREEN_H - TITLE_H);
   drawBand(s, state, view);
   drawList(s, state, view, rows);
@@ -317,8 +321,15 @@ export function drawResearch(s: Surface, state: GameState, view: ResearchView): 
   if (textWidth(hint) <= room) drawText(s, 6, BUTTON_Y + 2, hint, view.choosing ? NOTE : DIM);
 }
 
+/** The close box in the title strip, when the panel may be left. */
+function closeBox(view: ResearchView): { x: number; y: number; w: number; h: number } | null {
+  return view.closable ? { x: SCREEN_W - 2 - (TITLE_H - 2), y: 1, w: TITLE_H - 2, h: TITLE_H - 2 } : null;
+}
+
 /** What lies under a point of the research panel. */
 export function researchHit(state: GameState, view: ResearchView, px: number, py: number): ResearchHit | null {
+  const close = closeBox(view);
+  if (close && px >= close.x - 3 && px < close.x + close.w + 3 && py >= 0 && py < TITLE_H) return { kind: "close" };
   for (const b of buttons(state, view)) if (px >= b.x && px < b.x + b.w && py >= BUTTON_Y && py < BUTTON_Y + 11) return b.hit;
   const rows = researchRows(state, view);
   if (px >= LIST.x && px < LIST.x + LIST.w && py >= LIST.y && py < LIST.y + LIST.h) {

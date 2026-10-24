@@ -77,6 +77,7 @@ import {
   type Production,
   type Unit,
   type WorldSize,
+  influenceSpecials,
   specialOf,
 } from "@civ/core";
 
@@ -328,6 +329,8 @@ export interface Renderer {
   diplomacy(state: GameState, view: DiplomacyView): void;
   /** The audience's choice under a point, or -1. */
   diplomacyChoiceAt(view: DiplomacyView, px: number, py: number): number;
+  /** Whether a point lies on the audience window's close box (a renderer that draws it as a window). */
+  diplomacyCloseAt?(px: number, py: number): boolean;
   /** The New Technology window: an advance just found, its picture, what it is, unlocks and needed. */
   newTech(state: GameState, view: NewTechView): void;
   /** The New Technology window's button (or close box) under a point, or null. */
@@ -770,6 +773,14 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     const land = owner >= 0 ? (owner === me.id ? "Our land" : `Land of the ${state.players[owner]?.name ?? "unknown"}`) : "";
     const worked = worker ? `${land ? "worked" : "Worked"} by ${worker.name}` : "";
     if (land || worked) lines.push(`{crown} ${[land, worked].filter(Boolean).join(", ")}`);
+    // A resource inside one of our cities' borders beyond the squares it works brings it trade (`influenceSpecials`).
+    if (sp && owner === me.id && !worker) {
+      for (const c of state.cities) {
+        if (c.owner !== me.id) continue;
+        const gain = influenceSpecials(state, c).find((i) => i.x === wrapX(map, x) && i.y === y);
+        if (gain) { lines.push(`{trade} In ${c.name}'s influence: +${gain.trade} {trade}`); break; }
+      }
+    }
   }
   // A square the map suggests for the settlers in play says why.
   const site = settlerSites(state, state.activeUnit).find((s) => s.x === wrapX(map, x) && s.y === y);

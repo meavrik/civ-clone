@@ -5,7 +5,7 @@ import {
   cityButtonAt,
   cityCitizenAt,
   cityFocusAt,
-  CARD_PICTURE,
+  cardPicture,
   LEADER_PORTRAITS,
   ratesHit,
   cityExitHit,
@@ -17,7 +17,8 @@ import {
   drawCityView,
   diplomacyChoiceAt,
   drawDiplomacyScreen,
-  AUDIENCE_PICTURE,
+  audiencePicture,
+  diplomacyCloseAt,
   drawNewTech,
   newTechPicture,
   newTechHit,
@@ -212,6 +213,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       pictures = [];
       narrow.art = [];
       wide.art = [];
+      narrow.dimmed = false;
+      wide.dimmed = false;
       shown.input = undefined;
       wideFrame = false;
       if (wide.width !== screenW()) {
@@ -274,15 +277,21 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       else if (which === "foreign") drawForeignAdvisor(s, state);
       else drawScoreScreen(s, state);
     }),
-    diplomacy: screen((s, state: GameState, view: DiplomacyView) => {
+    // The audience window opens over whatever is drawn under it (the wide map, or a 320x200 screen), centred on it.
+    diplomacy: (state: GameState, view: DiplomacyView) => {
+      const s = surface();
       drawDiplomacyScreen(s, state, view);
-      // The leader's picture as it is, over the room the screen leaves for it (the screen in the middle): the palace, or on a card the portrait.
+      // The leader's picture as it is, over the room the window leaves for it once it stands whole: the palace, or on a card the portrait.
+      if ((view.enter ?? 1) < 1) return;
+      const box = view.card ? cardPicture(s.width) : audiencePicture(s.width);
+      const place = wideFrame ? { ...box, logicalW: screenW(), logicalH: SCREEN_H } : onScreen(box);
       const scene = view.card
-        ? portraitPlace(LEADER_PORTRAITS[civ(state.players[view.player]!.civ).id] ?? "king", onScreen(CARD_PICTURE))
-        : scenePlace(state, view.player, onScreen(AUDIENCE_PICTURE));
+        ? portraitPlace(LEADER_PORTRAITS[civ(state.players[view.player]!.civ).id] ?? "king", place)
+        : scenePlace(state, view.player, place);
       if (scene) pictures.push(scene);
-    }),
-    diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px - inset(), py),
+    },
+    diplomacyChoiceAt: (view, px, py) => (shown.wide ? diplomacyChoiceAt(view, px, py, screenW()) : diplomacyChoiceAt(view, px - inset(), py)),
+    diplomacyCloseAt: (px, py) => (shown.wide ? diplomacyCloseAt(px, py, screenW()) : diplomacyCloseAt(px - inset(), py)),
     // The small windows open over whatever is drawn under them (the wide map, or a 320x200 screen),
     // centred on it.
     newTech: (state: GameState, view: NewTechView) => {

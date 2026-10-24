@@ -1,10 +1,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
+import { DIMMED } from "../src/palette.js";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { civCard, settlerSites, standing, TERRAIN_TEXT } from "@civ/renderer-api";
-import { CARD_PICTURE, diplomacyChoiceAt, drawDiplomacyScreen, ratesAt, ratesHit, ratesRect } from "../src/index.js";
+import { cardPicture, diplomacyChoiceAt, drawDiplomacyScreen, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
 
@@ -917,7 +918,7 @@ describe("advisor screens", () => {
     s.fill(7);
     drawRatesScreen(s, state);
     writeFileSync(new URL("./out/rates.png", import.meta.url), encodePng(s, 3));
-    expect(s.get(2, 2)).toBe(7);
+    expect(s.get(2, 2)).toBe(DIMMED[7]); // the game darkened behind the window
     expect(s.get(160, 100)).not.toBe(7);
     // Along a row: the - button, ten blocks each a rate, the + button; Done at the foot; nothing outside.
     const o = ratesRect();
@@ -963,13 +964,13 @@ describe("advisor screens", () => {
     drawDiplomacyScreen(s, state, view);
     writeFileSync(new URL("./out/civ-card.png", import.meta.url), encodePng(s, 3));
     // The portrait's spot is a sky bed at the left; ink stands to its right.
-    const p = CARD_PICTURE;
+    const p = cardPicture();
     expect(s.get(p.x + 10, p.y + 10)).toBeGreaterThanOrEqual(shade("azure", 0));
     expect(s.get(p.x + 10, p.y + 10)).toBeLessThanOrEqual(shade("azure", 7));
     let ink = 0;
-    for (let y = p.y; y < p.y + 40; y++) for (let x = p.x + p.w + 10; x < 300; x++) if (s.get(x, y) === C.BLACK) ink++;
+    for (let y = p.y; y < p.y + 40; y++) for (let x = p.x + p.w + 10; x < 280; x++) if (s.get(x, y) === C.BLACK) ink++;
     expect(ink).toBeGreaterThan(50);
-    expect(diplomacyChoiceAt(view, 80, 184)).toBe(0); // the first of two buttons, on the one row
+    expect(diplomacyChoiceAt(view, 80, 165)).toBe(0); // the first of two buttons, on the one row
   });
 });
 

@@ -29,6 +29,8 @@ export class Surface {
    * lay them over the canvas, as they are. Emptied by whoever presents the surface, once a frame.
    */
   art: ArtSpot[] = [];
+  /** Darkened behind a window this frame already (`dimScreen`), so stacked windows darken it once. Cleared by whoever begins a frame. */
+  dimmed = false;
 
   constructor(
     readonly width: number,

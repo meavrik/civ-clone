@@ -6,7 +6,7 @@ import { unitSprite } from "../overlays.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { drawEntering, drawStone, INK, speckle } from "../widgets.js";
+import { dimScreen, drawEntering, drawStone, INK, speckle } from "../widgets.js";
 
 /**
  * The New Technology window, after the user's template (2026-10-23), made a small window over the game
@@ -181,6 +181,7 @@ export function drawModalName(s: Surface, b: Rect, name: string, under: string, 
 }
 
 export function drawNewTech(s: Surface, state: GameState, view: NewTechView): void {
+  dimScreen(s);
   const enter = view.enter ?? 1;
   if (enter < 1) { drawEntering(s, enter, modalRect(s.width), (t) => drawNewTechNow(t, state, view)); return; }
   drawNewTechNow(s, state, view);

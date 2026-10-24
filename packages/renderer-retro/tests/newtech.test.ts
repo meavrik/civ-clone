@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { DIMMED } from "../src/palette.js";
 import { ADVANCES, CLASSIC_ADVANCES, newGame } from "@civ/core";
 import { newTechCard, techPicture } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
@@ -59,7 +60,7 @@ describe("New Technology window", () => {
     const before = Surface.screen();
     before.fill(7);
     drawNewTech(before, state, view);
-    expect(before.get(2, 2)).toBe(7);
+    expect(before.get(2, 2)).toBe(DIMMED[7]); // the game darkened behind the window
     expect(before.get(o.x + o.w / 2, o.y + o.h / 2)).not.toBe(7);
     // On a wider screen (the phone's map) it stands in that screen's middle.
     const wide = modalRect(480);

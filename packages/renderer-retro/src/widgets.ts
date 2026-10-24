@@ -1,6 +1,6 @@
 import { drawText, FONT_HEIGHT, textWidth } from "./font.js";
 import { drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
-import { C, shade } from "./palette.js";
+import { C, DIMMED, shade } from "./palette.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, Surface } from "./surface.js";
 
@@ -103,14 +103,31 @@ export function drawSwatch(s: Surface, x: number, y: number, color: number): voi
   s.rect(x + 1, y + 2, 4, 4, color);
 }
 
-/** A raised stone button with its label centred; a disabled one keeps its place with a faded label. */
+/**
+ * Darken everything drawn so far, the backdrop behind a window (asked for 2026-10-24): each pixel to its
+ * colour's darkened twin (`DIMMED`). Once a frame: stacked windows share one backdrop.
+ */
+export function dimScreen(s: Surface): void {
+  if (s.dimmed) return;
+  s.dimmed = true;
+  const d = s.data;
+  for (let i = 0; i < d.length; i++) d[i] = DIMMED[d[i]!]!;
+}
+
+/**
+ * A raised button of the game's stone (asked for 2026-10-24: every button "stone like"), speckled like
+ * the panels, lit along the top and left, shaded along the bottom and right, its label centred in ink;
+ * the lit one (`primary`) is ringed in gold; a disabled one keeps its place with a faded label.
+ */
 export function drawButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true, primary = false): void {
-  s.rect(x, y, w, h, primary && enabled ? shade("azure", 2) : shade("panel", 6));
-  s.hline(x, y, w, C.WHITE!);
-  s.vline(x, y, h, C.WHITE!);
+  if (primary && enabled) speckle(s, x + 1, y + 1, w - 2, h - 2, shade("panel", 5), shade("panel", 6), shade("panel", 7));
+  else stipple(s, x + 1, y + 1, w - 2, h - 2, "panel");
+  s.hline(x, y, w, shade("panel", 7));
+  s.vline(x, y, h, shade("panel", 7));
   s.hline(x + 1, y + h - 1, w - 1, shade("panel", 1));
   s.vline(x + w - 1, y + 1, h - 1, shade("panel", 1));
-  const ink = !enabled ? FADED : primary ? C.WHITE! : INK;
+  if (primary && enabled) s.frame(x - 1, y - 1, w + 2, h + 2, shade("wheat", 6));
+  const ink = !enabled ? FADED : INK;
   drawText(s, x + Math.floor((w - textWidth(label)) / 2), y + Math.floor((h - FONT_HEIGHT) / 2) + 1, label, ink);
 }
 
@@ -274,6 +291,8 @@ export function drawEntering(s: Surface, enter: number, rect: { x: number; y: nu
 }
 
 export function drawMenu(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void): void {
+  // A titled window (not a dropdown, not the title screen's plain list) darkens what it opens over.
+  if (m.title && !m.anchor) dimScreen(s);
   // A window (not a dropdown) still opening grows into place.
   if (m.enter !== undefined && m.enter < 1 && !m.anchor) {
     drawEntering(s, m.enter, menuRect(m, s.width), (t) => drawMenuNow(t, m, square));
@@ -369,6 +388,7 @@ export function drawTextInput(s: Surface, input: TextInputState, cursorOn: boole
   const h = 40;
   const x = Math.floor((s.width - w) / 2);
   const y = Math.floor((200 - h) / 2);
+  dimScreen(s);
   drawWindow(s, x, y, w, h, input.title);
   s.rect(x + 8, y + 17, w - 16, 12, C.BLACK!);
   s.frame(x + 8, y + 17, w - 16, 12, shade("panel", 2));

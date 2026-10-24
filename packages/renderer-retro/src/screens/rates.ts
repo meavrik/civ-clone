@@ -4,7 +4,7 @@ import { drawText, textWidth } from "../font.js";
 import { drawIcon, drawIconLine, ICON } from "../icons.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { DIM, drawButton, drawCloseBox, drawWindow, FADED, INK, TITLE_H } from "../widgets.js";
+import { DIM, dimScreen, drawButton, drawCloseBox, drawWindow, FADED, INK, TITLE_H } from "../widgets.js";
 
 /**
  * The rates window (redone 2026-10-24, asked for: the old full-screen bars were "not good"): a stone
@@ -35,7 +35,8 @@ function rowLayout(o: Rect, i: number) {
   return { y, minus, blocks, plus };
 }
 
-function doneRect(o: Rect): Rect {
+/** The foot of the window, where the income line runs (Done stood here until 2026-10-24: the close box answers instead). */
+function footRect(o: Rect): Rect {
   return { x: o.x + o.w - 52, y: o.y + o.h - 17, w: 46, h: 12 };
 }
 
@@ -56,10 +57,9 @@ export function ratesAt(px: number, py: number, held = false, screenW = SCREEN_W
   return null;
 }
 
-/** What a click on the window asks: a block (that rate), a - or + button (a step), Done or the close box; null elsewhere on the window and off it. */
+/** What a click on the window asks: a block (that rate), a - or + button (a step), or the close box (done); null elsewhere on the window and off it. */
 export function ratesHit(px: number, py: number, screenW = SCREEN_W): RatesHit | null {
   const o = ratesRect(screenW);
-  if (inRect(doneRect(o), px, py)) return { kind: "done" };
   if (px >= o.x + o.w - 3 - (TITLE_H - 2) - 3 && px < o.x + o.w - 3 && py >= o.y + 3 && py < o.y + 3 + TITLE_H) return { kind: "done" };
   for (let i = 0; i < RATE_ROWS.length; i++) {
     const { minus, plus } = rowLayout(o, i);
@@ -88,6 +88,7 @@ export function drawRatesScreen(s: Surface, state: GameState): void {
   // The window on the game, a shadow under it.
   s.rect(o.x + 3, o.y + o.h, o.w, 2, C.BLACK!);
   s.rect(o.x + o.w, o.y + 3, 2, o.h - 1, C.BLACK!);
+  dimScreen(s);
   drawWindow(s, o.x, o.y, o.w, o.h, `Tax Rates: up to ${max * 10}% under ${gov.name}`);
   drawCloseBox(s, o.x + o.w - 3 - (TITLE_H - 2), o.y + 3);
 
@@ -124,7 +125,6 @@ export function drawRatesScreen(s: Surface, state: GameState): void {
   // What the empire brings in a turn at these rates.
   const income = empireIncome(state, state.currentPlayer);
   const gold = `${income.gold >= 0 ? "+" : ""}${income.gold}`;
-  const foot = doneRect(o);
+  const foot = footRect(o);
   drawIconLine(s, o.x + 8, foot.y + 2, `A turn:  {purse} ${gold}  {gem} ${income.lux}  {bulb} ${income.science}`, DIM);
-  drawButton(s, foot.x, foot.y, foot.w, foot.h, "Done");
 }

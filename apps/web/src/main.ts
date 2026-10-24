@@ -57,6 +57,7 @@ import {
   unitAt,
   unitById,
   unitType,
+  wrapX,
   weakestWorked,
   workOptions,
   WORLD_SIZES,
@@ -326,15 +327,30 @@ function slideOwn(actions: readonly UnitAction[]): void {
 }
 
 /**
- * Play back what we saw of the other civilizations' turns, and our gotos as ours began:
- * squares we saw before those turns or see now, the camera taken from where it is headed.
+ * Play back what we saw of the other civilizations' turns, and our gotos as ours began: moves on
+ * squares we see now (so a unit shown is one that stays in sight, or is seen walking out of it; a
+ * unit shown on a square we no longer see vanished the moment its slide ended, "shown for a glimpse",
+ * 2026-10-24), the camera taken from where it is headed. Fights with our units are always shown
+ * (`watchTurn`), so a unit lost takes nothing of its last fight with it; `sawBefore` stands for the
+ * squares its sight covered, for the steps that led to that fight.
  */
 function watchOthers(actions: readonly UnitAction[], sawBefore: Uint8Array): void {
   const me = state.players[0]!;
   const w = state.map.width;
+  // Squares whose sight we lost with a unit this turn: seen before, not now, by nobody's eyes but the lost unit's.
+  const lost = new Set<number>();
+  for (const a of actions) {
+    if (a.kind !== "battle") continue;
+    const ours = a.attacker.owner === 0 ? (a.attackerWon ? null : a.attacker) : a.defender.owner === 0 && a.attackerWon ? a.defender : null;
+    if (!ours) continue;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const y = ours.y + dy;
+      if (y >= 0 && y < state.map.height) lost.add(y * w + wrapX(state.map, ours.x + dx));
+    }
+  }
   const seen = (x: number, y: number) => {
     const i = y * w + x;
-    return me.explored[i] === 1 && (sawBefore[i] === 1 || me.visible[i] === 1);
+    return me.explored[i] === 1 && (me.visible[i] === 1 || (sawBefore[i] === 1 && lost.has(i)));
   };
   const camera = {
     originX: ((Math.round(cam.animating ? cam.toX : cam.x) % w) + w) % w,
@@ -698,8 +714,10 @@ function builtWindow(cityId: number, p: Production, then: () => void, change?: C
   const notice = builtNotice(state, cityId, p, change);
   if (!city || city.owner !== 0 || !notice) { then(); return; }
   if (p.kind !== "unit") {
-    // A small window over the game; one after another, each over the same screen.
+    // A small window over the game; one after another, each over the same screen. The map glides to
+    // the city first (asked for 2026-10-24), so the window names a city that can be seen.
     const under = screenState.kind === "built" ? screenState.under : screenState;
+    if (under.kind === "map") centerOn(city.x, city.y);
     screenState = { kind: "built", view: { city: cityId, production: p, selected: 1 }, then, under };
     return;
   }
@@ -722,7 +740,7 @@ function leaveBuilt(sc: BuiltScreen, toCity: boolean): void {
 function builtKey(e: KeyboardEvent, sc: BuiltScreen): void {
   switch (e.code) {
     case "ArrowLeft": case "ArrowRight": case "Tab": e.preventDefault(); sc.view.selected = 1 - sc.view.selected; break;
-    case "Enter": case "NumpadEnter": case "Space": e.preventDefault(); if (!e.repeat) leaveBuilt(sc, sc.view.selected === 0); break;
+    case "Enter": case "NumpadEnter": case "Space": e.preventDefault(); if (!e.repeat && settled(sc.view)) leaveBuilt(sc, sc.view.selected === 0); break;
     case "KeyV": leaveBuilt(sc, true); break;
     case "Escape": leaveBuilt(sc, false); break;
   }
@@ -743,9 +761,15 @@ function askBuy(cityId: number): void {
   });
 }
 
-/** A modal window: a title, a few paragraphs, and choices (just "OK" for a message). */
+/**
+ * A modal window: a title, a few paragraphs, and choices. A message with nothing to choose but to
+ * close it ("OK") gets no button (asked for 2026-10-24: "replace all close buttons with a generic
+ * modal X"): the X in its title strip, Enter, Esc or a click off it close it and go on.
+ */
 function modal(title: string, body: string[], items: string[], onPick: (i: number) => void, selected = 0, onCancel?: () => void): void {
-  screenState = { kind: "menu", under: screenState, menu: { title, body, items, selected }, onPick, ...(onCancel ? { onCancel } : {}) };
+  const plain = items.length === 1 && /^(OK|Close|Done|Continue)$/.test(items[0]!);
+  const cancel = onCancel ?? (plain ? () => onPick(0) : undefined);
+  screenState = { kind: "menu", under: screenState, menu: { title, body, items: plain ? [] : items, selected, ...(plain ? { close: true } : {}) }, onPick, ...(cancel ? { onCancel: cancel } : {}) };
 }
 
 /** What a tribal village held, in a window like the original's. */
@@ -935,7 +959,7 @@ function leaveNewTech(sc: NewTechScreen, tree: boolean): void {
 function newTechKey(e: KeyboardEvent, sc: NewTechScreen): void {
   switch (e.code) {
     case "ArrowLeft": case "ArrowRight": case "Tab": e.preventDefault(); sc.view.selected = 1 - sc.view.selected; break;
-    case "Enter": case "NumpadEnter": case "Space": e.preventDefault(); if (!e.repeat) leaveNewTech(sc, sc.view.selected === 0); break;
+    case "Enter": case "NumpadEnter": case "Space": e.preventDefault(); if (!e.repeat && settled(sc.view)) leaveNewTech(sc, sc.view.selected === 0); break;
     case "KeyT": leaveNewTech(sc, true); break;
     case "Escape": leaveNewTech(sc, false); break;
   }
@@ -1289,7 +1313,8 @@ function pagedChoices(labels: string[], onPick: (i: number) => void, onCancel: (
   const shown = rest <= AUDIENCE_CHOICES - 1 ? rest : AUDIENCE_CHOICES - 2;
   const items = labels.slice(start, start + shown);
   const more = shown < rest;
-  talkMenu([...items, ...(more ? ["More..."] : []), "Never mind"], (i) => {
+  // The window's close box (or Esc) is the way back: no "Never mind" (asked for 2026-10-24).
+  talkMenu([...items, ...(more ? ["More..."] : [])], (i) => {
     if (i < shown) onPick(start + i);
     else if (more && i === shown) pagedChoices(labels, onPick, onCancel, start + shown);
     else onCancel();
@@ -1304,11 +1329,21 @@ function pickTalk(sc: Extract<Screen, { kind: "diplomacy" }>, i: number): void {
   t.onPick(i);
 }
 
-/** Keys on the audience screen: arrows move among the buttons (two to a row), Enter or 1-4 picks, Esc steps back. */
+/**
+ * Keys on the audience window: arrows move among the buttons (two to a row), Enter or 1-4 picks, Esc
+ * (the close box too) steps back, or with nothing to choose goes on. A key held down, or one that
+ * arrives before the window stands whole, is not an answer.
+ */
 function diplomacyKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "diplomacy" }>): void {
   const t = sc.talk;
   if (!t) { screenState = { kind: "map" }; return; }
+  if (e.repeat || !settled(audienceKey)) return;
+  const back = () => { screenState = { kind: "diplomacy", player: sc.player, line: sc.line, ...(sc.card ? { card: sc.card } : {}) }; t.onCancel(); };
   const n = t.items.length;
+  if (!n) {
+    if (e.code === "Enter" || e.code === "NumpadEnter" || e.code === "Space" || e.code === "Escape") back();
+    return;
+  }
   const move = (d: number) => { t.selected = (t.selected + d + n) % n; };
   const digit = /^(?:Digit|Numpad)([1-4])$/.exec(e.code);
   if (digit) { pickTalk(sc, Number(digit[1]) - 1); return; }
@@ -1318,7 +1353,7 @@ function diplomacyKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "diplomacy" 
     case "ArrowUp": move(n > 2 ? -2 : -1); break;
     case "ArrowDown": move(n > 2 ? 2 : 1); break;
     case "Enter": case "NumpadEnter": case "Space": pickTalk(sc, t.selected); break;
-    case "Escape": screenState = { kind: "diplomacy", player: sc.player, line: sc.line, ...(sc.card ? { card: sc.card } : {}) }; t.onCancel(); break;
+    case "Escape": back(); break;
   }
 }
 
@@ -1434,14 +1469,12 @@ function audience(player: number, line: string, done: () => void = () => { scree
     ...(knows("trade") && me().advances.some((a) => !them.advances.includes(a)) ? [["Give an advance", () => giveAdvance(player, talk)] as [string, () => void]] : []),
     ...(me().gold >= 50 ? [["Give 50 gold", () => { dispatch({ type: "giveGold", player, amount: 50 }); talk("Your generosity will be remembered."); }] as [string, () => void]] : []),
   ]);
-  /** A screen of proposals with Back (pages when they are many). */
+  /** A screen of proposals (pages when they are many); the window's close box or Esc goes back. */
   const sub = (words: string, items: [string, () => void][]) => {
     speak(words);
     const back = () => talk(words);
-    if (items.length + 1 <= AUDIENCE_CHOICES) {
-      const all: [string, () => void][] = [...items, ["Back", back]];
-      talkMenu(all.map((i) => i[0]), (i) => all[i]?.[1](), back);
-    } else pagedChoices(items.map((i) => i[0]), (i) => items[i]?.[1](), back);
+    if (items.length <= AUDIENCE_CHOICES) talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), back);
+    else pagedChoices(items.map((i) => i[0]), (i) => items[i]?.[1](), back);
   };
   const talk = (words: string): void => {
     speak(words);
@@ -1598,7 +1631,7 @@ function peaceOfferAudience(player: number, then: () => void): void {
 /** A civilization declares war on us: its leader says so. */
 function warAudience(player: number, reason: "trespass" | undefined, then: () => void): void {
   screenState = { kind: "diplomacy", player, line: reason === "trespass" ? "You were warned. Now our armies will drive you from our land." : "Enough words. Our armies march against you." };
-  talkMenu(["So be it"], () => then(), then);
+  talkMenu([], () => then(), then); // nothing to answer: the close box, Enter or Esc go on
 }
 
 function openDiplomacy(player: number): void {
@@ -1624,7 +1657,7 @@ function openCivCard(player: number, words?: string): void {
   const back = () => { screenState = { kind: "map" }; };
   const items: [string, () => void][] = [[`Talk to ${leader}`, () => audience(player, leaderLine(state, player), () => openCivCard(player))]];
   if (trespassers(state, 0, player).length) items.push(["Demand they leave our land", () => demandWithdraw(player, (answer) => openCivCard(player, answer))]);
-  items.push(["Back", back]);
+  // The window's close box (or Esc) goes back to the map.
   talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), back);
 }
 
@@ -1981,6 +2014,16 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     return;
   }
   const page = Math.max(1, renderer.menuRows(m) - 1);
+  // A window answers Enter only once it stands whole, and never a key held down: a key held or mashed
+  // through the playback must not dismiss the window that follows it. Dropdowns answer at once.
+  const ready = sc.bar !== undefined || (!e.repeat && settled(m));
+  if (!m.items.length) {
+    // A message with nothing to choose: Enter or Esc close it and go on.
+    if (!ready) return;
+    if (e.code === "Enter" || e.code === "NumpadEnter" || e.code === "Space") { screenState = sc.under; sc.onPick(0); }
+    else if (e.code === "Escape") { screenState = sc.under; sc.onCancel?.(); }
+    return;
+  }
   switch (e.code) {
     case "ArrowUp": case "Numpad8": stepSelection(m, -1); break;
     case "ArrowDown": case "Numpad2": stepSelection(m, 1); break;
@@ -1988,7 +2031,7 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     case "PageDown": case "Numpad3": moveSelection(m, page); break;
     case "Home": case "Numpad7": moveSelection(m, -m.items.length); break;
     case "End": case "Numpad1": moveSelection(m, m.items.length); break;
-    case "Enter": case "NumpadEnter": case "Space": screenState = sc.under; sc.onPick(m.selected); return;
+    case "Enter": case "NumpadEnter": case "Space": if (!ready) return; screenState = sc.under; sc.onPick(m.selected); return;
     case "Escape": screenState = sc.under; sc.onCancel?.(); return;
   }
   m.top = keepInView(m, renderer.menuRows(m));
@@ -2240,6 +2283,8 @@ canvas.addEventListener("mousedown", (e) => {
       // The bar of a long list pages through it, above or below its thumb; the thumb itself does nothing.
       const way = renderer.menuScrollAt(sc.menu, px, py);
       if (way !== null) { if (way) moveSelection(sc.menu, way * Math.max(1, renderer.menuRows(sc.menu) - 1)); return; }
+      // A window still opening answers no click (a double click through the playback would close it).
+      if (sc.bar === undefined && !settled(sc.menu)) return;
       const i = renderer.menuHit(sc.menu, px, py);
       screenState = sc.under;
       if (i >= 0) sc.onPick(i); else sc.onCancel?.();
@@ -2248,18 +2293,20 @@ canvas.addEventListener("mousedown", (e) => {
     case "report": case "worldMap": screenState = { kind: "map" }; return;
     case "research": if (e.button === 0) treeClick(sc, px, py); return;
     case "newTech": {
-      const hit = e.button === 0 ? renderer.newTechHit(sc.view, px, py) : null;
+      const hit = e.button === 0 && settled(sc.view) ? renderer.newTechHit(sc.view, px, py) : null;
       if (hit) leaveNewTech(sc, hit === "tree");
       return;
     }
     case "built": {
-      const hit = e.button === 0 ? renderer.builtHit(sc.view, px, py) : null;
+      const hit = e.button === 0 && settled(sc.view) ? renderer.builtHit(sc.view, px, py) : null;
       if (hit) leaveBuilt(sc, hit === "city");
       return;
     }
     case "end": screenState = { kind: "title" }; return;
     case "diplomacy": {
-      // A button picks its choice; elsewhere nothing (no talk on screen: back to the map).
+      // A button picks its choice; the close box steps back (or takes leave), as Esc does; elsewhere nothing.
+      if (!settled(audienceKey)) return;
+      if (renderer.diplomacyCloseAt?.(px, py)) { diplomacyKey({ code: "Escape" } as KeyboardEvent, sc); return; }
       if (!sc.talk) { screenState = { kind: "map" }; return; }
       pickTalk(sc, renderer.diplomacyChoiceAt(diplomacyView(sc), px, py));
       return;
@@ -2387,6 +2434,15 @@ function enterOf(window: object): number {
   return Math.min(1, (frameNow - at) / WINDOW_ENTER_MS);
 }
 
+/** Whether a window stands whole, so a key or click may answer it (a key mashed through the playback never dismisses the window that follows). */
+function settled(window: object): boolean {
+  return enterOf(window) >= 1;
+}
+
+/** The audience window's opening, timed from its first frame and kept through the talk (each answer is a new screen); the kind of screen last drawn tells when a new audience begins. */
+let audienceKey: object = {};
+let lastTop: Screen["kind"] | null = null;
+
 function draw(sc: Screen): void {
   switch (sc.kind) {
     case "title": renderer.title(titleAt); break;
@@ -2410,7 +2466,13 @@ function draw(sc: Screen): void {
     case "science": renderer.science(state); break;
     case "rates": draw({ kind: "map" }); renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;
-    case "diplomacy": renderer.diplomacy(state, diplomacyView(sc)); break;
+    case "diplomacy": {
+      // A window over the map (asked for 2026-10-24), growing into place as a new audience opens.
+      if (lastTop !== "diplomacy") audienceKey = {};
+      draw({ kind: "map" });
+      renderer.diplomacy(state, { ...diplomacyView(sc), enter: enterOf(audienceKey) });
+      break;
+    }
     case "end": renderer.end(sc.lines, sc.rank); break;
     case "spaceship": renderer.spaceship(state); break;
     case "input":
@@ -2462,6 +2524,7 @@ function frame(t: number): void {
   } else autoEndAt = null;
   renderer.beginFrame();
   draw(screenState);
+  lastTop = screenState.kind;
   renderer.present();
   requestAnimationFrame(frame);
 }

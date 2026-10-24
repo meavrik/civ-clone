@@ -63,7 +63,8 @@ Never ship the original's sprites, palette art, fonts or text.
   Iron Working, Refining). Each carries `since` (the save version that brought it); old saves load with
   `resources` (their version), so their worlds have only the kinds they knew (`secondKind`). A kind may
   have a reach (`within`/`beyond` squares from land): Fish within 2, Whales beyond 2 (deep water), from
-  version 19 (`SPECIAL_REACH_SINCE`).
+  version 19 (`SPECIAL_REACH_SINCE`). A city works whales only two squares out off a straight coast;
+  the rest pay through influence yields once its border reaches them (see Land below).
   Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
   FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
   starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail
@@ -92,7 +93,20 @@ Never ship the original's sprites, palette art, fonts or text.
   load with `peaceOnContact` (meeting made peace at once). Land (`territory.ts`: `claims`, `landOwner`):
   each city the squares within its border, which grows with its culture (`borderRadius`: 1 square out
   when founded, one more at each of `CULTURE.levels` in `rules/culture.ts`, radius 2 being the 21 squares
-  it works); a shared square goes to the nearer city, then the one with more culture, then the older.
+  it works); a shared square goes to the nearer city, then the one with more culture, then the older
+  (`claimant` names the city, `landOwner` its owner). The levels are 4, 12, 24, 40 since save version
+  28 (asked for 2026-10-24, "unbalanced city and culture growth": the first levels, 8/16/28/45, kept a
+  young city to its 8 squares until size six with a temple, which starved it; now the capital has its 21
+  squares at once (its palace), another city at size four, or two with a temple; saves before 28 load
+  with `slowCulture`, headless `--slow-culture`; 6 planner games x 250 turns: pop 47 vs 40 a seat,
+  techs 25.7 vs 22.5, score 142 vs 112). Influence yields (same version; asked for: "whales or other
+  resources can't be reached by a city, so think of other value they can provide when in the city
+  influence"): a special inside a city's border but beyond the 21 squares it can work (whales in deep
+  water, anything in its outer rings), claimed by that city and worked by no one, brings it half the
+  resource's trade a turn, at least one (`influenceSpecials`, `INFLUENCE_YIELD`, `CityReport.influence`;
+  the city screen's "Influence +N" line, the square's window "In Rome's influence: +1 trade"); nothing
+  before the border reaches 3 squares out; saves before 28 load with `noInfluenceYields` (headless
+  `--no-influence-yields`).
   A city's culture is what it holds now (`cityCulture`: one per citizen, `BuildingRule.culture` from palace,
   temple, library, courthouse, colosseum, cathedral and university, and each wonder), never more turn after
   turn (asked for), so it falls when the city shrinks or loses a building; a `borders` city event says when
@@ -190,8 +204,9 @@ Never ship the original's sprites, palette art, fonts or text.
   told of beside the row (`citizenNote`), else a faint hint. The food and shield stores (`drawStore`,
   `storeLayout`) are grids of empty slots waiting to be filled (asked for 2026-10-24), ten to a row,
   the grid in the middle of its box's room with the same padding on every side (`storeRegion`), a slot
-  standing for more than one good only when the box has more goods than the room has slots (then
-  "{food}=2" at the foot); the slots of what a growing city keeps (core `foodKept`: a Granary's half, or
+  standing for more than one good only when the box has more goods than the room has slots (then each
+  filled slot shows a stack of its icon, up to three deep, `drawStack`; asked for 2026-10-24 in place of a
+  "{food}=2" key); the slots of what a growing city keeps (core `foodKept`: a Granary's half, or
   a trait's share) are edged in gold and named Granary (or Kept) at the foot, room allowing. Taxmen and scientists need no size of city (the 1991 game is said to want size 5: not checked, not asked for).
   Esc, Enter (not held), the close box or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
@@ -200,8 +215,12 @@ Never ship the original's sprites, palette art, fonts or text.
   without a surplus); no costs or shield counts (asked for). A change of production keeps the box for the kind it was
   gathered for and half of it for another kind (`shieldsAfterChange`: reckoned from the box as the turn
   began, `City.turnShields`/`turnKind`, or as bought, so changing and changing back in a turn costs
-  nothing; FreeCiv's model). Saves before version 21 load with `compoundingPenalty`: every change of
-  kind halved the box again. Its units (`cityUnits`: those in the city from any home, then those it
+  nothing; FreeCiv's model). Units are one kind and improvements, wonders and spaceship parts another,
+  as the original had it, and a finished improvement's leftover keeps its kind whatever the city turned
+  to meanwhile (Militia; since save version 28, asked for 2026-10-24: "building starting already with
+  production already processed": the Militia made the leftover a unit's box, halved for the next
+  improvement; saves before 28 load with `halvedCarryOver`, headless `--halved-carry-over`). Saves
+  before version 21 load with `compoundingPenalty`: every change of kind halved the box again. Its units (`cityUnits`: those in the city from any home, then those it
   supports elsewhere, faded, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
   the Building Completed window (`built.ts`, `builtCard`; asked for 2026-10-24 with the user's template; retro
@@ -253,9 +272,24 @@ Never ship the original's sprites, palette art, fonts or text.
   Tax Rates (Game > Tax Rate, T; redone 2026-10-24, "not good") is a stone window over the map
   (`screens/rates.ts`, `ratesRect`): a row each for tax, luxuries and science with its icon, - and +
   buttons and ten blocks (filled to the rate, dark past the government's limit), what the cities bring
-  a turn at the foot (`empireIncome`), Done; `ratesHit` (set a block, step, done) through
-  `Renderer.ratesHit`, `ratesAt` for the phone's sliding finger; science takes what the others leave, and
-  moving it takes from tax (`setRateTo`).
+  a turn at the foot (`empireIncome`), the close box (no Done since 2026-10-24); `ratesHit` (set a
+  block, step, done) through `Renderer.ratesHit`, `ratesAt` for the phone's sliding finger; science
+  takes what the others leave, and moving it takes from tax (`setRateTo`).
+  Windows (asked for 2026-10-24: "all screen windows should be a modal style", "replace all close
+  buttons with generic modal X", "darken backdrop", buttons "stone like texture"): every titled window
+  (modals, the rates, text input, New Technology, Building Completed, the audience) darkens the game it
+  opens over first (`dimScreen` in widgets.ts, once a frame by `Surface.dimmed`, through `DIMMED` in
+  palette.ts: each colour's nearest twin at 45% light, built from the palette so the renderer still draws
+  indices); dropdowns and the title screen's untitled list do not. A message with nothing to choose but
+  to close it (the web app's `modal` with "OK") has no button: an X in its title strip (`MenuState.close`,
+  zero items), Enter, Esc or a click off it go on. The research panel's Close button is a close box in
+  its title strip (`researchHit` "close"); the audience's Back and "Never mind" are gone, its X (or Esc)
+  steps back or takes leave. `drawButton` is the speckled stone with a light top-left and dark
+  bottom-right bevel, the lit one ringed in gold (the modals' default choice, Research). A window answers
+  no Enter, Space or click until it stands whole (`WINDOW_ENTER_MS`; the web app's `settled`), and never
+  a key held down: a key mashed through the playback cannot dismiss the window that follows it (asked for
+  2026-10-24, "building is built, and skip building screen"). The Building Completed window first glides
+  the map to its city (`centerOn` in `builtWindow`).
   A titled menu of up to four choices is a modal (`menuButtons`): its choices are buttons sized to the
   longest label and centred, and its text wraps rather than widen it past `MODAL_MAX_SHARE` of the
   screen; keep modal text to a line or two. A list longer than the screen (what to build late in the game) scrolls:
@@ -342,7 +376,11 @@ Never ship the original's sprites, palette art, fonts or text.
   `view.battle` (lunge, blows, hp draining, the loser's burst), and renderers draw from those.
   The other civilizations' turns (asked for 2026-10-22: enemies "come as a surprise, too swift"):
   `watchTurn` (`renderer-api/src/watch.ts`) plans the playback from their actions and the squares we
-  saw before or after: every move of a civ at war with us (or barbarians) on seen squares, one unit at a
+  see (`seen`, the web app's `watchOthers`: squares we see now, so a unit shown stays in sight or is seen
+  walking out of it, and the squares a unit of ours lost in a fight saw before, for the steps that led
+  to it; until 2026-10-24 any square seen before or after counted, and a unit shown on one we no longer
+  saw vanished the moment its slide ended, "shown for a glimpse and disappear"): every move of a civ at
+  war with us (or barbarians) on seen squares, one unit at a
   time at a slow pace, a `MotionPlayer.hold` first gliding the camera there when it is not well on screen;
   each fight with our units is announced beside the attacker ("Babylonian Legion attacks!"), played
   slower, and its outcome said beside our square ("Phalanx destroyed"); other civs' moves play only
@@ -517,21 +555,27 @@ Never ship the original's sprites, palette art, fonts or text.
   Trade a "Trade" screen (trade knowledge: pick theirs, they name ours; give an advance; give 50 gold);
   before them only the demand to leave and the gift stand on the first screen, war beside them; farewell;
   each once a talk, the answer becomes the leader's words; greetings name admiration or scorn). The audience screen (redone
-  2026-10-22 after the user's mock-up "Caesar Welcomes You to Rome", asked for): the realm across the
-  top (`realmName`: "The Roman Empire", Kingdom, Republic... by government), the user's picture of the
+  2026-10-22 after the user's mock-up "Caesar Welcomes You to Rome", asked for; a window over the
+  darkened map since 2026-10-24, "not 100% of the screen": `audienceRect` 264x186 centred, growing into
+  place as a new audience opens, `DiplomacyView.enter` timed by the web app's `audienceKey`; the
+  web app draws the map under it): the realm across the
+  title strip (`realmName`: "The Roman Empire", Kingdom, Republic... by government) with a close box
+  (`Renderer.diplomacyCloseAt`: Esc), the user's picture of the
   leader in their palace whole, frame and all, then the leader's name, their words and our choices as
   the game's stone buttons (`DiplomacyView`, `Renderer.diplomacy` and
   `diplomacyChoiceAt`): never more than `AUDIENCE_CHOICES` (4, asked for) at once, so the proposals
-  are grouped into screens with Back, and long lists (their advances) page with More... (`talkMenu`,
-  `pagedChoices` in the web app; arrows, Enter or 1-4 pick, Esc steps back, the pointer lights a button).
+  are grouped into screens (the X or Esc goes back), and long lists (their advances) page with More... (`talkMenu`,
+  `pagedChoices` in the web app; arrows, Enter or 1-4 pick, Esc steps back, the pointer lights a button;
+  a talk with no choices, a war declared on us, closes on any of them).
   The pictures are shown as they are, full size and true colour (asked for, 2026-10-22: squeezed into the
   palette at 224x126 they looked "bad and distorted"): `apps/web/src/scenes/<leader>.webp` (the PNGs as
   supplied, WebP quality 92), laid over the canvas as an <img> by `pictures.ts` (`showPictures`, once a
   frame from each retro adapter's `present`; they let clicks through; one element per picture, made and
   decoded by the preloads and shown only once decoded: a reused element given a new `src` kept painting
   the last leader met for a moment, 2026-10-23) in the room the screen leaves for
-  them (`AUDIENCE_PICTURE` in renderer-retro, which draws a dusk sky there beneath, seen until the picture
-  loads); `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits
+  them (`audiencePicture(screenW)` in renderer-retro, 192x108 in the window, `cardPicture` for a card's
+  portrait; a dusk sky beneath, seen until the picture loads; laid only once the window stands whole);
+  `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits
   and the advances' pictures (`techs/<advance>.webp`, 1254 square, WebP quality 92; `techPicture`: all but
   the 1991 tree's Future Tech., which shows the frame's bed; each adapter's `main` fetches the picture
   of the research under way, `preloadTech`) and the buildings' (`buildings/<id>.webp`, 1254 square, WebP quality
@@ -699,7 +743,8 @@ text), second special resources with reaches (save version 20; the branch's own 
    turns before). Saves before version 24 load with `centrePenalty` and `settlerShields` (headless
    `--old-support`). Head to head (planner vs v2, 16 x 300): old rules 12-4, score 124 vs 99, pop 40 vs 39;
    new 13-3, score 149 vs 108, pop 50 vs 45. Still open: AI cities stay small (the planner's balanced weights prefer forest to
-   grassland and it keeps building settlers), and the border rule keeps young cities to their 8 squares.
+   grassland and it keeps building settlers); the border rule kept young cities to their 8 squares until
+   the culture levels came down (version 28, see Land above).
    City focus (asked for; our departure: the original weighed every city alike): `City.focus`
    (`rules/focus.ts`: Growth, Production, Science, Trade) ranks the squares `autoAssignWorkers` and
    `arrangeCity` pick (`slotScore`), never starving the city when another square would feed it

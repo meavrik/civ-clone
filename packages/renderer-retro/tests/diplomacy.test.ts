@@ -2,7 +2,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { CIVS, newGame } from "@civ/core";
 import { AUDIENCE_CHOICES, LEADER_PORTRAITS } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
-import { AUDIENCE_PICTURE, diplomacyChoiceAt, drawDiplomacyScreen } from "../src/index.js";
+import { audiencePicture, diplomacyChoiceAt, drawDiplomacyScreen } from "../src/index.js";
 import { Surface } from "../src/surface.js";
 import { encodePng } from "./png.js";
 
@@ -10,7 +10,7 @@ describe("audience screen", () => {
   it("has the user's picture for every playable civilization's leader, and room for it at 16 by 9", () => {
     for (const c of CIVS.filter((c) => c.id !== "barbarians"))
       expect(existsSync(new URL(`../../../apps/web/src/scenes/${LEADER_PORTRAITS[c.id]}.webp`, import.meta.url)), c.id).toBe(true);
-    expect(AUDIENCE_PICTURE.w / AUDIENCE_PICTURE.h).toBeCloseTo(1672 / 941, 2);
+    expect(audiencePicture().w / audiencePicture().h).toBeCloseTo(1672 / 941, 2);
   });
 
   it("shows the realm, the leader in their palace, their words and up to four choices that answer to clicks", () => {

@@ -5,7 +5,7 @@ import { drawIcon, ICON } from "../icons.js";
 import { C, shade, slotColor } from "../palette.js";
 import { rasterize } from "../pictures.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { drawEntering, drawStone, INK, speckle } from "../widgets.js";
+import { dimScreen, drawEntering, drawStone, INK, speckle } from "../widgets.js";
 import { drawModalName, drawModalTitle, drawWindowButton, modalHit, modalRect } from "./newtech.js";
 
 /**
@@ -90,6 +90,7 @@ function drawEnlarged(s: Surface, b: Rect, px: Int16Array, gw: number, gh: numbe
 }
 
 export function drawBuilt(s: Surface, state: GameState, view: BuiltView): void {
+  dimScreen(s);
   const enter = view.enter ?? 1;
   if (enter < 1) { drawEntering(s, enter, modalRect(s.width), (t) => drawBuiltNow(t, state, view)); return; }
   drawBuiltNow(s, state, view);
