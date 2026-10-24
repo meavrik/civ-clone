@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { settlerSites, TERRAIN_TEXT } from "@civ/renderer-api";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
@@ -1111,7 +1111,7 @@ describe("moods", () => {
       drawMainScreen(s, state, view);
       const cx = 80 + (city.x - view.originX) * 16 + 8;
       const y = 9 + (city.y - view.originY) * 16 + 17;
-      const x0 = cx - Math.floor((MOOD_PENNANT_W + textWidth(String(city.size)) + 2 + 2 + textWidth(city.name)) / 2);
+      const x0 = cx - Math.floor((MOOD_PENNANT_W + textPlateWidth(String(city.size)) + 2 + textWidth(city.name)) / 2);
       return s.get(x0 + 1, y);
     };
     expect(MOODS).not.toContain(flag()); // one content citizen: nothing to flag

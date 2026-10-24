@@ -415,14 +415,17 @@ Never ship the original's sprites, palette art, fonts or text.
   shades of their own colours, never thick black) are all 32x32 sheets with `k = 2`; icons are 16x16
   fine; citizens 32x32. Land borders blend: renderer-api `groundOwner` warps each fine pixel by world
   noise so the line between different grounds wanders, and each terrain sprite splits at load into
-  ground + objects (objects never cut). Text (`font.ts`): our own 4x6-dot proportional pixel font (three
-  to five dots wide, a seventh row for the descenders of g, j, p, q, y), asked for 2026-10-21 ("make
-  game font more pixelated"). Since 2026-10-24 ("text font too big", then "can't we just reduce the base
-  pixel size?") a dot is one fine pixel on the screen, so the letters are half the layout's pixels, set
-  in the middle of their 8-pixel line (`FINE_TOP`); widths are measured that way, rounded up to screen
-  pixels (`textWidth`), so menus, wrapping and hit tests follow. A 3x5 grid of whole screen pixels was
-  tried first the same day and was "worse, not readable". `drawTextLarge` (headlines) is `scale` fine
-  pixels a dot, `drawSpaced` a dot apart, and `drawTextPlate` (the city size) fits its letters; `FONT_HEIGHT` 8 stays. `drawTextPlate` puts text on an edged plate (the city size). The palette
+  ground + objects (objects never cut). Text (`font.ts`): our own proportional pixel font drawn on the fine
+  grid, a dot one fine pixel: capitals and digits 5x9, small letters six tall under three rows of
+  ascender, two descender rows, every stroke one dot with square corners. Drawn 2026-10-24 for a middle
+  size ("either you make it huge or too tiny... not too big not too small - AND READABLE"): the 4x6-dot
+  letters before it (2026-10-21, "make game font more pixelated") were twelve fine pixels tall with 2x2
+  dots ("too big") or six with single dots ("too tiny"), and a 3x5 grid of whole screen pixels was "not
+  readable"; nothing crisp lies between those but letters drawn for the fine grid. Glyphs stand in the
+  middle of their 8-pixel line (`FINE_TOP`); widths are measured in dots, rounded up to screen pixels
+  (`textWidth`), so menus, wrapping and hit tests follow. `drawTextLarge` (headlines) is `scale` fine
+  pixels a dot, `drawSpaced` a dot apart, and `drawTextPlate` (the city size, `textPlateWidth`) fits its
+  letters; `FONT_HEIGHT` 8 stays. `drawTextPlate` puts text on an edged plate (the city size). The palette
   is FULL: ramps `hide`, `mire`, `canopy`, `rock`, `ice` (in the old ui/fog/swamp/jungle slots),
   `meadow`, `leaf`, `mound`, `wheat`, `dune`, `heath`, `sea`, `steel`, and `jewel` (6 colours, 249-254;
   `shade` clamps to `RAMP_SIZE`); `town` (the city icons' colours, not a dark-to-light ramp) took the
