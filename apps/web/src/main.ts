@@ -1844,6 +1844,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
   const r = applyCommand(state, { type: "move", unit, dx, dy });
   if (r.ok) {
     log.push({ type: "move", unit, dx, dy });
+    actedThisTurn = true; // a move is an order too: the turn may end by itself after the last one
     slideOwn(lastActions.slice(mark));
     if (lastCombat) reportCombat(lastCombat);
     afterAction();
