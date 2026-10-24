@@ -2,7 +2,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { CIVS, newGame } from "@civ/core";
 import { AUDIENCE_CHOICES, LEADER_PORTRAITS } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
-import { audiencePicture, diplomacyChoiceAt, drawDiplomacyScreen } from "../src/index.js";
+import { audiencePicture, audienceRect, diplomacyChoiceAt, drawDiplomacyScreen, shade } from "../src/index.js";
 import { Surface } from "../src/surface.js";
 import { encodePng } from "./png.js";
 
@@ -33,5 +33,26 @@ describe("audience screen", () => {
       expect(hits.has(choices.length)).toBe(false);
     }
     expect(AUDIENCE_CHOICES).toBe(4);
+  });
+
+  it("colours the window by the leader's mood and names it: green friendly, amber wary, red hostile, navy with none", () => {
+    const state = newGame(3, { opponents: 2 });
+    const s = Surface.screen();
+    const o = audienceRect();
+    const fills = { friendly: shade("leaf", 2), wary: shade("hide", 2), hostile: shade("brick", 1) } as const;
+    for (const mood of ["friendly", "wary", "hostile"] as const) {
+      drawDiplomacyScreen(s, state, { player: 1, line: "Greetings.", mood, choices: ["Farewell"] });
+      writeFileSync(new URL(`./out/audience-${mood}.png`, import.meta.url), encodePng(s, 3));
+      // The title strip's corner and the panel's inside take the mood's colour; the picture's frame a lighter shade of it.
+      expect(s.get(o.x + 3, o.y + 12)).toBe(fills[mood]);
+      expect(s.get(o.x + 5, o.y + 128)).toBe(fills[mood]);
+      expect(s.get(o.x + 35, o.y + 14)).not.toBe(shade("panel", 1));
+      // The word stands at the strip's left, in a light ink of the same ramp.
+      let ink = 0;
+      for (let y = o.y + 4; y < o.y + 12; y++) for (let x = o.x + 6; x < o.x + 60; x++) if (s.get(x, y) !== fills[mood]) ink++;
+      expect(ink).toBeGreaterThan(8); // thin strokes, read a screen pixel at a time: "WARY" paints about twenty
+    }
+    drawDiplomacyScreen(s, state, { player: 1, line: "Greetings.", choices: ["Farewell"] });
+    expect(s.get(o.x + 3, o.y + 12)).toBe(shade("azure", 0));
   });
 });

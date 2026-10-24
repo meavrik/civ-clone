@@ -7,10 +7,16 @@ import { civ, civInfluence, esteem, GOVERNMENTS, trespassers, type GameState } f
  */
 export const AUDIENCE_CHOICES = 4;
 
+/** How a leader regards us (the AI's `attitude`): the audience window takes its colour and names it. */
+export type LeaderMood = "friendly" | "wary" | "hostile";
+export const MOOD_WORDS: Record<LeaderMood, string> = { friendly: "Friendly", wary: "Wary", hostile: "Hostile" };
+
 export interface DiplomacyView {
   player: number;
   /** The leader's words. */
   line: string;
+  /** The leader's mood toward us, shown as the window's colour and a word (asked for 2026-10-24); absent, the window is plain navy. */
+  mood?: LeaderMood;
   /** Our choices, as buttons under the words (at most AUDIENCE_CHOICES); none, and any key goes on. */
   choices?: string[];
   selected?: number;

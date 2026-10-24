@@ -1,6 +1,6 @@
 import type { GameState } from "@civ/core";
-import { AUDIENCE_CHOICES, leaderTitle, realmName, type DiplomacyView } from "@civ/renderer-api";
-import { drawSpaced, drawText, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
+import { AUDIENCE_CHOICES, leaderTitle, MOOD_WORDS, realmName, type DiplomacyView, type LeaderMood } from "@civ/renderer-api";
+import { drawSpaced, drawText, FONT_HEIGHT, spacedWidth, textWidth, wrapText } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
 import { dimScreen, drawCloseBox, drawEntering, drawStone, INK, TITLE_H } from "../widgets.js";
@@ -57,6 +57,21 @@ export function cardPicture(screenW = SCREEN_W): Rect {
 const NAVY = () => shade("azure", 0);
 const GOLD_INK = () => shade("wheat", 6);
 
+/**
+ * The window's colours by the leader's mood (asked for 2026-10-24, "indication for the leader mood,
+ * like frame or background colour"): the title strip and the panel are filled with it, the picture
+ * is framed in a lighter shade, and the mood's word stands at the strip's left in its light ink.
+ * Deep green for a friendly leader, amber for a wary one, dark red for a hostile one; navy with no mood.
+ */
+function moodColours(mood: LeaderMood | undefined): { fill: number; frame: number; ink: number } {
+  switch (mood) {
+    case "friendly": return { fill: shade("leaf", 2), frame: shade("leaf", 5), ink: shade("leaf", 7) };
+    case "wary": return { fill: shade("hide", 2), frame: shade("hide", 5), ink: shade("hide", 6) };
+    case "hostile": return { fill: shade("brick", 1), frame: shade("brick", 4), ink: shade("brick", 6) };
+    default: return { fill: NAVY(), frame: shade("panel", 1), ink: GOLD_INK() };
+  }
+}
+
 /** A box framed in stone: lit along the top and left, shaded along the bottom and right, `fill` inside. */
 function framed(s: Surface, b: Rect, fill: number): void {
   s.rect(b.x, b.y, b.w, b.h, shade("panel", 3));
@@ -109,13 +124,21 @@ function drawNow(s: Surface, state: GameState, view: DiplomacyView): void {
   s.rect(o.x + o.w, o.y + 3, 2, o.h - 1, C.BLACK!);
   s.frame(o.x, o.y, o.w, o.h, C.BLACK!);
   drawStone(s, o.x + 1, o.y + 1, o.w - 2, o.h - 2);
-  // The realm's name in gold on navy, the close box at the strip's end.
-  s.rect(l.title.x, l.title.y, l.title.w, l.title.h, NAVY());
-  drawSpaced(s, o.x + o.w / 2, l.title.y + 2, realmName(state, view.player), GOLD_INK());
+  // The realm's name in gold on the mood's colour, the mood's word at the strip's left, the close box at its end.
+  const m = moodColours(view.mood);
+  s.rect(l.title.x, l.title.y, l.title.w, l.title.h, m.fill);
+  let left = l.title.x + 4;
+  if (view.mood) {
+    const word = MOOD_WORDS[view.mood].toUpperCase();
+    const w = spacedWidth(word);
+    drawSpaced(s, left + Math.ceil(w / 2), l.title.y + 2, word, m.ink);
+    left += w + 6;
+  }
+  drawSpaced(s, Math.floor((left + l.close.x - 4) / 2), l.title.y + 2, realmName(state, view.player), GOLD_INK());
   drawCloseBox(s, l.close.x, l.close.y);
-  if (view.card) drawCard(s, l, view.card);
-  else drawScene(s, l.scene);
-  framed(s, l.panel, NAVY());
+  if (view.card) drawCard(s, l, view.card, m.fill);
+  else drawScene(s, l.scene, m.frame);
+  framed(s, l.panel, m.fill);
   const lines = wrapText(view.line, l.panel.w - 16).slice(0, 2);
   if (view.card) lines.forEach((t, i) => drawText(s, o.x + Math.floor((o.w - textWidth(t)) / 2), l.panel.y + 6 + i * FONT_HEIGHT, t, C.WHITE!));
   else {
@@ -126,10 +149,10 @@ function drawNow(s: Surface, state: GameState, view: DiplomacyView): void {
   buttonRects(o, choices.length).forEach((b, i) => drawChoice(s, b, choices[i]!, i === (view.selected ?? 0)));
 }
 
-/** A civilization's card: a sunken frame for the leader's portrait (a dusk sky beneath, seen until it loads), its lines beside it. */
-function drawCard(s: Surface, l: ReturnType<typeof layout>, lines: string[]): void {
+/** A civilization's card: a sunken frame (in the mood's colour) for the leader's portrait (a dusk sky beneath, seen until it loads), its lines beside it. */
+function drawCard(s: Surface, l: ReturnType<typeof layout>, lines: string[], frame: number): void {
   const p = l.portrait;
-  framed(s, { x: p.x - 2, y: p.y - 2, w: p.w + 4, h: p.h + 4 }, shade("azure", 1));
+  framed(s, { x: p.x - 2, y: p.y - 2, w: p.w + 4, h: p.h + 4 }, frame);
   sky(s, p);
   let y = l.cardText.y;
   const room = Math.floor(l.cardText.h / FONT_HEIGHT);
@@ -141,9 +164,10 @@ function drawCard(s: Surface, l: ReturnType<typeof layout>, lines: string[]): vo
   }
 }
 
-/** The leader's picture's place: a thin dark frame round a dusk sky (seen only until the picture has loaded). */
-function drawScene(s: Surface, b: Rect): void {
-  s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, shade("panel", 1));
+/** The leader's picture's place: a frame two pixels thick in the mood's colour round a dusk sky (seen only until the picture has loaded). */
+function drawScene(s: Surface, b: Rect, frame: number): void {
+  s.frame(b.x - 2, b.y - 2, b.w + 4, b.h + 4, frame);
+  s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, frame);
   sky(s, b);
 }
 

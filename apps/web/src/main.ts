@@ -2253,7 +2253,8 @@ canvas.addEventListener("wheel", (e) => {
 let wheelRows = 0;
 /** What the audience screen shows: the leader's words and our choices. */
 function diplomacyView(sc: Extract<Screen, { kind: "diplomacy" }>): DiplomacyView {
-  return { player: sc.player, line: sc.line, ...(sc.card ? { card: sc.card } : {}), ...(sc.talk ? { choices: sc.talk.items, selected: sc.talk.selected } : {}) };
+  // The leader's mood colours the window (the AI's attitude: hostile at war or after a last warning, else by grievance, pride and our influence).
+  return { player: sc.player, line: sc.line, mood: attitude(state, sc.player, 0), ...(sc.card ? { card: sc.card } : {}), ...(sc.talk ? { choices: sc.talk.items, selected: sc.talk.selected } : {}) };
 }
 
 // Where the mouse is, for edge scrolling (a finger's pointer is not a mouse).

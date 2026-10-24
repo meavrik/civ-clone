@@ -582,7 +582,10 @@ Never ship the original's sprites, palette art, fonts or text.
   place as a new audience opens, `DiplomacyView.enter` timed by the web app's `audienceKey`; the
   web app draws the map under it): the realm across the
   title strip (`realmName`: "The Roman Empire", Kingdom, Republic... by government) with a close box
-  (`Renderer.diplomacyCloseAt`: Esc), the user's picture of the
+  (`Renderer.diplomacyCloseAt`: Esc); the strip, the panel and the picture's frame take the leader's
+  mood's colour with its word at the strip's left (asked for 2026-10-24: `DiplomacyView.mood`, the
+  AI's `attitude`; `moodColours`: deep green FRIENDLY, amber WARY, dark red HOSTILE, navy with none),
+  the user's picture of the
   leader in their palace whole, frame and all, then the leader's name, their words and our choices as
   the game's stone buttons (`DiplomacyView`, `Renderer.diplomacy` and
   `diplomacyChoiceAt`): never more than `AUDIENCE_CHOICES` (4, asked for) at once, so the proposals
