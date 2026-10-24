@@ -7,8 +7,8 @@ import {
   computeCity,
   cityCulture,
   cityYieldGovernment,
+  cityFoci,
   cultureRate,
-  FOCI,
   foodKept,
   formatYear,
   getTile,
@@ -21,16 +21,17 @@ import {
   turnToYear,
   wonder,
   type City,
+  type CityFocus,
   type CityReport,
   type GameState,
 } from "@civ/core";
-import { citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityLook, cityUnits, fieldSides, isWorker, MOOD_STAGE_ICONS, type CitizenMood, type IconName } from "@civ/renderer-api";
+import { citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityLook, cityUnits, fieldSides, FOCUS_CORNERS, isWorker, MOOD_STAGE_ICONS, type CitizenMood, type IconName } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
-import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, FADED, GOLD, GOOD, INK, NOTE, stipple, TITLE_H } from "../widgets.js";
+import { BAD, DIM, drawButton, drawCloseBox, drawStone, drawTitleStrip, drawWindow, FADED, GOLD, GOOD, INK, NOTE, stipple, TITLE_H } from "../widgets.js";
 import { CITIZEN_H, CITIZEN_W, drawCitizen } from "../citizens.js";
 import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk, iconLineWidth } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
@@ -42,54 +43,63 @@ const BOX_HEAD = TITLE_H + 1;
 
 /**
  * City screen (320x200): stone windows on black, each with a blue title strip.
- *   title and citizens      across the top
- *   resources | map | improvements
+ *   title (View and the close box at its end), Happy and the citizens   across the top
+ *   resources | map (the focus toggles in its corners) | improvements
  *   food store | units | production
- *   key hints and Exit      along the bottom
+ * No bar along the bottom (asked for 2026-10-24: its buttons became the icons above).
  */
 const TOP = { y: 1, h: 28 };
 const ROW1 = { y: 30, h: 84 };
-const ROW2 = { y: 116, h: 71 };
+const ROW2 = { y: 116, h: 83 };
 const LEFT = { x: 1, w: 106 };
 const MID = { x: 108, w: 84 };
 const RIGHT = { x: 193, w: 126 };
-const BAR_Y = 188;
 
 export const CITY_MAP_X = MID.x + 2;
 export const CITY_MAP_Y = ROW1.y + 2;
 
 import type { CityButton, CityScreenView } from "@civ/renderer-api";
 
-/** The bottom bar's small buttons, each as wide as its label and a little more, right to left from Exit. */
-const BAR_BUTTON = { y: BAR_Y + 2, h: 8, pad: 10, gap: 3 };
-const barWidth = (...labels: string[]) => Math.max(...labels.map(textWidth)) + BAR_BUTTON.pad;
-const EXIT = { x: SCREEN_W - 4 - barWidth("Exit"), y: BAR_BUTTON.y, w: barWidth("Exit"), h: BAR_BUTTON.h };
-const barLeftOf = (b: { x: number }, w: number) => ({ x: b.x - BAR_BUTTON.gap - w, y: BAR_BUTTON.y, w, h: BAR_BUTTON.h });
-const VIEW_BUTTON = barLeftOf(EXIT, barWidth("View"));
-const HAPPY_BUTTON = barLeftOf(VIEW_BUTTON, barWidth("Happy"));
-// Named for the city's focus (`cityFocus`): as wide as the widest focus.
-const FOCUS_BUTTON = barLeftOf(HAPPY_BUTTON, barWidth(...FOCI.map((f) => f.name)));
+type Rect = { x: number; y: number; w: number; h: number };
+const inRect = (b: Rect, px: number, py: number) => px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h;
 
-/** The production box's buttons, under its title strip, and Focus, Happy and View on the bottom bar beside Exit. */
-const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: number; label: string }> = {
-  change: { x: RIGHT.x + 3, y: ROW2.y + BOX_HEAD + 2, w: 50, h: 11, label: "Change" },
-  buy: { x: RIGHT.x + RIGHT.w - 51, y: ROW2.y + BOX_HEAD + 2, w: 48, h: 11, label: "Buy" },
-  view: { ...VIEW_BUTTON, label: "View" },
-  happy: { ...HAPPY_BUTTON, label: "Happy" },
-  focus: { ...FOCUS_BUTTON, label: "Focus" },
+/** The close box at the title strip's right end, as every window has, and View (the city's picture) beside it. */
+const EXIT: Rect = { x: LEFT.x + SCREEN_W - 2 - 3 - (TITLE_H - 2), y: TOP.y + 3, w: TITLE_H - 2, h: TITLE_H - 2 };
+const VIEW: Rect = { x: EXIT.x - 2 - EXIT.w, y: EXIT.y, w: EXIT.w, h: EXIT.h };
+
+/** The row of citizens: Happy's face first, then each person standing on the top window's bottom edge, the specialists after a gap. */
+const ROW_Y = TOP.y + TOP.h - 1 - CITIZEN_H;
+const HAPPY: Rect = { x: 4, y: ROW_Y + 2, w: ICON + 2, h: ICON + 2 };
+const ROW_X = HAPPY.x + HAPPY.w + 4;
+
+/** The production box's buttons, under its title strip; View in the title strip; Happy before the citizens. */
+const CITY_BUTTONS: Partial<Record<CityButton, Rect>> = {
+  change: { x: RIGHT.x + 3, y: ROW2.y + BOX_HEAD + 2, w: 50, h: 11 },
+  buy: { x: RIGHT.x + RIGHT.w - 51, y: ROW2.y + BOX_HEAD + 2, w: 48, h: 11 },
+  view: VIEW,
+  happy: HAPPY,
 };
-/** The keys the bottom bar names (its buttons say the rest); it must fit before the Focus button. */
-export const CITY_KEYS_HINT = "C Change  B Buy  F Focus  N Rename";
 
 export function cityButtonAt(px: number, py: number): CityButton | null {
-  for (const [id, b] of Object.entries(CITY_BUTTONS) as [CityButton, (typeof CITY_BUTTONS)[CityButton]][])
-    if (px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h) return id;
+  for (const [id, b] of Object.entries(CITY_BUTTONS) as [CityButton, Rect][]) if (inRect(b, px, py)) return id;
   return null;
 }
 
-/** The bottom bar, Exit button and all, leaves the city. */
-export function cityExitHit(_px: number, py: number): boolean {
-  return py >= BAR_Y && py < SCREEN_H;
+/** The close box leaves the city. */
+export function cityExitHit(px: number, py: number): boolean {
+  return inRect(EXIT, px, py);
+}
+
+/** The square of the map's corner holding a focus toggle (`FOCUS_CORNERS`, clockwise from the top left). */
+function focusCorner(i: number): Rect {
+  const [tx, ty] = ([[0, 0], [4, 0], [4, 4], [0, 4]] as const)[i]!;
+  return { x: CITY_MAP_X + tx * TILE, y: CITY_MAP_Y + ty * TILE, w: TILE, h: TILE };
+}
+
+/** The focus toggle under a point: the map's four corners, which hold no square a city works. */
+export function cityFocusAt(px: number, py: number): CityFocus | null {
+  const i = FOCUS_CORNERS.findIndex((_, k) => inRect(focusCorner(k), px, py));
+  return i >= 0 ? FOCUS_CORNERS[i]!.focus : null;
 }
 
 export function citySlotAt(px: number, py: number): number | null {
@@ -120,9 +130,6 @@ export function cityUnitAt(state: GameState, view: CityScreenView, px: number, p
   return null;
 }
 
-/** The row of citizens: each person standing on the top window's bottom edge, the specialists after a gap. */
-const ROW_Y = TOP.y + TOP.h - 1 - CITIZEN_H;
-const ROW_X = 5;
 const SPECIALIST_GAP = 5;
 /** The row keeps clear of the note beside it up to here, closing up for a big city. */
 const ROW_END = 200;
@@ -346,6 +353,14 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   // Title and citizens; the strip turns red while the city riots.
   drawBox(s, LEFT.x, TOP.y, SCREEN_W - 2, TOP.h);
   drawTitleStrip(s, LEFT.x + 2, TOP.y + 2, SCREEN_W - 6, `${city.name} (Pop ${city.size})   ${formatYear(turnToYear(state.turn))}`, { centred: true, ...(r.disorder ? { color: C.RED! } : {}) });
+  // The way out, and the city's picture, at the strip's end.
+  drawButton(s, VIEW.x, VIEW.y, VIEW.w, VIEW.h, "");
+  drawIconFine(s, "city", VIEW.x * s.k + 1, VIEW.y * s.k + 1);
+  drawCloseBox(s, EXIT.x, EXIT.y);
+  // Happy: the citizens' feelings stage by stage, lit while that panel is up.
+  if (view.happy) s.rect(HAPPY.x, HAPPY.y, HAPPY.w, HAPPY.h, shade("azure", 2));
+  else if (view.hoverControl === "happy") s.rect(HAPPY.x, HAPPY.y, HAPPY.w, HAPPY.h, shade("panel", 7));
+  drawIcon(s, "happy", HAPPY.x + 1, HAPPY.y + 1);
   // Each citizen a person of their own (`citizenLook`), standing on the window's bottom edge; the one
   // under the pointer lit, and told of beside the row (a click changes their job).
   const row = citizenRow(state, city);
@@ -358,10 +373,17 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const standX = standing ? SCREEN_W - 6 - textWidth(standing[0]) : SCREEN_W - 4;
   if (standing) say(s, standX, TOP.y + BOX_HEAD + 4, standing[0], standing[1]);
   const noteX = (xs.length ? xs[xs.length - 1]! + pitch : ROW_X) + 6;
-  // A big city's row leaves room for who they are only.
+  // Beside the row: what is pointed at (a big city's row leaves room for who a citizen is only), else
+  // the latest word, else the hint.
   const room = standX - 6 - noteX;
-  const note = lit === null ? CITIZENS_HINT : textWidth(citizenNote(row[lit]!)) <= room ? citizenNote(row[lit]!) : citizenRole(row[lit]!);
-  if (textWidth(note) <= room) say(s, noteX, TOP.y + BOX_HEAD + 4, note, lit !== null ? INK : FADED);
+  const control = view.hoverControl !== undefined ? cityControlNote(state, city, view.hoverControl) : null;
+  const [note, ink] =
+    lit !== null ? [textWidth(citizenNote(row[lit]!)) <= room ? citizenNote(row[lit]!) : citizenRole(row[lit]!), INK]
+    : control ? [control, INK]
+    : view.message ? [view.message, NOTE]
+    : [CITIZENS_HINT, FADED];
+  if (textWidth(note) <= room) say(s, noteX, TOP.y + BOX_HEAD + 4, note, ink);
+  else drawTextWrapped(s, noteX, TOP.y + BOX_HEAD + 4, room, note, ink, 1);
 
   if (view.happy) drawMoods(s, city, r);
   else drawResources(s, r);
@@ -432,6 +454,10 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       if (inLand(tx - 2, ty - 3) === false) s.rect(px, py, TILE, 1, edge);
     }
 
+  // The focus toggles in the map's corners: lit for each focus the city works for (any of them together).
+  const foci = cityFoci(state, city);
+  FOCUS_CORNERS.forEach(({ focus, icon }, i) => drawFocusToggle(s, focusCorner(i), icon, foci.includes(focus), view.hoverControl === focus));
+
   // Improvements, wonders in yellow, each building with its upkeep.
   drawBox(s, RIGHT.x, ROW1.y, RIGHT.w, ROW1.h, "Improvements", r.buildingUpkeep ? `Upkeep ${r.buildingUpkeep}$` : "");
   const lines = [
@@ -464,7 +490,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawBox(s, LEFT.x, ROW2.y, LEFT.w, ROW2.h, "Food", `${city.food}/${r.foodBox}`);
   const kept = foodKept(state, city, r.foodBox);
   const keptBy = city.buildings.some((b) => building(b).granary) ? "Granary" : "Kept";
-  const food = drawStore(s, LEFT.x + 3, ROW2.y + BOX_HEAD + 2, LEFT.w - 6, 5, "food", city.food, r.foodBox, kept, keptBy);
+  const food = drawStore(s, LEFT.x + 3, ROW2.y + BOX_HEAD + 2, LEFT.w - 6, 6, "food", city.food, r.foodBox, kept, keptBy);
   const grow = r.foodSurplus > 0 ? Math.ceil(Math.max(0, r.foodBox - city.food) / r.foodSurplus) : null;
   say(s, LEFT.x + 3, ROW2.y + ROW2.h - 10, r.foodSurplus < 0 ? "Starving!" : grow === null ? "Not growing" : `Grows in ${grow} turn${grow === 1 ? "" : "s"}`, r.foodSurplus < 0 ? BAD : LABEL);
   storeKey(s, LEFT.x + LEFT.w - 3, ROW2.y + ROW2.h - 10, "food", food.per);
@@ -487,16 +513,17 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const p = city.production;
   drawBox(s, RIGHT.x, ROW2.y, RIGHT.w, ROW2.h, productionName(p), `${city.shields}/${r.productionCost}`);
   const cost = buyCost(state, city);
-  const { change, buy } = CITY_BUTTONS;
-  drawButton(s, change.x, change.y, change.w, change.h, change.label);
-  drawButton(s, buy.x, buy.y, buy.w, buy.h, buy.label, cost > 0 && player.gold >= cost);
+  const change = CITY_BUTTONS.change!;
+  const buy = CITY_BUTTONS.buy!;
+  drawButton(s, change.x, change.y, change.w, change.h, "Change");
+  drawButton(s, buy.x, buy.y, buy.w, buy.h, "Buy", cost > 0 && player.gold >= cost);
   y = change.y + change.h + 3;
   let gx = RIGHT.x + 3;
   if (p.kind === "unit") {
     s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), gx, y, SPRITE_CLEAR);
     gx += 19;
   }
-  const store = drawStore(s, gx, y, RIGHT.x + RIGHT.w - 3 - gx, 3, "shield", city.shields, r.productionCost);
+  const store = drawStore(s, gx, y, RIGHT.x + RIGHT.w - 3 - gx, 4, "shield", city.shields, r.productionCost);
   const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
   const by = ROW2.y + ROW2.h - 10;
   const tx = say(s, RIGHT.x + 3, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
@@ -504,32 +531,30 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const price = cost ? `Buy ${cost}$` : "Complete";
   say(s, RIGHT.x + RIGHT.w - 3 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);
 
-  // Hints, or the latest word, and the way out: a stone strip like the boxes, its buttons small and flat.
-  drawWindow(s, 1, BAR_Y, SCREEN_W - 2, SCREEN_H - BAR_Y, "");
-  const { view: viewButton, happy: happyButton, focus: focusButton } = CITY_BUTTONS;
-  if (view.message) drawTextWrapped(s, 5, BAR_Y + 2, focusButton.x - 9, view.message, NOTE, 1);
-  else drawText(s, 5, BAR_Y + 2, CITY_KEYS_HINT, DIM);
-  const focus = cityFocus(state, city);
-  if (focus) barButton(s, focusButton, focus.name);
-  barButton(s, happyButton, happyButton.label, view.happy ? "on" : "plain");
-  barButton(s, viewButton, viewButton.label);
-  barButton(s, EXIT, "Exit", "exit");
 }
 
 /**
- * A button of the bottom bar: a flat face a shade lighter than the stone, edged one fine pixel in a
- * dark grey, no bevel; lit blue when on, and the way out lettered in red.
+ * A focus toggle in a corner of the map: the focus's icon on a dark tile, lit blue with a bright edge
+ * when the city works for it, faded when it does not, a shade lighter under the pointer.
  */
-function barButton(s: Surface, b: { x: number; y: number; w: number; h: number }, label: string, style: "plain" | "on" | "exit" = "plain"): void {
+function drawFocusToggle(s: Surface, b: Rect, icon: IconName, on: boolean, hover: boolean): void {
   const k = s.k;
-  s.rect(b.x, b.y, b.w, b.h, style === "on" ? shade("azure", 2) : shade("panel", 6));
-  const edge = style === "on" ? shade("azure", 0) : shade("panel", 2);
-  s.frect(b.x * k, b.y * k, b.w * k, 1, edge);
-  s.frect(b.x * k, (b.y + b.h) * k - 1, b.w * k, 1, edge);
-  s.frect(b.x * k, b.y * k, 1, b.h * k, edge);
-  s.frect((b.x + b.w) * k - 1, b.y * k, 1, b.h * k, edge);
-  const ink = style === "exit" ? C.RED! : style === "on" ? C.WHITE! : INK;
-  drawTextCentered(s, b.x + b.w / 2, b.y + Math.floor((b.h - FONT_HEIGHT) / 2), label, ink);
+  const x = b.x + 1;
+  const y = b.y + 1;
+  const w = b.w - 2;
+  const h = b.h - 2;
+  const ground = on ? shade("azure", 2) : hover ? shade("panel", 2) : shade("panel", 1);
+  s.rect(x, y, w, h, ground);
+  const edge = on ? shade("azure", 7) : shade("panel", 3);
+  s.frect(x * k, y * k, w * k, 1, edge);
+  s.frect(x * k, (y + h) * k - 1, w * k, 1, edge);
+  s.frect(x * k, y * k, 1, h * k, edge);
+  s.frect((x + w) * k - 1, y * k, 1, h * k, edge);
+  const ix = b.x + (b.w - ICON) / 2;
+  const iy = b.y + (b.h - ICON) / 2;
+  drawIcon(s, icon, ix, iy);
+  // Off: every other pixel of the icon back to the tile, so the lit ones stand out.
+  if (!on) for (let yy = 0; yy < ICON * k; yy++) for (let xx = yy & 1; xx < ICON * k; xx += 2) s.fset(ix * k + xx, iy * k + yy, ground);
 }
 
 function playerColorOf(state: GameState, owner: number): number {

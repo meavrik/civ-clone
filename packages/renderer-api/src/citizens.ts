@@ -1,4 +1,4 @@
-import { computeCity, type City, type GameState, type MoodStageKind, type Specialist } from "@civ/core";
+import { cityFoci, computeCity, FOCI, type City, type CityFocus, type GameState, type MoodStageKind, type Specialist } from "@civ/core";
 import type { IconName } from "./icons.js";
 import { hash } from "./hash.js";
 
@@ -80,6 +80,25 @@ export function citizenNote(who: CitizenMood): string {
 
 /** The city screen's word on its row of people while none is pointed at. */
 export const CITIZENS_HINT = "Click a citizen to change their job";
+
+/** The four focus toggles in the corners of the city screen's map, clockwise from the top left, and their icons. */
+export const FOCUS_CORNERS: readonly { focus: CityFocus; icon: IconName }[] = [
+  { focus: "growth", icon: "food" },
+  { focus: "production", icon: "shield" },
+  { focus: "trade", icon: "coin" },
+  { focus: "science", icon: "bulb" },
+];
+
+/** What the city screen says of a control under the pointer: the close box, View, Happy, or a focus toggle. */
+export function cityControlNote(state: GameState, city: City, control: string): string | null {
+  if (control === "exit") return "Leave the city (Esc)";
+  if (control === "view") return "See the city (V)";
+  if (control === "happy") return "How the citizens feel, stage by stage (H)";
+  const f = FOCI.find((r) => r.id === control);
+  if (!f) return null;
+  const on = cityFoci(state, city).includes(f.id);
+  return `${f.name}: ${f.text}. Click to ${on ? "drop it" : "add it"}`;
+}
 
 /** The Happy panel's word for each stage of the mood reckoning (`MOOD_STAGES`). */
 export const MOOD_STAGE_LABELS: Record<MoodStageKind, string> = { born: "Born", luxury: "Luxury", buildings: "Buildings", soldiers: "Soldiers", wonders: "Wonders" };

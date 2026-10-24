@@ -7,7 +7,7 @@ import { wonder, WONDERS, type WonderRule } from "./rules/wonders.js";
 import { CELEBRATION_SIZE, EMPIRE_SIZE_STEP, government } from "./rules/governments.js";
 import { civ } from "./rules/civs.js";
 import { difficultyRule } from "./rules/difficulty.js";
-import { BALANCED_WEIGHTS, focusRule, type FocusRule } from "./rules/focus.js";
+import { BALANCED_WEIGHTS, combinedFocus, focusRule, type FocusRule } from "./rules/focus.js";
 import { nextCityName } from "./rules/names.js";
 import { specialOf, TERRAIN_RULES } from "./rules/terrain.js";
 import { UNIT_TYPES, unitType } from "./rules/units.js";
@@ -18,6 +18,7 @@ import {
   Terrain,
   wrapX,
   type City,
+  type CityFocus,
   type GameState,
   type Production,
   type Tile,
@@ -199,14 +200,24 @@ export function slotAvailable(state: GameState, city: City, slot: number): boole
 }
 
 /**
- * What a city works its squares for: the focus picked for it, else Growth for the player's
- * cities; null (the old balance, `BALANCED_WEIGHTS`) for a computer player's city with none
- * picked, and for every city of a game saved before foci.
+ * What a city works its squares for: the foci picked for it together (`City.foci`, none being the old
+ * balance), or the one focus picked, else Growth for the player's cities; null (the old balance,
+ * `BALANCED_WEIGHTS`) for a computer player's city with none picked, and for every city of a game
+ * saved before foci.
  */
 export function cityFocus(state: GameState, city: City): FocusRule | null {
   if (state.balancedWorkers) return null;
+  if (city.foci) return combinedFocus(city.foci);
   if (city.focus) return focusRule(city.focus);
   return state.players[city.owner]?.isAi ? null : focusRule("growth");
+}
+
+/** The foci a city works for, as its city screen shows them lit: those picked, or the one, or Growth by default. */
+export function cityFoci(state: GameState, city: City): CityFocus[] {
+  if (state.balancedWorkers) return [];
+  if (city.foci) return [...city.foci];
+  if (city.focus) return [city.focus];
+  return state.players[city.owner]?.isAi ? [] : ["growth"];
 }
 
 /** What a worker on this square yields the city, or null off the map. */
@@ -323,13 +334,17 @@ export function arrangeCity(state: GameState, city: City): void {
     city.worked.splice(city.worked.indexOf(worst), 1);
     city.specialists.push("entertainer");
   }
-  // A focus on science or trade turns spare entertainers into scientists or taxmen, each only if order holds.
-  const spare = cityFocus(state, city)?.spare ?? "entertainer";
-  if (spare === "entertainer") return;
+  // A focus on science or trade turns spare entertainers into scientists or taxmen (both picked: in
+  // turn), each only if order holds.
+  const rule = cityFocus(state, city);
+  const spares = rule?.spares ?? [rule?.spare ?? "entertainer"];
+  if (spares.every((s) => s === "entertainer")) return;
+  let turn = 0;
   for (let i = 0; i < city.specialists.length; i++) {
     if (city.specialists[i] !== "entertainer") continue;
-    city.specialists[i] = spare;
+    city.specialists[i] = spares[turn % spares.length]!;
     if (computeCity(state, city).disorder) city.specialists[i] = "entertainer";
+    else turn++;
   }
 }
 

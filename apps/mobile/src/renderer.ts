@@ -4,6 +4,7 @@ import {
   BAR_H,
   cityButtonAt,
   cityCitizenAt,
+  cityFocusAt,
   cityExitHit,
   citySlotAt,
   cityUnitAt,
@@ -304,6 +305,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityButtonAt: (px, py) => cityButtonAt(px - inset(), py),
     cityUnitAt: (state, view, px, py) => cityUnitAt(state, view, px - inset(), py),
     cityCitizenAt: (state, view, px, py) => cityCitizenAt(state, view, px - inset(), py),
+    cityFocusAt: (px, py) => cityFocusAt(px - inset(), py),
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px - inset(), py),
     researchHit: (state, view, px, py) => researchHit(state, view, px - inset(), py),
     // The map's screen: the panel at the left and the bar along the top, as on the original's.

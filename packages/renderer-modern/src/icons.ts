@@ -102,6 +102,13 @@ const DRAW: Record<IconName, (ctx: Context2D) => void> = {
     for (const x of [4, 7, 10]) box(c, x, 2, 2, 3.5, ICON.stone);
     box(c, 6.8, 10, 2.4, 5, ICON.stoneDark); box(c, 7.2, 6.5, 1.6, 2, ICON.stoneDark);
   },
+  happy: (c) => {
+    disc(c, 8, 8, 6.4, ICON.dark);
+    disc(c, 8, 8, 5.6, ICON.gold);
+    disc(c, 5.8, 6.4, 0.9, ICON.dark);
+    disc(c, 10.2, 6.4, 0.9, ICON.dark);
+    line(c, [[4.8, 9.2], [6.4, 11], [9.6, 11], [11.2, 9.2]], ICON.dark, 1.2);
+  },
   heart: (c) => { disc(c, 5.5, 6, 3.3, ICON.heart); disc(c, 10.5, 6, 3.3, ICON.heart); poly(c, [[2.4, 7.2], [13.6, 7.2], [8, 14]], ICON.heart); },
   star: (c) => {
     const pts: Pt[] = [];

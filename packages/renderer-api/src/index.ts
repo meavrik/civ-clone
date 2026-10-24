@@ -69,6 +69,7 @@ import {
   type BuildingRule,
   type CityTurnEvent,
   type City,
+  type CityFocus,
   type GameState,
   type MapGenOptions,
   type NewGameOptions,
@@ -144,7 +145,12 @@ export interface CityScreenView {
   happy?: boolean | undefined;
   /** The person in the row of citizens under the pointer (`citizenRow`), lit and told of. */
   hover?: number | undefined;
+  /** The control under the pointer (a button, the close box, a focus corner of the map), told of beside the citizens. */
+  hoverControl?: CityControl | undefined;
 }
+
+/** What can be pointed at on the city screen besides its citizens and squares: its buttons, the close box, the focus toggles. */
+export type CityControl = CityButton | "exit" | CityFocus;
 
 /** The city screen's buttons: change what is built or buy it now (the production box), view the city, the Happy panel, and the city's focus. */
 export type CityButton = "change" | "buy" | "view" | "happy" | "focus";
@@ -348,6 +354,8 @@ export interface Renderer {
   cityButtonAt(px: number, py: number): CityButton | null;
   /** The unit (id) under a point in the city screen's units (`cityUnits`), or null. */
   cityUnitAt(state: GameState, view: CityScreenView, px: number, py: number): number | null;
+  /** The focus toggle under a point (a corner of the city screen's map), or null. */
+  cityFocusAt(px: number, py: number): CityFocus | null;
   /** The person (their place in `citizenRow`) under a point in the city screen's row of citizens, or null. */
   cityCitizenAt(state: GameState, view: CityScreenView, px: number, py: number): number | null;
   /** The improvement or wonder (id) under a point of the city view, or null. */

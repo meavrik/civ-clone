@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_KEYS_HINT, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { settlerSites, TERRAIN_TEXT } from "@civ/renderer-api";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
@@ -1141,22 +1141,39 @@ describe("moods", () => {
     city.celebrating = false;
     drawCityScreen(s, state, { city: city.id, happy: true });
     writeFileSync(new URL("./out/city-happy.png", import.meta.url), encodePng(s, 3));
-    // The bottom bar's buttons, left to right: Focus, Happy, View (Exit beyond them), the key hints before them all.
-    const along: string[] = [];
-    let focusX = -1;
-    for (let x = 0; x < 320; x++) {
-      const b = cityButtonAt(x, 188 + 6);
-      if (b && along[along.length - 1] !== b) along.push(b);
-      if (b === "focus" && focusX < 0) focusX = x;
-    }
-    expect(along).toEqual(["focus", "happy", "view"]);
-    expect(textWidth(CITY_KEYS_HINT)).toBeLessThanOrEqual(focusX - 9);
-    // The Focus button names the city's focus: Growth unless the player picked another.
-    const bar = (t: Surface) => Array.from({ length: 30 * DETAIL }, (_, i) => t.fget(focusX * DETAIL + i, (188 + 6) * DETAIL)).join();
-    const before = bar(s);
-    applyCommand(state, { type: "setFocus", city: city.id, focus: "production" });
+    // No bottom bar: View and the close box end the title strip, Happy's face starts the row of citizens.
+    const at = (want: (x: number, y: number) => boolean) => {
+      for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) if (want(x, y)) return { x, y };
+      return null;
+    };
+    const exit = at((x, y) => cityExitHit(x, y))!;
+    const viewAt = at((x, y) => cityButtonAt(x, y) === "view")!;
+    const happyAt = at((x, y) => cityButtonAt(x, y) === "happy")!;
+    expect(exit.y).toBeLessThan(14);
+    expect(viewAt.y).toBeLessThan(14);
+    expect(viewAt.x).toBeLessThan(exit.x);
+    expect(happyAt.x).toBeLessThan(20);
+    expect(at((x, y) => y >= 188 && cityExitHit(x, y))).toBeNull();
+    // The focus toggles fill the map's four corners, the squares no city works: lit for each focus picked.
+    expect([citySlotAt(CITY_MAP_X + 8, CITY_MAP_Y + 8), cityFocusAt(CITY_MAP_X + 8, CITY_MAP_Y + 8)]).toEqual([null, "growth"]);
+    expect(cityFocusAt(CITY_MAP_X + 72, CITY_MAP_Y + 8)).toBe("production");
+    expect(cityFocusAt(CITY_MAP_X + 72, CITY_MAP_Y + 72)).toBe("trade");
+    expect(cityFocusAt(CITY_MAP_X + 8, CITY_MAP_Y + 72)).toBe("science");
+    expect(cityFocusAt(CITY_MAP_X + 40, CITY_MAP_Y + 40)).toBeNull();
+    const corner = (t: Surface, cx: number, cy: number) => {
+      let lit = 0;
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (t.get(CITY_MAP_X + cx + x, CITY_MAP_Y + cy + y) === shade("azure", 2)) lit++;
+      return lit;
+    };
     drawCityScreen(s, state, { city: city.id, happy: true });
-    expect(bar(s)).not.toBe(before);
+    expect(corner(s, 0, 0)).toBeGreaterThan(50); // Growth, the player's default
+    expect(corner(s, 64, 0)).toBe(0);
+    applyCommand(state, { type: "setFoci", city: city.id, foci: ["growth", "production"] });
+    drawCityScreen(s, state, { city: city.id, happy: true });
+    expect(corner(s, 0, 0)).toBeGreaterThan(50);
+    expect(corner(s, 64, 0)).toBeGreaterThan(50);
+    expect(corner(s, 64, 64)).toBe(0);
+    writeFileSync(new URL("./out/city-foci.png", import.meta.url), encodePng(s, 3));
     // Without the panel the resources are back.
     drawCityScreen(s, state, { city: city.id });
     expect(s.data.some((c) => c !== 0)).toBe(true);

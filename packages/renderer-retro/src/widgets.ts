@@ -297,7 +297,7 @@ function drawScrollBar(s: Surface, m: MenuState, l: MenuLayout): void {
 }
 
 /** A window's close box: a small stone button in its title strip with an X on it. */
-function drawCloseBox(s: Surface, x: number, y: number): void {
+export function drawCloseBox(s: Surface, x: number, y: number): void {
   const n = TITLE_H - 2;
   drawButton(s, x, y, n, n, "");
   for (let i = 0; i < n - 4; i++) {

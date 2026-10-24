@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, autoAssignWorkers, cityFocus, CITY_RADIUS, computeCity, createUnit, getTile, newGame, Terrain, wrapX, type City, type GameState } from "../src/index.js";
+import { applyCommand, autoAssignWorkers, BALANCED_WEIGHTS, cityFoci, cityFocus, CITY_RADIUS, computeCity, createUnit, getTile, newGame, Terrain, wrapX, type City, type GameState } from "../src/index.js";
 
 /** A city of ours on a world of forest (1 food, 2 shields), with grassland (2 food) on the squares named. */
 function forestCity(grass: number[], opts: { balancedWorkers?: boolean } = {}): { s: GameState; c: City } {
@@ -66,6 +66,32 @@ describe("city focus", () => {
     expect(c.specialists).toEqual(["scientist"]);
     applyCommand(s, { type: "setFocus", city: c.id, focus: "trade" });
     expect(c.specialists).toEqual(["taxman"]);
+    expect(computeCity(s, c).disorder).toBe(false);
+  });
+
+  it("works for any foci picked together: their weights added, none the old balance, science and trade studying and taxing in turn", () => {
+    const { s, c } = forestCity([5]);
+    expect(applyCommand(s, { type: "setFoci", city: c.id, foci: ["production", "growth"] }).ok).toBe(true);
+    expect(c.foci).toEqual(["growth", "production"]);
+    expect(cityFoci(s, c)).toEqual(["growth", "production"]);
+    expect(cityFocus(s, c)?.weights).toEqual({ food: 7, shields: 7, trade: 2 });
+    applyCommand(s, { type: "setFoci", city: c.id, foci: [] });
+    expect(cityFocus(s, c)?.weights).toEqual(BALANCED_WEIGHTS);
+    expect(applyCommand(s, { type: "setFoci", city: c.id, foci: ["growth", "gold" as "growth"] }).ok).toBe(false);
+    // Picked together, the foci win over a single focus set before.
+    c.focus = "trade";
+    applyCommand(s, { type: "setFoci", city: c.id, foci: ["science"] });
+    expect(c.focus).toBeUndefined();
+    expect(cityFocus(s, c)?.id).toBe("science");
+    // Science and trade: the spare citizens study and tax in turn.
+    s.players[0]!.difficulty = 0;
+    for (const slot of NEXT.slice(2)) {
+      const [dx, dy] = CITY_RADIUS[slot]!;
+      createUnit(s, "militia", s.barbarians, wrapX(s.map, c.x + dx), c.y + dy);
+    }
+    c.size = 4;
+    applyCommand(s, { type: "setFoci", city: c.id, foci: ["science", "trade"] });
+    expect([...c.specialists].sort()).toEqual(["scientist", "taxman"]);
     expect(computeCity(s, c).disorder).toBe(false);
   });
 

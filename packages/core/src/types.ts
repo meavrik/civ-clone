@@ -171,6 +171,11 @@ export interface City {
    * of the player's works for growth and a computer player's weighs squares as it always did (`cityFocus`).
    */
   focus?: CityFocus;
+  /**
+   * The foci picked together (`setFoci`, the city screen's four corner toggles): any of them, or none
+   * (the old balance). When set it takes the place of `focus`; games before it have only `focus`.
+   */
+  foci?: CityFocus[];
   /** Culture gathered since it was founded, in saves before version 14 (`accruedCulture`); since then a city's culture is what it holds (`cityCulture` in territory.ts) and this stays 0. */
   culture: number;
 }

@@ -8,7 +8,7 @@ import {
   availableAdvances,
   buildOptions,
   computeCity,
-  cityFocus,
+  cityFoci,
   FOCI,
   shieldsAfterChange,
   buyCost,
@@ -61,6 +61,7 @@ import {
   workOptions,
   WORLD_SIZES,
   type Cheat,
+  type CityFocus,
   type CityTurnEvent,
   type Command,
   type DiplomatAction,
@@ -793,20 +794,31 @@ function openTerrainInfo(tx: number, ty: number, at?: { x: number; y: number }):
   }
 }
 
-/** What the city works its squares for (its Focus button, or F): every citizen is put to work for it at once. */
+/** What the city works its squares for (F): one focus picked from a menu, every citizen put to work for it at once. */
 function openFocusMenu(cityId: number): void {
   const city = state.cities.find((c) => c.id === cityId);
-  const now = city && cityFocus(state, city);
-  if (!city || !now) return;
+  if (!city || state.balancedWorkers) return;
+  const now = cityFoci(state, city)[0];
   screenState = {
     kind: "menu",
     under: screenState,
-    menu: { title: `${city.name} works for...`, items: FOCI.map((f) => f.name), right: FOCI.map((f) => f.text), selected: FOCI.indexOf(now) },
+    menu: { title: `${city.name} works for...`, items: FOCI.map((f) => f.name), right: FOCI.map((f) => f.text), selected: Math.max(0, FOCI.findIndex((f) => f.id === now)) },
     onPick: (i) => {
       const f = FOCI[i];
-      if (f && dispatch({ type: "setFocus", city: cityId, focus: f.id })) say(`${city.name} works for ${f.name.toLowerCase()}`);
+      if (f && dispatch({ type: "setFoci", city: cityId, foci: [f.id] })) say(`${city.name} works for ${f.name.toLowerCase()}`);
     },
   };
+}
+
+/** A focus toggle in a corner of the city's map: the city works for that focus too, or no longer (any of the four together). */
+function toggleFocus(cityId: number, focus: CityFocus): void {
+  const city = state.cities.find((c) => c.id === cityId);
+  if (!city) return;
+  const now = cityFoci(state, city);
+  const foci = now.includes(focus) ? now.filter((f) => f !== focus) : [...now, focus];
+  if (!dispatch({ type: "setFoci", city: cityId, foci })) return;
+  const names = FOCI.filter((f) => foci.includes(f.id)).map((f) => f.name.toLowerCase());
+  say(names.length ? `${city.name} works for ${names.join(" and ")}` : `${city.name} works for everything alike`);
 }
 
 /** Ask for a line of text in-game (no browser prompt): Enter submits, Esc cancels. */
@@ -2103,6 +2115,7 @@ canvas.addEventListener("mousemove", (e) => {
   if (sc.kind === "city") {
     const [px, py] = toLogical(e);
     sc.view.hover = renderer.cityCitizenAt(state, sc.view, px, py) ?? undefined;
+    sc.view.hoverControl = renderer.cityButtonAt(px, py) ?? (renderer.cityExitHit(px, py) ? "exit" : null) ?? renderer.cityFocusAt(px, py) ?? undefined;
     return;
   }
   if (sc.kind === "diplomacy" && sc.talk) {
@@ -2181,6 +2194,9 @@ canvas.addEventListener("mousedown", (e) => {
       if (sc.which === "foreign") openForeignTalkMenu(); else screenState = { kind: "map" };
       return;
     case "city": {
+      if (renderer.cityExitHit(px, py)) { leaveCity(sc); return; }
+      const focus = renderer.cityFocusAt(px, py);
+      if (focus) { toggleFocus(sc.view.city, focus); return; }
       const button = renderer.cityButtonAt(px, py);
       if (button === "change") { openProductionMenu(sc.view.city); return; }
       if (button === "buy") { askBuy(sc.view.city); return; }

@@ -15,6 +15,8 @@ export interface FocusRule {
   weights: { food: number; shields: number; trade: number };
   /** Citizens left with no square to work become these, as long as the city keeps order. */
   spare: Specialist;
+  /** Foci picked together: the spare citizens take these trades in turn (science and trade: scientist, taxman, ...). */
+  spares?: readonly Specialist[];
 }
 
 export const FOCI: readonly FocusRule[] = [
@@ -29,4 +31,25 @@ export const BALANCED_WEIGHTS = { food: 3, shields: 2, trade: 1 };
 
 export function focusRule(id: CityFocus): FocusRule {
   return FOCI.find((f) => f.id === id) ?? FOCI[0]!;
+}
+
+/**
+ * Foci picked together, as one rule: their weights added (none picked: the old balance), their names
+ * joined, and the spare citizens put to every trade they ask for in turn.
+ */
+export function combinedFocus(ids: readonly CityFocus[]): FocusRule {
+  const picked = FOCI.filter((f) => ids.includes(f.id));
+  if (picked.length === 1) return picked[0]!;
+  const weights = picked.length
+    ? picked.reduce((w, f) => ({ food: w.food + f.weights.food, shields: w.shields + f.weights.shields, trade: w.trade + f.weights.trade }), { food: 0, shields: 0, trade: 0 })
+    : BALANCED_WEIGHTS;
+  const spares = [...new Set(picked.map((f) => f.spare).filter((s) => s !== "entertainer"))];
+  return {
+    id: picked[0]?.id ?? "growth",
+    name: picked.length ? picked.map((f) => f.name).join(" + ") : "Balanced",
+    text: picked.length ? picked.map((f) => f.text).join("; ") : "food, shields and trade alike",
+    weights,
+    spare: spares[0] ?? "entertainer",
+    ...(spares.length > 1 ? { spares } : {}),
+  };
 }

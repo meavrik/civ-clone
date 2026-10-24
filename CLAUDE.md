@@ -118,7 +118,7 @@ Never ship the original's sprites, palette art, fonts or text.
   with each level's starting gold, settlers and research cost; our departure, FreeCiv plays 4) and unhappy
   beyond; an empire holding more cities than its government's `empireSize` (Anarchy 9 .. Democracy 14) loses one
   content citizen a city, one more per `EMPIRE_SIZE_STEP` (10) cities. Then stage by stage (`CityReport.moods`,
-  shown by the city screen's Happy panel, H or its button, as the original's Happy analysis did): luxuries (two
+  shown by the city screen's Happy panel, H or its smiling face, as the original's Happy analysis did): luxuries (two
   a step, content to happy first), buildings (`BuildingRule.content`, the Oracle doubling temples,
   Michelangelo's a cathedral everywhere), soldiers (martial law: each military unit in the city calms one
   unhappy citizen, up to `GovernmentRule.martialLaw`, Monarchy 3, Despotism, Anarchy and Communism unlimited;
@@ -169,8 +169,14 @@ Never ship the original's sprites, palette art, fonts or text.
 - `packages/renderer-api` — the `Renderer` interface every renderer implements (draw each screen
   in its own logical size, hit-test menus/city map/city buttons/tiles/minimap/menu bar), the shared view types and the
   DOM-free screen logic (`setupMenu`, `leaderLine`, `wondersReport`, `topCitiesReport`, `builtNotice`).
-  City screen: Change and Buy buttons in the production box (`cityButtonAt`), Focus (named for the city's
-  focus, `cityFocus`), Happy and View on the bottom bar; the worked squares of its
+  City screen: Change and Buy buttons in the production box (`cityButtonAt`); no bottom bar (asked for
+  2026-10-24: "remove all buttons", after a bulky one and two redos): a close box at the title strip's
+  end leaves (`cityExitHit`), a city icon beside it is View, a smiling face (the `happy` icon) before
+  the citizens is Happy (lit blue while its panel is up), and the four focus toggles fill the map's
+  empty corners (`FOCUS_CORNERS`, `cityFocusAt`: Growth food top left, Production shield top right,
+  Trade coin bottom right, Science bulb bottom left; lit for each the city works for, any of them
+  together, `setFoci`). Whatever the pointer rests on is told of beside the citizens (`cityControlNote`,
+  `CityScreenView.hoverControl`), and the latest word (`view.message`) shows there too; the worked squares of its
   map carry their yield in the City Resources box's own icons (wheat ear food, hammer shields, arrows
   trade), straight on the ground with no shade: food along the top half, shields then trade along the
   bottom, overlapping when a row is long (asked for 2026-10-22: the shade looked bad and the old 3x3
@@ -186,10 +192,7 @@ Never ship the original's sprites, palette art, fonts or text.
   only when the box is too big (then "{food}=2" under it); what a growing city keeps (core `foodKept`:
   a Granary's half, or a trait's share) fills rows of its own above a brown line named Granary (or
   Kept). Taxmen and scientists need no size of city (the 1991 game is said to want size 5: not checked, not asked for).
-  The bottom bar (asked for 2026-10-24: "too bulky", then a version on bare black was "much worse"; the
-  user picked this): a stone strip like the boxes, the key hints in DIM, small flat buttons sized to their
-  labels (`barButton`: a face a shade lighter than the stone, edged one fine pixel, no bevel; Happy lit
-  blue when up, Exit lettered red). Esc, Enter (not held) or a click
+  Esc, Enter (not held), the close box or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. The build menu (`openProductionMenu` in the web app) shows beside
   each choice only the turns it takes from here, counting the shields a change would keep ("never"
@@ -213,7 +216,7 @@ Never ship the original's sprites, palette art, fonts or text.
   a group of Settlers", then Population 3 → 2 and each of food, shields and trade a turn that changed (core
   records them on the `built` event, `CityTurnEvent.change`; the font has a → for it), over its city screen;
   leaving the city goes on with the turn's news (the city `Screen`'s `then`). City view (`cityview.ts`, the original's View:
-  the city screen's View button or V; the modern city screen shows it small as the button): every improvement
+  the city screen's View icon or V; the modern city screen shows it small as the button): every improvement
   and wonder has a `PICTURES` entry made of shapes (`Part`: rect, poly, oval, line, each of a `Material`) on a
   grid of retro pixels; `cityScene` lays a city out (wonders on the back row, the palace in the middle, then
   improvements and homes of the owner's age filling the middle rows outward, trees beyond, walls before the
@@ -663,8 +666,11 @@ text), second special resources with reaches (save version 20; the branch's own 
    `arrangeCity` pick (`slotScore`), never starving the city when another square would feed it
    (`keepFed`); under Science or Trade, spare entertainers become scientists or taxmen while order
    holds. Unset, the player's cities work for Growth and the computer players' weigh food 3, shields 2,
-   trade 1 as always (`cityFocus` null), so the AI is unchanged. `setFocus` picks it (the city screen's
-   Focus button on the bottom bar, F). Saves before version 23 load with `balancedWorkers` (no focus).
+   trade 1 as always (`cityFocus` null), so the AI is unchanged. Since 2026-10-24 (asked for: "4
+   multiselect") any foci together (`City.foci`, the `setFoci` command; the city screen's corner toggles,
+   F picks one from a menu): their weights added (`combinedFocus`), none picked the old balance, science
+   and trade putting spare citizens to study and tax in turn (`FocusRule.spares`); `setFocus` and
+   `City.focus` stay for the logs that hold them. Saves before version 23 load with `balancedWorkers` (no focus).
 2. AI v3 done (2026-10-17) on top of the Phase 7 harness and planner. New in v3: colonies (sites
    settlers cannot walk to, `landReach` 18 steps and never through a rival city, are "overseas":
    ferries berth beside a port, take settlers and an escort, land them on the site; Map Making then

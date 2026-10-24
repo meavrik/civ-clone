@@ -90,10 +90,10 @@ describe("city view", () => {
     expect(cityViewAt(state, { city: id }, 160, 195)).toBeNull();
     drawCityView(s, state, { city: id, picked: "temple" });
     writeFileSync(new URL("./out/city-view-picked.png", import.meta.url), encodePng(s, 3));
-    // The city screen's View button sits on the bottom bar.
+    // The city screen's View button is an icon in its title strip, beside the close box.
     let view = 0;
-    for (let y = 186; y < 200; y++) for (let x = 0; x < 320; x++) if (cityButtonAt(x, y) === "view") view++;
-    expect(view).toBeGreaterThan(100);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 320; x++) if (cityButtonAt(x, y) === "view") view++;
+    expect(view).toBeGreaterThan(60);
   });
 
   it("leaves a spot for the user's picture of each building, back to front, the one clicked lit", () => {

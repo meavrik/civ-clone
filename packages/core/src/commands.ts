@@ -77,6 +77,7 @@ export type Command =
   | { type: "workTile"; city: number; slot: number } // a free citizen, else the worker on the weakest square, moves here
   | { type: "arrangeCity"; city: number } // every citizen on the best squares
   | { type: "setFocus"; city: number; focus: CityFocus } // what the city works its squares for, then arranged for it
+  | { type: "setFoci"; city: number; foci: CityFocus[] } // any foci together (none: the old balance), then arranged for them
   | { type: "setSpecialist"; city: number; index: number; specialist: Specialist }
   | { type: "buy"; city: number }
   | { type: "renameCity"; city: number; name: string }
@@ -311,6 +312,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     case "workTile":
     case "arrangeCity":
     case "setFocus":
+    case "setFoci":
     case "setSpecialist":
     case "buy":
     case "renameCity":
@@ -801,6 +803,14 @@ function applyCityCommand(
       city.focus = cmd.focus;
       arrangeCity(state, city);
       return { ok: true };
+    case "setFoci": {
+      if (state.balancedWorkers) return { ok: false, reason: "no focus in this game" };
+      if (!cmd.foci.every((id) => FOCI.some((f) => f.id === id))) return { ok: false, reason: "no such focus" };
+      city.foci = FOCI.filter((f) => cmd.foci.includes(f.id)).map((f) => f.id);
+      delete city.focus;
+      arrangeCity(state, city);
+      return { ok: true };
+    }
     case "setSpecialist": {
       if (cmd.index < 0 || cmd.index >= city.specialists.length) return { ok: false, reason: "no such specialist" };
       city.specialists[cmd.index] = cmd.specialist;
