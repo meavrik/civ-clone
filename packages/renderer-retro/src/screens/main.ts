@@ -20,7 +20,7 @@ import {
   type GameState,
   specialOf,
 } from "@civ/core";
-import { drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
+import { drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, textPlateWidth, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade, slotColor, PALETTE } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
@@ -294,7 +294,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
  */
 export function drawCityLabel(s: Surface, cx: number, y: number, name: string, size: number, color: number, mood: CityMood | null = null): void {
   const n = String(size);
-  const plate = textWidth(n) + 2;
+  const plate = textPlateWidth(n);
   const pennant = mood ? MOOD_PENNANT_W : 0;
   const x0 = cx - Math.floor((pennant + plate + 2 + textWidth(name)) / 2);
   if (mood) drawMoodPennant(s, x0, y, mood);

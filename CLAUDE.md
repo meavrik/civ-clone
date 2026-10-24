@@ -399,12 +399,14 @@ Never ship the original's sprites, palette art, fonts or text.
   shades of their own colours, never thick black) are all 32x32 sheets with `k = 2`; icons are 16x16
   fine; citizens 32x32. Land borders blend: renderer-api `groundOwner` warps each fine pixel by world
   noise so the line between different grounds wanders, and each terrain sprite splits at load into
-  ground + objects (objects never cut). Text (`font.ts`): our own proportional pixel font, a dot a whole
-  screen pixel (a 2x2 block on the fine screen), so strokes and gaps are whole dots: asked for
-  2026-10-21 ("make game font more pixelated") in place of the 5x7 glyphs drawn at three quarters with
-  overlapping dots, then made smaller 2026-10-24 ("text font too big"): capitals and digits 3x5 dots
-  (M, N, W wider), small letters four dots tall with a dot of ascender, two descender rows for
-  g, j, p, q, y (a 3-dot x-height was tried and read badly: "s" looked like "r"); `FONT_HEIGHT` 8 stays. `drawTextPlate` puts text on an edged plate (the city size). The palette
+  ground + objects (objects never cut). Text (`font.ts`): our own 4x6-dot proportional pixel font (three
+  to five dots wide, a seventh row for the descenders of g, j, p, q, y), asked for 2026-10-21 ("make
+  game font more pixelated"). Since 2026-10-24 ("text font too big", then "can't we just reduce the base
+  pixel size?") a dot is one fine pixel on the screen, so the letters are half the layout's pixels, set
+  in the middle of their 8-pixel line (`FINE_TOP`); widths are measured that way, rounded up to screen
+  pixels (`textWidth`), so menus, wrapping and hit tests follow. A 3x5 grid of whole screen pixels was
+  tried first the same day and was "worse, not readable". `drawTextLarge` (headlines) is `scale` fine
+  pixels a dot, `drawSpaced` a dot apart, and `drawTextPlate` (the city size) fits its letters; `FONT_HEIGHT` 8 stays. `drawTextPlate` puts text on an edged plate (the city size). The palette
   is FULL: ramps `hide`, `mire`, `canopy`, `rock`, `ice` (in the old ui/fog/swamp/jungle slots),
   `meadow`, `leaf`, `mound`, `wheat`, `dune`, `heath`, `sea`, `steel`, and `jewel` (6 colours, 249-254;
   `shade` clamps to `RAMP_SIZE`); `town` (the city icons' colours, not a dark-to-light ramp) took the
