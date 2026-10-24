@@ -2445,6 +2445,9 @@ canvas.addEventListener("mousedown", (e) => {
   const city = cityAt(state, tx, ty);
   const mine = unitAt(state, tx, ty).filter((u) => u.owner === 0);
   if (city && city.owner === 0) { centerOn(tx, ty); openCity(city.id); return; }
+  // Next door to the unit in play, a square with our own units is a step: it joins them (asked for
+  // 2026-10-24: the click picked the unit there instead). Further off, the click picks from them.
+  if (mine.length && active && !(active.x === tx && active.y === ty) && isAdjacent(active, tx, ty)) { tryMove(active.id, stepTo(active, tx), ty - active.y); return; }
   if (mine.length > 1) { openStack(tx, ty, mine); return; }
   const own = mine.find((u) => u.movesLeft > 0) ?? mine[0];
   if (own) {

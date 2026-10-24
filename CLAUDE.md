@@ -337,7 +337,9 @@ Never ship the original's sprites, palette art, fonts or text.
   holding several of ours lists them in a window (`openStack` in the web app; `MenuState.units` puts
   each unit's sprite before its row, the row grown to hold it, with its standing at the right: Fortified,
   Sentry, Going, Mining 3, Ready, No moves; asked for 2026-10-24) and the one picked wakes and comes
-  into play (one with no moves left keeps its orders); otherwise,
+  into play (one with no moves left keeps its orders); next door to the unit in play, a square with our
+  own units is a step onto it, joining them (asked for 2026-10-24: the click had picked the unit there,
+  so a unit could not be moved onto a friend's square by mouse); otherwise,
   with a unit in play, `planMove` (renderer-api `plan.ts`) decides: a step next door goes at once (a
   refused one says why); a fight ("Attack: 62%", `attackOdds`), an empty enemy city ("Take Rome") or a
   square further off (the `findPath` route, "This turn"/"3 turns" by `routeTurns`) becomes `view.plan`,
