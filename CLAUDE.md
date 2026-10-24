@@ -185,7 +185,10 @@ Never ship the original's sprites, palette art, fonts or text.
   `storeLayout`) are wells sunk in the stone, icons at least 6 pixels apart, one standing for more
   only when the box is too big (then "{food}=2" under it); what a growing city keeps (core `foodKept`:
   a Granary's half, or a trait's share) fills rows of its own above a brown line named Granary (or
-  Kept). Taxmen and scientists need no size of city (the 1991 game is said to want size 5: not checked, not asked for). Esc, Enter (not held) or a click
+  Kept). Taxmen and scientists need no size of city (the 1991 game is said to want size 5: not checked, not asked for).
+  The bottom bar is quiet (asked for 2026-10-24: "too bulky"): no stone, the key hints dark grey on the
+  black, its buttons labels in frames one fine pixel wide (`barButton`: Happy lit blue when up, Exit in
+  red). Esc, Enter (not held) or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. The build menu (`openProductionMenu` in the web app) shows beside
   each choice only the turns it takes from here, counting the shields a change would keep ("never"
@@ -396,11 +399,12 @@ Never ship the original's sprites, palette art, fonts or text.
   shades of their own colours, never thick black) are all 32x32 sheets with `k = 2`; icons are 16x16
   fine; citizens 32x32. Land borders blend: renderer-api `groundOwner` warps each fine pixel by world
   noise so the line between different grounds wanders, and each terrain sprite splits at load into
-  ground + objects (objects never cut). Text (`font.ts`): our own 4x6-dot proportional pixel font (three
-  to five dots wide, a seventh row for the descenders of g, j, p, q, y), a dot a whole screen pixel
-  (a 2x2 block on the fine screen), so strokes and gaps are whole dots: asked for 2026-10-21 ("make
-  game font more pixelated") in place of the 5x7 glyphs drawn at three quarters with overlapping
-  dots; `FONT_HEIGHT` 8 stays. `drawTextPlate` puts text on an edged plate (the city size). The palette
+  ground + objects (objects never cut). Text (`font.ts`): our own proportional pixel font, a dot a whole
+  screen pixel (a 2x2 block on the fine screen), so strokes and gaps are whole dots: asked for
+  2026-10-21 ("make game font more pixelated") in place of the 5x7 glyphs drawn at three quarters with
+  overlapping dots, then made smaller 2026-10-24 ("text font too big"): capitals and digits 3x5 dots
+  (M, N, W wider), small letters four dots tall with a dot of ascender, two descender rows for
+  g, j, p, q, y (a 3-dot x-height was tried and read badly: "s" looked like "r"); `FONT_HEIGHT` 8 stays. `drawTextPlate` puts text on an edged plate (the city size). The palette
   is FULL: ramps `hide`, `mire`, `canopy`, `rock`, `ice` (in the old ui/fog/swamp/jungle slots),
   `meadow`, `leaf`, `mound`, `wheat`, `dune`, `heath`, `sea`, `steel`, and `jewel` (6 colours, 249-254;
   `shade` clamps to `RAMP_SIZE`); `town` (the city icons' colours, not a dark-to-light ramp) took the
@@ -408,9 +412,16 @@ Never ship the original's sprites, palette art, fonts or text.
   drawn with `src/icons.ts`) and the small marks (`drawMark`: tick, new, moves) are hand-drawn
   16x16: food is an ear of wheat, `shield` (production) a hammer, `people` a man and a woman; roads,
   rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.
-  Citizens (city screen) are whole figures: `citizens.art.ts` holds a man and a woman to each sprite,
-  one per mood or trade, plus a "-2" look (beard, headscarf); `citizens.ts` swaps the sheet's
-  stand-in skin, hair, trouser and clothes colours for each person's (`skin` ramp for deep skin tones).
+  Citizens (city screen) are whole figures 16x26 fine pixels (`CITIZEN_W` 8 x `CITIZEN_H` 13), drawn
+  anew 2026-10-24 (asked for: the Scale2x'd 16x16 figures with black outlines were "really BAD") in the
+  units' manner: every part outlined in a dark shade of its own colour, lit from the upper left, black
+  only for the eyes (and the taxman's bowler). `citizens.art.ts` holds a man and a woman to each sprite,
+  one per mood or trade, plus a "-2" look (beard; a hood in her clothes' colour); arms up happy, at the
+  sides content, crossed unhappy, a smile or a frown; the entertainer a jester's cap with bells, the
+  taxman a bowler and purse, the scientist a white coat, glasses and flask. Clothes: yellow happy, blue
+  content, red unhappy, magenta, orange, white. The sheet is composed from hand-drawn part grids
+  (heads, upper bodies, legs or dress, hats); `citizens.ts` swaps its stand-ins, three tones each (lit,
+  shade, outline: skin 6/4/2, hair e/c/a, clothes P/p/r, trousers C/B/A), for each person's.
   Who stands where is `citizenLook(city, i)` in renderer-api (a hash, so the same people every frame);
   the modern renderer paints the same people in `renderer-modern/src/citizens.ts`.
   Chrome, as the original's main screen: every panel, window, page and button is the same light
@@ -424,7 +435,7 @@ Never ship the original's sprites, palette art, fonts or text.
   back into `src/art`, rejecting any pixel outside the sprite's palette legend; `npm run sprites -- icons`
   draws the mobile app's icons (a walled city, `icons.ts`) into `apps/mobile/public/icons`. A sprite may
   name up to five ramps (`ramps=a,b,c,d,e`; characters 0-7, a-h, A-H, JKLMOQST, jloqstvx), for pictures
-  of many colours. `draw/*.ts` make sheets: `cities.ts`, `features.ts`.
+  of many colours. `draw/*.ts` make sheets: `cities.ts`, `features.ts`, `citizens.ts` (the city screen's people from part grids).
 - `packages/renderer-modern` — canvas-2D renderer on a 960x600 logical surface (same panel/
   viewport split, 48px tiles): `theme.ts` (all colours and fonts), `draw.ts` (panels, wrapped
   text, bars), `tiles.ts`/`markers.ts` (terrain, overlays, units, cities), `screens/*`. It draws

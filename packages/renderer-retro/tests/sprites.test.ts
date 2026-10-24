@@ -58,14 +58,17 @@ describe("sprite sheets", () => {
     const man = citizenSprite("content", { woman: false, style: 0, skin: 0, hair: 0, legs: 0 });
     const other = citizenSprite("content", { woman: false, style: 0, skin: 5, hair: 4, legs: 3 });
     expect([man.width, man.height]).toEqual([CITIZEN_W, CITIZEN_H]);
-    expect(man.data.includes(C.WHITE!)).toBe(true);
-    expect(other.data.includes(C.WHITE!)).toBe(true);
+    // Content citizens wear blue, whoever they are.
+    expect(man.data.includes(shade("ocean", 7))).toBe(true);
+    expect(other.data.includes(shade("ocean", 7))).toBe(true);
     expect(Array.from(man.data).join()).not.toBe(Array.from(other.data).join());
-    // No stand-in colour survives the swap (in colours that share no index with one).
-    const standIns = [shade("flesh", 6), shade("flesh", 4), shade("earth", 1), shade("earth", 3), shade("grey", 2), shade("grey", 1)];
+    // No stand-in colour survives the swap (in colours that share no index with one); outlines are never black.
+    const standIns = [shade("flesh", 6), shade("flesh", 4), shade("flesh", 2), shade("earth", 4), shade("earth", 2), shade("earth", 0), shade("grey", 2), shade("grey", 1), shade("grey", 0)];
     for (const mood of MOODS) for (const woman of [false, true]) for (const style of [0, 1] as const) {
       const s = citizenSprite(mood, { woman, style, skin: 5, hair: 4, legs: 3 });
-      for (const c of standIns) expect(s.data.includes(c), `${mood} ${woman} ${style}`).toBe(false);
+      for (const c of [...standIns, ...(mood === "unhappy" ? [] : [C.RED!])]) expect(s.data.includes(c), `${mood} ${woman} ${style}`).toBe(false);
+      // Only the eyes are black (the taxman's bowler is black too).
+      if (mood !== "taxman") expect(s.data.filter((c) => c === C.BLACK).length, mood).toBeLessThanOrEqual(2);
     }
   });
 

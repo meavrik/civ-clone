@@ -496,19 +496,28 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const price = cost ? `Buy ${cost}$` : "Complete";
   say(s, RIGHT.x + RIGHT.w - 3 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);
 
-  // Hints, or the latest word, and the way out.
-  drawStone(s, 0, BAR_Y, SCREEN_W, SCREEN_H - BAR_Y);
+  // Hints, or the latest word, and the way out: quiet text on the black, the buttons thin frames.
   const { view: viewButton, happy: happyButton, focus: focusButton } = CITY_BUTTONS;
-  if (view.message) drawTextWrapped(s, 4, BAR_Y + 3, focusButton.x - 8, view.message, C.BLUE!, 1);
-  else drawText(s, 4, BAR_Y + 3, CITY_KEYS_HINT, DIM);
+  if (view.message) drawTextWrapped(s, 4, BAR_Y + 2, focusButton.x - 8, view.message, shade("azure", 7), 1);
+  else drawText(s, 4, BAR_Y + 2, CITY_KEYS_HINT, shade("panel", 2));
   const focus = cityFocus(state, city);
-  if (focus) drawButton(s, focusButton.x, focusButton.y, focusButton.w, focusButton.h, focus.name);
-  drawButton(s, happyButton.x, happyButton.y, happyButton.w, happyButton.h, happyButton.label, true, view.happy === true);
-  drawButton(s, viewButton.x, viewButton.y, viewButton.w, viewButton.h, viewButton.label);
-  s.rect(EXIT.x, EXIT.y, EXIT.w, EXIT.h, C.RED!);
-  s.hline(EXIT.x, EXIT.y, EXIT.w, C.LRED!);
-  s.vline(EXIT.x, EXIT.y, EXIT.h, C.LRED!);
-  drawTextCentered(s, EXIT.x + EXIT.w / 2, EXIT.y + 2, "Exit", C.WHITE!);
+  if (focus) barButton(s, focusButton, focus.name);
+  barButton(s, happyButton, happyButton.label, view.happy ? "on" : "plain");
+  barButton(s, viewButton, viewButton.label);
+  barButton(s, EXIT, "Exit", "exit");
+}
+
+/** A button of the bottom bar: its label in a frame one fine pixel wide, lit blue when on, red for the way out. */
+function barButton(s: Surface, b: { x: number; y: number; w: number; h: number }, label: string, style: "plain" | "on" | "exit" = "plain"): void {
+  const k = s.k;
+  if (style === "on") s.rect(b.x, b.y, b.w, b.h, shade("azure", 1));
+  const edge = style === "exit" ? C.RED! : style === "on" ? shade("azure", 4) : shade("panel", 1);
+  s.frect(b.x * k, b.y * k, b.w * k, 1, edge);
+  s.frect(b.x * k, (b.y + b.h) * k - 1, b.w * k, 1, edge);
+  s.frect(b.x * k, b.y * k, 1, b.h * k, edge);
+  s.frect((b.x + b.w) * k - 1, b.y * k, 1, b.h * k, edge);
+  const ink = style === "exit" ? C.LRED! : style === "on" ? C.WHITE! : shade("panel", 5);
+  drawTextCentered(s, b.x + b.w / 2, b.y + Math.floor((b.h - FONT_HEIGHT) / 2), label, ink);
 }
 
 function playerColorOf(state: GameState, owner: number): number {
