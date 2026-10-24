@@ -514,7 +514,7 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   } else if (view.focus === undefined) {
     drawIconLine(ctx, TEXT_X, y, "{hourglass} End of turn", { size: 16, weight: "600" });
     y += LINE + 4;
-    text(ctx, TEXT_X, y, view.autoEnd ? "ending automatically" : "press Enter", { size: 13, color: UI.dim });
+    text(ctx, TEXT_X, y, "press Enter", { size: 13, color: UI.dim });
     y += LINE;
   }
   y += 8;

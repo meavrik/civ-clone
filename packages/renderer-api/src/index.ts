@@ -113,8 +113,6 @@ export interface MainScreenView {
   plan?: MovePlan | undefined;
   /** Tile the player clicked to inspect; shown instead of the message. */
   inspect?: { x: number; y: number } | undefined;
-  /** The turn ends by itself once no unit needs orders. */
-  autoEnd?: boolean | undefined;
   /** Index into MENU_BAR of the dropdown that is open, to highlight its title. */
   menuOpen?: number | undefined;
   /** Units sliding between squares: each is drawn at its position here, not on its square. */
@@ -367,7 +365,7 @@ export interface Renderer {
   /** What lies under a point of the research panel: an advance in the list or on the card, a button, the scroll bar. */
   researchHit(state: GameState, view: ResearchView, px: number, py: number): ResearchHit | null;
   /** What the main screen's status panel holds under a point: the research row opens the research panel. */
-  statusAt(state: GameState, view: MainScreenView, px: number, py: number): "research" | null;
+  statusAt(state: GameState, view: MainScreenView, px: number, py: number): "research" | "endTurn" | null;
 
   /** A report page (wonders, top cities...). */
   report(page: ReportPage): void;

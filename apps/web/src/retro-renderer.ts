@@ -13,7 +13,7 @@ import {
   drawDiplomacyScreen,
   AUDIENCE_PICTURE,
   drawNewTech,
-  NEW_TECH_PICTURE,
+  newTechPicture,
   newTechHit,
   drawBuilt,
   builtHit,
@@ -132,7 +132,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     newTech: (state, view) => {
       drawNewTech(screen, state, view);
       // The advance's picture as it is, in its frame.
-      const picture = techPlace(view.advance, { ...NEW_TECH_PICTURE, ...screenBox });
+      const picture = techPlace(view.advance, { ...newTechPicture(), ...screenBox });
       if (picture) pictures.push(picture);
     },
     newTechHit: (view, px, py) => newTechHit(view, px, py),
@@ -162,7 +162,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       return { x: wrapX(state.map, view.originX + Math.floor((px - VIEW_X + ox) / TILE)), y: ty };
     },
     researchHit: (state, view, px, py) => researchHit(state, view, px, py),
-    statusAt: (state, _view, px, py) => statusPanelAt(state, px, py),
+    statusAt: (state, view, px, py) => statusPanelAt(state, px, py, view),
     minimapAt(state: GameState, px, py) {
       if (px >= VIEW_X) return null;
       return minimapSquare(state.map, px, py - (VIEW_Y + 2));

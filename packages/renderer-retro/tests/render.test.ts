@@ -862,9 +862,21 @@ describe("advisor screens", () => {
     applyCommand(state, { type: "found", unit: state.units.find((u) => u.type === "settlers")!.id });
     const at = (): Set<string> => {
       const found = new Set<string>();
-      for (let y = 0; y < 200; y++) for (let x = 0; x < 80; x++) if (statusPanelAt(state, x, y)) found.add(`${x},${y}`);
+      for (let y = 0; y < 200; y++) for (let x = 0; x < 80; x++) if (statusPanelAt(state, x, y) === "research") found.add(`${x},${y}`);
       return found;
     };
+    // With nothing awaiting orders the panel's End of Turn ends the turn when clicked, below the research row.
+    const idle: MainScreenView = { originX: 0, originY: 0, blink: false };
+    const endAt = (v: MainScreenView) => {
+      const ys: number[] = [];
+      for (let y = 0; y < 200; y++) if (statusPanelAt(state, 20, y, v) === "endTurn") ys.push(y);
+      return ys;
+    };
+    const active = state.activeUnit;
+    state.activeUnit = null;
+    expect(endAt(idle).length).toBeGreaterThan(8);
+    state.activeUnit = active ?? state.units.find((u) => u.owner === 0)?.id ?? null;
+    if (state.activeUnit !== null) expect(endAt(idle)).toEqual([]);
     state.players[0]!.researching = null;
     expect(at().size).toBe(0); // no row while nothing is under study
     applyCommand(state, { type: "research", advance: "alphabet" });

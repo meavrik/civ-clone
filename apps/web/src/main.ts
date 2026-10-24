@@ -220,7 +220,7 @@ type Screen =
   | { kind: "research"; view: ResearchView; back: Screen; then: () => void }
   // An advance just found, `found[at]` of those found together; the research is `due` to be picked after.
   | { kind: "newTech"; view: NewTechView; found: string[]; at: number; due: boolean; back: Screen; then: () => void }
-  | { kind: "built"; view: BuiltView; then: () => void } // a city of ours finished an improvement, a wonder or a spaceship part
+  | { kind: "built"; view: BuiltView; then: () => void; under: Screen } // a city of ours finished an improvement, a wonder or a spaceship part, the window over `under`
   | { kind: "science" }
   | { kind: "rates" }
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
@@ -372,20 +372,8 @@ function battleReport(fights: readonly UnitBattle[], then: () => void): void {
   modal("Under attack!", lines, ["OK"], () => then(), 0, then);
 }
 
-/** The turn ends by itself once nothing needs orders (game menu toggles it; remembered per browser). */
-let autoEnd = (() => { try { return localStorage.getItem("epochs.autoEnd") !== "off"; } catch { return true; } })();
-let lastInput = 0;
-let lastAutoEnd = 0;
-/** A game just loaded waits for a key or click before its turn can end by itself, so a restored turn is seen first. */
-let autoEndHeld = false;
-function noteInput(): void {
-  lastInput = performance.now();
-  autoEndHeld = false;
-}
-function setAutoEnd(on: boolean): void {
-  autoEnd = on;
-  try { localStorage.setItem("epochs.autoEnd", on ? "on" : "off"); } catch { /* private mode */ }
-}
+// The turn never ends by itself (asked for 2026-10-24: "player needs to click enter for next turn - like
+// in the original"): once nothing needs orders the panel says End of Turn, and Enter (or a click on it) ends it.
 
 /** Civilization borders on the map (game menu toggles them; remembered per browser). The original has none. */
 let borders = (() => { try { return localStorage.getItem("epochs.borders") !== "off"; } catch { return true; } })();
@@ -505,7 +493,6 @@ function resumeGame(save: SaveGame): void {
     cam.ready = false;
     followActive(true);
     autosave();
-    autoEndHeld = true;
     say(`Loaded: ${formatYear(turnToYear(state.turn))}`);
   } catch (err) {
     say(`Load failed: ${(err as Error).message}`, 4000);
@@ -697,7 +684,12 @@ function builtWindow(cityId: number, p: Production, then: () => void, change?: C
   const city = state.cities.find((c) => c.id === cityId);
   const notice = builtNotice(state, cityId, p, change);
   if (!city || city.owner !== 0 || !notice) { then(); return; }
-  if (p.kind !== "unit") { screenState = { kind: "built", view: { city: cityId, production: p, selected: 1 }, then }; return; }
+  if (p.kind !== "unit") {
+    // A small window over the game; one after another, each over the same screen.
+    const under = screenState.kind === "built" ? screenState.under : screenState;
+    screenState = { kind: "built", view: { city: cityId, production: p, selected: 1 }, then, under };
+    return;
+  }
   openCity(cityId, then);
   modal(notice.title, notice.lines, ["Build next..."], () => openProductionMenu(cityId));
 }
@@ -1147,7 +1139,6 @@ function barEntries(index: number): MenuEntry[] {
         ["Tax Rate", "T", () => { screenState = { kind: "rates" }; }],
         ["Find City", "", () => openFindCity()],
         ["Revolution!", "G", () => askRevolution()],
-        [`Auto End Turn: ${autoEnd ? "On" : "Off"}`, "", () => { setAutoEnd(!autoEnd); say(`Auto end turn ${autoEnd ? "on" : "off"}`); }],
         [`Borders: ${borders ? "On" : "Off"}`, "", () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
         ["Save Game", "", () => void openSaveMenu()],
         ["Load Game", "", () => void openLoadMenu()],
@@ -1999,13 +1990,11 @@ addEventListener("keydown", (e) => {
     const sc0 = screenState;
     if (sc0.kind === "map" || (sc0.kind === "menu" && sc0.bar !== undefined)) {
       e.preventDefault();
-      noteInput();
       openBarMenu(BAR_KEYS[e.code]!);
     }
     return;
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  noteInput();
   view.inspect = undefined;
   view.callout = undefined;
   view.plan = undefined;
@@ -2133,7 +2122,6 @@ canvas.addEventListener("mousemove", (e) => {
 });
 canvas.addEventListener("mousedown", (e) => {
   const [px, py] = toLogical(e);
-  noteInput();
   view.callout = undefined;
   // A planned move lasts one click: carried out if that click is on its square, dropped otherwise.
   const pending = view.plan;
@@ -2232,8 +2220,10 @@ canvas.addEventListener("mousedown", (e) => {
   if (bar >= 0) { openBarMenu(bar); return; }
   const mm = renderer.minimapAt(state, px, py);
   if (mm) { centerOn(mm.x, mm.y); return; }
-  // The research row of the status panel opens the research panel.
-  if (e.button === 0 && renderer.statusAt(state, view, px, py) === "research") { openTree({ choosing: true, closable: true }); return; }
+  // The research row of the status panel opens the research panel; its End of Turn ends the turn.
+  const panelHit = e.button === 0 ? renderer.statusAt(state, view, px, py) : null;
+  if (panelHit === "research") { openTree({ choosing: true, closable: true }); return; }
+  if (panelHit === "endTurn" && state.activeUnit === null) { endTurn(); return; }
   if (handoff) { finishHandoff(); return; }
   const hit = renderer.tileAt(state, view, px, py);
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
@@ -2310,8 +2300,9 @@ function draw(sc: Screen): void {
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
     case "cityView": renderer.cityView(state, sc.view); break;
     case "research": renderer.research(state, sc.view); break;
-    case "newTech": renderer.newTech(state, sc.view); break;
-    case "built": renderer.built(state, sc.view); break;
+    // The small windows over the screen they opened on.
+    case "newTech": draw(sc.back); renderer.newTech(state, sc.view); break;
+    case "built": draw(sc.under); renderer.built(state, sc.view); break;
     case "science": renderer.science(state); break;
     case "rates": renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;
@@ -2338,7 +2329,6 @@ function frame(t: number): void {
   if (screenState.kind === "title" && titleAt >= INTRO_MS) void openTitleMenu();
   if (t - lastBlink > 400) { blinkOn = !blinkOn; lastBlink = t; }
   view.blink = blinkOn;
-  view.autoEnd = autoEnd;
   view.borders = borders;
   if (screenState.kind === "research") screenState.view.blink = blinkOn;
   if (screenState.kind !== "title" && screenState.kind !== "setup") { stepCamera(t); stepEdgePan(t); siteHint(); }
@@ -2358,12 +2348,6 @@ function frame(t: number): void {
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
   if (!animating && afterSlides.length && screenState.kind === "map") for (const fn of afterSlides.splice(0)) fn();
-  // Auto end turn: nothing to order, the player has been idle a moment, and the map is showing.
-  if (autoEnd && !autoEndHeld && screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length && !handoff
-    && t - lastInput > 900 && t - lastAutoEnd > 900) {
-    lastAutoEnd = t;
-    endTurn();
-  }
   renderer.beginFrame();
   draw(screenState);
   renderer.present();

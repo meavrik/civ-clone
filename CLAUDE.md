@@ -204,11 +204,12 @@ Never ship the original's sprites, palette art, fonts or text.
   supports elsewhere, faded, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
   the Building Completed window (`built.ts`, `builtCard`; asked for 2026-10-24 with the user's template; retro
-  `screens/built.ts`, modern a plain modal): a navy title strip (hammer, BUILDING/WONDER/SPACESHIP PART
-  COMPLETED, close box), the name large over "Completed in Rome", the user's picture on a slate bed, a
-  parchment panel with Description (`text` on each rule in `rules/buildings.ts`, `wonders.ts`, `spaceship.ts`,
-  then quieter lines: what it builds on, what builds on it, when a wonder stops working) and City Effects
-  (icon and numbers from the rule's fields: "+50% science", "+2 culture"), the upkeep along a strip, then
+  `screens/built.ts`, modern a plain modal), a small window over the game since 2026-10-24 ("should be a
+  modal opened on top of the game and not a full screen window"; the web app draws the screen under it,
+  `under`): a navy title strip (hammer, BUILDING/WONDER/SPACESHIP PART COMPLETED, close box), the name
+  large over "Completed in Rome", the user's picture on a slate bed, a parchment panel with Description
+  (`text` on each rule in `rules/buildings.ts`, `wonders.ts`, `spaceship.ts`) and City Effects (icon and
+  numbers from the rule's fields: "+50% science", "+2 culture") over the upkeep, then
   View City (the city screen, its build menu up) and Continue (the build menu over the map); either way the
   turn's news goes on after (`then`). Left/Right/Tab, Enter (not held), V, Esc; the pointer lights a button.
   `Renderer.built`/`builtHit`. Finished units say nothing (the city goes on building them), except Settlers: they cost a
@@ -365,14 +366,19 @@ Never ship the original's sprites, palette art, fonts or text.
   panel's research row: `Renderer.statusAt`); when research is due it closes only on a pick.
   New Technology window (`newtech.ts`; asked for 2026-10-23 with the user's template and a picture for
   each advance): every advance found (end of turn, village, diplomat, treaty, Debug) gets one, in turn
-  (`announce` in the web app), before the research panel. A navy title strip (bulb, NEW TECHNOLOGY, close
-  box), the name large over its era, the user's picture of the advance in a gold frame, then parchment
-  panels: Description (`AdvanceRule.text`, a sentence of our own; `era` from `ERAS`, ours too), Unlocks
-  (`newTechCard`: the research card's gifts, units standing in their boxes; "Leads to" the next advances
-  when it brings nothing itself) and Prerequisites; View Tech Tree (the panel on that advance's card) and
+  (`announce` in the web app), before the research panel; a small window over the game since 2026-10-24
+  (`modalRect`, 236x147, centred on the screen it opens over, which the web app draws first: the
+  screen's `back`; the Building Completed window shares the size and frame). A navy title strip (bulb,
+  NEW TECHNOLOGY, close box), the name large over its era, the user's picture of the advance in a gold
+  frame, then parchment panels: Description (`AdvanceRule.text`, a sentence of our own; `era` from `ERAS`,
+  ours too) with "Needs ..." under it, Unlocks (`newTechCard`: the research card's gifts, one or two in
+  their boxes with names, more as a line of names; "Leads to" the next advances when it brings nothing
+  itself); View Tech Tree (the panel on that advance's card) and
   Continue (the next window, else the panel when research is due, else back). Left/Right/Tab, Enter (not
   held), T, Esc; the pointer lights a button. `Renderer.newTech`/`newTechHit`; retro draws it in
-  `screens/newtech.ts` (`NEW_TECH_PICTURE` is where the picture goes), modern as a plain modal.
+  `screens/newtech.ts` (`newTechPicture(screenW)` is where the picture goes), modern as a plain modal.
+  The adapters drop the pictures of the screen under a small window (they would cover it), and the
+  phone draws it on whichever surface is under it, the wide map's or a 320x200 screen's.
   Borders (`territory.ts`, toggled in the Game menu, which hides only the drawing): core's `claims`
   from the cities the viewer knows, the same land the rules read for trespass; `borderSides` gives the edges and
   where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimaps
@@ -471,7 +477,9 @@ Never ship the original's sprites, palette art, fonts or text.
   per browser: slot 0 is the autosave, written as every turn begins and when a game starts or loads).
   The title offers "Continue" (the autosave; its "Back to an earlier turn" was dropped, asked for
   2026-10-22) and the Game menu "Back to an Earlier Turn": a save is a seed and the player's commands,
-  so `turnStarts`/`rewindSave` (core `save.ts`) cut its log back to the start of any turn it saw. A loaded game holds Auto End Turn until the next key or click.
+  so `turnStarts`/`rewindSave` (core `save.ts`) cut its log back to the start of any turn it saw. The turn never ends by itself (auto end turn removed 2026-10-24, asked for: "player needs to click
+  enter for next turn - like in the original civ1"): with nothing to order the status panel says End of Turn,
+  Press Enter, and Enter or a click on it (`statusAt` "endTurn") ends the turn, the phone's way too.
   Diplomacy: a meeting first holds the map on whom we met (the `beat` screen:
   a callout, 1.6 s or any key), then their leader receives us (`audience`: without a treaty propose
   peace (`proposePeace`: yes, a gift first, or no); open borders and exchanging maps are not offered

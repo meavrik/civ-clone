@@ -16,7 +16,7 @@ import {
   drawDiplomacyScreen,
   AUDIENCE_PICTURE,
   drawNewTech,
-  NEW_TECH_PICTURE,
+  newTechPicture,
   newTechHit,
   drawBuilt,
   builtHit,
@@ -277,14 +277,18 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if (scene) pictures.push(scene);
     }),
     diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px - inset(), py),
-    newTech: screen((s, state: GameState, view: NewTechView) => {
+    // The small windows open over whatever is drawn under them (the wide map, or a 320x200 screen),
+    // centred on it.
+    newTech: (state: GameState, view: NewTechView) => {
+      const s = surface();
       drawNewTech(s, state, view);
-      const picture = techPlace(view.advance, onScreen(NEW_TECH_PICTURE));
+      const box = newTechPicture(s.width);
+      const picture = techPlace(view.advance, wideFrame ? { ...box, logicalW: screenW(), logicalH: SCREEN_H } : onScreen(box));
       if (picture) pictures.push(picture);
-    }),
-    newTechHit: (view, px, py) => newTechHit(view, px - inset(), py),
-    built: screen(drawBuilt),
-    builtHit: (view, px, py) => builtHit(view, px - inset(), py),
+    },
+    newTechHit: (view, px, py) => (shown.wide ? newTechHit(view, px, py, screenW()) : newTechHit(view, px - inset(), py)),
+    built: (state, view) => drawBuilt(surface(), state, view),
+    builtHit: (view, px, py) => (shown.wide ? builtHit(view, px, py, screenW()) : builtHit(view, px - inset(), py)),
     prepare: (state) => preloadScenes(state),
     end: screen(drawEndScreen),
     spaceship: screen(drawSpaceshipScreen),
@@ -313,7 +317,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       const v = view === shown.view && shown.drawn ? shown.drawn : view;
       return squareAt(state, v, px, py);
     },
-    statusAt: (state, _view, px, py) => statusPanelAt(state, px, py),
+    statusAt: (state, view, px, py) => statusPanelAt(state, px, py, view),
     minimapAt(state, px, py) {
       if (px >= VIEW_X) return null;
       return minimapSquare(state.map, px, py - (VIEW_Y + 2));

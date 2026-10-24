@@ -1,34 +1,51 @@
 import type { GameState } from "@civ/core";
-import { NEW_TECH_BUTTONS, newTechCard, type NewTechHit, type NewTechView, type Unlock } from "@civ/renderer-api";
-import { drawSpaced, drawText, drawTextLarge, FONT_HEIGHT, spacedWidth, textWidth, wrapText } from "../font.js";
+import { NEW_TECH_BUTTONS, newTechCard, type IconName, type NewTechHit, type NewTechView, type Unlock } from "@civ/renderer-api";
+import { drawSpaced, drawText, drawTextLarge, drawTextWrapped, FONT_HEIGHT, spacedWidth, textWidth, wrapText } from "../font.js";
 import { drawIcon, ICON } from "../icons.js";
 import { unitSprite } from "../overlays.js";
-import { shade, slotColor } from "../palette.js";
+import { C, shade, slotColor } from "../palette.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
 import { drawStone, INK, speckle } from "../widgets.js";
 
 /**
- * The New Technology window, after the user's template (2026-10-23): a navy title strip with the bulb
- * and a close box, the advance's name large over its era, the user's picture of it in a gold frame
- * (`NEW_TECH_PICTURE`: the apps lay the picture itself over the canvas there, as it is), beside
- * parchment panels saying what it is and what it unlocks, what it needed along the bottom, then the
- * buttons: View Tech Tree on the stone, Continue in gold.
+ * The New Technology window, after the user's template (2026-10-23), made a small window over the game
+ * (asked for 2026-10-24: "should be a modal opened on top of the game and not a full screen window"):
+ * a navy title strip with the bulb and a close box, the advance's name large over its era, the user's
+ * picture of it in a gold frame (`newTechPicture`: the apps lay the picture itself over the canvas there,
+ * as it is), beside parchment panels saying what it is (and what it needed) and what it unlocks, then
+ * the buttons: View Tech Tree on the stone, Continue in gold. Centred on the screen it opens over.
  */
 
-const TITLE = { x: 3, y: 3, w: SCREEN_W - 6, h: 13 };
-const CLOSE = { x: TITLE.x + TITLE.w - 12, y: TITLE.y + 2, w: 9, h: 9 };
-const NAME = { x: 5, y: 18, w: SCREEN_W - 10, h: 27 };
-const FRAME = { x: 5, y: 47, w: 108, h: 108 };
-/** Where the advance's picture goes (square, as the pictures are), inside its frame. */
-export const NEW_TECH_PICTURE = { x: FRAME.x + 2, y: FRAME.y + 2, w: FRAME.w - 4, h: FRAME.h - 4 } as const;
-const DESC = { x: 116, y: 47, w: SCREEN_W - 121, h: 41 };
-/** How wide the description's lines may run (three of them fit). */
-export const NEW_TECH_TEXT_W = DESC.w - 10;
-const UNLOCKS = { x: 116, y: 90, w: SCREEN_W - 121, h: 65 };
-const NEEDS = { x: 5, y: 158, w: SCREEN_W - 10, h: 24 };
-const BUTTON = { y: 185, w: 112, h: 13 };
+type Rect = { x: number; y: number; w: number; h: number };
+/** The window's size: the Building Completed window shares it (`modalRect`). */
+const MODAL = { w: 236, h: 147 };
+/** A small window centred on a screen `screenW` wide (the phone's map is wider than 320). */
+export function modalRect(screenW = SCREEN_W): Rect {
+  return { x: Math.floor((screenW - MODAL.w) / 2), y: Math.floor((SCREEN_H - MODAL.h) / 2), ...MODAL };
+}
+const at = (o: Rect, x: number, y: number, w: number, h: number): Rect => ({ x: o.x + x, y: o.y + y, w, h });
 const HEAD_H = 10;
+/** Where each part of the window stands, the window's top left at `o`. */
+function layout(o: Rect) {
+  const frame = at(o, 5, 47, 78, 78);
+  return {
+    title: at(o, 3, 3, o.w - 6, 13),
+    close: at(o, o.w - 15, 5, 9, 9),
+    name: at(o, 5, 18, o.w - 10, 27),
+    frame,
+    picture: { x: frame.x + 2, y: frame.y + 2, w: frame.w - 4, h: frame.h - 4 },
+    desc: at(o, 86, 47, o.w - 91, 43),
+    unlocks: at(o, 86, 92, o.w - 91, 33),
+    buttons: [at(o, 6, 129, 108, 13), at(o, o.w - 6 - 108, 129, 108, 13)],
+  };
+}
+/** Where the advance's picture goes (square, as the pictures are), inside its frame, on a screen `screenW` wide. */
+export function newTechPicture(screenW = SCREEN_W): Rect {
+  return layout(modalRect(screenW)).picture;
+}
+/** How wide the description's lines may run (three of them fit). */
+export const NEW_TECH_TEXT_W = MODAL.w - 91 - 10;
 /** An unlock's box: as big as a unit standing in it. */
 const BOX = 16;
 
@@ -43,19 +60,16 @@ const BROWN = () => shade("hide", 0);
 const BROWN_DIM = () => shade("hide", 3);
 const BED = () => shade("town", 1);
 
-/** The buttons: View Tech Tree on the left, Continue on the right. */
-function buttonRects(): { x: number; y: number; w: number; h: number }[] {
-  return [
-    { x: 9, y: BUTTON.y, w: BUTTON.w, h: BUTTON.h },
-    { x: SCREEN_W - 9 - BUTTON.w, y: BUTTON.y, w: BUTTON.w, h: BUTTON.h },
-  ];
+/** What lies under a point: a button (View Tech Tree on the left, Continue on the right), the close box (a little round it counts too), or nothing. */
+export function newTechHit(_view: NewTechView, px: number, py: number, screenW = SCREEN_W): NewTechHit | null {
+  return modalHit(layout(modalRect(screenW)), px, py, "tree");
 }
 
-/** What lies under a point: a button, the close box (a little round it counts too), or nothing. */
-export function newTechHit(_view: NewTechView, px: number, py: number): NewTechHit | null {
-  const i = buttonRects().findIndex((b) => px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h);
-  if (i >= 0) return i === 0 ? "tree" : "continue";
-  if (px >= CLOSE.x - 3 && px < CLOSE.x + CLOSE.w + 3 && py >= TITLE.y && py < TITLE.y + TITLE.h) return "close";
+/** The hit test both small windows share: the first button, Continue, or the close box. */
+export function modalHit<F extends string>(l: { title: Rect; close: Rect; buttons: Rect[] }, px: number, py: number, first: F): F | "continue" | "close" | null {
+  const i = l.buttons.findIndex((b) => px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h);
+  if (i >= 0) return i === 0 ? first : "continue";
+  if (px >= l.close.x - 3 && px < l.close.x + l.close.w + 3 && py >= l.title.y && py < l.title.y + l.title.h) return "close";
   return null;
 }
 
@@ -91,28 +105,25 @@ function itemBox(s: Surface, x: number, y: number, size: number, icon: Unlock["i
   else drawIcon(s, icon, x + Math.floor((size - ICON) / 2), y + Math.floor((size - ICON) / 2));
 }
 
-/** The unlocks, a row each with its name (and kind, in one column), in two columns when there are more than three. */
-function drawUnlocks(s: Surface, unlocks: Unlock[], leads: boolean, owner: number): void {
-  const top = UNLOCKS.y + HEAD_H + 3;
-  const pitch = BOX + 1;
-  const rows = Math.floor((UNLOCKS.y + UNLOCKS.h - 1 - top) / pitch);
-  const cols = unlocks.length > rows ? 2 : 1;
-  const colW = Math.floor((UNLOCKS.w - 8) / cols);
-  const slots = rows * cols;
-  const shown = unlocks.length > slots ? unlocks.slice(0, slots - 1) : unlocks;
-  shown.forEach((u, i) => {
-    const x = UNLOCKS.x + 4 + Math.floor(i / rows) * colW;
-    const y = top + (i % rows) * pitch;
-    itemBox(s, x, y, BOX, u.icon, u.unit, owner);
-    const room = colW - BOX - 6;
-    const name = fit(u.name, room);
-    const end = drawText(s, x + BOX + 4, y + 4, name, BROWN());
-    if (cols === 1 && !leads && end + 4 + textWidth(u.kind) <= x + BOX + 4 + room) drawText(s, end + 4, y + 4, u.kind, BROWN_DIM());
-  });
-  if (shown.length < unlocks.length) {
-    const i = shown.length;
-    drawText(s, UNLOCKS.x + 4 + Math.floor(i / rows) * colW + BOX + 4, top + (i % rows) * pitch + 4, `and ${unlocks.length - i} more`, BROWN_DIM());
+/**
+ * The unlocks in their panel: one or two side by side, each in its box with its name (and kind, when
+ * alone); more than two named in a line or two of text (the research panel shows them whole).
+ */
+function drawUnlocks(s: Surface, panelRect: Rect, unlocks: Unlock[], leads: boolean, owner: number): void {
+  const top = panelRect.y + HEAD_H + 3;
+  const x0 = panelRect.x + 4;
+  if (unlocks.length > 2) {
+    drawTextWrapped(s, x0 + 1, top, panelRect.w - 10, unlocks.map((u) => u.name).join(", "), BROWN(), 2);
+    return;
   }
+  const colW = Math.floor((panelRect.w - 8) / Math.max(1, unlocks.length));
+  unlocks.forEach((u, i) => {
+    const x = x0 + i * colW;
+    itemBox(s, x, top, BOX, u.icon, u.unit, owner);
+    const room = colW - BOX - 6;
+    const end = drawText(s, x + BOX + 4, top + 4, fit(u.name, room), BROWN());
+    if (unlocks.length === 1 && !leads && end + 4 + textWidth(u.kind) <= x + BOX + 4 + room) drawText(s, end + 4, top + 4, u.kind, BROWN_DIM());
+  });
 }
 
 /** A raised button: the game's stone, or gold for the one that goes on; the lit one ringed in brown (the Building Completed window's too). */
@@ -128,68 +139,76 @@ export function drawWindowButton(s: Surface, b: { x: number; y: number; w: numbe
   drawSpaced(s, b.x + Math.floor(b.w / 2), b.y + 3, label, gold ? BROWN() : INK);
 }
 
-/** The window's frame: tan stone inside a brown and gold border, studs at the corners. */
-function drawFrame(s: Surface): void {
-  speckle(s, 0, 0, SCREEN_W, SCREEN_H, shade("earth", 6), shade("earth", 7), shade("hide", 6));
-  s.frame(0, 0, SCREEN_W, SCREEN_H, BROWN());
-  s.frame(1, 1, SCREEN_W - 2, SCREEN_H - 2, GOLD_LIGHT());
-  s.frame(2, 2, SCREEN_W - 4, SCREEN_H - 4, GOLD_DARK());
-  for (const [x, y] of [[0, 0], [SCREEN_W - 7, 0], [0, SCREEN_H - 7], [SCREEN_W - 7, SCREEN_H - 7]] as const) {
+/** The window's frame: tan stone inside a brown and gold border, studs at the corners, a shadow under it on the game. */
+function drawFrame(s: Surface, o: Rect): void {
+  s.rect(o.x + 3, o.y + o.h, o.w, 2, C.BLACK!);
+  s.rect(o.x + o.w, o.y + 3, 2, o.h - 1, C.BLACK!);
+  speckle(s, o.x, o.y, o.w, o.h, shade("earth", 6), shade("earth", 7), shade("hide", 6));
+  s.frame(o.x, o.y, o.w, o.h, BROWN());
+  s.frame(o.x + 1, o.y + 1, o.w - 2, o.h - 2, GOLD_LIGHT());
+  s.frame(o.x + 2, o.y + 2, o.w - 4, o.h - 4, GOLD_DARK());
+  for (const [x, y] of [[o.x, o.y], [o.x + o.w - 7, o.y], [o.x, o.y + o.h - 7], [o.x + o.w - 7, o.y + o.h - 7]] as const) {
     s.rect(x, y, 7, 7, GOLD_LIGHT());
     s.frame(x, y, 7, 7, BROWN());
     s.frame(x + 2, y + 2, 3, 3, GOLD_DARK());
   }
 }
 
+/** A window's navy title strip: an icon, the title spaced in gold, and the close box. */
+export function drawModalTitle(s: Surface, l: { title: Rect; close: Rect }, icon: IconName, title: string, edge = GOLD_DARK()): void {
+  const { title: t, close } = l;
+  s.rect(t.x, t.y, t.w, t.h, NAVY());
+  s.frame(t.x, t.y, t.w, t.h, edge);
+  drawIcon(s, icon, t.x + 5, t.y + 3);
+  drawSpaced(s, t.x + Math.floor(t.w / 2), t.y + 3, title, GOLD_INK());
+  s.frame(close.x, close.y, close.w, close.h, GOLD_LIGHT());
+  for (let i = 0; i < close.w - 4; i++) {
+    s.set(close.x + 2 + i, close.y + 2 + i, GOLD_INK());
+    s.set(close.x + close.w - 3 - i, close.y + 2 + i, GOLD_INK());
+  }
+}
+
+/** The name large over a smaller line (an era, a city), in a sunken panel across the window. */
+export function drawModalName(s: Surface, b: Rect, name: string, under: string, ink: number, underInk: number, spaced: boolean): void {
+  const big = name.toUpperCase();
+  const scale = textWidth(big) * 2 <= b.w - 12 ? 2 : 1;
+  drawTextLarge(s, b.x + Math.floor((b.w - textWidth(big) * scale) / 2), b.y + 1 + (scale === 2 ? 0 : 4), big, ink, scale);
+  const mid = b.x + Math.floor(b.w / 2);
+  if (!spaced) { drawText(s, mid - Math.floor(textWidth(under) / 2), b.y + 17, under, underInk); return; }
+  const w = spacedWidth(under);
+  drawSpaced(s, mid, b.y + 17, under, underInk);
+  for (const x of [mid - Math.ceil(w / 2) - 6 - 30, mid + Math.ceil(w / 2) + 6]) s.hline(x, b.y + 21, 30, GOLD_DARK());
+}
+
 export function drawNewTech(s: Surface, state: GameState, view: NewTechView): void {
   const card = newTechCard(state, view.advance);
   const owner = slotColor(state.players[state.currentPlayer]!.color);
-  drawFrame(s);
-
-  // The title strip: the bulb, NEW TECHNOLOGY in gold, the close box.
-  s.rect(TITLE.x, TITLE.y, TITLE.w, TITLE.h, NAVY());
-  s.frame(TITLE.x, TITLE.y, TITLE.w, TITLE.h, GOLD_DARK());
-  drawIcon(s, "bulb", TITLE.x + 5, TITLE.y + 3);
-  drawSpaced(s, SCREEN_W / 2, TITLE.y + 3, "New Technology", GOLD_INK());
-  s.frame(CLOSE.x, CLOSE.y, CLOSE.w, CLOSE.h, GOLD_LIGHT());
-  for (let i = 0; i < CLOSE.w - 4; i++) {
-    s.set(CLOSE.x + 2 + i, CLOSE.y + 2 + i, GOLD_INK());
-    s.set(CLOSE.x + CLOSE.w - 3 - i, CLOSE.y + 2 + i, GOLD_INK());
-  }
+  const o = modalRect(s.width);
+  const l = layout(o);
+  drawFrame(s, o);
+  drawModalTitle(s, l, "bulb", "New Technology");
 
   // The name, large, over its era between two gold rules.
-  panel(s, NAME);
-  s.frame(NAME.x + 1, NAME.y + 1, NAME.w - 2, NAME.h - 2, GOLD_LIGHT());
-  const name = card.name.toUpperCase();
-  const scale = textWidth(name) * 2 <= NAME.w - 12 ? 2 : 1;
-  drawTextLarge(s, NAME.x + Math.floor((NAME.w - textWidth(name) * scale) / 2), NAME.y + 1 + (scale === 2 ? 0 : 4), name, BROWN(), scale);
-  const eraW = spacedWidth(card.era);
-  const mid = Math.floor(SCREEN_W / 2);
-  drawSpaced(s, mid, NAME.y + 17, card.era, BROWN_DIM());
-  for (const x of [mid - Math.ceil(eraW / 2) - 6 - 40, mid + Math.ceil(eraW / 2) + 6]) s.hline(x, NAME.y + 21, 40, GOLD_DARK());
+  panel(s, l.name);
+  s.frame(l.name.x + 1, l.name.y + 1, l.name.w - 2, l.name.h - 2, GOLD_LIGHT());
+  drawModalName(s, l.name, card.name, card.era, BROWN(), BROWN_DIM(), true);
 
   // The picture's frame and the bed beneath it (seen only until the picture has loaded).
-  s.rect(FRAME.x, FRAME.y, FRAME.w, FRAME.h, GOLD_DARK());
-  s.frame(FRAME.x + 1, FRAME.y + 1, FRAME.w - 2, FRAME.h - 2, GOLD_LIGHT());
-  const p = NEW_TECH_PICTURE;
+  const { frame, picture: p } = l;
+  s.rect(frame.x, frame.y, frame.w, frame.h, GOLD_DARK());
+  s.frame(frame.x + 1, frame.y + 1, frame.w - 2, frame.h - 2, GOLD_LIGHT());
   s.rect(p.x, p.y, p.w, p.h, BED());
   drawIcon(s, "bulb", p.x + Math.floor((p.w - ICON) / 2), p.y + Math.floor((p.h - ICON) / 2));
 
-  panel(s, DESC, "Description");
-  wrapText(card.text, NEW_TECH_TEXT_W).slice(0, 3)
-    .forEach((line, i) => drawText(s, DESC.x + 5, DESC.y + HEAD_H + 4 + i * FONT_HEIGHT, line, BROWN()));
+  // What it is, and what it needed, in a line under that.
+  panel(s, l.desc, "Description");
+  const lines = wrapText(card.text, NEW_TECH_TEXT_W).slice(0, 3);
+  lines.forEach((line, i) => drawText(s, l.desc.x + 5, l.desc.y + HEAD_H + 3 + i * FONT_HEIGHT, line, BROWN()));
+  const needs = card.needs.length ? `Needs ${card.needs.map((n) => n.name).join(", ")}` : "One of the first discoveries";
+  if (lines.length < 3) drawText(s, l.desc.x + 5, l.desc.y + HEAD_H + 3 + lines.length * FONT_HEIGHT, fit(needs, NEW_TECH_TEXT_W), BROWN_DIM());
 
-  panel(s, UNLOCKS, card.leads ? "Leads to" : "Unlocks");
-  drawUnlocks(s, card.unlocks, card.leads, owner);
+  panel(s, l.unlocks, card.leads ? "Leads to" : "Unlocks");
+  drawUnlocks(s, l.unlocks, card.unlocks, card.leads, owner);
 
-  panel(s, NEEDS, "Prerequisites");
-  const rowY = NEEDS.y + HEAD_H + 3;
-  if (!card.needs.length) drawText(s, NEEDS.x + 8, rowY + 1, "None: one of the first discoveries", BROWN_DIM());
-  card.needs.forEach((n, i) => {
-    const x = NEEDS.x + 8 + i * Math.floor(NEEDS.w / 2);
-    itemBox(s, x, rowY, 10, "bulb", undefined, owner);
-    drawText(s, x + 14, rowY + 1, n.name, BROWN());
-  });
-
-  buttonRects().forEach((b, i) => drawWindowButton(s, b, NEW_TECH_BUTTONS[i]!, i === 1, i === view.selected));
+  l.buttons.forEach((b, i) => drawWindowButton(s, b, NEW_TECH_BUTTONS[i]!, i === 1, i === view.selected));
 }

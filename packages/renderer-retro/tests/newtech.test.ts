@@ -3,7 +3,7 @@ import { ADVANCES, CLASSIC_ADVANCES, newGame } from "@civ/core";
 import { newTechCard, techPicture } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
 import { wrapText } from "../src/font.js";
-import { drawNewTech, NEW_TECH_PICTURE, NEW_TECH_TEXT_W, newTechHit } from "../src/index.js";
+import { drawNewTech, modalRect, NEW_TECH_TEXT_W, newTechHit, newTechPicture } from "../src/index.js";
 import { Surface } from "../src/surface.js";
 import { encodePng } from "./png.js";
 
@@ -14,7 +14,7 @@ describe("New Technology window", () => {
       expect(existsSync(new URL(`../../../apps/web/src/techs/${a.id}.webp`, import.meta.url)), a.id).toBe(true);
     }
     expect(techPicture("future_tech")).toBeNull();
-    expect(NEW_TECH_PICTURE.w).toBe(NEW_TECH_PICTURE.h);
+    expect(newTechPicture().w).toBe(newTechPicture().h);
   });
 
   it("describes every advance of either tree in three lines at most", () => {
@@ -37,7 +37,7 @@ describe("New Technology window", () => {
     expect(newTechCard(state, "chivalry").needs.map((n) => n.name)).toEqual(["Feudalism", "Horseback Riding"]);
   });
 
-  it("draws the window after the user's template, its buttons and close box answering to clicks", () => {
+  it("draws a small window over the game after the user's template, its buttons and close box answering to clicks", () => {
     const state = newGame(5, { opponents: 2 });
     const s = Surface.screen();
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
@@ -49,7 +49,21 @@ describe("New Technology window", () => {
     const hits = new Set<string | null>();
     for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) hits.add(newTechHit(view, x, y));
     expect([...hits].sort()).toEqual(["close", "continue", "tree", null].sort());
-    expect(newTechHit(view, 30, 190)).toBe("tree");
-    expect(newTechHit(view, 290, 190)).toBe("continue");
+    // A window in the middle of the screen, the game around it untouched: its buttons along its foot.
+    const o = modalRect();
+    expect(o.w).toBeLessThan(250);
+    expect(o.h).toBeLessThan(160);
+    expect(newTechHit(view, o.x + 30, o.y + o.h - 12)).toBe("tree");
+    expect(newTechHit(view, o.x + o.w - 30, o.y + o.h - 12)).toBe("continue");
+    expect(newTechHit(view, 30, 190)).toBeNull();
+    const before = Surface.screen();
+    before.fill(7);
+    drawNewTech(before, state, view);
+    expect(before.get(2, 2)).toBe(7);
+    expect(before.get(o.x + o.w / 2, o.y + o.h / 2)).not.toBe(7);
+    // On a wider screen (the phone's map) it stands in that screen's middle.
+    const wide = modalRect(480);
+    expect(wide.x).toBe(o.x + 80);
+    expect(newTechHit(view, wide.x + 30, wide.y + wide.h - 12, 480)).toBe("tree");
   });
 });

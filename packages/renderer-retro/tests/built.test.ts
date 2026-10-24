@@ -3,7 +3,7 @@ import { applyCommand, BUILDINGS, newGame, SPACE_PARTS, WONDERS, type GameState,
 import { ART_SIZE, artPlace, BUILDING_ART, builtCard } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
 import { wrapText } from "../src/font.js";
-import { BUILT_PICTURE, BUILT_TEXT_W, builtHit, drawBuilt } from "../src/index.js";
+import { BUILT_TEXT_W, builtHit, builtPicture, drawBuilt, modalRect } from "../src/index.js";
 import { Surface } from "../src/surface.js";
 import { encodePng } from "./png.js";
 
@@ -82,13 +82,16 @@ describe("Building Completed window", () => {
       drawBuilt(s, state, { city, production: { kind, id } as Production, selected: 1 });
       writeFileSync(new URL(`./out/built-${id}.png`, import.meta.url), encodePng(s, 3));
       // The granary has no picture of the user's yet: its drawn one stands in the frame instead.
-      expect(s.art).toEqual(id === "granary" ? [] : [{ id, ...BUILT_PICTURE, middle: true }]);
+      expect(s.art).toEqual(id === "granary" ? [] : [{ id, ...builtPicture(), middle: true }]);
     }
     const view = { city, production: { kind: "building", id: "temple" } as Production, selected: 1 };
     const hits = new Set<string | null>();
     for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) hits.add(builtHit(view, x, y));
     expect([...hits].sort()).toEqual(["city", "close", "continue", null].sort());
-    expect(builtHit(view, 30, 185)).toBe("city");
-    expect(builtHit(view, 290, 185)).toBe("continue");
+    // A small window over the game, its buttons along its foot.
+    const o = modalRect();
+    expect(builtHit(view, o.x + 30, o.y + o.h - 12)).toBe("city");
+    expect(builtHit(view, o.x + o.w - 30, o.y + o.h - 12)).toBe("continue");
+    expect(builtHit(view, 30, 185)).toBeNull();
   });
 });

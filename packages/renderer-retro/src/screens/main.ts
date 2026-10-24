@@ -484,11 +484,19 @@ function empireRows(state: GameState): { wrapRates: boolean; researchY: number }
   return { wrapRates, researchY: top + 9 * (wrapRates ? 5 : 4) };
 }
 
-/** What the status panel holds under a point: the research row (when research is under way) opens the research panel. */
-export function statusPanelAt(state: GameState, px: number, py: number): "research" | null {
-  if (px < 0 || px >= PANEL_W || !researchOutlook(state).id) return null;
+/**
+ * What the status panel holds under a point: the research row (when research is under way) opens the
+ * research panel; the End of Turn box (nothing awaiting orders) ends the turn, as Enter does.
+ */
+export function statusPanelAt(state: GameState, px: number, py: number, view?: MainScreenView): "research" | "endTurn" | null {
+  if (px < 0 || px >= PANEL_W) return null;
   const { researchY } = empireRows(state);
-  return py >= researchY - 1 && py < researchY + 14 ? "research" : null;
+  const researching = !!researchOutlook(state).id;
+  if (researching && py >= researchY - 1 && py < researchY + 14) return "research";
+  // The unit box starts under the research row and its groove (`drawStatusPanel`).
+  const top = (researching ? researchY + 15 : researchY + 1) + 4;
+  const idle = view ? shownActive(state, view) === null && view.focus === undefined : state.activeUnit === null;
+  return idle && py >= top - 1 && py < top + 2 * FONT_HEIGHT + 2 ? "endTurn" : null;
 }
 
 /**
@@ -711,7 +719,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   } else if (view.focus === undefined) {
     drawIconLine(s, TEXT_X, y, "{hourglass} End of Turn", ink);
     y += FONT_HEIGHT + 1;
-    drawText(s, TEXT_X, y, view.autoEnd ? "(auto)" : "Press Enter", dim);
+    drawText(s, TEXT_X, y, "Press Enter", dim);
     y += FONT_HEIGHT;
   }
   y += 2;
