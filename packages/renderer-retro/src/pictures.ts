@@ -1,4 +1,4 @@
-import { bare, type Material, type Part, type Picture } from "@civ/renderer-api";
+import { bare, buildingArt, type Material, type Part, type Picture } from "@civ/renderer-api";
 import { C, shade } from "./palette.js";
 import type { Surface } from "./surface.js";
 
@@ -152,4 +152,14 @@ export function drawPicture(s: Surface, pic: Picture, x: number, y: number, owne
       const c = px[j * gw + i]!;
       if (c >= 0) s.set(left + i, top + j, c);
     }
+}
+
+/**
+ * A building standing in a box `w` by `h` with its left edge at `x` and its ground line at `y`: the
+ * spot for the user's picture of it when it has one (the apps lay the picture there, `Surface.art`),
+ * else its drawn picture in the middle of the box. `lit` rings the user's picture in light.
+ */
+export function drawBuilding(s: Surface, id: string, pic: Picture, x: number, y: number, w: number, h: number, owner: number, lit = false): void {
+  if (buildingArt(id)) s.art.push({ id, x, y: y - h, w, h, ...(lit ? { lit } : {}) });
+  else drawPicture(s, pic, x + Math.floor((w - pic.w) / 2), y, owner);
 }

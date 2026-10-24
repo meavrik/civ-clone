@@ -115,8 +115,8 @@ function drawUnlocks(s: Surface, unlocks: Unlock[], leads: boolean, owner: numbe
   }
 }
 
-/** A raised button: the game's stone, or gold for the one that goes on; the lit one ringed in brown. */
-function drawButton(s: Surface, b: { x: number; y: number; w: number; h: number }, label: string, gold: boolean, lit: boolean): void {
+/** A raised button: the game's stone, or gold for the one that goes on; the lit one ringed in brown (the Building Completed window's too). */
+export function drawWindowButton(s: Surface, b: { x: number; y: number; w: number; h: number }, label: string, gold: boolean, lit: boolean): void {
   if (lit) s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, BROWN());
   if (gold) {
     speckle(s, b.x + 1, b.y + 1, b.w - 2, b.h - 2, shade("wheat", 3), shade("wheat", 5), shade("wheat", 6));
@@ -191,5 +191,5 @@ export function drawNewTech(s: Surface, state: GameState, view: NewTechView): vo
     drawText(s, x + 14, rowY + 1, n.name, BROWN());
   });
 
-  buttonRects().forEach((b, i) => drawButton(s, b, NEW_TECH_BUTTONS[i]!, i === 1, i === view.selected));
+  buttonRects().forEach((b, i) => drawWindowButton(s, b, NEW_TECH_BUTTONS[i]!, i === 1, i === view.selected));
 }

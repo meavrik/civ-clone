@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, BUILDINGS, getTile, newGame, Terrain, WONDERS, type GameState } from "@civ/core";
-import { cityScene, PICTURES } from "@civ/renderer-api";
-import { C, cityButtonAt, cityViewAt, drawCityView, drawMenu, drawPicture, menuHit, menuRect, rasterize, shade, Surface, SCENE_X, SCENE_Y } from "../src/index.js";
+import { artLot, BUILDING_ART, cityScene, PICTURES } from "@civ/renderer-api";
+import { C, cityButtonAt, cityViewAt, drawCityView, drawPicture, rasterize, shade, Surface, SCENE_X, SCENE_Y } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("city view pictures", () => {
@@ -60,13 +60,13 @@ describe("city view", () => {
     expect(wonders.map((w) => w.id).sort()).toEqual(["colossus", "great_library", "pyramids"]);
     expect(new Set(wonders.map((w) => w.y))).toEqual(new Set([scene.streets[0]!.y]));
     const palace = scene.items.find((it) => it.id === "palace")!;
-    expect(Math.abs(palace.x + palace.pic.w / 2 - scene.w / 2)).toBeLessThan(scene.w / 6);
+    expect(Math.abs(palace.x + palace.w / 2 - scene.w / 2)).toBeLessThan(scene.w / 6);
     expect(scene.items.filter((it) => it.kind === "walls")).toHaveLength(1);
     expect(scene.streets[0]!.surface).toBe("stone");
     // Every item stands inside the scene, back rows before front ones.
     for (const it of scene.items) {
       expect(it.x).toBeGreaterThanOrEqual(0);
-      expect(it.x + it.pic.w).toBeLessThanOrEqual(scene.w);
+      expect(it.x + it.w).toBeLessThanOrEqual(scene.w);
     }
     expect(scene.items.map((it) => it.y)).toEqual([...scene.items.map((it) => it.y)].sort((a, b) => a - b));
     const homes = (size: number) => cityScene(state, { ...city, size }).items.filter((it) => it.kind === "home").length;
@@ -85,7 +85,7 @@ describe("city view", () => {
     writeFileSync(new URL("./out/city-view.png", import.meta.url), encodePng(s, 3));
     const scene = cityScene(state, city);
     const temple = scene.items.find((it) => it.id === "temple")!;
-    const at = { x: SCENE_X + temple.x + temple.pic.w / 2, y: SCENE_Y + temple.y - 3 };
+    const at = { x: SCENE_X + temple.x + temple.w / 2, y: SCENE_Y + temple.y - 3 };
     expect(cityViewAt(state, { city: id }, at.x, at.y)).toBe("temple");
     expect(cityViewAt(state, { city: id }, 160, 195)).toBeNull();
     drawCityView(s, state, { city: id, picked: "temple" });
@@ -94,6 +94,39 @@ describe("city view", () => {
     let view = 0;
     for (let y = 186; y < 200; y++) for (let x = 0; x < 320; x++) if (cityButtonAt(x, y) === "view") view++;
     expect(view).toBeGreaterThan(100);
+  });
+
+  it("leaves a spot for the user's picture of each building, back to front, the one clicked lit", () => {
+    const { state, id } = town(9, ["palace", "temple", "granary", "library", "city_walls"], ["pyramids", "colossus"], ["construction"]);
+    const city = state.cities.find((c) => c.id === id)!;
+    const scene = cityScene(state, city);
+    const s = Surface.screen();
+    drawCityView(s, state, { city: id, picked: "temple" });
+    // Every building with a picture of the user's has a spot of its lot's size; the granary (none yet) is drawn.
+    const spotted = s.art.map((a) => a.id);
+    expect(spotted.sort()).toEqual(["city_walls", "colossus", "library", "palace", "pyramids", "temple"].sort());
+    expect(BUILDING_ART.granary).toBeUndefined();
+    const temple = scene.items.find((it) => it.id === "temple")!;
+    expect(temple).toMatchObject(artLot("temple", PICTURES.temple!));
+    expect(s.art.find((a) => a.id === "temple")).toEqual({ id: "temple", x: SCENE_X + temple.x, y: SCENE_Y + temple.y - temple.h, w: temple.w, h: temple.h, lit: true });
+    expect(s.art.filter((a) => a.lit).map((a) => a.id)).toEqual(["temple"]);
+    // Back rows first, so the apps stack the front ones over them; the walls' gatehouse stands on the front.
+    const feet = s.art.map((a) => a.y + a.h);
+    expect(feet).toEqual([...feet].sort((a, b) => a - b));
+    expect(s.art.at(-1)!.id).toBe("city_walls");
+    // A click on the gatehouse names the walls.
+    const gate = scene.items.find((it) => it.kind === "gate")!;
+    expect(cityViewAt(state, { city: id }, SCENE_X + gate.x + gate.w / 2, SCENE_Y + gate.y - 4)).toBe("city_walls");
+  });
+
+  it("gives each picture about the room of the drawn one, in its own shape", () => {
+    for (const [id, pic] of Object.entries(PICTURES)) {
+      const lot = artLot(id, pic);
+      if (!BUILDING_ART[id]) { expect(lot).toEqual({ w: pic.w, h: pic.h }); continue; }
+      expect(lot.h, id).toBeLessThanOrEqual(46);
+      expect(lot.w * lot.h, id).toBeGreaterThan(pic.w * pic.h * 0.6);
+      expect(lot.w * lot.h, id).toBeLessThan(pic.w * pic.h * 1.2);
+    }
   });
 
   it("draws a small modern town and an empty hamlet (city-view-modern.png)", () => {
@@ -106,26 +139,5 @@ describe("city view", () => {
     writeFileSync(new URL("./out/city-view-hamlet.png", import.meta.url), encodePng(s, 3));
     expect(cityScene(hamlet.state, hamlet.state.cities[0]!).items.some((it) => it.kind === "home")).toBe(true);
     void Terrain;
-  });
-});
-
-describe("built window", () => {
-  it("heads the window with the building's picture, its button still clickable (modal-picture.png)", () => {
-    const plain = { title: "Rome builds Temple", body: ["{star} Calms one unhappy citizen.", "{purse} Upkeep 1 gold"], items: ["Build next..."], selected: 0 };
-    const m = { ...plain, picture: { id: "temple", slot: 8 } };
-    const s = Surface.screen();
-    s.fill(C.BLACK!);
-    drawMenu(s, m);
-    writeFileSync(new URL("./out/modal-picture.png", import.meta.url), encodePng(s, 3));
-    const r = menuRect(m);
-    expect(r.h).toBeGreaterThan(menuRect(plain).h + PICTURES.temple!.h);
-    // The temple's columns stand inside the window, above the text.
-    const marble = new Set([4, 5, 6, 7].map((n) => shade("marble", n)));
-    let painted = 0;
-    for (let y = r.y; y < r.y + 16 + PICTURES.temple!.h + 4; y++) for (let x = r.x; x < r.x + r.w; x++) if (marble.has(s.get(x, y))) painted++;
-    expect(painted).toBeGreaterThan(60);
-    let hit = -1;
-    for (let y = r.y; y < r.y + r.h && hit < 0; y++) hit = menuHit(m, r.x + r.w / 2, y);
-    expect(hit).toBe(0);
   });
 });

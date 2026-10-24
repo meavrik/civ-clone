@@ -14,6 +14,8 @@ import {
   drawNewTech,
   NEW_TECH_PICTURE,
   newTechHit,
+  drawBuilt,
+  builtHit,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -58,7 +60,7 @@ import {
   DETAIL,
 } from "@civ/renderer-retro";
 import { wrapX, type GameState } from "@civ/core";
-import { portraitPlace, preloadScenes, preloadTech, scenePlace, showPictures, techPlace, type PicturePlace } from "./pictures.js";
+import { buildingPlaces, portraitPlace, preloadBuildings, preloadScenes, preloadTech, scenePlace, showPictures, techPlace, type PicturePlace } from "./pictures.js";
 
 /**
  * The 1991-style renderer behind the screen API: an indexed framebuffer laid out on 320x200,
@@ -82,6 +84,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     researchListRows: RESEARCH_LIST_ROWS,
     beginFrame() {
       pictures = [];
+      screen.art = [];
     },
     present() {
       const px = image.data;
@@ -94,7 +97,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
         px[j + 3] = 255;
       }
       ctx.putImageData(image, 0, 0);
-      showPictures(canvas, pictures);
+      showPictures(canvas, [...pictures, ...buildingPlaces(screen.art, { dx: 0, ...screenBox })]);
     },
     title: (at) => drawTitleScreen(screen, at),
     setup: (cards, selected, at) => {
@@ -105,6 +108,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     main: (state, view) => {
       drawMainScreen(screen, state, view);
       preloadTech(state.players[state.currentPlayer]?.researching);
+      preloadBuildings(state);
     },
     city: (state, view: CityScreenView) => drawCityScreen(screen, state, view),
     cityView: (state, view) => drawCityView(screen, state, view),
@@ -131,6 +135,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if (picture) pictures.push(picture);
     },
     newTechHit: (view, px, py) => newTechHit(view, px, py),
+    built: (state, view) => drawBuilt(screen, state, view),
+    builtHit: (view, px, py) => builtHit(view, px, py),
     prepare: (state) => preloadScenes(state),
     end: (lines, rank) => drawEndScreen(screen, lines, rank),
     spaceship: (state) => drawSpaceshipScreen(screen, state),

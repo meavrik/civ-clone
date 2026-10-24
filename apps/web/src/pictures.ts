@@ -1,19 +1,22 @@
 import { civ, type GameState } from "@civ/core";
-import { LEADER_PORTRAITS, techPicture } from "@civ/renderer-api";
+import { artPlace, buildingArt, LEADER_PORTRAITS, techPicture, type ArtSpot } from "@civ/renderer-api";
 
 /**
  * The user's own pictures (2026-10-22), shown as they are: full size and true colour, not drawn into
  * the 320x200 palette screen, which cannot hold them (asked for: "use the original images, don't change
  * or distort"). The leaders in their palaces for the audience (scenes/<leader>.webp) and the portraits of
  * the setup (portraits/<name>.webp: the difficulty levels' rulers and the tribes' leaders), and the
- * advances for the New Technology window (techs/<advance>.webp, 2026-10-23), kept as WebP at quality 92
- * (alpha exact) at their supplied sizes. Each is an image laid over the canvas where the screen leaves
- * room for it; they let clicks through to the canvas.
+ * advances for the New Technology window (techs/<advance>.webp, 2026-10-23), and the improvements, wonders
+ * and spaceship parts (buildings/<id>.webp, 2026-10-24) wherever a screen leaves a spot for one (`ArtSpot`:
+ * the city view, the Building Completed window, the research card), kept as WebP at quality 92 (alpha
+ * exact) at their supplied sizes. Each is an image laid over the canvas where the screen leaves room for
+ * it; they let clicks through to the canvas.
  */
 
 const sceneUrl = (name: string): string => new URL(`./scenes/${name}.webp`, import.meta.url).href;
 const portraitUrl = (name: string): string => new URL(`./portraits/${name}.webp`, import.meta.url).href;
 const techUrl = (id: string): string => new URL(`./techs/${id}.webp`, import.meta.url).href;
+const buildingUrl = (id: string): string => new URL(`./buildings/${id}.webp`, import.meta.url).href;
 
 export interface PicturePlace {
   url: string;
@@ -22,6 +25,10 @@ export interface PicturePlace {
   logicalW: number; logicalH: number;
   /** "fill": the box is the picture's own shape; "contain": the whole picture, its shape kept, standing on the box's foot. */
   fit: "fill" | "contain";
+  /** Stacking among the pictures: a higher one covers a lower (the city view's front rows cover its back ones). */
+  z?: number;
+  /** Ringed in light (the building last clicked in the city view). */
+  glow?: boolean;
 }
 
 /** The audience picture of civilization `player`'s leader, at a box of the canvas; null if it has none. */
@@ -41,7 +48,30 @@ export function techPlace(id: string, box: Omit<PicturePlace, "url" | "fit">): P
   return name ? { url: techUrl(name), fit: "contain", ...box } : null;
 }
 
+/**
+ * The building pictures a drawn screen left spots for (`Surface.art`), back to front, on a canvas
+ * `logicalW` by `logicalH` whose screen starts `dx` across.
+ */
+export function buildingPlaces(spots: ArtSpot[], screen: { dx: number; logicalW: number; logicalH: number }): PicturePlace[] {
+  const out: PicturePlace[] = [];
+  spots.forEach((spot, z) => {
+    const box = artPlace(spot);
+    if (box) out.push({ url: buildingUrl(spot.id), fit: "fill", ...box, x: box.x + screen.dx, logicalW: screen.logicalW, logicalH: screen.logicalH, z, ...(spot.lit ? { glow: true } : {}) });
+  });
+  return out;
+}
+
 const fetched = new Set<string>();
+
+/** Fetch the pictures of what the player's cities are building, so a Building Completed window never waits for one. */
+export function preloadBuildings(state: GameState): void {
+  for (const c of state.cities) {
+    const id = c.owner === state.currentPlayer && c.production.kind !== "unit" ? c.production.id : null;
+    if (!id || !buildingArt(id) || fetched.has(buildingUrl(id))) continue;
+    fetched.add(buildingUrl(id));
+    imageFor(buildingUrl(id));
+  }
+}
 
 /** Fetch the picture of the advance under research before it is found, so its window never waits for it. */
 export function preloadTech(id: string | null | undefined): void {
@@ -96,11 +126,12 @@ export function showPictures(canvas: HTMLCanvasElement, places: PicturePlace[]):
     used.add(slot);
     const sx = r!.width / at.logicalW, sy = r!.height / at.logicalH;
     const box = [r!.left + at.x * sx, r!.top + at.y * sy, at.w * sx, at.h * sy].map((v) => Math.round(v * 100) / 100);
-    const key = `${at.fit} ${box.join(" ")}`;
+    const key = `${at.fit} ${box.join(" ")} ${at.z ?? 0} ${at.glow ? 1 : 0}`;
     if (key === slot.key) continue;
     Object.assign(slot.img.style, {
       display: "block", left: `${box[0]}px`, top: `${box[1]}px`, width: `${box[2]}px`, height: `${box[3]}px`,
       objectFit: at.fit === "contain" ? "contain" : "fill", objectPosition: "50% 100%",
+      zIndex: String(1 + (at.z ?? 0)), filter: at.glow ? "drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)" : "none",
     });
     slot.key = key;
   }

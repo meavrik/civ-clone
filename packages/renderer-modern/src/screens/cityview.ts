@@ -125,7 +125,8 @@ export function paintCityScene(ctx: Context2D, scene: CityScene, ox: number, oy:
       for (let x = st.x0 + 2; x + 4 < st.x1; x += 8) ctx.fillRect(at(x), aty(st.y + 1.3), 4 * k, 0.4 * k);
     }
   }
-  for (const it of scene.items) paintPicture(ctx, it.pic, at(it.x), aty(it.y), k, owner);
+  // A building drawn in the middle of its lot (sized for the user's picture, which this renderer does not show).
+  for (const it of scene.items) paintPicture(ctx, it.pic, at(it.x + (it.w - it.pic.w) / 2), aty(it.y), k, owner);
   ctx.restore();
 }
 
@@ -148,8 +149,8 @@ export function drawCityView(ctx: Context2D, state: GameState, view: CityViewSta
   const info = view.picked ? about(view.picked) : null;
   if (picked && info) {
     const tw = measure(ctx, info.name, 15, "600") + 20;
-    const tx = Math.max(SCENE_X, Math.min(SCENE_X + scene.w * K - tw, SCENE_X + (picked.x + picked.pic.w / 2) * K - tw / 2));
-    const ty = Math.max(SCENE_Y + 4, SCENE_Y + (picked.y - picked.pic.h) * K - 34);
+    const tx = Math.max(SCENE_X, Math.min(SCENE_X + scene.w * K - tw, SCENE_X + (picked.x + picked.w / 2) * K - tw / 2));
+    const ty = Math.max(SCENE_Y + 4, SCENE_Y + (picked.y - picked.h) * K - 34);
     fillRound(ctx, tx, ty, tw, 28, 8, CITY_VIEW.tag.fill);
     text(ctx, tx + tw / 2, ty + 6, info.name, { size: 15, weight: "600", color: CITY_VIEW.tag.ink, align: "center" });
   }

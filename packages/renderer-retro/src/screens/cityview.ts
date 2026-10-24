@@ -1,8 +1,8 @@
 import { BUILDINGS, formatYear, Terrain, turnToYear, WONDERS, type GameState } from "@civ/core";
-import { cityScene, CLOUD_PUFFS, hash, sceneItemAt, type CityScene, type CityViewState } from "@civ/renderer-api";
+import { buildingArt, cityScene, CLOUD_PUFFS, hash, sceneItemAt, type CityScene, type CityViewState } from "@civ/renderer-api";
 import { drawText, drawTextCentered, textWidth } from "../font.js";
 import { C, shade } from "../palette.js";
-import { drawPicture } from "../pictures.js";
+import { drawBuilding, drawPicture } from "../pictures.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { DIM, drawStone, drawWindow, INK } from "../widgets.js";
 import { playerColor } from "./main.js";
@@ -10,7 +10,8 @@ import { playerColor } from "./main.js";
 /**
  * The city view (320x200): the city as a picture under a day sky, inside a stone window, with
  * a bar along the bottom that names the building last clicked. Any other click, or a key, goes
- * back to the city screen.
+ * back to the city screen. Buildings with a picture of the user's leave a spot for it
+ * (`drawBuilding`); homes, trees and the run of the walls are drawn.
  */
 export const SCENE_X = 2;
 export const SCENE_Y = 13;
@@ -132,15 +133,20 @@ export function drawCityView(s: Surface, state: GameState, view: CityViewState):
   const scene = cityScene(state, city);
   drawLand(s, scene, city.id * 7919);
   const color = playerColor(state, city.owner);
-  for (const it of scene.items) drawPicture(s, it.pic, SCENE_X + it.x, SCENE_Y + it.y, color);
+  for (const it of scene.items) {
+    const at = [SCENE_X + it.x, SCENE_Y + it.y] as const;
+    if (it.kind === "wonder" || it.kind === "building" || it.kind === "gate") drawBuilding(s, it.id, it.pic, ...at, it.w, it.h, color, it.id === view.picked);
+    else drawPicture(s, it.pic, ...at, color);
+  }
 
-  // The building last clicked: its name on a stone tag above it, its text along the bar.
+  // The building last clicked: its text along the bar, and its name on a stone tag above a drawn one
+  // (the user's pictures, laid over the screen, would hide a tag; theirs is ringed in light instead).
   const picked = view.picked ? scene.items.find((it) => it.id === view.picked) : undefined;
   const info = view.picked ? about(view.picked) : null;
-  if (picked && info) {
+  if (picked && info && !buildingArt(picked.id)) {
     const tw = textWidth(info.name) + 6;
-    const tx = Math.max(SCENE_X, Math.min(SCENE_X + scene.w - tw, SCENE_X + picked.x + Math.round((picked.pic.w - tw) / 2)));
-    const ty = Math.max(SCENE_Y, SCENE_Y + picked.y - picked.pic.h - 13);
+    const tx = Math.max(SCENE_X, Math.min(SCENE_X + scene.w - tw, SCENE_X + picked.x + Math.round((picked.w - tw) / 2)));
+    const ty = Math.max(SCENE_Y, SCENE_Y + picked.y - picked.h - 13);
     s.frame(tx, ty, tw, 11, C.BLACK!);
     drawStone(s, tx + 1, ty + 1, tw - 2, 9);
     drawText(s, tx + 3, ty + 2, info.name, INK);

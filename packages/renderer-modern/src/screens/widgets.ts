@@ -1,10 +1,7 @@
-import { Terrain } from "@civ/core";
-import { menuButtons, MODAL_MAX_SHARE, PICTURES, type MenuState, type TextInputState } from "@civ/renderer-api";
+import { menuButtons, MODAL_MAX_SHARE, type MenuState, type TextInputState } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
 import { fillRound, measure, panel, strokeRound, text, wrap } from "../draw.js";
-import { BUTTON, H, TERRAIN, UI, VIEW_X, W } from "../theme.js";
-import { playerColor } from "../markers.js";
-import { paintPicture } from "../pictures.js";
+import { BUTTON, H, UI, VIEW_X, W } from "../theme.js";
 import { drawIconLine, iconLineWidth, wrapIcons } from "../icons.js";
 
 /** Menus, the text prompt and the status line: overlays drawn on top of any screen. */
@@ -17,10 +14,8 @@ const BODY_LINE = 21;
 const BUTTON_H = 36;
 const BUTTON_GAP = 8;
 const BUTTON_MIN_W = 140;
-/** A building's picture heads a modal at this many canvas units to a retro pixel. */
-const PICTURE_K = 2;
 
-interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number; picH: number }
+interface MenuLayout { x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number }
 
 function menuLayout(ctx: Context2D, m: MenuState): MenuLayout {
   const buttons = menuButtons(m);
@@ -34,21 +29,19 @@ function menuLayout(ctx: Context2D, m: MenuState): MenuLayout {
   // Text wraps rather than widen the window past MODAL_MAX_SHARE of the screen.
   let bodyW = 0;
   for (const l of m.body ?? []) bodyW = Math.max(bodyW, Math.min(iconLineWidth(ctx, l, 15), Math.round(W * MODAL_MAX_SHARE) - 56));
-  const pic = m.picture ? PICTURES[m.picture.id] : undefined;
-  const picH = pic ? pic.h * PICTURE_K + 20 : 0;
-  const w = Math.min(W - 80, Math.max(m.anchor ? 240 : 320, Math.max(widest, bodyW) + 56, pic ? pic.w * PICTURE_K + 80 : 0));
+  const w = Math.min(W - 80, Math.max(m.anchor ? 240 : 320, Math.max(widest, bodyW) + 56));
   const lines = (m.body ?? []).flatMap((l) => wrapIcons(ctx, l, w - 48, 15));
   const bodyH = lines.length ? lines.length * BODY_LINE + 14 : 0;
   // A dropdown (no title) has no header row.
   const head = m.title ? TITLE_H : 10;
   const top = m.anchor ? m.anchor.y : 32;
   // Long lists (every tribe, every build) tighten their rows to stay on screen.
-  const row = buttons ? BUTTON_H + BUTTON_GAP : Math.max(20, Math.min(ROW, Math.floor((H - top - head - picH - bodyH - 16) / Math.max(1, m.items.length))));
+  const row = buttons ? BUTTON_H + BUTTON_GAP : Math.max(20, Math.min(ROW, Math.floor((H - top - head - bodyH - 16) / Math.max(1, m.items.length))));
   const itemsH = buttons ? m.items.length * row - BUTTON_GAP + 6 : m.items.length * row;
-  const h = head + picH + bodyH + itemsH + (m.title ? 16 : 10);
+  const h = head + bodyH + itemsH + (m.title ? 16 : 10);
   const x = m.anchor ? Math.max(4, Math.min(W - w - 4, m.anchor.x)) : Math.round((W - w) / 2);
   const y = m.anchor ? m.anchor.y : Math.round(Math.max(16, (H - h) / 2));
-  return { x, y, w, h, lines, itemsY: y + head + picH + bodyH, row, buttons, bx: x + Math.round((w - bw) / 2), bw, picH };
+  return { x, y, w, h, lines, itemsY: y + head + bodyH, row, buttons, bx: x + Math.round((w - bw) / 2), bw };
 }
 
 export function menuRect(ctx: Context2D, m: MenuState): { x: number; y: number; w: number; h: number } {
@@ -57,24 +50,14 @@ export function menuRect(ctx: Context2D, m: MenuState): { x: number; y: number; 
 }
 
 export function drawMenu(ctx: Context2D, m: MenuState): void {
-  const { x, y, w, h, lines, itemsY, row, buttons, bx, bw, picH } = menuLayout(ctx, m);
+  const { x, y, w, h, lines, itemsY, row, buttons, bx, bw } = menuLayout(ctx, m);
   panel(ctx, x, y, w, h, m.anchor ? 10 : 14, UI.card);
   if (m.title) {
     text(ctx, x + 24, y + 14, m.title, { size: 18, weight: "600" });
     ctx.fillStyle = UI.panelEdge;
     ctx.fillRect(x + 16, y + TITLE_H - 6, w - 32, 1);
   }
-  const pic = m.picture ? PICTURES[m.picture.id] : undefined;
-  if (pic && m.picture) {
-    // The building on a strip of grass, as it stands in the city view.
-    const pw = pic.w * PICTURE_K;
-    const px = x + Math.round((w - pw) / 2);
-    const ground = y + (m.title ? TITLE_H : 10) + pic.h * PICTURE_K + 8;
-    ctx.fillStyle = TERRAIN[Terrain.Grassland].base;
-    ctx.fillRect(px - 12, ground, pw + 24, 5);
-    paintPicture(ctx, pic, px, ground, PICTURE_K, playerColor(m.picture.slot));
-  }
-  lines.forEach((line, i) => drawIconLine(ctx, x + 24, y + (m.title ? TITLE_H + 2 : 12) + picH + i * BODY_LINE, line, { size: 15, color: "#d5dde6" }));
+  lines.forEach((line, i) => drawIconLine(ctx, x + 24, y + (m.title ? TITLE_H + 2 : 12) + i * BODY_LINE, line, { size: 15, color: "#d5dde6" }));
   if (lines.length) { ctx.fillStyle = UI.panelEdge; ctx.fillRect(x + 16, itemsY - 7, w - 32, 1); }
   m.items.forEach((item, i) => {
     const ry = itemsY + i * row;

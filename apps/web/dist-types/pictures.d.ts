@@ -1,4 +1,5 @@
 import { type GameState } from "@civ/core";
+import { type ArtSpot } from "@civ/renderer-api";
 export interface PicturePlace {
     url: string;
     /** Where it goes on the canvas, in logical pixels of a canvas `logicalW` by `logicalH`. */
@@ -10,6 +11,10 @@ export interface PicturePlace {
     logicalH: number;
     /** "fill": the box is the picture's own shape; "contain": the whole picture, its shape kept, standing on the box's foot. */
     fit: "fill" | "contain";
+    /** Stacking among the pictures: a higher one covers a lower (the city view's front rows cover its back ones). */
+    z?: number;
+    /** Ringed in light (the building last clicked in the city view). */
+    glow?: boolean;
 }
 /** The audience picture of civilization `player`'s leader, at a box of the canvas; null if it has none. */
 export declare function scenePlace(state: GameState, player: number, box: Omit<PicturePlace, "url" | "fit">): PicturePlace | null;
@@ -17,6 +22,17 @@ export declare function scenePlace(state: GameState, player: number, box: Omit<P
 export declare function portraitPlace(name: string, box: Omit<PicturePlace, "url" | "fit">): PicturePlace;
 /** The picture of an advance for the New Technology window, whole in a box of the canvas; null if it has none. */
 export declare function techPlace(id: string, box: Omit<PicturePlace, "url" | "fit">): PicturePlace | null;
+/**
+ * The building pictures a drawn screen left spots for (`Surface.art`), back to front, on a canvas
+ * `logicalW` by `logicalH` whose screen starts `dx` across.
+ */
+export declare function buildingPlaces(spots: ArtSpot[], screen: {
+    dx: number;
+    logicalW: number;
+    logicalH: number;
+}): PicturePlace[];
+/** Fetch the pictures of what the player's cities are building, so a Building Completed window never waits for one. */
+export declare function preloadBuildings(state: GameState): void;
 /** Fetch the picture of the advance under research before it is found, so its window never waits for it. */
 export declare function preloadTech(id: string | null | undefined): void;
 /** Fetch and decode the audience pictures of a game's leaders as it starts, so an audience never waits for one. */

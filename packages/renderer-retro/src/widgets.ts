@@ -1,7 +1,6 @@
 import { drawText, FONT_HEIGHT, textWidth } from "./font.js";
 import { drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
-import { C, shade, slotColor } from "./palette.js";
-import { drawPicture } from "./pictures.js";
+import { C, shade } from "./palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "./surface.js";
 
 /**
@@ -129,7 +128,7 @@ export function drawBox(s: Surface, x: number, y: number, w: number, h: number, 
     }
 }
 
-import { keepInView, menuButtons, MODAL_MAX_SHARE, PICTURES, type MenuState, type TextInputState } from "@civ/renderer-api";
+import { keepInView, menuButtons, MODAL_MAX_SHARE, type MenuState, type TextInputState } from "@civ/renderer-api";
 
 export const MENU_ROW = FONT_HEIGHT + 1;
 /** A modal's choices as buttons (see `menuButtons`): this tall, this far apart, at least this wide. */
@@ -143,7 +142,7 @@ const MODAL_MIN_W = 112;
 const SCROLL_W = 5;
 
 interface MenuLayout {
-  x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number; picH: number;
+  x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number;
   /** How far in each body line starts: past the square's picture (`MenuState.square`) for the lines beside it. */
   indents: number[];
   /** Rows on view, and the first of them; `rows` is short of the items when the list scrolls. */
@@ -181,14 +180,12 @@ function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
   const bw = buttons ? Math.max(BUTTON_MIN_W, itemW + 16) : 0;
   const head = m.title ? 16 : 3;
   const foot = m.title ? 6 : 3;
-  const pic = m.picture ? PICTURES[m.picture.id] : undefined;
-  const picH = pic ? pic.h + 8 : 0;
   // A list that will not fit even with its rows closed up scrolls at the usual row height, beside its bar.
-  const roomGuess = 200 - (m.anchor?.y ?? 0) - head - picH - foot - (m.body?.length ? m.body.length * FONT_HEIGHT + 5 : 0);
+  const roomGuess = 200 - (m.anchor?.y ?? 0) - head - foot - (m.body?.length ? m.body.length * FONT_HEIGHT + 5 : 0);
   const scrolls = !buttons && m.items.length * FONT_HEIGHT > roomGuess;
   const need = Math.max(textWidth(m.title) + 16 + (m.close ? TITLE_H : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? SCROLL_W + 4 : 0));
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) + 20 : 0;
-  const w = Math.min(300, Math.max(need, Math.min(bodyW + (m.square ? SQUARE_SIDE : 0), Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0, pic ? pic.w + 24 : 0, m.square ? SQUARE_WINDOW_W : 0));
+  const w = Math.min(300, Math.max(need, Math.min(bodyW + (m.square ? SQUARE_SIDE : 0), Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0, m.square ? SQUARE_WINDOW_W : 0));
   // The paragraphs that begin beside a map square's picture wrap to the room left of it.
   const lines: string[] = [];
   const indents: number[] = [];
@@ -198,17 +195,17 @@ function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
   }
   const bodyH = lines.length || m.square ? Math.max(lines.length * FONT_HEIGHT, m.square ? SQUARE_FRAME + 2 : 0) + 5 : 0;
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
-  const room = 200 - (m.anchor?.y ?? 0) - head - picH - bodyH - foot;
+  const room = 200 - (m.anchor?.y ?? 0) - head - bodyH - foot;
   const fits = m.items.length * FONT_HEIGHT <= room;
   const row = fits ? Math.max(FONT_HEIGHT, Math.min(MENU_ROW, Math.floor(room / Math.max(1, m.items.length)))) : MENU_ROW;
   const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
   const itemsH = buttons ? m.items.length * BUTTON_ROW + 1 : rows * row;
-  const h = head + picH + bodyH + itemsH + foot;
+  const h = head + bodyH + itemsH + foot;
   let x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
   let y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
   if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
-  return { x, y, w, h, lines, indents, itemsY: y + head + picH + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, picH, rows, top };
+  return { x, y, w, h, lines, indents, itemsY: y + head + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top };
 }
 
 export function menuRect(m: MenuState, screenW = SCREEN_W): { x: number; y: number; w: number; h: number } {
@@ -247,19 +244,11 @@ export function menuScrollAt(m: MenuState, px: number, py: number, screenW = SCR
  */
 export function drawMenu(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void): void {
   const l = menuLayout(m, s.width);
-  const { x, y, w, h, lines, indents, itemsY, row, buttons, bx, bw, picH, rows, top } = l;
+  const { x, y, w, h, lines, indents, itemsY, row, buttons, bx, bw, rows, top } = l;
   const scrolls = rows < m.items.length;
   drawWindow(s, x, y, w, h, m.title);
   if (m.close && m.title) drawCloseBox(s, x + w - 3 - (TITLE_H - 2), y + 3);
-  const pic = m.picture ? PICTURES[m.picture.id] : undefined;
-  if (pic && m.picture) {
-    // The building on a strip of grass, as it stands in the city view.
-    const px = x + Math.floor((w - pic.w) / 2);
-    const ground = y + (m.title ? 16 : 3) + pic.h + 3;
-    s.rect(px - 4, ground, pic.w + 8, 2, shade("grass", 4));
-    drawPicture(s, pic, px, ground, slotColor(m.picture.slot));
-  }
-  const bodyY = y + (m.title ? 17 : 4) + picH;
+  const bodyY = y + (m.title ? 17 : 4);
   if (m.square) {
     // The square in a dark frame, sunk into the stone: shade along the top and left, light along the foot and right.
     const fx = x + 10;

@@ -99,7 +99,6 @@ import {
   workRefusal,
   settlerSites,
   siteNote,
-  PICTURES,
   setupCards,
   setupChoose,
   planMove,
@@ -112,6 +111,7 @@ import {
   type CityViewState,
   type DiplomacyView,
   type NewTechView,
+  type BuiltView,
   type MainScreenView,
   type MenuState,
   type Renderer,
@@ -219,6 +219,7 @@ type Screen =
   | { kind: "research"; view: ResearchView; back: Screen; then: () => void }
   // An advance just found, `found[at]` of those found together; the research is `due` to be picked after.
   | { kind: "newTech"; view: NewTechView; found: string[]; at: number; due: boolean; back: Screen; then: () => void }
+  | { kind: "built"; view: BuiltView; then: () => void } // a city of ours finished an improvement, a wonder or a spaceship part
   | { kind: "science" }
   | { kind: "rates" }
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
@@ -686,18 +687,39 @@ function activateFromCity(sc: Extract<Screen, { kind: "city" }>, unit: number): 
 }
 
 /**
- * A city finished an improvement, a wonder, a spaceship part or settlers: a window over
- * the city says what it does, then the city's builders ask what comes next. Leaving the city goes
- * on with the turn's news.
+ * A city finished an improvement, a wonder or a spaceship part: the Building Completed window (asked
+ * for 2026-10-24, after the user's template), then the city's builders ask what comes next, over the
+ * city screen (View City) or the map (Continue). Settlers get a window over the city saying what
+ * they cost it. Either way the turn's news goes on after.
  */
 function builtWindow(cityId: number, p: Production, then: () => void, change?: CityTurnEvent["change"]): void {
   const city = state.cities.find((c) => c.id === cityId);
   const notice = builtNotice(state, cityId, p, change);
   if (!city || city.owner !== 0 || !notice) { then(); return; }
+  if (p.kind !== "unit") { screenState = { kind: "built", view: { city: cityId, production: p, selected: 1 }, then }; return; }
   openCity(cityId, then);
   modal(notice.title, notice.lines, ["Build next..."], () => openProductionMenu(cityId));
-  // An improvement or wonder shows its picture, as it will stand in the city view.
-  if (screenState.kind === "menu" && p.kind !== "spaceship" && PICTURES[p.id]) screenState.menu.picture = { id: p.id, slot: state.players[city.owner]!.color };
+}
+
+type BuiltScreen = Extract<Screen, { kind: "built" }>;
+
+/** Leave the Building Completed window: into the city (`toCity`) or onto the map, the builders asking what next. */
+function leaveBuilt(sc: BuiltScreen, toCity: boolean): void {
+  const id = sc.view.city;
+  if (!state.cities.some((c) => c.id === id)) { screenState = { kind: "map" }; sc.then(); return; }
+  if (toCity) { openCity(id, sc.then); openProductionMenu(id); return; }
+  screenState = { kind: "map" };
+  openProductionMenu(id, sc.then);
+}
+
+/** Keys on the window: Left, Right or Tab move between its buttons, Enter (not held) presses the lit one, V views the city, Esc goes on. */
+function builtKey(e: KeyboardEvent, sc: BuiltScreen): void {
+  switch (e.code) {
+    case "ArrowLeft": case "ArrowRight": case "Tab": e.preventDefault(); sc.view.selected = 1 - sc.view.selected; break;
+    case "Enter": case "NumpadEnter": case "Space": e.preventDefault(); if (!e.repeat) leaveBuilt(sc, sc.view.selected === 0); break;
+    case "KeyV": leaveBuilt(sc, true); break;
+    case "Escape": leaveBuilt(sc, false); break;
+  }
 }
 
 /** Buy what a city is building once the price is seen against the treasury, as the original asks. */
@@ -812,7 +834,8 @@ function inputKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "input" }>): voi
   if (e.key.length === 1 && inp.text.length < inp.maxLength) inp.text += e.key;
 }
 
-function openProductionMenu(cityId: number): void {
+/** What a city should build next; `then` runs once it is picked or the menu is left. */
+function openProductionMenu(cityId: number, then?: () => void): void {
   const city = state.cities.find((c) => c.id === cityId)!;
   const opts = buildOptions(state, city);
   const surplus = computeCity(state, city).shieldSurplus;
@@ -841,7 +864,9 @@ function openProductionMenu(cityId: number): void {
     onPick: (i) => {
       const p: Production | undefined = opts[i];
       if (p) dispatch({ type: "setProduction", city: cityId, production: p });
+      then?.();
     },
+    ...(then ? { onCancel: then } : {}),
   };
 }
 
@@ -1992,6 +2017,7 @@ addEventListener("keydown", (e) => {
       break;
     case "research": treeKey(e, sc); break;
     case "newTech": newTechKey(e, sc); break;
+    case "built": builtKey(e, sc); break;
     case "diplomacy": diplomacyKey(e, sc); break;
     case "beat": e.preventDefault(); endBeat(sc); break;
     case "end": screenState = { kind: "title" }; break;
@@ -2068,6 +2094,12 @@ canvas.addEventListener("mousemove", (e) => {
     if (hit === "tree" || hit === "continue") sc.view.selected = hit === "tree" ? 0 : 1;
     return;
   }
+  if (sc.kind === "built") {
+    const [px, py] = toLogical(e);
+    const hit = renderer.builtHit(sc.view, px, py);
+    if (hit === "city" || hit === "continue") sc.view.selected = hit === "city" ? 0 : 1;
+    return;
+  }
   if (sc.kind === "city") {
     const [px, py] = toLogical(e);
     sc.view.hover = renderer.cityCitizenAt(state, sc.view, px, py) ?? undefined;
@@ -2128,6 +2160,11 @@ canvas.addEventListener("mousedown", (e) => {
     case "newTech": {
       const hit = e.button === 0 ? renderer.newTechHit(sc.view, px, py) : null;
       if (hit) leaveNewTech(sc, hit === "tree");
+      return;
+    }
+    case "built": {
+      const hit = e.button === 0 ? renderer.builtHit(sc.view, px, py) : null;
+      if (hit) leaveBuilt(sc, hit === "city");
       return;
     }
     case "end": screenState = { kind: "title" }; return;
@@ -2258,6 +2295,7 @@ function draw(sc: Screen): void {
     case "cityView": renderer.cityView(state, sc.view); break;
     case "research": renderer.research(state, sc.view); break;
     case "newTech": renderer.newTech(state, sc.view); break;
+    case "built": renderer.built(state, sc.view); break;
     case "science": renderer.science(state); break;
     case "rates": renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;

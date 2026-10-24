@@ -12,6 +12,8 @@
  * `rect`, `blit` of a coarse sprite...) fills whole blocks of fine pixels; the
  * `f`-prefixed calls address fine pixels one by one.
  */
+import type { ArtSpot } from "@civ/renderer-api";
+
 export const SCREEN_W = 320;
 export const SCREEN_H = 200;
 /** Fine pixels across one of the screen's pixels. */
@@ -22,6 +24,11 @@ export class Surface {
   /** Size in fine pixels: `width * k` by `height * k`. */
   readonly fw: number;
   readonly fh: number;
+  /**
+   * Where the user's pictures of buildings go on what was drawn (`ArtSpot`, back to front): the apps
+   * lay them over the canvas, as they are. Emptied by whoever presents the surface, once a frame.
+   */
+  art: ArtSpot[] = [];
 
   constructor(
     readonly width: number,

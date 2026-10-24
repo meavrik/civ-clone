@@ -20,5 +20,6 @@ export * from "./screens/setup.js";
 export * from "./screens/advisors.js";
 export * from "./screens/diplomacy.js";
 export * from "./screens/newtech.js";
+export * from "./screens/built.js";
 export * from "./screens/spaceship.js";
 export * from "./screens/report.js";

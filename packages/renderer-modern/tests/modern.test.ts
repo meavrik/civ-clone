@@ -255,7 +255,7 @@ describe("modern renderer", () => {
     const named = state.cities[0]!;
     named.buildings = ["palace"];
     const palace = cityScene(state, named).items.find((it) => it.id === "palace")!;
-    expect(r.cityViewAt(state, { city: named.id }, 6 + (palace.x + palace.pic.w / 2) * 3, 40 + (palace.y - 4) * 3)).toBe("palace");
+    expect(r.cityViewAt(state, { city: named.id }, 6 + (palace.x + palace.w / 2) * 3, 40 + (palace.y - 4) * 3)).toBe("palace");
     expect(r.cityViewAt(state, { city: named.id }, 480, 590)).toBeNull();
     // The city's units under the production card: those in the city first, each picked by its badge.
     const city = state.cities[0]!;

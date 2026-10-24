@@ -200,20 +200,35 @@ Never ship the original's sprites, palette art, fonts or text.
   kind halved the box again. Its units (`cityUnits`: those in the city from any home, then those it
   supports elsewhere, faded, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
-  over its city screen with a window saying what it does (`text` on each rule in `rules/buildings.ts`,
-  `wonders.ts`, `spaceship.ts`), then asks what to build next; leaving the city goes on with the turn's news
-  (the city `Screen`'s `then`). Finished units say nothing (the city goes on building them), except Settlers: they cost a
+  the Building Completed window (`built.ts`, `builtCard`; asked for 2026-10-24 with the user's template; retro
+  `screens/built.ts`, modern a plain modal): a navy title strip (hammer, BUILDING/WONDER/SPACESHIP PART
+  COMPLETED, close box), the name large over "Completed in Rome", the user's picture on a slate bed, a
+  parchment panel with Description (`text` on each rule in `rules/buildings.ts`, `wonders.ts`, `spaceship.ts`,
+  then quieter lines: what it builds on, what builds on it, when a wonder stops working) and City Effects
+  (icon and numbers from the rule's fields: "+50% science", "+2 culture"), the upkeep along a strip, then
+  View City (the city screen, its build menu up) and Continue (the build menu over the map); either way the
+  turn's news goes on after (`then`). Left/Right/Tab, Enter (not held), V, Esc; the pointer lights a button.
+  `Renderer.built`/`builtHit`. Finished units say nothing (the city goes on building them), except Settlers: they cost a
   citizen, so their window asks what to build next, short and in numbers (asked for 2026-10-24): "Rome generates
   a group of Settlers", then Population 3 → 2 and each of food, shields and trade a turn that changed (core
-  records them on the `built` event, `CityTurnEvent.change`; the font has a → for it). That window
-  is headed by the building's picture (`MenuState.picture`). City view (`cityview.ts`, the original's View:
+  records them on the `built` event, `CityTurnEvent.change`; the font has a → for it), over its city screen;
+  leaving the city goes on with the turn's news (the city `Screen`'s `then`). City view (`cityview.ts`, the original's View:
   the city screen's View button or V; the modern city screen shows it small as the button): every improvement
   and wonder has a `PICTURES` entry made of shapes (`Part`: rect, poly, oval, line, each of a `Material`) on a
   grid of retro pixels; `cityScene` lays a city out (wonders on the back row, the palace in the middle, then
   improvements and homes of the owner's age filling the middle rows outward, trees beyond, walls before the
   front row, the land to the north on the horizon, a river if the city has one), hashed, never the RNG. Retro
   fills the shapes pixel by pixel (`pictures.ts`: lit left, shaded right, outlined in black); modern paints
-  them as paths three times larger. A click names a building (`cityViewAt`), anything else goes back. The web app
+  them as paths three times larger. The user's pictures of buildings (2026-10-24, asked for: "use the attached
+  images for game buildings ... replace buildings also in the city view"; 47 of the 50, none yet for Barracks,
+  Granary and the Great Library, which keep their drawn ones) stand in their place: `BUILDING_ART` (`art.ts`)
+  gives the box each one's drawing fills in its 1254 square, `artLot` the room it takes in the city view
+  (the drawn picture's area in the picture's own shape, at most 46 high; `SceneItem.w`/`h`), and the walls'
+  picture stands as their gatehouse over the drawn run (`kind: "gate"`). Retro draws buildings through
+  `drawBuilding`, which leaves an `ArtSpot` in `Surface.art` (back to front) where a picture exists; the
+  apps lay the pictures there (`artPlace`, `buildingPlaces`), stacked by `z`, the one clicked ringed in light
+  (no stone tag, which a picture would hide). The research card's strip of buildings does the same. A click
+  names a building (`cityViewAt`), anything else goes back. The web app
   only talks to a `Renderer`. Info panels prefer icons to words: `ICONS` (`renderer-api/src/icons.ts`)
   names them, every renderer draws all of them, and text may carry `{icon}` tokens (modal bodies and
   panel lines; groups separated by two spaces wrap apart). The main screen has a menu bar (`MENU_BAR`: Game, Orders, Advisors,
@@ -474,7 +489,9 @@ Never ship the original's sprites, palette art, fonts or text.
   loads); `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits
   and the advances' pictures (`techs/<advance>.webp`, 1254 square, WebP quality 92; `techPicture`: all but
   the 1991 tree's Future Tech., which shows the frame's bed; each adapter's `main` fetches the picture
-  of the research under way, `preloadTech`), the only things the retro look does not draw through the palette. The phone app caches each picture when first shown,
+  of the research under way, `preloadTech`) and the buildings' (`buildings/<id>.webp`, 1254 square, WebP quality
+  92; laid at the screen's `Surface.art` spots; `preloadBuildings` fetches what our cities are building), the only
+  things the retro look does not draw through the palette. The phone app caches each picture when first shown,
   not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
   into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
   whether they admire or scorn us (`regardWords`). Stepping onto land that minds us (once a
@@ -700,7 +717,8 @@ text), second special resources with reaches (save version 20; the branch's own 
   image generators or the original game's files for shipped art. Exception the user made (2026-10-21):
   the terrain, unit and resource sheets were supplied by the user as reference images and copied in
   pixel for pixel. The user's portraits (2026-10-22: the five difficulty rulers, the twenty leaders, the
-  twenty audience scenes; 2026-10-23: the 74 advances) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
+  twenty audience scenes; 2026-10-23: the 74 advances; 2026-10-24: 47 improvements, wonders and spaceship
+  parts) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
   (asked for, twice, emphatically: conversions into the palette looked "bad and distorted", and new
   images must not be generated); see the setup cards and the audience screen above; new art drawn here follows their manner (see `packages/renderer-retro` above) and
   the user's pixel-art rules: even chunky strokes, one-pixel outlines in dark shades of the thing's own

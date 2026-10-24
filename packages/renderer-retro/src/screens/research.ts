@@ -13,12 +13,13 @@ import {
   type ResearchView,
   type TechLink,
   type TechStatus,
+  artLot,
   PICTURES,
 } from "@civ/renderer-api";
 import { drawText, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
 import { unitSprite } from "../overlays.js";
-import { drawPicture } from "../pictures.js";
+import { drawBuilding } from "../pictures.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
@@ -239,7 +240,9 @@ function showcase(s: Surface, state: GameState, id: string, top: number, bottom:
   const items: Item[] = [];
   for (const b of [...WONDERS.filter((w) => w.requires === id), ...BUILDINGS.filter((b) => b.requires === id)]) {
     const pic = PICTURES[b.id];
-    if (pic) items.push({ w: pic.w, h: pic.h, draw: (x, ground) => drawPicture(s, pic, x, ground, slotColor(owner)) });
+    if (!pic) continue;
+    const { w, h } = artLot(b.id, pic);
+    items.push({ w, h, draw: (x, ground) => drawBuilding(s, b.id, pic, x, ground, w, h, slotColor(owner)) });
   }
   for (const u of UNIT_TYPES.filter((t) => t.requires === id)) {
     const sprite = unitSprite(u.id, slotColor(owner));

@@ -17,6 +17,8 @@ import {
   drawNewTech,
   NEW_TECH_PICTURE,
   newTechHit,
+  drawBuilt,
+  builtHit,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -62,7 +64,7 @@ import {
 } from "@civ/renderer-retro";
 import type * as WebRenderer from "../../web/src/retro-renderer.js";
 import { screenW } from "./display.js";
-import { portraitPlace, preloadScenes, preloadTech, scenePlace, showPictures, techPlace, type PicturePlace } from "../../web/src/pictures.js";
+import { buildingPlaces, portraitPlace, preloadBuildings, preloadScenes, preloadTech, scenePlace, showPictures, techPlace, type PicturePlace } from "../../web/src/pictures.js";
 import { MapPan } from "./pan.js";
 
 /**
@@ -204,6 +206,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     researchListRows: RESEARCH_LIST_ROWS,
     beginFrame() {
       pictures = [];
+      narrow.art = [];
+      wide.art = [];
       shown.input = undefined;
       wideFrame = false;
       if (wide.width !== screenW()) {
@@ -233,7 +237,9 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
           for (let x = 0; x < narrow.fw; x++) paint((y * wide.fw + off + x) * 4, narrow.data[y * narrow.fw + x]!);
       }
       ctx.putImageData(image, 0, 0);
-      showPictures(canvas, pictures);
+      // The building pictures the frame's screen left spots for: the wide map's, or the 320x200 one's in the middle.
+      const spots = buildingPlaces(surface().art, { dx: wideFrame ? 0 : inset(), logicalW: screenW(), logicalH: SCREEN_H });
+      showPictures(canvas, [...pictures, ...spots]);
     },
     title: screen((s, at: number) => drawTitleScreen(s, at)),
     setup: screen((s, cards: SetupCards, selected: number, at: number) => {
@@ -250,6 +256,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       shown.drawn = drawn;
       drawMainScreen(wide, state, drawn);
       preloadTech(state.players[state.currentPlayer]?.researching);
+      preloadBuildings(state);
     },
     city: screen(drawCityScreen),
     cityView: screen(drawCityView),
@@ -275,6 +282,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if (picture) pictures.push(picture);
     }),
     newTechHit: (view, px, py) => newTechHit(view, px - inset(), py),
+    built: screen(drawBuilt),
+    builtHit: (view, px, py) => builtHit(view, px - inset(), py),
     prepare: (state) => preloadScenes(state),
     end: screen(drawEndScreen),
     spaceship: screen(drawSpaceshipScreen),

@@ -1,4 +1,4 @@
-import { NEW_TECH_BUTTONS, newTechCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
+import { BUILT_BUTTONS, builtCard, NEW_TECH_BUTTONS, newTechCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, cityButtonAt, cityCitizenAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
@@ -28,6 +28,8 @@ const cardMenu = (cards: SetupCards, selected: number): MenuState => ({ title: c
 export function createModernRenderer(ctx: Context2D, scale: () => number = () => 1): Renderer {
   /** The New Technology window last drawn, as the modal it is here, for its hit test. */
   let newTechShown: MenuState | null = null;
+  /** The Building Completed window last drawn, likewise. */
+  let builtShown: MenuState | null = null;
   return {
     id: "modern",
     width: W,
@@ -67,6 +69,16 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     newTechHit: (_view, px, py) => {
       const i = newTechShown ? menuHit(ctx, newTechShown, px, py) : -1;
       return i === 0 ? "tree" : i === 1 ? "continue" : null;
+    },
+    // Set aside (not in the app): the Building Completed window as a modal with its two buttons.
+    built: (state, view) => {
+      const card = builtCard(state, view);
+      builtShown = { title: `${card?.title ?? "Completed"}: ${card?.name ?? ""}`, body: [card?.where ?? "", card?.text ?? ""], items: [...BUILT_BUTTONS], selected: view.selected };
+      drawMenu(ctx, builtShown);
+    },
+    builtHit: (_view, px, py) => {
+      const i = builtShown ? menuHit(ctx, builtShown, px, py) : -1;
+      return i === 0 ? "city" : i === 1 ? "continue" : null;
     },
     end: (lines, rank) => drawEndScreen(ctx, lines, rank),
     spaceship: (state) => drawSpaceshipScreen(ctx, state),
