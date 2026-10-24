@@ -4,7 +4,8 @@ import { game, press, screenKind } from "./civ.js";
 import { canvas, displayScale, logicalAt } from "./display.js";
 import { GESTURES, Pinch, Recognizer, type Gesture } from "./gestures.js";
 import { rateKeys } from "./rates.js";
-import { mapZoom, narrowPoint, ordersAbove, pan, setMapZoom, TILE_PX, tileUnder, ZOOMS } from "./renderer.js";
+import { mapZoom, narrowPoint, ordersAbove, pan, setMapZoom, shown, TILE_PX, tileUnder, ZOOMS } from "./renderer.js";
+import { screenW } from "./display.js";
 import { syncText } from "./text.js";
 
 /**
@@ -36,7 +37,8 @@ function showRing(x: number, y: number, state: "" | "holding" | "fired"): void {
 
 /** Set the rate of the bar at point (x, y) to what the point stands for; false off the bars. */
 function setRate(x: number, y: number, held: boolean): boolean {
-  const hit = ratesAt(...narrowPoint(...logicalAt(x, y)), held);
+  // The window stands in the middle of whatever is under it: the wide map, or a 320x200 screen.
+  const hit = ratesAt(...narrowPoint(...logicalAt(x, y)), held, shown.wide ? screenW() : undefined);
   const me = game()?.state?.players[0];
   if (!hit || !me) return false;
   for (const key of rateKeys({ tax: me.taxRate, lux: me.luxRate }, hit.row, hit.value)) press(key, key);
@@ -94,7 +96,7 @@ function act(g: Gesture | null): void {
       at.x = g.x;
       at.y = g.y;
       const [px, py] = logicalAt(g.x, g.y);
-      dragging = screen === "rates" && ratesAt(px, py) ? "rates" : screen === "map" && tileUnder(px, py) ? "map" : screen === "research" ? "list" : null;
+      dragging = screen === "rates" && ratesAt(px, py, false, shown.wide ? screenW() : undefined) ? "rates" : screen === "map" && tileUnder(px, py) ? "map" : screen === "research" ? "list" : null;
       if (dragging === "rates") setRate(g.x, (barY = g.y), true);
       if (dragging === "map") pan.grab();
       break;

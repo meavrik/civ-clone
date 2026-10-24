@@ -1,4 +1,4 @@
-import { civ, type GameState } from "@civ/core";
+import { civ, civInfluence, esteem, GOVERNMENTS, trespassers, type GameState } from "@civ/core";
 
 /**
  * The audience with a foreign leader (redone 2026-10-22, asked for, after the user's mock-up "Caesar
@@ -14,6 +14,34 @@ export interface DiplomacyView {
   /** Our choices, as buttons under the words (at most AUDIENCE_CHOICES); none, and any key goes on. */
   choices?: string[];
   selected?: number;
+  /**
+   * A civilization's card (the menu bar's Diplomacy tab): these lines beside the leader's portrait,
+   * in place of the palace; `line` is then how we stand with them.
+   */
+  card?: string[];
+}
+
+/**
+ * What the Diplomacy tab's card says of civilization `player`: who leads them and their realm, their
+ * trait, their government, capital and size, what they make of our influence, their mood toward us
+ * (`mood`, the AI's `attitude`), and whether their units stand on our land.
+ */
+export function civCard(state: GameState, player: number, mood: "friendly" | "wary" | "hostile"): string[] {
+  const me = state.currentPlayer;
+  const p = state.players[player]!;
+  const c = civ(p.civ);
+  const cities = state.cities.filter((x) => x.owner === player);
+  const capital = cities.find((x) => x.buildings.includes("palace"));
+  const regard = esteem(state, player, me);
+  const onOurLand = trespassers(state, me, player).length;
+  return [
+    `${c.leader} leads the ${c.name}: ${realmName(state, player)}.`,
+    ...(c.trait ? [`${c.trait.name}: ${c.trait.text}`] : []),
+    `${GOVERNMENTS[p.government]?.name ?? p.government}; capital ${capital?.name ?? "none"}. ${cities.length} ${cities.length === 1 ? "city" : "cities"}, ${p.advances.length} advances, ${p.gold} gold.`,
+    `Influence ${civInfluence(state, player)}: they ${regard === "admired" ? "admire ours" : regard === "scorned" ? "scorn ours" : "weigh ours little either way"}.`,
+    `They are ${mood} toward us.`,
+    onOurLand ? `${onOurLand} of their units stand on our land.` : "None of their units stand on our land.",
+  ];
 }
 
 /** What a realm is called under each government. */

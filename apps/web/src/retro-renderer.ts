@@ -12,6 +12,9 @@ import {
   diplomacyChoiceAt,
   drawDiplomacyScreen,
   AUDIENCE_PICTURE,
+  CARD_PICTURE,
+  LEADER_PORTRAITS,
+  ratesHit,
   drawNewTech,
   newTechPicture,
   newTechHit,
@@ -60,7 +63,7 @@ import {
   menuBarHit,
   DETAIL,
 } from "@civ/renderer-retro";
-import { wrapX, type GameState } from "@civ/core";
+import { civ, wrapX, type GameState } from "@civ/core";
 import { buildingPlaces, portraitPlace, preloadBuildings, preloadScenes, preloadTech, scenePlace, showPictures, techPlace, type PicturePlace } from "./pictures.js";
 
 /**
@@ -124,8 +127,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     diplomacy: (state, view) => {
       drawDiplomacyScreen(screen, state, view);
-      // The leader's picture as it is, over the room the screen leaves for it.
-      const scene = scenePlace(state, view.player, { ...AUDIENCE_PICTURE, ...screenBox });
+      // The leader's picture as it is, over the room the screen leaves for it: the palace, or on a civilization's card the portrait.
+      const scene = view.card
+        ? portraitPlace(LEADER_PORTRAITS[civ(state.players[view.player]!.civ).id] ?? "king", { ...CARD_PICTURE, ...screenBox })
+        : scenePlace(state, view.player, { ...AUDIENCE_PICTURE, ...screenBox });
       if (scene) pictures.push(scene);
     },
     diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px, py),
@@ -153,6 +158,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityUnitAt: (state, view, px, py) => cityUnitAt(state, view, px, py),
     cityCitizenAt: (state, view, px, py) => cityCitizenAt(state, view, px, py),
     cityFocusAt: (px, py) => cityFocusAt(px, py),
+    ratesHit: (px, py) => ratesHit(px, py),
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px, py),
     tileAt(state: GameState, view: MainScreenView, px, py) {
       if (px < VIEW_X || py < VIEW_Y) return null;

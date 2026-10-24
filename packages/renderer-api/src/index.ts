@@ -41,6 +41,7 @@ import {
   bordersOpen,
   building,
   cityAt,
+  computeCity,
   civ,
   CIV_COLORS,
   CIVS,
@@ -212,6 +213,8 @@ export interface MenuState {
   square?: { x: number; y: number };
   /** How far a window has grown on opening, 0..1 (`WINDOW_ENTER_MS`); absent or 1, it stands whole. Dropdowns ignore it. */
   enter?: number | undefined;
+  /** Rows that cannot be picked now (Revolution! with no government to turn to): drawn faded, never hit. */
+  disabled?: number[];
 }
 
 /** How long a window takes to grow to its full size as it opens (asked for 2026-10-24: "animate window modals entrance"). */
@@ -248,7 +251,7 @@ export const TEXT_INPUT_MAX = 14;
 export type AdvisorKind = "domestic" | "military" | "foreign" | "score";
 
 /** The menu bar across the top of the map screen, as in the original. */
-export const MENU_BAR = ["Game", "Orders", "Advisors", "World", "Debug"] as const;
+export const MENU_BAR = ["Game", "Orders", "Advisors", "Diplomacy", "World", "Debug"] as const;
 
 /** A row of a report page; `slot` colours a civilization's marker. */
 export interface ReportLine {
@@ -359,6 +362,8 @@ export interface Renderer {
   cityUnitAt(state: GameState, view: CityScreenView, px: number, py: number): number | null;
   /** The focus toggle under a point (a corner of the city screen's map), or null. */
   cityFocusAt(px: number, py: number): CityFocus | null;
+  /** What a point on the rates window asks (`RatesHit`), or null off it. */
+  ratesHit(px: number, py: number): RatesHit | null;
   /** The person (their place in `citizenRow`) under a point in the city screen's row of citizens, or null. */
   cityCitizenAt(state: GameState, view: CityScreenView, px: number, py: number): number | null;
   /** The improvement or wonder (id) under a point of the city view, or null. */
@@ -526,6 +531,24 @@ export function leaderLine(state: GameState, player: number): string {
   if (mine > theirs * 2) return "We seek only peace with so great a power.";
   return "Greetings. What brings you to our court?";
 }
+
+/** What a civilization's cities bring its treasury, luxuries and research in a turn, at the rates set (the rates window's foot). */
+export function empireIncome(state: GameState, player: number): { gold: number; lux: number; science: number } {
+  const out = { gold: 0, lux: 0, science: 0 };
+  for (const c of state.cities) {
+    if (c.owner !== player) continue;
+    const r = computeCity(state, c);
+    out.gold += r.tax - r.buildingUpkeep;
+    out.lux += r.lux;
+    out.science += r.science;
+  }
+  return out;
+}
+
+/** A row of the rates window: the tax, luxury or science rate. */
+export type RateRow = "tax" | "lux" | "sci";
+/** What a click on the rates window asks: a rate set to a block, stepped by a button, or the window closed. */
+export type RatesHit = { kind: "set"; row: RateRow; value: number } | { kind: "step"; row: RateRow; delta: number } | { kind: "done" };
 
 export type StandingTone = "war" | "contact" | "peace";
 

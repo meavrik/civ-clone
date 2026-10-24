@@ -753,6 +753,17 @@ function dealAnswer(state: GameState, them: number, me: number): "yes" | "for go
 /** The gift a wary civilization asks before it opens its borders. */
 export const BORDERS_PRICE = 50;
 
+/**
+ * Does `them` take its units off `me`'s land when asked (the player's demand in an audience)? A
+ * friendly leader does; a wary one yields to a neighbour at least as strong; a hostile one never.
+ */
+export function withdrawAnswer(state: GameState, them: number, me: number): boolean {
+  const mood = attitude(state, them, me);
+  if (mood === "hostile") return false;
+  if (mood === "friendly") return true;
+  return strength(state, me) >= strength(state, them);
+}
+
 /** Would `them` open borders with `me`? Friendly: yes; wary: for a gift of `BORDERS_PRICE` gold; hostile: no. */
 export function bordersAnswer(state: GameState, them: number, me: number): "yes" | "for gold" | "no" {
   return dealAnswer(state, them, me);

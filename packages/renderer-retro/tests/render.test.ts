@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { settlerSites, TERRAIN_TEXT } from "@civ/renderer-api";
+import { civCard, settlerSites, standing, TERRAIN_TEXT } from "@civ/renderer-api";
+import { CARD_PICTURE, diplomacyChoiceAt, drawDiplomacyScreen, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
 
@@ -282,7 +283,7 @@ describe("retro renderer", () => {
     // Titles left to right along the top rows; nothing of the map shows above the bar's edge.
     const titles: number[] = [];
     for (let x = 0; x < 320; x++) { const t = menuBarHit(x, 4); if (titles.at(-1) !== t) titles.push(t); }
-    expect(titles.filter((t) => t >= 0)).toEqual([0, 1, 2, 3, 4]);
+    expect(titles.filter((t) => t >= 0)).toEqual([0, 1, 2, 3, 4, 5]); // Game, Orders, Advisors, Diplomacy, World, Debug
     expect(menuBarHit(10, VIEW_Y + 2)).toBe(-1);
     const bg = s.get(316, 2);
     for (let x = 300; x < 320; x++) expect(s.get(x, 2)).toBe(bg);
@@ -903,7 +904,7 @@ describe("advisor screens", () => {
     expect(bulb).toBe(true);
   });
 
-  it("renders science and rates screens", () => {
+  it("renders the science screen, and the rates window over the game with its blocks, steps and Done", () => {
     const state = newGame(2026);
     const p = state.players[0]!;
     p.advances.push("alphabet", "bronze_working");
@@ -912,9 +913,63 @@ describe("advisor screens", () => {
     const s = Surface.screen();
     drawScienceScreen(s, state);
     writeFileSync(new URL("./out/science.png", import.meta.url), encodePng(s, 3));
+    // The rates window is drawn over whatever is there: the corners stay as they were.
+    s.fill(7);
     drawRatesScreen(s, state);
     writeFileSync(new URL("./out/rates.png", import.meta.url), encodePng(s, 3));
-    expect(s.data.some((c) => c !== 0)).toBe(true);
+    expect(s.get(2, 2)).toBe(7);
+    expect(s.get(160, 100)).not.toBe(7);
+    // Along a row: the - button, ten blocks each a rate, the + button; Done at the foot; nothing outside.
+    const o = ratesRect();
+    const kinds = new Set<string>();
+    for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) { const h = ratesHit(x, y); if (h) kinds.add(h.kind === "step" ? `${h.row}${h.delta > 0 ? "+" : "-"}` : h.kind === "set" ? `set:${h.row}` : h.kind); }
+    expect([...kinds].sort()).toEqual(["done", "lux+", "lux-", "sci+", "sci-", "set:lux", "set:sci", "set:tax", "tax+", "tax-"]);
+    expect(ratesHit(2, 2)).toBeNull();
+    const taxY = (() => { for (let y = o.y; y < o.y + o.h; y++) { const h = ratesAt(o.x + 100, y); if (h?.row === "tax") return y; } return -1; })();
+    const values = new Set<number>();
+    for (let x = o.x; x < o.x + o.w; x++) { const h = ratesAt(x, taxY); if (h) values.add(h.value); }
+    expect(Math.max(...values)).toBe(10);
+    expect(Math.min(...values)).toBe(0);
+    // On a wider screen (the phone's map) the window stands in that screen's middle.
+    expect(ratesRect(480).x).toBe(o.x + 80);
+    expect(ratesHit(o.x + 80 + 100, taxY, 480)?.kind).toBe("set");
+  });
+
+  it("fades a menu row that cannot be picked and never hits it", () => {
+    const s = Surface.screen();
+    s.fill(0);
+    const m = { title: "", items: ["Tax Rate", "Revolution!", "Save Game"], right: ["T", "G", ""], selected: 0, anchor: { x: 4, y: 9 }, disabled: [1] };
+    drawMenu(s, m);
+    const rowY = (i: number) => { for (let y = 0; y < 200; y++) if (menuHit({ ...m, disabled: [] }, 30, y) === i) return y; return -1; };
+    expect(menuHit(m, 30, rowY(0))).toBe(0);
+    expect(menuHit(m, 30, rowY(1))).toBe(-1);
+    expect(menuHit(m, 30, rowY(2))).toBe(2);
+    // The faded row's ink is the stone's dim grey, not black.
+    let faded = 0;
+    let black = 0;
+    for (let x = 8; x < 60; x++) for (let y = rowY(1); y < rowY(1) + 8; y++) { const c = s.get(x, y); if (c === shade("panel", 2)) faded++; if (c === C.BLACK) black++; }
+    expect(faded).toBeGreaterThan(10);
+    expect(black).toBe(0);
+  });
+
+  it("lays a civilization's card out: the portrait's spot at the left, its lines beside it, the buttons under", () => {
+    const state = newGame(2026, { opponents: 2 });
+    const them = state.players[1]!;
+    const s = Surface.screen();
+    const card = civCard(state, them.id, "wary");
+    expect(card.length).toBeGreaterThanOrEqual(5);
+    expect(card.some((l) => l.includes("wary toward us"))).toBe(true);
+    const view = { player: them.id, line: standing(state, them.id, true).text, card, choices: ["Talk", "Back"], selected: 0 };
+    drawDiplomacyScreen(s, state, view);
+    writeFileSync(new URL("./out/civ-card.png", import.meta.url), encodePng(s, 3));
+    // The portrait's spot is a sky bed at the left; ink stands to its right.
+    const p = CARD_PICTURE;
+    expect(s.get(p.x + 10, p.y + 10)).toBeGreaterThanOrEqual(shade("azure", 0));
+    expect(s.get(p.x + 10, p.y + 10)).toBeLessThanOrEqual(shade("azure", 7));
+    let ink = 0;
+    for (let y = p.y; y < p.y + 40; y++) for (let x = p.x + p.w + 10; x < 300; x++) if (s.get(x, y) === C.BLACK) ink++;
+    expect(ink).toBeGreaterThan(50);
+    expect(diplomacyChoiceAt(view, 80, 184)).toBe(0); // the first of two buttons, on the one row
   });
 });
 

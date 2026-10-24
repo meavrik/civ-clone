@@ -42,6 +42,7 @@ import {
   warnTrespass,
 } from "./diplomacy.js";
 import { findPath, stepDir } from "./pathfind.js";
+import { landOwner } from "./territory.js";
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, researchCost } from "./rules/advances.js";
 import { building } from "./rules/buildings.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
@@ -99,6 +100,7 @@ export type Command =
   | { type: "tribute"; player: number; amount: number } // `player` gives in to a demand and pays the current player
   | { type: "demandLeave"; player: number } // ask `player` to take its units off the current player's land
   | { type: "giveGold"; player: number; amount: number } // a gift; it also forgives their trespass so far
+  | { type: "withdraw"; player: number } // `player`'s units on the current player's land each set off for the nearest square outside it (a leader who agreed to leave)
   | { type: "giveAdvance"; player: number; advance: string }
   | { type: "exchangeAdvances"; player: number; give: string; receive: string }
   | { type: "launch" } // the spaceship, once it can fly
@@ -276,6 +278,21 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       if (!trespassers(state, me, cmd.player).length) return { ok: false, reason: "no one trespasses" };
       const rec = warnTrespass(state, me, cmd.player);
       lastTurnEvents.push({ kind: "leaveDemand", player: me, to: cmd.player, warnings: rec.warnings });
+      return { ok: true };
+    }
+    case "withdraw": {
+      const me = state.currentPlayer;
+      const theirs = trespassers(state, me, cmd.player);
+      if (!theirs.length) return { ok: false, reason: "no one trespasses" };
+      let sent = 0;
+      for (const u of theirs) {
+        const exit = exitSquare(state, u, me);
+        if (!exit) continue;
+        u.order = { kind: "goto", x: exit.x, y: exit.y };
+        sent++;
+      }
+      if (!sent) return { ok: false, reason: "no way out" };
+      forgiveTrespass(state, me, cmd.player);
       return { ok: true };
     }
     case "giveGold": {
@@ -637,6 +654,35 @@ function removeUnit(state: GameState, u: Unit): void {
 }
 
 /** Walk a goto order as far as this turn's moves allow. Stops on anything unexpected. */
+/**
+ * The nearest land square outside `owner`'s land (and any other land that minds `u`'s civilization)
+ * that unit `u` can walk to, searching ring by ring to eight squares out; null when none. Where a unit
+ * asked off someone's land goes: the player's own units (`withdraw` in the web app) and a computer
+ * leader's after agreeing to the player's demand (the `withdraw` command).
+ */
+export function exitSquare(state: GameState, u: Unit, owner: number): { x: number; y: number } | null {
+  for (let r = 1; r <= 8; r++) {
+    let best: { x: number; y: number } | null = null;
+    let steps = Infinity;
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = wrapX(state.map, u.x + dx);
+        const y = u.y + dy;
+        const t = getTile(state.map, x, y);
+        if (!t || t.terrain === Terrain.Ocean) continue;
+        const land = landOwner(state, x, y);
+        if (land === owner || (land >= 0 && mindsTrespass(state, land, u.owner))) continue;
+        const city = cityAt(state, x, y);
+        if ((city && city.owner !== u.owner) || state.units.some((o) => o.x === x && o.y === y && o.owner !== u.owner)) continue;
+        const path = findPath(state, u, x, y);
+        if (path && path.length < steps) { best = { x, y }; steps = path.length; }
+      }
+    if (best) return best;
+  }
+  return null;
+}
+
 export function runGoto(state: GameState, u: Unit, planned?: [number, number][]): void {
   if (u.order.kind !== "goto") return;
   const { x, y } = u.order;

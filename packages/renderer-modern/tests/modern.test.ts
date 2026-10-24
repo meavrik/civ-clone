@@ -216,9 +216,9 @@ describe("modern renderer", () => {
     // The bar's five titles, left to right; each dropdown opens under its own title.
     const titles: number[] = [];
     for (let x = 0; x < 960; x += 4) { const t = r.menuBarHit(x, 15); if (titles.at(-1) !== t) titles.push(t); }
-    expect(titles.filter((t) => t >= 0)).toEqual([0, 1, 2, 3, 4]);
+    expect(titles.filter((t) => t >= 0)).toEqual([0, 1, 2, 3, 4, 5]);
     expect(r.menuBarHit(30, bar + 5)).toBe(-1);
-    const anchors = [0, 1, 2, 3, 4].map((i) => r.menuBarAnchor(i));
+    const anchors = [0, 1, 2, 3, 4, 5].map((i) => r.menuBarAnchor(i));
     for (let i = 1; i < 5; i++) expect(anchors[i]!.x).toBeGreaterThan(anchors[i - 1]!.x);
     expect(anchors[0]!.y).toBeGreaterThanOrEqual(bar);
     // An anchored dropdown's first row sits right under the bar, not in the middle of the screen.

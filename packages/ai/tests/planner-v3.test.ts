@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, createUnit, esteem, foundCity, getTile, labelContinents, lastTurnEvents, newGame, peaceOffered, relation, setBordersOpen, setRelation, Terrain, trespassRecord, type GameState, type NewGameOptions } from "@civ/core";
-import { acceptsMapSwap, attitude, bordersAnswer, describePlan, peaceAnswer, plannerTurn, tributeOffer } from "../src/index.js";
+import { acceptsMapSwap, attitude, bordersAnswer, describePlan, peaceAnswer, plannerTurn, tributeOffer, withdrawAnswer } from "../src/index.js";
 
 /** Player 0 plays (AI); everyone else just ends the turn. */
 function round(state: GameState): void {
@@ -138,6 +138,12 @@ describe("planner AI v3 borders", () => {
     s.players[1]!.gold = 120;
     expect(attitude(s, 1, 0)).toBe("friendly");
     expect(tributeOffer(s, 1, 0)).toBe(30);
+    // A friendly leader takes its units off our land when asked; a hostile one never; a wary one yields to strength.
+    expect(withdrawAnswer(s, 1, 0)).toBe(true);
+    s.units = s.units.filter((u) => u.owner !== 0);
+    for (let i = 0; i < 4; i++) createUnit(s, "phalanx", 1, 20, 10);
+    expect(attitude(s, 1, 0)).toBe("wary");
+    expect(withdrawAnswer(s, 1, 0)).toBe(false); // the stronger stays
     s.tributePaid = { "1>0": s.turn };
     expect(tributeOffer(s, 1, 0)).toBe(0);
     s.trespass = { "1>0": { turn: s.turn, warnings: 2 } };

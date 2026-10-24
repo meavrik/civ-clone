@@ -307,17 +307,18 @@ function drawMenuNow(s: Surface, m: MenuState, square?: (s: Surface, x: number, 
   }
   const rowW = w - 8 - (scrolls ? SCROLL_W + 2 : 0);
   m.items.forEach((item, i) => {
-    const sel = i === m.selected;
+    const off = m.disabled?.includes(i) === true;
+    const sel = i === m.selected && !off;
     if (buttons) {
-      drawButton(s, bx, itemsY + 1 + i * BUTTON_ROW, bw, BUTTON_H, item, true, sel);
+      drawButton(s, bx, itemsY + 1 + i * BUTTON_ROW, bw, BUTTON_H, item, !off, sel);
       return;
     }
     if (i < top || i >= top + rows) return;
     const ry = itemsY + (i - top) * row;
     if (sel) s.rect(x + 4, ry - 1, rowW, row, shade("azure", 2));
-    drawText(s, x + 10, ry, item, sel ? C.WHITE! : C.BLACK!);
+    drawText(s, x + 10, ry, item, off ? FADED : sel ? C.WHITE! : C.BLACK!);
     const r = m.right?.[i];
-    if (r) drawText(s, x + 4 + rowW - 6 - textWidth(r), ry, r, sel ? shade("azure", 7) : DIM);
+    if (r) drawText(s, x + 4 + rowW - 6 - textWidth(r), ry, r, off ? FADED : sel ? shade("azure", 7) : DIM);
   });
   if (scrolls) drawScrollBar(s, m, l);
 }
@@ -353,12 +354,13 @@ export function menuHit(m: MenuState, px: number, py: number, screenW = SCREEN_W
     const off = py - itemsY - 1;
     const i = Math.floor(off / BUTTON_ROW);
     if (px < bx || px >= bx + bw || off < 0 || off % BUTTON_ROW >= BUTTON_H) return -1;
-    return i < m.items.length ? i : -1;
+    return i < m.items.length && !m.disabled?.includes(i) ? i : -1;
   }
   const right = x + w - 4 - (rows < m.items.length ? SCROLL_W + 2 : 0);
   if (px < x + 4 || px > right) return -1;
   const i = Math.floor((py - (itemsY - 1)) / row);
-  return i >= 0 && i < rows && top + i < m.items.length ? top + i : -1;
+  const hit = i >= 0 && i < rows && top + i < m.items.length ? top + i : -1;
+  return m.disabled?.includes(hit) ? -1 : hit;
 }
 
 /** A one-line text prompt: title, the text being typed, a blinking cursor. */

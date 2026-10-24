@@ -17,6 +17,9 @@ const TITLE = { y: 0, h: 12 };
 /** Where the leader's picture goes (16 by 9, as the pictures are), centred between the title and the panel. */
 export const AUDIENCE_PICTURE = { x: 48, y: 12, w: 224, h: 126 } as const;
 const SCENE = AUDIENCE_PICTURE;
+/** Where the leader's portrait goes on a civilization's card (`DiplomacyView.card`): at the left of the stone, the card's lines beside it. */
+export const CARD_PICTURE = { x: 10, y: 16, w: 94, h: 118 } as const;
+const CARD_TEXT = { x: 114, y: 18, w: SCREEN_W - 114 - 8 };
 const PANEL = { y: 138, h: 62 };
 const BUTTON_H = 13;
 
@@ -57,12 +60,32 @@ export function drawDiplomacyScreen(s: Surface, state: GameState, view: Diplomac
   framed(s, 0, TITLE.y, SCREEN_W, TITLE.h, NAVY());
   drawSpaced(s, SCREEN_W / 2, TITLE.y + 2, realmName(state, view.player), GOLD_INK());
   drawStone(s, 0, SCENE.y, SCREEN_W, SCENE.h);
-  drawScene(s);
+  if (view.card) drawCard(s, view.card);
+  else drawScene(s);
   framed(s, 0, PANEL.y, SCREEN_W, PANEL.h, NAVY());
   drawSpaced(s, SCREEN_W / 2, PANEL.y + 3, leaderTitle(state, view.player), GOLD_INK());
   wrapText(view.line, SCREEN_W - 20).slice(0, 2).forEach((l, i) => drawText(s, Math.floor((SCREEN_W - textWidth(l)) / 2), PANEL.y + 11 + i * FONT_HEIGHT, l, C.WHITE!));
   const choices = view.choices ?? [];
   buttonRects(choices.length).forEach((b, i) => drawChoice(s, b, choices[i]!, i === (view.selected ?? 0)));
+}
+
+/** A civilization's card: a sunken frame for the leader's portrait (a dusk sky beneath, seen until it loads), its lines beside it. */
+function drawCard(s: Surface, lines: string[]): void {
+  const p = CARD_PICTURE;
+  framed(s, p.x - 2, p.y - 2, p.w + 4, p.h + 4, shade("azure", 1));
+  const k = s.k;
+  for (let fy = 0; fy < p.h * k; fy++) {
+    const f = (fy / (p.h * k)) * 3;
+    for (let fx = 0; fx < p.w * k; fx++) s.fset(p.x * k + fx, p.y * k + fy, shade("azure", Math.floor(f + ((fx + fy) % 2) * 0.5)));
+  }
+  let y = CARD_TEXT.y;
+  const room = Math.floor((SCENE.y + SCENE.h - 4 - y) / FONT_HEIGHT);
+  const wrapped = lines.flatMap((l, i) => wrapText(l, CARD_TEXT.w).map((w, j) => ({ w, first: i > 0 && j === 0 })));
+  for (const { w, first } of wrapped.slice(0, room)) {
+    if (first) y += 2;
+    drawText(s, CARD_TEXT.x, y, w, INK);
+    y += FONT_HEIGHT;
+  }
 }
 
 /** What lies under the leader's picture: a dusk sky (seen only until the picture has loaded). */

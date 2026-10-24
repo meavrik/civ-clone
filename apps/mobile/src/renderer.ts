@@ -1,10 +1,13 @@
-import { wrapX, type GameState } from "@civ/core";
+import { civ, wrapX, type GameState } from "@civ/core";
 import type { AdvisorKind, DiplomacyView, MainScreenView, MenuState, NewTechView, Renderer, SetupCards, TextInputState } from "@civ/renderer-api";
 import {
   BAR_H,
   cityButtonAt,
   cityCitizenAt,
   cityFocusAt,
+  CARD_PICTURE,
+  LEADER_PORTRAITS,
+  ratesHit,
   cityExitHit,
   citySlotAt,
   cityUnitAt,
@@ -263,7 +266,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityView: screen(drawCityView),
     research: screen(drawResearch),
     science: screen(drawScienceScreen),
-    rates: screen(drawRatesScreen),
+    // The rates window opens over whatever is drawn under it (the wide map, or a 320x200 screen), centred on it.
+    rates: (state) => drawRatesScreen(surface(), state),
     advisor: screen((s, state: GameState, which: AdvisorKind) => {
       if (which === "domestic") drawDomesticAdvisor(s, state);
       else if (which === "military") drawMilitaryAdvisor(s, state);
@@ -272,8 +276,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     }),
     diplomacy: screen((s, state: GameState, view: DiplomacyView) => {
       drawDiplomacyScreen(s, state, view);
-      // The leader's picture as it is, over the room the screen leaves for it (the screen in the middle).
-      const scene = scenePlace(state, view.player, onScreen(AUDIENCE_PICTURE));
+      // The leader's picture as it is, over the room the screen leaves for it (the screen in the middle): the palace, or on a card the portrait.
+      const scene = view.card
+        ? portraitPlace(LEADER_PORTRAITS[civ(state.players[view.player]!.civ).id] ?? "king", onScreen(CARD_PICTURE))
+        : scenePlace(state, view.player, onScreen(AUDIENCE_PICTURE));
       if (scene) pictures.push(scene);
     }),
     diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px - inset(), py),
@@ -310,6 +316,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityUnitAt: (state, view, px, py) => cityUnitAt(state, view, px - inset(), py),
     cityCitizenAt: (state, view, px, py) => cityCitizenAt(state, view, px - inset(), py),
     cityFocusAt: (px, py) => cityFocusAt(px - inset(), py),
+    ratesHit: (px, py) => (shown.wide ? ratesHit(px, py, screenW()) : ratesHit(px - inset(), py)),
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px - inset(), py),
     researchHit: (state, view, px, py) => researchHit(state, view, px - inset(), py),
     // The map's screen: the panel at the left and the bar along the top, as on the original's.

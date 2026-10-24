@@ -96,6 +96,8 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     cityCitizenAt: (state, view, px, py) => cityCitizenAt(state, view, px, py),
     // Its Focus button opens the menu; the focus toggles are the retro map's corners.
     cityFocusAt: () => null,
+    // Its own rates screen takes keys; a click anywhere closes it.
+    ratesHit: () => null,
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px, py),
     tileAt: (state, view, px, py) => tileAt(state, view, px, py),
     minimapAt: (state, px, py) => minimapAt(state, px, py),

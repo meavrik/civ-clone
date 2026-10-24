@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { exitSquare, foundCity } from "../src/index.js";
 import {
   applyCommand,
   borderRadius,
@@ -68,6 +69,29 @@ function neighbours(opts: NewGameOptions = {}): GameState {
   lastTurnEvents.length = 0;
   return s;
 }
+
+describe("withdrawal", () => {
+  it("sends a civilization's units off our land to the nearest way out when it agrees to leave", () => {
+    const s = newGame(1, { opponents: 1, classicCivs: true });
+    s.units = [];
+    s.cities = [];
+    foundCity(s, 0, 10, 10);
+    setRelation(s, 0, 1, "contact");
+    for (const t of s.map.tiles) { t.terrain = Terrain.Grassland; t.river = false; }
+    const scout = createUnit(s, "militia", 1, 11, 10);
+    expect(trespassers(s, 0, 1).map((u) => u.id)).toEqual([scout.id]);
+    const exit = exitSquare(s, scout, 0)!;
+    expect(exit).not.toBeNull();
+    expect(landOwner(s, exit.x, exit.y)).not.toBe(0);
+    expect(applyCommand(s, { type: "withdraw", player: 1 }).ok).toBe(true);
+    expect(scout.order).toEqual({ kind: "goto", x: exit.x, y: exit.y });
+    expect(trespassRecord(s, 0, 1)).toBeUndefined(); // their trespass so far is forgiven
+    // Nothing to ask of a civilization with no unit on our land.
+    expect(applyCommand(s, { type: "withdraw", player: 1 }).ok).toBe(true); // still there until its turn
+    s.units = [];
+    expect(applyCommand(s, { type: "withdraw", player: 1 }).ok).toBe(false);
+  });
+});
 
 describe("contact", () => {
   it("is made face to face, and the meeting stops the unit that walked into it", () => {

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { MENU_BAR as DEV_MENU_BAR } from "@civ/renderer-api";
-import { ratesAt } from "@civ/renderer-retro";
+import { ratesAt, ratesRect } from "@civ/renderer-retro";
 import { describe, expect, it } from "vitest";
 import { droppedTitles, withoutTitles } from "../menu-bar.js";
 import { Pinch, Recognizer } from "../src/gestures.js";
@@ -148,12 +148,18 @@ describe("map pan", () => {
 
 describe("rates by touch", () => {
   it("knows the bars and the rate each point of them stands for", () => {
-    expect(ratesAt(110, 66)).toEqual({ row: "tax", value: 0 });
-    expect(ratesAt(170, 84)).toEqual({ row: "lux", value: 5 });
-    expect(ratesAt(236, 102)).toEqual({ row: "sci", value: 10 });
-    expect(ratesAt(170, 130)).toBeNull();
-    expect(ratesAt(60, 66)).toBeNull(); // the label
-    expect(ratesAt(60, 66, true)).toEqual({ row: "tax", value: 0 }); // a finger sliding off the end keeps the bar
+    // The window stands in the middle of the screen; its three rows of blocks answer, nothing else.
+    const o = ratesRect();
+    const rowY = (row: string) => { for (let y = o.y; y < o.y + o.h; y++) if (ratesAt(o.x + 120, y)?.row === row) return y; return -1; };
+    const left = (() => { for (let x = o.x; x < o.x + o.w; x++) if (ratesAt(x, rowY("tax"))) return x; return -1; })();
+    expect(ratesAt(left + 2, rowY("tax"))).toEqual({ row: "tax", value: 0 });
+    expect(ratesAt(left + 55, rowY("lux"))).toEqual({ row: "lux", value: 5 });
+    expect(ratesAt(left + 112, rowY("sci"))).toEqual({ row: "sci", value: 10 });
+    expect(ratesAt(left + 55, o.y + o.h - 4)).toBeNull();
+    expect(ratesAt(o.x + 20, rowY("tax"))).toBeNull(); // the label
+    expect(ratesAt(o.x + 20, rowY("tax"), true)).toEqual({ row: "tax", value: 0 }); // a finger sliding off the end keeps the bar
+    // Over the phone's wide map the window stands in that screen's middle.
+    expect(ratesAt(left + 2 + 80, rowY("tax"), false, 480)).toEqual({ row: "tax", value: 0 });
   });
 
   it("walks the rates to the one touched with the arrows the game takes", () => {
@@ -170,10 +176,10 @@ describe("the phone's menu bar", () => {
   const bar = (code: string) => /export const MENU_BAR = [^\n]*/.exec(code)![0];
 
   it("has no Orders (a tap on a unit opens them), and no Debug once deployed", () => {
-    expect(DEV_MENU_BAR).toEqual(["Game", "Orders", "Advisors", "World", "Debug"]);
-    expect(bar(withoutTitles(source, droppedTitles("serve")))).toBe('export const MENU_BAR = ["Game", "Advisors", "World", "Debug"] as const;');
+    expect(DEV_MENU_BAR).toEqual(["Game", "Orders", "Advisors", "Diplomacy", "World", "Debug"]);
+    expect(bar(withoutTitles(source, droppedTitles("serve")))).toBe('export const MENU_BAR = ["Game", "Advisors", "Diplomacy", "World", "Debug"] as const;');
     const built = withoutTitles(source, droppedTitles("build"));
-    expect(bar(built)).toBe('export const MENU_BAR = ["Game", "Advisors", "World"] as const;');
+    expect(bar(built)).toBe('export const MENU_BAR = ["Game", "Advisors", "Diplomacy", "World"] as const;');
     expect(built.replace(bar(built), "")).toBe(source.replace(bar(source), ""));
   });
 
