@@ -70,6 +70,12 @@ export interface GameConfig {
   freecivYields?: boolean;
   /** The Colossus on ocean squares only, workers placed by bare yields (saves before version 27). */
   oceanColossus?: boolean;
+  /** A finished improvement's leftover shields halved for the next one (saves before version 28). */
+  halvedCarryOver?: boolean;
+  /** Borders growing at the first culture levels, radius 2 at 8 (saves before version 28). */
+  slowCulture?: boolean;
+  /** No trade from specials beyond a city's worked squares (saves before version 28). */
+  noInfluenceYields?: boolean;
 }
 
 export interface PlayerStats {
@@ -160,6 +166,9 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.randomStarts ? { randomStarts: true } : {}),
     ...(config.freecivYields ? { freecivYields: true } : {}),
     ...(config.oceanColossus ? { oceanColossus: true } : {}),
+    ...(config.halvedCarryOver ? { halvedCarryOver: true } : {}),
+    ...(config.slowCulture ? { slowCulture: true } : {}),
+    ...(config.noInfluenceYields ? { noInfluenceYields: true } : {}),
   };
 }
 

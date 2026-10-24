@@ -9,7 +9,8 @@ import { civ } from "./rules/civs.js";
 import { difficultyRule } from "./rules/difficulty.js";
 import { BALANCED_WEIGHTS, combinedFocus, focusRule, type FocusRule } from "./rules/focus.js";
 import { nextCityName } from "./rules/names.js";
-import { specialOf, TERRAIN_RULES } from "./rules/terrain.js";
+import { specialOf, TERRAIN_RULES, type SpecialRule } from "./rules/terrain.js";
+import { INFLUENCE_YIELD } from "./rules/culture.js";
 import { UNIT_TYPES, unitType } from "./rules/units.js";
 import {
   CITY_RADIUS,
@@ -24,7 +25,7 @@ import {
   type Tile,
   type Unit,
 } from "./types.js";
-import { borderRadius, cultureRate, landOwner, withinBorder } from "./territory.js";
+import { borderRadius, claimant, cultureRate, landOwner, withinBorder } from "./territory.js";
 import { createUnit } from "./units.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
@@ -365,6 +366,8 @@ export interface CityReport {
   trade: number;
   /** Part of `trade` that comes from caravan routes. */
   routes: number;
+  /** Part of `trade` that comes from specials inside the border beyond the squares the city works (`influenceSpecials`). */
+  influence: number;
   /** Percent chance per turn of polluting a tile. */
   pollution: number;
   foodSurplus: number;
@@ -425,7 +428,10 @@ export function shieldsAfterChange(state: GameState, city: City, p: Production):
   if (state.compoundingPenalty) return p.kind === city.production.kind ? city.shields : Math.floor(city.shields / 2);
   const base = city.turnShields ?? city.shields;
   const kind = city.turnKind ?? city.production.kind;
-  return p.kind === kind ? base : Math.floor(base / 2);
+  // Units are one kind, improvements, wonders and spaceship parts another, as the original had it
+  // (saves before version 28, `halvedCarryOver`, told all four apart).
+  const family = (k: Production["kind"]) => (state.halvedCarryOver || k === "unit" ? k : "improvement");
+  return family(p.kind) === family(kind) ? base : Math.floor(base / 2);
 }
 
 /** What a production costs `owner`: the rules' cost, less any discount of its civilization's trait. */
@@ -561,6 +567,47 @@ export function cityYieldGovernment(state: GameState, city: City): string {
   return city.celebrating && rule && "yieldsAs" in rule ? rule.yieldsAs : gov;
 }
 
+/** A special a city's influence brings it trade from (`influenceSpecials`): the square, the resource and the trade. */
+export interface InfluenceSpecial {
+  x: number;
+  y: number;
+  special: SpecialRule;
+  trade: number;
+}
+
+/**
+ * Influence yields (since version 28, `INFLUENCE_YIELD`; asked for: whales and other resources a city
+ * cannot reach should still be worth something inside its influence): the specials inside the city's
+ * border but beyond the 21 squares it can work, claimed by this city and worked by no city, each with
+ * the trade it brings the city: half the resource's own trade, at least one. Nothing before the
+ * border reaches 3 squares out.
+ */
+export function influenceSpecials(state: GameState, city: City): InfluenceSpecial[] {
+  const out: InfluenceSpecial[] = [];
+  if (state.noInfluenceYields || state.fixedBorders) return out;
+  const r = borderRadius(state, city);
+  if (r <= 2) return out;
+  const { width, height, tiles } = state.map;
+  const worked = (x: number, y: number) =>
+    state.cities.some((c) => (c.x === x && c.y === y) || c.worked.some((s) => {
+      const [ox, oy] = CITY_RADIUS[s]!;
+      return wrapX(state.map, c.x + ox) === x && c.y + oy === y;
+    }));
+  for (let dy = -r; dy <= r; dy++) {
+    const y = city.y + dy;
+    if (y < 0 || y >= height) continue;
+    for (let dx = -r; dx <= r; dx++) {
+      if (withinBorder(dx, dy, 2) || !withinBorder(dx, dy, r)) continue;
+      const x = wrapX(state.map, city.x + dx);
+      const special = specialOf(tiles[y * width + x]!);
+      if (!special) continue;
+      if (claimant(state, x, y)?.id !== city.id || worked(x, y)) continue;
+      out.push({ x, y, special, trade: Math.max(INFLUENCE_YIELD.min, Math.ceil((special.trade ?? 0) * INFLUENCE_YIELD.tradeShare)) });
+    }
+  }
+  return out;
+}
+
 /** Everything the city screen shows and the turn pass needs, computed from state. */
 export function computeCity(state: GameState, city: City): CityReport {
   const player = state.players[city.owner]!;
@@ -582,6 +629,8 @@ export function computeCity(state: GameState, city: City): CityReport {
     if (other) routes += routeTrade(state, city, other);
   }
   trade += routes;
+  const influence = influenceSpecials(state, city).reduce((n, s) => n + s.trade, 0);
+  trade += influence;
 
   const has = (id: string) => city.buildings.includes(id);
   let shieldPct = 0;
@@ -709,7 +758,7 @@ export function computeCity(state: GameState, city: City): CityReport {
   const foodEaten = workers * 2 + city.specialists.length * 2 + unitFood;
 
   return {
-    food, shields, trade, routes,
+    food, shields, trade, routes, influence,
     pollution: pollutionChance(state, city, shields),
     foodSurplus: food - foodEaten,
     // Riots stop the work, not the soldiers' pay: a city in disorder still owes its units (not before version 17).
@@ -801,11 +850,14 @@ export interface CityTurnEvent {
 export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
   // The border reaches further as the city grows and builds (fixed in old saves).
   const reach = borderRadius(state, city);
+  const kind = city.production.kind;
   const events = cityTurn(state, city);
   if (!state.fixedBorders && borderRadius(state, city) > reach) events.push({ city: city.id, kind: "borders" });
-  // What the box holds now is what a change of production this coming turn is reckoned from.
+  // What the box holds now is what a change of production this coming turn is reckoned from: a
+  // finished improvement's leftover keeps the kind it was gathered for, whatever the city turned to
+  // meanwhile (before version 28 the militia it turned to made it a unit's box, halved for the next improvement).
   city.turnShields = city.shields;
-  city.turnKind = city.production.kind;
+  city.turnKind = state.halvedCarryOver ? city.production.kind : kind;
   return events;
 }
 

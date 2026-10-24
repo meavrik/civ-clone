@@ -17,7 +17,9 @@ import {
   createUnit,
   dropLostSquares,
   esteem,
+  getTile,
   INFLUENCE,
+  influenceSpecials,
   landOwner,
   lastTurnEvents,
   loadSave,
@@ -216,6 +218,34 @@ describe("culture", () => {
     expect(ours.size).toBe(CULTURE.levels[0]);
     expect(borderRadius(s, ours)).toBe(2);
     expect(lastTurnEvents).toContainEqual({ city: ours.id, kind: "borders" });
+  });
+
+  it("brings a city trade from specials inside its border beyond the squares it works, since version 28", () => {
+    const s = neighbours();
+    const ours = s.cities.find((c) => c.owner === 0)!;
+    // Culture enough for a border three squares out; gold in the mountains three squares east of the
+    // city, whales in the sea three to the north: beyond the 21 squares it works, inside its land.
+    ours.size = CULTURE.levels[1]!;
+    autoAssignWorkers(s, ours);
+    expect(borderRadius(s, ours)).toBe(3);
+    const gold = getTile(s.map, 13, 10)!;
+    gold.terrain = Terrain.Mountains;
+    gold.special = true;
+    const sea = getTile(s.map, 10, 7)!;
+    sea.terrain = Terrain.Ocean;
+    sea.special = true;
+    sea.secondSpecial = true;
+    expect(influenceSpecials(s, ours).map((i) => `${i.special.name} ${i.trade}`).sort()).toEqual(["Gold 3", "Whales 1"]);
+    const before = computeCity(s, ours);
+    expect(before.influence).toBe(4);
+    // A square claimed by another city of ours brings this one nothing.
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 14, 10).id });
+    expect(landOwner(s, 13, 10)).toBe(0);
+    expect(influenceSpecials(s, ours).map((i) => i.special.name)).toEqual(["Whales"]);
+    expect(computeCity(s, ours).trade).toBe(before.trade - 3);
+    // Nothing in saves before version 28.
+    s.noInfluenceYields = true;
+    expect(computeCity(s, ours).influence).toBe(0);
   });
 
   it("settles a square two cities reach equally for the one with more culture", () => {

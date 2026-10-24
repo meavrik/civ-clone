@@ -78,6 +78,12 @@ export interface NewGameOptions extends MapGenOptions {
   freecivYields?: boolean;
   /** The Colossus on ocean squares only (see `GameState.oceanColossus`). Old saves load with it. */
   oceanColossus?: boolean;
+  /** A finished improvement's leftover halved for the next one (see `GameState.halvedCarryOver`). Old saves load with it. */
+  halvedCarryOver?: boolean;
+  /** The first culture levels, radius 2 at 8 (see `GameState.slowCulture`). Old saves load with it. */
+  slowCulture?: boolean;
+  /** No trade from specials beyond a city's worked squares (see `GameState.noInfluenceYields`). Old saves load with it. */
+  noInfluenceYields?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -245,6 +251,9 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.settlerShields ? { settlerShields: true } : {}),
     ...(opts.freecivYields ? { freecivYields: true } : {}),
     ...(opts.oceanColossus ? { oceanColossus: true } : {}),
+    ...(opts.halvedCarryOver ? { halvedCarryOver: true } : {}),
+    ...(opts.slowCulture ? { slowCulture: true } : {}),
+    ...(opts.noInfluenceYields ? { noInfluenceYields: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

@@ -53,6 +53,7 @@ describe("city focus", () => {
 
   it("puts spare citizens to study under Science and to tax under Trade, while the city keeps order", () => {
     const { s, c } = forestCity([5]);
+    s.slowCulture = true; // the first culture levels keep the new city to its eight squares, so a third citizen has nowhere to work
     s.players[0]!.difficulty = 0;
     // Barbarians stand on all but two of the new city's eight squares: a third citizen has nowhere to work.
     for (const slot of NEXT.slice(2)) {
@@ -71,6 +72,7 @@ describe("city focus", () => {
 
   it("works for any foci picked together: their weights added, none the old balance, science and trade studying and taxing in turn", () => {
     const { s, c } = forestCity([5]);
+    s.slowCulture = true; // as above: eight squares, so the fourth and third citizens are spare
     expect(applyCommand(s, { type: "setFoci", city: c.id, foci: ["production", "growth"] }).ok).toBe(true);
     expect(c.foci).toEqual(["growth", "production"]);
     expect(cityFoci(s, c)).toEqual(["growth", "production"]);

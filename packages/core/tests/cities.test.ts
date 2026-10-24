@@ -395,6 +395,38 @@ describe("cities", () => {
     expect(d.shields).toBe(10);
   });
 
+  it("keeps a finished improvement's leftover shields for the next improvement or wonder, halving them only for a unit", () => {
+    const finish = (old: boolean) => {
+      const s = flatWorld();
+      if (old) s.halvedCarryOver = true;
+      applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+      const c = s.cities[0]!;
+      s.players[0]!.advances.push("pottery", "ceremonial_burial", "bronze_working");
+      applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
+      c.shields = 65;
+      applyCommand(s, { type: "endTurn" });
+      expect(c.buildings).toContain("granary");
+      expect(c.production).toEqual({ kind: "unit", id: "militia" });
+      expect(c.shields).toBeGreaterThan(0);
+      return { s, c, over: c.shields };
+    };
+    const { s, c, over } = finish(false);
+    expect(shieldsAfterChange(s, c, { kind: "building", id: "temple" })).toBe(over);
+    expect(shieldsAfterChange(s, c, { kind: "wonder", id: "colossus" })).toBe(over); // wonders count with improvements, as the original had it
+    expect(shieldsAfterChange(s, c, { kind: "unit", id: "militia" })).toBe(Math.floor(over / 2));
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "temple" } });
+    expect(c.shields).toBe(over);
+    // Saves before version 28 left a unit's box behind: half for the next improvement, all of it for a unit.
+    const old = finish(true);
+    expect(shieldsAfterChange(old.s, old.c, { kind: "building", id: "temple" })).toBe(Math.floor(old.over / 2));
+    expect(shieldsAfterChange(old.s, old.c, { kind: "unit", id: "militia" })).toBe(old.over);
+    const save = { ...makeSave(newGame(3, { opponents: 1 }), { opponents: 1 }, []), version: 27 as const };
+    const loaded = loadSave(save, () => {}).state;
+    expect([loaded.halvedCarryOver, loaded.slowCulture, loaded.noInfluenceYields]).toEqual([true, true, true]);
+    const fresh = loadSave(makeSave(newGame(3, { opponents: 1 }), { opponents: 1 }, []), () => {}).state;
+    expect([fresh.halvedCarryOver, fresh.slowCulture, fresh.noInfluenceYields]).toEqual([undefined, undefined, undefined]);
+  });
+
   it("toggling a worked tile makes an entertainer and back", () => {
     const s = flatWorld();
     const u = createUnit(s, "settlers", 0, 10, 10);

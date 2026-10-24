@@ -46,7 +46,7 @@ export function cultureRate(_state: GameState, city: City): number {
 }
 
 function cultureLevels(state: GameState): readonly number[] {
-  return state.accruedCulture ? ACCRUED_CULTURE.levels : CULTURE.levels;
+  return state.accruedCulture ? ACCRUED_CULTURE.levels : state.slowCulture ? CULTURE.slowLevels : CULTURE.levels;
 }
 
 /** How many squares out a border reaches for a city with this much culture: 1 when founded, one more at each level. */
@@ -114,8 +114,8 @@ export function claims(state: GameState, counts: (c: City) => boolean = () => tr
 /** The farthest any border reaches: one square, and one more at each culture level. */
 const MAX_REACH = Math.max(CULTURE.levels.length, ACCRUED_CULTURE.levels.length) + 1;
 
-/** Whose land square (x, y) is, as `claims` has it; -1 when no city reaches it. */
-export function landOwner(state: GameState, x: number, y: number): number {
+/** The city whose land square (x, y) is, as `claims` has it; null when no city reaches it. */
+export function claimant(state: GameState, x: number, y: number): City | null {
   const w = state.map.width;
   let best: City | null = null;
   let bestCulture = 0;
@@ -130,5 +130,10 @@ export function landOwner(state: GameState, x: number, y: number): number {
     const d = dx * dx + dy * dy;
     if (beats(state, c, culture, d, best, bestCulture, bestD)) { best = c; bestCulture = culture; bestD = d; }
   }
-  return best ? best.owner : -1;
+  return best;
+}
+
+/** Whose land square (x, y) is, as `claims` has it; -1 when no city reaches it. */
+export function landOwner(state: GameState, x: number, y: number): number {
+  return claimant(state, x, y)?.owner ?? -1;
 }

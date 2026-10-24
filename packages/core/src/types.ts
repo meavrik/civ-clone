@@ -286,6 +286,16 @@ export interface GameState {
   freecivYields?: boolean;
   /** The Colossus adds trade to the ocean squares its city works only, and workers are placed by bare yields, as before version 27. */
   oceanColossus?: boolean;
+  /**
+   * A finished improvement left a unit's box behind (half its leftover shields went to the next
+   * improvement), and wonders and spaceship parts counted as kinds apart from improvements, as before
+   * version 28. Since then the leftover keeps the kind it was gathered for, and units are the only other kind.
+   */
+  halvedCarryOver?: boolean;
+  /** Borders grow at the first culture levels (`CULTURE.slowLevels`: radius 2 at 8), as before version 28. */
+  slowCulture?: boolean;
+  /** Specials inside a city's border beyond the squares it works bring it nothing, as before version 28 (`INFLUENCE_YIELD`). */
+  noInfluenceYields?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */
