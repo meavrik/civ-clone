@@ -58,9 +58,9 @@ describe("sprite sheets", () => {
     const man = citizenSprite("content", { woman: false, style: 0, skin: 0, hair: 0, legs: 0 });
     const other = citizenSprite("content", { woman: false, style: 0, skin: 5, hair: 4, legs: 3 });
     expect([man.width, man.height]).toEqual([CITIZEN_W, CITIZEN_H]);
-    // Content citizens wear blue, whoever they are.
-    expect(man.data.includes(shade("ocean", 7))).toBe(true);
-    expect(other.data.includes(shade("ocean", 7))).toBe(true);
+    // Content citizens wear white, whoever they are.
+    expect(man.data.includes(shade("marble", 7))).toBe(true);
+    expect(other.data.includes(shade("marble", 7))).toBe(true);
     expect(Array.from(man.data).join()).not.toBe(Array.from(other.data).join());
     // No stand-in colour survives the swap (in colours that share no index with one); outlines are never black.
     const standIns = [shade("flesh", 6), shade("flesh", 4), shade("flesh", 2), shade("earth", 4), shade("earth", 2), shade("earth", 0), shade("grey", 2), shade("grey", 1), shade("grey", 0)];

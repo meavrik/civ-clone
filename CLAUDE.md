@@ -186,9 +186,10 @@ Never ship the original's sprites, palette art, fonts or text.
   only when the box is too big (then "{food}=2" under it); what a growing city keeps (core `foodKept`:
   a Granary's half, or a trait's share) fills rows of its own above a brown line named Granary (or
   Kept). Taxmen and scientists need no size of city (the 1991 game is said to want size 5: not checked, not asked for).
-  The bottom bar is quiet (asked for 2026-10-24: "too bulky"): no stone, the key hints dark grey on the
-  black, its buttons labels in frames one fine pixel wide (`barButton`: Happy lit blue when up, Exit in
-  red). Esc, Enter (not held) or a click
+  The bottom bar (asked for 2026-10-24: "too bulky", then a version on bare black was "much worse"; the
+  user picked this): a stone strip like the boxes, the key hints in DIM, small flat buttons sized to their
+  labels (`barButton`: a face a shade lighter than the stone, edged one fine pixel, no bevel; Happy lit
+  blue when up, Exit lettered red). Esc, Enter (not held) or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. The build menu (`openProductionMenu` in the web app) shows beside
   each choice only the turns it takes from here, counting the shields a change would keep ("never"
@@ -415,13 +416,14 @@ Never ship the original's sprites, palette art, fonts or text.
   16x16: food is an ear of wheat, `shield` (production) a hammer, `people` a man and a woman; roads,
   rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.
   Citizens (city screen) are whole figures 16x26 fine pixels (`CITIZEN_W` 8 x `CITIZEN_H` 13), drawn
-  anew 2026-10-24 (asked for: the Scale2x'd 16x16 figures with black outlines were "really BAD") in the
-  units' manner: every part outlined in a dark shade of its own colour, lit from the upper left, black
-  only for the eyes (and the taxman's bowler). `citizens.art.ts` holds a man and a woman to each sprite,
-  one per mood or trade, plus a "-2" look (beard; a hood in her clothes' colour); arms up happy, at the
-  sides content, crossed unhappy, a smile or a frown; the entertainer a jester's cap with bells, the
-  taxman a bowler and purse, the scientist a white coat, glasses and flask. Clothes: yellow happy, blue
-  content, red unhappy, magenta, orange, white. The sheet is composed from hand-drawn part grids
+  anew 2026-10-24 (asked for: the Scale2x'd 16x16 figures with black outlines were "really BAD"; a first
+  redraw with big heads and dot faces was "childish" and "odd") as grown people in the units' manner: a
+  head five rows of twenty-six, a slim body, long legs, no eyes or mouths, every part outlined in a dark
+  shade of its own colour, lit from the upper left (black only for the taxman's bowler). `citizens.art.ts`
+  holds a man and a woman to each sprite, one per mood or trade, plus a "-2" look (beard; a hood in her
+  clothes' colour); arms up happy, at the sides content, crossed unhappy; the entertainer a jester's cap
+  and a lute, the taxman a bowler and purse, the scientist a long coat and a flask. Clothes: yellow
+  happy, white content, red unhappy, magenta, orange, cyan. The sheet is composed from hand-drawn part grids
   (heads, upper bodies, legs or dress, hats); `citizens.ts` swaps its stand-ins, three tones each (lit,
   shade, outline: skin 6/4/2, hair e/c/a, clothes P/p/r, trousers C/B/A), for each person's.
   Who stands where is `citizenLook(city, i)` in renderer-api (a hash, so the same people every frame);

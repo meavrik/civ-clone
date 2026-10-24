@@ -1141,12 +1141,18 @@ describe("moods", () => {
     city.celebrating = false;
     drawCityScreen(s, state, { city: city.id, happy: true });
     writeFileSync(new URL("./out/city-happy.png", import.meta.url), encodePng(s, 3));
-    expect(cityButtonAt(214 + 16, 188 + 6)).toBe("happy");
-    expect(cityButtonAt(250 + 16, 188 + 6)).toBe("view");
-    expect(cityButtonAt(159 + 26, 188 + 6)).toBe("focus");
-    expect(textWidth(CITY_KEYS_HINT)).toBeLessThanOrEqual(159 - 4);
+    // The bottom bar's buttons, left to right: Focus, Happy, View (Exit beyond them), the key hints before them all.
+    const along: string[] = [];
+    let focusX = -1;
+    for (let x = 0; x < 320; x++) {
+      const b = cityButtonAt(x, 188 + 6);
+      if (b && along[along.length - 1] !== b) along.push(b);
+      if (b === "focus" && focusX < 0) focusX = x;
+    }
+    expect(along).toEqual(["focus", "happy", "view"]);
+    expect(textWidth(CITY_KEYS_HINT)).toBeLessThanOrEqual(focusX - 9);
     // The Focus button names the city's focus: Growth unless the player picked another.
-    const bar = (t: Surface) => Array.from({ length: 52 * DETAIL }, (_, i) => t.fget(159 * DETAIL + i, (188 + 6) * DETAIL)).join();
+    const bar = (t: Surface) => Array.from({ length: 30 * DETAIL }, (_, i) => t.fget(focusX * DETAIL + i, (188 + 6) * DETAIL)).join();
     const before = bar(s);
     applyCommand(state, { type: "setFocus", city: city.id, focus: "production" });
     drawCityScreen(s, state, { city: city.id, happy: true });

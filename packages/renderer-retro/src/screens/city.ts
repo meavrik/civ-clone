@@ -8,6 +8,7 @@ import {
   cityCulture,
   cityYieldGovernment,
   cultureRate,
+  FOCI,
   foodKept,
   formatYear,
   getTile,
@@ -29,7 +30,7 @@ import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution,
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
-import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, FADED, GOLD, GOOD, INK, stipple, TITLE_H } from "../widgets.js";
+import { BAD, DIM, drawButton, drawStone, drawTitleStrip, drawWindow, FADED, GOLD, GOOD, INK, NOTE, stipple, TITLE_H } from "../widgets.js";
 import { CITIZEN_H, CITIZEN_W, drawCitizen } from "../citizens.js";
 import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk, iconLineWidth } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
@@ -59,16 +60,23 @@ export const CITY_MAP_Y = ROW1.y + 2;
 
 import type { CityButton, CityScreenView } from "@civ/renderer-api";
 
-const EXIT = { x: SCREEN_W - 34, y: BAR_Y + 1, w: 33, h: 11 };
+/** The bottom bar's small buttons, each as wide as its label and a little more, right to left from Exit. */
+const BAR_BUTTON = { y: BAR_Y + 2, h: 8, pad: 10, gap: 3 };
+const barWidth = (...labels: string[]) => Math.max(...labels.map(textWidth)) + BAR_BUTTON.pad;
+const EXIT = { x: SCREEN_W - 4 - barWidth("Exit"), y: BAR_BUTTON.y, w: barWidth("Exit"), h: BAR_BUTTON.h };
+const barLeftOf = (b: { x: number }, w: number) => ({ x: b.x - BAR_BUTTON.gap - w, y: BAR_BUTTON.y, w, h: BAR_BUTTON.h });
+const VIEW_BUTTON = barLeftOf(EXIT, barWidth("View"));
+const HAPPY_BUTTON = barLeftOf(VIEW_BUTTON, barWidth("Happy"));
+// Named for the city's focus (`cityFocus`): as wide as the widest focus.
+const FOCUS_BUTTON = barLeftOf(HAPPY_BUTTON, barWidth(...FOCI.map((f) => f.name)));
 
 /** The production box's buttons, under its title strip, and Focus, Happy and View on the bottom bar beside Exit. */
 const CITY_BUTTONS: Record<CityButton, { x: number; y: number; w: number; h: number; label: string }> = {
   change: { x: RIGHT.x + 3, y: ROW2.y + BOX_HEAD + 2, w: 50, h: 11, label: "Change" },
   buy: { x: RIGHT.x + RIGHT.w - 51, y: ROW2.y + BOX_HEAD + 2, w: 48, h: 11, label: "Buy" },
-  view: { x: EXIT.x - 36, y: BAR_Y + 1, w: 33, h: 11, label: "View" },
-  happy: { x: EXIT.x - 72, y: BAR_Y + 1, w: 33, h: 11, label: "Happy" },
-  // Named for the city's focus (`cityFocus`): the widest, Production, fits.
-  focus: { x: EXIT.x - 127, y: BAR_Y + 1, w: 52, h: 11, label: "Focus" },
+  view: { ...VIEW_BUTTON, label: "View" },
+  happy: { ...HAPPY_BUTTON, label: "Happy" },
+  focus: { ...FOCUS_BUTTON, label: "Focus" },
 };
 /** The keys the bottom bar names (its buttons say the rest); it must fit before the Focus button. */
 export const CITY_KEYS_HINT = "C Change  B Buy  F Focus  N Rename";
@@ -496,10 +504,11 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const price = cost ? `Buy ${cost}$` : "Complete";
   say(s, RIGHT.x + RIGHT.w - 3 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);
 
-  // Hints, or the latest word, and the way out: quiet text on the black, the buttons thin frames.
+  // Hints, or the latest word, and the way out: a stone strip like the boxes, its buttons small and flat.
+  drawWindow(s, 1, BAR_Y, SCREEN_W - 2, SCREEN_H - BAR_Y, "");
   const { view: viewButton, happy: happyButton, focus: focusButton } = CITY_BUTTONS;
-  if (view.message) drawTextWrapped(s, 4, BAR_Y + 2, focusButton.x - 8, view.message, shade("azure", 7), 1);
-  else drawText(s, 4, BAR_Y + 2, CITY_KEYS_HINT, shade("panel", 2));
+  if (view.message) drawTextWrapped(s, 5, BAR_Y + 2, focusButton.x - 9, view.message, NOTE, 1);
+  else drawText(s, 5, BAR_Y + 2, CITY_KEYS_HINT, DIM);
   const focus = cityFocus(state, city);
   if (focus) barButton(s, focusButton, focus.name);
   barButton(s, happyButton, happyButton.label, view.happy ? "on" : "plain");
@@ -507,16 +516,19 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   barButton(s, EXIT, "Exit", "exit");
 }
 
-/** A button of the bottom bar: its label in a frame one fine pixel wide, lit blue when on, red for the way out. */
+/**
+ * A button of the bottom bar: a flat face a shade lighter than the stone, edged one fine pixel in a
+ * dark grey, no bevel; lit blue when on, and the way out lettered in red.
+ */
 function barButton(s: Surface, b: { x: number; y: number; w: number; h: number }, label: string, style: "plain" | "on" | "exit" = "plain"): void {
   const k = s.k;
-  if (style === "on") s.rect(b.x, b.y, b.w, b.h, shade("azure", 1));
-  const edge = style === "exit" ? C.RED! : style === "on" ? shade("azure", 4) : shade("panel", 1);
+  s.rect(b.x, b.y, b.w, b.h, style === "on" ? shade("azure", 2) : shade("panel", 6));
+  const edge = style === "on" ? shade("azure", 0) : shade("panel", 2);
   s.frect(b.x * k, b.y * k, b.w * k, 1, edge);
   s.frect(b.x * k, (b.y + b.h) * k - 1, b.w * k, 1, edge);
   s.frect(b.x * k, b.y * k, 1, b.h * k, edge);
   s.frect((b.x + b.w) * k - 1, b.y * k, 1, b.h * k, edge);
-  const ink = style === "exit" ? C.LRED! : style === "on" ? C.WHITE! : shade("panel", 5);
+  const ink = style === "exit" ? C.RED! : style === "on" ? C.WHITE! : INK;
   drawTextCentered(s, b.x + b.w / 2, b.y + Math.floor((b.h - FONT_HEIGHT) / 2), label, ink);
 }
 

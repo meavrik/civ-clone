@@ -11,14 +11,14 @@ export const CITIZEN_H = 13;
 /** A part's colours: lit, shaded, and its outline (a dark shade of its own colour, never black). */
 type Tones = readonly [number, number, number];
 
-/** Clothes show the mood (yellow happy, blue content, red unhappy) or the trade (a scientist's white coat). */
+/** Clothes show the mood (yellow happy, white content, red unhappy) or the trade. */
 const CLOTHES: Record<CitizenMood, () => Tones> = {
   happy: () => [shade("wheat", 7), shade("wheat", 2), shade("plains", 0)],
-  content: () => [shade("ocean", 7), shade("ocean", 5), shade("ocean", 1)],
+  content: () => [shade("marble", 7), shade("marble", 4), shade("marble", 1)],
   unhappy: () => [C.LRED!, C.RED!, shade("brick", 1)],
   entertainer: () => [C.LMAGENTA!, C.MAGENTA!, shade("jewel", 1)],
   taxman: () => [C.ORANGE!, shade("mound", 3), shade("hide", 1)],
-  scientist: () => [shade("marble", 7), shade("marble", 4), shade("marble", 1)],
+  scientist: () => [C.LCYAN!, C.CYAN!, shade("sea", 1)],
 };
 /** Skin: fair, light, tan, brown, dark, deep. */
 const SKINS: (() => Tones)[] = [
