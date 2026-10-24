@@ -19,7 +19,7 @@ export interface WonderRule {
     | { kind: "noUnhappyCity" }
     | { kind: "sciencePct"; amount: number } // the wonder's city
     | { kind: "scienceAll"; amount: number } // every city of the owner
-    | { kind: "oceanTrade"; amount: number } // the wonder's city
+    | { kind: "tradeSquares"; amount: number } // the wonder's city: each square it works that yields trade (ocean squares only before save version 27)
     | { kind: "templeDouble" } // temples count double for the owner
     | { kind: "cathedralEverywhere" }
     | { kind: "noAnarchy" } // also: any government may be chosen
@@ -39,7 +39,7 @@ const W = (id: string, name: string, text: string, cost: number, requires: strin
 export const WONDERS: WonderRule[] = [
   W("pyramids", "Pyramids", "Governments change without anarchy, and any government may be chosen.", 300, "masonry", { kind: "noAnarchy" }, "communism"),
   W("hanging_gardens", "Hanging Gardens", "Calms one unhappy citizen in every city.", 300, "pottery", { kind: "contentAll", amount: 1 }, "invention"),
-  W("colossus", "Colossus", "Every ocean square the city works yields one more trade.", 200, "bronze_working", { kind: "oceanTrade", amount: 1 }, "electricity"),
+  W("colossus", "Colossus", "Every square its city works that yields trade yields one more.", 200, "bronze_working", { kind: "tradeSquares", amount: 1 }, "electricity"),
   W("lighthouse", "Lighthouse", "Our ships sail one square farther each turn.", 200, "map_making", { kind: "seaMoves", amount: 1 }, "magnetism"),
   W("great_library", "Great Library", "Teaches us any advance that two other civilizations know.", 300, "literacy", { kind: "greatLibrary" }, "electronics"),
   W("oracle", "Oracle", "Our temples calm twice as many citizens.", 300, "mysticism", { kind: "templeDouble" }, "religion"),

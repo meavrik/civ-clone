@@ -32,6 +32,7 @@ interface Options {
   oldSupport: boolean;
   randomStarts: boolean;
   freecivYields: boolean;
+  oceanColossus: boolean;
 }
 
 const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
@@ -57,12 +58,13 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --old-support    Despotism's -1 on the city's own square, settlers paying shields (saves before version 24)
   --random-starts  starts on the squares drawn, not moved onto good sites (saves before version 25)
   --freeciv-yields FreeCiv's civ1 yields, not the original's (saves before version 26)
+  --ocean-colossus the Colossus on ocean squares only, workers by bare yields (saves before version 27)
   --verify         replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -98,6 +100,7 @@ function parseArgs(argv: string[]): Options {
       case "old-support": o.oldSupport = true; break;
       case "random-starts": o.randomStarts = true; break;
       case "freeciv-yields": o.freecivYields = true; break;
+      case "ocean-colossus": o.oceanColossus = true; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
       default: throw new Error(`unknown option --${key}\n\n${HELP}`);
@@ -217,6 +220,7 @@ function main(argv: string[]): number {
       ...(o.oldSupport ? { oldSupport: true } : {}),
       ...(o.randomStarts ? { randomStarts: true } : {}),
       ...(o.freecivYields ? { freecivYields: true } : {}),
+      ...(o.oceanColossus ? { oceanColossus: true } : {}),
     });
     if (!o.quiet && o.every > 0) {
       console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).join(", ")}`);

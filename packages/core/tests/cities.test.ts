@@ -5,6 +5,7 @@ import {
   buyCost,
   CITY_RADIUS,
   cityYieldGovernment,
+  cityTileYield,
   computeCity,
   contentBase,
   defenseStrength,
@@ -38,6 +39,34 @@ function flatWorld(): GameState {
   s.cities = [];
   return s;
 }
+
+describe("the Colossus", () => {
+  it("adds a trade to each square its city works that yields trade, as the original's; old saves helped ocean squares only", () => {
+    const s = flatWorld();
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    c.size = 3;
+    const east = CITY_RADIUS.findIndex(([dx, dy]) => dx === 1 && dy === 0);
+    const west = CITY_RADIUS.findIndex(([dx, dy]) => dx === -1 && dy === 0);
+    const north = CITY_RADIUS.findIndex(([dx, dy]) => dx === 0 && dy === -1);
+    getTile(s.map, 11, 10)!.road = true; // a road: 1 trade
+    getTile(s.map, 9, 10)!.terrain = Terrain.Ocean; // 2 trade
+    c.worked = [east, west, north]; // and plain grassland: no trade
+    const before = computeCity(s, c).trade;
+    c.wonders.push("colossus");
+    // The city's own square (its road), the road and the ocean: three squares with trade, each one more.
+    expect(computeCity(s, c).trade).toBe(before + 3);
+    expect(cityTileYield(s, c, east)!.trade).toBe(2);
+    expect(cityTileYield(s, c, west)!.trade).toBe(3);
+    expect(cityTileYield(s, c, north)!.trade).toBe(0);
+    s.oceanColossus = true;
+    expect(computeCity(s, c).trade).toBe(before + 1);
+    // Electricity ends it.
+    delete s.oceanColossus;
+    s.players[0]!.advances.push("electricity");
+    expect(computeCity(s, c).trade).toBe(before);
+  });
+});
 
 describe("settlers built", () => {
   it("tell the city's size and surplus just before and after they take their citizen", () => {

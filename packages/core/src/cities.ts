@@ -211,8 +211,32 @@ export function cityFocus(state: GameState, city: City): FocusRule | null {
 
 /** What a worker on this square yields the city, or null off the map. */
 function slotYield(state: GameState, city: City, slot: number): { food: number; shields: number; trade: number } | null {
+  // Saves before version 27 weighed squares by their bare yield under the government; since then as the city gets them.
+  if (!state.oceanColossus) return cityTileYield(state, city, slot);
   const t = radiusTile(state, city, slot);
   return t ? tileYield(state, t, false, state.players[city.owner]!.government, city.owner) : null;
+}
+
+/** Trade the city's Colossus adds to each square it counts for (0 without one, or once it is obsolete). */
+function colossusIn(state: GameState, city: City): number {
+  let n = 0;
+  for (const { rule, city: wc } of activeWonders(state, city.owner)) if (rule.effect.kind === "tradeSquares" && wc.id === city.id) n += rule.effect.amount;
+  return n;
+}
+
+/**
+ * What square `slot` of a city's radius (0 its own square) yields that city: the square's yield under the
+ * government the city's squares run by (`cityYieldGovernment`), and its Colossus: one more trade on each
+ * square that yields trade, as the original's (saves before version 27, `oceanColossus`: on the ocean squares
+ * it works only). Null off the map.
+ */
+export function cityTileYield(state: GameState, city: City, slot: number): Yield | null {
+  const t = slot === 0 ? getTile(state.map, city.x, city.y) : radiusTile(state, city, slot);
+  if (!t) return null;
+  const y = tileYield(state, t, slot === 0, cityYieldGovernment(state, city), city.owner);
+  const bonus = colossusIn(state, city);
+  if (bonus && (state.oceanColossus ? slot !== 0 && t.terrain === Terrain.Ocean : y.trade > 0)) y.trade += bonus;
+  return y;
 }
 
 /** How much a worker on this square is worth to the city, by its focus (`cityFocus`). */
@@ -520,19 +544,13 @@ export function cityYieldGovernment(state: GameState, city: City): string {
 export function computeCity(state: GameState, city: City): CityReport {
   const player = state.players[city.owner]!;
   const gov = government(player.government);
-  const yieldGov = cityYieldGovernment(state, city);
-  const centre = getTile(state.map, city.x, city.y)!;
   let food = 0;
   let shields = 0;
   let trade = 0;
-  const c = tileYield(state, centre, true, yieldGov, city.owner);
-  food += c.food;
-  shields += c.shields;
-  trade += c.trade;
-  for (const slot of city.worked) {
-    const t = radiusTile(state, city, slot);
-    if (!t) continue;
-    const y = tileYield(state, t, false, yieldGov, city.owner);
+  // The city's own square and each it works, as the city gets them (government, celebration, Colossus).
+  for (const slot of [0, ...city.worked]) {
+    const y = cityTileYield(state, city, slot);
+    if (!y) continue;
     food += y.food;
     shields += y.shields;
     trade += y.trade;
@@ -565,7 +583,6 @@ export function computeCity(state: GameState, city: City): CityReport {
   const wonders = activeWonders(state, city.owner);
   let contentFromWonders = 0;
   let noUnhappy = false;
-  let oceanTrade = 0;
   let police = 0;
   const sameContinent = (wc: City) => getTile(state.map, wc.x, wc.y)!.continent === getTile(state.map, city.x, city.y)!.continent;
   const hasPlant = has("power_plant") || has("hydro_plant") || has("nuclear_plant");
@@ -578,18 +595,11 @@ export function computeCity(state: GameState, city: City): CityReport {
       case "noUnhappyCity": if (wc.id === city.id) noUnhappy = true; break;
       case "sciencePct": if (wc.id === city.id) sciPct += e.amount; break;
       case "scienceAll": sciPct += e.amount; break;
-      case "oceanTrade": if (wc.id === city.id) oceanTrade += e.amount; break;
       case "templeDouble": if (has("temple")) contentFromBuildings += building("temple").content ?? 0; break;
       case "cathedralEverywhere": if (!has("cathedral")) contentFromBuildings += building("cathedral").content ?? 0; break;
       case "powerPlantContinent": if (has("factory") && !hasPlant && sameContinent(wc)) shieldPct += building("power_plant").shieldsPct ?? 0; break;
       case "policeEverywhere": police += 1; break;
       default: break;
-    }
-  }
-  if (oceanTrade) {
-    for (const slot of city.worked) {
-      const t = radiusTile(state, city, slot);
-      if (t?.terrain === Terrain.Ocean) trade += oceanTrade;
     }
   }
 

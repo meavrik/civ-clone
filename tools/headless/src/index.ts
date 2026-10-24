@@ -68,6 +68,8 @@ export interface GameConfig {
   randomStarts?: boolean;
   /** FreeCiv's civ1 yields, before the original's (saves before version 26). */
   freecivYields?: boolean;
+  /** The Colossus on ocean squares only, workers placed by bare yields (saves before version 27). */
+  oceanColossus?: boolean;
 }
 
 export interface PlayerStats {
@@ -157,6 +159,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.oldSupport ? { centrePenalty: true, settlerShields: true } : {}),
     ...(config.randomStarts ? { randomStarts: true } : {}),
     ...(config.freecivYields ? { freecivYields: true } : {}),
+    ...(config.oceanColossus ? { oceanColossus: true } : {}),
   };
 }
 

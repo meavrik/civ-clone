@@ -76,6 +76,8 @@ export interface NewGameOptions extends MapGenOptions {
   randomStarts?: boolean;
   /** Our first yields (FreeCiv's civ1 numbers, see `GameState.freecivYields`). Old saves load with it. */
   freecivYields?: boolean;
+  /** The Colossus on ocean squares only (see `GameState.oceanColossus`). Old saves load with it. */
+  oceanColossus?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -242,6 +244,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.centrePenalty ? { centrePenalty: true } : {}),
     ...(opts.settlerShields ? { settlerShields: true } : {}),
     ...(opts.freecivYields ? { freecivYields: true } : {}),
+    ...(opts.oceanColossus ? { oceanColossus: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

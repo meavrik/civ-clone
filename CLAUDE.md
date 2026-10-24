@@ -574,7 +574,12 @@ text), second special resources with reaches (save version 20; the branch's own 
    for a shield first while their city has none (`governCity`). Both changes favour v2, which still packs
    its cities (13.9 vs 12.2): tuning the planner to the new land is open.
    Other deliberate departures: rivers give +1 trade (on grassland that is the original's River), Michelangelo's acts as a
-   cathedral everywhere, Colossus boosts ocean tiles. Units have hit points and firepower (`hp`,
+   cathedral everywhere. The Colossus is the original's since save version 27 (asked for 2026-10-24: "built a
+   Colossus, 0 effect": ours helped only the ocean squares its city worked, which Growth rarely picks): +1 trade on
+   every square its city works that yields trade, its own square too, until Electricity; a square's yield for a
+   city is core `cityTileYield` (government, celebration, Colossus), which the city's totals, the choice of
+   squares (`slotYield`, the planner's `governCity`) and both city screens' square marks read. Saves before 27
+   load with `oceanColossus` (headless `--ocean-colossus`). Units have hit points and firepower (`hp`,
    `firepower` in `rules/units.ts`: 10 ancient, 20 gunpowder, 30-40 mechanised/steel; heavy guns hit
    for 2): fights go in rounds won with A/(A+D), survivors keep wounds and heal by resting (`HEALING`).
    `attackOdds` gives the exact chance. `classicCombat` (version 1 saves, `?combat=classic`) restores

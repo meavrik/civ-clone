@@ -47,6 +47,7 @@ import {
   shipStats,
   CITY_RADIUS,
   CITY_SPACING,
+  cityTileYield,
   SITE_CENTRES,
   siteScore,
   Terrain,
@@ -1350,11 +1351,12 @@ function governCity(state: GameState, ctx: Ctx, c: City): void {
   const slots: { slot: number; food: number; shields: number; trade: number }[] = [];
   for (let s = 1; s < CITY_RADIUS.length; s++) {
     if (!slotFree(state, ctx, c, s)) continue;
-    const y = tileYield(state, radiusTile(state, c, s)!, false, ctx.p.government, ctx.me);
+    // As the city gets them (its Colossus counted) since version 27; bare yields before (`oceanColossus`).
+    const y = state.oceanColossus ? tileYield(state, radiusTile(state, c, s)!, false, ctx.p.government, ctx.me) : cityTileYield(state, c, s)!;
     slots.push({ slot: s, ...y });
   }
   if (slots.length === 0) return;
-  const centre = tileYield(state, getTile(state.map, c.x, c.y)!, true, ctx.p.government, ctx.me);
+  const centre = state.oceanColossus ? tileYield(state, getTile(state.map, c.x, c.y)!, true, ctx.p.government, ctx.me) : cityTileYield(state, c, 0)!;
   let settlerFood = 0;
   for (const u of ctx.units) if (u.homeCity === c.id && unitType(u.type).flags?.includes("settler")) settlerFood += gov.settlerFood;
   const cap = c.buildings.includes("aqueduct") ? 99 : 10;

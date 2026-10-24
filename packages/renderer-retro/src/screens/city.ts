@@ -2,6 +2,7 @@ import {
   building,
   buyCost,
   cityFocus,
+  cityTileYield,
   CITY_RADIUS,
   computeCity,
   cityCulture,
@@ -333,7 +334,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       if (fog) s.blit(fog, px, py, SPRITE_CLEAR);
       const worked = slot === 0 || city.worked.includes(slot);
       if (worked) {
-        const y = tileYield(state, tile, slot === 0, cityYieldGovernment(state, city), city.owner);
+        const y = cityTileYield(state, city, slot) ?? tileYield(state, tile, slot === 0, cityYieldGovernment(state, city), city.owner);
         if (slot === 0) drawCity(s, px, py - 1, city, cityLook(state, city), playerColor(state, city.owner));
         yieldIcons(s, px, py, y.food, y.shields, y.trade);
       } else if (!slotInLand(state, city, slot)) {

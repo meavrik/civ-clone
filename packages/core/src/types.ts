@@ -279,6 +279,8 @@ export interface GameState {
    * railroads adding shields only, and a city's own square always making a shield.
    */
   freecivYields?: boolean;
+  /** The Colossus adds trade to the ocean squares its city works only, and workers are placed by bare yields, as before version 27. */
+  oceanColossus?: boolean;
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */
