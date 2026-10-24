@@ -237,7 +237,24 @@ Never ship the original's sprites, palette art, fonts or text.
   only talks to a `Renderer`. Info panels prefer icons to words: `ICONS` (`renderer-api/src/icons.ts`)
   names them, every renderer draws all of them, and text may carry `{icon}` tokens (modal bodies and
   panel lines; groups separated by two spaces wrap apart). The main screen has a menu bar (`MENU_BAR`: Game, Orders, Advisors,
-  World, Debug) above map and panel; a `MenuState` with an `anchor` and an empty title is a bar dropdown.
+  Diplomacy, World, Debug) above map and panel; a `MenuState` with an `anchor` and an empty title is a bar
+  dropdown; rows in its `disabled` list are drawn faded and never hit (the web app's `MenuEntry` fourth
+  element; Game > Revolution! while `governmentsAvailable` offers one government only, asked for
+  2026-10-24). Diplomacy (added 2026-10-24, asked for) lists every civilization met with how we stand,
+  and opens its card: the audience screen with the leader's portrait at the left (`CARD_PICTURE`) and
+  `civCard`'s lines beside it (`DiplomacyView.card`: leader and realm, trait, government, capital, size,
+  what they make of our influence, their mood toward us (the AI's `attitude`), their units on our land),
+  the standing as the line, and Talk (an audience, back to the card after), Demand they leave our land
+  (when their units stand on it: the AI's `withdrawAnswer`, friendly yes, wary only to a neighbour at least
+  as strong, hostile never; yes is the core `withdraw` command: each of their trespassers gets a goto to
+  `exitSquare`, the nearest way off our land, walked at their turn's start, and their trespass is
+  forgiven) and Back. The planner may march them elsewhere after; it still ignores borders itself.
+  Tax Rates (Game > Tax Rate, T; redone 2026-10-24, "not good") is a stone window over the map
+  (`screens/rates.ts`, `ratesRect`): a row each for tax, luxuries and science with its icon, - and +
+  buttons and ten blocks (filled to the rate, dark past the government's limit), what the cities bring
+  a turn at the foot (`empireIncome`), Done; `ratesHit` (set a block, step, done) through
+  `Renderer.ratesHit`, `ratesAt` for the phone's sliding finger; science takes what the others leave, and
+  moving it takes from tax (`setRateTo`).
   A titled menu of up to four choices is a modal (`menuButtons`): its choices are buttons sized to the
   longest label and centred, and its text wraps rather than widen it past `MODAL_MAX_SHARE` of the
   screen; keep modal text to a line or two. A list longer than the screen (what to build late in the game) scrolls:
@@ -480,20 +497,25 @@ Never ship the original's sprites, palette art, fonts or text.
   set aside for now, still built and tested but not offered), `retro-renderer.ts` (adapter), `display.ts`
   (canvas fitting: crisp integer scale for retro, DPR-aware for modern), `storage.ts` (IndexedDB saves,
   per browser: slot 0 is the autosave, written as every turn begins and when a game starts or loads).
-  The title offers "Continue" (the autosave; its "Back to an earlier turn" was dropped, asked for
-  2026-10-22) and the Game menu "Back to an Earlier Turn": a save is a seed and the player's commands,
-  so `turnStarts`/`rewindSave` (core `save.ts`) cut its log back to the start of any turn it saw. The turn ends by itself only once the player has ordered the last unit awaiting orders that turn
+  The title offers "Continue" (the autosave). Going back to an earlier turn is gone from the game
+  (the title's 2026-10-22, the Game menu's 2026-10-24, both asked for); core's `turnStarts`/`rewindSave`
+  (`save.ts`) stay, tested, for anyone who needs a log cut back. The turn ends by itself only once the player has ordered the last unit awaiting orders that turn
   (`actedThisTurn`, `AUTO_END_MS` after; asked for 2026-10-24: "auto next turn when no actions left, but
   not auto when no actions at all. auto only for 1 turn", after the always-on Auto End Turn was dropped
   that morning for "click enter for next turn - like in the original"): a turn that begins with nothing to
-  order waits, the status panel's End of Turn / Press Enter blinking blue, and Enter or a click on it
+  order waits, the status panel's End of Turn standing with "Press Enter" blinking in and out under it (the lit blue
+  block it had was "too loud", 2026-10-24), and Enter or a click on it
   (`statusAt` "endTurn") ends the turn, the phone's way too.
   Diplomacy: a meeting first holds the map on whom we met (the `beat` screen:
   a callout, 1.6 s or any key), then their leader receives us (`audience`: without a treaty propose
-  peace (`proposePeace`: yes, a gift first, or no); open borders and exchanging maps are not offered
-  (removed 2026-10-23, asked for; core's commands stay); "Gifts and trade" (trade knowledge: pick theirs, they name ours; give gold; demand
-  tribute); declare war ("break the treaty" at peace, confirmed); farewell; each once a talk, the answer
-  becomes the leader's words; greetings name admiration or scorn). The audience screen (redone
+  peace (`proposePeace`: yes, a gift first, or no); then what our knowledge allows (asked for 2026-10-24,
+  "when get diplomacy tech add more diplomacy options, when get trade tech add trade options"; the tree
+  has no Diplomacy advance, so Writing, the Diplomat's, stands for it): with Writing a "Diplomacy" screen
+  (demand they leave our land, exchange maps and open or close borders (both need peace; `acceptsMapSwap`,
+  `bordersAnswer` for `BORDERS_PRICE`), demand tribute, declare war or break the treaty (confirmed)), with
+  Trade a "Trade" screen (trade knowledge: pick theirs, they name ours; give an advance; give 50 gold);
+  before them only the demand to leave and the gift stand on the first screen, war beside them; farewell;
+  each once a talk, the answer becomes the leader's words; greetings name admiration or scorn). The audience screen (redone
   2026-10-22 after the user's mock-up "Caesar Welcomes You to Rome", asked for): the realm across the
   top (`realmName`: "The Roman Empire", Kingdom, Republic... by government), the user's picture of the
   leader in their palace whole, frame and all, then the leader's name, their words and our choices as
@@ -516,7 +538,7 @@ Never ship the original's sprites, palette art, fonts or text.
   things the retro look does not draw through the palette. The phone app caches each picture when first shown,
   not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
   into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
-  whether they admire or scorn us (`regardWords`). Stepping onto land that minds us (once a
+  whether they admire or scorn us (`regardWords`); Enter there opens a civilization's card. Stepping onto land that minds us (once a
   civ a turn, later steps get a callout) and the AI's demands after its turn show our unit, then the
   leader asks us out (`askToLeave`: leave = gotos to the nearest square outside, a gift, or stay); an AI declaring war on us says so in an audience.
 - `apps/mobile` — the web game as a PWA for phones and tablets, asked for without changing the web game:
@@ -541,8 +563,8 @@ Never ship the original's sprites, palette art, fonts or text.
   = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. A tap on
   our units' square (not a city) brings one into play as the game would and opens its orders (the game's
   Esc) just above it (`ordersAbove`: the next menu drawn is anchored over the unit, without its key
-  column). What the game takes from keys only is a touch there: a rates bar (`ratesAt` in renderer-retro)
-  sets that rate by arrow keys (`rates.ts`), a tap on a launchable spaceship is Enter, a hold on a city
+  column). What the game takes from keys only is a touch there: a rates bar (`ratesAt` in renderer-retro,
+  given the wide width when the window stands over the wide map) sets that rate by arrow keys (`rates.ts`), a tap on a launchable spaceship is Enter, a hold on a city
   screen is N (rename). `text.ts` shows a DOM field while the game asks for text, bound to the game's
   `TextInputState`, OK/Cancel = Enter/Esc. The phone's menu bar (`menu-bar.ts` rewrites renderer-api's
   `MENU_BAR` as it loads, failing the build if that list changes shape) has no Orders, and a production
