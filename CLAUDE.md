@@ -425,11 +425,16 @@ Never ship the original's sprites, palette art, fonts or text.
   Explored squares out of sight (core's `visible`, see Sight above) are shaded, so the area observed
   shows on the map (2026-10-24): retro `unseenSquare`/`shadeUnseen` map what is drawn through `UNSEEN`
   (palette.ts: each colour's twin at 62% light, as `DIMMED` is at 45%), over the borders and under the
-  fog, the shade drifting into squares in sight beside them with the fog's ragged dithered edge
-  (`sightPatch`); a city there is shaded with its square, its name not; the minimap shades a block with
+  fog; a square in sight is never shaded (asked for 2026-10-24: "inside the borders 100% visible"; the
+  shade drifted into them at first), the shade on a square out of sight giving way where a seen
+  neighbour's clearing reaches with the fog's ragged dithered edge (`clearingPatch`; `sightPatch` is the
+  patch the other way round); a city there is shaded with its square, its name not; the minimap shades a block with
   no square in sight; the square's window says "Out of sight". Modern (set aside) does not shade.
   Research panel (`research.ts`; redesigned 2026-10-20, asked for: the old tier graph was confusing and
-  disliked, so it is gone): built round the choice. Under the title a band with the research under way
+  disliked, so it is gone; a window over the screen it opened on since 2026-10-24, "should not take 100%
+  of the screen": `researchRect` 300x188 centred, the game darkened behind, 15 list rows, its parts laid
+  from `layout(screenW)`, `researchHit` taking the screen's width for the phone's wide map; the web app
+  draws the screen's `back` under it): built round the choice. Under the title a band with the research under way
   (bulb, beaker bar, turns) or what the advance just found brings (`researchBand`); on the left a list
   (`researchRows`) of three groups: Research next (the research under way first, then what the latest
   find brought within reach, marked with a yellow diamond, then the rest; each row with icons of what it

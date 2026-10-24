@@ -75,6 +75,26 @@ export function sightPatch(map: WorldMap, visible: Explored, x: number, y: numbe
 }
 
 /**
+ * The patch the other way round, for a square out of sight: 1 on each square in sight, 0 on one
+ * out of it, so `fogLevel` gives how far the sight's clearing drifts into the square from the seen
+ * squares beside it (its edge ragged as the fog's). Since 2026-10-24 the shade's edge lies on the
+ * unseen side ("inside the borders 100% visible"): a square in sight is never shaded at all, and the
+ * shade on one out of sight gives way where a seen neighbour's clearing reaches. Off the map counts as
+ * out of sight (no clearing comes from the edge of the world).
+ */
+export function clearingPatch(map: WorldMap, visible: Explored, x: number, y: number): FogPatch {
+  const cover: number[] = [];
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const yy = y + dy;
+      if (yy < 0 || yy >= map.height) { cover.push(0); continue; }
+      const xx = (((x + dx) % map.width) + map.width) % map.width;
+      cover.push(visible[yy * map.width + xx] ? 1 : 0);
+    }
+  return makeFogPatch(map.width, x, y, cover);
+}
+
+/**
  * How thick the fog is at (u, v), each 0..1 across the patch's square: 1 on
  * an unexplored square, 0 clear. `soft` (0..1) narrows the band where fog
  * drifting in from a neighbour fades, for a crisper edge.

@@ -1,5 +1,5 @@
 import { civ, wrapX, type GameState } from "@civ/core";
-import type { AdvisorKind, DiplomacyView, MainScreenView, MenuState, NewTechView, Renderer, SetupCards, TextInputState } from "@civ/renderer-api";
+import type { AdvisorKind, DiplomacyView, MainScreenView, MenuState, NewTechView, Renderer, ResearchView, SetupCards, TextInputState } from "@civ/renderer-api";
 import {
   BAR_H,
   cityButtonAt,
@@ -267,7 +267,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     city: screen(drawCityScreen),
     cityView: screen(drawCityView),
-    research: screen(drawResearch),
+    // The research panel is a window over whatever is drawn under it (the wide map, or a 320x200 screen), centred on it.
+    research: (state: GameState, view: ResearchView) => drawResearch(surface(), state, view),
     science: screen(drawScienceScreen),
     // The rates window opens over whatever is drawn under it (the wide map, or a 320x200 screen), centred on it.
     rates: (state) => drawRatesScreen(surface(), state),
@@ -327,7 +328,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityFocusAt: (px, py) => cityFocusAt(px - inset(), py),
     ratesHit: (px, py) => (shown.wide ? ratesHit(px, py, screenW()) : ratesHit(px - inset(), py)),
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px - inset(), py),
-    researchHit: (state, view, px, py) => researchHit(state, view, px - inset(), py),
+    researchHit: (state, view, px, py) => (shown.wide ? researchHit(state, view, px, py, screenW()) : researchHit(state, view, px - inset(), py)),
     // The map's screen: the panel at the left and the bar along the top, as on the original's.
     tileAt(state, view, px, py) {
       const v = view === shown.view && shown.drawn ? shown.drawn : view;

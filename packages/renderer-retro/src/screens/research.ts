@@ -23,7 +23,7 @@ import { drawBuilding } from "../pictures.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { DIM, drawBox, drawButton, drawCloseBox, drawStone, drawTitleStrip, FADED, GOLD, GOOD, INK, NOTE, TITLE_H } from "../widgets.js";
+import { DIM, dimScreen, drawBox, drawButton, drawCloseBox, drawStone, drawTitleStrip, FADED, GOLD, GOOD, INK, NOTE, TITLE_H } from "../widgets.js";
 
 /**
  * The research panel, built round the choice: under the title a band with the
@@ -34,14 +34,32 @@ import { DIM, drawBox, drawButton, drawCloseBox, drawStone, drawTitleStrip, FADE
  * card); along the bottom what to do next and the buttons.
  */
 
-const BAND_Y = TITLE_H + 3;
-const LIST = { x: 2, y: 27, w: 114, h: 158 };
-const CARD = { x: 118, y: 27, w: SCREEN_W - 120, h: 158 };
+type Box = { x: number; y: number; w: number; h: number };
+/** The panel is a window over the game (asked for 2026-10-24: "should not take 100% of the screen"), this big. */
+const WIN = { w: 300, h: 188 };
+/** The window, centred on a screen `screenW` wide (the phone's map is wider than 320). */
+export function researchRect(screenW = SCREEN_W): Box {
+  return { x: Math.floor((screenW - WIN.w) / 2), y: Math.floor((SCREEN_H - WIN.h) / 2), ...WIN };
+}
+/** Where the window's parts stand: the band under the title strip, the list at the left, the card at the right, the buttons along the foot. */
+interface Layout { o: Box; band: number; list: Box; card: Box; buttonY: number; close: Box }
+function layout(screenW = SCREEN_W): Layout {
+  const o = researchRect(screenW);
+  const top = o.y + 2 + TITLE_H + 14;
+  const h = o.y + o.h - 16 - top;
+  return {
+    o,
+    band: o.y + 2 + TITLE_H + 3,
+    list: { x: o.x + 2, y: top, w: 110, h },
+    card: { x: o.x + 114, y: top, w: o.w - 116, h },
+    buttonY: o.y + o.h - 14,
+    close: { x: o.x + o.w - 3 - (TITLE_H - 2), y: o.y + 3, w: TITLE_H - 2, h: TITLE_H - 2 },
+  };
+}
 const ROW = FONT_HEIGHT + 1;
 /** Rows of the list on view at once. */
-export const RESEARCH_LIST_ROWS = Math.floor((LIST.h - 4) / ROW);
+export const RESEARCH_LIST_ROWS = Math.floor((layout().list.h - 4) / ROW);
 const SCROLL_W = 5;
-const BUTTON_Y = SCREEN_H - 13;
 
 /** Labels for the advances whose names are too wide for a row; the card gives the full name. */
 const SHORT: Record<string, string> = {
@@ -94,38 +112,38 @@ function mark(s: Surface, status: TechStatus, x: number, y: number, on: boolean)
 
 // ---- the list --------------------------------------------------------------------------
 
-function listRowY(i: number, top: number): number {
-  return LIST.y + 2 + (i - top) * ROW;
+function listRowY(i: number, top: number, L: Layout): number {
+  return L.list.y + 2 + (i - top) * ROW;
 }
 
-function scrollBar(rows: number, top: number): { x: number; y: number; h: number; thumbY: number; thumbH: number } {
-  const x = LIST.x + LIST.w - 2 - SCROLL_W;
-  const y = LIST.y + 2;
+function scrollBar(rows: number, top: number, L: Layout): { x: number; y: number; h: number; thumbY: number; thumbH: number } {
+  const x = L.list.x + L.list.w - 2 - SCROLL_W;
+  const y = L.list.y + 2;
   const h = RESEARCH_LIST_ROWS * ROW;
   const thumbH = Math.max(4, Math.round((h * RESEARCH_LIST_ROWS) / rows));
   const thumbY = y + Math.round(((h - thumbH) * top) / Math.max(1, rows - RESEARCH_LIST_ROWS));
   return { x, y, h, thumbY, thumbH };
 }
 
-function drawList(s: Surface, state: GameState, view: ResearchView, rows: ResearchRow[]): void {
-  drawStone(s, LIST.x, LIST.y, LIST.w, LIST.h, true);
+function drawList(s: Surface, state: GameState, view: ResearchView, rows: ResearchRow[], L: Layout): void {
+  drawStone(s, L.list.x, L.list.y, L.list.w, L.list.h, true);
   const scrolls = rows.length > RESEARCH_LIST_ROWS;
-  const right = LIST.x + LIST.w - 2 - (scrolls ? SCROLL_W + 1 : 0);
+  const right = L.list.x + L.list.w - 2 - (scrolls ? SCROLL_W + 1 : 0);
   rows.forEach((row, i) => {
     if (i < view.top || i >= view.top + RESEARCH_LIST_ROWS) return;
-    const y = listRowY(i, view.top);
+    const y = listRowY(i, view.top, L);
     if (row.kind === "header") {
-      drawText(s, LIST.x + 4, y, row.text, DIM);
-      const end = LIST.x + 6 + textWidth(row.text);
+      drawText(s, L.list.x + 4, y, row.text, DIM);
+      const end = L.list.x + 6 + textWidth(row.text);
       if (end < right - 2) s.hline(end, y + 4, right - 2 - end, shade("panel", 2));
       return;
     }
     const sel = row.id === view.selected;
-    if (sel) s.rect(LIST.x + 2, y - 1, right - LIST.x - 2, ROW, shade("azure", 2));
-    mark(s, row.status, LIST.x + 4, y, sel);
-    if (row.unlocked) spark(s, LIST.x + 4, y);
+    if (sel) s.rect(L.list.x + 2, y - 1, right - L.list.x - 2, ROW, shade("azure", 2));
+    mark(s, row.status, L.list.x + 4, y, sel);
+    if (row.unlocked) spark(s, L.list.x + 4, y);
     const ink = sel ? C.WHITE! : row.fresh ? GOLD : INK_OF[row.status];
-    drawText(s, LIST.x + 14, y, label(row.id), ink);
+    drawText(s, L.list.x + 14, y, label(row.id), ink);
     // What it brings, as pictures, for what is still to come.
     if (row.group !== "known") {
       const icons = techIcons(state, row.id);
@@ -133,7 +151,7 @@ function drawList(s: Surface, state: GameState, view: ResearchView, rows: Resear
     }
   });
   if (scrolls) {
-    const b = scrollBar(rows.length, view.top);
+    const b = scrollBar(rows.length, view.top, L);
     s.rect(b.x, b.y, SCROLL_W, b.h, shade("panel", 3));
     s.rect(b.x, b.thumbY, SCROLL_W, b.thumbH, shade("azure", 2));
   }
@@ -147,19 +165,19 @@ interface Rect { x: number; y: number; w: number; h: number; id: string }
  * The card for the selected advance. Drawn when `s` is given; either way it
  * returns where its links lie, so drawing and hit-testing agree.
  */
-function card(s: Surface | null, state: GameState, view: ResearchView): Rect[] {
+function card(s: Surface | null, state: GameState, view: ResearchView, L: Layout): Rect[] {
   const links: Rect[] = [];
   const d = techDetails(state, view.selected);
   const fresh = view.discovered.includes(view.selected);
-  const x0 = CARD.x + 5;
-  const w = CARD.w - 10;
-  const bottom = CARD.y + CARD.h - 3;
+  const x0 = L.card.x + 5;
+  const w = L.card.w - 10;
+  const bottom = L.card.y + L.card.h - 3;
   if (s) {
-    drawStone(s, CARD.x, CARD.y, CARD.w, CARD.h);
+    drawStone(s, L.card.x, L.card.y, L.card.w, L.card.h);
     const strip = d.status === "known" ? shade("grass", 1) : d.status === "locked" ? shade("panel", 1) : shade("azure", 1);
-    drawTitleStrip(s, CARD.x + 2, CARD.y + 2, CARD.w - 4, d.name, { color: strip });
+    drawTitleStrip(s, L.card.x + 2, L.card.y + 2, L.card.w - 4, d.name, { color: strip });
   }
-  let y = CARD.y + TITLE_H + 5;
+  let y = L.card.y + TITLE_H + 5;
   const standing = fresh ? "Just discovered!" : d.standing;
   const ink = fresh ? GOLD : d.status === "available" ? NOTE : d.status === "researching" ? shade("azure", 2) : d.status === "known" ? GOOD : DIM;
   // Text wraps the same whether drawn or only measured, so the links land where they are drawn.
@@ -168,8 +186,8 @@ function card(s: Surface | null, state: GameState, view: ResearchView): Rect[] {
   y += wrapped(x0, y, w, standing, ink, 2) * FONT_HEIGHT + 2;
   const groove = (): void => {
     if (s) {
-      s.hline(CARD.x + 3, y, CARD.w - 6, shade("panel", 2));
-      s.hline(CARD.x + 3, y + 1, CARD.w - 6, shade("panel", 7));
+      s.hline(L.card.x + 3, y, L.card.w - 6, shade("panel", 2));
+      s.hline(L.card.x + 3, y + 1, L.card.w - 6, shade("panel", 7));
     }
     y += 4;
   };
@@ -220,12 +238,12 @@ function card(s: Surface | null, state: GameState, view: ResearchView): Rect[] {
       // What else it waits for, so the advances ahead show what they need.
       if (s && o.status === "locked") {
         const also = o.also.length ? `with ${o.also.map(label).join(", ")}` : "then ready";
-        drawTextWrapped(s, end + 5, y, CARD.x + CARD.w - 5 - end - 5, also, DIM, 1);
+        drawTextWrapped(s, end + 5, y, L.card.x + L.card.w - 5 - end - 5, also, DIM, 1);
       }
       y += ROW;
     }
   }
-  if (s) showcase(s, state, view.selected, y, bottom);
+  if (s) showcase(s, state, view.selected, y, bottom, L);
   return links;
 }
 
@@ -234,7 +252,7 @@ function card(s: Surface | null, state: GameState, view: ResearchView): Rect[] {
  * grass along the bottom of the card where there is room: its wonders, then
  * its buildings, then its units.
  */
-function showcase(s: Surface, state: GameState, id: string, top: number, bottom: number): void {
+function showcase(s: Surface, state: GameState, id: string, top: number, bottom: number, L: Layout): void {
   const owner = state.players[state.currentPlayer]!.color;
   type Item = { w: number; h: number; draw: (x: number, ground: number) => void };
   const items: Item[] = [];
@@ -249,7 +267,7 @@ function showcase(s: Surface, state: GameState, id: string, top: number, bottom:
     items.push({ w: sprite.width, h: sprite.height, draw: (x, ground) => s.blit(sprite, x, ground - sprite.height, SPRITE_CLEAR) });
   }
   const gap = 8;
-  const room = CARD.w - 16;
+  const room = L.card.w - 16;
   const shown: Item[] = [];
   let w = 0;
   for (const it of items) {
@@ -261,34 +279,34 @@ function showcase(s: Surface, state: GameState, id: string, top: number, bottom:
   const h = Math.max(...shown.map((it) => it.h));
   const ground = bottom - 2;
   if (ground - h - 4 < top) return; // no room under the links
-  s.rect(CARD.x + 6, ground, CARD.w - 12, 2, shade("grass", 4));
-  let x = CARD.x + Math.floor((CARD.w - w) / 2);
+  s.rect(L.card.x + 6, ground, L.card.w - 12, 2, shade("grass", 4));
+  let x = L.card.x + Math.floor((L.card.w - w) / 2);
   for (const it of shown) { it.draw(x, ground); x += it.w + gap; }
 }
 
 // ---- the band, buttons and the whole panel ----------------------------------------------
 
-function drawBand(s: Surface, state: GameState, view: ResearchView): void {
+function drawBand(s: Surface, state: GameState, view: ResearchView, L: Layout): void {
   const band = researchBand(state, view);
   if (band !== null) {
-    drawIconsWrapped(s, 6, BAND_Y, SCREEN_W - 12, band, view.discovered.length ? GOLD : NOTE, 1);
+    drawIconsWrapped(s, L.o.x + 6, L.band, L.o.w - 12, band, view.discovered.length ? GOLD : NOTE, 1);
     return;
   }
   const o = researchOutlook(state);
-  drawIcon(s, "bulb", 6, BAND_Y);
-  drawText(s, 6 + ICON + 2, BAND_Y, label(o.id!), INK);
+  drawIcon(s, "bulb", L.o.x + 6, L.band);
+  drawText(s, L.o.x + 6 + ICON + 2, L.band, label(o.id!), INK);
   const after = `${o.have}/${o.cost}  {hourglass}${o.turns ?? "-"}`;
   const aw = iconLineWidth(after);
-  const bx = 112;
-  drawBox(s, bx, BAND_Y, SCREEN_W - 8 - aw - 6 - bx, 8, o.have, o.cost, C.LCYAN!);
-  drawIconLine(s, SCREEN_W - 6 - aw, BAND_Y, after, DIM);
+  const bx = L.o.x + 112;
+  drawBox(s, bx, L.band, L.o.x + L.o.w - 8 - aw - 6 - bx, 8, o.have, o.cost, C.LCYAN!);
+  drawIconLine(s, L.o.x + L.o.w - 6 - aw, L.band, after, DIM);
 }
 
 interface Button { x: number; w: number; label: string; hit: ResearchHit; primary: boolean }
 
-function buttons(state: GameState, view: ResearchView): Button[] {
+function buttons(state: GameState, view: ResearchView, L: Layout): Button[] {
   const out: Button[] = [];
-  let x = SCREEN_W - 6;
+  let x = L.o.x + L.o.w - 6;
   const add = (text: string, hit: ResearchHit, primary = false): void => {
     const w = textWidth(text) + 12;
     x -= w;
@@ -300,47 +318,55 @@ function buttons(state: GameState, view: ResearchView): Button[] {
   return out;
 }
 
+/** The panel: a window over the game it opened on (darkened), centred on the screen it is drawn on. */
 export function drawResearch(s: Surface, state: GameState, view: ResearchView): void {
   const rows = researchRows(state, view);
-  s.fill(C.BLACK!);
+  const L = layout(s.width);
+  const o = L.o;
+  dimScreen(s);
+  // The window on the game, a shadow under it.
+  s.rect(o.x + 3, o.y + o.h, o.w, 2, C.BLACK!);
+  s.rect(o.x + o.w, o.y + 3, 2, o.h - 1, C.BLACK!);
+  s.frame(o.x, o.y, o.w, o.h, C.BLACK!);
+  drawStone(s, o.x + 1, o.y + 1, o.w - 2, o.h - 2);
   const known = state.players[state.currentPlayer]!.advances.length;
   // The count of advances at the strip's right, and when the panel may be left a close box after it (in place of a Close button, 2026-10-24).
   const count = `${known}/${advancesFor(state).length}`;
-  drawTitleStrip(s, 0, 0, SCREEN_W, researchTitle(state, view), view.discovered.length ? { color: shade("azure", 2) } : {});
-  const close = closeBox(view);
-  drawText(s, (close ? close.x - 4 : SCREEN_W - 4) - textWidth(count), 2, count, shade("azure", 7));
+  drawTitleStrip(s, o.x + 2, o.y + 2, o.w - 4, researchTitle(state, view), view.discovered.length ? { color: shade("azure", 2) } : {});
+  const close = closeBox(view, L);
+  drawText(s, (close ? close.x - 4 : o.x + o.w - 6) - textWidth(count), o.y + 4, count, shade("azure", 7));
   if (close) drawCloseBox(s, close.x, close.y);
-  drawStone(s, 0, TITLE_H, SCREEN_W, SCREEN_H - TITLE_H);
-  drawBand(s, state, view);
-  drawList(s, state, view, rows);
-  card(s, state, view);
-  const bs = buttons(state, view);
-  for (const b of bs) drawButton(s, b.x, BUTTON_Y, b.w, 11, b.label, true, b.primary);
+  drawBand(s, state, view, L);
+  drawList(s, state, view, rows, L);
+  card(s, state, view, L);
+  const bs = buttons(state, view, L);
+  for (const b of bs) drawButton(s, b.x, L.buttonY, b.w, 11, b.label, true, b.primary);
   const hint = researchHint(state, view);
-  const room = Math.min(SCREEN_W, ...bs.map((b) => b.x)) - 10;
-  if (textWidth(hint) <= room) drawText(s, 6, BUTTON_Y + 2, hint, view.choosing ? NOTE : DIM);
+  const room = Math.min(o.x + o.w, ...bs.map((b) => b.x)) - o.x - 10;
+  if (textWidth(hint) <= room) drawText(s, o.x + 6, L.buttonY + 2, hint, view.choosing ? NOTE : DIM);
 }
 
 /** The close box in the title strip, when the panel may be left. */
-function closeBox(view: ResearchView): { x: number; y: number; w: number; h: number } | null {
-  return view.closable ? { x: SCREEN_W - 2 - (TITLE_H - 2), y: 1, w: TITLE_H - 2, h: TITLE_H - 2 } : null;
+function closeBox(view: ResearchView, L: Layout): Box | null {
+  return view.closable ? L.close : null;
 }
 
-/** What lies under a point of the research panel. */
-export function researchHit(state: GameState, view: ResearchView, px: number, py: number): ResearchHit | null {
-  const close = closeBox(view);
-  if (close && px >= close.x - 3 && px < close.x + close.w + 3 && py >= 0 && py < TITLE_H) return { kind: "close" };
-  for (const b of buttons(state, view)) if (px >= b.x && px < b.x + b.w && py >= BUTTON_Y && py < BUTTON_Y + 11) return b.hit;
+/** What lies under a point of the research panel, on a screen `screenW` wide. */
+export function researchHit(state: GameState, view: ResearchView, px: number, py: number, screenW = SCREEN_W): ResearchHit | null {
+  const L = layout(screenW);
+  const close = closeBox(view, L);
+  if (close && px >= close.x - 3 && px < close.x + close.w + 3 && py >= L.o.y + 2 && py < L.o.y + 2 + TITLE_H) return { kind: "close" };
+  for (const b of buttons(state, view, L)) if (px >= b.x && px < b.x + b.w && py >= L.buttonY && py < L.buttonY + 11) return b.hit;
   const rows = researchRows(state, view);
-  if (px >= LIST.x && px < LIST.x + LIST.w && py >= LIST.y && py < LIST.y + LIST.h) {
+  if (px >= L.list.x && px < L.list.x + L.list.w && py >= L.list.y && py < L.list.y + L.list.h) {
     if (rows.length > RESEARCH_LIST_ROWS) {
-      const b = scrollBar(rows.length, view.top);
+      const b = scrollBar(rows.length, view.top, L);
       if (px >= b.x - 1) return py < b.thumbY ? { kind: "scroll", by: -RESEARCH_LIST_ROWS } : py >= b.thumbY + b.thumbH ? { kind: "scroll", by: RESEARCH_LIST_ROWS } : null;
     }
-    const i = view.top + Math.floor((py - (LIST.y + 1)) / ROW);
+    const i = view.top + Math.floor((py - (L.list.y + 1)) / ROW);
     const row = i < view.top + RESEARCH_LIST_ROWS ? rows[i] : undefined;
     return row?.kind === "advance" ? { kind: "row", id: row.id } : null;
   }
-  for (const l of card(null, state, view)) if (px >= l.x && px < l.x + l.w && py >= l.y && py < l.y + l.h) return { kind: "link", id: l.id };
+  for (const l of card(null, state, view, L)) if (px >= l.x && px < l.x + l.w && py >= l.y && py < l.y + l.h) return { kind: "link", id: l.id };
   return null;
 }

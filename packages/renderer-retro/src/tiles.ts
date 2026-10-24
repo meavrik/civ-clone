@@ -1,5 +1,5 @@
 import { specialOf, Terrain, type Tile, type WorldMap } from "@civ/core";
-import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, sightPatch, BLEND_REACH, groundOwner, LAND, landOwner, riverShape, SHORE, strokeDistance, type CoastPatch, type Explored, type Lifting } from "@civ/renderer-api";
+import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, clearingPatch, BLEND_REACH, groundOwner, LAND, landOwner, riverShape, SHORE, strokeDistance, type CoastPatch, type Explored, type Lifting } from "@civ/renderer-api";
 import { FEATURE_SHEET, RESOURCE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { C, PALETTE, shade, UNSEEN } from "./palette.js";
@@ -287,21 +287,24 @@ const unseenCache = new Map<string, Uint8Array | "all">();
 
 /**
  * Which pixels of square (x, y) lie out of the viewer's sight (core's
- * `visible`), for `shadeUnseen`: "all" on a square out of sight, null on one
- * in sight with nothing out of sight beside it, else a mask (TILE x TILE, 1 to
- * shade) where the shade drifts in from a neighbour out of sight, dithered as
- * the fog's edge is.
+ * `visible`), for `shadeUnseen`: null on a square in sight (never shaded, so
+ * everything inside the borders and the ring beyond stands wholly clear;
+ * asked for 2026-10-24), "all" on one out of sight with no seen square
+ * beside it, else a mask (TILE x TILE, 1 to shade) on a square out of sight
+ * where the seen squares beside it clear a ragged way in (`clearingPatch`),
+ * dithered as the fog's edge is.
  */
 export function unseenSquare(map: WorldMap, visible: Explored, x: number, y: number): Uint8Array | "all" | null {
-  const p = sightPatch(map, visible, x, y);
-  if (p.cover[4]! >= 1) return "all";
-  if (!p.edge) return null;
+  if (y < 0 || y >= map.height) return null;
+  if (visible[y * map.width + (((x % map.width) + map.width) % map.width)]) return null;
+  const p = clearingPatch(map, visible, x, y);
+  if (!p.edge) return "all";
   const hit = unseenCache.get(p.key);
   if (hit) return hit;
   const out = new Uint8Array(TILE * TILE);
   for (let j = 0; j < TILE; j++)
     for (let i = 0; i < TILE; i++)
-      out[j * TILE + i] = fogLevel(p, (i + 0.5) / TILE, (j + 0.5) / TILE, FOG_EDGE) > BAYER[(j & 3) * 4 + (i & 3)]! ? 1 : 0;
+      out[j * TILE + i] = fogLevel(p, (i + 0.5) / TILE, (j + 0.5) / TILE, FOG_EDGE) > BAYER[(j & 3) * 4 + (i & 3)]! ? 0 : 1;
   if (unseenCache.size > 4096) unseenCache.clear();
   unseenCache.set(p.key, out);
   return out;

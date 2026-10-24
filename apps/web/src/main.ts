@@ -2505,7 +2505,7 @@ function draw(sc: Screen): void {
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
     case "cityView": renderer.cityView(state, sc.view); break;
-    case "research": renderer.research(state, sc.view); break;
+    case "research": draw(sc.back); renderer.research(state, sc.view); break; // a window over the screen it opened on (asked for 2026-10-24)
     // The small windows over the screen they opened on.
     case "newTech": draw(sc.back); sc.view.enter = enterOf(sc.view); renderer.newTech(state, sc.view); break;
     case "built": draw(sc.under); sc.view.enter = enterOf(sc.view); renderer.built(state, sc.view); break;

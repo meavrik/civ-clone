@@ -840,7 +840,7 @@ describe("advisor screens", () => {
     }
     expect(hits.has("row:monarchy")).toBe(true);
     expect(hits.has("row:writing")).toBe(true);
-    expect(hits.has("row:literacy")).toBe(true); // coming later: a hint of what lies ahead
+    expect(researchRows(state, view).some((r) => r.kind === "advance" && r.id === "literacy")).toBe(true); // coming later: a hint of what lies ahead (further down the list than the window shows)
     expect(hits.has("row:the_republic")).toBe(false); // two steps beyond: not listed
     expect(hits.has("link:ceremonial_burial")).toBe(true); // Monarchy's card: what it needs...
     expect(hits.has("link:feudalism")).toBe(true); // ...and what it opens the way to
