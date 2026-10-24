@@ -321,7 +321,11 @@ Never ship the original's sprites, palette art, fonts or text.
   behind them; `pictures.ts` in the web app as for the audience. `Renderer.setup`/`setupHit`; the web app lights
   the card under the pointer and picks it on a click (a first tap on the phone lights it); arrows move in
   two dimensions, Enter picks. Modern shows the cards' labels as its old menu.
-  Map clicks (asked for 2026-10-22): left-click opens our city or picks our unit as ever; otherwise,
+  Map clicks (asked for 2026-10-22): left-click opens our city or picks our unit as ever; a square
+  holding several of ours lists them in a window (`openStack` in the web app; `MenuState.units` puts
+  each unit's sprite before its row, the row grown to hold it, with its standing at the right: Fortified,
+  Sentry, Going, Mining 3, Ready, No moves; asked for 2026-10-24) and the one picked wakes and comes
+  into play (one with no moves left keeps its orders); otherwise,
   with a unit in play, `planMove` (renderer-api `plan.ts`) decides: a step next door goes at once (a
   refused one says why); a fight ("Attack: 62%", `attackOdds`), an empty enemy city ("Take Rome") or a
   square further off (the `findPath` route, "This turn"/"3 turns" by `routeTurns`) becomes `view.plan`,

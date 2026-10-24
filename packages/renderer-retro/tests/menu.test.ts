@@ -70,4 +70,28 @@ describe("menus", () => {
     m.selected = 39;
     expect(keepInView(m, 10)).toBe(30);
   });
+
+  it("list a stack of units with their sprites on rows tall enough to hold them, never as buttons", () => {
+    const m: MenuState = {
+      title: "Our units here (3)",
+      items: ["Settlers", "Militia", "Phalanx"],
+      right: ["Ready", "Fortified", "No moves"],
+      units: [{ type: "settlers", color: 0 }, { type: "militia", color: 0 }, { type: "phalanx", color: 0 }],
+      selected: 1,
+      close: true,
+    };
+    const s = Surface.screen();
+    s.fill(C.BLACK!);
+    drawMenu(s, m);
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/menu-stack.png", import.meta.url), encodePng(s, 3));
+    const r = menuRect(m);
+    // Three rows of a sprite's height (18 each) under the title, not three buttons.
+    expect(menuRows(m)).toBe(3);
+    expect(r.h).toBeGreaterThanOrEqual(16 + 3 * 18 + 6);
+    // Each row answers to a click anywhere across it, the sprite's end included.
+    const hits = [0, 1, 2].map((i) => menuHit(m, r.x + 12, r.y + 17 + i * 18 + 8));
+    expect(hits).toEqual([0, 1, 2]);
+    expect(menuHit(m, r.x + r.w - 10, r.y + 17 + 8)).toBe(0);
+  });
 });

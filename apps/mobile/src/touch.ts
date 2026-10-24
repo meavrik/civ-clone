@@ -56,6 +56,7 @@ function ordersAt(x: number, y: number): boolean {
   const here = (id: number | null) => st.units.some((u) => u.id === id && u.x === sq.x && u.y === sq.y);
   if (!st.units.some((u) => u.owner === 0 && u.x === sq.x && u.y === sq.y)) return false;
   if (!here(st.activeUnit)) click(x, y, 0);
+  if (screenKind() === "menu") return true; // several of ours: the game lists them to pick from
   if (!here(st.activeUnit)) return true; // none of them can move this turn: the game said so
   ordersAbove(st.activeUnit);
   press("Escape", "Escape");

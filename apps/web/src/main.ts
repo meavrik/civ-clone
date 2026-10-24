@@ -76,6 +76,7 @@ import {
   type UnitAction,
   type UnitBattle,
   type WorldSize,
+  type Unit,
 } from "@civ/core";
 import {
   builtNotice,
@@ -134,6 +135,7 @@ import {
   type HoldFrame,
   type SetupState,
   type TextInputState,
+  WORK_NAME,
 } from "@civ/renderer-api";
 import { canvas, configureDisplay, fitCanvas, toLogical } from "./display.js";
 import { createRetroRenderer } from "./retro-renderer.js";
@@ -652,6 +654,51 @@ function stepEdgePan(now: number): void {
   cam.x = (((cam.x + dir.dx * step) % w) + w) % w;
   cam.y = Math.max(0, Math.min(state.map.height - renderer.viewTilesY, cam.y + dir.dy * step));
   applyCamera();
+}
+
+/** A unit's standing in a word or two, for the stack chooser: its orders, or whether it can still move. */
+function unitStanding(u: Unit): string {
+  switch (u.order.kind) {
+    case "fortified": return "Fortified";
+    case "fortifying": return "Fortifying";
+    case "sentry": return "Sentry";
+    case "goto": return "Going";
+    case "work": { const job = WORK_NAME[u.order.work]; return `${job[0]!.toUpperCase()}${job.slice(1)}, ${u.order.turnsLeft}`; }
+    default: return u.movesLeft > 0 ? "Ready" : "No moves";
+  }
+}
+
+/**
+ * A square holding several of our units (asked for 2026-10-24): a window lists them, each with its
+ * sprite and standing, the active one lit; the one picked wakes and comes into play (one with no
+ * moves left keeps its orders, as the city screen has it). The X or Esc leaves them be.
+ */
+function openStack(x: number, y: number, units: Unit[]): void {
+  const me = state.players[0]!;
+  const active = units.findIndex((u) => u.id === state.activeUnit);
+  const ready = units.findIndex((u) => u.movesLeft > 0);
+  screenState = {
+    kind: "menu",
+    under: screenState,
+    menu: {
+      title: `Our units here (${units.length})`,
+      items: units.map((u) => unitType(u.type).name),
+      right: units.map(unitStanding),
+      units: units.map((u) => ({ type: u.type, color: me.color })),
+      selected: Math.max(0, active >= 0 ? active : ready),
+      close: true,
+    },
+    onPick: (i) => {
+      const u = units[i];
+      if (!u || !state.units.some((o) => o.id === u.id)) return;
+      if (u.movesLeft === 0) { say(`${unitType(u.type).name}: no moves left this turn`); return; }
+      centerOn(x, y);
+      if (!dispatch({ type: "activate", unit: u.id })) return;
+      finishHandoff();
+      followActive(true);
+    },
+    onCancel: () => {},
+  };
 }
 
 function followActive(force = false): void {
@@ -2393,16 +2440,11 @@ canvas.addEventListener("mousedown", (e) => {
     else sendTo(active.id, tx, ty);
     return;
   }
-  // Our city opens, and our unit is picked (the next of a stack on the active unit's square).
+  // Our city opens, our unit is picked, and a stack of ours is listed to pick from.
   const city = cityAt(state, tx, ty);
   const mine = unitAt(state, tx, ty).filter((u) => u.owner === 0);
   if (city && city.owner === 0) { centerOn(tx, ty); openCity(city.id); return; }
-  if (active && active.x === tx && active.y === ty) {
-    const ready = mine.filter((u) => u.movesLeft > 0);
-    const nextUnit = ready[(ready.findIndex((u) => u.id === active.id) + 1) % ready.length];
-    if (nextUnit && nextUnit.id !== active.id) dispatch({ type: "activate", unit: nextUnit.id });
-    return;
-  }
+  if (mine.length > 1) { openStack(tx, ty, mine); return; }
   const own = mine.find((u) => u.movesLeft > 0) ?? mine[0];
   if (own) {
     centerOn(tx, ty);

@@ -216,6 +216,12 @@ export interface MenuState {
   enter?: number | undefined;
   /** Rows that cannot be picked now (Revolution! with no government to turn to): drawn faded, never hit. */
   disabled?: number[];
+  /**
+   * A unit's sprite before each row (the stack chooser, asked for 2026-10-24: a click on a square
+   * holding several of our units lists them to pick from): its type and its owner's colour slot.
+   * Rows grow to hold the sprite; never buttons. Modern ignores it.
+   */
+  units?: { type: string; color: number }[];
 }
 
 /** How long a window takes to grow to its full size as it opens (asked for 2026-10-24: "animate window modals entrance"). */
@@ -238,7 +244,7 @@ export const MODAL_MAX_SHARE = 0.55;
  * longer lists (what to build, every tribe) keep rows.
  */
 export function menuButtons(m: MenuState): boolean {
-  return m.title !== "" && !m.anchor && m.items.length <= 4 && !m.right?.some(Boolean);
+  return m.title !== "" && !m.anchor && m.items.length <= 4 && !m.right?.some(Boolean) && !m.units;
 }
 
 export interface TextInputState {

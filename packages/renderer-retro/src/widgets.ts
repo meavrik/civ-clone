@@ -1,6 +1,7 @@
 import { drawText, FONT_HEIGHT, textWidth } from "./font.js";
 import { drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
-import { C, DIMMED, shade } from "./palette.js";
+import { unitSprite } from "./overlays.js";
+import { C, DIMMED, shade, slotColor } from "./palette.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, Surface } from "./surface.js";
 
@@ -174,6 +175,10 @@ const SQUARE_SIDE = SQUARE_FRAME + 6;
 /** A window with a map square is at least this wide, so the lines beside the picture have room. */
 const SQUARE_WINDOW_W = 236;
 
+/** A row with a unit's sprite before it (`MenuState.units`): the sprite's side, and the row tall enough to hold it with a pixel either side. */
+const UNIT_PIC = 16;
+const UNIT_ROW = UNIT_PIC + 2;
+
 /** How far round the point a window keeps clear of (`MenuState.avoid`): a square of the map either way. */
 const AVOID = 16;
 
@@ -194,13 +199,16 @@ function clearOf(p: { x: number; y: number }, x: number, y: number, w: number, h
 /** Where a menu goes on a screen `screenW` wide: centred, or at its anchor kept on the screen. */
 function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
   const buttons = menuButtons(m);
-  const itemW = Math.max(0, ...m.items.map((i, k) => textWidth(i) + (m.right?.[k] ? textWidth(m.right[k]!) + 12 : 0)));
+  // Rows with a unit's sprite before them keep the sprite's height and never close up.
+  const pic = m.units ? UNIT_PIC + 4 : 0;
+  const least = m.units ? UNIT_ROW : FONT_HEIGHT;
+  const itemW = Math.max(0, ...m.items.map((i, k) => pic + textWidth(i) + (m.right?.[k] ? textWidth(m.right[k]!) + 12 : 0)));
   const bw = buttons ? Math.max(BUTTON_MIN_W, itemW + 16) : 0;
   const head = m.title ? 16 : 3;
   const foot = m.title ? 6 : 3;
   // A list that will not fit even with its rows closed up scrolls at the usual row height, beside its bar.
   const roomGuess = 200 - (m.anchor?.y ?? 0) - head - foot - (m.body?.length ? m.body.length * FONT_HEIGHT + 5 : 0);
-  const scrolls = !buttons && m.items.length * FONT_HEIGHT > roomGuess;
+  const scrolls = !buttons && m.items.length * least > roomGuess;
   const need = Math.max(textWidth(m.title) + 16 + (m.close ? TITLE_H : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? SCROLL_W + 4 : 0));
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) + 20 : 0;
   const w = Math.min(300, Math.max(need, Math.min(bodyW + (m.square ? SQUARE_SIDE : 0), Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0, m.square ? SQUARE_WINDOW_W : 0));
@@ -214,8 +222,8 @@ function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
   const bodyH = lines.length || m.square ? Math.max(lines.length * FONT_HEIGHT, m.square ? SQUARE_FRAME + 2 : 0) + 5 : 0;
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
   const room = 200 - (m.anchor?.y ?? 0) - head - bodyH - foot;
-  const fits = m.items.length * FONT_HEIGHT <= room;
-  const row = fits ? Math.max(FONT_HEIGHT, Math.min(MENU_ROW, Math.floor(room / Math.max(1, m.items.length)))) : MENU_ROW;
+  const fits = m.items.length * least <= room;
+  const row = m.units ? UNIT_ROW : fits ? Math.max(FONT_HEIGHT, Math.min(MENU_ROW, Math.floor(room / Math.max(1, m.items.length)))) : MENU_ROW;
   const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
   const itemsH = buttons ? m.items.length * BUTTON_ROW + 1 : rows * row;
   const h = head + bodyH + itemsH + foot;
@@ -335,9 +343,13 @@ function drawMenuNow(s: Surface, m: MenuState, square?: (s: Surface, x: number, 
     if (i < top || i >= top + rows) return;
     const ry = itemsY + (i - top) * row;
     if (sel) s.rect(x + 4, ry - 1, rowW, row, shade("azure", 2));
-    drawText(s, x + 10, ry, item, off ? FADED : sel ? C.WHITE! : C.BLACK!);
+    // A unit's sprite before the row, the words in the middle of the row's height.
+    const unit = m.units?.[i];
+    const ty = unit ? ry + Math.floor((UNIT_ROW - FONT_HEIGHT) / 2) - 1 : ry;
+    if (unit) s.blit(unitSprite(unit.type, slotColor(unit.color)), x + 8, ry, SPRITE_CLEAR);
+    drawText(s, x + 10 + (unit ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : C.BLACK!);
     const r = m.right?.[i];
-    if (r) drawText(s, x + 4 + rowW - 6 - textWidth(r), ry, r, off ? FADED : sel ? shade("azure", 7) : DIM);
+    if (r) drawText(s, x + 4 + rowW - 6 - textWidth(r), ty, r, off ? FADED : sel ? shade("azure", 7) : DIM);
   });
   if (scrolls) drawScrollBar(s, m, l);
 }
