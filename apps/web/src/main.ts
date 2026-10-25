@@ -106,6 +106,18 @@ import {
   leaderLine,
   leaderTitle,
   AUDIENCE_CHOICES,
+  GIFT_GOLD,
+  SUBJECT_WORDS,
+  TALK_SUBJECT,
+  talkButtons,
+  talkLabel,
+  talkTopics,
+  topicLabel,
+  warWarning,
+  type TalkMemo,
+  type TalkSubject,
+  type TalkTone,
+  type TalkTopic,
   FogLifter,
   INTRO_MS,
   MotionPlayer,
@@ -1551,169 +1563,168 @@ function greeting(player: number): string {
 /** First contact: the map shows whom we met, then their leader receives us. */
 function meet(player: number, then: () => void): void {
   const place = meetingPlace(player);
-  const talk = () => audience(player, greeting(player), then, true);
+  const talk = () => audience(player, greeting(player), then, { first: true });
   if (place) beat(place.x, place.y, `The ${state.players[player]!.name}`, talk);
   else talk();
 }
 
 /**
- * An audience with a foreign leader: their palace, their words and our proposals, at most four at a
- * time (asked for). Peace (or war) and Farewell always; the rest grows with our knowledge (asked for
- * 2026-10-24): with Writing (the Diplomat's advance; the tree has no Diplomacy) a Diplomacy screen
- * (demand their units off our land, exchange maps, open or close borders, demand tribute, war), with
- * Trade a Trade screen (trade knowledge, give an advance, a gift of gold). Before them, only the
- * demand to leave and the gift stand on the first screen. Each proposal is made once an audience; the
- * leader's answer becomes their words and the talk goes on until Farewell.
+ * An audience with a foreign leader, a talk (redone 2026-10-25, asked for: choices answered by their
+ * opposites were "very confusing", "should be a smooth logical flow of talk between civs"): their
+ * palace, their words, and as buttons what we may say next (`talkTopics`, `talkButtons` in
+ * renderer-api). Each answer becomes the leader's words and the buttons follow from it: never what was
+ * said, no demand or war once the talk has turned friendly, no offer once it has turned hostile, nothing
+ * that needs a treaty before one is signed. A subject with more to say than four buttons hold opens as a
+ * list of its own (the leader asks what we propose, bring or demand; the close box or Esc comes back).
+ * What we may say grows with our knowledge (asked for 2026-10-24): Writing (the Diplomat's advance; the
+ * tree has no Diplomacy) brings maps, open borders and tribute, Trade the exchange of knowledge and the
+ * gift of an advance. A price or a war asks once more, its one button saying it and the close box
+ * taking it back; a declaration of war ends the talk.
  */
-function audience(player: number, line: string, done: () => void = () => { screenState = { kind: "map" }; }, first = false): void {
-  const them = state.players[player]!;
-  const tried = new Set<string>();
+function audience(player: number, line: string, done: () => void = () => { screenState = { kind: "map" }; },
+  opts: { first?: boolean; tone?: TalkTone } = {}): void {
+  const memo: TalkMemo = { said: [], tone: opts.tone, first: opts.first };
   const speak = (words: string) => { screenState = { kind: "diplomacy", player, line: words }; };
-  /** Proposals not yet made, each marked made when picked. */
-  const fresh = (list: [string, () => void][]): [string, () => void][] =>
-    list.filter(([label]) => !tried.has(label)).map(([label, fn]) => [label, () => { tried.add(label); fn(); }]);
-  const me = () => state.players[0]!;
-  const knows = (id: string) => me().advances.includes(id);
-  const declareWar = (words: string): [string, () => void] => {
-    const treaty = atPeace(state, 0, player);
-    return [treaty ? "Break the treaty" : "Declare war", () => {
-      speak(treaty ? "Would you break our treaty?" : "Would you make war on us?");
-      talkMenu(["Keep the peace", "Declare war!"], (i) => {
-        if (i !== 1) { talk(words); return; }
-        dispatch({ type: "declareWar", player });
-        tried.add("Propose peace");
-        talk("So be it. Our armies will answer you.");
-      }, () => talk(words));
-    }];
+  const mood = () => attitude(state, player, 0);
+  const them = () => state.players[player]!;
+  // They would trade knowledge: they know something we do not, and name something of ours for it.
+  const swap = () => them().advances.some((a) => !state.players[0]!.advances.includes(a)) && tradeAsk(state, player, 0) !== null;
+  /** The leader's answer: their words, and the turn the talk takes with it. */
+  const answer = (words: string, tone?: TalkTone): void => { if (tone) memo.tone = tone; talk(words); };
+  const say = (topic: TalkTopic, words: string): void => {
+    memo.said.push(topic);
+    memo.subject = TALK_SUBJECT[topic];
+    // Back from a list or a question with nothing said: the topic may be raised again.
+    const back = () => { memo.said = memo.said.filter((t) => t !== topic); talk(words); };
+    switch (topic) {
+      case "peace":
+        if (!atWar(state, 0, player)) { proposePeace(player, answer); return; }
+        // A rival that is winning, with its armies at our gates, will not stop now.
+        if (!acceptsPeace(state, player, 0)) { answer("Not while our armies stand at your gates."); return; }
+        dispatch({ type: "makePeace", player });
+        answer("Peace, then. Let the dead rest.", "friendly");
+        return;
+      case "maps":
+        if (!acceptsMapSwap(state, player, 0)) { answer("Our maps are our own."); return; }
+        dispatch({ type: "shareMaps", player });
+        answer("Our cartographers have spoken with yours. Study the maps well.", "friendly");
+        return;
+      case "openBorders":
+        proposeDeal(player, bordersAnswer(state, player, 0), BORDERS_PRICE, answer, {
+          no: "Our land is not open to your armies.",
+          price: `For a gift of ${BORDERS_PRICE} gold, our borders are open to you.`,
+          declined: "Then our borders stay closed.",
+        }, () => { dispatch({ type: "openBorders", player }); answer("Our borders are open to you, and yours to us.", "friendly"); });
+        return;
+      case "knowledge": tradeKnowledge(player, answer, back); return;
+      case "gold":
+        dispatch({ type: "giveGold", player, amount: GIFT_GOLD });
+        answer("Your generosity will be remembered.", "friendly");
+        return;
+      case "advance": giveAdvance(player, answer, back); return;
+      case "leave": demandWithdraw(player, (w) => answer(w, "hostile")); return;
+      case "tribute": {
+        const gold = tributeOffer(state, player, 0);
+        if (gold > 0) { dispatch({ type: "tribute", player, amount: gold }); answer(`Take these ${gold} gold, and leave us in peace.`, "hostile"); return; }
+        const paid = state.tributePaid?.[`${player}>0`];
+        answer(paid !== undefined && state.turn - paid < 20 ? "We paid you not long ago. Do not ask again so soon."
+          : them().gold < 10 ? "Our treasury is bare; there is nothing to give."
+          : "We pay tribute to no one. Come and take it, if you dare.", "hostile");
+        return;
+      }
+      case "closeBorders":
+        dispatch({ type: "closeBorders", player });
+        answer("So be it. Our borders are closed to you again.", "hostile");
+        return;
+      case "war": {
+        const treaty = atPeace(state, 0, player);
+        speak(warWarning(treaty, mood()));
+        talkMenu([treaty ? "Break the treaty!" : "Declare war!"], () => {
+          dispatch({ type: "declareWar", player });
+          // Nothing more to say: the close box, Enter or Esc go on.
+          speak("So be it. Our armies will answer you.");
+          talkMenu([], done, done);
+        }, back);
+        return;
+      }
+    }
   };
-  /** The Diplomacy screen's proposals (with Writing); without it, only the demand to leave. */
-  const diplomacy = (words: string): [string, () => void][] => {
-    const peace = atPeace(state, 0, player);
-    const open = bordersOpen(state, 0, player);
-    return fresh([
-      ...(trespassers(state, 0, player).length ? [["Demand they leave our land", () => demandWithdraw(player, talk)] as [string, () => void]] : []),
-      ...(knows("writing") ? [
-        ["Exchange maps", () => {
-          if (!peace) { talk("Make peace with us first."); return; }
-          if (!acceptsMapSwap(state, player, 0)) { talk("Our maps are our own."); return; }
-          dispatch({ type: "shareMaps", player });
-          talk("Our cartographers have spoken with yours. Study the maps well.");
-        }] as [string, () => void],
-        [open ? "Close borders" : "Open borders", () => {
-          if (open) { dispatch({ type: "closeBorders", player }); talk("Our borders are closed to you again."); return; }
-          if (!peace) { talk("Make peace with us first."); return; }
-          proposeDeal(player, bordersAnswer(state, player, 0), BORDERS_PRICE, talk, {
-            no: "Our land is not open to your armies.",
-            price: `For a gift of ${BORDERS_PRICE} gold, our borders are open to you.`,
-            question: `Pay ${BORDERS_PRICE} gold for open borders?`,
-            declined: "Then our borders stay closed.",
-          }, () => { dispatch({ type: "openBorders", player }); talk("Our borders are open to you, and yours to us."); });
-        }] as [string, () => void],
-        ["Demand tribute", () => {
-          const gold = tributeOffer(state, player, 0);
-          if (gold > 0) { dispatch({ type: "tribute", player, amount: gold }); talk(`Take these ${gold} gold, and leave us in peace.`); return; }
-          const paid = state.tributePaid?.[`${player}>0`];
-          talk(paid !== undefined && state.turn - paid < 20 ? "We paid you not long ago. Do not ask again so soon."
-            : them.gold < 10 ? "Our treasury is bare; there is nothing to give."
-            : "We pay tribute to no one. Come and take it, if you dare.");
-        }] as [string, () => void],
-        ...(!atWar(state, 0, player) ? [declareWar(words)] : []),
-      ] : []),
-    ]);
-  };
-  /** The Trade screen's proposals (with Trade); without it, only a gift of gold. */
-  const trade = (): [string, () => void][] => fresh([
-    ...(knows("trade") && them.advances.some((a) => !me().advances.includes(a)) && tradeAsk(state, player, 0) ? [["Trade knowledge", () => tradeKnowledge(player, talk)] as [string, () => void]] : []),
-    ...(knows("trade") && me().advances.some((a) => !them.advances.includes(a)) ? [["Give an advance", () => giveAdvance(player, talk)] as [string, () => void]] : []),
-    ...(me().gold >= 50 ? [["Give 50 gold", () => { dispatch({ type: "giveGold", player, amount: 50 }); talk("Your generosity will be remembered."); }] as [string, () => void]] : []),
-  ]);
-  /** A screen of proposals (pages when they are many); the window's close box or Esc goes back. */
-  const sub = (words: string, items: [string, () => void][]) => {
-    speak(words);
-    const back = () => talk(words);
-    if (items.length <= AUDIENCE_CHOICES) talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), back);
-    else pagedChoices(items.map((i) => i[0]), (i) => items[i]?.[1](), back);
+  /** A subject's list: the leader asks what we propose, bring or demand; the close box comes back. */
+  const open = (subject: TalkSubject, words: string): void => {
+    speak(SUBJECT_WORDS[subject][mood()]);
+    const topics = talkTopics(state, 0, player, memo, swap())[subject];
+    talkMenu(topics.map((t) => topicLabel(state, 0, player, t)), (i) => { const t = topics[i]; if (t) say(t, words); }, () => talk(words));
   };
   const talk = (words: string): void => {
     speak(words);
-    const items: [string, () => void][] = [];
-    if (atWar(state, 0, player)) {
-      items.push(...fresh([["Propose peace", () => {
-        // A rival that is winning, with its armies at our gates, will not stop now.
-        if (!acceptsPeace(state, player, 0)) { talk("Not while our armies stand at your gates."); return; }
-        dispatch({ type: "makePeace", player });
-        talk("Peace, then. Let the dead rest.");
-      }]]));
-    } else if (!atPeace(state, 0, player)) items.push(...fresh([["Propose peace", () => proposePeace(player, talk)]]));
-    const dip = diplomacy(words);
-    const deals = trade();
-    if (knows("writing")) { if (dip.length) items.push(["Diplomacy", () => sub(words, dip)]); }
-    else items.push(...dip);
-    if (knows("trade")) { if (deals.length) items.push(["Trade", () => sub(words, deals)]); }
-    else items.push(...deals);
-    if (!knows("writing") && !atWar(state, 0, player)) items.push(declareWar(words));
-    items.push([first ? "Part in peace" : "Farewell", done]);
-    talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), done);
+    const buttons = talkButtons(talkTopics(state, 0, player, memo, swap()), memo);
+    talkMenu(buttons.map((b) => talkLabel(state, 0, player, b, memo)), (i) => {
+      const b = buttons[i];
+      if (!b || "farewell" in b) done();
+      else if ("subject" in b) open(b.subject, words);
+      else say(b.topic, words);
+    }, done);
   };
   talk(line);
 }
 
-/** Give `player` one of our advances they lack (with Trade): goodwill, and their thanks. */
-function giveAdvance(player: number, talk: (words: string) => void): void {
+/** Give `player` one of our advances they lack (with Trade): goodwill, and their thanks; the close box on the list takes it back. */
+function giveAdvance(player: number, answer: (words: string, tone?: TalkTone) => void, back: () => void): void {
   const them = state.players[player]!;
   const ours = state.players[0]!.advances.filter((a) => !them.advances.includes(a)).slice(-12);
-  if (!ours.length) { talk("You know nothing we do not."); return; }
-  screenState = { kind: "diplomacy", player, line: "Which of our advances would you give them?" };
+  if (!ours.length) { answer("You know nothing we do not."); return; }
+  screenState = { kind: "diplomacy", player, line: "Which of your advances would you share with us?" };
   pagedChoices(ours.map((a) => advance(a).name), (i) => {
     const id = ours[i];
-    if (!id || !dispatch({ type: "giveAdvance", player, advance: id })) { talk("As you wish."); return; }
-    talk(`${advance(id).name}! We thank you for this knowledge; it will not be forgotten.`);
-  }, () => talk("As you wish."));
+    if (!id || !dispatch({ type: "giveAdvance", player, advance: id })) { back(); return; }
+    answer(`${advance(id).name}! We thank you for this knowledge; it will not be forgotten.`, "friendly");
+  }, back);
 }
 
 /** Ask `player`, met without a treaty, for peace: a friendly civilization signs, a wary one asks a gift first, a hostile one refuses. */
-function proposePeace(player: number, talk: (words: string) => void): void {
-  proposeDeal(player, peaceAnswer(state, player, 0), PEACE_PRICE, talk, {
+function proposePeace(player: number, answer: (words: string, tone?: TalkTone) => void): void {
+  proposeDeal(player, peaceAnswer(state, player, 0), PEACE_PRICE, answer, {
     no: esteem(state, player, 0) === "scorned" ? "A treaty with a people no one has heard of? No." : "We will bind ourselves to no treaty with you.",
     price: `For a gift of ${PEACE_PRICE} gold, we will sign.`,
-    question: `Pay ${PEACE_PRICE} gold for a peace treaty?`,
     declined: "Then we have nothing to sign.",
-  }, () => { dispatch({ type: "makePeace", player }); talk("Let there be peace between our peoples."); });
+  }, () => { dispatch({ type: "makePeace", player }); answer("Let there be peace between our peoples.", "friendly"); });
 }
 
 /**
- * A deal a leader answers by attitude: yes (`agreed` runs), for a gift of
- * `price` gold (asked first, then paid), or no. `words` are the leader's.
+ * A deal a leader answers by attitude: yes (`agreed` runs), for a gift of `price` gold, or no. `words`
+ * are the leader's. Their price has one button, paying it (then `agreed`); the close box or Esc declines.
  */
-function proposeDeal(player: number, answer: "yes" | "for gold" | "no", price: number, talk: (words: string) => void,
-  words: { no: string; price: string; question: string; declined: string }, agreed: () => void): void {
-  if (answer === "no") { talk(words.no); return; }
-  if (answer === "yes") { agreed(); return; }
-  if (state.players[0]!.gold < price) { talk(`For ${price} gold we might. You have not so much.`); return; }
+function proposeDeal(player: number, reply: "yes" | "for gold" | "no", price: number, answer: (words: string) => void,
+  words: { no: string; price: string; declined: string }, agreed: () => void): void {
+  if (reply === "no") { answer(words.no); return; }
+  if (reply === "yes") { agreed(); return; }
+  if (state.players[0]!.gold < price) { answer(`For ${price} gold we might. You have not so much.`); return; }
   screenState = { kind: "diplomacy", player, line: words.price };
-  talkMenu([`Pay ${price} gold`, "No"], (i) => {
-    if (i !== 0) { talk(words.declined); return; }
+  talkMenu([`Pay ${price} gold`], () => {
     dispatch({ type: "giveGold", player, amount: price });
     agreed();
-  }, () => talk(words.declined));
+  }, () => answer(words.declined));
 }
 
-/** Pick one of their advances; they name the one of ours they want for it. */
-function tradeKnowledge(player: number, talk: (words: string) => void): void {
+/**
+ * Pick one of their advances (the close box takes it back); they name the one of ours they want for
+ * it, and one button makes the trade (the close box declines).
+ */
+function tradeKnowledge(player: number, answer: (words: string, tone?: TalkTone) => void, back: () => void): void {
   const me = state.players[0]!;
   const theirs = state.players[player]!.advances.filter((a) => !me.advances.includes(a)).slice(-12);
   const give = tradeAsk(state, player, 0);
-  if (!give || !theirs.length) { talk("We have nothing to trade with you."); return; }
+  if (!give || !theirs.length) { answer("We have nothing to trade with you."); return; }
   screenState = { kind: "diplomacy", player, line: "Which of our advances would you learn?" };
   pagedChoices(theirs.map((a) => advance(a).name), (i) => {
     const receive = theirs[i];
-    if (!receive) { talk("As you wish."); return; }
-    screenState = { kind: "diplomacy", player, line: `For ${advance(receive).name}, we ask ${advance(give).name}.` };
-    talkMenu(["Trade", "No"], (k) => {
-      if (k !== 0 || !dispatch({ type: "exchangeAdvances", player, give, receive })) { talk("As you wish."); return; }
-      showFound([receive], () => talk("Knowledge for knowledge: a fair trade."));
-    }, () => talk("As you wish."));
-  }, () => talk("As you wish."));
+    if (!receive) { back(); return; }
+    screenState = { kind: "diplomacy", player, line: `For ${advance(receive).name}, we ask ${advance(give).name} in return.` };
+    talkMenu(["Make the trade"], () => {
+      if (!dispatch({ type: "exchangeAdvances", player, give, receive })) { answer("Then keep your knowledge, and we ours."); return; }
+      showFound([receive], () => answer("Knowledge for knowledge: a fair trade.", "friendly"));
+    }, () => answer("Then keep your knowledge, and we ours."));
+  }, back);
 }
 
 /** The leader's words when our units stand on their land: a request, then the last warning. */
@@ -1744,9 +1755,9 @@ function askToLeave(owner: number, warnings: number, then: () => void, at?: { x:
         then();
         say(n ? `Our units leave the land of the ${them.name}.` : "Our units find no way out.", 3000);
       }]);
-      if (state.players[0]!.gold >= 50)
-        items.push(["Give 50 gold", () => {
-          dispatch({ type: "giveGold", player: owner, amount: 50 });
+      if (state.players[0]!.gold >= GIFT_GOLD)
+        items.push([`Give ${GIFT_GOLD} gold`, () => {
+          dispatch({ type: "giveGold", player: owner, amount: GIFT_GOLD });
           then();
           say(`${leader} takes the gold and looks away, for now.`, 3500);
         }]);
@@ -1782,7 +1793,7 @@ function peaceOfferAudience(player: number, then: () => void): void {
   talkMenu(["Sign the treaty", "Refuse"], (i) => {
     if (i !== 0) { refuse(); return; }
     dispatch({ type: "makePeace", player });
-    audience(player, "It is done. May it last.", then);
+    audience(player, "It is done. May it last.", then, { tone: "friendly" });
   }, refuse);
 }
 

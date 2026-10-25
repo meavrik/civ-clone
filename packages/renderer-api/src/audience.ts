@@ -1,4 +1,4 @@
-import { civ, civInfluence, esteem, GOVERNMENTS, trespassers, type GameState } from "@civ/core";
+import { atPeace, atWar, bordersOpen, civ, civInfluence, esteem, GOVERNMENTS, trespassers, type GameState } from "@civ/core";
 
 /**
  * The audience with a foreign leader (redone 2026-10-22, asked for, after the user's mock-up "Caesar
@@ -67,4 +67,131 @@ export function realmName(state: GameState, player: number): string {
 export function leaderTitle(state: GameState, player: number): string {
   const c = civ(state.players[player]!.civ);
   return `${c.leader} of the ${c.name}`;
+}
+
+/**
+ * A talk with a foreign leader is a conversation (redone 2026-10-25, asked for: a choice answered by
+ * buttons for its opposite was "very confusing"; "should be a smooth logical flow of talk between
+ * civs"). Each button is something we say; the leader's answer becomes their words and the buttons
+ * after it follow from it: nothing already said, no demand or war once the talk has turned friendly
+ * (a treaty, a deal, a gift), no proposal or gift once it has turned hostile (a demand), nothing that
+ * needs a treaty before there is one. What we may say falls under three subjects: proposals (peace;
+ * with Writing maps and open borders, at peace; with Trade knowledge), gifts (gold; with Trade an
+ * advance) and demands (their units off our land, tribute with Writing, closing borders, war).
+ */
+export type TalkSubject = "propose" | "gift" | "demand";
+export type TalkTopic = "peace" | "maps" | "openBorders" | "knowledge" | "gold" | "advance" | "leave" | "tribute" | "closeBorders" | "war";
+export type TalkTone = "friendly" | "hostile";
+
+/** What a talk remembers: what we have said, the turn it has taken, the subject last talked of. */
+export interface TalkMemo {
+  said: TalkTopic[];
+  tone?: TalkTone | undefined;
+  subject?: TalkSubject | undefined;
+  /** A first meeting: we part in peace. */
+  first?: boolean | undefined;
+}
+
+/** A button of the talk: something to say, a subject that opens as its own list, or the farewell. */
+export type TalkButton = { topic: TalkTopic } | { subject: TalkSubject } | { farewell: true };
+
+/** The gold we may give in an audience (and to be let stay on a leader's land). */
+export const GIFT_GOLD = 50;
+
+export const TALK_SUBJECT: Record<TalkTopic, TalkSubject> = {
+  peace: "propose", maps: "propose", openBorders: "propose", knowledge: "propose",
+  gold: "gift", advance: "gift",
+  leave: "demand", tribute: "demand", closeBorders: "demand", war: "demand",
+};
+
+const SUBJECTS: readonly TalkSubject[] = ["propose", "gift", "demand"];
+
+/**
+ * What `me` may say to `them` now, by subject (`swap`: they would trade knowledge, the AI's `tradeAsk`).
+ * Peace while there is no treaty; maps and open borders only at peace; no gift at war.
+ */
+export function talkTopics(state: GameState, me: number, them: number, memo: TalkMemo, swap: boolean): Record<TalkSubject, TalkTopic[]> {
+  const us = state.players[me]!;
+  const they = state.players[them]!;
+  const knows = (id: string) => us.advances.includes(id);
+  const war = atWar(state, me, them);
+  const peace = atPeace(state, me, them);
+  const open = bordersOpen(state, me, them);
+  const fresh = (list: [TalkTopic, boolean][]) => list.filter(([t, ok]) => ok && !memo.said.includes(t)).map(([t]) => t);
+  return {
+    propose: memo.tone === "hostile" ? [] : fresh([
+      ["peace", !peace],
+      ["maps", peace && knows("writing")],
+      ["openBorders", peace && knows("writing") && !open],
+      ["knowledge", !war && knows("trade") && swap],
+    ]),
+    gift: memo.tone === "hostile" || war ? [] : fresh([
+      ["gold", us.gold >= GIFT_GOLD],
+      ["advance", knows("trade") && us.advances.some((a) => !they.advances.includes(a))],
+    ]),
+    demand: memo.tone === "friendly" ? [] : fresh([
+      ["leave", trespassers(state, me, them).length > 0],
+      ["tribute", !war && knows("writing")],
+      ["closeBorders", open],
+      ["war", !war],
+    ]),
+  };
+}
+
+/**
+ * The talk's buttons, never more than `AUDIENCE_CHOICES`, the farewell last: each subject's topics
+ * spread out where they fit, else the subject as one button. The subject just talked of spreads first,
+ * so the talk follows its thread; then proposals, gifts, demands.
+ */
+export function talkButtons(topics: Record<TalkSubject, TalkTopic[]>, memo: TalkMemo): TalkButton[] {
+  const live = SUBJECTS.filter((s) => topics[s].length);
+  const spread = new Set(live.filter((s) => topics[s].length === 1));
+  let count = live.length + 1;
+  const thread = memo.subject && live.includes(memo.subject) ? [memo.subject, ...live.filter((s) => s !== memo.subject)] : live;
+  for (const s of thread) {
+    if (spread.has(s) || count + topics[s].length - 1 > AUDIENCE_CHOICES) continue;
+    spread.add(s);
+    count += topics[s].length - 1;
+  }
+  return [...live.flatMap((s): TalkButton[] => spread.has(s) ? topics[s].map((topic) => ({ topic })) : [{ subject: s }]), { farewell: true }];
+}
+
+export const SUBJECT_LABEL: Record<TalkSubject, string> = { propose: "Make a proposal", gift: "Offer a gift", demand: "Make demands" };
+
+/** What we say with a topic's button. */
+export function topicLabel(state: GameState, me: number, them: number, topic: TalkTopic): string {
+  switch (topic) {
+    case "peace": return "Propose peace";
+    case "maps": return "Exchange maps";
+    case "openBorders": return "Open borders";
+    case "knowledge": return "Trade knowledge";
+    case "gold": return `Give ${GIFT_GOLD} gold`;
+    case "advance": return "Give an advance";
+    case "leave": return "Demand they leave our land";
+    case "tribute": return "Demand tribute";
+    case "closeBorders": return "Close borders";
+    case "war": return atPeace(state, me, them) ? "Break the treaty" : "Declare war";
+  }
+}
+
+/** A button's words. */
+export function talkLabel(state: GameState, me: number, them: number, button: TalkButton, memo: TalkMemo): string {
+  if ("topic" in button) return topicLabel(state, me, them, button.topic);
+  if ("subject" in button) return SUBJECT_LABEL[button.subject];
+  return memo.first && !atWar(state, me, them) ? "Part in peace" : "Farewell";
+}
+
+/** The leader's words as a subject opens: what do we propose, bring or demand? */
+export const SUBJECT_WORDS: Record<TalkSubject, Record<LeaderMood, string>> = {
+  propose: { friendly: "We are listening, friend. What do you propose?", wary: "Speak. We are listening.", hostile: "Say what you came to say, and be brief." },
+  gift: { friendly: "A gift between friends? Show us.", wary: "A gift? Let us see it.", hostile: "Gifts will not buy our favour. But show us." },
+  demand: { friendly: "Demands? We had thought you a friend.", wary: "Demands? Speak them, then.", hostile: "You dare make demands of us?" },
+};
+
+/** The leader's words when we speak of war (a treaty broken, or war declared), before we say it. */
+export function warWarning(treaty: boolean, mood: LeaderMood): string {
+  if (treaty) return "Break our treaty? Then your word is worth nothing, and it is war.";
+  return mood === "friendly" ? "War? We had thought you a friend. There is no unsaying it."
+    : mood === "wary" ? "War? Think well: there is no unsaying it."
+    : "War? We have waited for this.";
 }

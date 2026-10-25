@@ -643,15 +643,27 @@ Never ship the original's sprites, palette art, fonts or text.
   block it had was "too loud", 2026-10-24), and Enter or a click on it
   (`statusAt` "endTurn") ends the turn, the phone's way too.
   Diplomacy: a meeting first holds the map on whom we met (the `beat` screen:
-  a callout, 1.6 s or any key), then their leader receives us (`audience`: without a treaty propose
-  peace (`proposePeace`: yes, a gift first, or no); then what our knowledge allows (asked for 2026-10-24,
-  "when get diplomacy tech add more diplomacy options, when get trade tech add trade options"; the tree
-  has no Diplomacy advance, so Writing, the Diplomat's, stands for it): with Writing a "Diplomacy" screen
-  (demand they leave our land, exchange maps and open or close borders (both need peace; `acceptsMapSwap`,
-  `bordersAnswer` for `BORDERS_PRICE`), demand tribute, declare war or break the treaty (confirmed)), with
-  Trade a "Trade" screen (trade knowledge: pick theirs, they name ours; give an advance; give 50 gold);
-  before them only the demand to leave and the gift stand on the first screen, war beside them; farewell;
-  each once a talk, the answer becomes the leader's words; greetings name admiration or scorn). The audience screen (redone
+  a callout, 1.6 s or any key), then their leader receives us (`audience`), a talk (redone 2026-10-25,
+  asked for: a choice answered by buttons for its opposite, war's "Keep the peace", "Break the treaty"
+  right after signing, "Close borders" after opening them, was "very confusing"; "a smooth logical flow
+  of talk between civs"). Each button is something we say, the leader's answer becomes their words, and
+  the buttons after it follow from it (`talkTopics`, `talkButtons` in renderer-api `audience.ts`, the talk's
+  `TalkMemo`): nothing said already; nothing needing a treaty before one (maps, open borders); once the
+  talk turns friendly (a treaty, a deal, a gift) no demand or war, once it turns hostile (a demand) no
+  proposal or gift, so a refused demand leaves war or farewell; at war only peace and farewell. What we
+  may say falls under three subjects: proposals (peace, `proposePeace`: yes, for `PEACE_PRICE` or no; with
+  Writing exchange maps and open borders, `acceptsMapSwap`, `bordersAnswer`; with Trade trade knowledge:
+  pick theirs, they name ours), gifts (`GIFT_GOLD`; with Trade an advance) and demands (their units off our
+  land, tribute with Writing, close borders, declare war or break the treaty). Writing and Trade stand for
+  the knowledge that brings more to say (asked for 2026-10-24, "when get diplomacy tech add more diplomacy
+  options, when get trade tech add trade options"; the tree has no Diplomacy, so Writing, the Diplomat's).
+  Up to four buttons, farewell last: a subject's topics stand as buttons where they fit, else the subject
+  is one button ("Make a proposal", "Offer a gift", "Make demands") opening its list with the leader's
+  question (`SUBJECT_WORDS`, by mood); the subject just talked of spreads first, so the talk keeps its
+  thread. A question that wants our yes (their price, their ask in a knowledge trade, war: `warWarning`)
+  has one button saying it ("Pay 50 gold", "Make the trade", "Declare war!"); the close box or Esc is no,
+  or takes back a list opened with nothing said. A declaration of war ends the talk on the leader's words.
+  Greetings name admiration or scorn; after the envoy's treaty the talk starts friendly. The audience screen (redone
   2026-10-22 after the user's mock-up "Caesar Welcomes You to Rome", asked for; a window over the
   darkened map since 2026-10-24, "not 100% of the screen": `audienceRect` 264x186 centred, growing into
   place as a new audience opens, `DiplomacyView.enter` timed by the web app's `audienceKey`; the
