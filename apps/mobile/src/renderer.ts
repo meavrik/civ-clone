@@ -212,12 +212,9 @@ function place(m: MenuState): MenuState {
   const u = unit !== undefined && state ? state.units.find((o) => o.id === unit) : undefined;
   if (!u || !drawn) return m;
   const W = screenW();
-  const pos = tileToScreen(state!, drawn, u.x, u.y, viewAcross(W));
-  if (!pos) return m;
-  const z = Math.max(1, drawn.zoom ?? 1);
-  const sx = VIEW_X + (pos[0] - VIEW_X) * z;
-  const sy = VIEW_Y + (pos[1] - VIEW_Y) * z;
-  const size = TILE * z;
+  const sq = squareOnScreen(state!, drawn, u.x, u.y);
+  if (!sq) return m;
+  const { x: sx, y: sy, w: size } = sq;
   const { right: _keys, ...plain } = m;
   // Its orders as buttons where they fit (two or three across), else as rows.
   const grid = choicesRect({ ...plain, anchor: { x: 0, y: 0 } }, W, ORDER_CHOICES);
@@ -426,6 +423,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       const v = view === shown.view && shown.drawn ? shown.drawn : view;
       return squareAt(state, v, px, py);
     },
+    squareRect(state, view, x, y) {
+      const v = view === shown.view && shown.drawn ? shown.drawn : view;
+      return squareOnScreen(state, v, x, y);
+    },
     statusAt: (state, view, px, py) => statusPanelAt(state, px, py, view),
     minimapAt(state, px, py) {
       if (px >= VIEW_X) return null;
@@ -434,6 +435,14 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     menuBarHit: (px, py) => menuBarHit(px, py),
     menuBarAnchor: (index) => menuBarAnchor(index),
   };
+}
+
+/** Where a map square lies on the map's screen, through the pan and the zoom, or null off it. */
+function squareOnScreen(state: GameState, view: MainScreenView, x: number, y: number): { x: number; y: number; w: number; h: number } | null {
+  const pos = tileToScreen(state, view, x, y, viewAcross(screenW()));
+  if (!pos) return null;
+  const z = Math.max(1, view.zoom ?? 1);
+  return { x: VIEW_X + (pos[0] - VIEW_X) * z, y: VIEW_Y + (pos[1] - VIEW_Y) * z, w: TILE * z, h: TILE * z };
 }
 
 /** The map square under a point of the map's screen, through the zoom and the pan. */

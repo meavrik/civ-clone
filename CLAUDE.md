@@ -283,19 +283,24 @@ Never ship the original's sprites, palette art, fonts or text.
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
   the Building Completed window (`built.ts`, `builtCard`; asked for 2026-10-24 with the user's template; retro
   `screens/built.ts`, modern a plain modal), a small window over the game since 2026-10-24 ("should be a
-  modal opened on top of the game and not a full screen window"; smaller since the evening of 2026-10-24,
-  "minimize the building complete window": `builtRect` 204x128, the picture 54 square at the left, the
-  words beside it with no Description heading; a wonder first rises in its city's picture (the web app's
+  modal opened on top of the game and not a full screen window"; smaller again since 2026-10-25 and standing
+  by its city, "smaller - and placed above the relevant built city with an arrow": 168x88, `builtPlace`;
+  over the map the map glides to put the city a square below the middle, the web app hands each frame the
+  city's square on screen (`BuiltView.square`, `Renderer.squareRect`, the phone's through its pan and zoom)
+  and the window stands above it, else below, else beside it, a point of its stone reaching to a gold ring
+  round the square, which `dimScreen`'s `keep` leaves lit; it grows out of that point (`drawEntering`'s
+  `from`) and a click on the city is View City; elsewhere it is centred; a wonder first rises in its city's picture (the web app's
   `wonderShow` screen: the city view with `CityViewState.rising`, the user's picture clipped from the
   top (`ArtSpot.reveal`, `PicturePlace.reveal`) or the drawn one copied from its ground line up, over
   1.8 s, then sparkles round it for 1.6 s (`drawSparkles`) with the news along the bar (`banner`), a key or
   click after 0.4 s ending it; "a new wonder build WOW effect, the construction in fast forward") and
   its window opens over that picture, darkened with it (`ArtSpot.dim`: the pictures under a window take
   `brightness(45%)`); the web app draws the screen under it,
-  `under`): a navy title strip (hammer, BUILDING/WONDER/SPACESHIP PART COMPLETED, close box), the name
-  large over "Completed in Rome", the user's picture on a slate bed, a parchment panel with Description
-  (`text` on each rule in `rules/buildings.ts`, `wonders.ts`, `spaceship.ts`) and City Effects (icon and
-  numbers from the rule's fields: "+50% science", "+2 culture") over the upkeep, then
+  `under`): a navy title strip (shield, BUILDING/WONDER/SPACESHIP PART COMPLETED, close box), the user's
+  picture on a slate bed at the left, beside it the name large over "Completed in Rome" and a parchment
+  panel of its effects (icon and numbers from the rule's fields: "+50% science", "+2 culture"), three lines
+  with the upkeep last (the description, `text` on each rule in `rules/buildings.ts`, `wonders.ts`,
+  `spaceship.ts`, is the modern renderer's only since 2026-10-25), then
   View City (the city screen, its build menu up) and Continue (the build menu over the map); either way the
   turn's news goes on after (`then`). Left/Right/Tab, Enter (not held), V, Esc; the pointer lights a button.
   `Renderer.built`/`builtHit`. Finished units say nothing (the city goes on building them), except Settlers: they cost a

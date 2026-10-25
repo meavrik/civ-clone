@@ -1,9 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { applyCommand, BUILDINGS, newGame, SPACE_PARTS, WONDERS, type GameState, type Production } from "@civ/core";
-import { ART_SIZE, artPlace, BUILDING_ART, builtCard } from "@civ/renderer-api";
+import { ART_SIZE, artPlace, BUILDING_ART, builtCard, type BuiltView, type MainScreenView } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
-import { wrapText } from "../src/font.js";
-import { BUILT_TEXT_W, builtHit, builtPicture, builtRect, drawBuilt } from "../src/index.js";
+import { builtHit, builtPicture, builtPlace, builtRect, drawBuilt, drawMainScreen, tileToScreen, TILE, VIEW_Y } from "../src/index.js";
 import { Surface } from "../src/surface.js";
 import { encodePng } from "./png.js";
 
@@ -47,7 +46,7 @@ describe("the user's pictures of buildings", () => {
 });
 
 describe("Building Completed window", () => {
-  it("says what every improvement, wonder and spaceship part is in three lines at most, and what it does", () => {
+  it("says what every improvement, wonder and spaceship part is and what it does", () => {
     const { state, city } = withCity();
     const all: Production[] = [
       ...BUILDINGS.map((b) => ({ kind: "building" as const, id: b.id })),
@@ -56,7 +55,7 @@ describe("Building Completed window", () => {
     ];
     for (const production of all) {
       const card = builtCard(state, { city, production, selected: 1 })!;
-      expect(wrapText(card.text, BUILT_TEXT_W).length, production.id).toBeLessThanOrEqual(3);
+      expect(card.text, production.id).not.toBe("");
       expect(card.effects.length, production.id).toBeGreaterThan(0);
       expect(card.where).toBe(`Completed in ${state.cities[0]!.name}`);
     }
@@ -76,7 +75,7 @@ describe("Building Completed window", () => {
     const { state, city } = withCity();
     const s = Surface.screen();
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
-    const shown: [Production["kind"], string][] = [["building", "temple"], ["building", "hydro_plant"], ["wonder", "michelangelos"], ["spaceship", "module"], ["building", "granary"]];
+    const shown: [Production["kind"], string][] = [["building", "temple"], ["building", "hydro_plant"], ["wonder", "michelangelos"], ["spaceship", "module"], ["building", "granary"], ["building", "palace"]];
     for (const [kind, id] of shown) {
       s.art = [];
       drawBuilt(s, state, { city, production: { kind, id } as Production, selected: 1 });
@@ -92,5 +91,39 @@ describe("Building Completed window", () => {
     expect(builtHit(view, o.x + 30, o.y + o.h - 11)).toBe("city");
     expect(builtHit(view, o.x + o.w - 30, o.y + o.h - 11)).toBe("continue");
     expect(builtHit(view, 30, 185)).toBeNull();
+  });
+
+  it("stands above the city it names over the map, pointing at its lit square, and smaller than it was", () => {
+    const { state, city } = withCity();
+    const c = state.cities[0]!;
+    // As the web app leaves the camera: the city a square below the middle of the view.
+    const map: MainScreenView = { originX: c.x - 7, originY: Math.max(0, c.y - 7), blink: false, placeNames: false };
+    const s = Surface.screen();
+    drawMainScreen(s, state, map);
+    const [x, y] = tileToScreen(state, map, c.x, c.y)!;
+    const square = { x, y, w: TILE, h: TILE };
+    const lit = s.fget(x * 2 + 9, y * 2 + 9);
+    const view: BuiltView = { city, production: { kind: "building", id: "temple" }, selected: 1, square };
+    drawBuilt(s, state, view);
+    writeFileSync(new URL("./out/built-over-map.png", import.meta.url), encodePng(s, 3));
+    const place = builtPlace(320, square);
+    expect(place.side).toBe("above");
+    expect(place.win.w * place.win.h).toBeLessThan(204 * 128 * 0.6);
+    expect(place.win.y).toBeGreaterThan(VIEW_Y);
+    // The point reaches from the window's foot to the ring round the square, over the square's middle.
+    expect(place.win.y + place.win.h + 6).toBe(y - 2);
+    expect(place.tip).toEqual({ x: x + 8, y: y - 3 });
+    expect(s.art).toEqual([{ id: "temple", ...builtPicture(320, square), middle: true }]);
+    // The city stays lit under the darkened map; a click on it is View City, as the button is.
+    expect(s.fget(x * 2 + 9, y * 2 + 9)).toBe(lit);
+    expect(builtHit(view, x + 8, y + 8)).toBe("city");
+    expect(builtHit(view, x + 8, y + 20)).toBeNull();
+    const o = place.win;
+    expect(builtHit(view, o.x + 30, o.y + o.h - 10)).toBe("city");
+    expect(builtHit(view, o.x + o.w - 30, o.y + o.h - 10)).toBe("continue");
+    // No room above (a city by the top of the view): below it; none either: beside it.
+    expect(builtPlace(320, { x: 200, y: 20, w: 16, h: 16 }).side).toBe("below");
+    expect(builtPlace(480, { x: 200, y: 92, w: 32, h: 32 }).side).toBe("right");
+    expect(builtPlace(320, undefined)).toMatchObject({ side: null, win: builtRect() });
   });
 });

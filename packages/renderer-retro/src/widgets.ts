@@ -117,13 +117,22 @@ export function drawSwatch(s: Surface, x: number, y: number, color: number): voi
 
 /**
  * Darken everything drawn so far, the backdrop behind a window (asked for 2026-10-24): each pixel to its
- * colour's darkened twin (`DIMMED`). Once a frame: stacked windows share one backdrop.
+ * colour's darkened twin (`DIMMED`). Once a frame: stacked windows share one backdrop. `keep`, in screen
+ * pixels, stays lit (the city a Building Completed window points at).
  */
-export function dimScreen(s: Surface): void {
+export function dimScreen(s: Surface, keep?: { x: number; y: number; w: number; h: number }): void {
   if (s.dimmed) return;
   s.dimmed = true;
   const d = s.data;
-  for (let i = 0; i < d.length; i++) d[i] = DIMMED[d[i]!]!;
+  const k = s.k;
+  const x0 = keep ? Math.max(0, keep.x * k) : 0;
+  const x1 = keep ? Math.min(s.fw, (keep.x + keep.w) * k) : 0;
+  const y0 = keep ? Math.max(0, keep.y * k) : 0;
+  const y1 = keep ? Math.min(s.fh, (keep.y + keep.h) * k) : 0;
+  for (let y = 0, i = 0; y < s.fh; y++) {
+    const lit = y >= y0 && y < y1;
+    for (let x = 0; x < s.fw; x++, i++) if (!lit || x < x0 || x >= x1) d[i] = DIMMED[d[i]!]!;
+  }
   // The user's pictures on what was drawn darken with it (the apps lay them over the canvas).
   for (const a of s.art) a.dim = true;
 }
@@ -351,10 +360,11 @@ export function menuScrollAt(m: MenuState, px: number, py: number, screenW = SCR
  */
 /**
  * A window on its way open (`enter` 0..1): drawn whole on a scratch screen, then laid on the screen
- * grown about its centre to `enter` of its size (from two fifths), each fine pixel from the nearest
- * of the whole. At 1 it is drawn in place.
+ * grown to `enter` of its size (from two fifths) about its centre, or about `from` (a screen point that
+ * stays put: the city a window points at), each fine pixel from the nearest of the whole. At 1 it is
+ * drawn in place.
  */
-export function drawEntering(s: Surface, enter: number, rect: { x: number; y: number; w: number; h: number }, draw: (s: Surface) => void): void {
+export function drawEntering(s: Surface, enter: number, rect: { x: number; y: number; w: number; h: number }, draw: (s: Surface) => void, from?: { x: number; y: number }): void {
   if (enter >= 1) { draw(s); return; }
   const scratch = new Surface(s.width, s.height, undefined, s.k);
   scratch.fill(SPRITE_CLEAR);
@@ -368,8 +378,8 @@ export function drawEntering(s: Surface, enter: number, rect: { x: number; y: nu
   const f = 0.4 + 0.6 * Math.max(0, enter);
   const tw = Math.max(1, Math.round(w * f));
   const th = Math.max(1, Math.round(h * f));
-  const tx = Math.round(x0 + (w - tw) / 2);
-  const ty = Math.round(y0 + (h - th) / 2);
+  const tx = Math.round(from ? from.x * k - (from.x * k - x0) * f : x0 + (w - tw) / 2);
+  const ty = Math.round(from ? from.y * k - (from.y * k - y0) * f : y0 + (h - th) / 2);
   for (let y = 0; y < th; y++) {
     const sy = y0 + Math.min(h - 1, Math.floor((y * h) / th));
     for (let x = 0; x < tw; x++) {

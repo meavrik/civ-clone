@@ -401,6 +401,8 @@ export interface Renderer {
   cityCitizenAt(state: GameState, view: CityScreenView, px: number, py: number): number | null;
   /** The improvement or wonder (id) under a point of the city view, or null. */
   cityViewAt(state: GameState, view: CityViewState, px: number, py: number): string | null;
+  /** Where a map square lies on the main screen as `view` draws it, in logical pixels, or null off the viewport. */
+  squareRect?(state: GameState, view: MainScreenView, x: number, y: number): { x: number; y: number; w: number; h: number } | null;
   /** Map tile under a point in the main screen's viewport, or null. */
   tileAt(state: GameState, view: MainScreenView, px: number, py: number): { x: number; y: number } | null;
   /** Map tile under a point on the main screen's minimap, or null. */

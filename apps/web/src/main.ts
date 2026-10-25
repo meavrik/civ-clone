@@ -839,9 +839,10 @@ function builtWindow(cityId: number, p: Production, then: () => void, change?: C
   }
   if (p.kind !== "unit") {
     // A small window over the game; one after another, each over the same screen. The map glides to
-    // the city first (asked for 2026-10-24), so the window names a city that can be seen.
+    // the city first (asked for 2026-10-24), a square below the middle so the window stands above it
+    // pointing at it (2026-10-25, `BuiltView.square`, set as each frame is drawn).
     const under = screenState.kind === "built" ? screenState.under : screenState;
-    if (under.kind === "map") centerOn(city.x, city.y);
+    if (under.kind === "map") centerOn(city.x, city.y - 1);
     screenState = { kind: "built", view: { city: cityId, production: p, selected: 1 }, then, under };
     return;
   }
@@ -2665,7 +2666,15 @@ function draw(sc: Screen): void {
     case "research": draw(sc.back); renderer.research(state, sc.view); break; // a window over the screen it opened on (asked for 2026-10-24)
     // The small windows over the screen they opened on.
     case "newTech": draw(sc.back); sc.view.enter = enterOf(sc.view); renderer.newTech(state, sc.view); break;
-    case "built": draw(sc.under); sc.view.enter = enterOf(sc.view); renderer.built(state, sc.view); break;
+    case "built": {
+      draw(sc.under);
+      sc.view.enter = enterOf(sc.view);
+      // Over the map, the window stands by its city wherever the camera has it.
+      const city = sc.under.kind === "map" ? state.cities.find((c) => c.id === sc.view.city) : undefined;
+      sc.view.square = (city && renderer.squareRect?.(state, view, city.x, city.y)) ?? undefined;
+      renderer.built(state, sc.view);
+      break;
+    }
     case "science": renderer.science(state); break;
     case "rates": draw({ kind: "map" }); renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;

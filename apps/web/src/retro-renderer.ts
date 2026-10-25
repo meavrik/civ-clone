@@ -54,6 +54,7 @@ import {
   researchHit,
   statusPanelAt,
   TILE,
+  tileToScreen,
   VIEW_TILES_X,
   VIEW_TILES_Y,
   VIEW_H,
@@ -168,6 +169,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityImprovementRows: (state) => cityImprovementRows(state),
     ratesHit: (px, py) => ratesHit(px, py),
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px, py),
+    squareRect(state: GameState, view: MainScreenView, x, y) {
+      const p = tileToScreen(state, view, x, y);
+      return p ? { x: p[0], y: p[1], w: TILE, h: TILE } : null;
+    },
     tileAt(state: GameState, view: MainScreenView, px, py) {
       if (px < VIEW_X || py < VIEW_Y) return null;
       const [ox, oy] = panOffset(view);
