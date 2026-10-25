@@ -219,8 +219,13 @@ function iconRow(s: Surface, x: number, y: number, w: number, groups: [IconName,
  * A slot's goods: one icon, or when a slot stands for more than one a stack of them, each a fine pixel
  * up and right of the one under it, up to three deep (asked for 2026-10-24, in place of a "{shield}=2" key).
  */
-function drawStack(s: Surface, icon: IconName, x: number, y: number, n: number): void {
-  for (let i = Math.min(3, n) - 1; i >= 0; i--) drawIconFine(s, icon, x * s.k + i, y * s.k - i);
+function drawStack(s: Surface, icon: IconName, x: number, y: number, n: number, per: number): void {
+  // One copy a good, the stack climbing up and right by up to three fine pixels however many it holds, so a
+  // slot shows every good it has so far until it is full (asked for 2026-10-25); the top copy is drawn last.
+  for (let i = 0; i < n; i++) {
+    const off = per > 1 ? Math.round((i * 3) / (per - 1)) : 0;
+    drawIconFine(s, icon, x * s.k + off, y * s.k - off);
+  }
 }
 
 /** The room a box leaves for its store between `top` and `bottom`: inside its frame, a few pixels in from every side. */
@@ -255,7 +260,6 @@ export function storeLayout(region: Rect, box: number): { per: number; slots: nu
  */
 function drawStore(s: Surface, region: Rect, icon: IconName, have: number, box: number, keep = 0): void {
   const { per, slots, x, y } = storeLayout(region, box);
-  const filled = Math.min(slots, Math.floor(have / per));
   const kept = Math.floor(keep / per);
   for (let i = 0; i < slots; i++) {
     const sx = x + (i % STORE_COLS) * SLOT_PITCH;
@@ -266,7 +270,9 @@ function drawStore(s: Surface, region: Rect, icon: IconName, have: number, box: 
     s.frect(sx * s.k, (sy + ICON) * s.k - 1, ICON * s.k, 1, edge);
     s.frect(sx * s.k, sy * s.k, 1, ICON * s.k, edge);
     s.frect((sx + ICON) * s.k - 1, sy * s.k, 1, ICON * s.k, edge);
-    if (i < filled) drawStack(s, icon, sx, sy, per);
+    // The goods this slot holds so far: a full stack, or the part the next slot has gathered.
+    const inSlot = Math.max(0, Math.min(per, have - i * per));
+    if (inSlot > 0) drawStack(s, icon, sx, sy, inSlot, per);
   }
 }
 

@@ -2486,10 +2486,17 @@ canvas.addEventListener("mousedown", (e) => {
   const city = cityAt(state, tx, ty);
   const mine = unitAt(state, tx, ty).filter((u) => u.owner === 0);
   if (city && city.owner === 0) {
-    // Next door to the unit in play, a click on our city moves it in (asked for 2026-10-24: "can't move
-    // with a mouse units into a city"); with the unit inside, or none in play, the city opens.
-    if (active && !(active.x === tx && active.y === ty) && isAdjacent(active, tx, ty)) { tryMove(active.id, stepTo(active, tx), ty - active.y); return; }
     centerOn(tx, ty);
+    // Next door to the unit in play, a click on our city asks: view the city, or move the unit in (asked
+    // for 2026-10-25, after the click moved the unit in at once); with the unit inside, or none in play, the city opens.
+    if (active && !(active.x === tx && active.y === ty) && isAdjacent(active, tx, ty)) {
+      const unit = active;
+      menu(city.name, ["View city", `Move ${unitType(unit.type).name} in`], (i) => {
+        if (i === 0) openCity(city.id);
+        else tryMove(unit.id, stepTo(unit, tx), ty - unit.y);
+      });
+      return;
+    }
     openCity(city.id);
     return;
   }

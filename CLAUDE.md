@@ -217,8 +217,10 @@ Never ship the original's sprites, palette art, fonts or text.
   `storeLayout`) are grids of empty slots waiting to be filled (asked for 2026-10-24), ten to a row,
   the grid in the middle of its box's room with the same padding on every side (`storeRegion`), a slot
   standing for more than one good only when the box has more goods than the room has slots (then each
-  filled slot shows a stack of its icon, up to three deep, `drawStack`; asked for 2026-10-24 in place of a
-  "{food}=2" key); the slots of what a growing city keeps (core `foodKept`: a Granary's half, or
+  slot shows the goods it holds so far as a stack, one copy a good climbing up and right by up to three
+  fine pixels, so the slot being filled grows good by good until it is full, `drawStack`; asked for
+  2026-10-24 in place of a "{food}=2" key, and 2026-10-25 "each and every shield stacked until the
+  placeholder is full"); the slots of what a growing city keeps (core `foodKept`: a Granary's half, or
   a trait's share) are edged in gold and named Granary (or Kept) at the foot, room allowing. Taxmen and scientists need no size of city (the 1991 game is said to want size 5: not checked, not asked for).
   Esc, Enter (not held), the close box or a click
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
@@ -341,9 +343,10 @@ Never ship the original's sprites, palette art, fonts or text.
   behind them; `pictures.ts` in the web app as for the audience. `Renderer.setup`/`setupHit`; the web app lights
   the card under the pointer and picks it on a click (a first tap on the phone lights it); arrows move in
   two dimensions, Enter picks. Modern shows the cards' labels as its old menu.
-  Map clicks (asked for 2026-10-22): left-click opens our city (next door to the unit in play it moves
-  the unit in instead, asked for 2026-10-24: "can't move with a mouse units into a city"; with the unit
-  inside, or none in play, the city opens) or picks our unit as ever; a square
+  Map clicks (asked for 2026-10-22): left-click opens our city (next door to the unit in play it asks
+  first, a window with View city and "Move Settlers in", asked for 2026-10-25 after a click moved the
+  unit in at once, 2026-10-24: "can't move with a mouse units into a city"; with the unit inside, or
+  none in play, the city opens) or picks our unit as ever; a square
   holding several of ours lists them in a window (`openStack` in the web app; `MenuState.units` puts
   each unit's sprite before its row, the row grown to hold it, with its standing at the right: Fortified,
   Sentry, Going, Mining 3, Ready, No moves; asked for 2026-10-24) and the one picked wakes and comes
