@@ -15,8 +15,8 @@ const STEP_COST = 4;
 /** The last answer for each game, kept while nothing it reads has changed (it is asked every frame). */
 const memo = new WeakMap<GameState, { key: string; sites: SuggestedSite[] }>();
 
-/** A fingerprint of what a site search round (x, y) reads: the squares within reach and what the player knows of them. */
-function windowKey(state: GameState, x0: number, y0: number, known: Uint8Array): number {
+/** A fingerprint of what a site search round (x, y) reads: the squares within reach, what the player knows of them and which it sees now. */
+function windowKey(state: GameState, x0: number, y0: number, known: Uint8Array, seen: Uint8Array): number {
   const { map } = state;
   let h = 0;
   for (let dy = -SITE_REACH - 3; dy <= SITE_REACH + 3; dy++)
@@ -27,6 +27,7 @@ function windowKey(state: GameState, x0: number, y0: number, known: Uint8Array):
       const t = map.tiles[i]!;
       const v = (t.terrain * 2 + (t.river ? 1 : 0)) * 64 + (t.road ? 1 : 0) + (t.irrigation ? 2 : 0) + (t.mine ? 4 : 0) + (t.special ? 8 : 0) + (t.pollution ? 16 : 0) + (known[i] ? 32 : 0) + t.continent * 4096;
       h = (Math.imul(h, 31) + v) | 0;
+      h = (Math.imul(h, 31) + seen[i]!) | 0;
     }
   return h;
 }
@@ -36,7 +37,8 @@ function windowKey(state: GameState, x0: number, y0: number, known: Uint8Array):
  * players judge them (`siteScore`) from what its civilization has seen: on land it can walk to (its own
  * landmass), where the rules let a city stand, and as far from the cities it knows as the computer
  * players keep theirs (`CITY_SPACING`), the best few within reach, apart from each other, nearer ones
- * preferred. Empty for any other unit.
+ * preferred. Only squares in its sight now (`Player.visible`: its land and a square beyond, round its
+ * units; asked for 2026-10-25), never ones merely explored, which may have changed. Empty for any other unit.
  */
 export function settlerSites(state: GameState, unitId: number | null): SuggestedSite[] {
   const u = unitId === null ? undefined : unitById(state, unitId);
@@ -45,7 +47,8 @@ export function settlerSites(state: GameState, unitId: number | null): Suggested
   if (!me) return [];
   const { map } = state;
   const known = me.explored;
-  const key = `${u.id},${u.x},${u.y},${state.cities.length},${windowKey(state, u.x, u.y, known)}`;
+  const seen = me.visible;
+  const key = `${u.id},${u.x},${u.y},${state.cities.length},${windowKey(state, u.x, u.y, known, seen)}`;
   const hit = memo.get(state);
   if (hit?.key === key) return hit.sites;
   const land = getTile(map, u.x, u.y)?.continent;
@@ -55,7 +58,7 @@ export function settlerSites(state: GameState, unitId: number | null): Suggested
     for (let dx = -SITE_REACH; dx <= SITE_REACH; dx++) {
       const x = wrapX(map, u.x + dx);
       const y = u.y + dy;
-      if (y < 0 || y >= map.height || !known[y * map.width + x]) continue;
+      if (y < 0 || y >= map.height || !seen[y * map.width + x]) continue;
       const t = map.tiles[y * map.width + x]!;
       if (t.continent !== land || canFoundCity(state, x, y) !== null) continue;
       if (cities.some((c) => mapDistance(map, c.x, c.y, x, y) < (c.owner === u.owner ? CITY_SPACING.own : CITY_SPACING.foreign))) continue;

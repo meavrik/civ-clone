@@ -395,7 +395,9 @@ Never ship the original's sprites, palette art, fonts or text.
   City sites (asked for 2026-10-23): while our settlers are in play the map pins the best few squares near
   them to found a city on (`settlerSites` in renderer-api: within 6 squares on their own landmass, scored by
   core `siteScore` from what the player has seen, unseen squares counting a plain grassland's worth, clear of
-  known cities by `CITY_SPACING`, apart from each other, nearer preferred), marked quietly (the first pins
+  known cities by `CITY_SPACING`, apart from each other, nearer preferred; only squares in sight now, the
+  area observed (`Player.visible`, asked for 2026-10-25: never land merely explored), so a lone first settler
+  sees one pin at most, its own 3x3), marked quietly (the first pins
   were "bad": "more abstract, subtle"): a dotted edge round the square (`drawSiteMark`), gold for the best,
   pale for the rest. The mouse resting on one shows why beside it (`siteNote`: "Best place for a city: by a
   river, on the coast, 2 resources nearby.", `MainScreenView.hint`, set each frame by the web app's
