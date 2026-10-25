@@ -143,5 +143,5 @@ function drawBuiltNow(s: Surface, state: GameState, view: BuiltView): void {
   drawIcon(s, "coin", x, upkeepY);
   drawText(s, x + ICON + 3, upkeepY, card.upkeep ? `Upkeep ${card.upkeep} gold a turn` : "No upkeep", QUIET());
 
-  l.buttons.forEach((b, i) => drawWindowButton(s, b, BUILT_BUTTONS[i]!, i === 1, i === view.selected));
+  l.buttons.forEach((b, i) => drawWindowButton(s, b, BUILT_BUTTONS[i]!, i === view.selected));
 }

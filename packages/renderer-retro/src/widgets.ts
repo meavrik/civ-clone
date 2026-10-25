@@ -128,20 +128,32 @@ export function hideArtUnder(s: Surface, r: { x: number; y: number; w: number; h
 /**
  * A raised button of the game's stone (asked for 2026-10-24: every button "stone like"), speckled like
  * the panels, lit along the top and left, shaded along the bottom and right, its label centred in ink;
- * the lit one (`primary`) is ringed in gold; a disabled one keeps its place with a faded label.
+ * a disabled one keeps its place with a faded label. The lit one (`primary`: under the pointer, or the
+ * choice Enter takes) is the same stone warmed to parchment gold, grain and bevel kept (`litStone`;
+ * since 2026-10-25, asked for: the whitened, speckled face ringed in gold was "not good").
  */
 export function drawButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true, primary = false, scale: 1 | 2 = 1): void {
-  if (primary && enabled) speckle(s, x + 1, y + 1, w - 2, h - 2, shade("panel", 5), shade("panel", 6), shade("panel", 7));
-  else stipple(s, x + 1, y + 1, w - 2, h - 2, "panel");
-  s.hline(x, y, w, shade("panel", 7));
-  s.vline(x, y, h, shade("panel", 7));
-  s.hline(x + 1, y + h - 1, w - 1, shade("panel", 1));
-  s.vline(x + w - 1, y + 1, h - 1, shade("panel", 1));
-  if (primary && enabled) s.frame(x - 1, y - 1, w + 2, h + 2, shade("wheat", 6));
+  if (primary && enabled) litStone(s, x, y, w, h);
+  else {
+    stipple(s, x + 1, y + 1, w - 2, h - 2, "panel");
+    s.hline(x, y, w, shade("panel", 7));
+    s.vline(x, y, h, shade("panel", 7));
+    s.hline(x + 1, y + h - 1, w - 1, shade("panel", 1));
+    s.vline(x + w - 1, y + 1, h - 1, shade("panel", 1));
+  }
   const ink = !enabled ? FADED : INK;
   // A label twice the font's size (the phone's setup questions) stands on a line twice as tall.
   if (scale === 2) drawTextLarge(s, x + Math.floor((w - textWidthLarge(label)) / 2), y + Math.floor((h - 2 * FONT_HEIGHT) / 2) + 1, label, ink);
   else drawText(s, x + Math.floor((w - textWidth(label)) / 2), y + Math.floor((h - FONT_HEIGHT) / 2) + 1, label, ink);
+}
+
+/** A lit button's face: the stone's grain in parchment gold, lit along the top and left, shaded along the bottom and right. */
+export function litStone(s: Surface, x: number, y: number, w: number, h: number): void {
+  speckle(s, x + 1, y + 1, w - 2, h - 2, shade("sand", 5), shade("sand", 6), shade("sand", 7));
+  s.hline(x, y, w, shade("sand", 7));
+  s.vline(x, y, h, shade("sand", 7));
+  s.hline(x + 1, y + h - 1, w - 1, shade("sand", 1));
+  s.vline(x + w - 1, y + 1, h - 1, shade("sand", 1));
 }
 
 /** Horizontal progress box with segment ticks (food box, shield box): a black bed sunk in the stone. */

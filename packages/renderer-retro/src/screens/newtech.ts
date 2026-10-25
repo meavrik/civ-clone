@@ -126,17 +126,21 @@ function drawUnlocks(s: Surface, panelRect: Rect, unlocks: Unlock[], leads: bool
   });
 }
 
-/** A raised button: the game's stone, or gold for the one that goes on; the lit one ringed in brown (the Building Completed window's too). */
-export function drawWindowButton(s: Surface, b: { x: number; y: number; w: number; h: number }, label: string, gold: boolean, lit: boolean): void {
-  if (lit) s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, BROWN());
-  if (gold) {
+/**
+ * A raised button of the parchment windows (the Building Completed window's too): the game's stone, gold
+ * while lit (under the pointer, or the one Enter takes: Continue as the window opens). Since 2026-10-25
+ * (asked for: the lit buttons' rings were "not good") the gold face is what marks it, no ring; it had
+ * stood on Continue for good, so the lit stone beside it could not be told apart.
+ */
+export function drawWindowButton(s: Surface, b: { x: number; y: number; w: number; h: number }, label: string, lit: boolean): void {
+  if (lit) {
     speckle(s, b.x + 1, b.y + 1, b.w - 2, b.h - 2, shade("wheat", 3), shade("wheat", 5), shade("wheat", 6));
     s.hline(b.x, b.y, b.w, shade("wheat", 7));
     s.vline(b.x, b.y, b.h, shade("wheat", 7));
     s.hline(b.x + 1, b.y + b.h - 1, b.w - 1, shade("dune", 0));
     s.vline(b.x + b.w - 1, b.y + 1, b.h - 1, shade("dune", 0));
   } else drawStone(s, b.x, b.y, b.w, b.h);
-  drawSpaced(s, b.x + Math.floor(b.w / 2), b.y + 3, label, gold ? BROWN() : INK);
+  drawSpaced(s, b.x + Math.floor(b.w / 2), b.y + 3, label, lit ? BROWN() : INK);
 }
 
 /** The window's frame: tan stone inside a brown and gold border, studs at the corners, a shadow under it on the game. */
@@ -218,5 +222,5 @@ function drawNewTechNow(s: Surface, state: GameState, view: NewTechView): void {
   panel(s, l.unlocks, card.leads ? "Leads to" : "Unlocks");
   drawUnlocks(s, l.unlocks, card.unlocks, card.leads, owner);
 
-  l.buttons.forEach((b, i) => drawWindowButton(s, b, NEW_TECH_BUTTONS[i]!, i === 1, i === view.selected));
+  l.buttons.forEach((b, i) => drawWindowButton(s, b, NEW_TECH_BUTTONS[i]!, i === view.selected));
 }

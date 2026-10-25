@@ -323,7 +323,11 @@ Never ship the original's sprites, palette art, fonts or text.
   zero items), Enter, Esc or a click off it go on. The research panel's Close button is a close box in
   its title strip (`researchHit` "close"); the audience's Back and "Never mind" are gone, its X (or Esc)
   steps back or takes leave. `drawButton` is the speckled stone with a light top-left and dark
-  bottom-right bevel, the lit one ringed in gold (the modals' default choice, Research). A window answers
+  bottom-right bevel; the lit one (under the pointer, the modals' default choice, Research) is the same
+  stone warmed to parchment gold, grain and bevel kept, no ring (`litStone`; asked for 2026-10-25: the
+  whitened speckled face ringed in gold was "not good"), and so are the audience's lit choices; on the
+  parchment windows (New Technology, Building Completed) the lit button is the gold one, the other stone
+  (`drawWindowButton`: Continue was gold for good, so a lit stone beside it was lost). A window answers
   no Enter, Space or click until it stands whole (`WINDOW_ENTER_MS`; the web app's `settled`), and never
   a key held down: a key mashed through the playback cannot dismiss the window that follows it (asked for
   2026-10-24, "building is built, and skip building screen"). The Building Completed window first glides

@@ -3,7 +3,7 @@ import { AUDIENCE_CHOICES, leaderTitle, MOOD_WORDS, realmName, type DiplomacyVie
 import { drawSpaced, drawText, FONT_HEIGHT, spacedWidth, textWidth, wrapText } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { dimScreen, hideArtUnder, drawCloseBox, drawEntering, drawStone, INK, TITLE_H } from "../widgets.js";
+import { dimScreen, hideArtUnder, drawCloseBox, drawEntering, drawStone, INK, litStone, TITLE_H } from "../widgets.js";
 
 /**
  * The audience with a foreign leader, after the user's mock-up (2026-10-22), as a window over the map
@@ -181,9 +181,9 @@ function sky(s: Surface, b: Rect): void {
   }
 }
 
-/** A choice: the game's stone, raised, its words in ink; the lit one framed in gold. */
+/** A choice: the game's stone, raised, its words in ink; the lit one warmed as every lit button is (`litStone`). */
 function drawChoice(s: Surface, b: Rect, label: string, lit: boolean): void {
-  if (lit) s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, GOLD_INK());
-  drawStone(s, b.x, b.y, b.w, b.h);
+  if (lit) litStone(s, b.x, b.y, b.w, b.h);
+  else drawStone(s, b.x, b.y, b.w, b.h);
   drawText(s, b.x + Math.floor((b.w - textWidth(label)) / 2), b.y + 3, label, INK);
 }
