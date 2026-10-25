@@ -1257,5 +1257,17 @@ describe("moods", () => {
     // Without the panel the resources are back.
     drawCityScreen(s, state, { city: city.id });
     expect(s.data.some((c) => c !== 0)).toBe(true);
+    // Happy's face is the city's: smiling while the happy outnumber the unhappy, frowning when they riot.
+    const face = () => {
+      drawCityScreen(s, state, { city: city.id });
+      return s.get(happyAt.x + 6, happyAt.y + 6);
+    };
+    expect(face()).toBe(shade("wheat", 2));
+    city.buildings = city.buildings.filter((b) => b !== "temple");
+    city.specialists = [];
+    city.size = 5;
+    autoAssignWorkers(state, city);
+    expect(face()).toBe(shade("town", 3));
+    writeFileSync(new URL("./out/city-riots.png", import.meta.url), encodePng(s, 3));
   });
 });

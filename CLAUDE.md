@@ -144,7 +144,7 @@ Never ship the original's sprites, palette art, fonts or text.
   with each level's starting gold, settlers and research cost; our departure, FreeCiv plays 4) and unhappy
   beyond; an empire holding more cities than its government's `empireSize` (Anarchy 9 .. Democracy 14) loses one
   content citizen a city, one more per `EMPIRE_SIZE_STEP` (10) cities. Then stage by stage (`CityReport.moods`,
-  shown by the city screen's Happy panel, H or its smiling face, as the original's Happy analysis did): luxuries (two
+  shown by the city screen's Happy panel, H or the face before the citizens, as the original's Happy analysis did): luxuries (two
   a step, content to happy first), buildings (`BuildingRule.content`, the Oracle doubling temples,
   Michelangelo's a cathedral everywhere), soldiers (martial law: each military unit in the city calms one
   unhappy citizen, up to `GovernmentRule.martialLaw`, Monarchy 3, Despotism, Anarchy and Communism unlimited;
@@ -554,20 +554,24 @@ Never ship the original's sprites, palette art, fonts or text.
   is FULL: ramps `hide`, `mire`, `canopy`, `rock`, `ice` (in the old ui/fog/swamp/jungle slots),
   `meadow`, `leaf`, `mound`, `wheat`, `dune`, `heath`, `sea`, `steel`, and `jewel` (6 colours, 249-254;
   `shade` clamps to `RAMP_SIZE`); `town` (the city icons' colours, not a dark-to-light ramp) took the
-  city view's `copper` slots, copper now drawn from `steel`; new art must reuse these ramps or free one. Panel icons (`icons.art.ts`,
+  city view's `copper` slots, copper now drawn from `steel`; `skin` is likewise named colours (the citizens'
+  outline, the jester's plum, the scientist's coat; 4 and 7 the browns the city icons and the deepest skin
+  share); new art must reuse these ramps or free one. Panel icons (`icons.art.ts`,
   drawn with `src/icons.ts`) and the small marks (`drawMark`: tick, new, moves) are hand-drawn
   16x16: food is an ear of wheat, `shield` (production) a steel-rimmed blue shield as the original showed
-  it (a hammer until 2026-10-24, "not good"), `people` a man and a woman; roads,
+  it (a hammer until 2026-10-24, "not good"), `people` a head, `happy`/`unhappy` a smiling and a frowning
+  face (these three from the user's citizens sheet); roads,
   rivers, irrigation, rails, forts and smog stay code-drawn in `tiles.ts`/`overlays.ts`.
-  Citizens (city screen) are one plain figure, 16x26 fine pixels (`CITIZEN_W` 8 x `CITIZEN_H` 13): a
-  round head over a body and two legs, nothing more (asked for 2026-10-24 after three rounds of detailed
-  people, each "bad": "do the most simple basic human presentation possible - dont over complicate").
-  `citizens.art.ts` holds that `person`; `citizens.ts` colours its head with each person's skin (six
-  tones, `citizenLook`) and its body with the mood or trade: yellow happy, white content, red unhappy,
-  magenta entertainer, orange taxman, cyan scientist. Hair, trousers and the man/woman looks play no
-  part now. The sheet is composed from hand-drawn part grids
-  (heads, upper bodies, legs or dress, hats); `citizens.ts` swaps its stand-ins, three tones each (lit,
-  shade, outline: skin 6/4/2, hair e/c/a, clothes P/p/r, trousers C/B/A), for each person's.
+  Citizens (city screen) are the user's sheet of people (2026-10-25, after four rounds of our own figures
+  were "bad"), recovered on its own grid and fitted to the palette (the sheet had no even pixel grid: each
+  figure resampled at one scale, colours clustered, then matched): a man and a woman (`<mood>-m`/`-f`)
+  for each mood (happy, arms up, yellow; content in linen; unhappy, arms crossed, red) and trade
+  (entertainer a jester in plum, taxman in orange with a hat and purse, scientist in a pale coat with a
+  flask), 20x26 fine pixels (`CITIZEN_W` 10 x `CITIZEN_H` 13), standing `CITIZEN_PITCH` (8) apart at most
+  so raised arms and props reach over a neighbour. The art text is the source now (no generator);
+  `citizens.ts` swaps the sheet's skin (flesh 6/5/4) for each person's tone (six, `citizenLook`); hair,
+  trousers and style play no part. The face before the row (the Happy panel's button) is the city's:
+  smiling, frowning while the unhappy match or outnumber the happy.
   Who stands where is `citizenLook(city, i)` in renderer-api (a hash, so the same people every frame);
   the modern renderer paints the same people in `renderer-modern/src/citizens.ts`.
   Chrome, as the original's main screen: every panel, window, page and button is the same light

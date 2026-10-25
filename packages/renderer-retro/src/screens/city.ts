@@ -31,7 +31,7 @@ import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { BAD, DIM, drawButton, drawCloseBox, drawScrollTrack, drawStone, drawTitleStrip, drawWindow, FADED, GOLD, GOOD, INK, NOTE, SCROLL_W, scrollTrack, stipple, TITLE_H, type ScrollTrack } from "../widgets.js";
-import { CITIZEN_H, CITIZEN_W, drawCitizen } from "../citizens.js";
+import { CITIZEN_H, CITIZEN_PITCH, CITIZEN_W, drawCitizen } from "../citizens.js";
 import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk, iconLineWidth } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { drawCity } from "./map-city.js";
@@ -190,7 +190,7 @@ const ROW_END = 200;
 /** Where each person of the row (`citizenRow`) stands, and how far apart they stand. */
 function citizenSpots(row: readonly CitizenMood[]): { xs: number[]; pitch: number } {
   const gap = row.some(isWorker) && row.some((w) => !isWorker(w)) ? SPECIALIST_GAP : 0;
-  const pitch = Math.max(3, Math.min(CITIZEN_W + 2, Math.floor((ROW_END - ROW_X - gap) / Math.max(1, row.length))));
+  const pitch = Math.max(3, Math.min(CITIZEN_PITCH, Math.floor((ROW_END - ROW_X - CITIZEN_W + CITIZEN_PITCH - gap) / Math.max(1, row.length))));
   const xs: number[] = [];
   let x = ROW_X;
   row.forEach((who, i) => {
@@ -206,9 +206,12 @@ export function cityCitizenAt(state: GameState, view: CityScreenView, px: number
   const city = state.cities.find((c) => c.id === view.city);
   if (!city || py < ROW_Y - 1 || py >= TOP.y + TOP.h) return null;
   const { xs, pitch } = citizenSpots(citizenRow(state, city));
-  for (let i = xs.length - 1; i >= 0; i--) if (px >= xs[i]! - 1 && px < xs[i]! + Math.max(pitch, CITIZEN_W) - 1) return i;
+  for (let i = xs.length - 1; i >= 0; i--) if (px >= xs[i]! + bodyAt(pitch) && px < xs[i]! + bodyAt(pitch) + pitch) return i;
   return null;
 }
+
+/** Where a person's own stretch of the row starts within their sprite: the body stands in the sprite's middle. */
+const bodyAt = (pitch: number) => Math.floor((CITIZEN_W - pitch) / 2);
 
 /** A unit away from the city: every other pixel of its square goes back to stone. */
 function ghost(s: Surface, x: number, y: number): void {
@@ -385,7 +388,7 @@ function drawMoods(s: Surface, city: City, r: CityReport): void {
     drawIcon(s, MOOD_STAGE_ICONS[m.stage], ix, iy);
     if (!moved) for (let dy = 0; dy < ICON; dy++) for (let dx = dy & 1; dx < ICON; dx += 2) stipple(s, ix + dx, iy + dy, 1, 1, "panel");
     const n = m.happy + m.content + m.unhappy;
-    const step = n > 1 ? Math.min(CITIZEN_W + 1, room / (n - 1)) : 0;
+    const step = n > 1 ? Math.min(CITIZEN_PITCH, room / (n - 1)) : 0;
     let k = 0;
     const people = (mood: "happy" | "content" | "unhappy", count: number) => {
       for (let j = 0; j < count; j++, k++) drawCitizen(s, x0 + Math.round(k * step), y + rowH - CITIZEN_H, mood, city.id, k);
@@ -413,19 +416,20 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   // Happy: the citizens' feelings stage by stage, lit while that panel is up.
   if (view.happy) s.rect(HAPPY.x, HAPPY.y, HAPPY.w, HAPPY.h, shade("azure", 2));
   else if (view.hoverControl === "happy") s.rect(HAPPY.x, HAPPY.y, HAPPY.w, HAPPY.h, shade("panel", 7));
-  drawIcon(s, "happy", HAPPY.x + 1, HAPPY.y + 1);
+  // Its face is the city's: frowning while the unhappy match or outnumber the happy (unrest, riots).
+  drawIcon(s, r.disorder || (r.unhappy > 0 && r.unhappy >= r.happy) ? "unhappy" : "happy", HAPPY.x + 1, HAPPY.y + 1);
   // Each citizen a person of their own (`citizenLook`), standing on the window's bottom edge; the one
   // under the pointer lit, and told of beside the row (a click changes their job).
   const row = citizenRow(state, city);
   const { xs, pitch } = citizenSpots(row);
   const lit = view.hover !== undefined && view.hover < row.length ? view.hover : null;
-  if (lit !== null) s.rect(xs[lit]! - 1, ROW_Y - 1, Math.max(pitch, CITIZEN_W) + 1, CITIZEN_H + 1, shade("panel", 7));
+  if (lit !== null) s.rect(xs[lit]! + bodyAt(pitch) - 1, ROW_Y - 1, pitch + 1, CITIZEN_H + 1, shade("panel", 7));
   row.forEach((who, i) => drawCitizen(s, xs[i]!, ROW_Y, who, city.id, i));
   // The city's standing, as it is now: riots, a festival, or one lost happy citizen from riots.
   const standing = r.disorder ? (["CIVIL DISORDER", BAD] as const) : r.celebration ? (["CELEBRATING", GOOD] as const) : r.unhappy > 0 && r.unhappy === r.happy ? (["UNREST", GOLD] as const) : null;
   const standX = standing ? SCREEN_W - 6 - textWidth(standing[0]) : SCREEN_W - 4;
   if (standing) say(s, standX, TOP.y + BOX_HEAD + 4, standing[0], standing[1]);
-  const noteX = (xs.length ? xs[xs.length - 1]! + pitch : ROW_X) + 6;
+  const noteX = (xs.length ? xs[xs.length - 1]! + CITIZEN_W : ROW_X) + 4;
   // Beside the row: what is pointed at (a big city's row leaves room for who a citizen is only), else
   // the latest word, else the hint.
   const room = standX - 6 - noteX;

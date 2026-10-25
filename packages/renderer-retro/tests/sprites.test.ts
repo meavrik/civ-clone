@@ -50,29 +50,38 @@ describe("sprite sheets", () => {
     // Every panel icon, at 8x8 so it sits in a line of text.
     expect(ICON_SHEET.size / ICON_SHEET.k).toBe(8); // as tall as a line of text, in screen pixels
     for (const name of ICONS) expect(ICON_SHEET.byName.has(name), name).toBe(true);
-    // Every mood and trade of citizen, in both looks.
-    expect([...CITIZEN_SHEET.byName.keys()]).toEqual(["person"]); // one figure for every citizen
+    // Every mood and trade of citizen, a man and a woman (the user's sheet).
+    expect([...CITIZEN_SHEET.byName.keys()]).toEqual(MOODS.flatMap((m) => [`${m}-m`, `${m}-f`]));
   });
 
-  it("draw every citizen as one plain figure, the head in their skin and the body in the mood's colour", () => {
-    const fair = citizenSprite("content", { woman: false, style: 0, skin: 0, hair: 0, legs: 0 });
-    const deep = citizenSprite("content", { woman: true, style: 1, skin: 5, hair: 4, legs: 3 });
+  it("draw every citizen from the user's sheet, a man or a woman for each mood and trade, the skin in their tone", () => {
+    const look = (woman: boolean, skin: number) => ({ woman, style: 0, skin, hair: 0, legs: 0 }) as const;
+    const pixels = (s: Surface) => Array.from(s.data).join();
+    const fair = citizenSprite("content", look(false, 0));
+    const deep = citizenSprite("content", look(false, 5));
     expect([fair.width, fair.height]).toEqual([CITIZEN_W, CITIZEN_H]);
-    // Content citizens wear white, whoever they are; only the head differs.
-    expect(fair.data.includes(shade("marble", 7))).toBe(true);
-    expect(deep.data.includes(shade("marble", 7))).toBe(true);
-    expect(Array.from(fair.data).join()).not.toBe(Array.from(deep.data).join());
-    // The same figure whatever else the look says: hair, trousers and the woman's half play no part.
-    const again = citizenSprite("content", { woman: false, style: 0, skin: 5, hair: 0, legs: 0 });
-    expect(Array.from(again.data).join()).toBe(Array.from(deep.data).join());
-    // Each mood or trade its own colour; no stand-in survives the swap, nothing is black.
+    // The sheet's own skin, then each tone in its place: the clothes stay, only the skin changes.
+    expect(fair.data.includes(shade("flesh", 6))).toBe(true);
+    for (const c of [shade("flesh", 6), shade("flesh", 5), shade("flesh", 4)]) expect(deep.data.includes(c)).toBe(false);
+    expect(deep.data.includes(shade("skin", 7))).toBe(true);
+    const skins = new Set<number>([...[0, 1, 2, 3, 4, 5, 6].map((n) => shade("flesh", n)), shade("skin", 7), shade("skin", 4), shade("hide", 1)]);
+    for (let i = 0; i < fair.data.length; i++) if (!skins.has(fair.data[i]!)) expect(deep.data[i]).toBe(fair.data[i]);
+    expect(new Set([0, 1, 2, 3, 4, 5].map((n) => pixels(citizenSprite("content", look(false, n))))).size).toBe(6);
+    // A woman is her own figure; hair, trousers and style play no part.
+    expect(pixels(citizenSprite("content", look(true, 0)))).not.toBe(pixels(fair));
+    expect(pixels(citizenSprite("content", { woman: false, style: 1, skin: 0, hair: 4, legs: 3 }))).toBe(pixels(fair));
+    // Each mood or trade dressed in its own colour, outlined in the sheet's dark brown, never black.
     const bodies = new Set<number>();
-    for (const mood of MOODS) {
-      const s = citizenSprite(mood, { woman: false, style: 0, skin: 5, hair: 0, legs: 0 });
-      for (const c of [shade("flesh", 6), shade("flesh", 4), shade("flesh", 2), ...(mood === "unhappy" ? [] : [C.RED!])]) expect(s.data.includes(c), mood).toBe(false);
-      expect(s.data.includes(C.BLACK!), mood).toBe(false);
-      bodies.add(s.data[(18 * s.fw) + 9]!);
-    }
+    for (const mood of MOODS)
+      for (const woman of [false, true]) {
+        const s = citizenSprite(mood, look(woman, 0));
+        expect(s.data.includes(C.BLACK!), mood).toBe(false);
+        expect(s.data.includes(shade("skin", 0)), mood).toBe(true);
+        // The clothes: the commonest colour after the clear, the outline and the skin.
+        const counts = new Map<number, number>();
+        for (const c of s.data) if (c !== SPRITE_CLEAR && c !== shade("skin", 0) && !skins.has(c)) counts.set(c, (counts.get(c) ?? 0) + 1);
+        if (!woman) bodies.add([...counts].sort((a, b) => b[1] - a[1])[0]![0]);
+      }
     expect(bodies.size).toBe(MOODS.length);
   });
 
@@ -156,13 +165,13 @@ describe("sprite sheets", () => {
       s.blit(spriteSurface(RESOURCE_SHEET, r.name)!, x, yy, SPRITE_CLEAR);
     });
     y += Math.ceil(resources / cols) * 18 + 2;
-    drawText(s, 2, y, "Citizens (four looks to a mood)", C.WHITE!);
+    drawText(s, 2, y, "Citizens (a man and a woman to a mood, two skins each)", C.WHITE!);
     y += 10;
     stipple(s, 0, y, s.width, 3 * 15, "panel");
     for (let row = 0; row < 3; row++)
       MOODS.forEach((mood, m) => [0, 1, 2, 3].forEach((k) => {
         const look = { woman: k % 2 === 1, style: k >= 2 ? 1 : 0, skin: (row * 2 + k) % 6, hair: (row * 3 + k + m) % 6, legs: (row + k) % 4 } as const;
-        s.blit(citizenSprite(mood, look), 2 + (m * 4 + k) * 8 + m * 4, y + 1 + row * 15, SPRITE_CLEAR);
+        s.blit(citizenSprite(mood, look), 1 + (m * 4 + k) * 10 + m * 2, y + 1 + row * 15, SPRITE_CLEAR);
       }));
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/sprites.png", import.meta.url), encodePng(s, zoom));

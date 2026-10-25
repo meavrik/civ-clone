@@ -99,9 +99,11 @@ for (const [name, colors] of Object.entries(CHROME)) {
   C[name.toUpperCase()] = PALETTE.length;
   PALETTE.push(...colors);
 }
-// Deep brown skin for the city screen's citizens, darker than the flesh ramp reaches.
+// The citizens' colours (the user's sheet of the city screen's people, 2026-10-25) that no ramp holds: their
+// outline, the jester's plum, the scientist's coat; 4 and 7 are the deep browns the city icons and the darkest
+// skin share. Not a ramp from dark to light: the sprites name each colour.
 C.SKIN = PALETTE.length;
-PALETTE.push(...ramp([52, 30, 20], [136, 86, 56], 8));
+PALETTE.push([31, 11, 1], [93, 32, 46], [119, 44, 61], [141, 56, 76], [100, 62, 41], [67, 110, 113], [145, 185, 187], [136, 86, 56]);
 // The city view's buildings and sky: warm marble, brick and tile, a day sky; and the colours of the
 // map's city icons (the user's sheet, 2026-10-22) that no other ramp holds, in the slots the city
 // view's weathered copper had: navy outline, slate blues, red roof tiles, warm plaster. Not a ramp
