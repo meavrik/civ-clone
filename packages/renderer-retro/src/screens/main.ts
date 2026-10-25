@@ -92,7 +92,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, fieldSides, isDeepWater, placeLabels, placeLabelText, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, fieldSides, isDeepWater, placeLabel, placeLabelText, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -304,14 +304,14 @@ const PLACE_INK: Record<"water" | "landform" | "land", [string, number]> = { wat
 const PLACE_RING: Record<"water" | "landform" | "land", [string, number]> = { water: ["sea", 0], landform: ["mound", 0], land: ["mound", 0] };
 
 /**
- * The names of the places on view (`placeLabels`), each centred on its square, ringed so it reads on any
- * ground; one that would cross a name already written, a city or its name is left out.
+ * The name of the place nearest the unit in play (`placeLabel`), centred on the first of its squares where
+ * it fits: ringed so it reads on any ground, never across a city or its name, never out over the dark.
  */
 function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, across: number, cities: readonly City[]): void {
   const [ox, oy] = panOffset(view);
   const zoom = viewZoom(view);
-  const labels = placeLabels(state, state.currentPlayer, view.originX, view.originY, Math.ceil((across + 1) / zoom), Math.ceil((VIEW_TILES_Y + 1) / zoom));
-  if (!labels.length) return;
+  const label = placeLabel(state, state.currentPlayer, view.originX, view.originY, Math.ceil((across + 1) / zoom), Math.ceil((VIEW_TILES_Y + 1) / zoom));
+  if (!label) return;
   const taken: [number, number, number, number][] = [];
   for (const c of cities) {
     const pos = tileToScreen(state, view, c.x, c.y, across);
@@ -320,7 +320,6 @@ function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, acro
     taken.push([pos[0] + (TILE >> 1) - (w >> 1), pos[1], w, TILE + FONT_HEIGHT + 2]);
   }
   const clear = ([x, y, w, h]: [number, number, number, number]) => taken.every(([a, b, c, d]) => x + w <= a || a + c <= x || y + h <= b || b + d <= y);
-  // A name is written over explored ground only, never out over the dark.
   const me = state.players[state.currentPlayer]!;
   const overExplored = ([x, y, w, h]: [number, number, number, number]) => {
     for (const py of [y, y + h - 1]) {
@@ -333,23 +332,23 @@ function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, acro
     }
     return true;
   };
-  for (const l of labels) {
-    const text = placeLabelText(l.name);
-    const style = l.land ? "land" : WATER_KINDS.has(l.kind) ? "water" : "landform";
-    const w = l.land ? spacedWidth(text) : textWidth(text);
-    // Centred on its square, but kept inside the map's view (clear of the panel and the edges).
-    const left = VIEW_X + 2;
-    const right = VIEW_X + Math.floor((s.width - VIEW_X) / zoom) - 2;
-    if (w > right - left) continue;
-    const cx = Math.min(right - (w >> 1) - 1, Math.max(left + (w >> 1) + 1, VIEW_X + l.tx * TILE - ox + (TILE >> 1)));
-    const y = Math.min(VIEW_Y + Math.floor(VIEW_H / zoom) - FONT_HEIGHT - 1, Math.max(VIEW_Y + 1, VIEW_Y + l.ty * TILE - oy + ((TILE - FONT_HEIGHT) >> 1)));
+  const text = placeLabelText(label.name);
+  const style = label.land ? "land" : WATER_KINDS.has(label.kind) ? "water" : "landform";
+  const w = label.land ? spacedWidth(text) : textWidth(text);
+  // Kept inside the map's view (clear of the panel and the edges).
+  const left = VIEW_X + 2;
+  const right = VIEW_X + Math.floor((s.width - VIEW_X) / zoom) - 2;
+  if (w > right - left) return;
+  for (const { tx, ty } of label.at) {
+    const cx = Math.min(right - (w >> 1) - 1, Math.max(left + (w >> 1) + 1, VIEW_X + tx * TILE - ox + (TILE >> 1)));
+    const y = Math.min(VIEW_Y + Math.floor(VIEW_H / zoom) - FONT_HEIGHT - 1, Math.max(VIEW_Y + 1, VIEW_Y + ty * TILE - oy + ((TILE - FONT_HEIGHT) >> 1)));
     const box: [number, number, number, number] = [cx - (w >> 1) - 2, y - 1, w + 4, FONT_HEIGHT + 2];
     if (!clear(box) || !overExplored(box)) continue;
-    taken.push(box);
     const ink = shade(...PLACE_INK[style]);
     const ring = shade(...PLACE_RING[style]);
-    if (l.land) drawSpacedRinged(s, cx, y, text, ink, ring);
+    if (label.land) drawSpacedRinged(s, cx, y, text, ink, ring);
     else drawTextRinged(s, cx - (w >> 1), y, text, ink, ring);
+    return;
   }
 }
 

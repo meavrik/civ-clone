@@ -61,87 +61,85 @@ function depthsOf(map: WorldMap, g: Geography): Depths {
   return d;
 }
 
-/** A place's name to write on the map, centred on a square of the view (`tx`, `ty` from its top left). */
+/** A place's name to write on the map: the squares of the view (from its top left) it may be centred on, the best first. */
 export interface PlaceLabel {
   region: number;
   name: string;
   kind: PlaceKind;
   /** A continent or island (written larger and spaced), not a water body or landform. */
   land: boolean;
-  tx: number;
-  ty: number;
+  at: { tx: number; ty: number }[];
 }
 
 /**
- * How near one of the player's units a place must lie for its name to show, in squares (asked for
- * 2026-10-25: every name on view was "too crowded"). Units in a city name nothing: a garrison would
- * keep the names round every city on the map for good.
+ * How near the unit in play a place must lie for its name to show, in squares (asked for 2026-10-25:
+ * every name on view was "too crowded", then names near every unit still were: one name at a time, "the
+ * closest to the unit").
  */
 export const NAME_REACH = 2;
 
-/** The order labels are placed in, the first winning where two would overlap. */
-const LABEL_ORDER: PlaceKind[] = ["continent", "ocean", "sea", "bay", "desert", "mountains", "ice", "forest", "jungle", "swamp", "tundra", "hills", "island", "lake"];
-
 /**
- * The places to name in a view `cols` x `rows` squares from (x0, y0), for the player: each place with
- * an explored square on view within `NAME_REACH` of one of the player's units outside its cities, written
- * on the such square furthest inside the place (away from its edges, a square in from the view's sides,
- * off our units' squares), the first in reading order on a tie. Labels come in `LABEL_ORDER`, bigger
- * places first.
+ * The one place to name in a view `cols` x `rows` squares from (x0, y0): the place nearest the player's
+ * unit in play (none when no unit of theirs is in play), from the explored squares on view within
+ * `NAME_REACH` of it. The square it stands on names its sea or landform before its land (the Alps before
+ * Europe), and nearer places come before further ones; a tie goes to the bigger place. The label may sit on
+ * any square of that place near the unit: best a square in from the view's sides, clear of our units, on
+ * another row than the unit (a name runs across its row), nearest the unit, furthest inside the place.
  */
-export function placeLabels(state: GameState, viewer: number, x0: number, y0: number, cols: number, rows: number): PlaceLabel[] {
+export function placeLabel(state: GameState, viewer: number, x0: number, y0: number, cols: number, rows: number): PlaceLabel | null {
   const { map } = state;
   const g = map.geography;
   const me = state.players[viewer];
-  if (!g || !me) return [];
-  // The squares near our units out in the world, and the squares they stand on.
-  const near = new Uint8Array(map.width * map.height);
-  const cities = new Set(state.cities.map((c) => c.y * map.width + c.x));
-  for (const u of state.units) {
-    if (u.owner !== viewer || cities.has(u.y * map.width + u.x)) continue;
-    for (let dy = -NAME_REACH; dy <= NAME_REACH; dy++) {
-      const y = u.y + dy;
-      if (y < 0 || y >= map.height) continue;
-      for (let dx = -NAME_REACH; dx <= NAME_REACH; dx++) near[y * map.width + wrapX(map, u.x + dx)] = 1;
-    }
-  }
-  for (const u of state.units) if (u.owner === viewer) near[u.y * map.width + u.x] = near[u.y * map.width + u.x]! | 2;
+  const unit = state.activeUnit === null ? undefined : state.units.find((u) => u.id === state.activeUnit);
+  if (!g || !me || !unit || unit.owner !== viewer) return null;
+  const ours = new Set(state.units.filter((u) => u.owner === viewer).map((u) => u.y * map.width + u.x));
   const depth = depthsOf(map, g);
-  const best = new Map<number, { tx: number; ty: number; score: number; land: boolean }>();
+  // Every square of every place near the unit, with how far it lies.
+  type Spot = { tx: number; ty: number; dx: number; dy: number; d: number; i: number };
+  const spots = new Map<number, { land: boolean; d: number; at: Spot[] }>();
   for (let ty = 0; ty < rows; ty++) {
     const y = y0 + ty;
-    if (y < 0 || y >= map.height) continue;
+    const dy = y - unit.y;
+    if (y < 0 || y >= map.height || Math.abs(dy) > NAME_REACH) continue;
     for (let tx = 0; tx < cols; tx++) {
       const x = wrapX(map, x0 + tx);
+      let dx = ((x - unit.x) % map.width + map.width) % map.width;
+      if (dx > map.width / 2) dx -= map.width;
+      if (Math.abs(dx) > NAME_REACH) continue;
       const i = y * map.width + x;
-      if (!me.explored[i] || !(near[i]! & 1)) continue;
-      const inside = tx >= 1 && tx < cols - 1 ? 1000 : 0;
-      const free = near[i]! & 2 ? 0 : 100;
-      const consider = (r: number, d: number, land: boolean) => {
-        const score = inside + free + d;
-        const b = best.get(r);
-        if (!b) best.set(r, { tx, ty, score, land });
-        else if (score > b.score) Object.assign(b, { tx, ty, score });
+      if (!me.explored[i]) continue;
+      const spot = { tx, ty, dx, dy, d: dx * dx + dy * dy, i };
+      const add = (r: number, land: boolean) => {
+        if (!g.regions[r]?.name) return;
+        const b = spots.get(r);
+        if (!b) spots.set(r, { land, d: spot.d, at: [spot] });
+        else { b.d = Math.min(b.d, spot.d); b.at.push(spot); }
       };
-      if (placeAt(map, x, y)) consider(g.place[i]!, depth.place[i]!, false);
-      if (landAt(map, x, y)) consider(g.land[i]!, depth.land[i]!, true);
+      if (placeAt(map, x, y)) add(g.place[i]!, false);
+      if (landAt(map, x, y)) add(g.land[i]!, true);
     }
   }
-  const out: PlaceLabel[] = [];
-  for (const [r, b] of best) {
-    const region = g.regions[r]!;
-    if (!region.name) continue;
-    out.push({ region: r, name: region.name, kind: region.kind, land: b.land, tx: b.tx, ty: b.ty });
+  let best: [number, { land: boolean; d: number; at: Spot[] }] | null = null;
+  for (const e of spots) {
+    if (!best) { best = e; continue; }
+    const [r, b] = e;
+    const [br, bb] = best;
+    const nearer = b.d - bb.d || Number(b.land) - Number(bb.land) || g.regions[br]!.size - g.regions[r]!.size;
+    if (nearer < 0) best = e;
   }
-  const size = (l: PlaceLabel) => g.regions[l.region]!.size;
-  out.sort((a, b) => LABEL_ORDER.indexOf(a.kind) - LABEL_ORDER.indexOf(b.kind) || size(b) - size(a) || a.region - b.region);
-  // A name a premade world gives two landforms (a plateau's desert and its hills) is written once.
-  const named = new Set<string>();
-  return out.filter((l) => {
-    if (named.has(l.name)) return false;
-    named.add(l.name);
-    return true;
-  });
+  if (!best) return null;
+  const [region, { land, at }] = best;
+  const edge = (p: Spot) => (p.tx >= 1 && p.tx < cols - 1 ? 0 : 1);
+  const layer = land ? depth.land : depth.place;
+  at.sort((a, b) =>
+    edge(a) - edge(b) ||
+    Number(ours.has(a.i)) - Number(ours.has(b.i)) ||
+    Number(a.dy === 0) - Number(b.dy === 0) ||
+    Math.max(Math.abs(a.dx), Math.abs(a.dy)) - Math.max(Math.abs(b.dx), Math.abs(b.dy)) ||
+    Math.abs(a.dx) - Math.abs(b.dx) ||
+    layer[b.i]! - layer[a.i]!);
+  const r = g.regions[region]!;
+  return { region, name: r.name!, kind: r.kind, land, at: at.map(({ tx, ty }) => ({ tx, ty })) };
 }
 
 /** The square window's line on where a square lies: "The Sahara, Africa", "The Sea of Caesar". */

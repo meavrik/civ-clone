@@ -15,7 +15,7 @@ function earth(): { state: GameState; view: MainScreenView } {
 }
 
 describe("place names on the map", () => {
-  it("writes the names of seas, lands and landforms, and none when they are turned off", () => {
+  it("writes the name of the place by the unit in play, and none when names are turned off", () => {
     const { state, view } = earth();
     const named = Surface.screen();
     drawMainScreen(named, state, view);

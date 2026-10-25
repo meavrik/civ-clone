@@ -437,7 +437,7 @@ let actedThisTurn = false;
 let autoEndAt: number | null = null;
 const AUTO_END_MS = 1000;
 
-/** The names of seas, lands and landforms on the map (game menu toggles them; remembered per browser). */
+/** The names of seas, lands and landforms on the map and the notes of new ones found (game menu toggles them; remembered per browser). */
 let placeNames = (() => { try { return localStorage.getItem("epochs.placeNames") !== "off"; } catch { return true; } })();
 function setPlaceNames(on: boolean): void {
   placeNames = on;
@@ -451,11 +451,12 @@ function knowPlaces(): void {
   for (const r of placesFoundBy(state, 0)) foundPlaces.add(r);
 }
 
-/** Places our explorers have just found and named, said beside the unit that found them (else in the status line). */
+/** Places our explorers have just found and named, said beside the unit that found them (else in the status line); nothing while place names are off. */
 function announcePlaces(unit?: number): void {
   const fresh = placesFoundBy(state, 0).filter((r) => !foundPlaces.has(r));
   if (!fresh.length) return;
   for (const r of fresh) foundPlaces.add(r);
+  if (!placeNames) return;
   const text = discoveryNote(fresh.map((r) => state.map.geography!.regions[r]!));
   const u = unit !== undefined ? unitById(state, unit) : undefined;
   if (!u) { say(text, 4000); return; }

@@ -158,15 +158,20 @@ Never ship the original's sprites, palette art, fonts or text.
   per layer and rows of one `PLACE_CHARS` character a square; `premadeGeography`), drawn by `tools/maps`
   (`places.ts`). A landform shows on a square only while its terrain still fits (`placeAt`, `landAt`).
   Nothing in the rules or the AI reads places: no RNG, no save version (old saves replay and name them).
-  The map writes the names of the places near our units (`placeLabels` in renderer-api: since 2026-10-25,
-  asked for, every place on view was "too crowded": a place with an explored square on view within
-  `NAME_REACH` (2) of one of our units outside our cities, a garrison naming nothing, written on the such
-  square furthest inside it, off our units' squares; retro `drawPlaceNames`: waters pale blue, landforms parchment,
-  lands in spaced gold capitals, each ringed dark, over the fog and the shade, under cities and units, none
-  crossing another or a city's name, kept inside the view; Game > Place Names toggles them,
-  `MainScreenView.placeNames`), the square's window says where it lies (`placeLine`, third line: "The
-  Sahara, Africa"), and a unit of ours that finds places says so beside it (`discoveryNote`: "Discovered:
-  Lake Caesar, the Roman Hills"; the web app's `announcePlaces`; found at the turn's start, in the status line).
+  The map writes one name at a time (`placeLabel` in renderer-api; asked for 2026-10-25: every place on
+  view was "too crowded", then the places near every unit still were: "show only 1 at a time - the closest
+  to the unit"): the place nearest the unit in play (none while no unit of ours is in play), from the
+  explored squares on view within `NAME_REACH` (2) of it, its own square's sea or landform before the land
+  under it (the Alps before Europe), a tie to the bigger place; written on the first of that place's squares
+  near the unit where it fits (`PlaceLabel.at`: in from the view's sides, off our units, on another row than
+  the unit, nearest it, deepest inside the place); retro `drawPlaceNames`: waters pale blue, landforms
+  parchment, lands in spaced gold capitals, ringed dark, over the fog and the shade, under cities and units,
+  never across a city's name or out over the dark, kept inside the view. Game > Place Names (asked for the
+  same day: "add option to disable mass names visibility"; `MainScreenView.placeNames`, kept per browser)
+  turns off the names and the notes of places found. The square's window says where it lies (`placeLine`,
+  third line: "The Sahara, Africa"), and a unit of ours that finds places says so beside it (`discoveryNote`:
+  "Discovered: Lake Caesar, the Roman Hills"; the web app's `announcePlaces`; found at the turn's start, in
+  the status line).
   Moods (`computeCity`; asked for 2026-10-21, checked against FreeCiv's civ1 ruleset): citizens are born
   content up to the difficulty's base (6 Chieftain .. 2 Emperor, `DIFFICULTY_RULES` in `rules/difficulty.ts`
   with each level's starting gold, settlers and research cost; our departure, FreeCiv plays 4) and unhappy
