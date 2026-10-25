@@ -158,8 +158,10 @@ Never ship the original's sprites, palette art, fonts or text.
   per layer and rows of one `PLACE_CHARS` character a square; `premadeGeography`), drawn by `tools/maps`
   (`places.ts`). A landform shows on a square only while its terrain still fits (`placeAt`, `landAt`).
   Nothing in the rules or the AI reads places: no RNG, no save version (old saves replay and name them).
-  The map writes the names on view (`placeLabels` in renderer-api: each place with a few explored squares
-  on view, on the one furthest inside it; retro `drawPlaceNames`: waters pale blue, landforms parchment,
+  The map writes the names of the places near our units (`placeLabels` in renderer-api: since 2026-10-25,
+  asked for, every place on view was "too crowded": a place with an explored square on view within
+  `NAME_REACH` (2) of one of our units outside our cities, a garrison naming nothing, written on the such
+  square furthest inside it, off our units' squares; retro `drawPlaceNames`: waters pale blue, landforms parchment,
   lands in spaced gold capitals, each ringed dark, over the fog and the shade, under cities and units, none
   crossing another or a city's name, kept inside the view; Game > Place Names toggles them,
   `MainScreenView.placeNames`), the square's window says where it lies (`placeLine`, third line: "The

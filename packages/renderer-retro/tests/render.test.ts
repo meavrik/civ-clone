@@ -182,7 +182,8 @@ describe("retro renderer", () => {
     revealAround(state, 0, u.x, u.y, 9);
     for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) getTile(state.map, u.x + dx, u.y + dy)!.terrain = Terrain.Grassland;
     state.activeUnit = null;
-    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true };
+    // Without place names, which follow our units: the frame without the unit would lose its names.
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true, placeNames: false };
     const s = Surface.screen();
     // Halfway from the square on its left: the map shows it there, and its own square is empty.
     drawMainScreen(s, state, { ...view, moving: [{ unit: u.id, type: u.type, owner: 0, x: u.x - 0.5, y: u.y }] });

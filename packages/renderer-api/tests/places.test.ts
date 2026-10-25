@@ -1,29 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { newGame, type Region } from "@civ/core";
-import { discoveryNote, placeLabels, placeLabelText, placeLine, placeTitle, terrainInfo } from "../src/index.js";
+import { applyCommand, createUnit, newGame, type Region } from "@civ/core";
+import { discoveryNote, NAME_REACH, placeLabels, placeLabelText, placeLine, placeTitle, terrainInfo } from "../src/index.js";
 
 describe("place names", () => {
-  it("names the places on view where the player has explored, on squares well inside them", () => {
+  it("names the places near our units out in the world, on squares well inside them", () => {
     const state = newGame(2026, { world: "earth", historical: true, opponents: 3 });
     const me = state.players[0]!;
+    const settlers = state.units.find((u) => u.owner === 0)!;
+    const view = [31, 9, 16, 12] as const;
     // Nothing explored on view: nothing named.
     me.explored.fill(0);
-    expect(placeLabels(state, 0, 27, 8, 16, 12)).toEqual([]);
+    expect(placeLabels(state, 0, ...view)).toEqual([]);
     me.explored.fill(1);
-    const labels = placeLabels(state, 0, 27, 8, 16, 12);
+    // Explored everywhere, only what lies near the settlers is named: Europe under them, not the Black Sea.
+    const labels = placeLabels(state, 0, ...view);
     const names = labels.map((l) => l.name);
-    expect(names).toContain("the Mediterranean Sea");
     expect(names).toContain("Europe");
     expect(labels.find((l) => l.name === "Europe")!.land).toBe(true);
-    // Continents come first, then the waters; no name twice; each on view, a square in from the sides.
-    expect(labels[0]!.kind).toBe("continent");
+    expect(names).not.toContain("the Black Sea");
     expect(new Set(names).size).toBe(names.length);
     for (const l of labels) {
+      expect(Math.abs(view[0] + l.tx - settlers.x)).toBeLessThanOrEqual(NAME_REACH);
+      expect(Math.abs(view[1] + l.ty - settlers.y)).toBeLessThanOrEqual(NAME_REACH);
       expect(l.tx).toBeGreaterThanOrEqual(1);
-      expect(l.tx).toBeLessThan(15);
-      expect(l.ty).toBeGreaterThanOrEqual(0);
-      expect(l.ty).toBeLessThan(12);
+      expect(l.tx).toBeLessThan(view[2] - 1);
     }
+    // Continents come first, then the waters.
+    expect(labels[0]!.kind).toBe("continent");
+    // Walked to the Black Sea's shore, they name it.
+    settlers.x = 44;
+    settlers.y = 14;
+    expect(placeLabels(state, 0, ...view).map((l) => l.name)).toContain("the Black Sea");
+    // A unit in a city names nothing.
+    applyCommand(state, { type: "found", unit: settlers.id });
+    createUnit(state, "militia", 0, 44, 14);
+    expect(placeLabels(state, 0, ...view)).toEqual([]);
   });
 
   it("says where a square lies in its window", () => {

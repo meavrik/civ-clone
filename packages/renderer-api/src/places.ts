@@ -72,41 +72,56 @@ export interface PlaceLabel {
   ty: number;
 }
 
-/** The smallest part of a place on view that is named there, in squares. */
-const SHOWN_MIN: Partial<Record<PlaceKind, number>> = { lake: 2, continent: 4, island: 2 };
-const SHOWN_DEFAULT = 3;
+/**
+ * How near one of the player's units a place must lie for its name to show, in squares (asked for
+ * 2026-10-25: every name on view was "too crowded"). Units in a city name nothing: a garrison would
+ * keep the names round every city on the map for good.
+ */
+export const NAME_REACH = 2;
+
 /** The order labels are placed in, the first winning where two would overlap. */
 const LABEL_ORDER: PlaceKind[] = ["continent", "ocean", "sea", "bay", "desert", "mountains", "ice", "forest", "jungle", "swamp", "tundra", "hills", "island", "lake"];
 
 /**
- * The places to name in a view `cols` x `rows` squares from (x0, y0), for the player: each place
- * with enough explored squares on view, written on its square on view furthest inside it (away
- * from its edges and a square in from the view's sides), the first such square in reading order
- * on a tie. Labels come in `LABEL_ORDER`, bigger places first.
+ * The places to name in a view `cols` x `rows` squares from (x0, y0), for the player: each place with
+ * an explored square on view within `NAME_REACH` of one of the player's units outside its cities, written
+ * on the such square furthest inside the place (away from its edges, a square in from the view's sides,
+ * off our units' squares), the first in reading order on a tie. Labels come in `LABEL_ORDER`, bigger
+ * places first.
  */
 export function placeLabels(state: GameState, viewer: number, x0: number, y0: number, cols: number, rows: number): PlaceLabel[] {
   const { map } = state;
   const g = map.geography;
   const me = state.players[viewer];
   if (!g || !me) return [];
+  // The squares near our units out in the world, and the squares they stand on.
+  const near = new Uint8Array(map.width * map.height);
+  const cities = new Set(state.cities.map((c) => c.y * map.width + c.x));
+  for (const u of state.units) {
+    if (u.owner !== viewer || cities.has(u.y * map.width + u.x)) continue;
+    for (let dy = -NAME_REACH; dy <= NAME_REACH; dy++) {
+      const y = u.y + dy;
+      if (y < 0 || y >= map.height) continue;
+      for (let dx = -NAME_REACH; dx <= NAME_REACH; dx++) near[y * map.width + wrapX(map, u.x + dx)] = 1;
+    }
+  }
+  for (const u of state.units) if (u.owner === viewer) near[u.y * map.width + u.x] = near[u.y * map.width + u.x]! | 2;
   const depth = depthsOf(map, g);
-  const best = new Map<number, { tx: number; ty: number; score: number; count: number; land: boolean }>();
+  const best = new Map<number, { tx: number; ty: number; score: number; land: boolean }>();
   for (let ty = 0; ty < rows; ty++) {
     const y = y0 + ty;
     if (y < 0 || y >= map.height) continue;
     for (let tx = 0; tx < cols; tx++) {
       const x = wrapX(map, x0 + tx);
       const i = y * map.width + x;
-      if (!me.explored[i]) continue;
-      const inside = tx >= 1 && tx < cols - 1 ? 1 : 0;
+      if (!me.explored[i] || !(near[i]! & 1)) continue;
+      const inside = tx >= 1 && tx < cols - 1 ? 1000 : 0;
+      const free = near[i]! & 2 ? 0 : 100;
       const consider = (r: number, d: number, land: boolean) => {
-        const score = inside * 1000 + d;
+        const score = inside + free + d;
         const b = best.get(r);
-        if (!b) best.set(r, { tx, ty, score, count: 1, land });
-        else {
-          b.count++;
-          if (score > b.score) Object.assign(b, { tx, ty, score });
-        }
+        if (!b) best.set(r, { tx, ty, score, land });
+        else if (score > b.score) Object.assign(b, { tx, ty, score });
       };
       if (placeAt(map, x, y)) consider(g.place[i]!, depth.place[i]!, false);
       if (landAt(map, x, y)) consider(g.land[i]!, depth.land[i]!, true);
@@ -115,7 +130,7 @@ export function placeLabels(state: GameState, viewer: number, x0: number, y0: nu
   const out: PlaceLabel[] = [];
   for (const [r, b] of best) {
     const region = g.regions[r]!;
-    if (!region.name || b.count < (SHOWN_MIN[region.kind] ?? SHOWN_DEFAULT)) continue;
+    if (!region.name) continue;
     out.push({ region: r, name: region.name, kind: region.kind, land: b.land, tx: b.tx, ty: b.ty });
   }
   const size = (l: PlaceLabel) => g.regions[l.region]!.size;
