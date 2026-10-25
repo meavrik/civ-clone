@@ -15,6 +15,10 @@ export interface PicturePlace {
     z?: number;
     /** Ringed in light (the building last clicked in the city view). */
     glow?: boolean;
+    /** How much of it stands, from its foot up, 0..1: a wonder rising in the city view; absent, whole. */
+    reveal?: number;
+    /** Darkened, as the screen it stands on is under a window. */
+    dim?: boolean;
 }
 /** The audience picture of civilization `player`'s leader, at a box of the canvas; null if it has none. */
 export declare function scenePlace(state: GameState, player: number, box: Omit<PicturePlace, "url" | "fit">): PicturePlace | null;
