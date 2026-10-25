@@ -162,36 +162,36 @@ export function regionZone(cls: string, name: string, rank: number): Zone | null
   }
 }
 
-/** Zones the data lacks, drawn by hand as rough lon/lat outlines. */
-export const HAND_ZONES: { zone: Zone; ring: Pt[] }[] = [
+/** Zones the data lacks, drawn by hand as rough lon/lat outlines; a named one names its landform on the map (`places.ts`). */
+export const HAND_ZONES: { zone: Zone; ring: Pt[]; name?: string }[] = [
   // Mountains and hills
-  { zone: "mountains", ring: [[29.5, 37], [33, 36.3], [36, 36.8], [37.8, 37.8], [36, 38.4], [32, 37.6], [30, 37.6]] }, // Taurus
-  { zone: "hills", ring: [[35.3, 33], [36.3, 34.6], [36.9, 34.4], [36, 33]] }, // Lebanon
-  { zone: "hills", ring: [[-6, 56.5], [-5, 58.6], [-3, 58.6], [-2.2, 57], [-4, 56.3]] }, // Scottish Highlands
-  { zone: "hills", ring: [[2, 44.4], [4.5, 44.4], [4.5, 46], [2, 46]] }, // Massif Central
-  { zone: "hills", ring: [[20.3, 40.8], [21.3, 38.6], [22.4, 38.9], [21.5, 41.2]] }, // Pindus
+  { zone: "mountains", ring: [[29.5, 37], [33, 36.3], [36, 36.8], [37.8, 37.8], [36, 38.4], [32, 37.6], [30, 37.6]], name: "the Taurus Mountains" }, // Taurus
+  { zone: "hills", ring: [[35.3, 33], [36.3, 34.6], [36.9, 34.4], [36, 33]], name: "Mount Lebanon" }, // Lebanon
+  { zone: "hills", ring: [[-6, 56.5], [-5, 58.6], [-3, 58.6], [-2.2, 57], [-4, 56.3]], name: "the Scottish Highlands" }, // Scottish Highlands
+  { zone: "hills", ring: [[2, 44.4], [4.5, 44.4], [4.5, 46], [2, 46]], name: "the Massif Central" }, // Massif Central
+  { zone: "hills", ring: [[20.3, 40.8], [21.3, 38.6], [22.4, 38.9], [21.5, 41.2]], name: "the Pindus Mountains" }, // Pindus
   { zone: "hills", ring: [[21.6, 37], [22.9, 36.5], [23.2, 37.6], [22.3, 38.2], [21.5, 37.8]] }, // Peloponnese
-  { zone: "hills", ring: [[54, 38], [57, 38.2], [60.5, 36.6], [59.5, 36.2], [56, 37.2], [54, 37.5]] }, // Kopet Dag
-  { zone: "hills", ring: [[67.5, 28], [69, 31], [70.5, 32.3], [70.9, 31], [69.2, 28]] }, // Sulaiman
-  { zone: "hills", ring: [[56, 24.3], [58.5, 23.7], [59.8, 22.4], [58, 22.9], [56.2, 23.6]] }, // Hajar
+  { zone: "hills", ring: [[54, 38], [57, 38.2], [60.5, 36.6], [59.5, 36.2], [56, 37.2], [54, 37.5]], name: "the Kopet Dag" }, // Kopet Dag
+  { zone: "hills", ring: [[67.5, 28], [69, 31], [70.5, 32.3], [70.9, 31], [69.2, 28]], name: "the Sulaiman Mountains" }, // Sulaiman
+  { zone: "hills", ring: [[56, 24.3], [58.5, 23.7], [59.8, 22.4], [58, 22.9], [56.2, 23.6]], name: "the Hajar Mountains" }, // Hajar
   // Dry lands
-  { zone: "aridHigh", ring: [[49, 36], [57, 37.5], [61, 35], [63, 30], [61.5, 25.5], [57, 27], [52, 28], [48, 32]] }, // Iranian plateau
-  { zone: "desert", ring: [[32.3, 31.2], [34.9, 31.6], [35.1, 29.5], [34.2, 27.7], [32.6, 29.9]] }, // Sinai and Negev
-  { zone: "desert", ring: [[31.5, 30], [34, 28], [36, 24], [37.5, 22], [36.5, 22], [33, 24], [31, 29.5]] }, // Eastern Desert
-  { zone: "arid", ring: [[19, -31], [25, -31], [25, -33.5], [19, -33.5]] }, // Karoo
+  { zone: "aridHigh", ring: [[49, 36], [57, 37.5], [61, 35], [63, 30], [61.5, 25.5], [57, 27], [52, 28], [48, 32]], name: "the Iranian Plateau" }, // Iranian plateau
+  { zone: "desert", ring: [[32.3, 31.2], [34.9, 31.6], [35.1, 29.5], [34.2, 27.7], [32.6, 29.9]], name: "the Sinai Desert" }, // Sinai and Negev
+  { zone: "desert", ring: [[31.5, 30], [34, 28], [36, 24], [37.5, 22], [36.5, 22], [33, 24], [31, 29.5]], name: "the Eastern Desert" }, // Eastern Desert
+  { zone: "arid", ring: [[19, -31], [25, -31], [25, -33.5], [19, -33.5]], name: "the Karoo" }, // Karoo
   // Wet lands
-  { zone: "wetForest", ring: [[24, 51.3], [30, 51.3], [30.5, 52.4], [24, 52.4]] }, // Pripyat marshes
-  { zone: "swamp", ring: [[46, 30.6], [47.8, 30.6], [47.8, 31.8], [46, 31.8]] }, // Mesopotamian marshes
+  { zone: "wetForest", ring: [[24, 51.3], [30, 51.3], [30.5, 52.4], [24, 52.4]], name: "the Pripyat Marshes" }, // Pripyat marshes
+  { zone: "swamp", ring: [[46, 30.6], [47.8, 30.6], [47.8, 31.8], [46, 31.8]], name: "the Mesopotamian Marshes" }, // Mesopotamian marshes
   { zone: "green", ring: [[7.8, 45.5], [12.3, 45.5], [12.3, 44.7], [9, 44.7]] }, // Po valley
   { zone: "prairie", ring: [[19, 47.8], [22, 47.8], [21.5, 45.5], [19, 45.5]] }, // Hungarian plain
   { zone: "green", ring: [[29.5, 31.6], [32.4, 31.6], [31.8, 30], [31, 30]] }, // Nile delta
   // Rain forest
-  { zone: "jungle", ring: [[-13, 10], [-8, 9], [0, 8], [9, 7], [12, 4], [9, 3], [-8, 4], [-14, 8]] }, // Guinea coast
-  { zone: "jungle", ring: [[-92, 17], [-88, 21.5], [-86, 21], [-83, 14], [-77, 9], [-78, 7], [-83, 8], [-88, 13], [-92, 15]] }, // Central America
+  { zone: "jungle", ring: [[-13, 10], [-8, 9], [0, 8], [9, 7], [12, 4], [9, 3], [-8, 4], [-14, 8]], name: "the Guinean Rainforest" }, // Guinea coast
+  { zone: "jungle", ring: [[-92, 17], [-88, 21.5], [-86, 21], [-83, 14], [-77, 9], [-78, 7], [-83, 8], [-88, 13], [-92, 15]], name: "the Central American Rainforest" }, // Central America
   { zone: "jungleMix", ring: [[86, 22], [90, 27], [96, 28], [97, 23], [92, 20], [88, 21]] }, // Bengal and Assam
-  { zone: "jungle", ring: [[72.5, 19], [74.5, 19], [77, 9], [76, 8], [72.5, 16]] }, // Malabar coast
-  { zone: "jungleMix", ring: [[-48, -5], [-35, -5], [-35, -10], [-41, -23], [-49, -29], [-50, -25], [-44, -15]] }, // Atlantic forest
-  { zone: "jungle", ring: [[49, -12], [51, -16], [48, -25], [47, -25], [48, -16]] }, // eastern Madagascar
+  { zone: "jungle", ring: [[72.5, 19], [74.5, 19], [77, 9], [76, 8], [72.5, 16]], name: "the Malabar Rainforest" }, // Malabar coast
+  { zone: "jungleMix", ring: [[-48, -5], [-35, -5], [-35, -10], [-41, -23], [-49, -29], [-50, -25], [-44, -15]], name: "the Atlantic Forest" }, // Atlantic forest
+  { zone: "jungle", ring: [[49, -12], [51, -16], [48, -25], [47, -25], [48, -16]], name: "the Madagascar Rainforest" }, // eastern Madagascar
   { zone: "jungle", ring: [[92, -11], [155, -11], [155, 18], [110, 21], [97, 21]] }, // south-east Asia and the islands
   { zone: "hillyGreen", ring: [[104, 22], [122, 24], [122, 31], [110, 32], [104, 30]] }, // southern China
 ];

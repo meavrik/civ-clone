@@ -139,6 +139,32 @@ Never ship the original's sprites, palette art, fonts or text.
   (headless `--narrow-sight`): round units, scouts one square out, and the squares next to cities.
   Head to head (planner vs v2, 16 x 300, version 29 upkeep): narrow sight 0-16, score 133 vs 237; this
   sight 1-15, 127 vs 229, both replaying exactly, ~5% slower.
+  Places (`map/geography.ts`, `rules/places.ts`; asked for 2026-10-25: "names for great masses of land or
+  water, like the great desert of..., lake x, the sea of..., x mountains; the name could be driven from the
+  civ or leader who discovers them first; on the premade maps give the real names"): `WorldMap.geography`
+  puts each square in up to two places (`Region`: kind, size, name, `by`, `turn`): a water body or landform
+  (`place`: ocean, sea, bay, lake; desert, mountains, hills, forest, jungle, swamp, tundra, ice) and, on
+  land, a continent or island (`land`). A generated world finds them from its terrain as dealt
+  (`findGeography`, in `generateMap`): water bodies up to `PLACES.lakeMax` are lakes, to `inlandSeaMax`
+  seas, the open water cut into basins round centres picked from the water furthest from land,
+  `basinSpacing` apart through the water (small ones merged; ocean, sea or gulf by how much is open
+  water and size), landforms are pieces of one terrain (mountains with hills a range) of at least a size,
+  the polar rows an ice field, land pieces continents from `continentMin`. The first civilization to
+  explore a square of a place (`discoverSquare`, from `revealAround` and the land sight; `discoverExplored`
+  after the map is revealed at once) discovers it, and a place without a name takes the first unused of
+  `placeNames` from its leader, adjective or cities (`PLACE_RULES`: "Lake Caesar", "the Great Desert of
+  Hammurabi", "Shaka's Land"; never the barbarians); the starting lands are named as the game begins, the
+  player's first. A premade world carries its real places (`PremadeGrid.places`, a `PlaceTable`: names
+  per layer and rows of one `PLACE_CHARS` character a square; `premadeGeography`), drawn by `tools/maps`
+  (`places.ts`). A landform shows on a square only while its terrain still fits (`placeAt`, `landAt`).
+  Nothing in the rules or the AI reads places: no RNG, no save version (old saves replay and name them).
+  The map writes the names on view (`placeLabels` in renderer-api: each place with a few explored squares
+  on view, on the one furthest inside it; retro `drawPlaceNames`: waters pale blue, landforms parchment,
+  lands in spaced gold capitals, each ringed dark, over the fog and the shade, under cities and units, none
+  crossing another or a city's name, kept inside the view; Game > Place Names toggles them,
+  `MainScreenView.placeNames`), the square's window says where it lies (`placeLine`, third line: "The
+  Sahara, Africa"), and a unit of ours that finds places says so beside it (`discoveryNote`: "Discovered:
+  Lake Caesar, the Roman Hills"; the web app's `announcePlaces`; found at the turn's start, in the status line).
   Moods (`computeCity`; asked for 2026-10-21, checked against FreeCiv's civ1 ruleset): citizens are born
   content up to the difficulty's base (6 Chieftain .. 2 Emperor, `DIFFICULTY_RULES` in `rules/difficulty.ts`
   with each level's starting gold, settlers and research cost; our departure, FreeCiv plays 4) and unhappy
@@ -714,7 +740,13 @@ Never ship the original's sprites, palette art, fonts or text.
 - `tools/headless` — tournament harness: `runGame(config)` plays an `allAi` game through `runAiPlayers`, samples
   per-civ stats, fingerprints the final state; `AIS` registry seats a named AI per civ. `cli.ts` prints tables.
 - `tools/maps` — premade-world builder: `frames.ts` (lon/lat → grid breakpoints per world, homelands),
-  `climate.ts` (Natural Earth regions and hand zones → terrain mixes), `build.ts` (rasterise, rivers, starts).
+  `climate.ts` (Natural Earth regions and hand zones → terrain mixes), `build.ts` (rasterise, rivers, starts),
+  `places.ts` (real names: Natural Earth's lakes, deserts, ranges, plateaus, basins, islands and continents,
+  hand outlines for the seas and oceans (`WATERS`: the cache has no marine data; the smaller sea first, the
+  oceans last) and some forests, ice sheets and marshes (`LANDFORMS`, named `HAND_ZONES`); a square takes
+  the most important place covering it (scale rank, then the smaller), leftover water the nearest name
+  across the water, a landform's squares the nearest within two steps, land the nearest on its landmass;
+  `NAMED` puts names better than the data's). The report counts the places and the squares left unnamed.
   Regional worlds still wrap east-west; their column 0 is forced to sea so the wrap joins no coasts by land.
 - `scripts/mirror-test.sh` — for a Linux shell on a Mac checkout; not needed on macOS.
 

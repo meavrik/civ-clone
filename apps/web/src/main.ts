@@ -111,6 +111,8 @@ import {
   MotionPlayer,
   moveRefusal,
   workRefusal,
+  discoveryNote,
+  placesFoundBy,
   settlerSites,
   siteNote,
   setupCards,
@@ -423,6 +425,34 @@ let actedThisTurn = false;
 let autoEndAt: number | null = null;
 const AUTO_END_MS = 1000;
 
+/** The names of seas, lands and landforms on the map (game menu toggles them; remembered per browser). */
+let placeNames = (() => { try { return localStorage.getItem("epochs.placeNames") !== "off"; } catch { return true; } })();
+function setPlaceNames(on: boolean): void {
+  placeNames = on;
+  try { localStorage.setItem("epochs.placeNames", on ? "on" : "off"); } catch { /* private mode */ }
+}
+
+/** The places we found first (`placesFoundBy`) that we have been told of: only new ones get a note. */
+const foundPlaces = new Set<number>();
+function knowPlaces(): void {
+  foundPlaces.clear();
+  for (const r of placesFoundBy(state, 0)) foundPlaces.add(r);
+}
+
+/** Places our explorers have just found and named, said beside the unit that found them (else in the status line). */
+function announcePlaces(unit?: number): void {
+  const fresh = placesFoundBy(state, 0).filter((r) => !foundPlaces.has(r));
+  if (!fresh.length) return;
+  for (const r of fresh) foundPlaces.add(r);
+  const text = discoveryNote(fresh.map((r) => state.map.geography!.regions[r]!));
+  const u = unit !== undefined ? unitById(state, unit) : undefined;
+  if (!u) { say(text, 4000); return; }
+  whenStill(() => {
+    view.callout = { x: u.x, y: u.y, text };
+    calloutUntil = performance.now() + CALLOUT_MS;
+  });
+}
+
 /** Civilization borders on the map (game menu toggles them; remembered per browser). The original has none. */
 let borders = (() => { try { return localStorage.getItem("epochs.borders") !== "off"; } catch { return true; } })();
 function setBorders(on: boolean): void {
@@ -451,8 +481,12 @@ function newContacts(): TurnEvent[] {
 /** Civilizations that have asked us off their land this turn: a unit stepping onto it again only gets a note. */
 const askedLeave = new Set<number>();
 
-/** After one of our actions: villages our units entered, civilizations we just met, and land we stepped onto uninvited, each in its own window. */
-function afterAction(): void {
+/**
+ * After one of our actions (by `unit`, if a unit acted): villages our units entered, civilizations we just met,
+ * and land we stepped onto uninvited, each in its own window; places just found, in a note.
+ */
+function afterAction(unit?: number): void {
+  announcePlaces(unit);
   const events: TurnEvent[] = [];
   for (let i = 0; i < lastTurnEvents.length; ) {
     const ev = lastTurnEvents[i]!;
@@ -479,7 +513,7 @@ function dispatch(cmd: Command): boolean {
     if ("unit" in cmd) actedThisTurn = true;
     if (cmd.type !== "endTurn") slideOwn(lastActions.slice(mark));
     if (cmd.type === "move" && lastCombat) reportCombat(lastCombat);
-    if (cmd.type !== "endTurn") afterAction();
+    if (cmd.type !== "endTurn") afterAction("unit" in cmd ? cmd.unit : undefined);
   } else if (cmd.type === "work") refuseWork(cmd.unit, r.reason);
   else say(REASONS[r.reason] ?? r.reason);
   blinkOn = true;
@@ -519,6 +553,7 @@ function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0
   renderer.prepare?.(state);
   log = [];
   announced.clear();
+  knowPlaces();
   resetMotion();
   screenState = { kind: "map" };
   cam.ready = false;
@@ -538,6 +573,7 @@ function resumeGame(save: SaveGame): void {
     log = loaded.log;
     options = loaded.options; // an old save keeps its one-roll fights
     announced.clear();
+    knowPlaces();
     resetMotion();
     for (const p of state.players) if (p.id !== 0 && hasContact(state, 0, p.id)) announced.add(p.id);
     screenState = { kind: "map" };
@@ -1298,6 +1334,7 @@ function barEntries(index: number): MenuEntry[] {
         ["Find City", "", () => openFindCity()],
         ["Revolution!", "G", () => askRevolution(), governmentsAvailable(state, 0).length <= 1],
         [`Borders: ${borders ? "On" : "Off"}`, "", () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
+        [`Place Names: ${placeNames ? "On" : "Off"}`, "", () => { setPlaceNames(!placeNames); say(`Place names ${placeNames ? "on" : "off"}`); }],
         ["Save Game", "", () => void openSaveMenu()],
         ["Load Game", "", () => void openLoadMenu()],
         ["Retire", "", () => endGame({ kind: "time" })],
@@ -1976,6 +2013,8 @@ function endTurn(): void {
   const watch = (): void => {
     watchOthers(actions, sawBefore);
     whenStill(() => battleReport(fights, () => presentEvents(news, () => {
+      // Places our gotos and growing borders found as our turn began.
+      announcePlaces();
       const end = checkGameEnd(state, FINAL_TURN);
       if (end) endGame(end);
     })));
@@ -2001,7 +2040,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
     actedThisTurn = true; // a move is an order too: the turn may end by itself after the last one
     slideOwn(lastActions.slice(mark));
     if (lastCombat) reportCombat(lastCombat);
-    afterAction();
+    afterAction(unit);
     const ev = lastTurnEvents.find((e) => e.kind === "cityCaptured" || e.kind === "cityLost" || e.kind === "tradeRoute" || e.kind === "nuked" || e.kind === "ransom");
     if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
   } else if (r.reason === "treaty") {
@@ -2651,6 +2690,7 @@ function frame(t: number): void {
   if (t - lastBlink > 400) { blinkOn = !blinkOn; lastBlink = t; }
   view.blink = blinkOn;
   view.borders = borders;
+  view.placeNames = placeNames;
   if (screenState.kind === "research") screenState.view.blink = blinkOn;
   if (screenState.kind !== "title" && screenState.kind !== "setup") { stepCamera(t); stepEdgePan(t); siteHint(); }
   if (status && t > statusUntil) status = undefined;

@@ -232,6 +232,18 @@ export function drawTextRinged(s: Surface, x: number, y: number, text: string, c
   drawText(s, x, y, text, color);
 }
 
+/** `drawSpaced` capitals ringed in another colour, as `drawTextRinged` rings ordinary text (the names of lands on the map). */
+export function drawSpacedRinged(s: Surface, cx: number, y: number, text: string, color: number, ring: number): void {
+  const w = spacedWidth(text);
+  const x0 = Math.floor(cx) - Math.ceil(w / 2) - 2;
+  const scratch = new Surface(w + 6, FONT_HEIGHT + 2, undefined, s.k);
+  scratch.fill(SPRITE_CLEAR);
+  drawSpaced(scratch, cx - x0, 1, text, ring);
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const)
+    s.fblit(scratch, x0 * s.k + dx, (y - 1) * s.k + dy, SPRITE_CLEAR);
+  drawSpaced(s, cx, y, text, color);
+}
+
 /** Width in screen pixels of `drawTextPlate`'s plate. */
 export function textPlateWidth(text: string): number {
   return Math.ceil((dotWidth(text) + 2) / 2);

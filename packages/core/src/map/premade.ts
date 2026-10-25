@@ -1,6 +1,7 @@
 import type { RngState } from "../rng.js";
 import { Terrain, worldSize, type WorldMap, type WorldSize } from "../types.js";
 import { blankTile, labelContinents, scatterSpecials } from "./generate.js";
+import { findGeography, premadeGeography, type PlaceTable } from "./geography.js";
 import { EARTH } from "./worlds/earth.js";
 import { EUROPE } from "./worlds/europe.js";
 import { MIDDLE_EAST } from "./worlds/middle-east.js";
@@ -25,6 +26,8 @@ export interface PremadeGrid {
   rows: readonly string[];
   /** Historical homeland of each civilization that has one here, as a map square. */
   starts: Readonly<Record<string, readonly [number, number]>>;
+  /** Its real places at this size: seas, lakes, deserts, ranges, continents, islands (`premadeGeography`). */
+  places?: PlaceTable;
   /**
    * The grid as saves before version 13 played it, before landmasses were kept apart
    * (`joinedIslands`): the squares (x, y, character) and homelands that differed then.
@@ -92,10 +95,15 @@ export function decodeWorld(world: PremadeWorld, size: WorldSize = "small", join
   return { width, height, tiles };
 }
 
-/** A premade world ready to play: its terrain plus specials and villages from the game's RNG. */
+/** A premade world ready to play: its terrain and real places, plus specials and villages from the game's RNG. */
 export function premadeMap(rng: RngState, id: string, size: WorldSize = "small", joinedIslands = false, resources?: number): WorldMap {
-  const map = decodeWorld(premadeWorld(id), size, joinedIslands);
+  const world = premadeWorld(id);
+  const map = decodeWorld(world, size, joinedIslands);
   scatterSpecials(map, rng, resources);
   labelContinents(map);
+  const grid = world.sizes[size];
+  // The squares an old grid drew otherwise lie in no place.
+  const changed = joinedIslands ? new Set((grid.joinedIslands?.squares ?? []).map(([x, y]) => y * map.width + x)) : undefined;
+  map.geography = grid.places ? premadeGeography(map, grid.places, changed) : findGeography(map);
   return map;
 }

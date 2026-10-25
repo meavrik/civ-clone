@@ -22,7 +22,8 @@ function scene(): { state: GameState; view: MainScreenView; cx: number; cy: numb
     createUnit(state, "legion", 1, x, y);
   }
   recomputeVisibility(state, 0);
-  return { state, view: { originX: cx - 7, originY: Math.max(0, cy - 6), blink: true }, cx, cy };
+  // The names of places are written over the shade: left out here, where squares are compared.
+  return { state, view: { originX: cx - 7, originY: Math.max(0, cy - 6), blink: true, placeNames: false }, cx, cy };
 }
 
 /** The fine pixels of square (x, y) as drawn. */

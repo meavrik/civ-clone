@@ -24,6 +24,8 @@ export * from "./barbarians.js";
 export * from "./traits.js";
 export * from "./map/generate.js";
 export * from "./map/premade.js";
+export * from "./map/geography.js";
+export * from "./rules/places.js";
 export * from "./units.js";
 export * from "./visibility.js";
 export * from "./commands.js";

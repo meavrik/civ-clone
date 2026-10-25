@@ -43,6 +43,7 @@ import {
   trespassRecord,
   warnTrespass,
 } from "./diplomacy.js";
+import { discoverExplored } from "./map/geography.js";
 import { findPath, stepDir } from "./pathfind.js";
 import { landOwner } from "./territory.js";
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, researchCost } from "./rules/advances.js";
@@ -909,6 +910,7 @@ function applyCheat(state: GameState, cheat: Cheat): CommandResult {
   switch (cheat) {
     case "revealMap":
       p.explored.fill(1);
+      discoverExplored(state, p.id);
       return { ok: true };
     case "gold":
       p.gold += CHEAT_GOLD;
@@ -1048,7 +1050,10 @@ export function endTurn(state: GameState): void {
         if (p.researching === next) p.researching = null;
       }
     }
-    if (w?.effect.kind === "revealMap") p.explored.fill(1);
+    if (w?.effect.kind === "revealMap") {
+      p.explored.fill(1);
+      discoverExplored(state, player);
+    }
   }
   // The Great Library hands over anything two other civilizations already know.
   if (activeWonders(state, player).some((w) => w.rule.effect.kind === "greatLibrary")) {

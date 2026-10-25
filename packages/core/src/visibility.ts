@@ -1,3 +1,4 @@
+import { discoverSquare } from "./map/geography.js";
 import { unitType } from "./rules/units.js";
 import { cityCulture, claims } from "./territory.js";
 import { wrapX, type GameState, type Unit } from "./types.js";
@@ -12,7 +13,7 @@ import { wrapX, type GameState, type Unit } from "./types.js";
  * every unit's sight one but the warships' and aircraft's, and next to their cities only.
  */
 
-/** Mark tiles within `radius` of (cx, cy) as explored and visible for a player. */
+/** Mark tiles within `radius` of (cx, cy) as explored and visible for a player; the places on squares new to it are discovered. */
 export function revealAround(state: GameState, player: number, cx: number, cy: number, radius: number): void {
   const p = state.players[player]!;
   const { width, height } = state.map;
@@ -21,7 +22,7 @@ export function revealAround(state: GameState, player: number, cx: number, cy: n
     if (y < 0 || y >= height) continue;
     for (let dx = -radius; dx <= radius; dx++) {
       const i = y * width + wrapX(state.map, cx + dx);
-      p.explored[i] = 1;
+      if (!p.explored[i]) { p.explored[i] = 1; discoverSquare(state, player, i); }
       p.visible[i] = 1;
     }
   }
@@ -96,7 +97,7 @@ export function recomputeVisibility(state: GameState, player: number): void {
     return;
   }
   for (const i of landSight(state, player)) {
-    p.explored[i] = 1;
+    if (!p.explored[i]) { p.explored[i] = 1; discoverSquare(state, player, i); }
     p.visible[i] = 1;
   }
 }

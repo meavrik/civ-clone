@@ -25,6 +25,8 @@ export * from "./plan.js";
 export * from "./watch.js";
 export * from "./sites.js";
 export * from "./ranks.js";
+export * from "./places.js";
+import { placeLine } from "./places.js";
 import { settlerSites, siteNote } from "./sites.js";
 import { rankedName, rankIcon, rankProgress } from "./ranks.js";
 import { ownerAt, territory } from "./territory.js";
@@ -129,6 +131,8 @@ export interface MainScreenView {
   lifting?: Lifting | undefined;
   /** Draw civilization borders: the edge of the squares known cities reach (`territory`). */
   borders?: boolean | undefined;
+  /** Write the names of seas, lands and landforms on the map (`placeLabels`); on when unset. */
+  placeNames?: boolean | undefined;
   /**
    * The unit shown as the one in play, when it is not `state.activeUnit`: just after a unit has
    * moved or fought, the view stays with it a moment before the next unit takes over. null while
@@ -763,6 +767,9 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   const defence = defenseMul === 1 ? "" : `  {tower} +${Math.round((defenseMul - 1) * 100)}%`;
   lines.push(`{food} ${yld.food}  {shield} ${yld.shields}  {trade} ${yld.trade}  {boot} ${r.moveCost}${defence}`);
   lines.push(TERRAIN_TEXT[t.terrain]);
+  // Where it lies: its sea or landform, and its continent or island ("The Sahara, Africa").
+  const where = placeLine(state, x, y);
+  if (where) lines.push(where);
   // Grassland's first special counts only in games before version 26 (`tileYield`).
   const sp = !state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial ? undefined : specialOf(t);
   const features = [

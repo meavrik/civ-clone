@@ -117,14 +117,17 @@ describe("retro renderer", () => {
 
     // Zoomed in twice (the mobile app's pinch): the viewport shows its top-left quarter, each fine
     // pixel as four; the menu bar stays as it was, and a point on the zoomed map finds its square.
+    // (Place names are written for what shows, so they are left out of both.)
     const z = Surface.screen();
-    drawMainScreen(z, state, { ...view, zoom: 2 });
+    drawMainScreen(z, state, { ...view, zoom: 2, placeNames: false });
+    const flat = Surface.screen();
+    drawMainScreen(flat, state, { ...view, placeNames: false });
     let off = 0;
     for (let y = 0; y < VIEW_H * DETAIL; y++)
       for (let x = 0; x < VIEW_W * DETAIL; x++)
-        if (z.fget(VIEW_X * DETAIL + x, VIEW_Y * DETAIL + y) !== s.fget(VIEW_X * DETAIL + (x >> 1), VIEW_Y * DETAIL + (y >> 1))) off++;
+        if (z.fget(VIEW_X * DETAIL + x, VIEW_Y * DETAIL + y) !== flat.fget(VIEW_X * DETAIL + (x >> 1), VIEW_Y * DETAIL + (y >> 1))) off++;
     expect(off).toBe(0);
-    expect(z.data.subarray(0, VIEW_Y * DETAIL * z.fw)).toEqual(s.data.subarray(0, VIEW_Y * DETAIL * s.fw));
+    expect(z.data.subarray(0, VIEW_Y * DETAIL * z.fw)).toEqual(flat.data.subarray(0, VIEW_Y * DETAIL * flat.fw));
     expect(unzoomPoint({ ...view, zoom: 2 }, VIEW_X + 33, VIEW_Y + 21)).toEqual([VIEW_X + 16, VIEW_Y + 10]);
     expect(unzoomPoint(view, VIEW_X + 33, VIEW_Y + 21)).toEqual([VIEW_X + 33, VIEW_Y + 21]);
     expect(zoomedTiles(1)).toEqual({ x: 15, y: 12 });
@@ -133,12 +136,12 @@ describe("retro renderer", () => {
 
     // Drawn wider (the mobile app on a phone held sideways): the squares the original shows are as
     // they were, more squares follow on the right, the menu bar runs across it all, and the
-    // minimap's box (all that differs in the panel) frames what shows.
+    // minimap's box (all that differs in the panel) frames what shows. (Without place names, written for what shows.)
     const wide = new Surface(400, 200, undefined, DETAIL);
-    drawMainScreen(wide, state, view);
+    drawMainScreen(wide, state, { ...view, placeNames: false });
     let changed = 0;
     for (let y = VIEW_Y * DETAIL; y < 200 * DETAIL; y++)
-      for (let x = VIEW_X * DETAIL; x < 320 * DETAIL; x++) if (wide.fget(x, y) !== s.fget(x, y)) changed++;
+      for (let x = VIEW_X * DETAIL; x < 320 * DETAIL; x++) if (wide.fget(x, y) !== flat.fget(x, y)) changed++;
     expect(changed).toBe(0);
     expect(wide.get(399, 2)).toBe(s.get(319, 2)); // the bar's stone at the far end
     expect(viewAcross(400)).toBe(20);

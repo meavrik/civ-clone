@@ -1,8 +1,9 @@
-import { MAP_WIDTH, NEIGHBOURS, Terrain, TERRAIN_CHARS, WORLD_SIZES, worldSize, type WorldSize } from "@civ/core";
+import { MAP_WIDTH, NEIGHBOURS, Terrain, TERRAIN_CHARS, WORLD_SIZES, worldSize, type PlaceTable, type WorldSize } from "@civ/core";
 import type { Image } from "@civ/sprites-tool";
 import { HAND_ZONES, latitudeMix, MIXES, patchNoise, pick, regionZone, ZONE_RANK, type Zone } from "./climate.js";
 import { dataLon, fromGrid, project, type Frame } from "./frames.js";
-import { prop, ScanFill, supercover, type Polyline, type Pt, type Shape } from "./geo.js";
+import { bboxOf, prop, ScanFill, supercover, type Polyline, type Pt, type Shape } from "./geo.js";
+import { buildPlaces } from "./places.js";
 
 export interface GeoData {
   land: Shape[];
@@ -16,6 +17,8 @@ export interface BuiltWorld {
   /** Each square's landmass (an index from `landmasses`, or an ice row's own), -1 at sea. */
   landmass: Int32Array;
   starts: Record<string, [number, number]>;
+  /** Its real places: seas, lakes, landforms, continents and islands (`places.ts`). */
+  places: PlaceTable;
   preview: Image;
   report: string[];
 }
@@ -286,6 +289,12 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
   const landTiles = terrain.filter((t) => t !== Terrain.Ocean).length;
   report.push(`land: ${Math.round((landTiles / (W * H)) * 100)}%`);
 
+  const places = buildPlaces({
+    terrain, landmass: owner, W, H, lakes: data.lakes, regions: data.regions,
+    cover: (rings) => coverage(rings, bboxOf(rings), lats, lons, W, H),
+  });
+  report.push(...places.report);
+
   const rows: string[] = [];
   for (let y = 0; y < H; y++) {
     let row = "";
@@ -296,7 +305,7 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
     }
     rows.push(row);
   }
-  return { rows, landmass: owner, starts, preview: preview(terrain, river, starts, W, H), report };
+  return { rows, landmass: owner, starts, places: places.table, preview: preview(terrain, river, starts, W, H), report };
 }
 
 /**
@@ -485,6 +494,25 @@ function preview(terrain: Terrain[], river: Uint8Array, starts: Record<string, [
   return img;
 }
 
+/** A world's real places as lines of its generated module. */
+function placeLines(places: PlaceTable): string[] {
+  const names = (key: string, list: PlaceTable["waters"]) => [
+    `        ${key}: [`,
+    ...list.map(([kind, name]) => `          [${JSON.stringify(kind)}, ${JSON.stringify(name)}],`),
+    `        ],`,
+  ];
+  const rows = (key: string, list: readonly string[]) => [`        ${key}: [`, ...list.map((r) => `          ${JSON.stringify(r)},`), `        ],`];
+  return [
+    `      places: {`,
+    ...names("waters", places.waters),
+    ...names("landforms", places.landforms),
+    ...names("lands", places.lands),
+    ...rows("place", places.place),
+    ...rows("land", places.land),
+    `      },`,
+  ];
+}
+
 /** A world as an older build drew it, kept so saves from before a change replay on the same land. */
 export interface FrozenGrid {
   rows: readonly string[];
@@ -535,6 +563,7 @@ export function worldModule(frame: Frame, worlds: Readonly<Record<WorldSize, Bui
       `      starts: {`,
       ...Object.entries(world.starts).map(([civ, [x, y]]) => `        ${civ}: [${x}, ${y}],`),
       `      },`,
+      ...placeLines(world.places),
       ...legacy(size),
       `    },`,
     ];

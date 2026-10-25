@@ -9,6 +9,7 @@ import {
   MAP_WIDTH,
   nativeCivs,
   newGame,
+  PLACE_CHARS,
   PREMADE_WORLDS,
   premadeWorld,
   Terrain,
@@ -183,5 +184,26 @@ describe("historical starts", () => {
     const { state: again } = loadSave(makeSave(state, opts, log), skip);
     expect(JSON.stringify(again.units)).toBe(JSON.stringify(state.units));
     expect(again.rng.s).toEqual(state.rng.s);
+  });
+
+  it("names every sea of every premade world at every size, each square from its own layer's names", () => {
+    const bad: string[] = [];
+    for (const world of PREMADE_WORLDS)
+      for (const { id: size, width, height } of WORLD_SIZES) {
+        const t = world.sizes[size].places!;
+        const map = decodeWorld(world, size);
+        if (t.place.length !== height || t.land.length !== height) bad.push(`${world.id} ${size}: rows`);
+        for (let y = 0; y < height; y++) {
+          if (t.place[y]!.length !== width || t.land[y]!.length !== width) bad.push(`${world.id} ${size}: row ${y}`);
+          for (let x = 0; x < width; x++) {
+            const wet = map.tiles[y * width + x]!.terrain === Terrain.Ocean;
+            const a = PLACE_CHARS.indexOf(t.place[y]![x]!);
+            const b = PLACE_CHARS.indexOf(t.land[y]![x]!);
+            const fits = wet ? a >= 0 && a < t.waters.length && b === -1 : a < t.landforms.length && b < t.lands.length;
+            if (!fits) bad.push(`${world.id} ${size} ${x},${y}`);
+          }
+        }
+      }
+    expect(bad).toEqual([]);
   });
 });

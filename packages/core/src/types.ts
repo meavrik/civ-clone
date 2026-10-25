@@ -1,3 +1,4 @@
+import type { Geography } from "./map/geography.js";
 import type { RngState } from "./rng.js";
 import type { SpacePart, Spaceship } from "./rules/spaceship.js";
 
@@ -82,6 +83,8 @@ export interface WorldMap {
   height: number;
   /** Row-major, length width*height. */
   tiles: Tile[];
+  /** Its oceans, seas, lakes, continents, islands, deserts, ranges... and their names (`map/geography.ts`). */
+  geography?: Geography;
 }
 
 /** Settler jobs on a tile. */

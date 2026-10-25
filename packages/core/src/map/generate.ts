@@ -1,6 +1,7 @@
 import { nextFloat, nextInt, type RngState } from "../rng.js";
 import { secondKind, SPECIAL_REACH_SINCE, TERRAIN_RULES, type SpecialRule } from "../rules/terrain.js";
 import { MAP_WIDTH, NEIGHBOURS, Terrain, worldSize, wrapX, type Tile, type WorldMap, type WorldSize } from "../types.js";
+import { findGeography } from "./geography.js";
 
 export interface MapGenOptions {
   /** World size (see WORLD_SIZES); the original's 80x50 when absent. */
@@ -87,6 +88,7 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
   scatterSpecials(map, rng, opts.resources);
 
   labelContinents(map);
+  map.geography = findGeography(map);
   return map;
 }
 
