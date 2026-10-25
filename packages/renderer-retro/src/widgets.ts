@@ -160,17 +160,33 @@ export function drawBox(s: Surface, x: number, y: number, w: number, h: number, 
 import { keepInView, menuButtons, MODAL_MAX_SHARE, type MenuState, type TextInputState } from "@civ/renderer-api";
 
 export const MENU_ROW = FONT_HEIGHT + 1;
-/** A modal's choices as buttons (see `menuButtons`): this tall, this far apart, at least this wide. */
-const BUTTON_H = FONT_HEIGHT + 4;
-const BUTTON_ROW = BUTTON_H + 3;
-const BUTTON_MIN_W = 56;
 /** A titled window is at least this wide; its text wraps rather than widen it past MODAL_MAX_SHARE of the screen. */
 const MODAL_MIN_W = 112;
 
 /** A list too long for the screen scrolls: its bar runs down the right of the rows, this wide. */
 export const SCROLL_W = 5;
 
+/**
+ * How large a menu's parts are. The original's sizes (`DESK_MENU`) are the default everywhere; the
+ * phone app passes `TOUCH_MENU` (asked for 2026-10-25: "some menus are too small and hard to click"),
+ * whose rows and buttons a finger can hit on a screen 200 pixels tall shown about twice as large.
+ */
+export interface MenuSize {
+  /** A list row's height, and the least a long list closes its rows up to before it scrolls instead. */
+  row: number;
+  least: number;
+  /** A modal's choices as buttons (see `menuButtons`): this tall, this far apart, at least this wide. */
+  button: number;
+  buttonGap: number;
+  buttonW: number;
+  /** The scroll bar's width. */
+  scroll: number;
+}
+export const DESK_MENU: MenuSize = { row: MENU_ROW, least: FONT_HEIGHT, button: FONT_HEIGHT + 4, buttonGap: 3, buttonW: 56, scroll: SCROLL_W };
+export const TOUCH_MENU: MenuSize = { row: 15, least: 13, button: 19, buttonGap: 4, buttonW: 72, scroll: 10 };
+
 interface MenuLayout {
+  size: MenuSize;
   x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number;
   /** How far in each body line starts: past the square's picture (`MenuState.square`) for the lines beside it. */
   indents: number[];
@@ -206,20 +222,21 @@ function clearOf(p: { x: number; y: number }, x: number, y: number, w: number, h
   return [Math.max(0, p.x - AVOID - w), ty];
 }
 
-/** Where a menu goes on a screen `screenW` wide: centred, or at its anchor kept on the screen. */
-function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
+/** Where a menu goes on a screen `screenW` wide: centred, or at its anchor kept on the screen; its parts `size` large. */
+function menuLayout(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): MenuLayout {
   const buttons = menuButtons(m);
-  // Rows with a unit's sprite before them keep the sprite's height and never close up.
+  // Rows with a unit's sprite before them keep the sprite's height (or the row's, if taller) and never close up.
   const pic = m.units ? UNIT_PIC + 4 : 0;
-  const least = m.units ? UNIT_ROW : FONT_HEIGHT;
+  const unitRow = Math.max(UNIT_ROW, size.row);
+  const least = m.units ? unitRow : size.least;
   const itemW = Math.max(0, ...m.items.map((i, k) => pic + textWidth(i) + (m.right?.[k] ? textWidth(m.right[k]!) + 12 : 0)));
-  const bw = buttons ? Math.max(BUTTON_MIN_W, itemW + 16) : 0;
+  const bw = buttons ? Math.max(size.buttonW, itemW + 16) : 0;
   const head = m.title ? 16 : 3;
   const foot = m.title ? 6 : 3;
   // A list that will not fit even with its rows closed up scrolls at the usual row height, beside its bar.
   const roomGuess = 200 - (m.anchor?.y ?? 0) - head - foot - (m.body?.length ? m.body.length * FONT_HEIGHT + 5 : 0);
   const scrolls = !buttons && m.items.length * least > roomGuess;
-  const need = Math.max(textWidth(m.title) + 16 + (m.close ? TITLE_H : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? SCROLL_W + 4 : 0));
+  const need = Math.max(textWidth(m.title) + 16 + (m.close ? TITLE_H : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? size.scroll + 4 : 0));
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) + 20 : 0;
   const w = Math.min(300, Math.max(need, Math.min(bodyW + (m.square ? SQUARE_SIDE : 0), Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0, m.square ? SQUARE_WINDOW_W : 0));
   // The paragraphs that begin beside a map square's picture wrap to the room left of it.
@@ -233,49 +250,50 @@ function menuLayout(m: MenuState, screenW = SCREEN_W): MenuLayout {
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
   const room = 200 - (m.anchor?.y ?? 0) - head - bodyH - foot;
   const fits = m.items.length * least <= room;
-  const row = m.units ? UNIT_ROW : fits ? Math.max(FONT_HEIGHT, Math.min(MENU_ROW, Math.floor(room / Math.max(1, m.items.length)))) : MENU_ROW;
+  const row = m.units ? unitRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, m.items.length)))) : size.row;
   const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
-  const itemsH = buttons ? m.items.length * BUTTON_ROW + 1 : rows * row;
+  const itemsH = buttons ? m.items.length * (size.button + size.buttonGap) + 1 : rows * row;
   const h = head + bodyH + itemsH + foot;
   let x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
   let y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
   if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
-  return { x, y, w, h, lines, indents, itemsY: y + head + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top };
+  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top };
 }
 
-export function menuRect(m: MenuState, screenW = SCREEN_W): { x: number; y: number; w: number; h: number } {
-  const { x, y, w, h } = menuLayout(m, screenW);
+export function menuRect(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x: number; y: number; w: number; h: number } {
+  const { x, y, w, h } = menuLayout(m, screenW, size);
   return { x, y, w, h };
 }
 
 /** How many of a menu's rows show at once. */
-export function menuRows(m: MenuState): number {
-  return menuLayout(m).rows;
+export function menuRows(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): number {
+  return menuLayout(m, screenW, size).rows;
 }
 
-/** A scroll bar, SCROLL_W wide: its track from (x, y) down `h`, the arrows at its ends, and the thumb between them. */
-export interface ScrollTrack { x: number; y: number; h: number; thumbY: number; thumbH: number }
+/** A scroll bar `w` wide (SCROLL_W unless given): its track from (x, y) down `h`, the arrows at its ends, and the thumb between them. */
+export interface ScrollTrack { x: number; y: number; w: number; h: number; thumbY: number; thumbH: number }
 
 /** The bar beside `rows` lines of a list of `total`, the first on view `top`: the thumb as long as the share on view, as far down as the list has scrolled. */
-export function scrollTrack(x: number, y: number, h: number, total: number, rows: number, top: number): ScrollTrack {
-  const track = h - 2 * (SCROLL_W + 1);
+export function scrollTrack(x: number, y: number, h: number, total: number, rows: number, top: number, w = SCROLL_W): ScrollTrack {
+  const track = h - 2 * (w + 1);
   const thumbH = Math.max(3, Math.round((track * rows) / total));
-  const thumbY = y + SCROLL_W + 1 + Math.round(((track - thumbH) * top) / Math.max(1, total - rows));
-  return { x, y, h, thumbY, thumbH };
+  const thumbY = y + w + 1 + Math.round(((track - thumbH) * top) / Math.max(1, total - rows));
+  return { x, y, w, h, thumbY, thumbH };
 }
 
 /** A scrolling menu's bar: its track beside the rows, and the thumb that shows which of them are on view. */
 function scrollBar(m: MenuState, l: MenuLayout): ScrollTrack {
-  return scrollTrack(l.x + l.w - 4 - SCROLL_W, l.itemsY - 1, l.rows * l.row, m.items.length, l.rows, l.top);
+  const w = l.size.scroll;
+  return scrollTrack(l.x + l.w - 4 - w, l.itemsY - 1, l.rows * l.row, m.items.length, l.rows, l.top, w);
 }
 
 /** Where a point lies on a scrolling menu's bar: -1 above its thumb (the up arrow too), 1 below, 0 on it; null off the bar. */
-export function menuScrollAt(m: MenuState, px: number, py: number, screenW = SCREEN_W): number | null {
-  const l = menuLayout(m, screenW);
+export function menuScrollAt(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): number | null {
+  const l = menuLayout(m, screenW, size);
   if (l.rows >= m.items.length) return null;
   const b = scrollBar(m, l);
-  if (px < b.x - 1 || px > b.x + SCROLL_W || py < b.y || py >= b.y + b.h) return null;
+  if (px < b.x - 1 || px > b.x + b.w || py < b.y || py >= b.y + b.h) return null;
   return py < b.thumbY ? -1 : py >= b.thumbY + b.thumbH ? 1 : 0;
 }
 
@@ -313,19 +331,19 @@ export function drawEntering(s: Surface, enter: number, rect: { x: number; y: nu
   }
 }
 
-export function drawMenu(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void): void {
+export function drawMenu(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void, size = DESK_MENU): void {
   // A titled window (not a dropdown, not the title screen's plain list) darkens what it opens over.
   if (m.title && !m.anchor) dimScreen(s);
   // A window (not a dropdown) still opening grows into place.
   if (m.enter !== undefined && m.enter < 1 && !m.anchor) {
-    drawEntering(s, m.enter, menuRect(m, s.width), (t) => drawMenuNow(t, m, square));
+    drawEntering(s, m.enter, menuRect(m, s.width, size), (t) => drawMenuNow(t, m, square, size));
     return;
   }
-  drawMenuNow(s, m, square);
+  drawMenuNow(s, m, square, size);
 }
 
-function drawMenuNow(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void): void {
-  const l = menuLayout(m, s.width);
+function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, y: number) => void) | undefined, size: MenuSize): void {
+  const l = menuLayout(m, s.width, size);
   const { x, y, w, h, lines, indents, itemsY, row, buttons, bx, bw, rows, top } = l;
   const scrolls = rows < m.items.length;
   if (m.title) hideArtUnder(s, { x, y, w, h });
@@ -348,21 +366,21 @@ function drawMenuNow(s: Surface, m: MenuState, square?: (s: Surface, x: number, 
     s.hline(x + 4, itemsY - 4, w - 8, shade("panel", 2));
     s.hline(x + 4, itemsY - 3, w - 8, shade("panel", 7));
   }
-  const rowW = w - 8 - (scrolls ? SCROLL_W + 2 : 0);
+  const rowW = w - 8 - (scrolls ? size.scroll + 2 : 0);
   m.items.forEach((item, i) => {
     const off = m.disabled?.includes(i) === true;
     const sel = i === m.selected && !off;
     if (buttons) {
-      drawButton(s, bx, itemsY + 1 + i * BUTTON_ROW, bw, BUTTON_H, item, !off, sel);
+      drawButton(s, bx, itemsY + 1 + i * (size.button + size.buttonGap), bw, size.button, item, !off, sel);
       return;
     }
     if (i < top || i >= top + rows) return;
     const ry = itemsY + (i - top) * row;
     if (sel) s.rect(x + 4, ry - 1, rowW, row, shade("azure", 2));
-    // A unit's sprite before the row, the words in the middle of the row's height.
+    // A unit's sprite before the row, the words (and the sprite) in the middle of the row's height.
     const unit = m.units?.[i];
-    const ty = unit ? ry + Math.floor((UNIT_ROW - FONT_HEIGHT) / 2) - 1 : ry;
-    if (unit) s.blit(unitSprite(unit.type, slotColor(unit.color)), x + 8, ry, SPRITE_CLEAR);
+    const ty = unit ? ry + Math.floor((row - FONT_HEIGHT) / 2) - 1 : ry + Math.max(0, Math.floor((row - MENU_ROW) / 2));
+    if (unit) s.blit(unitSprite(unit.type, slotColor(unit.color)), x + 8, ry + Math.floor((row - UNIT_ROW) / 2), SPRITE_CLEAR);
     drawText(s, x + 10 + (unit ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : C.BLACK!);
     const r = m.right?.[i];
     if (r) drawText(s, x + 4 + rowW - 6 - textWidth(r), ty, r, off ? FADED : sel ? shade("azure", 7) : DIM);
@@ -377,13 +395,15 @@ function drawScrollBar(s: Surface, m: MenuState, l: MenuLayout): void {
 
 /** The bar beside a scrolling list: arrows at its ends (dark while there is more that way), a thumb for the rows on view. */
 export function drawScrollTrack(s: Surface, b: ScrollTrack, moreUp: boolean, moreDown: boolean): void {
-  s.rect(b.x, b.y, SCROLL_W, b.h, shade("panel", 3));
-  s.rect(b.x, b.thumbY, SCROLL_W, b.thumbH, shade("azure", 2));
+  s.rect(b.x, b.y, b.w, b.h, shade("panel", 3));
+  s.rect(b.x, b.thumbY, b.w, b.thumbH, shade("azure", 2));
+  // A triangle as wide as the bar allows (three rows on the original's bar), its point toward the hidden rows.
+  const steps = Math.ceil(b.w / 2);
+  const mid = b.x + Math.floor((b.w - 1) / 2);
   for (const up of [true, false]) {
     const ink = (up ? moreUp : moreDown) ? INK : FADED;
     const ay = up ? b.y + 1 : b.y + b.h - 2;
-    // A small triangle, its point toward the hidden rows.
-    for (let k = 0; k < 3; k++) s.hline(b.x + 2 - k, up ? ay + k : ay - k, 1 + 2 * k, ink);
+    for (let k = 0; k < steps; k++) s.hline(mid - k, up ? ay + k : ay - k, 1 + 2 * k, ink);
   }
 }
 
@@ -398,15 +418,16 @@ export function drawCloseBox(s: Surface, x: number, y: number): void {
 }
 
 /** Row index under a screen point, or -1. */
-export function menuHit(m: MenuState, px: number, py: number, screenW = SCREEN_W): number {
-  const { x, w, itemsY, row, buttons, bx, bw, rows, top } = menuLayout(m, screenW);
+export function menuHit(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): number {
+  const { x, w, itemsY, row, buttons, bx, bw, rows, top } = menuLayout(m, screenW, size);
   if (buttons) {
     const off = py - itemsY - 1;
-    const i = Math.floor(off / BUTTON_ROW);
-    if (px < bx || px >= bx + bw || off < 0 || off % BUTTON_ROW >= BUTTON_H) return -1;
+    const pitch = size.button + size.buttonGap;
+    const i = Math.floor(off / pitch);
+    if (px < bx || px >= bx + bw || off < 0 || off % pitch >= size.button) return -1;
     return i < m.items.length && !m.disabled?.includes(i) ? i : -1;
   }
-  const right = x + w - 4 - (rows < m.items.length ? SCROLL_W + 2 : 0);
+  const right = x + w - 4 - (rows < m.items.length ? size.scroll + 2 : 0);
   if (px < x + 4 || px > right) return -1;
   const i = Math.floor((py - (itemsY - 1)) / row);
   const hit = i >= 0 && i < rows && top + i < m.items.length ? top + i : -1;

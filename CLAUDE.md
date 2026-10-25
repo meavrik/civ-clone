@@ -668,9 +668,15 @@ Never ship the original's sprites, palette art, fonts or text.
   `unzoomPoint`; keeps the frame's `TextInputState`) and `storage.ts` (same slots; remembers the last
   autosave so `save.ts` can save the turn so far when the page is hidden). Keep those three web modules'
   exports as they are (each stand-in `satisfies` its web counterpart's type). It reads `window.civ`
-  (`screen`, `state`, `log`) from web main.ts: keep that hook. Sideways only (asked for): the manifest
+  (`screen`, `state`, `log`, `menu`) from web main.ts: keep that hook. Sideways only (asked for): the manifest
   asks for landscape, `touch.ts` locks it where the browser lets a page, and held upright index.html shows
   "Turn your phone sideways" over the game.
+  Menus are sized for a finger (asked for 2026-10-25: "some menus are too small and hard to click",
+  the web game unchanged): its renderer hands `TOUCH_MENU` (widgets.ts `MenuSize`: rows 15, closing up
+  to 13 at most, buttons 19 tall and 72 wide, a scroll bar 10 wide) to `drawMenu`, `menuHit`, `menuRows`,
+  `menuScrollAt` and `menuRect`, whose default is the original's `DESK_MENU` (pixel for pixel as before);
+  a drag over a list too long for its window scrolls its rows (`scrollRows` in `menus.ts`, the choice
+  staying on view). The research panel, the city screen and the audience keep their sizes.
   `touch.ts` turns fingers (`gestures.ts`) into the mouse the game knows: tap = mousedown 0, hold 450 ms
   = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. A tap on
   our units' square (not a city) brings one into play as the game would and opens its orders (the game's

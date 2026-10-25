@@ -7,6 +7,7 @@ import { Pinch, Recognizer } from "../src/gestures.js";
 import { layoutFor, MAX_SCREEN_W, screenWidth } from "../src/layout.js";
 import { MapPan, RELEASE_MS } from "../src/pan.js";
 import { rateKeys } from "../src/rates.js";
+import { scrollRows } from "../src/menus.js";
 
 describe("layout", () => {
   it("lays the game out as wide as a phone held sideways, from the original's 320 up to a limit", () => {
@@ -168,6 +169,25 @@ describe("rates by touch", () => {
     expect(rateKeys(now, "lux", 0)).toEqual(["ArrowDown", "ArrowDown"]);
     expect(rateKeys(now, "sci", 6)).toEqual(["ArrowLeft", "ArrowLeft"]); // science 4 to 6: tax 4 to 2
     expect(rateKeys(now, "tax", 4)).toEqual([]);
+  });
+});
+
+describe("menus by touch", () => {
+  it("scroll a long list under the finger, the choice staying on view, never past its ends", () => {
+    const m = { title: "Build what?", items: Array.from({ length: 30 }, (_, i) => `Choice ${i}`), selected: 2 };
+    scrollRows(m, 5, 11);
+    expect(m).toMatchObject({ top: 5, selected: 5 });
+    scrollRows(m, 100, 11);
+    expect(m).toMatchObject({ top: 19, selected: 19 });
+    m.selected = 25;
+    scrollRows(m, -3, 11);
+    expect(m).toMatchObject({ top: 16, selected: 25 });
+    scrollRows(m, -100, 11);
+    expect(m).toMatchObject({ top: 0, selected: 10 });
+    // A list that fits does not move.
+    const short = { title: "Pick", items: ["A", "B"], selected: 1 };
+    scrollRows(short, 3, 11);
+    expect(short).toEqual({ title: "Pick", items: ["A", "B"], selected: 1 });
   });
 });
 

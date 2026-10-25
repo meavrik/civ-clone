@@ -1,17 +1,18 @@
 import { shipStats } from "@civ/core";
-import { IMPROVEMENT_LINE_H, ratesAt } from "@civ/renderer-retro";
+import { IMPROVEMENT_LINE_H, ratesAt, TOUCH_MENU } from "@civ/renderer-retro";
 import { game, press, screenKind } from "./civ.js";
 import { canvas, displayScale, logicalAt } from "./display.js";
 import { GESTURES, Pinch, Recognizer, type Gesture } from "./gestures.js";
 import { rateKeys } from "./rates.js";
-import { mapZoom, narrowPoint, ordersAbove, pan, setMapZoom, shown, TILE_PX, tileUnder, ZOOMS } from "./renderer.js";
+import { mapZoom, narrowPoint, ordersAbove, pan, scrollMenu, setMapZoom, shown, TILE_PX, tileUnder, ZOOMS } from "./renderer.js";
 import { screenW } from "./display.js";
 import { syncText } from "./text.js";
 
 /**
  * Fingers on the game screen become the mouse the web game knows: a tap is a click, a press held
  * still is a right-click (the square's window), a drag pans the map or scrolls the research list (on
- * a city screen its improvements), and two fingers on the map pinch it in or out (`ZOOMS`).
+ * a city screen its improvements, in a long menu its rows), and two fingers on the map pinch it in or
+ * out (`ZOOMS`).
  * There are no buttons beside the screen, so the few things the game takes from keys only are
  * touches here: a tap on our unit opens its orders just above it (the menu bar has no Orders on a
  * phone), a touch on a rates bar sets that rate, a tap on a spaceship ready to go asks to launch
@@ -20,7 +21,9 @@ import { syncText } from "./text.js";
 const fingers = new Recognizer();
 const ring = document.getElementById("ring")!;
 let holdTimer = 0;
-let dragging: "map" | "list" | "rates" | null = null;
+let dragging: "map" | "list" | "rates" | "menu" | null = null;
+/** How far a drag over a long menu has gone since it last moved the menu a row, in CSS px. */
+let menuDrag = 0;
 /** Where the dragging finger is now, and where a drag along a rates bar started (it keeps that bar). */
 const at = { x: 0, y: 0 };
 let barY = 0;
@@ -97,7 +100,8 @@ function act(g: Gesture | null): void {
       at.x = g.x;
       at.y = g.y;
       const [px, py] = logicalAt(g.x, g.y);
-      dragging = screen === "rates" && ratesAt(px, py, false, shown.wide ? screenW() : undefined) ? "rates" : screen === "map" && tileUnder(px, py) ? "map" : screen === "research" || screen === "city" ? "list" : null;
+      dragging = screen === "rates" && ratesAt(px, py, false, shown.wide ? screenW() : undefined) ? "rates" : screen === "map" && tileUnder(px, py) ? "map" : screen === "research" || screen === "city" ? "list" : screen === "menu" && game()?.menu ? "menu" : null;
+      menuDrag = 0;
       if (dragging === "rates") setRate(g.x, (barY = g.y), true);
       if (dragging === "map") pan.grab();
       break;
@@ -112,6 +116,13 @@ function act(g: Gesture | null): void {
         // row being 9 logical ones in the research list, IMPROVEMENT_LINE_H in a city's improvements.
         const row = screen === "city" ? IMPROVEMENT_LINE_H : 9;
         canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: (-g.dy / scale / row) * 30, deltaMode: 0, bubbles: true, cancelable: true }));
+      } else if (dragging === "menu") {
+        // The rows follow the finger, one for every row's height it travels.
+        const menu = game()?.menu;
+        const row = TOUCH_MENU.row * scale;
+        menuDrag -= g.dy;
+        const rows = Math.trunc(menuDrag / row);
+        if (menu && rows) { menuDrag -= rows * row; scrollMenu(menu, rows); }
       } else if (dragging === "rates") setRate(at.x, barY, true);
       break;
     }

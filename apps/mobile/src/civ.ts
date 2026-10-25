@@ -1,4 +1,5 @@
 import type { Command, GameState } from "@civ/core";
+import type { MenuState } from "@civ/renderer-api";
 
 /** What the web game shows of itself on `window.civ` (the last line of apps/web/src/main.ts). */
 export interface CivHook {
@@ -6,6 +7,8 @@ export interface CivHook {
   readonly log: Command[];
   /** The web game's screen kind: "title", "map", "city", "menu", "input"... */
   readonly screen: string;
+  /** The menu or window open over the screen, while `screen` is "menu". */
+  readonly menu: MenuState | undefined;
 }
 
 export function game(): CivHook | undefined {

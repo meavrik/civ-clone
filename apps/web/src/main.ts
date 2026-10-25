@@ -2681,4 +2681,4 @@ function frame(t: number): void {
 }
 requestAnimationFrame(frame);
 
-(window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return log; }, get moving() { return view.moving; }, get battle() { return view.battle; }, get view() { return view; }, get screen() { return screenState.kind; }, dispatch, atWar, DIFFICULTIES };
+(window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return log; }, get moving() { return view.moving; }, get battle() { return view.battle; }, get view() { return view; }, get screen() { return screenState.kind; }, get menu() { return screenState.kind === "menu" ? screenState.menu : undefined; }, dispatch, atWar, DIFFICULTIES };

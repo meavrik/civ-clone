@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { keepInView, type MenuState } from "@civ/renderer-api";
-import { C, drawMenu, menuHit, menuRect, menuRows, menuScrollAt, Surface } from "../src/index.js";
+import { C, DESK_MENU, drawMenu, menuHit, menuRect, menuRows, menuScrollAt, Surface, TOUCH_MENU } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 /** A city late in the game: more to build than the screen holds. */
@@ -93,5 +93,37 @@ describe("menus", () => {
     const hits = [0, 1, 2].map((i) => menuHit(m, r.x + 12, r.y + 17 + i * 18 + 8));
     expect(hits).toEqual([0, 1, 2]);
     expect(menuHit(m, r.x + r.w - 10, r.y + 17 + 8)).toBe(0);
+  });
+});
+
+describe("menus sized for a finger (the phone app)", () => {
+  it("draw taller rows and buttons and a wider bar, hit where they are drawn, on the screen", () => {
+    // A dropdown under the bar: every row as tall as TOUCH_MENU's, each hit over its whole height.
+    const bar: MenuState = { title: "", items: ["Tax Rate", "Find City", "Revolution!", "Borders: On", "Save Game", "Load Game", "Retire", "New Game"], selected: 0, anchor: { x: 0, y: 9 } };
+    const r = menuRect(bar, 320, TOUCH_MENU);
+    expect(r.h).toBeGreaterThan(menuRect(bar).h);
+    const firstRow = r.y + 3 - 1;
+    for (let i = 0; i < bar.items.length; i++)
+      for (let dy = 0; dy < TOUCH_MENU.row; dy++) expect(menuHit(bar, r.x + 10, firstRow + i * TOUCH_MENU.row + dy, 320, TOUCH_MENU)).toBe(i);
+    // A modal's buttons: as tall as TOUCH_MENU's, the gap between them no button.
+    const modal: MenuState = { title: "Buy Granary?", body: ["{purse} 112 gold"], items: ["Buy", "Not now"], selected: 0 };
+    const hits = new Map<number, number>();
+    const mr = menuRect(modal, 320, TOUCH_MENU);
+    for (let y = mr.y; y < mr.y + mr.h; y++) { const i = menuHit(modal, 160, y, 320, TOUCH_MENU); if (i >= 0) hits.set(i, (hits.get(i) ?? 0) + 1); }
+    expect([...hits.values()]).toEqual([TOUCH_MENU.button, TOUCH_MENU.button]);
+    // A long list shows fewer, taller rows, all on the screen, with a bar TOUCH_MENU.scroll wide.
+    const m = longList(30);
+    const rows = menuRows(m, 320, TOUCH_MENU);
+    expect(rows).toBeLessThan(menuRows(m));
+    m.top = keepInView(m, rows);
+    const lr = menuRect(m, 320, TOUCH_MENU);
+    expect(lr.y + lr.h).toBeLessThanOrEqual(200);
+    const barHits = Array.from({ length: 320 }, (_, x) => menuScrollAt(m, x, lr.y + 40, 320, TOUCH_MENU)).filter((v) => v !== null).length;
+    expect(barHits).toBe(TOUCH_MENU.scroll + 2);
+    expect(DESK_MENU.row).toBeLessThan(TOUCH_MENU.row);
+    const s = Surface.screen();
+    s.fill(C.BLACK!);
+    drawMenu(s, m, undefined, TOUCH_MENU);
+    writeFileSync(new URL("./out/menu-touch.png", import.meta.url), encodePng(s, 3));
   });
 });

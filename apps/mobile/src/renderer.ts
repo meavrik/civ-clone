@@ -1,4 +1,5 @@
 import { civ, wrapX, type GameState } from "@civ/core";
+import { scrollRows } from "./menus.js";
 import type { AdvisorKind, DiplomacyView, MainScreenView, MenuState, NewTechView, Renderer, ResearchView, SetupCards, TextInputState } from "@civ/renderer-api";
 import {
   BAR_H,
@@ -52,6 +53,7 @@ import {
   menuRect,
   menuRows,
   menuScrollAt,
+  TOUCH_MENU,
   minimapSquare,
   PALETTE_RGBA,
   panOffset,
@@ -141,6 +143,16 @@ export function narrowPoint(px: number, py: number): [number, number] {
   return shown.wide ? [px, py] : [px - inset(), py];
 }
 
+/** How many of a menu's rows show at once, as last drawn (an orders menu where it stands over its unit). */
+function shownMenuRows(m: MenuState): number {
+  return shown.wide ? menuRows(placed.get(m) ?? m, screenW(), TOUCH_MENU) : menuRows(m, SCREEN_W, TOUCH_MENU);
+}
+
+/** A finger dragging a list too long for its window: its rows on view move `by` (`scrollRows`). */
+export function scrollMenu(m: MenuState, by: number): void {
+  scrollRows(m, by, shownMenuRows(m));
+}
+
 /** The menu a tap on our unit opens (its orders) goes just above that unit, not in the middle. */
 let ordersFor: number | null = null;
 const ordersOf = new WeakMap<MenuState, number>();
@@ -169,7 +181,7 @@ function place(m: MenuState): MenuState {
   const sy = VIEW_Y + (pos[1] - VIEW_Y) * z;
   const size = TILE * z;
   const { right: _keys, ...plain } = m;
-  const r = menuRect({ ...plain, anchor: { x: 0, y: 0 } }, W);
+  const r = menuRect({ ...plain, anchor: { x: 0, y: 0 } }, W, TOUCH_MENU);
   const x = Math.max(0, Math.min(W - r.w, Math.round(sx + size / 2 - r.w / 2)));
   const above = sy - r.h - 2;
   const y = Math.max(0, Math.min(SCREEN_H - r.h, above >= BAR_H ? above : sy + size + 2));
@@ -312,16 +324,16 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     spaceship: screen(drawSpaceshipScreen),
     report: screen(drawReportScreen),
     worldMap: screen(drawWorldMap),
-    // Overlays go on whatever screen this frame drew.
-    menu: (m, state) => drawMenu(surface(), wideFrame ? place(m) : m, squarePainter(m, state)),
+    // Overlays go on whatever screen this frame drew, sized for a finger (`TOUCH_MENU`).
+    menu: (m, state) => drawMenu(surface(), wideFrame ? place(m) : m, squarePainter(m, state), TOUCH_MENU),
     textInput(input, cursorOn) {
       shown.input = input;
       drawTextInput(surface(), input, cursorOn);
     },
     statusLine: (text) => drawStatusLine(surface(), text),
-    menuHit: (m, px, py) => (shown.wide ? menuHit(menuOf(m), px, py, screenW()) : menuHit(m, px - inset(), py)),
-    menuRows: (m) => menuRows(m),
-    menuScrollAt: (m, px, py) => (shown.wide ? menuScrollAt(menuOf(m), px, py, screenW()) : menuScrollAt(m, px - inset(), py)),
+    menuHit: (m, px, py) => (shown.wide ? menuHit(menuOf(m), px, py, screenW(), TOUCH_MENU) : menuHit(m, px - inset(), py, SCREEN_W, TOUCH_MENU)),
+    menuRows: (m) => shownMenuRows(m),
+    menuScrollAt: (m, px, py) => (shown.wide ? menuScrollAt(menuOf(m), px, py, screenW(), TOUCH_MENU) : menuScrollAt(m, px - inset(), py, SCREEN_W, TOUCH_MENU)),
     citySlotAt: (px, py) => citySlotAt(px - inset(), py),
     cityExitHit: (px, py) => cityExitHit(px - inset(), py),
     cityButtonAt: (px, py) => cityButtonAt(px - inset(), py),
