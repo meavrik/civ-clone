@@ -113,6 +113,16 @@ export function dimScreen(s: Surface): void {
   s.dimmed = true;
   const d = s.data;
   for (let i = 0; i < d.length; i++) d[i] = DIMMED[d[i]!]!;
+  // The user's pictures on what was drawn darken with it (the apps lay them over the canvas).
+  for (const a of s.art) a.dim = true;
+}
+
+/**
+ * Drop the pictures the screen under a window left spots for where the window stands: the apps lay
+ * them over the canvas, so one under the window would cover it. The rest stay, darkened (`dimScreen`).
+ */
+export function hideArtUnder(s: Surface, r: { x: number; y: number; w: number; h: number }): void {
+  s.art = s.art.filter((a) => !(a.x < r.x + r.w && a.x + a.w > r.x && a.y < r.y + r.h && a.y + a.h > r.y));
 }
 
 /**
@@ -313,6 +323,7 @@ function drawMenuNow(s: Surface, m: MenuState, square?: (s: Surface, x: number, 
   const l = menuLayout(m, s.width);
   const { x, y, w, h, lines, indents, itemsY, row, buttons, bx, bw, rows, top } = l;
   const scrolls = rows < m.items.length;
+  if (m.title) hideArtUnder(s, { x, y, w, h });
   drawWindow(s, x, y, w, h, m.title);
   if (m.close && m.title) drawCloseBox(s, x + w - 3 - (TITLE_H - 2), y + 3);
   const bodyY = y + (m.title ? 17 : 4);

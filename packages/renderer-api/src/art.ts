@@ -73,6 +73,10 @@ export interface ArtSpot extends ArtBox {
   id: string;
   middle?: boolean;
   lit?: boolean;
+  /** How much of the picture stands, from the ground up, 0..1: a wonder rising in the city view (absent: whole). */
+  reveal?: number;
+  /** Darkened with the screen it stands on, under a window (`dimScreen`). */
+  dim?: boolean;
 }
 
 /** The box the drawing of building `id`'s picture fills within its square, or null when it has no picture. */

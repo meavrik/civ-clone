@@ -357,6 +357,15 @@ describe("cities", () => {
     s.players[0]!.gold = 1000;
     const cost = buyCost(s, c);
     expect(cost).toBe(2 * 56);
+    // A wonder costs twice an improvement's price a shield (since version 31; before, the same).
+    s.players[0]!.advances.push("bronze_working");
+    getTile(s.map, 11, 10)!.terrain = Terrain.Ocean;
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "wonder", id: "colossus" } });
+    expect(buyCost(s, c)).toBe(4 * (200 - c.shields));
+    s.cheapWonderBuy = true;
+    expect(buyCost(s, c)).toBe(2 * (200 - c.shields));
+    delete s.cheapWonderBuy;
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
     expect(applyCommand(s, { type: "buy", city: c.id }).ok).toBe(true);
     expect(s.players[0]!.gold).toBe(1000 - cost);
     applyCommand(s, { type: "endTurn" });

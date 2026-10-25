@@ -57,6 +57,7 @@ import {
   unitAt,
   unitById,
   unitType,
+  wonder,
   wrapX,
   weakestWorked,
   workOptions,
@@ -225,6 +226,7 @@ type Screen =
   | { kind: "map" }
   | { kind: "city"; view: CityScreenView; then?: () => void } // `then`: the turn's news that waits for the city to close
   | { kind: "cityView"; view: CityViewState; city: Extract<Screen, { kind: "city" }> } // the city as a picture, over its city screen
+  | { kind: "wonderShow"; view: CityViewState; start: number; then: () => void } // a wonder just completed rising in its city's picture, before its window
   | { kind: "research"; view: ResearchView; back: Screen; then: () => void }
   // An advance just found, `found[at]` of those found together; the research is `due` to be picked after.
   | { kind: "newTech"; view: NewTechView; found: string[]; at: number; due: boolean; back: Screen; then: () => void }
@@ -760,6 +762,15 @@ function builtWindow(cityId: number, p: Production, then: () => void, change?: C
   const city = state.cities.find((c) => c.id === cityId);
   const notice = builtNotice(state, cityId, p, change);
   if (!city || city.owner !== 0 || !notice) { then(); return; }
+  if (p.kind === "wonder") {
+    // A wonder is a spectacle (asked for 2026-10-24): it rises in the city's picture, sparkles, and
+    // only then does its window open, over that picture.
+    wonderShow(cityId, p.id, () => {
+      const under: Screen = { kind: "cityView", view: { city: cityId }, city: { kind: "city", view: { city: cityId } } };
+      screenState = { kind: "built", view: { city: cityId, production: p, selected: 1 }, then, under };
+    });
+    return;
+  }
   if (p.kind !== "unit") {
     // A small window over the game; one after another, each over the same screen. The map glides to
     // the city first (asked for 2026-10-24), so the window names a city that can be seen.
@@ -773,6 +784,34 @@ function builtWindow(cityId: number, p: Production, then: () => void, change?: C
 }
 
 type BuiltScreen = Extract<Screen, { kind: "built" }>;
+type WonderShowScreen = Extract<Screen, { kind: "wonderShow" }>;
+
+/** The wonder's show: it rises over `WONDER_RISE_MS`, then sparkles for `WONDER_SPARKLE_MS`; a key or click after the first moment ends it early. */
+const WONDER_RISE_MS = 1800;
+const WONDER_SPARKLE_MS = 1600;
+const WONDER_SKIP_AFTER_MS = 400;
+
+/** A wonder just completed in one of our cities: the city's picture with the wonder rising from the ground, named along the bar. */
+function wonderShow(cityId: number, id: string, then: () => void): void {
+  const city = state.cities.find((c) => c.id === cityId);
+  if (!city) { then(); return; }
+  screenState = { kind: "wonderShow", view: { city: cityId, rising: { id, reveal: 0, sparkle: 0 }, banner: `${city.name} completes the ${wonder(id).name}!` }, start: performance.now(), then };
+}
+
+/** Each frame of the show: how far the wonder has risen and how far its sparkles have burst; over, it goes on. */
+function stepWonderShow(sc: WonderShowScreen, t: number): void {
+  const el = t - sc.start;
+  const r = sc.view.rising!;
+  const rise = Math.min(1, el / WONDER_RISE_MS);
+  r.reveal = 1 - (1 - rise) * (1 - rise);
+  r.sparkle = el < WONDER_RISE_MS ? 0 : Math.min(1, (el - WONDER_RISE_MS) / WONDER_SPARKLE_MS);
+  if (el >= WONDER_RISE_MS + WONDER_SPARKLE_MS) sc.then();
+}
+
+/** A key or click ends the show once it has had its first moment. */
+function skipWonderShow(sc: WonderShowScreen): void {
+  if (performance.now() - sc.start >= WONDER_SKIP_AFTER_MS) sc.then();
+}
 
 /** Leave the Building Completed window: into the city (`toCity`) or onto the map, the builders asking what next. */
 function leaveBuilt(sc: BuiltScreen, toCity: boolean): void {
@@ -2184,6 +2223,7 @@ addEventListener("keydown", (e) => {
     case "map": mapKey(e); break;
     case "city": cityKey(e, sc); break;
     case "cityView": screenState = sc.city; break;
+    case "wonderShow": e.preventDefault(); skipWonderShow(sc); break;
     case "rates": ratesKey(e); break;
     case "science":
       if (e.code === "KeyA") openTree({ choosing: true, closable: true }, undefined, sc);
@@ -2360,6 +2400,7 @@ canvas.addEventListener("mousedown", (e) => {
       return;
     }
     case "beat": endBeat(sc); return;
+    case "wonderShow": skipWonderShow(sc); return;
     case "rates": {
       const hit = renderer.ratesHit(px, py);
       if (!hit || hit.kind === "done") { screenState = { kind: "map" }; return; }
@@ -2444,7 +2485,14 @@ canvas.addEventListener("mousedown", (e) => {
   // Our city opens, our unit is picked, and a stack of ours is listed to pick from.
   const city = cityAt(state, tx, ty);
   const mine = unitAt(state, tx, ty).filter((u) => u.owner === 0);
-  if (city && city.owner === 0) { centerOn(tx, ty); openCity(city.id); return; }
+  if (city && city.owner === 0) {
+    // Next door to the unit in play, a click on our city moves it in (asked for 2026-10-24: "can't move
+    // with a mouse units into a city"); with the unit inside, or none in play, the city opens.
+    if (active && !(active.x === tx && active.y === ty) && isAdjacent(active, tx, ty)) { tryMove(active.id, stepTo(active, tx), ty - active.y); return; }
+    centerOn(tx, ty);
+    openCity(city.id);
+    return;
+  }
   // Next door to the unit in play, a square with our own units is a step: it joins them (asked for
   // 2026-10-24: the click picked the unit there instead). Further off, the click picks from them.
   if (mine.length && active && !(active.x === tx && active.y === ty) && isAdjacent(active, tx, ty)) { tryMove(active.id, stepTo(active, tx), ty - active.y); return; }
@@ -2504,7 +2552,7 @@ function draw(sc: Screen): void {
     case "report": renderer.report(sc.page); break;
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
-    case "cityView": renderer.cityView(state, sc.view); break;
+    case "cityView": case "wonderShow": renderer.cityView(state, sc.view); break;
     case "research": draw(sc.back); renderer.research(state, sc.view); break; // a window over the screen it opened on (asked for 2026-10-24)
     // The small windows over the screen they opened on.
     case "newTech": draw(sc.back); sc.view.enter = enterOf(sc.view); renderer.newTech(state, sc.view); break;
@@ -2550,6 +2598,7 @@ function frame(t: number): void {
   if (view.callout && t > calloutUntil) view.callout = undefined;
   if (view.plan && view.plan.unit !== state.activeUnit) view.plan = undefined;
   if (screenState.kind === "beat" && t >= screenState.until) endBeat(screenState);
+  if (screenState.kind === "wonderShow") stepWonderShow(screenState, t);
   const shown = motion.at(t);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;

@@ -80,6 +80,8 @@ export interface GameConfig {
   sizeFreeUnits?: boolean;
   /** Sight round units and next to cities only (`GameState.narrowSight`). */
   narrowSight?: boolean;
+  /** Wonders bought at an improvement.s price (`GameState.cheapWonderBuy`). */
+  cheapWonderBuy?: boolean;
 }
 
 export interface PlayerStats {
@@ -175,6 +177,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.noInfluenceYields ? { noInfluenceYields: true } : {}),
     ...(config.sizeFreeUnits ? { sizeFreeUnits: true } : {}),
     ...(config.narrowSight ? { narrowSight: true } : {}),
+    ...(config.cheapWonderBuy ? { cheapWonderBuy: true } : {}),
   };
 }
 

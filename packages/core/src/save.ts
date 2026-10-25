@@ -48,7 +48,7 @@ export interface SaveGame {
    * 26: saved while the Colossus helped only ocean squares and workers were placed by bare yields; ocean colossus.
    * 29: saved while a civilization saw round its units and next to its cities only, and every scout one square out; narrow sight.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -63,7 +63,7 @@ export interface SaveGame {
   label?: string;
 }
 
-export const SAVE_VERSION = 30;
+export const SAVE_VERSION = 31;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -84,7 +84,7 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
 export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
@@ -130,6 +130,7 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
   }
   if (save.version < 29) options.sizeFreeUnits = true;
   if (save.version < 30) options.narrowSight = true;
+  if (save.version < 31) options.cheapWonderBuy = true;
   const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {

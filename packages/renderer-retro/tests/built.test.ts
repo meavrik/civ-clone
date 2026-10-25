@@ -3,7 +3,7 @@ import { applyCommand, BUILDINGS, newGame, SPACE_PARTS, WONDERS, type GameState,
 import { ART_SIZE, artPlace, BUILDING_ART, builtCard } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
 import { wrapText } from "../src/font.js";
-import { BUILT_TEXT_W, builtHit, builtPicture, drawBuilt, modalRect } from "../src/index.js";
+import { BUILT_TEXT_W, builtHit, builtPicture, builtRect, drawBuilt } from "../src/index.js";
 import { Surface } from "../src/surface.js";
 import { encodePng } from "./png.js";
 
@@ -88,9 +88,9 @@ describe("Building Completed window", () => {
     for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) hits.add(builtHit(view, x, y));
     expect([...hits].sort()).toEqual(["city", "close", "continue", null].sort());
     // A small window over the game, its buttons along its foot.
-    const o = modalRect();
-    expect(builtHit(view, o.x + 30, o.y + o.h - 12)).toBe("city");
-    expect(builtHit(view, o.x + o.w - 30, o.y + o.h - 12)).toBe("continue");
+    const o = builtRect();
+    expect(builtHit(view, o.x + 30, o.y + o.h - 11)).toBe("city");
+    expect(builtHit(view, o.x + o.w - 30, o.y + o.h - 11)).toBe("continue");
     expect(builtHit(view, 30, 185)).toBeNull();
   });
 });

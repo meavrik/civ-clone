@@ -6,7 +6,7 @@ import { unitSprite } from "../overlays.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { dimScreen, drawEntering, drawStone, INK, speckle } from "../widgets.js";
+import { dimScreen, hideArtUnder, drawEntering, drawStone, INK, speckle } from "../widgets.js";
 
 /**
  * The New Technology window, after the user's template (2026-10-23), made a small window over the game
@@ -192,6 +192,7 @@ function drawNewTechNow(s: Surface, state: GameState, view: NewTechView): void {
   const owner = slotColor(state.players[state.currentPlayer]!.color);
   const o = modalRect(s.width);
   const l = layout(o);
+  hideArtUnder(s, o);
   drawFrame(s, o);
   drawModalTitle(s, l, "bulb", "New Technology");
 

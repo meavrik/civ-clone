@@ -159,6 +159,14 @@ export type CityButton = "change" | "buy" | "view" | "happy" | "focus";
 export interface CityViewState {
   city: number;
   picked?: string | undefined;
+  /**
+   * A wonder just completed, rising in its place (asked for 2026-10-24: "a new wonder build WOW effect,
+   * the construction in fast forward in the city view"): `reveal` 0..1 is how much of it stands from the
+   * ground up, `sparkle` 0..1 the burst of sparkles round it once it stands whole (0: none yet).
+   */
+  rising?: { id: string; reveal: number; sparkle: number };
+  /** Words along the bar in place of the hint ("Rome completes the Pyramids!"), with no Back button. */
+  banner?: string;
 }
 
 /** A unit on the city screen: in the city (`here`) or supported by it elsewhere, with what it costs the city. */

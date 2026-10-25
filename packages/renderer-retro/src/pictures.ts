@@ -1,6 +1,7 @@
 import { bare, buildingArt, type Material, type Part, type Picture } from "@civ/renderer-api";
 import { C, shade } from "./palette.js";
-import type { Surface } from "./surface.js";
+import { SPRITE_CLEAR } from "./sprites/sheet.js";
+import { Surface } from "./surface.js";
 
 /**
  * Pictures of buildings (`PICTURES` in renderer-api) filled pixel by pixel: each shape takes its
@@ -159,7 +160,20 @@ export function drawPicture(s: Surface, pic: Picture, x: number, y: number, owne
  * spot for the user's picture of it when it has one (the apps lay the picture there, `Surface.art`),
  * else its drawn picture in the middle of the box. `lit` rings the user's picture in light.
  */
-export function drawBuilding(s: Surface, id: string, pic: Picture, x: number, y: number, w: number, h: number, owner: number, lit = false): void {
-  if (buildingArt(id)) s.art.push({ id, x, y: y - h, w, h, ...(lit ? { lit } : {}) });
-  else drawPicture(s, pic, x + Math.floor((w - pic.w) / 2), y, owner);
+export function drawBuilding(s: Surface, id: string, pic: Picture, x: number, y: number, w: number, h: number, owner: number, lit = false, reveal = 1): void {
+  if (buildingArt(id)) { s.art.push({ id, x, y: y - h, w, h, ...(lit ? { lit } : {}), ...(reveal < 1 ? { reveal } : {}) }); return; }
+  const px = x + Math.floor((w - pic.w) / 2);
+  if (reveal >= 1) { drawPicture(s, pic, px, y, owner); return; }
+  // Rising (a wonder just completed): only the bottom `reveal` of the drawn picture stands, drawn whole
+  // on a scratch surface and copied from that height down to its ground line.
+  const t = new Surface(s.width, s.height, undefined, s.k);
+  t.fill(SPRITE_CLEAR);
+  drawPicture(t, pic, px, y, owner);
+  const k = s.k;
+  const top = Math.max(0, Math.round((y - pic.h * reveal) * k));
+  for (let fy = top; fy < Math.min(s.fh, (y + 1) * k); fy++)
+    for (let fx = Math.max(0, px * k); fx < Math.min(s.fw, (px + pic.w + 1) * k); fx++) {
+      const c = t.fget(fx, fy);
+      if (c !== SPRITE_CLEAR) s.fset(fx, fy, c);
+    }
 }

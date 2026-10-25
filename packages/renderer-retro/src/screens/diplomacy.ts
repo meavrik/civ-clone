@@ -3,7 +3,7 @@ import { AUDIENCE_CHOICES, leaderTitle, MOOD_WORDS, realmName, type DiplomacyVie
 import { drawSpaced, drawText, FONT_HEIGHT, spacedWidth, textWidth, wrapText } from "../font.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { dimScreen, drawCloseBox, drawEntering, drawStone, INK, TITLE_H } from "../widgets.js";
+import { dimScreen, hideArtUnder, drawCloseBox, drawEntering, drawStone, INK, TITLE_H } from "../widgets.js";
 
 /**
  * The audience with a foreign leader, after the user's mock-up (2026-10-22), as a window over the map
@@ -123,6 +123,7 @@ function drawNow(s: Surface, state: GameState, view: DiplomacyView): void {
   s.rect(o.x + 3, o.y + o.h, o.w, 2, C.BLACK!);
   s.rect(o.x + o.w, o.y + 3, 2, o.h - 1, C.BLACK!);
   s.frame(o.x, o.y, o.w, o.h, C.BLACK!);
+  hideArtUnder(s, o);
   drawStone(s, o.x + 1, o.y + 1, o.w - 2, o.h - 2);
   // The realm's name in gold on the mood's colour, the mood's word at the strip's left, the close box at its end.
   const m = moodColours(view.mood);

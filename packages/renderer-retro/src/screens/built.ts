@@ -5,8 +5,8 @@ import { drawIcon, ICON } from "../icons.js";
 import { C, shade, slotColor } from "../palette.js";
 import { rasterize } from "../pictures.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { dimScreen, drawEntering, drawStone, INK, speckle } from "../widgets.js";
-import { drawModalName, drawModalTitle, drawWindowButton, modalHit, modalRect } from "./newtech.js";
+import { dimScreen, hideArtUnder, drawEntering, drawStone, INK, speckle } from "../widgets.js";
+import { drawModalName, drawModalTitle, drawWindowButton, modalHit } from "./newtech.js";
 
 /**
  * The Building Completed window, after the user's template (2026-10-24), made a small window over the
@@ -15,30 +15,36 @@ import { drawModalName, drawModalTitle, drawWindowButton, modalHit, modalRect } 
  * large over the city that built it, the user's picture of it on a slate bed (a spot in `Surface.art`:
  * the apps lay the picture there, as it is), a parchment panel with its description, its effects on
  * the city and its upkeep, then View City on the stone and Continue in gold. Centred on the screen it
- * opens over (`modalRect`).
+ * opens over (`builtRect`, smaller than the New Technology window.s since 2026-10-24).
  */
 
 type Rect = { x: number; y: number; w: number; h: number };
 const at = (o: Rect, x: number, y: number, w: number, h: number): Rect => ({ x: o.x + x, y: o.y + y, w, h });
-/** Where each part of the window stands, the window's top left at `o`. */
+/** The window's size: smaller than the New Technology window's since 2026-10-24 (asked for: "minimize the building complete window"). */
+const WIN = { w: 204, h: 128 };
+/** The window, centred on a screen `screenW` wide (the phone's map is wider than 320). */
+export function builtRect(screenW = SCREEN_W): Rect {
+  return { x: Math.floor((screenW - WIN.w) / 2), y: Math.floor((SCREEN_H - WIN.h) / 2), ...WIN };
+}
+/** Where each part of the window stands, the window's top left at `o`: the picture at the left, the words beside it, the buttons along the foot. */
 function layout(o: Rect) {
-  const frame = at(o, 5, 47, 78, 78);
+  const frame = at(o, 5, 44, 54, 54);
   return {
     title: at(o, 3, 3, o.w - 6, 13),
     close: at(o, o.w - 15, 5, 9, 9),
-    name: at(o, 5, 18, o.w - 10, 27),
+    name: at(o, 5, 17, o.w - 10, 25),
     frame,
-    picture: { x: frame.x + 4, y: frame.y + 4, w: frame.w - 8, h: frame.h - 8 },
-    info: at(o, 86, 47, o.w - 91, 78),
-    buttons: [at(o, 6, 129, 108, 13), at(o, o.w - 6 - 108, 129, 108, 13)],
+    picture: { x: frame.x + 3, y: frame.y + 3, w: frame.w - 6, h: frame.h - 6 },
+    info: at(o, 63, 44, o.w - 68, 64),
+    buttons: [at(o, 6, o.h - 17, 92, 12), at(o, o.w - 6 - 92, o.h - 17, 92, 12)],
   };
 }
 /** Where the building's picture goes, on a screen `screenW` wide: its drawing fills this box, centred in the frame. */
 export function builtPicture(screenW = SCREEN_W): Rect {
-  return layout(modalRect(screenW)).picture;
+  return layout(builtRect(screenW)).picture;
 }
 /** How wide the description's lines may run (three of them fit). */
-export const BUILT_TEXT_W = modalRect().w - 91 - 12;
+export const BUILT_TEXT_W = builtRect().w - 68 - 12;
 /** An effect's icon box. */
 const BOX = 11;
 
@@ -54,20 +60,13 @@ const QUIET = () => shade("panel", 2);
 
 /** What lies under a point: a button (View City on the left, Continue on the right), the close box (a little round it counts too), or nothing. */
 export function builtHit(_view: BuiltView, px: number, py: number, screenW = SCREEN_W): BuiltHit | null {
-  return modalHit(layout(modalRect(screenW)), px, py, "city");
+  return modalHit(layout(builtRect(screenW)), px, py, "city");
 }
 
 /** A parchment panel ringed in the stone's dark edge. */
 function parchment(s: Surface, b: { x: number; y: number; w: number; h: number }): void {
   s.frame(b.x, b.y, b.w, b.h, RULE());
   speckle(s, b.x + 1, b.y + 1, b.w - 2, b.h - 2, PARCHMENT_DARK(), PARCHMENT(), PARCHMENT());
-}
-
-/** A heading in spaced capitals from `x`, a rule under it `w` across; returns the y below. */
-function heading(s: Surface, x: number, y: number, w: number, text: string): number {
-  drawSpaced(s, x + Math.ceil(spacedWidth(text) / 2), y, text, INK);
-  s.hline(x - 1, y + FONT_HEIGHT + 1, w, RULE());
-  return y + FONT_HEIGHT + 4;
 }
 
 /** An effect: its icon in a small raised box, its words beside it. */
@@ -92,19 +91,20 @@ function drawEnlarged(s: Surface, b: Rect, px: Int16Array, gw: number, gh: numbe
 export function drawBuilt(s: Surface, state: GameState, view: BuiltView): void {
   dimScreen(s);
   const enter = view.enter ?? 1;
-  if (enter < 1) { drawEntering(s, enter, modalRect(s.width), (t) => drawBuiltNow(t, state, view)); return; }
+  if (enter < 1) { drawEntering(s, enter, builtRect(s.width), (t) => drawBuiltNow(t, state, view)); return; }
   drawBuiltNow(s, state, view);
 }
 
 function drawBuiltNow(s: Surface, state: GameState, view: BuiltView): void {
   const card = builtCard(state, view);
   if (!card) return;
-  const o = modalRect(s.width);
+  const o = builtRect(s.width);
   const l = layout(o);
   // The window on the game, a shadow under it.
   s.rect(o.x + 3, o.y + o.h, o.w, 2, C.BLACK!);
   s.rect(o.x + o.w, o.y + 3, 2, o.h - 1, C.BLACK!);
   s.frame(o.x, o.y, o.w, o.h, C.BLACK!);
+  hideArtUnder(s, o);
   drawStone(s, o.x + 1, o.y + 1, o.w - 2, o.h - 2);
   drawModalTitle(s, l, "shield", card.title, C.BLACK!);
 
@@ -128,11 +128,11 @@ function drawBuiltNow(s: Surface, state: GameState, view: BuiltView): void {
     if (pic) drawEnlarged(s, l.picture, rasterize(pic, slotColor(state.players[owner]!.color)), pic.w + 2, pic.h + 2);
   }
 
-  // What it is, what it does for the city, and its upkeep along the bottom.
+  // What it is, what it does for the city, and its upkeep along the bottom (no heading: the window is small).
   const { info } = l;
   parchment(s, info);
   const x = info.x + 6;
-  let y = heading(s, x, info.y + 3, info.w - 10, "Description");
+  let y = info.y + 4;
   for (const line of wrapText(card.text, BUILT_TEXT_W).slice(0, 3)) { drawText(s, x, y, line, INK); y += FONT_HEIGHT; }
   const upkeepY = info.y + info.h - 2 - FONT_HEIGHT;
   y += 2;

@@ -23,7 +23,7 @@ import { drawBuilding } from "../pictures.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { DIM, dimScreen, drawBox, drawButton, drawCloseBox, drawStone, drawTitleStrip, FADED, GOLD, GOOD, INK, NOTE, TITLE_H } from "../widgets.js";
+import { DIM, dimScreen, hideArtUnder, drawBox, drawButton, drawCloseBox, drawStone, drawTitleStrip, FADED, GOLD, GOOD, INK, NOTE, TITLE_H } from "../widgets.js";
 
 /**
  * The research panel, built round the choice: under the title a band with the
@@ -328,6 +328,7 @@ export function drawResearch(s: Surface, state: GameState, view: ResearchView): 
   s.rect(o.x + 3, o.y + o.h, o.w, 2, C.BLACK!);
   s.rect(o.x + o.w, o.y + 3, 2, o.h - 1, C.BLACK!);
   s.frame(o.x, o.y, o.w, o.h, C.BLACK!);
+  hideArtUnder(s, o);
   drawStone(s, o.x + 1, o.y + 1, o.w - 2, o.h - 2);
   const known = state.players[state.currentPlayer]!.advances.length;
   // The count of advances at the strip's right, and when the panel may be left a close box after it (in place of a Close button, 2026-10-24).

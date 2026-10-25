@@ -1,6 +1,6 @@
 import { BUILDINGS, formatYear, Terrain, turnToYear, WONDERS, type GameState } from "@civ/core";
 import { buildingArt, cityScene, CLOUD_PUFFS, hash, sceneItemAt, type CityScene, type CityViewState } from "@civ/renderer-api";
-import { drawText, drawTextCentered, textWidth } from "../font.js";
+import { drawSpaced, drawText, drawTextCentered, textWidth } from "../font.js";
 import { C, shade } from "../palette.js";
 import { drawBuilding, drawPicture } from "../pictures.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
@@ -120,6 +120,22 @@ function drawLand(s: Surface, scene: CityScene, salt: number): void {
       }
 }
 
+/**
+ * Sparkles round a wonder just raised: small bright crosses scattered over and about its lot, each
+ * flaring in its own moment of the burst (`t` 0..1), white at first and gold as they fade.
+ */
+function drawSparkles(s: Surface, x: number, ground: number, w: number, h: number, t: number): void {
+  for (let k = 0; k < 18; k++) {
+    const life = (t * 2.2 + hash(k, 1, 3)) % 1;
+    if (life > 0.6) continue;
+    const cx = Math.round(x - w * 0.25 + hash(k, 2, 3) * w * 1.5);
+    const cy = Math.round(ground - h * 1.3 + hash(k, 3, 3) * h * 1.4);
+    const colour = life < 0.3 ? C.WHITE! : C.YELLOW!;
+    const r = life < 0.2 ? 1 : 2;
+    for (let d = -r; d <= r; d++) { s.set(cx + d, cy, colour); s.set(cx, cy + d, colour); }
+  }
+}
+
 /** The name and line of text of an improvement or wonder. */
 function about(id: string): { name: string; text: string } | null {
   return BUILDINGS.find((b) => b.id === id) ?? WONDERS.find((w) => w.id === id) ?? null;
@@ -135,9 +151,14 @@ export function drawCityView(s: Surface, state: GameState, view: CityViewState):
   const color = playerColor(state, city.owner);
   for (const it of scene.items) {
     const at = [SCENE_X + it.x, SCENE_Y + it.y] as const;
-    if (it.kind === "wonder" || it.kind === "building" || it.kind === "gate") drawBuilding(s, it.id, it.pic, ...at, it.w, it.h, color, it.id === view.picked);
+    // A wonder just completed rises from the ground (`rising.reveal`); everything else stands whole.
+    const reveal = view.rising && it.id === view.rising.id ? view.rising.reveal : 1;
+    if (it.kind === "wonder" || it.kind === "building" || it.kind === "gate") drawBuilding(s, it.id, it.pic, ...at, it.w, it.h, color, it.id === view.picked, reveal);
     else drawPicture(s, it.pic, ...at, color);
   }
+  // Sparkles burst round the wonder once it stands whole.
+  const risen = view.rising && view.rising.reveal >= 1 && view.rising.sparkle > 0 ? scene.items.find((it) => it.id === view.rising!.id) : undefined;
+  if (risen && view.rising) drawSparkles(s, SCENE_X + risen.x, SCENE_Y + risen.y, risen.w, risen.h, view.rising.sparkle);
 
   // The building last clicked: its text along the bar, and its name on a stone tag above a drawn one
   // (the user's pictures, laid over the screen, would hide a tag; theirs is ringed in light instead).
@@ -152,6 +173,11 @@ export function drawCityView(s: Surface, state: GameState, view: CityViewState):
     drawText(s, tx + 3, ty + 2, info.name, INK);
   }
   drawStone(s, 0, BAR_Y, SCREEN_W, SCREEN_H - BAR_Y);
+  if (view.banner) {
+    // The news along the bar in spaced gold capitals: the wonder's show has no Back.
+    drawSpaced(s, SCREEN_W / 2, BAR_Y + 3, view.banner.toUpperCase(), shade("wheat", 1));
+    return;
+  }
   const line = info ? (textWidth(`${info.name}: ${info.text}`) <= BACK.x - 8 ? `${info.name}: ${info.text}` : info.name) : "Click a building to name it   Esc Back";
   drawText(s, 4, BAR_Y + 3, line, info ? INK : DIM);
   s.rect(BACK.x, BACK.y, BACK.w, BACK.h, C.RED!);

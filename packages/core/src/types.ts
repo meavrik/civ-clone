@@ -254,6 +254,8 @@ export interface GameState {
    * squares next to cities (from version 10), not a civilization's land and a square beyond (`visibility.ts`).
    */
   narrowSight?: boolean;
+  /** A wonder bought at an improvement's price, two gold a shield, as before version 31 (now four: "wonders too easy"). */
+  cheapWonderBuy?: boolean;
   /** Every city's land is the 21 squares it works, whatever its culture. Set for saves before version 12. */
   fixedBorders?: boolean;
   /** Culture mounts every turn (`City.culture`, `cultureRate`) rather than being what a city's people, buildings and wonders make it. Set for saves before version 14. */

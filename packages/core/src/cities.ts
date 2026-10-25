@@ -833,7 +833,9 @@ export function buyCost(state: GameState, city: City): number {
   const cost = costFor(state, city.owner, city.production);
   const remaining = Math.max(0, cost - city.shields);
   if (remaining === 0) return 0;
-  const base = city.production.kind === "unit" ? 2 * remaining + (remaining * remaining) / 20 : 2 * remaining;
+  // A wonder costs twice an improvement's price, as the original charged (since version 30; `cheapWonderBuy` before).
+  const perShield = city.production.kind === "wonder" && !state.cheapWonderBuy ? 4 : 2;
+  const base = city.production.kind === "unit" ? 2 * remaining + (remaining * remaining) / 20 : perShield * remaining;
   return Math.ceil(city.shields === 0 ? base * 2 : base);
 }
 

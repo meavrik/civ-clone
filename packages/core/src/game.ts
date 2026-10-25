@@ -50,6 +50,8 @@ export interface NewGameOptions extends MapGenOptions {
   noTrespass?: boolean;
   /** Sight round units and next to cities only, not over a civilization's land (see `GameState.narrowSight`). Old saves load with it. */
   narrowSight?: boolean;
+  /** Wonders bought at an improvement's price (see `GameState.cheapWonderBuy`). Old saves load with it. */
+  cheapWonderBuy?: boolean;
   /** Each city's land is the 21 squares it works; borders never grow with culture. Old saves load with it. */
   fixedBorders?: boolean;
   /** Our first culture: gathered every turn, not what a city's people and buildings make it. Old saves load with it. */
@@ -243,6 +245,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.farContact ? { farContact: true } : {}),
     ...(opts.noTrespass ? { noTrespass: true } : {}),
     ...(opts.narrowSight ? { narrowSight: true } : {}),
+    ...(opts.cheapWonderBuy ? { cheapWonderBuy: true } : {}),
     ...(opts.fixedBorders ? { fixedBorders: true } : {}),
     ...(opts.accruedCulture ? { accruedCulture: true } : {}),
     ...(opts.peaceOnContact ? { peaceOnContact: true } : {}),

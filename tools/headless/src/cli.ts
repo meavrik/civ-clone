@@ -38,6 +38,7 @@ interface Options {
   noInfluenceYields: boolean;
   sizeFreeUnits: boolean;
   narrowSight: boolean;
+  cheapWonderBuy: boolean;
 }
 
 const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
@@ -69,12 +70,13 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --no-influence-yields  no trade from specials beyond a city's worked squares (saves before version 28)
   --size-free-units  free units by city size under Despotism, settlers free of shields (saves before version 29)
   --narrow-sight   sight round units and next to cities only, scouts one square (saves before version 30)
+  --cheap-wonder-buy  wonders bought at an improvement.s price, two gold a shield (saves before version 31)
   --verify        replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -116,6 +118,7 @@ function parseArgs(argv: string[]): Options {
       case "no-influence-yields": o.noInfluenceYields = true; break;
       case "size-free-units": o.sizeFreeUnits = true; break;
       case "narrow-sight": o.narrowSight = true; break;
+      case "cheap-wonder-buy": o.cheapWonderBuy = true; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
       default: throw new Error(`unknown option --${key}\n\n${HELP}`);
@@ -241,6 +244,7 @@ function main(argv: string[]): number {
       ...(o.noInfluenceYields ? { noInfluenceYields: true } : {}),
       ...(o.sizeFreeUnits ? { sizeFreeUnits: true } : {}),
       ...(o.narrowSight ? { narrowSight: true } : {}),
+      ...(o.cheapWonderBuy ? { cheapWonderBuy: true } : {}),
     });
     if (!o.quiet && o.every > 0) {
       console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).join(", ")}`);

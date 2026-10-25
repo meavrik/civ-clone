@@ -29,6 +29,10 @@ export interface PicturePlace {
   z?: number;
   /** Ringed in light (the building last clicked in the city view). */
   glow?: boolean;
+  /** How much of it stands, from its foot up, 0..1: a wonder rising in the city view; absent, whole. */
+  reveal?: number;
+  /** Darkened, as the screen it stands on is under a window. */
+  dim?: boolean;
 }
 
 /** The audience picture of civilization `player`'s leader, at a box of the canvas; null if it has none. */
@@ -56,7 +60,7 @@ export function buildingPlaces(spots: ArtSpot[], screen: { dx: number; logicalW:
   const out: PicturePlace[] = [];
   spots.forEach((spot, z) => {
     const box = artPlace(spot);
-    if (box) out.push({ url: buildingUrl(spot.id), fit: "fill", ...box, x: box.x + screen.dx, logicalW: screen.logicalW, logicalH: screen.logicalH, z, ...(spot.lit ? { glow: true } : {}) });
+    if (box) out.push({ url: buildingUrl(spot.id), fit: "fill", ...box, x: box.x + screen.dx, logicalW: screen.logicalW, logicalH: screen.logicalH, z, ...(spot.lit ? { glow: true } : {}), ...(spot.reveal !== undefined ? { reveal: spot.reveal } : {}), ...(spot.dim ? { dim: true } : {}) });
   });
   return out;
 }
@@ -126,12 +130,16 @@ export function showPictures(canvas: HTMLCanvasElement, places: PicturePlace[]):
     used.add(slot);
     const sx = r!.width / at.logicalW, sy = r!.height / at.logicalH;
     const box = [r!.left + at.x * sx, r!.top + at.y * sy, at.w * sx, at.h * sy].map((v) => Math.round(v * 100) / 100);
-    const key = `${at.fit} ${box.join(" ")} ${at.z ?? 0} ${at.glow ? 1 : 0}`;
+    const reveal = at.reveal ?? 1;
+    const key = `${at.fit} ${box.join(" ")} ${at.z ?? 0} ${at.glow ? 1 : 0} ${reveal.toFixed(3)} ${at.dim ? 1 : 0}`;
     if (key === slot.key) continue;
+    // A rising picture shows from its foot up (clipped from the top); one under a window is darkened with the screen.
+    const filters = [at.glow ? "drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)" : "", at.dim ? "brightness(45%)" : ""].filter(Boolean);
     Object.assign(slot.img.style, {
       display: "block", left: `${box[0]}px`, top: `${box[1]}px`, width: `${box[2]}px`, height: `${box[3]}px`,
       objectFit: at.fit === "contain" ? "contain" : "fill", objectPosition: "50% 100%",
-      zIndex: String(1 + (at.z ?? 0)), filter: at.glow ? "drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)" : "none",
+      zIndex: String(1 + (at.z ?? 0)), filter: filters.length ? filters.join(" ") : "none",
+      clipPath: reveal < 1 ? `inset(${((1 - reveal) * 100).toFixed(1)}% 0 0 0)` : "none",
     });
     slot.key = key;
   }

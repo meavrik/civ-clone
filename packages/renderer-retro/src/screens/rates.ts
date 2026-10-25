@@ -4,7 +4,7 @@ import { drawText, textWidth } from "../font.js";
 import { drawIcon, drawIconLine, ICON } from "../icons.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { DIM, dimScreen, drawButton, drawCloseBox, drawWindow, FADED, INK, TITLE_H } from "../widgets.js";
+import { DIM, dimScreen, hideArtUnder, drawButton, drawCloseBox, drawWindow, FADED, INK, TITLE_H } from "../widgets.js";
 
 /**
  * The rates window (redone 2026-10-24, asked for: the old full-screen bars were "not good"): a stone
@@ -89,6 +89,7 @@ export function drawRatesScreen(s: Surface, state: GameState): void {
   s.rect(o.x + 3, o.y + o.h, o.w, 2, C.BLACK!);
   s.rect(o.x + o.w, o.y + 3, 2, o.h - 1, C.BLACK!);
   dimScreen(s);
+  hideArtUnder(s, o);
   drawWindow(s, o.x, o.y, o.w, o.h, `Tax Rates: up to ${max * 10}% under ${gov.name}`);
   drawCloseBox(s, o.x + o.w - 3 - (TITLE_H - 2), o.y + 3);
 

@@ -237,7 +237,15 @@ Never ship the original's sprites, palette art, fonts or text.
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
   the Building Completed window (`built.ts`, `builtCard`; asked for 2026-10-24 with the user's template; retro
   `screens/built.ts`, modern a plain modal), a small window over the game since 2026-10-24 ("should be a
-  modal opened on top of the game and not a full screen window"; the web app draws the screen under it,
+  modal opened on top of the game and not a full screen window"; smaller since the evening of 2026-10-24,
+  "minimize the building complete window": `builtRect` 204x128, the picture 54 square at the left, the
+  words beside it with no Description heading; a wonder first rises in its city's picture (the web app's
+  `wonderShow` screen: the city view with `CityViewState.rising`, the user's picture clipped from the
+  top (`ArtSpot.reveal`, `PicturePlace.reveal`) or the drawn one copied from its ground line up, over
+  1.8 s, then sparkles round it for 1.6 s (`drawSparkles`) with the news along the bar (`banner`), a key or
+  click after 0.4 s ending it; "a new wonder build WOW effect, the construction in fast forward") and
+  its window opens over that picture, darkened with it (`ArtSpot.dim`: the pictures under a window take
+  `brightness(45%)`); the web app draws the screen under it,
   `under`): a navy title strip (hammer, BUILDING/WONDER/SPACESHIP PART COMPLETED, close box), the name
   large over "Completed in Rome", the user's picture on a slate bed, a parchment panel with Description
   (`text` on each rule in `rules/buildings.ts`, `wonders.ts`, `spaceship.ts`) and City Effects (icon and
@@ -333,7 +341,9 @@ Never ship the original's sprites, palette art, fonts or text.
   behind them; `pictures.ts` in the web app as for the audience. `Renderer.setup`/`setupHit`; the web app lights
   the card under the pointer and picks it on a click (a first tap on the phone lights it); arrows move in
   two dimensions, Enter picks. Modern shows the cards' labels as its old menu.
-  Map clicks (asked for 2026-10-22): left-click opens our city or picks our unit as ever; a square
+  Map clicks (asked for 2026-10-22): left-click opens our city (next door to the unit in play it moves
+  the unit in instead, asked for 2026-10-24: "can't move with a mouse units into a city"; with the unit
+  inside, or none in play, the city opens) or picks our unit as ever; a square
   holding several of ours lists them in a window (`openStack` in the web app; `MenuState.units` puts
   each unit's sprite before its row, the row grown to hold it, with its standing at the right: Fortified,
   Sentry, Going, Mining 3, Ready, No moves; asked for 2026-10-24) and the one picked wakes and comes
@@ -454,7 +464,7 @@ Never ship the original's sprites, palette art, fonts or text.
   each advance): every advance found (end of turn, village, diplomat, treaty, Debug) gets one, in turn
   (`announce` in the web app), before the research panel; a small window over the game since 2026-10-24
   (`modalRect`, 236x147, centred on the screen it opens over, which the web app draws first: the
-  screen's `back`; the Building Completed window shares the size and frame). Windows grow into place as
+  screen's `back`; the Building Completed window shares the frame, smaller: `builtRect`). Windows grow into place as
   they open (asked for 2026-10-24, "animate window modals entrance"): `WINDOW_ENTER_MS` (160) from two
   fifths of their size, `enter` 0..1 on `NewTechView`, `BuiltView` and `MenuState` (the web app's
   `enterOf`, timed from the window's first frame; dropdowns never), retro's `drawEntering` drawing the
@@ -822,6 +832,9 @@ text), second special resources with reaches (save version 20; the branch's own 
    `npm run headless -- --ai planner,v2 --games 16 --turns 300 --verify` (8-game runs are too noisy to trust;
    at the default 200 turns the two are close, 124 vs 120: v3 pulls ahead later, with colonies and campaigns).
 3. Every wonder is bound (Great Library, sea-move wonders, SETI, Hoover, Women's Suffrage, UN).
+   A wonder costs twice an improvement's price to buy, four gold a shield (eight with an empty box), as the
+   original charged (save version 31, asked for 2026-10-24: "wonders are now too easy to build"; saves
+   before load with `cheapWonderBuy`, headless `--cheap-wonder-buy`).
    Caravans done (help wonder, trade routes: mutual `City.routes`, bonus on opening, route trade in
    `computeCity`). Pollution (per-city chance from shields and industrial population, halved tile output, settler
    clean-up, global warming when it spreads), railroads (free moves, +50% shields) and fortresses
