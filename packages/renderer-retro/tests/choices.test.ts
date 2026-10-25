@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { setupCards, setupMenu, type MenuState, type SetupState } from "@civ/renderer-api";
-import { choiceAt, choicesRect, drawChoices, drawSetupChoose, drawSetupScreen, drawTitleScreen, isStone, ORDER_CHOICES, SETUP_CHOICES, setupChooseAt, setupChooseRect, setupPictureSpots, Surface } from "../src/index.js";
+import { choiceAt, choicesRect, drawChoices, drawSetupChoose, drawSetupScreen, drawTitleScreen, isStone, ORDER_CHOICES, ORDER_CHOICES_SMALL, SETUP_CHOICES, setupChooseAt, setupChooseRect, setupPictureSpots, Surface, TITLE_H, TITLE_H_LARGE } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 const setup = (step: SetupState["step"], extra: Partial<SetupState> = {}): SetupState =>
@@ -48,13 +48,19 @@ describe("menus as buttons (the phone app)", () => {
   it("lay a unit's orders two across, three when two would run off the screen, at their anchor", () => {
     const orders = (n: number): MenuState => ({ title: "Settlers: orders", items: Array.from({ length: n }, (_, i) => `Order ${i}`), selected: 0, anchor: { x: 300, y: 150 } });
     const nine = choicesRect(orders(9), 406, ORDER_CHOICES)!;
-    expect(nine.h).toBe(17 + 5 * ORDER_CHOICES.h + 4 * ORDER_CHOICES.gap + 8);
+    expect(nine.h).toBe(TITLE_H_LARGE + 6 + 5 * ORDER_CHOICES.h + 4 * ORDER_CHOICES.gap + 8);
     // At its anchor, kept on the screen.
     expect(nine.x + nine.w).toBeLessThanOrEqual(406);
     expect(nine.y + nine.h).toBeLessThanOrEqual(200);
     const many = choicesRect(orders(18), 406, ORDER_CHOICES)!;
     expect(many.h).toBeLessThanOrEqual(200);
-    expect(many.h).toBeLessThan(17 + 9 * ORDER_CHOICES.h + 8);
+    expect(many.h).toBeLessThan(TITLE_H_LARGE + 6 + 9 * ORDER_CHOICES.h + 8);
+    // Orders too long for large words two or three across on a narrow screen fall back to the font's own size.
+    const long: MenuState = { ...orders(14), items: Array.from({ length: 14 }, (_, i) => `Diplomat: establish embassy ${i}`) };
+    const small = choicesRect(long, 320, ORDER_CHOICES)!;
+    expect(small).toEqual(choicesRect(long, 320, ORDER_CHOICES_SMALL));
+    expect(small.h).toBeLessThanOrEqual(200);
+    expect(TITLE_H).toBeLessThan(TITLE_H_LARGE);
     // Each order's button answers over its whole face, the gaps between them to none.
     const areas = hitAreas(orders(9), 406, ORDER_CHOICES);
     for (const a of areas) expect(a).toBe(areas[0]);

@@ -676,16 +676,24 @@ Never ship the original's sprites, palette art, fonts or text.
   asks for landscape, `touch.ts` locks it where the browser lets a page, and held upright index.html shows
   "Turn your phone sideways" over the game.
   Menus are sized for a finger (asked for 2026-10-25: "some menus are too small and hard to click",
-  the web game unchanged): its renderer hands `TOUCH_MENU` (widgets.ts `MenuSize`: rows 15, closing up
-  to 13 at most, buttons 19 tall and 72 wide, a scroll bar 10 wide) to `drawMenu`, `menuHit`, `menuRows`,
-  `menuScrollAt` and `menuRect`, whose default is the original's `DESK_MENU` (pixel for pixel as before);
+  the web game unchanged): its renderer hands `TOUCH_MENU` (widgets.ts `MenuSize`) to `drawMenu`,
+  `menuHit`, `menuRows`, `menuScrollAt` and `menuRect`, whose default is the original's `DESK_MENU`
+  (pixel for pixel as before). Its words are twice the font's size (asked for the same day: "only on
+  mobile - enlarge default font size", for windows and menus only: the map's panel, the city screen,
+  the research panel, the advisors and the New Technology, Building Completed and audience windows
+  keep the font's size): `MenuSize.text` 2 draws labels and paragraphs with `drawTextLarge`, the icons
+  among them doubled (`drawIconLarge`, `drawIconLine`'s `scale`), the title in a taller strip
+  (`TITLE_H_LARGE`, `drawWindow`'s `scale`), rows 19, buttons 22 tall and 80 wide, windows up to 92% of
+  the screen; a window that would run off the screen so falls back to `TOUCH_MENU_SMALL` (the font's
+  size, rows 15, buttons 19, a scroll bar 10 wide either way);
   a drag over a list too long for its window scrolls its rows (`scrollRows` in `menus.ts`, the choice
   staying on view). Where they fit, menus are stone buttons instead (renderer-retro `screens/choices.ts`,
   `drawChoices`/`choiceAt`/`choicesRect`; asked for the same day, "more on the starting game options"):
   every menu over the title screen (the title menu and the setup questions: civilizations, world, size,
   starts, the four customize questions) a column of large buttons with labels twice the font
   (`SETUP_CHOICES`, `drawButton`'s `scale`), and a unit's orders a grid two or three across
-  (`ORDER_CHOICES`), placed above the unit, else below, else beside it; ten load slots, or anything with
+  (`ORDER_CHOICES`, large words, falling back to `ORDER_CHOICES_SMALL`), placed above the unit, else
+  below, else beside it; ten load slots, or anything with
   text, stay rows. The setup cards (difficulty, tribe) get a Choose button in their panel
   (`drawSetupChoose`, `setupChooseAt`): a tap lights a card, Choose or a second tap picks it. The
   research panel, the city screen and the audience keep their sizes.

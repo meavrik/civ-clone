@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { keepInView, type MenuState } from "@civ/renderer-api";
-import { C, DESK_MENU, drawMenu, menuHit, menuRect, menuRows, menuScrollAt, Surface, TOUCH_MENU } from "../src/index.js";
+import { C, DESK_MENU, drawMenu, menuHit, menuRect, menuRows, menuScrollAt, Surface, TOUCH_MENU, TOUCH_MENU_SMALL } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 /** A city late in the game: more to build than the screen holds. */
@@ -125,5 +125,37 @@ describe("menus sized for a finger (the phone app)", () => {
     s.fill(C.BLACK!);
     drawMenu(s, m, undefined, TOUCH_MENU);
     writeFileSync(new URL("./out/menu-touch.png", import.meta.url), encodePng(s, 3));
+  });
+});
+
+describe("menus with large words (the phone app)", () => {
+  it("draw words twice the font's size where the window fits, else at the font's own", () => {
+    expect(TOUCH_MENU.text).toBe(2);
+    // A message of two lines and two buttons fits large: taller than the small one, and wider.
+    const modal: MenuState = { title: "Sell the Granary?", body: ["{purse} 60 gold for it  {coin} 120 in the treasury", "A city sells one building a turn."], items: ["Sell", "Keep it"], selected: 1 };
+    const big = menuRect(modal, 320, TOUCH_MENU);
+    const small = menuRect(modal, 320, TOUCH_MENU_SMALL);
+    expect(big.h).toBeGreaterThan(small.h);
+    expect(big.w).toBeGreaterThan(small.w);
+    expect(big.y + big.h).toBeLessThanOrEqual(200);
+    // Its buttons answer where they are drawn, each TOUCH_MENU.button tall.
+    const hits = new Map<number, number>();
+    for (let y = big.y; y < big.y + big.h; y++) { const i = menuHit(modal, 160, y, 320, TOUCH_MENU); if (i >= 0) hits.set(i, (hits.get(i) ?? 0) + 1); }
+    expect([...hits.values()]).toEqual([TOUCH_MENU.button, TOUCH_MENU.button]);
+    const s = Surface.screen();
+    s.fill(C.BLACK!);
+    drawMenu(s, modal, undefined, TOUCH_MENU);
+    writeFileSync(new URL("./out/menu-large.png", import.meta.url), encodePng(s, 3));
+    // A window of many lines would run off the screen at that size: it keeps the font's own.
+    const tall: MenuState = { title: "Grassland", body: Array.from({ length: 9 }, (_, i) => `Line ${i} of what the square holds`), items: [], selected: 0, close: true };
+    expect(menuRect(tall, 320, TOUCH_MENU)).toEqual(menuRect(tall, 320, TOUCH_MENU_SMALL));
+    expect(menuRect(tall, 320, TOUCH_MENU).h).toBeLessThanOrEqual(200);
+    // A dropdown's rows hold the large words; a long list still scrolls on the screen.
+    const bar: MenuState = { title: "", items: ["Tax Rate", "Find City", "Revolution!", "Borders: On", "Save Game", "Load Game", "Retire", "New Game"], selected: 0, anchor: { x: 0, y: 9 } };
+    expect(menuRect(bar, 320, TOUCH_MENU).h).toBe(3 + 8 * TOUCH_MENU.row + 3);
+    const list = longList(3);
+    expect(menuRows(list, 320, TOUCH_MENU)).toBeLessThan(list.items.length);
+    const lr = menuRect(list, 320, TOUCH_MENU);
+    expect(lr.y + lr.h).toBeLessThanOrEqual(200);
   });
 });

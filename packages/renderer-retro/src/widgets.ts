@@ -77,7 +77,18 @@ export function drawPanel(s: Surface, x: number, y: number, w: number, h: number
 export const TITLE_H = 11;
 
 /** A blue title strip across the top of a box, its caption left (or centred) and an optional figure at the right. */
-export function drawTitleStrip(s: Surface, x: number, y: number, w: number, title: string, opts: { right?: string; centred?: boolean; color?: number } = {}): void {
+/** A title strip for words twice the font's size (`scale` 2: the phone's windows), this tall. */
+export const TITLE_H_LARGE = 2 * FONT_HEIGHT + 3;
+
+type StripOpts = { right?: string; centred?: boolean; color?: number; scale?: 1 | 2 };
+
+export function drawTitleStrip(s: Surface, x: number, y: number, w: number, title: string, opts: StripOpts = {}): void {
+  if (opts.scale === 2) {
+    s.rect(x, y, w, TITLE_H_LARGE, opts.color ?? shade("azure", 1));
+    drawTextLarge(s, opts.centred ? x + Math.floor((w - textWidthLarge(title)) / 2) : x + 5, y + 2, title, C.WHITE!);
+    if (opts.right) drawTextLarge(s, x + w - 5 - textWidthLarge(opts.right), y + 2, opts.right, shade("azure", 7));
+    return;
+  }
   s.rect(x, y, w, TITLE_H, opts.color ?? shade("azure", 1));
   if (opts.centred) drawText(s, x + Math.floor((w - textWidth(title)) / 2), y + 2, title, C.WHITE!);
   else drawText(s, x + 4, y + 2, title, C.WHITE!);
@@ -85,7 +96,7 @@ export function drawTitleStrip(s: Surface, x: number, y: number, w: number, titl
 }
 
 /** A window: black rim, the stone, and a blue title strip when it has a title. */
-export function drawWindow(s: Surface, x: number, y: number, w: number, h: number, title: string, opts: { right?: string; centred?: boolean; color?: number } = {}): void {
+export function drawWindow(s: Surface, x: number, y: number, w: number, h: number, title: string, opts: StripOpts = {}): void {
   s.frame(x, y, w, h, C.BLACK!);
   drawStone(s, x + 1, y + 1, w - 2, h - 2);
   if (title || opts.right) drawTitleStrip(s, x + 2, y + 2, w - 4, title, opts);
@@ -182,8 +193,10 @@ export const SCROLL_W = 5;
 
 /**
  * How large a menu's parts are. The original's sizes (`DESK_MENU`) are the default everywhere; the
- * phone app passes `TOUCH_MENU` (asked for 2026-10-25: "some menus are too small and hard to click"),
- * whose rows and buttons a finger can hit on a screen 200 pixels tall shown about twice as large.
+ * phone app passes `TOUCH_MENU` (asked for 2026-10-25: "some menus are too small and hard to click",
+ * then "only on mobile - enlarge default font size"): rows and buttons a finger can hit, and words and
+ * icons twice the font's size, on a screen 200 pixels tall shown about twice as large. A window that
+ * would not fit the screen so is laid out at its `fallback` size (`TOUCH_MENU_SMALL`, the font's own).
  */
 export interface MenuSize {
   /** A list row's height, and the least a long list closes its rows up to before it scrolls instead. */
@@ -195,9 +208,18 @@ export interface MenuSize {
   buttonW: number;
   /** The scroll bar's width. */
   scroll: number;
+  /** Words (and the icons among them) at the font's size or twice it. */
+  text: 1 | 2;
+  /** A titled window is at least `minW` wide, and widens for its text up to `share` of the screen, never past `maxW`. */
+  minW: number;
+  share: number;
+  maxW: number;
+  /** The size to lay a window out at when it will not fit the screen at this one. */
+  fallback?: MenuSize;
 }
-export const DESK_MENU: MenuSize = { row: MENU_ROW, least: FONT_HEIGHT, button: FONT_HEIGHT + 4, buttonGap: 3, buttonW: 56, scroll: SCROLL_W };
-export const TOUCH_MENU: MenuSize = { row: 15, least: 13, button: 19, buttonGap: 4, buttonW: 72, scroll: 10 };
+export const DESK_MENU: MenuSize = { row: MENU_ROW, least: FONT_HEIGHT, button: FONT_HEIGHT + 4, buttonGap: 3, buttonW: 56, scroll: SCROLL_W, text: 1, minW: MODAL_MIN_W, share: MODAL_MAX_SHARE, maxW: 300 };
+export const TOUCH_MENU_SMALL: MenuSize = { ...DESK_MENU, row: 15, least: 13, button: 19, buttonGap: 4, buttonW: 72, scroll: 10 };
+export const TOUCH_MENU: MenuSize = { row: 19, least: 18, button: 22, buttonGap: 4, buttonW: 80, scroll: 10, text: 2, minW: 160, share: 0.92, maxW: 400, fallback: TOUCH_MENU_SMALL };
 
 interface MenuLayout {
   size: MenuSize;
@@ -236,31 +258,43 @@ function clearOf(p: { x: number; y: number }, x: number, y: number, w: number, h
   return [Math.max(0, p.x - AVOID - w), ty];
 }
 
-/** Where a menu goes on a screen `screenW` wide: centred, or at its anchor kept on the screen; its parts `size` large. */
+/**
+ * Where a menu goes on a screen `screenW` wide: centred, or at its anchor kept on the screen; its parts
+ * `size` large, or its `fallback` size when it would run off the screen so.
+ */
 function menuLayout(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): MenuLayout {
+  const l = layoutAt(m, screenW, size);
+  return size.fallback && (l.y + l.h > SCREEN_H || l.x + l.w > screenW) ? menuLayout(m, screenW, size.fallback) : l;
+}
+
+function layoutAt(m: MenuState, screenW: number, size: MenuSize): MenuLayout {
   const buttons = menuButtons(m);
+  const t = size.text;
+  const tw = (text: string) => (t === 2 ? textWidthLarge(text) : textWidth(text));
+  const lineH = FONT_HEIGHT * t;
   // Rows with a unit's sprite before them keep the sprite's height (or the row's, if taller) and never close up.
   const pic = m.units ? UNIT_PIC + 4 : 0;
   const unitRow = Math.max(UNIT_ROW, size.row);
   const least = m.units ? unitRow : size.least;
-  const itemW = Math.max(0, ...m.items.map((i, k) => pic + textWidth(i) + (m.right?.[k] ? textWidth(m.right[k]!) + 12 : 0)));
+  const itemW = Math.max(0, ...m.items.map((i, k) => pic + tw(i) + (m.right?.[k] ? tw(m.right[k]!) + 12 : 0)));
   const bw = buttons ? Math.max(size.buttonW, itemW + 16) : 0;
-  const head = m.title ? 16 : 3;
+  const titleH = t === 2 ? TITLE_H_LARGE : TITLE_H;
+  const head = m.title ? titleH + 5 : 3;
   const foot = m.title ? 6 : 3;
   // A list that will not fit even with its rows closed up scrolls at the usual row height, beside its bar.
-  const roomGuess = 200 - (m.anchor?.y ?? 0) - head - foot - (m.body?.length ? m.body.length * FONT_HEIGHT + 5 : 0);
+  const roomGuess = 200 - (m.anchor?.y ?? 0) - head - foot - (m.body?.length ? m.body.length * lineH + 5 : 0);
   const scrolls = !buttons && m.items.length * least > roomGuess;
-  const need = Math.max(textWidth(m.title) + 16 + (m.close ? TITLE_H : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? size.scroll + 4 : 0));
-  const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l))) + 20 : 0;
-  const w = Math.min(300, Math.max(need, Math.min(bodyW + (m.square ? SQUARE_SIDE : 0), Math.round(SCREEN_W * MODAL_MAX_SHARE)), m.title ? MODAL_MIN_W : 0, m.square ? SQUARE_WINDOW_W : 0));
+  const need = Math.max(tw(m.title) + 16 + (m.close ? titleH : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? size.scroll + 4 : 0));
+  const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l, t))) + 20 : 0;
+  const w = Math.min(size.maxW, screenW - 8, Math.max(need, Math.min(bodyW + (m.square ? SQUARE_SIDE : 0), Math.round(SCREEN_W * size.share)), m.title ? size.minW : 0, m.square ? SQUARE_WINDOW_W : 0));
   // The paragraphs that begin beside a map square's picture wrap to the room left of it.
   const lines: string[] = [];
   const indents: number[] = [];
   for (const l of m.body ?? []) {
-    const indent = m.square && lines.length * FONT_HEIGHT < SQUARE_FRAME ? SQUARE_SIDE : 0;
-    for (const piece of wrapIcons(l, w - 20 - indent)) { lines.push(piece); indents.push(indent); }
+    const indent = m.square && lines.length * lineH < SQUARE_FRAME ? SQUARE_SIDE : 0;
+    for (const piece of wrapIcons(l, Math.floor((w - 20 - indent) / t))) { lines.push(piece); indents.push(indent); }
   }
-  const bodyH = lines.length || m.square ? Math.max(lines.length * FONT_HEIGHT, m.square ? SQUARE_FRAME + 2 : 0) + 5 : 0;
+  const bodyH = lines.length || m.square ? Math.max(lines.length * lineH, m.square ? SQUARE_FRAME + 2 : 0) + 5 : 0;
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
   const room = 200 - (m.anchor?.y ?? 0) - head - bodyH - foot;
   const fits = m.items.length * least <= room;
@@ -356,14 +390,19 @@ export function drawMenu(s: Surface, m: MenuState, square?: (s: Surface, x: numb
   drawMenuNow(s, m, square, size);
 }
 
-function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, y: number) => void) | undefined, size: MenuSize): void {
-  const l = menuLayout(m, s.width, size);
-  const { x, y, w, h, lines, indents, itemsY, row, buttons, bx, bw, rows, top } = l;
+function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, y: number) => void) | undefined, wanted: MenuSize): void {
+  const l = menuLayout(m, s.width, wanted);
+  const { size, x, y, w, h, lines, indents, itemsY, row, buttons, bx, bw, rows, top } = l;
+  // Words twice the font's size (the phone's), or the font's own.
+  const t = size.text;
+  const lineH = FONT_HEIGHT * t;
+  const write = (tx: number, ty: number, text: string, ink: number) => (t === 2 ? drawTextLarge(s, tx, ty, text, ink) : drawText(s, tx, ty, text, ink));
+  const titleH = t === 2 ? TITLE_H_LARGE : TITLE_H;
   const scrolls = rows < m.items.length;
   if (m.title) hideArtUnder(s, { x, y, w, h });
-  drawWindow(s, x, y, w, h, m.title);
-  if (m.close && m.title) drawCloseBox(s, x + w - 3 - (TITLE_H - 2), y + 3);
-  const bodyY = y + (m.title ? 17 : 4);
+  drawWindow(s, x, y, w, h, m.title, t === 2 ? { scale: 2 } : {});
+  if (m.close && m.title) drawCloseBox(s, x + w - 3 - (titleH - 2), y + 3, titleH - 2);
+  const bodyY = y + (m.title ? titleH + 6 : 4);
   if (m.square) {
     // The square in a dark frame, sunk into the stone: shade along the top and left, light along the foot and right.
     const fx = x + 10;
@@ -375,7 +414,7 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     if (square) square(s, fx + 2, fy + 2);
     else s.rect(fx + 2, fy + 2, SQUARE_PIC, SQUARE_PIC, C.BLACK!);
   }
-  lines.forEach((line, i) => drawIconLine(s, x + 10 + (indents[i] ?? 0), bodyY + i * FONT_HEIGHT, line, C.BLACK!));
+  lines.forEach((line, i) => drawIconLine(s, x + 10 + (indents[i] ?? 0), bodyY + i * lineH, line, C.BLACK!, t));
   if (lines.length && m.items.length) {
     s.hline(x + 4, itemsY - 4, w - 8, shade("panel", 2));
     s.hline(x + 4, itemsY - 3, w - 8, shade("panel", 7));
@@ -385,7 +424,7 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     const off = m.disabled?.includes(i) === true;
     const sel = i === m.selected && !off;
     if (buttons) {
-      drawButton(s, bx, itemsY + 1 + i * (size.button + size.buttonGap), bw, size.button, item, !off, sel);
+      drawButton(s, bx, itemsY + 1 + i * (size.button + size.buttonGap), bw, size.button, item, !off, sel, t);
       return;
     }
     if (i < top || i >= top + rows) return;
@@ -393,11 +432,11 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     if (sel) s.rect(x + 4, ry - 1, rowW, row, shade("azure", 2));
     // A unit's sprite before the row, the words (and the sprite) in the middle of the row's height.
     const unit = m.units?.[i];
-    const ty = unit ? ry + Math.floor((row - FONT_HEIGHT) / 2) - 1 : ry + Math.max(0, Math.floor((row - MENU_ROW) / 2));
+    const ty = unit ? ry + Math.floor((row - lineH) / 2) - 1 : ry + Math.max(0, Math.floor((row - lineH - 1) / 2));
     if (unit) s.blit(unitSprite(unit.type, slotColor(unit.color)), x + 8, ry + Math.floor((row - UNIT_ROW) / 2), SPRITE_CLEAR);
-    drawText(s, x + 10 + (unit ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : C.BLACK!);
+    write(x + 10 + (unit ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : C.BLACK!);
     const r = m.right?.[i];
-    if (r) drawText(s, x + 4 + rowW - 6 - textWidth(r), ty, r, off ? FADED : sel ? shade("azure", 7) : DIM);
+    if (r) write(x + 4 + rowW - 6 - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? shade("azure", 7) : DIM);
   });
   if (scrolls) drawScrollBar(s, m, l);
 }
@@ -421,9 +460,8 @@ export function drawScrollTrack(s: Surface, b: ScrollTrack, moreUp: boolean, mor
   }
 }
 
-/** A window's close box: a small stone button in its title strip with an X on it. */
-export function drawCloseBox(s: Surface, x: number, y: number): void {
-  const n = TITLE_H - 2;
+/** A window's close box: a small stone button in its title strip with an X on it, `n` a side. */
+export function drawCloseBox(s: Surface, x: number, y: number, n = TITLE_H - 2): void {
   drawButton(s, x, y, n, n, "");
   for (let i = 0; i < n - 4; i++) {
     s.set(x + 2 + i, y + 2 + i, C.BLACK!);
@@ -432,8 +470,8 @@ export function drawCloseBox(s: Surface, x: number, y: number): void {
 }
 
 /** Row index under a screen point, or -1. */
-export function menuHit(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): number {
-  const { x, w, itemsY, row, buttons, bx, bw, rows, top } = menuLayout(m, screenW, size);
+export function menuHit(m: MenuState, px: number, py: number, screenW = SCREEN_W, wanted = DESK_MENU): number {
+  const { size, x, w, itemsY, row, buttons, bx, bw, rows, top } = menuLayout(m, screenW, wanted);
   if (buttons) {
     const off = py - itemsY - 1;
     const pitch = size.button + size.buttonGap;

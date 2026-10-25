@@ -1,5 +1,5 @@
 import { hasIcons, iconSegments, wrapIconLine, type IconName } from "@civ/renderer-api";
-import { drawText, textWidth, wrapText } from "./font.js";
+import { drawText, drawTextLarge, textWidth, textWidthLarge, wrapText } from "./font.js";
 import { ICON_SHEET, spriteSurface } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import type { Surface } from "./surface.js";
@@ -13,6 +13,18 @@ export function drawIcon(s: Surface, name: IconName, x: number, y: number, lit?:
   if (!sprite) return;
   if (lit !== undefined && sprite.k === s.k) s.halo(sprite, x, y, SPRITE_CLEAR, lit);
   s.blit(sprite, x, y, SPRITE_CLEAR);
+}
+
+/** An icon twice its size (the phone's large text), each of its fine pixels a block of two by two. */
+export function drawIconLarge(s: Surface, name: IconName, x: number, y: number): void {
+  const sprite = spriteSurface(ICON_SHEET, name);
+  if (!sprite) return;
+  const f = (2 * s.k) / sprite.k;
+  for (let fy = 0; fy < sprite.fh; fy++)
+    for (let fx = 0; fx < sprite.fw; fx++) {
+      const c = sprite.fget(fx, fy);
+      if (c !== SPRITE_CLEAR) s.frect(x * s.k + fx * f, y * s.k + fy * f, f, f, c);
+    }
 }
 
 /** An icon with its cell's top left at fine pixel (fx, fy) (two to a screen pixel). */
@@ -52,16 +64,20 @@ export function drawMark(s: Surface, name: MarkName, fx: number, fy: number): vo
 }
 
 /** Width of a line that may carry {icon} tokens. */
-export function iconLineWidth(line: string): number {
+export function iconLineWidth(line: string, scale: 1 | 2 = 1): number {
   let w = 0;
-  for (const seg of iconSegments(line)) w += "icon" in seg ? ICON + 1 : textWidth(seg.text);
+  for (const seg of iconSegments(line)) w += "icon" in seg ? scale * (ICON + 1) : scale === 2 ? textWidthLarge(seg.text) : textWidth(seg.text);
   return w;
 }
 
-/** Draw a line with {icon} tokens, text in `color`; returns the x just after it. */
-export function drawIconLine(s: Surface, x: number, y: number, line: string, color: number): number {
+/** Draw a line with {icon} tokens, text in `color` (`scale` 2: icons and letters twice their size); returns the x just after it. */
+export function drawIconLine(s: Surface, x: number, y: number, line: string, color: number, scale: 1 | 2 = 1): number {
   for (const seg of iconSegments(line)) {
-    if ("icon" in seg) { drawIcon(s, seg.icon, x, y); x += ICON + 1; }
+    if ("icon" in seg) {
+      if (scale === 2) drawIconLarge(s, seg.icon, x, y);
+      else drawIcon(s, seg.icon, x, y);
+      x += scale * (ICON + 1);
+    } else if (scale === 2) x = drawTextLarge(s, x, y, seg.text, color);
     else { drawText(s, x, y, seg.text, color); x += textWidth(seg.text); }
   }
   return x;

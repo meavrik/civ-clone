@@ -2,7 +2,7 @@ import type { MenuState } from "@civ/renderer-api";
 import { textWidth, textWidthLarge } from "../font.js";
 import { SCREEN_H } from "../surface.js";
 import type { Surface } from "../surface.js";
-import { dimScreen, drawButton, drawCloseBox, drawEntering, drawWindow, hideArtUnder, TITLE_H } from "../widgets.js";
+import { dimScreen, drawButton, drawCloseBox, drawEntering, drawWindow, hideArtUnder, TITLE_H, TITLE_H_LARGE } from "../widgets.js";
 
 /**
  * A menu drawn as stone buttons, a grid of them, for a finger (the phone app; asked for 2026-10-25:
@@ -20,15 +20,19 @@ export interface ChoiceStyle {
   scale: 1 | 2;
   /** A window with no title (the title screen's) keeps below this line, clear of the game's name. */
   top?: number;
+  /** The style to lay the menu out in when it will not fit the screen in this one. */
+  fallback?: ChoiceStyle;
 }
 
 /** The starting game's questions (the title screen's menu, the number of civilizations, the world...): a column of large buttons. */
 export const SETUP_CHOICES: ChoiceStyle = { columns: 1, h: 24, gap: 4, minW: 150, scale: 2, top: 44 };
-/** A unit's orders: two buttons across, tall enough for a finger. */
-export const ORDER_CHOICES: ChoiceStyle = { columns: 2, h: 20, gap: 3, minW: 72, scale: 1 };
+/** A unit's orders as the font's own size, two buttons across, tall enough for a finger. */
+export const ORDER_CHOICES_SMALL: ChoiceStyle = { columns: 2, h: 20, gap: 3, minW: 72, scale: 1 };
+/** A unit's orders: words twice the font's size, two buttons across (or three), else as ORDER_CHOICES_SMALL. */
+export const ORDER_CHOICES: ChoiceStyle = { columns: 2, h: 22, gap: 3, minW: 80, scale: 2, fallback: ORDER_CHOICES_SMALL };
 
 interface Rect { x: number; y: number; w: number; h: number }
-interface ChoicesLayout extends Rect { buttons: Rect[] }
+interface ChoicesLayout extends Rect { buttons: Rect[]; style: ChoiceStyle }
 
 const PAD = 8;
 
@@ -38,15 +42,20 @@ const PAD = 8;
  */
 function choicesLayout(m: MenuState, screenW: number, style: ChoiceStyle): ChoicesLayout | null {
   if (!m.items.length || m.body?.length || m.square || m.units) return null;
+  return layoutIn(m, screenW, style) ?? (style.fallback ? choicesLayout(m, screenW, style.fallback) : null);
+}
+
+function layoutIn(m: MenuState, screenW: number, style: ChoiceStyle): ChoicesLayout | null {
   const n = m.items.length;
   const label = (t: string) => (style.scale === 2 ? textWidthLarge(t) : textWidth(t));
   const bw = Math.max(style.minW, ...m.items.map((t) => label(t) + 16));
-  const head = m.title ? TITLE_H + 6 : PAD;
+  const titleH = style.scale === 2 ? TITLE_H_LARGE : TITLE_H;
+  const head = m.title ? titleH + 6 : PAD;
   const foot = PAD;
   for (let cols = Math.min(style.columns, n); cols <= Math.min(3, n); cols++) {
     const rows = Math.ceil(n / cols);
     const block = { w: cols * bw + (cols - 1) * style.gap, h: rows * style.h + (rows - 1) * style.gap };
-    const w = Math.max(block.w + 2 * PAD, m.title ? textWidth(m.title) + 16 + (m.close ? TITLE_H : 0) : 0);
+    const w = Math.max(block.w + 2 * PAD, m.title ? label(m.title) + 16 + (m.close ? titleH : 0) : 0);
     const h = head + block.h + foot;
     if (w > screenW || h > SCREEN_H) continue;
     let x: number;
@@ -62,7 +71,7 @@ function choicesLayout(m: MenuState, screenW: number, style: ChoiceStyle): Choic
     const bx = x + Math.floor((w - block.w) / 2);
     const by = y + head;
     const buttons = m.items.map((_, i) => ({ x: bx + (i % cols) * (bw + style.gap), y: by + Math.floor(i / cols) * (style.h + style.gap), w: bw, h: style.h }));
-    return { x, y, w, h, buttons };
+    return { x, y, w, h, buttons, style };
   }
   return null;
 }
@@ -95,13 +104,15 @@ export function drawChoices(s: Surface, m: MenuState, style: ChoiceStyle): void 
   if (!l) return;
   if (m.title && !m.anchor) dimScreen(s);
   if (m.title) hideArtUnder(s, l);
+  const scale = l.style.scale;
+  const titleH = scale === 2 ? TITLE_H_LARGE : TITLE_H;
   const draw = (t: Surface) => {
-    drawWindow(t, l.x, l.y, l.w, l.h, m.title);
-    if (m.close && m.title) drawCloseBox(t, l.x + l.w - 3 - (TITLE_H - 2), l.y + 3);
+    drawWindow(t, l.x, l.y, l.w, l.h, m.title, { scale });
+    if (m.close && m.title) drawCloseBox(t, l.x + l.w - 3 - (titleH - 2), l.y + 3, titleH - 2);
     m.items.forEach((item, i) => {
       const b = l.buttons[i]!;
       const off = m.disabled?.includes(i) === true;
-      drawButton(t, b.x, b.y, b.w, b.h, item, !off, i === m.selected && !off, style.scale);
+      drawButton(t, b.x, b.y, b.w, b.h, item, !off, i === m.selected && !off, scale);
     });
   };
   if (m.enter !== undefined && m.enter < 1 && !m.anchor) drawEntering(s, m.enter, l, draw);

@@ -72,7 +72,7 @@ function panelInset(b: Box): Box {
  * a card on its way: a tap lights a card and tells of it, Choose (or a second tap) picks it. The web
  * game draws none: its pointer lights the cards and a click picks.
  */
-const CHOOSE = { w: 56, h: 17 };
+const CHOOSE = { w: 72, h: 21 };
 
 /** Where the panel's Choose button stands. */
 export function setupChooseRect(cards: SetupCards): Box {
@@ -89,7 +89,7 @@ export function setupChooseAt(cards: SetupCards, px: number, py: number): boolea
 /** The panel's Choose button, lit: it picks the card the panel tells of. */
 export function drawSetupChoose(s: Surface, cards: SetupCards): void {
   const b = setupChooseRect(cards);
-  drawButton(s, b.x, b.y, b.w, b.h, "Choose", true, true);
+  drawButton(s, b.x, b.y, b.w, b.h, "Choose", true, true, 2);
 }
 
 /** The card under a point, or -1. */
