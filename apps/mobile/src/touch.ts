@@ -4,7 +4,7 @@ import { game, press, screenKind } from "./civ.js";
 import { canvas, displayScale, logicalAt } from "./display.js";
 import { GESTURES, Pinch, Recognizer, type Gesture } from "./gestures.js";
 import { rateKeys } from "./rates.js";
-import { mapZoom, narrowPoint, ordersAbove, pan, scrollMenu, setMapZoom, shown, TILE_PX, tileUnder, ZOOMS } from "./renderer.js";
+import { chooseAt, mapZoom, narrowPoint, ordersAbove, pan, scrollMenu, setMapZoom, shown, TILE_PX, tileUnder, ZOOMS } from "./renderer.js";
 import { screenW } from "./display.js";
 import { syncText } from "./text.js";
 
@@ -14,9 +14,10 @@ import { syncText } from "./text.js";
  * a city screen its improvements, in a long menu its rows), and two fingers on the map pinch it in or
  * out (`ZOOMS`).
  * There are no buttons beside the screen, so the few things the game takes from keys only are
- * touches here: a tap on our unit opens its orders just above it (the menu bar has no Orders on a
- * phone), a touch on a rates bar sets that rate, a tap on a spaceship ready to go asks to launch
- * it, and a press held on a city renames it. A real mouse is left to the browser.
+ * touches here: a tap or a held finger on our unit opens its orders just above it (the menu bar has
+ * no Orders on a phone), a tap on a setup card's Choose button picks it, a touch on a rates bar sets
+ * that rate, a tap on a spaceship ready to go asks to launch it, and a press held on a city screen
+ * renames the city. A real mouse is left to the browser.
  */
 const fingers = new Recognizer();
 const ring = document.getElementById("ring")!;
@@ -49,16 +50,20 @@ function setRate(x: number, y: number, held: boolean): boolean {
 }
 
 /**
- * A tap on a square of the map where our units stand (not in a city, which opens as ever): one of
- * them comes into play as the game picks it, and its orders open over it (the game's Esc).
+ * A tap, or a finger held (asked for 2026-10-25), on a square of the map where our units stand: one of
+ * them comes into play as the game picks it, and its orders open over it (the game's Esc), as buttons.
+ * In a city a tap opens the city as ever; a finger held there opens the orders of the unit in play
+ * when it stands in the city, else the square's window.
  */
-function ordersAt(x: number, y: number): boolean {
+function ordersAt(x: number, y: number, held = false): boolean {
   const st = game()?.state;
   const sq = tileUnder(...logicalAt(x, y));
-  if (!st || !sq || st.cities.some((c) => c.x === sq.x && c.y === sq.y)) return false;
+  if (!st || !sq) return false;
   const here = (id: number | null) => st.units.some((u) => u.id === id && u.x === sq.x && u.y === sq.y);
   if (!st.units.some((u) => u.owner === 0 && u.x === sq.x && u.y === sq.y)) return false;
-  if (!here(st.activeUnit)) click(x, y, 0);
+  if (st.cities.some((c) => c.x === sq.x && c.y === sq.y)) {
+    if (!held || !here(st.activeUnit)) return false;
+  } else if (!here(st.activeUnit)) click(x, y, 0);
   if (screenKind() === "menu") return true; // several of ours: the game lists them to pick from
   if (!here(st.activeUnit)) return true; // none of them can move this turn: the game said so
   ordersAbove(st.activeUnit);
@@ -81,6 +86,7 @@ function act(g: Gesture | null): void {
       showRing(g.x, g.y, "");
       if (screen === "rates" && setRate(g.x, g.y, false)) break;
       if (screen === "spaceship" && readyToLaunch()) { press("Enter", "Enter"); break; }
+      if (screen === "setup" && chooseAt(...logicalAt(g.x, g.y))) { press("Enter", "Enter"); break; }
       if (screen === "map" && ordersAt(g.x, g.y)) break;
       // A tap on the map shows that square: the view comes back from wherever it was dragged.
       if (screen === "map" && tileUnder(...logicalAt(g.x, g.y))) pan.letGo(performance.now());
@@ -92,6 +98,7 @@ function act(g: Gesture | null): void {
       showRing(g.x, g.y, "fired");
       navigator.vibrate?.(12);
       if (screen === "city") press("KeyN", "n"); // the city's name, in the game's prompt
+      else if (screen === "map" && ordersAt(g.x, g.y, true)) break; // our unit: its orders
       else click(g.x, g.y, 2);
       syncText();
       break;

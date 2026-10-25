@@ -189,6 +189,11 @@ export function drawTextLarge(s: Surface, x: number, y: number, text: string, co
   return x + Math.ceil((dx * f) / s.k);
 }
 
+/** Width of `drawTextLarge` text on the screen (two fine pixels to a screen pixel), in screen pixels. */
+export function textWidthLarge(text: string, scale = 2): number {
+  return Math.ceil((dotWidth(text) * scale) / 2);
+}
+
 /** Capitals spread a pixel apart, centred on `cx` (title strips). */
 export function drawSpaced(s: Surface, cx: number, y: number, text: string, color: number): void {
   const caps = text.toUpperCase();

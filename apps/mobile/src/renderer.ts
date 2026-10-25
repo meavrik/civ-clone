@@ -54,6 +54,15 @@ import {
   menuRows,
   menuScrollAt,
   TOUCH_MENU,
+  choiceAt,
+  choicesFit,
+  choicesRect,
+  drawChoices,
+  drawSetupChoose,
+  setupChooseAt,
+  ORDER_CHOICES,
+  SETUP_CHOICES,
+  type ChoiceStyle,
   minimapSquare,
   PALETTE_RGBA,
   panOffset,
@@ -129,9 +138,13 @@ interface Shown {
   input?: TextInputState | undefined;
   /** The last frame was the map's wide screen (else a 320x200 screen in the middle). */
   wide: boolean;
+  /** The last frame was the title screen (the starting game's questions stand over it as large buttons). */
+  title: boolean;
+  /** The setup question the last frame showed as cards, with its Choose button. */
+  setup?: SetupCards | undefined;
 }
 
-export const shown: Shown = { wide: false };
+export const shown: Shown = { wide: false, title: false };
 
 /** Where a 320x200 screen stands on the wide one. */
 function inset(): number {
@@ -143,9 +156,32 @@ export function narrowPoint(px: number, py: number): [number, number] {
   return shown.wide ? [px, py] : [px - inset(), py];
 }
 
-/** How many of a menu's rows show at once, as last drawn (an orders menu where it stands over its unit). */
+/**
+ * How a menu is drawn on the phone (asked for 2026-10-25): a unit's orders as a grid of buttons over the
+ * unit (`ORDER_CHOICES`), the starting game's questions over the title screen as large buttons
+ * (`SETUP_CHOICES`), when they fit; any other menu as rows sized for a finger (`TOUCH_MENU`).
+ */
+type Shape = { menu: MenuState; style: ChoiceStyle | null; screenW: number; dx: number };
+
+/** The shape a menu took as last drawn (an orders menu where it stands over its unit). */
+function shapeOf(m: MenuState): Shape {
+  if (shown.wide) {
+    const at = placed.get(m) ?? m;
+    return { menu: at, style: asChoices.has(at) ? ORDER_CHOICES : null, screenW: screenW(), dx: 0 };
+  }
+  const style = shown.title && choicesFit(m, SCREEN_W, SETUP_CHOICES) ? SETUP_CHOICES : null;
+  return { menu: m, style, screenW: SCREEN_W, dx: inset() };
+}
+
+/** How many of a menu's rows show at once, as last drawn: all of them as buttons. */
 function shownMenuRows(m: MenuState): number {
-  return shown.wide ? menuRows(placed.get(m) ?? m, screenW(), TOUCH_MENU) : menuRows(m, SCREEN_W, TOUCH_MENU);
+  const sh = shapeOf(m);
+  return sh.style ? m.items.length : menuRows(sh.menu, sh.screenW, TOUCH_MENU);
+}
+
+/** Whether a point of the phone's screen is on the setup cards' Choose button, as last drawn. */
+export function chooseAt(px: number, py: number): boolean {
+  return !shown.wide && shown.setup !== undefined && setupChooseAt(shown.setup, px - inset(), py);
 }
 
 /** A finger dragging a list too long for its window: its rows on view move `by` (`scrollRows`). */
@@ -157,6 +193,8 @@ export function scrollMenu(m: MenuState, by: number): void {
 let ordersFor: number | null = null;
 const ordersOf = new WeakMap<MenuState, number>();
 const placed = new WeakMap<MenuState, MenuState>();
+/** The placed orders menus drawn as buttons (`ORDER_CHOICES`), not rows. */
+const asChoices = new WeakSet<MenuState>();
 
 /** The next menu the game opens holds this unit's orders: draw it beside the unit (null: no such menu came). */
 export function ordersAbove(unit: number | null): void {
@@ -181,12 +219,25 @@ function place(m: MenuState): MenuState {
   const sy = VIEW_Y + (pos[1] - VIEW_Y) * z;
   const size = TILE * z;
   const { right: _keys, ...plain } = m;
-  const r = menuRect({ ...plain, anchor: { x: 0, y: 0 } }, W, TOUCH_MENU);
-  const x = Math.max(0, Math.min(W - r.w, Math.round(sx + size / 2 - r.w / 2)));
+  // Its orders as buttons where they fit (two or three across), else as rows.
+  const grid = choicesRect({ ...plain, anchor: { x: 0, y: 0 } }, W, ORDER_CHOICES);
+  const r = grid ?? menuRect({ ...plain, anchor: { x: 0, y: 0 } }, W, TOUCH_MENU);
+  // Above the unit, else below it, else beside it, so the unit stays in sight.
   const above = sy - r.h - 2;
-  const y = Math.max(0, Math.min(SCREEN_H - r.h, above >= BAR_H ? above : sy + size + 2));
+  const below = sy + size + 2;
+  let x = Math.round(sx + size / 2 - r.w / 2);
+  let y: number;
+  if (above >= BAR_H) y = above;
+  else if (below + r.h <= SCREEN_H) y = below;
+  else {
+    y = Math.round(sy + size / 2 - r.h / 2);
+    x = sx + size + 2 + r.w <= W ? sx + size + 2 : sx - 2 - r.w;
+  }
+  x = Math.max(0, Math.min(W - r.w, x));
+  y = Math.max(BAR_H, Math.min(SCREEN_H - r.h, y));
   const out = { ...plain, anchor: { x, y } };
   placed.set(m, out);
+  if (grid) asChoices.add(out);
   return out;
 }
 
@@ -196,6 +247,9 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
   let wide = new Surface(screenW(), SCREEN_H, undefined, DETAIL);
   let image = ctx.createImageData(wide.fw, wide.fh);
   let wideFrame = false;
+  /** This frame drew the title screen, and (a setup question as cards) its Choose button's cards. */
+  let titleFrame = false;
+  let setupFrame: SetupCards | undefined;
   /** The user's pictures this frame shows (`showPictures` lays them over the canvas as the frame is presented). */
   let pictures: PicturePlace[] = [];
   /** A box of the 320x200 screen, in the middle of the wide canvas. */
@@ -206,7 +260,6 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     wideFrame = false;
     draw(narrow, ...args);
   };
-  const menuOf = (m: MenuState) => placed.get(m) ?? m;
   return {
     id: "retro",
     get width() {
@@ -231,6 +284,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       wide.dimmed = false;
       shown.input = undefined;
       wideFrame = false;
+      titleFrame = false;
+      setupFrame = undefined;
       if (wide.width !== screenW()) {
         wide = new Surface(screenW(), SCREEN_H, undefined, DETAIL);
         image = ctx.createImageData(wide.fw, wide.fh);
@@ -238,6 +293,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     present() {
       shown.wide = wideFrame;
+      shown.title = titleFrame;
+      shown.setup = setupFrame;
       const px = image.data;
       const paint = (j: number, c: number) => {
         const p = c * 4;
@@ -262,9 +319,15 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       const spots = buildingPlaces(surface().art, { dx: wideFrame ? 0 : inset(), logicalW: screenW(), logicalH: SCREEN_H });
       showPictures(canvas, [...pictures, ...spots]);
     },
-    title: screen((s, at: number) => drawTitleScreen(s, at)),
+    title: screen((s, at: number) => {
+      titleFrame = true;
+      drawTitleScreen(s, at);
+    }),
     setup: screen((s, cards: SetupCards, selected: number, at: number) => {
       drawSetupScreen(s, cards, selected, at);
+      // No pointer lights the cards on a phone: a tap lights one, Choose (or a second tap) picks it.
+      drawSetupChoose(s, cards);
+      setupFrame = cards;
       for (const { portrait, ...box } of setupPictureSpots(cards, selected)) pictures.push(portraitPlace(portrait, onScreen(box)));
     }),
     setupHit: (cards, px, py) => setupCardAt(cards, px - inset(), py),
@@ -325,15 +388,28 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     report: screen(drawReportScreen),
     worldMap: screen(drawWorldMap),
     // Overlays go on whatever screen this frame drew, sized for a finger (`TOUCH_MENU`).
-    menu: (m, state) => drawMenu(surface(), wideFrame ? place(m) : m, squarePainter(m, state), TOUCH_MENU),
+    menu: (m, state) => {
+      if (wideFrame) {
+        const at = place(m);
+        if (asChoices.has(at)) drawChoices(wide, at, ORDER_CHOICES);
+        else drawMenu(wide, at, squarePainter(m, state), TOUCH_MENU);
+      } else if (titleFrame && choicesFit(m, SCREEN_W, SETUP_CHOICES)) drawChoices(narrow, m, SETUP_CHOICES);
+      else drawMenu(narrow, m, squarePainter(m, state), TOUCH_MENU);
+    },
     textInput(input, cursorOn) {
       shown.input = input;
       drawTextInput(surface(), input, cursorOn);
     },
     statusLine: (text) => drawStatusLine(surface(), text),
-    menuHit: (m, px, py) => (shown.wide ? menuHit(menuOf(m), px, py, screenW(), TOUCH_MENU) : menuHit(m, px - inset(), py, SCREEN_W, TOUCH_MENU)),
+    menuHit: (m, px, py) => {
+      const sh = shapeOf(m);
+      return sh.style ? choiceAt(sh.menu, px - sh.dx, py, sh.screenW, sh.style) : menuHit(sh.menu, px - sh.dx, py, sh.screenW, TOUCH_MENU);
+    },
     menuRows: (m) => shownMenuRows(m),
-    menuScrollAt: (m, px, py) => (shown.wide ? menuScrollAt(menuOf(m), px, py, screenW(), TOUCH_MENU) : menuScrollAt(m, px - inset(), py, SCREEN_W, TOUCH_MENU)),
+    menuScrollAt: (m, px, py) => {
+      const sh = shapeOf(m);
+      return sh.style ? null : menuScrollAt(sh.menu, px - sh.dx, py, sh.screenW, TOUCH_MENU);
+    },
     citySlotAt: (px, py) => citySlotAt(px - inset(), py),
     cityExitHit: (px, py) => cityExitHit(px - inset(), py),
     cityButtonAt: (px, py) => cityButtonAt(px - inset(), py),

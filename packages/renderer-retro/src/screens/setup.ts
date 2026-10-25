@@ -3,7 +3,7 @@ import { drawTextCentered, FONT_HEIGHT, wrapText } from "../font.js";
 import { drawIconLine, wrapIcons } from "../icons.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { DIM, drawStone, drawWindow, INK, NOTE } from "../widgets.js";
+import { DIM, drawButton, drawStone, drawWindow, INK, NOTE } from "../widgets.js";
 import { drawStars } from "./title.js";
 
 /**
@@ -65,6 +65,31 @@ export function setupPictureSpots(cards: SetupCards, selected: number): { portra
 /** The large portrait's place in the tribes' panel. */
 function panelInset(b: Box): Box {
   return { x: b.x + Math.floor((b.w - 54) / 2), y: b.y + 16, w: 54, h: 52 };
+}
+
+/**
+ * A Choose button at the foot of the panel, for the phone (asked for 2026-10-25), where no pointer lights
+ * a card on its way: a tap lights a card and tells of it, Choose (or a second tap) picks it. The web
+ * game draws none: its pointer lights the cards and a click picks.
+ */
+const CHOOSE = { w: 56, h: 17 };
+
+/** Where the panel's Choose button stands. */
+export function setupChooseRect(cards: SetupCards): Box {
+  const p = layout(cards).panel;
+  return { x: p.x + p.w - 6 - CHOOSE.w, y: p.y + p.h - 5 - CHOOSE.h, w: CHOOSE.w, h: CHOOSE.h };
+}
+
+/** Whether a point lies on the panel's Choose button. */
+export function setupChooseAt(cards: SetupCards, px: number, py: number): boolean {
+  const b = setupChooseRect(cards);
+  return px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h;
+}
+
+/** The panel's Choose button, lit: it picks the card the panel tells of. */
+export function drawSetupChoose(s: Surface, cards: SetupCards): void {
+  const b = setupChooseRect(cards);
+  drawButton(s, b.x, b.y, b.w, b.h, "Choose", true, true);
 }
 
 /** The card under a point, or -1. */

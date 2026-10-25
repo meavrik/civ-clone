@@ -676,11 +676,20 @@ Never ship the original's sprites, palette art, fonts or text.
   to 13 at most, buttons 19 tall and 72 wide, a scroll bar 10 wide) to `drawMenu`, `menuHit`, `menuRows`,
   `menuScrollAt` and `menuRect`, whose default is the original's `DESK_MENU` (pixel for pixel as before);
   a drag over a list too long for its window scrolls its rows (`scrollRows` in `menus.ts`, the choice
-  staying on view). The research panel, the city screen and the audience keep their sizes.
+  staying on view). Where they fit, menus are stone buttons instead (renderer-retro `screens/choices.ts`,
+  `drawChoices`/`choiceAt`/`choicesRect`; asked for the same day, "more on the starting game options"):
+  every menu over the title screen (the title menu and the setup questions: civilizations, world, size,
+  starts, the four customize questions) a column of large buttons with labels twice the font
+  (`SETUP_CHOICES`, `drawButton`'s `scale`), and a unit's orders a grid two or three across
+  (`ORDER_CHOICES`), placed above the unit, else below, else beside it; ten load slots, or anything with
+  text, stay rows. The setup cards (difficulty, tribe) get a Choose button in their panel
+  (`drawSetupChoose`, `setupChooseAt`): a tap lights a card, Choose or a second tap picks it. The
+  research panel, the city screen and the audience keep their sizes.
   `touch.ts` turns fingers (`gestures.ts`) into the mouse the game knows: tap = mousedown 0, hold 450 ms
-  = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. A tap on
-  our units' square (not a city) brings one into play as the game would and opens its orders (the game's
-  Esc) just above it (`ordersAbove`: the next menu drawn is anchored over the unit, without its key
+  = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. A tap or a
+  held finger (asked for 2026-10-25) on our units' square (not a city, where a held finger opens only the
+  orders of the unit in play standing there) brings one into play as the game would and opens its orders
+  (the game's Esc) just above it (`ordersAbove`: the next menu drawn is anchored over the unit, without its key
   column). What the game takes from keys only is a touch there: a rates bar (`ratesAt` in renderer-retro,
   given the wide width when the window stands over the wide map) sets that rate by arrow keys (`rates.ts`), a tap on a launchable spaceship is Enter, a hold on a city
   screen is N (rename). `text.ts` shows a DOM field while the game asks for text, bound to the game's

@@ -1,4 +1,4 @@
-import { drawText, FONT_HEIGHT, textWidth } from "./font.js";
+import { drawText, drawTextLarge, FONT_HEIGHT, textWidth, textWidthLarge } from "./font.js";
 import { drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
 import { unitSprite } from "./overlays.js";
 import { C, DIMMED, shade, slotColor } from "./palette.js";
@@ -130,7 +130,7 @@ export function hideArtUnder(s: Surface, r: { x: number; y: number; w: number; h
  * the panels, lit along the top and left, shaded along the bottom and right, its label centred in ink;
  * the lit one (`primary`) is ringed in gold; a disabled one keeps its place with a faded label.
  */
-export function drawButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true, primary = false): void {
+export function drawButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true, primary = false, scale: 1 | 2 = 1): void {
   if (primary && enabled) speckle(s, x + 1, y + 1, w - 2, h - 2, shade("panel", 5), shade("panel", 6), shade("panel", 7));
   else stipple(s, x + 1, y + 1, w - 2, h - 2, "panel");
   s.hline(x, y, w, shade("panel", 7));
@@ -139,7 +139,9 @@ export function drawButton(s: Surface, x: number, y: number, w: number, h: numbe
   s.vline(x + w - 1, y + 1, h - 1, shade("panel", 1));
   if (primary && enabled) s.frame(x - 1, y - 1, w + 2, h + 2, shade("wheat", 6));
   const ink = !enabled ? FADED : INK;
-  drawText(s, x + Math.floor((w - textWidth(label)) / 2), y + Math.floor((h - FONT_HEIGHT) / 2) + 1, label, ink);
+  // A label twice the font's size (the phone's setup questions) stands on a line twice as tall.
+  if (scale === 2) drawTextLarge(s, x + Math.floor((w - textWidthLarge(label)) / 2), y + Math.floor((h - 2 * FONT_HEIGHT) / 2) + 1, label, ink);
+  else drawText(s, x + Math.floor((w - textWidth(label)) / 2), y + Math.floor((h - FONT_HEIGHT) / 2) + 1, label, ink);
 }
 
 /** Horizontal progress box with segment ticks (food box, shield box): a black bed sunk in the stone. */
