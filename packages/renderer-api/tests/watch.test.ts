@@ -7,8 +7,8 @@ const step = (unit: number, owner: number, fromX: number, fromY: number, toX: nu
 
 const fight = (s: GameState, attackerWon: boolean, at: [number, number], alsoLost: number[] = []): UnitBattle => ({
   kind: "battle",
-  attacker: { unit: 50, type: "legion", owner: s.barbarians, x: at[0] - 1, y: at[1], hp: 10, maxHp: 10, firepower: 1 },
-  defender: { unit: 51, type: "phalanx", owner: 0, x: at[0], y: at[1], hp: 10, maxHp: 10, firepower: 1 },
+  attacker: { unit: 50, type: "legion", owner: s.barbarians, x: at[0] - 1, y: at[1], hp: 10, maxHp: 10, firepower: 1, xp: 0 },
+  defender: { unit: 51, type: "phalanx", owner: 0, x: at[0], y: at[1], hp: 10, maxHp: 10, firepower: 1, xp: 0 },
   rounds: attackerWon ? [true, true] : [false, false],
   attackerWon,
   alsoLost,
@@ -69,6 +69,18 @@ describe("watching the other civilizations' turns", () => {
     const told = fightReport(s, many, 0, 4);
     expect(told).toHaveLength(4);
     expect(told[3]).toBe("{swords} And 6 more fights.");
+  });
+
+  it("names a seasoned attacker's rank, and tells of a rank our unit won", () => {
+    const { s, o } = setup();
+    const rome = foundCity(s, 0, 10, 10);
+    const base = fight(s, false, [10, 10]);
+    const held: UnitBattle = { ...base, attacker: { ...base.attacker, xp: 6 }, promoted: "veteran" };
+    const notes = watchTurn(s, [held], o).flatMap((b) => (b.kind === "hold" && b.note ? [b.note.text] : []));
+    expect(notes).toEqual(["Hardened Barbarian Legion attacks!", "Phalanx holds, now Veteran!"]);
+    expect(fightReport(s, [held], 0)).toEqual([`{swords} Our Phalanx in ${rome.name} beat off a Barbarian Legion, now Veteran.`]);
+    const won: UnitBattle = { ...base, attacker: { ...base.defender, owner: 0, x: 9 }, defender: { ...base.attacker, owner: s.barbarians, x: 10 }, attackerWon: true, promoted: "elite" };
+    expect(fightReport(s, [won], 0)[0]).toMatch(/^\{swords\} Our Phalanx defeated a Barbarian Legion .*, now Elite\.$/);
   });
 
   it("speeds up a long turn to fit, but never past a little under three times as fast", () => {

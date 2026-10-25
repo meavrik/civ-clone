@@ -20,7 +20,7 @@ import {
   type GameState,
   specialOf,
 } from "@civ/core";
-import { cityMood, coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, ownerAt, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { cityMood, coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, ownerAt, rankIcon, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import { paintBorders } from "../borders.js";
@@ -198,7 +198,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
     const pos = tileToScreen(state, view, m.x, m.y);
     if (!pos) continue;
     const real = state.units.find((u) => u.id === m.unit);
-    paintUnit(ctx, pos[0], pos[1], { type: m.type, order: { kind: "none" }, veteran: real?.veteran ?? false }, state.players[m.owner]!.color, {
+    paintUnit(ctx, pos[0], pos[1], { type: m.type, order: { kind: "none" }, xp: real?.xp ?? 0 }, state.players[m.owner]!.color, {
       stacked: m.stacked === true || moving.some((o) => o.aboard === m.unit),
       active: m.unit === activeId,
     });
@@ -215,8 +215,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
       if (fade > 0) {
         const alpha = ctx.globalAlpha;
         ctx.globalAlpha = alpha * fade;
-        const veteran = state.units.find((u) => u.id === f.unit)?.veteran ?? false;
-        paintUnit(ctx, pos[0], pos[1], { type: f.type, order: { kind: "none" }, veteran }, state.players[f.owner]!.color, { stacked: f.stacked, active: false });
+        paintUnit(ctx, pos[0], pos[1], { type: f.type, order: { kind: "none" }, xp: f.xp }, state.players[f.owner]!.color, { stacked: f.stacked, active: false });
         if (f.hit > 0) paintHitFlash(ctx, pos[0], pos[1], f.hit);
         paintHpBar(ctx, pos[0], pos[1], f.hp, f.maxHp);
         ctx.globalAlpha = alpha;
@@ -469,7 +468,8 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
     fillRound(ctx, 12, y - 4, PANEL_W - 24, 56, 10, UI.panelLight);
     paintBadge(ctx, 10, y - 4, active.type, state.players[active.owner]!.color, 40);
     text(ctx, 66, y + 2, type.name, { size: 16, weight: "600" });
-    if (active.veteran) paintIcon(ctx, "star", 66 + measure(ctx, type.name, 16, "600") + 6, y + 3, 15);
+    const rank = rankIcon(active.xp);
+    if (rank) paintIcon(ctx, rank, 66 + measure(ctx, type.name, 16, "600") + 6, y + 1, 15);
     movePips(ctx, 66, y + 25, active.movesLeft, moveAllowance(state, active));
     const max = maxHp(state, active.type);
     if (active.hp < max) {

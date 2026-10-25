@@ -167,6 +167,8 @@ export interface CombatReport {
   defenderHp: number;
   attackerMaxHp: number;
   defenderMaxHp: number;
+  /** The rank the winner rose to in the fight, if it rose. */
+  promoted?: string;
 }
 export let lastCombat: CombatReport | null = null;
 
@@ -465,6 +467,7 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
       defenderHp: c.defender.hp,
       attackerMaxHp: maxHp(state, c.attacker.type),
       defenderMaxHp: maxHp(state, c.defender.type),
+      ...(c.promoted ? { promoted: c.promoted.name } : {}),
     };
     if (!c.attackerWon) lastTurnEvents.push({ kind: "unitLost", unit: unitType(u.type).name, by: c.defender.owner });
     if (c.ransom) lastTurnEvents.push({ kind: "ransom", amount: c.ransom, player: u.owner });

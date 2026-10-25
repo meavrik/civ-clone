@@ -29,6 +29,7 @@ import {
   firepower,
   freeUnits,
   paysShields,
+  rankOf,
   getTile,
   government,
   governmentsAvailable,
@@ -1305,7 +1306,7 @@ function manageUpkeep(state: GameState, ctx: Ctx): void {
   for (const c of ctx.cities) {
     let short = -surplus(c);
     if (short <= 0) continue;
-    const worth = (u: Unit) => unitType(u.type).attack + unitType(u.type).defense + (u.veteran ? 1 : 0);
+    const worth = (u: Unit) => unitType(u.type).attack + unitType(u.type).defense + (rankOf(u.xp).power - 1) * 2;
     const spare = unitSupport(state, c)
       .filter((s) => s.shields > 0 && !civilian(unitType(s.unit.type)) && s.unit.aboard === null && cargo(state, s.unit).length === 0)
       .map((s) => s.unit)

@@ -97,6 +97,7 @@ import {
   keepResearchInView,
   nextChoice,
   openResearch,
+  rankedName,
   researchRowOf,
   researchRows,
   researchStep,
@@ -494,7 +495,9 @@ function reportCombat(report: CombatReport): void {
   const d = unitType(c.defenderType).name;
   const [hp, max] = c.attackerWon ? [c.attackerHp, c.attackerMaxHp] : [c.defenderHp, c.defenderMaxHp];
   const wounds = hp < max ? ` (${hp}/${max} hp left)` : "";
-  whenStill(() => say(c.attackerWon ? `${a} defeats ${them} ${d}${wounds}` : `${a} lost to ${them} ${d}${wounds}`, 3500));
+  // A fight that took the winner up a rank says so: "Legion defeats Babylonian Phalanx. Now Veteran!"
+  const risen = c.promoted ? `. ${c.attackerWon ? "Now" : `Their ${d} is now`} ${c.promoted}!` : "";
+  whenStill(() => say(c.attackerWon ? `${a} defeats ${them} ${d}${wounds}${risen}` : `${a} lost to ${them} ${d}${wounds}${risen}`, 3500));
 }
 
 // ---- game start -------------------------------------------------------------
@@ -699,7 +702,7 @@ function openStack(x: number, y: number, units: Unit[]): void {
     under: screenState,
     menu: {
       title: `Our units here (${units.length})`,
-      items: units.map((u) => unitType(u.type).name),
+      items: units.map(rankedName),
       right: units.map(unitStanding),
       units: units.map((u) => ({ type: u.type, color: me.color })),
       selected: Math.max(0, active >= 0 ? active : ready),

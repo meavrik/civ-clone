@@ -534,7 +534,8 @@ Never ship the original's sprites, palette art, fonts or text.
   Terrain (`terrain.art.ts`, recovered pixel for pixel from the user's reference sheet, no mirroring;
   two blues: coastal `ocean`, open `deep_ocean`), units (`units.art.ts`, the user's 32x32 sheet of the
   original's 28, standing free with the owner's shield in the top-left corner, `drawShield`/`SHIELD_AT`,
-  a second shield behind for a stack, hp as a strip across its top; no owner box), cities
+  a second shield behind for a stack, hp as a strip across its top, its rank's gold chevrons in the top
+  right corner (the rank icon, `drawRankMark`); no owner box), cities
   (`cities.art.ts`, the user's 4x3 sheet of 2026-10-22 converted by `tools/sprites/draw/cities.ts` from
   `cities.png`/`cities.json` beside it: ancient, medieval, industrial by village, town, city, capital,
   each flying a flag in its owner's colour; renderer-api `cityLook` picks one: the age of the owner's
@@ -809,6 +810,24 @@ text), second special resources with reaches (save version 20; the branch's own 
    for 2): fights go in rounds won with A/(A+D), survivors keep wounds and heal by resting (`HEALING`).
    `attackOdds` gives the exact chance. `classicCombat` (version 1 saves, `?combat=classic`) restores
    the original one-roll fights with the same RNG use, so old saves replay unchanged.
+   Combat experience (asked for 2026-10-25: "for every unit produced a combat experience factor that will
+   add to the unit strength", and "ranks that unit can go up"; our departure, after FreeCiv's veteran
+   levels): every unit counts experience (`Unit.xp`, in place of the veteran flag); each fight it wins
+   teaches it 1, 2 when its chance was under half (`experienceFor`, `EXPERIENCE` in `rules/experience.ts`),
+   never past the top rank's. `RANKS`: Recruit 0, Regular 1 (+25%), Veteran 3 (+50%, the old veteran),
+   Hardened 6 (+75%), Elite 10 (+100%); the rank's `power` multiplies attack and defence (`attackStrength`,
+   `defenseStrength`, so `attackOdds` and both planners count it). Barracks and the veteran traits train
+   units at Veteran (`VETERAN_XP`). A fight that raises its winner says so (`CombatResult.promoted`,
+   `UnitBattle.promoted`, `CombatReport.promoted`: "... Now Veteran!" after our attack, ", now Veteran" in
+   the enemy turns' notes and the Under attack! report); `BattleSide.xp` is the rank fought at. Shown
+   (renderer-api `ranks.ts`): gold chevrons, one a rank (icons `regular` .. `elite`), in the square's top
+   right on the map and on the city screen's units (`drawRankMark`; a working settler's badge wins), the
+   unit box's line ("Veteran +50%", for units that fight, `showsRank`), the rank before the unit's name in
+   the stack list, the square's window and an enemy's attack note, and in the square's window how far each
+   of ours has to go ("Legion 3/6 experience to Hardened"). Saves before version 32 load with
+   `simpleVeterans` (headless `--simple-veterans`): a win made the winner a veteran half the time, the coin
+   drawn as before (6 x 250 planner-v2 games came out identical to the code before). Head to head (planner
+   vs v2, 16 x 300): ranks 1-15, score 125 vs 228; simple veterans 1-15, 127 vs 225, both replaying exactly.
    Ground: off the road only settlers climb `roadOnly` terrain (mountains), so a range is a wall until
    settlers build a road over it; `wheeled` units (chariot, catapult, cannon, artillery, armor, mech inf)
    also keep off `rough` terrain (jungle, swamp, arctic) without one. City squares have a road, and

@@ -103,7 +103,8 @@ export interface Unit {
   y: number;
   /** Movement points left this turn, in thirds. */
   movesLeft: number;
-  veteran: boolean;
+  /** Combat experience: what its fights have taught it, which sets its rank (`rankOf`, rules/experience.ts). */
+  xp: number;
   /** Hit points left; a unit that loses them all in a fight is destroyed. */
   hp: number;
   order: UnitOrder;
@@ -258,6 +259,8 @@ export interface GameState {
   narrowSight?: boolean;
   /** A wonder bought at an improvement's price, two gold a shield, as before version 31 (now four: "wonders too easy"). */
   cheapWonderBuy?: boolean;
+  /** One rank, the veteran, made by a coin toss after a fight won, as before version 32 (now experience and ranks, rules/experience.ts). */
+  simpleVeterans?: boolean;
   /** Every city's land is the 21 squares it works, whatever its culture. Set for saves before version 12. */
   fixedBorders?: boolean;
   /** Culture mounts every turn (`City.culture`, `cultureRate`) rather than being what a city's people, buildings and wonders make it. Set for saves before version 14. */

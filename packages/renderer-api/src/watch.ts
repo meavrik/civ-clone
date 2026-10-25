@@ -1,4 +1,4 @@
-import { atWar, cityAt, civ, mapDistance, unitType, type GameState, type UnitAction, type UnitBattle, type UnitStep } from "@civ/core";
+import { atWar, cityAt, civ, mapDistance, rankOf, RANKS, unitType, type GameState, type UnitAction, type UnitBattle, type UnitStep } from "@civ/core";
 import { motionMs, type MotionTiming } from "./motion.js";
 import type { Callout } from "./refusal.js";
 
@@ -75,7 +75,15 @@ export function unitTitle(state: GameState, owner: number, type: string): string
 
 /** The fight's announcement, beside the attacker. */
 export function attackNote(state: GameState, b: UnitBattle, viewer: number): string {
-  return b.attacker.owner === viewer ? `${unitType(b.attacker.type).name} attacks!` : `${unitTitle(state, b.attacker.owner, b.attacker.type)} attacks!`;
+  const rank = rankOf(b.attacker.xp);
+  const title = b.attacker.owner === viewer ? unitType(b.attacker.type).name : unitTitle(state, b.attacker.owner, b.attacker.type);
+  return `${rank.id === "recruit" ? "" : `${rank.name} `}${title} attacks!`;
+}
+
+/** The rank a fight raised the winner to, as a few words after the fight's: ", now Veteran". */
+function risen(b: UnitBattle): string {
+  const rank = b.promoted && RANKS.find((r) => r.id === b.promoted);
+  return rank ? `, now ${rank.name}` : "";
 }
 
 /** What became of the viewer's side, beside the defender's square. */
@@ -84,7 +92,7 @@ export function outcomeNote(b: UnitBattle, viewer: number): string {
   const ours = defending ? b.defender : b.attacker;
   const won = defending ? !b.attackerWon : b.attackerWon;
   const name = unitType(ours.type).name;
-  if (won) return defending ? `${name} holds!` : `${name} wins!`;
+  if (won) return defending ? `${name} holds${risen(b)}!` : `${name} wins${risen(b)}!`;
   const more = b.alsoLost.length;
   return more ? `${name} and ${more} more lost` : `${name} destroyed`;
 }
@@ -124,8 +132,8 @@ export function fightReport(state: GameState, fights: readonly UnitBattle[], vie
     const more = b.alsoLost.length ? ` and ${b.alsoLost.length} more` : "";
     const where = fightPlace(state, b, viewer);
     const line = defending
-      ? (b.attackerWon ? `${capital(article(foe))} ${foe} destroyed our ${mine}${more}${where}` : `Our ${mine}${where} beat off ${article(foe)} ${foe}`)
-      : (b.attackerWon ? `Our ${mine} defeated ${article(foe)} ${foe}${where}` : `Our ${mine}${more} fell attacking ${article(foe)} ${foe}${where}`);
+      ? (b.attackerWon ? `${capital(article(foe))} ${foe} destroyed our ${mine}${more}${where}` : `Our ${mine}${where} beat off ${article(foe)} ${foe}${risen(b)}`)
+      : (b.attackerWon ? `Our ${mine} defeated ${article(foe)} ${foe}${where}${risen(b)}` : `Our ${mine}${more} fell attacking ${article(foe)} ${foe}${where}`);
     if (!count.has(line)) lines.push(line);
     count.set(line, (count.get(line) ?? 0) + 1);
   }

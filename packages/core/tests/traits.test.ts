@@ -24,6 +24,7 @@ import { foodKept,
   UNIT_BY_ID,
   workOptions,
   type GameState,
+  VETERAN_XP,
 } from "../src/index.js";
 
 /** A flat grassland world for player 0 playing `civ`; no units or cities. */
@@ -164,7 +165,7 @@ describe("civilization traits", () => {
     k.production = { kind: "unit", id: "militia" };
     k.shields = 10;
     processCityTurn(zulus, k);
-    expect(zulus.units.find((u) => u.type === "militia")!.veteran).toBe(true);
+    expect(zulus.units.find((u) => u.type === "militia")!.xp).toBe(VETERAN_XP);
 
     const england = world("english");
     const ship = createUnit(england, "trireme", 0, 10, 10);

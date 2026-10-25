@@ -1,6 +1,7 @@
 import { knows } from "./rules/advances.js";
 import { traitFastWork } from "./traits.js";
 import { CLEAN_TURNS, FORTRESS_TURNS, MOVE_FRAC, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
+import type { RankId } from "./rules/experience.js";
 import { CLASSIC_FIREPOWER, CLASSIC_HP, unitType, type UnitTypeRule } from "./rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Tile, type Unit, type WorkKind } from "./types.js";
 
@@ -25,7 +26,7 @@ export function createUnit(state: GameState, type: string, owner: number, x: num
     x: wrapX(state.map, x),
     y,
     movesLeft: 0,
-    veteran: false,
+    xp: 0,
     hp: maxHp(state, type),
     order: { kind: "none" },
     homeCity,
@@ -218,6 +219,8 @@ export interface BattleSide {
   hp: number;
   maxHp: number;
   firepower: number;
+  /** Its experience as the fight began (the rank it fought at). */
+  xp: number;
 }
 
 /** A fight, round by round, for the UI to animate. */
@@ -230,6 +233,8 @@ export interface UnitBattle {
   attackerWon: boolean;
   /** Units lost along with the loser: the rest of a stack in the open, a sunk ship's cargo. */
   alsoLost: number[];
+  /** The rank the winner rose to, if the fight took it up. */
+  promoted?: RankId;
 }
 
 export type UnitAction = UnitStep | UnitBattle;

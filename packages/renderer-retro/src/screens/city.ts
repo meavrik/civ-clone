@@ -27,7 +27,7 @@ import {
 } from "@civ/core";
 import { buildingArt, citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityImprovements, cityLook, cityUnits, fieldSides, FOCUS_CORNERS, improvementNote, improvementsTop, isWorker, MOOD_STAGE_ICONS, type CitizenMood, type IconName, type ImprovementHit, type ImprovementLine } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
-import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
+import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRankMark, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
@@ -553,6 +553,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   units.slice(0, UNIT_SLOTS).forEach(({ unit, here, shields, food }, i) => {
     const { x: ux, y: uy } = cityUnitSlot(i);
     s.blit(unitSprite(unit.type, playerColor(state, unit.owner)), ux, uy, SPRITE_CLEAR);
+    drawRankMark(s, ux, uy, unit.xp);
     if (!here) ghost(s, ux, uy);
     let ix = ux;
     if (shields) { drawIcon(s, "shield", ix, uy + 17); ix += ICON; }

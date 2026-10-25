@@ -19,6 +19,7 @@ import {
   setRelation,
   Terrain,
   type GameState,
+  VETERAN_XP,
 } from "../src/index.js";
 
 /** Two civs plus barbarians on a flat world. */
@@ -53,7 +54,7 @@ describe("combat", () => {
     expect(defenseStrength(s, d, a)).toBe(4);
     d.order = { kind: "fortified" };
     expect(defenseStrength(s, d, a)).toBe(6);
-    d.veteran = true;
+    d.xp = VETERAN_XP;
     expect(defenseStrength(s, d, a)).toBe(9);
   });
 
@@ -61,7 +62,7 @@ describe("combat", () => {
     const s = world();
     setRelation(s, 0, 1, "war");
     const a = createUnit(s, "armor", 0, 10, 10);
-    a.veteran = true;
+    a.xp = VETERAN_XP;
     createUnit(s, "militia", 1, 11, 10);
     createUnit(s, "militia", 1, 11, 10);
     // 15 vs 1: near-certain win; retry seeds until the roll goes our way.
@@ -171,7 +172,7 @@ describe("hit points", () => {
     const s = world();
     setRelation(s, 0, 1, "war");
     const a = createUnit(s, "armor", 0, 10, 10);
-    a.veteran = true;
+    a.xp = VETERAN_XP;
     const d1 = createUnit(s, "militia", 1, 11, 10);
     const d2 = createUnit(s, "militia", 1, 11, 10);
     const mark = lastActions.length;

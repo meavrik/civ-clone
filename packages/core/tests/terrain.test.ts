@@ -16,6 +16,7 @@ import {
   tileYield,
   workOptions,
   type GameState,
+  VETERAN_XP,
 } from "../src/index.js";
 
 function flatWorld(terrain = Terrain.Grassland): GameState {
@@ -69,7 +70,7 @@ describe("fortresses", () => {
       w.relations["0:1"] = "war";
       getTile(w.map, 11, 10)!.fortress = true;
       const att = createUnit(w, "armor", 1, 10, 10);
-      att.veteran = true;
+      att.xp = VETERAN_XP;
       createUnit(w, "phalanx", 0, 11, 10);
       const set = createUnit(w, "settlers", 0, 11, 10);
       w.rng.s[0] = seed;

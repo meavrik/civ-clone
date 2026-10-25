@@ -825,6 +825,62 @@ describe("city screen", () => {
   });
 });
 
+describe("unit ranks", () => {
+  it("wears each rank's chevrons on the map, in the unit box, the square's window and the city screen", () => {
+    // On a blank square: a recruit wears nothing; each rank above paints more chevrons in the top right corner.
+    const painted = (xp: number) => {
+      const a = Surface.fine(16, 16);
+      const b = Surface.fine(16, 16);
+      drawUnit(a, { type: "legion", order: { kind: "none" } }, 0, 0, C.WHITE!, false);
+      drawUnit(b, { type: "legion", order: { kind: "none" }, xp }, 0, 0, C.WHITE!, false);
+      let changed = 0;
+      for (let y = 0; y < b.fh; y++) for (let x = 0; x < b.fw; x++) if (a.fget(x, y) !== b.fget(x, y)) { changed++; expect(x).toBeGreaterThanOrEqual(16); }
+      return changed;
+    };
+    const marks = [0, 1, 3, 6, 10].map(painted);
+    expect(marks[0]).toBe(0);
+    for (let i = 1; i < marks.length; i++) expect(marks[i]).toBeGreaterThan(marks[i - 1]!);
+
+    const state = newGame(2026);
+    const settlers = state.units[0]!;
+    applyCommand(state, { type: "found", unit: settlers.id });
+    const city = state.cities[0]!;
+    state.units = state.units.filter((u) => u.owner !== 0);
+    const land: [number, number][] = [];
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -3; dx <= 3; dx++) {
+      const t = getTile(state.map, city.x + dx, city.y + dy);
+      if (t && t.terrain !== Terrain.Ocean && (dx || dy)) land.push([city.x + dx, city.y + dy]);
+    }
+    const ranked = [0, 1, 3, 6, 10].map((xp, i) => {
+      const [x, y] = land[i]!;
+      const u = createUnit(state, i === 4 ? "knights" : "legion", 0, x, y, city.id);
+      u.xp = xp;
+      return u;
+    });
+    const vet = ranked[2]!;
+    createUnit(state, "phalanx", 0, vet.x, vet.y, city.id).xp = 1;
+    for (const [xp, type] of [[3, "phalanx"], [0, "militia"], [6, "legion"]] as const) createUnit(state, type, 0, city.x, city.y, city.id).xp = xp;
+    revealAround(state, 0, city.x, city.y, 9);
+    recomputeVisibility(state, 0);
+    state.activeUnit = vet.id;
+    const view: MainScreenView = { originX: city.x - 7, originY: Math.max(0, city.y - 6), blink: true };
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    writeFileSync(new URL("./out/ranks.png", import.meta.url), encodePng(s, 3));
+    // The square's window names their ranks and how far each has to go.
+    const info = terrainInfo(state, vet.x, vet.y);
+    expect(info.lines).toContain("{swords} Veteran Legion, Regular Phalanx (ours)");
+    expect(info.lines).toContain("{veteran} Legion 3/6 experience to Hardened  {regular} Phalanx 1/3 experience to Veteran");
+    const window = { title: info.title, body: info.lines, items: [], selected: -1, close: true, square: { x: vet.x, y: vet.y } };
+    drawMenu(s, window, squarePainter(window, state));
+    writeFileSync(new URL("./out/ranks-window.png", import.meta.url), encodePng(s, 3));
+    const c = Surface.screen();
+    drawCityScreen(c, state, { city: city.id });
+    writeFileSync(new URL("./out/ranks-city.png", import.meta.url), encodePng(c, 3));
+  });
+});
+
 describe("advisor screens", () => {
   it("renders the research panel on a discovery, hit-testing its list, card links, buttons and scrolling", () => {
     const state = newGame(2026);

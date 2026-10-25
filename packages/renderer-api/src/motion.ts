@@ -27,6 +27,8 @@ export interface BattleFighter {
   y: number;
   hp: number;
   maxHp: number;
+  /** Its experience as the fight began: the rank it wears through it. */
+  xp: number;
   stacked: boolean;
   /** 1 the instant a blow lands on it, fading to 0. */
   hit: number;
@@ -279,13 +281,13 @@ export class MotionPlayer {
     const attacker: BattleFighter = {
       unit: b.attacker.unit, type: b.attacker.type, owner: b.attacker.owner,
       x: b.attacker.x + beat.dx * reach, y: b.attacker.y + beat.dy * reach,
-      hp: ahp, maxHp: b.attacker.maxHp, stacked: !b.attackerWon && loserStacked,
+      hp: ahp, maxHp: b.attacker.maxHp, xp: b.attacker.xp, stacked: !b.attackerWon && loserStacked,
       hit: attackerHit, dying: b.attackerWon ? 0 : dying,
     };
     const defender: BattleFighter = {
       unit: b.defender.unit, type: b.defender.type, owner: b.defender.owner,
       x: b.defender.x, y: b.defender.y,
-      hp: dhp, maxHp: b.defender.maxHp, stacked: b.attackerWon && loserStacked,
+      hp: dhp, maxHp: b.defender.maxHp, xp: b.defender.xp, stacked: b.attackerWon && loserStacked,
       hit: defenderHit, dying: b.attackerWon ? dying : 0,
     };
     return { attacker, defender };

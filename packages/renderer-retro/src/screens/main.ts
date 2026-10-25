@@ -90,7 +90,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, fieldSides, isDeepWater, researchOutlook, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, fieldSides, isDeepWater, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -254,7 +254,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     if (m.aboard !== undefined) continue;
     const pos = toScreen(m.x, m.y);
     if (!pos) continue;
-    drawUnit(s, { type: m.type, order: { kind: "none" } }, pos[0], pos[1], playerColor(state, m.owner), m.stacked === true || moving.some((o) => o.aboard === m.unit));
+    drawUnit(s, { type: m.type, order: { kind: "none" }, xp: state.units.find((u) => u.id === m.unit)?.xp ?? 0 }, pos[0], pos[1], playerColor(state, m.owner), m.stacked === true || moving.some((o) => o.aboard === m.unit));
     const hp = m.hp ?? state.units.find((u) => u.id === m.unit)?.hp;
     const max = m.maxHp ?? maxHp(state, m.type);
     if (hp !== undefined && hp < max) drawHpBar(s, pos[0], pos[1], hp, max);
@@ -268,7 +268,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       const gone = f.dying > 0.35 || (f.dying > 0 && Math.floor(f.dying * 24) % 2 === 1);
       if (!gone) {
         if (f.hit > 0.45) drawUnitFlash(s, f.type, color, pos[0], pos[1]);
-        else drawUnit(s, { type: f.type, order: { kind: "none" } }, pos[0], pos[1], color, f.stacked);
+        else drawUnit(s, { type: f.type, order: { kind: "none" }, xp: f.xp }, pos[0], pos[1], color, f.stacked);
         drawHpBar(s, pos[0], pos[1], f.hp, f.maxHp);
       }
       if (f.dying > 0) drawBurst(s, pos[0] + 8, pos[1] + 8, f.dying);
@@ -702,15 +702,18 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     s.blit(unitSprite(active.type, playerColor(state, active.owner)), 4, y, SPRITE_CLEAR);
     const max = maxHp(state, active.type);
     if (active.hp < max) drawHpBar(s, 4, y, active.hp, max);
-    const nameW = PANEL_W - 26 - (active.veteran ? 9 : 0);
-    drawTextWrapped(s, 24, y, nameW, type.name, ink, 1);
-    if (active.veteran) drawIcon(s, "star", Math.min(24 + textWidth(type.name) + 2, PANEL_W - 11), y);
+    drawTextWrapped(s, 24, y, PANEL_W - 26, type.name, ink, 1);
     drawMovePips(s, 24, y + 9, active.movesLeft, moveAllowance(state, active));
     y += 18;
     const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
     if (home) {
       drawIcon(s, "house", TEXT_X, y);
       drawTextWrapped(s, TEXT_X + 9, y, TEXT_W - 9, home.name, dim, 1);
+      y += 9;
+    }
+    // Its rank: the chevrons, the name and what it adds ("Veteran +50%"); a fighter's, or any unit's that has won a fight.
+    if (showsRank(active)) {
+      drawIconLine(s, TEXT_X, y, rankLine(active.xp), dim);
       y += 9;
     }
     const t = getTile(map, active.x, active.y);

@@ -82,6 +82,8 @@ export interface GameConfig {
   narrowSight?: boolean;
   /** Wonders bought at an improvement.s price (`GameState.cheapWonderBuy`). */
   cheapWonderBuy?: boolean;
+  /** One veteran rank won by a coin toss, no experience (`GameState.simpleVeterans`). */
+  simpleVeterans?: boolean;
 }
 
 export interface PlayerStats {
@@ -178,6 +180,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.sizeFreeUnits ? { sizeFreeUnits: true } : {}),
     ...(config.narrowSight ? { narrowSight: true } : {}),
     ...(config.cheapWonderBuy ? { cheapWonderBuy: true } : {}),
+    ...(config.simpleVeterans ? { simpleVeterans: true } : {}),
   };
 }
 

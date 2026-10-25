@@ -2,6 +2,7 @@ import { cityAt, hasWonder } from "./cities.js";
 import { barbarianUnits } from "./barbarians.js";
 import { atWar } from "./diplomacy.js";
 import { BARBARIANS } from "./rules/barbarians.js";
+import { experienceFor, MAX_XP, rankIndex, rankOf, RANKS, VETERAN_XP, type RankRule } from "./rules/experience.js";
 import { nextFloat } from "./rng.js";
 import { newSpaceship } from "./rules/spaceship.js";
 import { TERRAIN_RULES } from "./rules/terrain.js";
@@ -10,9 +11,7 @@ import { getTile, type City, type GameState, type Unit } from "./types.js";
 import { firepower, lastActions, maxHp, unitAt, type BattleSide, type UnitBattle } from "./units.js";
 
 export function attackStrength(u: Unit): number {
-  let a = unitType(u.type).attack;
-  if (u.veteran) a *= 1.5;
-  return a;
+  return unitType(u.type).attack * rankOf(u.xp).power;
 }
 
 export function defenseStrength(state: GameState, d: Unit, attacker: Unit): number {
@@ -21,7 +20,7 @@ export function defenseStrength(state: GameState, d: Unit, attacker: Unit): numb
   let s = type.defense;
   // A river square defends at +50% (the original's River), unless its terrain gives more; not before version 26.
   if (type.domain === "land") s *= tile.river && !state.freecivYields ? Math.max(1.5, TERRAIN_RULES[tile.terrain].defense) : TERRAIN_RULES[tile.terrain].defense;
-  if (d.veteran) s *= 1.5;
+  s *= rankOf(d.xp).power;
   const city = cityAt(state, d.x, d.y);
   if (tile.fortress && !city && type.domain === "land") s *= 2;
   else if (d.order.kind === "fortified" || city) s *= 1.5;
@@ -47,6 +46,8 @@ export interface CombatResult {
   cityDestroyed?: string;
   /** Gold paid to the attacker for a barbarian leader caught alone. */
   ransom?: number;
+  /** The rank the winner rose to, if the fight took it up one (or more). */
+  promoted?: RankRule;
 }
 
 /**
@@ -101,7 +102,9 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
   const a = attackStrength(u);
   const d = defenseStrength(state, defender, u);
   const p = a / (a + d);
-  const side = (x: Unit): BattleSide => ({ unit: x.id, type: x.type, owner: x.owner, x: x.x, y: x.y, hp: x.hp, maxHp: maxHp(state, x.type), firepower: firepower(state, x.type) });
+  // The attacker's chance, as the fight begins: the winner learns more from one won against the odds.
+  const odds = attackOdds(state, u, defender);
+  const side = (x: Unit): BattleSide => ({ unit: x.id, type: x.type, owner: x.owner, x: x.x, y: x.y, hp: x.hp, maxHp: maxHp(state, x.type), firepower: firepower(state, x.type), xp: x.xp });
   const battle: UnitBattle = { kind: "battle", attacker: side(u), defender: side(defender), rounds: [], attackerWon: false, alsoLost: [] };
   const aFp = battle.attacker.firepower;
   const dFp = battle.defender.firepower;
@@ -117,11 +120,10 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
   if (attackerWon) {
     if (city || targetTile.fortress) destroyed.push(defender.id);
     else for (const o of unitAt(state, tx, ty)) if (o.owner === defender.owner) destroyed.push(o.id);
-    if (nextFloat(state.rng) < 0.5) u.veteran = true;
-  } else {
-    destroyed.push(u.id);
-    if (nextFloat(state.rng) < 0.5) defender.veteran = true;
-  }
+  } else destroyed.push(u.id);
+  const winner = attackerWon ? u : defender;
+  const promoted = learn(state, winner, attackerWon ? odds : 1 - odds);
+  if (promoted) battle.promoted = promoted.id;
   // Units aboard a sunk ship go down with it.
   for (const id of [...destroyed]) for (const o of state.units) if (o.aboard === id) destroyed.push(o.id);
   battle.alsoLost = destroyed.filter((id) => id !== (attackerWon ? defender.id : u.id));
@@ -131,12 +133,26 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
   if (u.order.kind === "fortified" || u.order.kind === "sentry") u.order = { kind: "none" };
 
   const result: CombatResult = { attackerWon, attacker: u, defender, destroyed };
+  if (promoted) result.promoted = promoted;
   // A leader caught with no one to defend it is held for ransom, if a land unit takes it.
   if (attackerWon && type.domain === "land" && unitType(defender.type).flags?.includes("leader")) {
     state.players[u.owner]!.gold += BARBARIANS.ransom;
     result.ransom = BARBARIANS.ransom;
   }
   return result;
+}
+
+/**
+ * What a fight won teaches the winner, its chance of winning having been `odds`; the rank it
+ * rose to, if any. Saves before version 32 (`simpleVeterans`): a veteran half the time.
+ */
+function learn(state: GameState, winner: Unit, odds: number): RankRule | undefined {
+  const before = rankIndex(winner.xp);
+  if (state.simpleVeterans) {
+    if (nextFloat(state.rng) < 0.5) winner.xp = Math.max(winner.xp, VETERAN_XP);
+  } else winner.xp = Math.min(MAX_XP, winner.xp + experienceFor(odds));
+  const after = rankIndex(winner.xp);
+  return after > before ? RANKS[after] : undefined;
 }
 
 /** Move a land unit into an undefended enemy city: capture or raze it. */

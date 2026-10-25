@@ -1,6 +1,6 @@
 import { Terrain, unitType, type Unit, type WorldMap } from "@civ/core";
-import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, roadWays, WORK_ICON, type Explored, type RoadWays } from "@civ/renderer-api";
-import { drawIcon } from "./icons.js";
+import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, rankIcon, roadWays, WORK_ICON, type Explored, type RoadWays } from "@civ/renderer-api";
+import { drawIcon, drawIconFine, iconInk } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, shade } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
@@ -338,7 +338,19 @@ export function drawShield(s: Surface, dx: number, dy: number, x: number, y: num
   }));
 }
 
-export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order">, dx: number, dy: number, color: number, stacked: boolean): void {
+/**
+ * The unit's rank on the map: its gold chevrons (the rank's icon, one chevron a rank) in the square's
+ * top right corner, standing a fine pixel in from the edges. A recruit wears none.
+ */
+export function drawRankMark(s: Surface, dx: number, dy: number, xp: number): void {
+  const icon = rankIcon(xp);
+  if (!icon) return;
+  const ink = iconInk(icon);
+  const f = s.k / DETAIL;
+  drawIconFine(s, icon, dx * s.k + Math.round((TILE * DETAIL - 1 - ink.x - ink.w) * f), dy * s.k + Math.round((1 - ink.y) * f));
+}
+
+export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean): void {
   s.blit(unitSprite(u.type, color), dx, dy, SPRITE_CLEAR);
   // Whose it is: the owner's shield, a second one peeking out from behind for a stack.
   if (stacked) drawShield(s, dx, dy, SHIELD_AT + STACK_SHIFT, SHIELD_AT + STACK_SHIFT, darker(color), darker(color));
@@ -352,6 +364,8 @@ export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order">, dx: number
     s.rect(dx + 7, dy, 9, 9, C.BLACK!);
     drawIcon(s, WORK_ICON[u.order.work], dx + 8, dy);
   }
+  // Its rank there otherwise.
+  if (u.order.kind !== "work" && u.xp) drawRankMark(s, dx, dy, u.xp);
 }
 
 /**

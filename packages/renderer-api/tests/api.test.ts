@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, building, BUILDINGS, createUnit, getTile, newGame, revealAround, SPACE_PARTS, Terrain, wonder, WONDERS, type UnitBattle } from "@civ/core";
+import { rankedName, rankLine, rankProgress, showsRank } from "../src/index.js";
 import { builtNotice, cityUnits, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, moveRefusal, workRefusal, NUDGE_MS, researchOutlook, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
 const fresh = (step: SetupState["step"]): SetupState => ({ step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
@@ -205,6 +206,23 @@ describe("finished builds", () => {
     const c = s.cities[0]!;
     for (const b of BUILDINGS)
       for (const line of builtNotice(s, c.id, { kind: "building", id: b.id })!.lines) expect(iconSegments(line).every((seg) => "icon" in seg || !/\{[a-z]+\}/.test(seg.text)), line).toBe(true);
+  });
+});
+
+describe("unit ranks", () => {
+  it("names the rank before the unit, tells what it adds and how far the next is", () => {
+    expect(rankedName({ type: "legion", xp: 0 })).toBe("Legion");
+    expect(rankedName({ type: "legion", xp: 4 })).toBe("Veteran Legion");
+    expect(rankLine(0)).toBe("Recruit");
+    expect(rankLine(1)).toBe("{regular}Regular +25%");
+    expect(rankLine(10)).toBe("{elite}Elite +100%");
+    for (const xp of [1, 3, 6, 10]) expect(hasIcons(rankLine(xp))).toBe(true);
+    expect(rankProgress(4)).toBe("4/6 experience to Hardened");
+    expect(rankProgress(10)).toBe("The highest rank");
+    // Settlers have no rank to tell until they win a fight.
+    expect(showsRank({ type: "settlers", xp: 0 })).toBe(false);
+    expect(showsRank({ type: "settlers", xp: 1 })).toBe(true);
+    expect(showsRank({ type: "militia", xp: 0 })).toBe(true);
   });
 });
 

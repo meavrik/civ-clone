@@ -11,6 +11,7 @@ import { BALANCED_WEIGHTS, combinedFocus, focusRule, type FocusRule } from "./ru
 import { nextCityName } from "./rules/names.js";
 import { specialOf, TERRAIN_RULES, type SpecialRule } from "./rules/terrain.js";
 import { INFLUENCE_YIELD } from "./rules/culture.js";
+import { VETERAN_XP } from "./rules/experience.js";
 import { UNIT_TYPES, unitType } from "./rules/units.js";
 import {
   CITY_RADIUS,
@@ -995,7 +996,7 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
       const was = settler && city.size > 1 ? computeCity(state, city) : null;
       const before = city.size;
       const u = createUnit(state, p.id, city.owner, city.x, city.y, city.id);
-      if ((city.buildings.includes("barracks") && unitType(p.id).domain === "land") || traitVeteran(state, city.owner, p.id)) u.veteran = true;
+      if ((city.buildings.includes("barracks") && unitType(p.id).domain === "land") || traitVeteran(state, city.owner, p.id)) u.xp = VETERAN_XP;
       if (settler) {
         if (city.size > 1) city.size--;
         else {

@@ -24,7 +24,9 @@ export * from "./cityview.js";
 export * from "./plan.js";
 export * from "./watch.js";
 export * from "./sites.js";
+export * from "./ranks.js";
 import { settlerSites, siteNote } from "./sites.js";
+import { rankedName, rankIcon, rankProgress } from "./ranks.js";
 import { ownerAt, territory } from "./territory.js";
 export * from "./intro.js";
 export * from "./setup.js";
@@ -814,9 +816,14 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     if (units.length) {
       const owner = state.players[units[0]!.owner]!;
       const counts = new Map<string, number>();
-      for (const u of units) counts.set(unitType(u.type).name, (counts.get(unitType(u.type).name) ?? 0) + 1);
+      for (const u of units) counts.set(rankedName(u), (counts.get(rankedName(u)) ?? 0) + 1);
       const names = [...counts].map(([n, k]) => (k > 1 ? `${k} ${n}` : n)).join(", ");
       lines.push(`{swords} ${names} (${owner.id === me.id ? "ours" : owner.name})`);
+      // How far each of ours that has fought has come to its next rank: "{veteran} Legion 4/6 experience to Hardened".
+      if (owner.id === me.id) {
+        const ranks = units.filter((u) => u.xp > 0).map((u) => `${rankIcon(u.xp) ? `{${rankIcon(u.xp)}} ` : ""}${unitType(u.type).name} ${rankProgress(u.xp)}`);
+        if (ranks.length) lines.push(ranks.join("  "));
+      }
       for (const u of units) {
         if (u.order.kind !== "work") continue;
         const job = WORK_NAME[u.order.work];

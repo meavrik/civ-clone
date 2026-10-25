@@ -52,7 +52,7 @@ export interface UnitLook {
   active: boolean;
 }
 
-export function paintUnit(ctx: Context2D, x: number, y: number, u: Pick<Unit, "type" | "order" | "veteran">, slot: number, look: UnitLook): void {
+export function paintUnit(ctx: Context2D, x: number, y: number, u: Pick<Unit, "type" | "order" | "xp">, slot: number, look: UnitLook): void {
   if (look.stacked) {
     fillRound(ctx, x + 11, y + 11, 34, 34, 8, "rgba(0,0,0,0.55)");
   }
@@ -62,7 +62,7 @@ export function paintUnit(ctx: Context2D, x: number, y: number, u: Pick<Unit, "t
   paintBadge(ctx, x, y, u.type, slot);
   if (u.order.kind === "fortified") strokeRound(ctx, x + 9, y + 9, TILE - 18, TILE - 18, 7, "rgba(255,255,255,0.85)", 2);
   else if (u.order.kind === "sentry") text(ctx, x + TILE - 6, y + 2, "z", { size: 12, weight: "bold", color: "#fff", align: "right", shadow: true });
-  if (u.veteran) circle(ctx, x + 9, y + 9, 4, UI.accent);
+  if (u.xp > 0) circle(ctx, x + 9, y + 9, 4, UI.accent);
   if (u.order.kind === "work") {
     // A settler at work wears a badge of its job and the turns it still needs.
     const label = String(u.order.turnsLeft);

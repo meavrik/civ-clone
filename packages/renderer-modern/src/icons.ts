@@ -50,8 +50,22 @@ function box(ctx: Context2D, x: number, y: number, w: number, h: number, color: 
   ctx.fillRect(x, y, w, h);
 }
 
+/** A unit's rank: `n` gold chevrons, one above another, filling the grid's middle. */
+function chevrons(ctx: Context2D, n: number): void {
+  const top = (16 - (3 * n + 3)) / 2;
+  for (let k = 0; k < n; k++) {
+    const y = top + 3 * k;
+    line(ctx, [[3.5, y + 5], [8, y + 1], [12.5, y + 5]], ICON.dark, 3.2);
+    line(ctx, [[3.5, y + 5], [8, y + 1], [12.5, y + 5]], ICON.gold, 1.8);
+  }
+}
+
 /** Each icon drawn on a 16x16 grid; paintIcon scales it. */
 const DRAW: Record<IconName, (ctx: Context2D) => void> = {
+  regular: (c) => chevrons(c, 1),
+  veteran: (c) => chevrons(c, 2),
+  hardened: (c) => chevrons(c, 3),
+  elite: (c) => chevrons(c, 4),
   people: (c) => {
     // A man and a woman, full length.
     poly(c, [[8.6, 4], [8.8, 2], [10.5, 1.2], [12.6, 2], [13.4, 4], [13.6, 8.6], [9, 8.6]], CITIZEN.hair[4]!);

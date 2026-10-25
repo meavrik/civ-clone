@@ -52,6 +52,8 @@ export interface NewGameOptions extends MapGenOptions {
   narrowSight?: boolean;
   /** Wonders bought at an improvement's price (see `GameState.cheapWonderBuy`). Old saves load with it. */
   cheapWonderBuy?: boolean;
+  /** One veteran rank won by a coin toss, no experience (see `GameState.simpleVeterans`). Old saves load with it. */
+  simpleVeterans?: boolean;
   /** Each city's land is the 21 squares it works; borders never grow with culture. Old saves load with it. */
   fixedBorders?: boolean;
   /** Our first culture: gathered every turn, not what a city's people and buildings make it. Old saves load with it. */
@@ -246,6 +248,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.noTrespass ? { noTrespass: true } : {}),
     ...(opts.narrowSight ? { narrowSight: true } : {}),
     ...(opts.cheapWonderBuy ? { cheapWonderBuy: true } : {}),
+    ...(opts.simpleVeterans ? { simpleVeterans: true } : {}),
     ...(opts.fixedBorders ? { fixedBorders: true } : {}),
     ...(opts.accruedCulture ? { accruedCulture: true } : {}),
     ...(opts.peaceOnContact ? { peaceOnContact: true } : {}),
