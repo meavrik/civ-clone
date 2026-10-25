@@ -325,6 +325,18 @@ export function weakestWorked(state: GameState, city: City): number | undefined 
   return worst;
 }
 
+/** The free square (unworked, in the city's land, nobody else's) worth most to the city, or undefined when none is left. */
+export function bestFreeSlot(state: GameState, city: City): number | undefined {
+  let best: number | undefined;
+  let bestScore = -Infinity;
+  for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
+    if (city.worked.includes(slot) || !slotAvailable(state, city, slot)) continue;
+    const score = slotScore(state, city, slot);
+    if (score > bestScore) { best = slot; bestScore = score; }
+  }
+  return best;
+}
+
 /**
  * Every citizen on the best squares (ranked as autoAssignWorkers ranks them),
  * keeping only as many entertainers as the city needs to stay out of

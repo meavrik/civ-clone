@@ -26,6 +26,9 @@ describe("citizens", () => {
     expect(row.slice(0, 3).map((w) => rank[w])).toEqual([...row.slice(0, 3).map((w) => rank[w]!)].sort());
     // The original's round of trades.
     expect(["entertainer", "taxman", "scientist"].map((s) => nextSpecialist(s as "taxman"))).toEqual(["taxman", "scientist", "entertainer"]);
+    // With a square free, the scientist goes back to work on the land.
+    expect(["entertainer", "taxman", "scientist"].map((s) => nextSpecialist(s as "taxman", true))).toEqual(["taxman", "scientist", null]);
+    expect(citizenNote("scientist", true)).toBe("Scientist, +2 science. Click to work the land");
     expect(citizenRole("taxman")).toBe("Taxman, +2 tax");
     expect(citizenNote("content")).toBe("Content worker. Click for an entertainer");
     expect(citizenNote("scientist")).toBe("Scientist, +2 science. Click for an entertainer");

@@ -47,7 +47,9 @@ export function citizenSprite(mood: CitizenMood, look: CitizenLook): Surface {
   return s;
 }
 
-/** Draw the i-th citizen of a city with its top left at (x, y). */
-export function drawCitizen(s: Surface, x: number, y: number, mood: CitizenMood, city: number, i: number): void {
-  s.blit(citizenSprite(mood, citizenLook(city, i)), x, y, SPRITE_CLEAR);
+/** Draw the i-th citizen of a city with its top left at (x, y); `lit`: ringed in that colour (the one the pointer rests on). */
+export function drawCitizen(s: Surface, x: number, y: number, mood: CitizenMood, city: number, i: number, lit?: number): void {
+  const sprite = citizenSprite(mood, citizenLook(city, i));
+  if (lit !== undefined) s.halo(sprite, x, y, SPRITE_CLEAR, lit);
+  s.blit(sprite, x, y, SPRITE_CLEAR);
 }

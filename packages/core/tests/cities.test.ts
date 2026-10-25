@@ -3,6 +3,7 @@ import {
   applyCommand,
   autoAssignWorkers,
   buyCost,
+  bestFreeSlot,
   CITY_RADIUS,
   cityYieldGovernment,
   cityTileYield,
@@ -21,6 +22,7 @@ import {
   sellPrice,
   shieldsAfterChange,
   slotInLand,
+  slotAvailable,
   slotScore,
   specialOf,
   Terrain,
@@ -475,6 +477,18 @@ describe("cities", () => {
     expect(applyCommand(s, { type: "workTile", city: c.id, slot: 6 }).ok).toBe(true);
     expect(c.worked.sort()).toEqual([10, 11, 6].sort());
     expect(c.specialists).toEqual([]);
+    // The specialist named goes to work (the city screen's fourth click), the others keep their trades,
+    // on the free square worth most.
+    c.specialists = ["taxman", "scientist", "entertainer"];
+    c.size = 6;
+    const free = bestFreeSlot(s, c)!;
+    expect(c.worked).not.toContain(free);
+    for (let slot = 1; slot < CITY_RADIUS.length; slot++)
+      if (!c.worked.includes(slot) && slotAvailable(s, c, slot)) expect(slotScore(s, c, slot)).toBeLessThanOrEqual(slotScore(s, c, free));
+    expect(applyCommand(s, { type: "workTile", city: c.id, slot: free, specialist: 1 }).ok).toBe(true);
+    expect(c.specialists).toEqual(["taxman", "entertainer"]);
+    expect(c.worked).toContain(free);
+    expect(applyCommand(s, { type: "workTile", city: c.id, slot: bestFreeSlot(s, c)!, specialist: 5 })).toEqual({ ok: false, reason: "no such specialist" });
   });
 
   it("arranging a city puts every citizen on the best squares, keeping order with entertainers", () => {

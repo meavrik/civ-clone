@@ -7,9 +7,12 @@ import type { Surface } from "./surface.js";
 /** Icons are 8x8, as tall as a line of text; one pixel of air follows each. */
 export const ICON = 8;
 
-export function drawIcon(s: Surface, name: IconName, x: number, y: number): void {
+/** An icon with its top left at (x, y); `lit`: ringed in that colour (the one the pointer rests on). */
+export function drawIcon(s: Surface, name: IconName, x: number, y: number, lit?: number): void {
   const sprite = spriteSurface(ICON_SHEET, name);
-  if (sprite) s.blit(sprite, x, y, SPRITE_CLEAR);
+  if (!sprite) return;
+  if (lit !== undefined && sprite.k === s.k) s.halo(sprite, x, y, SPRITE_CLEAR, lit);
+  s.blit(sprite, x, y, SPRITE_CLEAR);
 }
 
 /** An icon with its cell's top left at fine pixel (fx, fy) (two to a screen pixel). */

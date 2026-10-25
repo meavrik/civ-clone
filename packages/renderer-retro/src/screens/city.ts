@@ -1,4 +1,5 @@
 import {
+  bestFreeSlot,
   building,
   buyCost,
   cityFocus,
@@ -210,6 +211,9 @@ export function cityCitizenAt(state: GameState, view: CityScreenView, px: number
   return null;
 }
 
+/** The ring round a citizen or Happy's face under the pointer: the gold of a lit button's ring. */
+const HOVER = shade("wheat", 6);
+
 /** Where a person's own stretch of the row starts within their sprite: the body stands in the sprite's middle. */
 const bodyAt = (pitch: number) => Math.floor((CITIZEN_W - pitch) / 2);
 
@@ -413,18 +417,19 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawButton(s, VIEW.x, VIEW.y, VIEW.w, VIEW.h, "");
   drawIconFine(s, "city", VIEW.x * s.k + 1, VIEW.y * s.k + 1);
   drawCloseBox(s, EXIT.x, EXIT.y);
-  // Happy: the citizens' feelings stage by stage, lit while that panel is up.
+  // Happy: the citizens' feelings stage by stage, lit while that panel is up, ringed in gold under the pointer.
   if (view.happy) s.rect(HAPPY.x, HAPPY.y, HAPPY.w, HAPPY.h, shade("azure", 2));
-  else if (view.hoverControl === "happy") s.rect(HAPPY.x, HAPPY.y, HAPPY.w, HAPPY.h, shade("panel", 7));
   // Its face is the city's: frowning while the unhappy match or outnumber the happy (unrest, riots).
-  drawIcon(s, r.disorder || (r.unhappy > 0 && r.unhappy >= r.happy) ? "unhappy" : "happy", HAPPY.x + 1, HAPPY.y + 1);
+  const face = r.disorder || (r.unhappy > 0 && r.unhappy >= r.happy) ? "unhappy" : "happy";
+  drawIcon(s, face, HAPPY.x + 1, HAPPY.y + 1, view.hoverControl === "happy" ? HOVER : undefined);
   // Each citizen a person of their own (`citizenLook`), standing on the window's bottom edge; the one
-  // under the pointer lit, and told of beside the row (a click changes their job).
+  // under the pointer ringed in gold and stood in front of the rest, and told of beside the row (a
+  // click changes their job).
   const row = citizenRow(state, city);
   const { xs, pitch } = citizenSpots(row);
   const lit = view.hover !== undefined && view.hover < row.length ? view.hover : null;
-  if (lit !== null) s.rect(xs[lit]! + bodyAt(pitch) - 1, ROW_Y - 1, pitch + 1, CITIZEN_H + 1, shade("panel", 7));
-  row.forEach((who, i) => drawCitizen(s, xs[i]!, ROW_Y, who, city.id, i));
+  row.forEach((who, i) => { if (i !== lit) drawCitizen(s, xs[i]!, ROW_Y, who, city.id, i); });
+  if (lit !== null) drawCitizen(s, xs[lit]!, ROW_Y, row[lit]!, city.id, lit, HOVER);
   // The city's standing, as it is now: riots, a festival, or one lost happy citizen from riots.
   const standing = r.disorder ? (["CIVIL DISORDER", BAD] as const) : r.celebration ? (["CELEBRATING", GOOD] as const) : r.unhappy > 0 && r.unhappy === r.happy ? (["UNREST", GOLD] as const) : null;
   const standX = standing ? SCREEN_W - 6 - textWidth(standing[0]) : SCREEN_W - 4;
@@ -435,8 +440,9 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const room = standX - 6 - noteX;
   const control = view.hoverControl !== undefined ? cityControlNote(state, city, view.hoverControl) : null;
   const improvement = view.hoverImprovement ? improvementNote(state, city, view.hoverImprovement.id) : "";
+  const canWork = bestFreeSlot(state, city) !== undefined;
   const [note, ink] =
-    lit !== null ? [textWidth(citizenNote(row[lit]!)) <= room ? citizenNote(row[lit]!) : citizenRole(row[lit]!), INK]
+    lit !== null ? [textWidth(citizenNote(row[lit]!, canWork)) <= room ? citizenNote(row[lit]!, canWork) : citizenRole(row[lit]!), INK]
     : control ? [control, INK]
     : improvement ? [improvement, INK]
     : view.message ? [view.message, NOTE]

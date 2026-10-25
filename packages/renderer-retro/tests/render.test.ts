@@ -694,15 +694,17 @@ describe("city screen", () => {
     expect(seen).toEqual([0, 1, 2, 3, 4, 5]);
     expect(cityCitizenAt(state, view, 300, 22)).toBeNull();
     expect(cityCitizenAt(state, view, first.get(0)! + 2, 60)).toBeNull();
-    // The taxman pointed at stands on a lit patch.
+    // The taxman pointed at is ringed in gold, traced round his figure.
     const lit = (hover?: number) => {
       const s = Surface.screen();
       drawCityScreen(s, state, { city: city.id, hover });
       let n = 0;
-      for (let y = 14; y < 28; y++) for (let x = first.get(5)!; x < first.get(5)! + 9; x++) if (s.get(x, y) === shade("panel", 7)) n++;
+      for (let y = 12 * s.k; y < 28 * s.k; y++) for (let x = (first.get(5)! - 4) * s.k; x < (first.get(5)! + 12) * s.k; x++) if (s.fget(x, y) === shade("wheat", 6)) n++;
+      if (hover !== undefined) writeFileSync(new URL("./out/city-hover.png", import.meta.url), encodePng(s, 3));
       return n;
     };
-    expect(lit(5)).toBeGreaterThan(lit() + 20);
+    expect(lit()).toBe(0);
+    expect(lit(5)).toBeGreaterThan(40);
     // The slots a Granary keeps full when the city grows are edged in gold in the food box.
     const gold = () => {
       const s = Surface.screen();

@@ -57,9 +57,13 @@ export function isWorker(who: CitizenMood): who is "happy" | "content" | "unhapp
   return who === "happy" || who === "content" || who === "unhappy";
 }
 
-/** The trade a specialist takes on when clicked, as in the original: entertainer, taxman, scientist, round again. */
-export function nextSpecialist(s: Specialist): Specialist {
-  return s === "entertainer" ? "taxman" : s === "taxman" ? "scientist" : "entertainer";
+/**
+ * The trade a specialist takes on when clicked: entertainer, taxman, scientist, as in the original, then
+ * back to work on the land (null) while the city has a square free (`canWork`; asked for 2026-10-25: a
+ * changed citizen could not go back to work), else round again.
+ */
+export function nextSpecialist(s: Specialist, canWork = false): Specialist | null {
+  return s === "entertainer" ? "taxman" : s === "taxman" ? "scientist" : canWork ? null : "entertainer";
 }
 
 /** What each specialist gives the city (two of a kind, `computeCity`). */
@@ -73,9 +77,10 @@ export function citizenRole(who: CitizenMood): string {
   return isWorker(who) ? `${NAME[who]} worker` : `${NAME[who]}, ${SPECIALIST_GIVES[who]}`;
 }
 
-/** What the city screen says of a person in its row: who they are, and what a click makes of them. */
-export function citizenNote(who: CitizenMood): string {
-  return `${citizenRole(who)}. Click for ${AN[isWorker(who) ? "entertainer" : nextSpecialist(who)]}`;
+/** What the city screen says of a person in its row: who they are, and what a click makes of them (`canWork`: a square is free). */
+export function citizenNote(who: CitizenMood, canWork = false): string {
+  const next = isWorker(who) ? "entertainer" : nextSpecialist(who, canWork);
+  return `${citizenRole(who)}. ${next ? `Click for ${AN[next]}` : "Click to work the land"}`;
 }
 
 /** The city screen's word on its row of people while none is pointed at. */

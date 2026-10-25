@@ -77,7 +77,7 @@ export type Command =
   | { type: "found"; unit: number; name?: string }
   | { type: "setProduction"; city: number; production: Production }
   | { type: "toggleTile"; city: number; slot: number }
-  | { type: "workTile"; city: number; slot: number } // a free citizen, else the worker on the weakest square, moves here
+  | { type: "workTile"; city: number; slot: number; specialist?: number } // a free citizen (that specialist, else the last), else the worker on the weakest square, moves here
   | { type: "arrangeCity"; city: number } // every citizen on the best squares
   | { type: "setFocus"; city: number; focus: CityFocus } // what the city works its squares for, then arranged for it
   | { type: "setFoci"; city: number; foci: CityFocus[] } // any foci together (none: the old balance), then arranged for them
@@ -839,7 +839,9 @@ function applyCityCommand(
       if (city.worked.includes(cmd.slot)) return { ok: false, reason: "already worked" };
       if (!slotAvailable(state, city, cmd.slot)) return { ok: false, reason: "tile unavailable" };
       if (city.specialists.length > 0) {
-        city.specialists.pop();
+        const who = cmd.specialist ?? city.specialists.length - 1;
+        if (!Number.isInteger(who) || who < 0 || who >= city.specialists.length) return { ok: false, reason: "no such specialist" };
+        city.specialists.splice(who, 1);
         city.worked.push(cmd.slot);
         return { ok: true };
       }

@@ -1,4 +1,4 @@
-import { cityTileYield,
+import { bestFreeSlot, cityTileYield,
   cityFocus,
   building,
   buyCost,
@@ -142,7 +142,7 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
   if (lit !== null) fillRound(ctx, xs[lit]! - CITIZEN_PITCH / 2, CITIZEN_Y - 2, CITIZEN_PITCH, 46, 6, UI.selection);
   people.forEach((who, i) => paintCitizen(ctx, xs[i]!, CITIZEN_Y, who, citizenLook(city.id, i)));
   const noteX = (xs.length ? xs[xs.length - 1]! : 30) + CITIZEN_PITCH;
-  text(ctx, noteX, 56, lit !== null ? citizenNote(people[lit]!) : CITIZENS_HINT, { size: 13, color: lit !== null ? UI.ink : UI.faint });
+  text(ctx, noteX, 56, lit !== null ? citizenNote(people[lit]!, bestFreeSlot(state, city) !== undefined) : CITIZENS_HINT, { size: 13, color: lit !== null ? UI.ink : UI.faint });
   if (r.disorder) text(ctx, W - 190, 52, "CIVIL DISORDER", { size: 16, weight: "bold", color: UI.danger, align: "right" });
   else if (r.celebration) text(ctx, W - 190, 52, "CELEBRATING", { size: 16, weight: "bold", color: UI.ok, align: "right" });
   button(ctx, CITY_BUTTONS.happy, view.happy ? "primary" : "plain");

@@ -118,6 +118,19 @@ export class Surface {
    * the palette index treated as "skip" (sprites use SPRITE_CLEAR). A coarser
    * source is drawn in blocks, a finer one sampled.
    */
+  /**
+   * A ring one fine pixel wide in `color` round what `src` would draw at (dx, dy) (pixels other than
+   * `transparent`, side by side, never corners): the halo of something the pointer rests on. Draw it
+   * before `src`, which it never covers. Sources as fine as this surface only.
+   */
+  halo(src: Surface, dx: number, dy: number, transparent: number, color: number): void {
+    const { fw, fh, data } = src;
+    const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < fw && y < fh && data[y * fw + x] !== transparent;
+    for (let y = -1; y <= fh; y++)
+      for (let x = -1; x <= fw; x++)
+        if (!solid(x, y) && (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1))) this.fset(dx * this.k + x, dy * this.k + y, color);
+  }
+
   blit(src: Surface, dx: number, dy: number, transparent = -1): void {
     if (src.k === this.k) { this.fblit(src, dx * this.k, dy * this.k, transparent); return; }
     const k = this.k;

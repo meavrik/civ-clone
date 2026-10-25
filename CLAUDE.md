@@ -223,9 +223,13 @@ Never ship the original's sprites, palette art, fonts or text.
   (asked for: "a bit chaotic", a granary indication, citizens to click "like in the original civ"):
   the row of citizens (`citizenRow` in renderer-api: workers by mood, then specialists) is clickable
   (`cityCitizenAt`; the web app's `changeCitizen`): a worker leaves the square worth least to entertain
-  (`toggleTile` on `weakestWorked`), a specialist turns entertainer, taxman, scientist, round again
-  (`setSpecialist`, `nextSpecialist`); the person under the pointer is lit (`CityScreenView.hover`) and
-  told of beside the row (`citizenNote`), else a faint hint. The food and shield stores (`drawStore`,
+  (`toggleTile` on `weakestWorked`), a specialist turns entertainer, taxman, scientist (`setSpecialist`,
+  `nextSpecialist`), then goes back to work on the best free square (core `bestFreeSlot`; `workTile` with
+  `specialist`, the one clicked; asked for 2026-10-25: a changed citizen could not go back), round again
+  to entertainer only when no square is free; the person under the pointer (`CityScreenView.hover`) is
+  ringed in gold, traced round the figure (`Surface.halo`; asked for 2026-10-25 in place of a light
+  patch behind them, as Happy's face is), drawn in front of the row and told of beside it (`citizenNote`),
+  else a faint hint. The food and shield stores (`drawStore`,
   `storeLayout`) are grids of empty slots waiting to be filled (asked for 2026-10-24), ten to a row,
   the grid in the middle of its box's room with the same padding on every side (`storeRegion`), a slot
   standing for more than one good only when the box has more goods than the room has slots (then each

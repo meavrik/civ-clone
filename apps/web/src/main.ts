@@ -63,6 +63,7 @@ import {
   wonder,
   wrapX,
   weakestWorked,
+  bestFreeSlot,
   workOptions,
   WORLD_SIZES,
   type Cheat,
@@ -183,8 +184,14 @@ function changeCitizen(cityId: number, i: number): void {
     if (slot !== undefined && dispatch({ type: "toggleTile", city: city.id, slot })) say(`Now an ${citizenRole("entertainer").toLowerCase()}`);
     return;
   }
-  const next = nextSpecialist(who);
+  // A specialist takes the next trade; after the scientist they go back to the land, on the best square free.
+  const free = bestFreeSlot(state, city);
+  const next = nextSpecialist(who, free !== undefined);
   const index = i - row.filter(isWorker).length;
+  if (next === null) {
+    if (free !== undefined && dispatch({ type: "workTile", city: city.id, slot: free, specialist: index })) say("Back to work on the land");
+    return;
+  }
   if (dispatch({ type: "setSpecialist", city: city.id, index, specialist: next })) say(`Now a${next === "entertainer" ? "n" : ""} ${citizenRole(next).toLowerCase()}`);
 }
 
