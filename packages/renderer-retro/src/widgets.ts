@@ -168,7 +168,7 @@ const BUTTON_MIN_W = 56;
 const MODAL_MIN_W = 112;
 
 /** A list too long for the screen scrolls: its bar runs down the right of the rows, this wide. */
-const SCROLL_W = 5;
+export const SCROLL_W = 5;
 
 interface MenuLayout {
   x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number;
@@ -254,15 +254,20 @@ export function menuRows(m: MenuState): number {
   return menuLayout(m).rows;
 }
 
-/** A scrolling menu's bar: its track beside the rows, and the thumb that shows which of them are on view. */
-function scrollBar(m: MenuState, l: MenuLayout): { x: number; y: number; h: number; thumbY: number; thumbH: number } {
-  const x = l.x + l.w - 4 - SCROLL_W;
-  const y = l.itemsY - 1;
-  const h = l.rows * l.row;
+/** A scroll bar, SCROLL_W wide: its track from (x, y) down `h`, the arrows at its ends, and the thumb between them. */
+export interface ScrollTrack { x: number; y: number; h: number; thumbY: number; thumbH: number }
+
+/** The bar beside `rows` lines of a list of `total`, the first on view `top`: the thumb as long as the share on view, as far down as the list has scrolled. */
+export function scrollTrack(x: number, y: number, h: number, total: number, rows: number, top: number): ScrollTrack {
   const track = h - 2 * (SCROLL_W + 1);
-  const thumbH = Math.max(3, Math.round((track * l.rows) / m.items.length));
-  const thumbY = y + SCROLL_W + 1 + Math.round(((track - thumbH) * l.top) / Math.max(1, m.items.length - l.rows));
+  const thumbH = Math.max(3, Math.round((track * rows) / total));
+  const thumbY = y + SCROLL_W + 1 + Math.round(((track - thumbH) * top) / Math.max(1, total - rows));
   return { x, y, h, thumbY, thumbH };
+}
+
+/** A scrolling menu's bar: its track beside the rows, and the thumb that shows which of them are on view. */
+function scrollBar(m: MenuState, l: MenuLayout): ScrollTrack {
+  return scrollTrack(l.x + l.w - 4 - SCROLL_W, l.itemsY - 1, l.rows * l.row, m.items.length, l.rows, l.top);
 }
 
 /** Where a point lies on a scrolling menu's bar: -1 above its thumb (the up arrow too), 1 below, 0 on it; null off the bar. */
@@ -365,14 +370,17 @@ function drawMenuNow(s: Surface, m: MenuState, square?: (s: Surface, x: number, 
   if (scrolls) drawScrollBar(s, m, l);
 }
 
-/** The bar beside a scrolling list: arrows at its ends (dark while there is more that way), a thumb for the rows on view. */
+/** The bar beside a scrolling menu. */
 function drawScrollBar(s: Surface, m: MenuState, l: MenuLayout): void {
-  const b = scrollBar(m, l);
+  drawScrollTrack(s, scrollBar(m, l), l.top > 0, l.top + l.rows < m.items.length);
+}
+
+/** The bar beside a scrolling list: arrows at its ends (dark while there is more that way), a thumb for the rows on view. */
+export function drawScrollTrack(s: Surface, b: ScrollTrack, moreUp: boolean, moreDown: boolean): void {
   s.rect(b.x, b.y, SCROLL_W, b.h, shade("panel", 3));
   s.rect(b.x, b.thumbY, SCROLL_W, b.thumbH, shade("azure", 2));
-  const more = (up: boolean) => (up ? l.top > 0 : l.top + l.rows < m.items.length);
   for (const up of [true, false]) {
-    const ink = more(up) ? INK : FADED;
+    const ink = (up ? moreUp : moreDown) ? INK : FADED;
     const ay = up ? b.y + 1 : b.y + b.h - 2;
     // A small triangle, its point toward the hidden rows.
     for (let k = 0; k < 3; k++) s.hline(b.x + 2 - k, up ? ay + k : ay - k, 1 + 2 * k, ink);

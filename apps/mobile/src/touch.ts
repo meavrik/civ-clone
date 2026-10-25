@@ -1,5 +1,5 @@
 import { shipStats } from "@civ/core";
-import { ratesAt } from "@civ/renderer-retro";
+import { IMPROVEMENT_LINE_H, ratesAt } from "@civ/renderer-retro";
 import { game, press, screenKind } from "./civ.js";
 import { canvas, displayScale, logicalAt } from "./display.js";
 import { GESTURES, Pinch, Recognizer, type Gesture } from "./gestures.js";
@@ -10,8 +10,8 @@ import { syncText } from "./text.js";
 
 /**
  * Fingers on the game screen become the mouse the web game knows: a tap is a click, a press held
- * still is a right-click (the square's window), a drag pans the map or scrolls the research list,
- * and two fingers on the map pinch it in or out (`ZOOMS`).
+ * still is a right-click (the square's window), a drag pans the map or scrolls the research list (on
+ * a city screen its improvements), and two fingers on the map pinch it in or out (`ZOOMS`).
  * There are no buttons beside the screen, so the few things the game takes from keys only are
  * touches here: a tap on our unit opens its orders just above it (the menu bar has no Orders on a
  * phone), a touch on a rates bar sets that rate, a tap on a spaceship ready to go asks to launch
@@ -97,7 +97,7 @@ function act(g: Gesture | null): void {
       at.x = g.x;
       at.y = g.y;
       const [px, py] = logicalAt(g.x, g.y);
-      dragging = screen === "rates" && ratesAt(px, py, false, shown.wide ? screenW() : undefined) ? "rates" : screen === "map" && tileUnder(px, py) ? "map" : screen === "research" ? "list" : null;
+      dragging = screen === "rates" && ratesAt(px, py, false, shown.wide ? screenW() : undefined) ? "rates" : screen === "map" && tileUnder(px, py) ? "map" : screen === "research" || screen === "city" ? "list" : null;
       if (dragging === "rates") setRate(g.x, (barY = g.y), true);
       if (dragging === "map") pan.grab();
       break;
@@ -108,8 +108,10 @@ function act(g: Gesture | null): void {
       const scale = displayScale();
       if (dragging === "map") pan.drag(-g.dx / (scale * TILE_PX * mapZoom()), -g.dy / (scale * TILE_PX * mapZoom()));
       else if (dragging === "list") {
-        // The research list scrolls with the finger: the wheel it answers to moves a row for every 30 of its pixels, a row being 9 logical ones.
-        canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: (-g.dy / scale / 9) * 30, deltaMode: 0, bubbles: true, cancelable: true }));
+        // The list scrolls with the finger: the wheel it answers to moves a row for every 30 of its pixels, a
+        // row being 9 logical ones in the research list, IMPROVEMENT_LINE_H in a city's improvements.
+        const row = screen === "city" ? IMPROVEMENT_LINE_H : 9;
+        canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: (-g.dy / scale / row) * 30, deltaMode: 0, bubbles: true, cancelable: true }));
       } else if (dragging === "rates") setRate(at.x, barY, true);
       break;
     }

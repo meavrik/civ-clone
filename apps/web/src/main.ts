@@ -13,6 +13,9 @@ import {
   FOCI,
   shieldsAfterChange,
   buyCost,
+  building,
+  sellPrice,
+  whyNoSale,
   canFoundCity,
   exitSquare,
   canHelpWonder,
@@ -86,6 +89,8 @@ import {
   standing,
   citizenRole,
   citizenRow,
+  improvementNote,
+  scrollImprovements,
   isWorker,
   nextSpecialist,
   keepResearchInView,
@@ -218,6 +223,9 @@ const REASONS: Record<string, string> = {
   treaty: "We have a treaty",
   "no route": "No route there",
   "nothing to pillage": "Nothing to pillage here",
+  "sold this turn": "A city sells one building a turn",
+  palace: "The Palace is never sold",
+  wonder: "Wonders are never sold",
 };
 
 type Screen =
@@ -845,6 +853,23 @@ function askBuy(cityId: number): void {
   modal(`Buy ${name}?`, [price], ["Buy", "Not now"], (i) => {
     if (i === 0 && dispatch({ type: "buy", city: cityId })) say(`${name} will be ready next turn`);
   });
+}
+
+/**
+ * Sell an improvement of the city (the Improvements box's Sell button, or its line, as the original
+ * asked on a click): what it brings against the treasury first, Keep by default. One a city a turn,
+ * never the Palace or a wonder: those say why instead.
+ */
+function askSell(cityId: number, id: string): void {
+  const city = state.cities.find((c) => c.id === cityId);
+  if (!city) return;
+  if (whyNoSale(state, city, id)) { say(improvementNote(state, city, id)); return; }
+  const name = building(id).name;
+  const price = sellPrice(state, city, id);
+  const gold = state.players[city.owner]!.gold;
+  modal(`Sell the ${name}?`, [`{purse} ${price} gold for it  {coin} ${gold} in the treasury`, "A city sells one building a turn."], ["Sell", "Keep it"], (i) => {
+    if (i === 0 && dispatch({ type: "sell", city: cityId, building: id })) say(`${name} sold for ${price} gold`);
+  }, 1);
 }
 
 /**
@@ -2283,14 +2308,25 @@ canvas.addEventListener("wheel", (e) => {
     moveSelection(sc.menu, Math.sign(e.deltaY) * 3);
     return;
   }
-  if (sc.kind !== "research") return;
+  if (sc.kind !== "research" && sc.kind !== "city") return;
   e.preventDefault();
-  // The list scrolls a row for each line of the wheel (pixels gathered until they make a row).
-  wheelRows += e.deltaMode === 1 ? e.deltaY : e.deltaMode === 2 ? e.deltaY * renderer.researchListRows : e.deltaY / 30;
+  // The list scrolls a row for each line of the wheel (pixels gathered until they make a row): the
+  // research list, or on the city screen its improvements, the only list there.
+  const page = sc.kind === "city" ? renderer.cityImprovementRows(state) : renderer.researchListRows;
+  wheelRows += e.deltaMode === 1 ? e.deltaY : e.deltaMode === 2 ? e.deltaY * page : e.deltaY / 30;
   const rows = Math.trunc(wheelRows);
-  if (rows) { wheelRows -= rows; treeScroll(sc, rows); }
+  if (!rows) return;
+  wheelRows -= rows;
+  if (sc.kind === "city") scrollCityList(sc, rows);
+  else treeScroll(sc, rows);
 }, { passive: false });
 let wheelRows = 0;
+
+/** The city screen's list of improvements moved `by` lines, kept within its ends. */
+function scrollCityList(sc: Extract<Screen, { kind: "city" }>, by: number): void {
+  const city = state.cities.find((c) => c.id === sc.view.city);
+  if (city) sc.view.top = scrollImprovements(city, sc.view.top, by, renderer.cityImprovementRows(state));
+}
 /** What the audience screen shows: the leader's words and our choices. */
 function diplomacyView(sc: Extract<Screen, { kind: "diplomacy" }>): DiplomacyView {
   // The leader's mood colours the window (the AI's attitude: hostile at war or after a last warning, else by grievance, pride and our influence).
@@ -2325,6 +2361,8 @@ canvas.addEventListener("mousemove", (e) => {
     const [px, py] = toLogical(e);
     sc.view.hover = renderer.cityCitizenAt(state, sc.view, px, py) ?? undefined;
     sc.view.hoverControl = renderer.cityButtonAt(px, py) ?? (renderer.cityExitHit(px, py) ? "exit" : null) ?? renderer.cityFocusAt(px, py) ?? undefined;
+    const line = renderer.cityImprovementAt(state, sc.view, px, py);
+    sc.view.hoverImprovement = line?.kind === "line" ? { id: line.id, sell: line.sell } : undefined;
     return;
   }
   if (sc.kind === "diplomacy" && sc.talk) {
@@ -2426,6 +2464,10 @@ canvas.addEventListener("mousedown", (e) => {
       if (unit !== null) { activateFromCity(sc, unit); return; }
       const person = renderer.cityCitizenAt(state, sc.view, px, py);
       if (person !== null) { changeCitizen(sc.view.city, person); return; }
+      // The Improvements box: a line (or its Sell button) asks to sell it, the bar scrolls the list.
+      const line = renderer.cityImprovementAt(state, sc.view, px, py);
+      if (line?.kind === "line") { askSell(sc.view.city, line.id); return; }
+      if (line?.kind === "scroll") { scrollCityList(sc, line.by); return; }
       // A worked square frees its citizen; an unworked one takes a free citizen or the worker on the
       // weakest square; the city's own square puts every citizen on the best squares. A click on
       // nothing that answers leaves the city, as Exit, Esc and Enter do.

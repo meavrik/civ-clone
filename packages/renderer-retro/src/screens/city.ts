@@ -19,19 +19,18 @@ import {
   Terrain,
   tileYield,
   turnToYear,
-  wonder,
   type City,
   type CityFocus,
   type CityReport,
   type GameState,
 } from "@civ/core";
-import { citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityLook, cityUnits, fieldSides, FOCUS_CORNERS, isWorker, MOOD_STAGE_ICONS, type CitizenMood, type IconName } from "@civ/renderer-api";
+import { buildingArt, citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityImprovements, cityLook, cityUnits, fieldSides, FOCUS_CORNERS, improvementNote, improvementsTop, isWorker, MOOD_STAGE_ICONS, type CitizenMood, type IconName, type ImprovementHit, type ImprovementLine } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, unitSprite } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
-import { BAD, DIM, drawButton, drawCloseBox, drawStone, drawTitleStrip, drawWindow, FADED, GOLD, GOOD, INK, NOTE, stipple, TITLE_H } from "../widgets.js";
+import { BAD, DIM, drawButton, drawCloseBox, drawScrollTrack, drawStone, drawTitleStrip, drawWindow, FADED, GOLD, GOOD, INK, NOTE, SCROLL_W, scrollTrack, stipple, TITLE_H, type ScrollTrack } from "../widgets.js";
 import { CITIZEN_H, CITIZEN_W, drawCitizen } from "../citizens.js";
 import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk, iconLineWidth } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
@@ -62,6 +61,60 @@ import type { CityButton, CityScreenView } from "@civ/renderer-api";
 
 type Rect = { x: number; y: number; w: number; h: number };
 const inRect = (b: Rect, px: number, py: number) => px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h;
+
+/**
+ * The Improvements box's list (`cityImprovements`), a line each: the building's picture in a box
+ * PIC_W by PIC_H, its name, upkeep and Sell button; a bar beside the lines when there are more than fit.
+ */
+const LIST_X = RIGHT.x + 3;
+const LIST_Y = ROW1.y + BOX_HEAD + 2;
+const LINE_H = 11;
+/** How far apart the Improvements box's lines stand (the phone's finger scrolls the list by it). */
+export const IMPROVEMENT_LINE_H = LINE_H;
+const PIC_W = 14;
+const PIC_H = 10;
+const SELL_W = 17;
+const SELL_H = 9;
+/** The city's culture, along the foot of the Improvements box (not in saves whose borders never grow). */
+const CULTURE_Y = ROW1.y + ROW1.h - 3 - FONT_HEIGHT;
+
+/** How many of the Improvements box's lines show at once: as many as fit above its culture line. */
+export function cityImprovementRows(state: GameState): number {
+  const bottom = state.fixedBorders ? ROW1.y + ROW1.h - 3 : CULTURE_Y - 1;
+  return Math.floor((bottom - LIST_Y) / LINE_H);
+}
+
+/** The list as it stands: its lines, how many show from which, where the lines end, and the bar when it scrolls. */
+function listLayout(state: GameState, city: City, view: CityScreenView): { lines: ImprovementLine[]; rows: number; top: number; right: number; bar: ScrollTrack | null } {
+  const lines = cityImprovements(city);
+  const rows = cityImprovementRows(state);
+  const top = improvementsTop(view.top, lines.length, rows);
+  const scrolls = lines.length > rows;
+  const right = RIGHT.x + RIGHT.w - 3 - (scrolls ? SCROLL_W + 2 : 0);
+  const bar = scrolls ? scrollTrack(RIGHT.x + RIGHT.w - 3 - SCROLL_W, LIST_Y, rows * LINE_H - 1, lines.length, rows, top) : null;
+  return { lines, rows, top, right, bar };
+}
+
+/** A line's Sell button, at the right end of the line whose top is `y`. */
+const sellButton = (right: number, y: number): Rect => ({ x: right - SELL_W, y: y + 1, w: SELL_W, h: SELL_H });
+
+/** What a point of the Improvements box holds: a line (on its Sell button or not), or the bar: an arrow a line, the track a page. */
+export function cityImprovementAt(state: GameState, view: CityScreenView, px: number, py: number): ImprovementHit | null {
+  const city = state.cities.find((c) => c.id === view.city);
+  if (!city) return null;
+  const L = listLayout(state, city, view);
+  const b = L.bar;
+  if (b && px >= b.x - 1 && px <= b.x + SCROLL_W && py >= b.y && py < b.y + b.h) {
+    if (py < b.y + SCROLL_W + 1) return { kind: "scroll", by: -1 };
+    if (py >= b.y + b.h - SCROLL_W - 1) return { kind: "scroll", by: 1 };
+    return { kind: "scroll", by: py < b.thumbY ? -L.rows : py >= b.thumbY + b.thumbH ? L.rows : 0 };
+  }
+  if (px < LIST_X || px >= L.right || py < LIST_Y) return null;
+  const i = Math.floor((py - LIST_Y) / LINE_H);
+  const line = i < L.rows ? L.lines[L.top + i] : undefined;
+  if (!line) return null;
+  return { kind: "line", id: line.id, sell: line.sells && inRect(sellButton(L.right, LIST_Y + i * LINE_H), px, py) };
+}
 
 /** The close box at the title strip's right end, as every window has, and View (the city's picture) beside it. */
 const EXIT: Rect = { x: LEFT.x + SCREEN_W - 2 - 3 - (TITLE_H - 2), y: TOP.y + 3, w: TITLE_H - 2, h: TITLE_H - 2 };
@@ -377,9 +430,11 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   // the latest word, else the hint.
   const room = standX - 6 - noteX;
   const control = view.hoverControl !== undefined ? cityControlNote(state, city, view.hoverControl) : null;
+  const improvement = view.hoverImprovement ? improvementNote(state, city, view.hoverImprovement.id) : "";
   const [note, ink] =
     lit !== null ? [textWidth(citizenNote(row[lit]!)) <= room ? citizenNote(row[lit]!) : citizenRole(row[lit]!), INK]
     : control ? [control, INK]
+    : improvement ? [improvement, INK]
     : view.message ? [view.message, NOTE]
     : [CITIZENS_HINT, FADED];
   if (textWidth(note) <= room) say(s, noteX, TOP.y + BOX_HEAD + 4, note, ink);
@@ -387,7 +442,6 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
 
   if (view.happy) drawMoods(s, city, r);
   else drawResources(s, r);
-  let y = 0;
 
   // Resource map.
   drawBox(s, MID.x, ROW1.y, MID.w, ROW1.h);
@@ -458,26 +512,10 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const foci = cityFoci(state, city);
   FOCUS_CORNERS.forEach(({ focus, icon }, i) => drawFocusToggle(s, focusCorner(i), icon, foci.includes(focus), view.hoverControl === focus));
 
-  // Improvements, wonders in yellow, each building with its upkeep.
-  drawBox(s, RIGHT.x, ROW1.y, RIGHT.w, ROW1.h, "Improvements", r.buildingUpkeep ? `Upkeep ${r.buildingUpkeep}$` : "");
-  const lines = [
-    ...city.wonders.map((w) => ({ name: wonder(w).name, color: GOLD, upkeep: 0 })),
-    ...city.buildings.map((b) => ({ name: building(b).name, color: INK, upkeep: building(b).upkeep })),
-  ];
-  // The last line is the city's culture, unless borders never grow (old saves).
-  const fit = Math.floor((ROW1.h - BOX_HEAD - 4) / FONT_HEIGHT) - (state.fixedBorders ? 0 : 1);
-  const shown = lines.length > fit ? lines.slice(0, fit - 1) : lines;
-  y = ROW1.y + BOX_HEAD + 3;
-  for (const l of shown) {
-    say(s, RIGHT.x + 4, y, l.name, l.color);
-    if (l.upkeep) say(s, RIGHT.x + RIGHT.w - 4 - textWidth(`${l.upkeep}$`), y, `${l.upkeep}$`, LABEL);
-    y += FONT_HEIGHT;
-  }
-  if (shown.length < lines.length) say(s, RIGHT.x + 4, y, `and ${lines.length - shown.length} more`, LABEL);
-  if (!lines.length) say(s, RIGHT.x + 4, y, "None yet", LABEL);
+  drawImprovements(s, state, city, view, r);
   // Culture toward the level where the border grows next (and, in old saves, what a turn adds).
   if (!state.fixedBorders) {
-    const cy = ROW1.y + ROW1.h - 3 - FONT_HEIGHT;
+    const cy = CULTURE_Y;
     const next = nextBorderLevel(state, city);
     drawIconLine(s, RIGHT.x + 4, cy, `{culture} Culture ${cityCulture(state, city)}${next === null ? "" : `/${next}`}`, INK);
     if (state.accruedCulture) {
@@ -534,6 +572,35 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const price = cost ? `Buy ${cost}$` : "Complete";
   say(s, RIGHT.x + RIGHT.w - 4 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);
 
+}
+
+/**
+ * The Improvements box (asked for 2026-10-25): a line for each wonder (in gold) and building the city
+ * holds, its picture (the user's, laid over the canvas by the apps: `Surface.art`), name, upkeep and,
+ * for a building but the Palace, a Sell button (faded once the city has sold one this turn); the line
+ * under the pointer lit. More lines than the box holds scroll, with a bar beside them.
+ */
+function drawImprovements(s: Surface, state: GameState, city: City, view: CityScreenView, r: CityReport): void {
+  drawBox(s, RIGHT.x, ROW1.y, RIGHT.w, ROW1.h, "Improvements", r.buildingUpkeep ? `Upkeep ${r.buildingUpkeep}$` : "");
+  const L = listLayout(state, city, view);
+  const sold = city.soldOn === state.turn;
+  L.lines.slice(L.top, L.top + L.rows).forEach((line, i) => {
+    const y = LIST_Y + i * LINE_H;
+    const hover = view.hoverImprovement?.id === line.id ? view.hoverImprovement : null;
+    if (hover) s.rect(LIST_X, y, L.right - LIST_X, LINE_H - 1, shade("panel", 7));
+    if (buildingArt(line.id)) s.art.push({ id: line.id, x: LIST_X + 1, y, w: PIC_W, h: PIC_H, middle: true });
+    else drawIcon(s, line.wonder ? "star" : "house", LIST_X + 1 + (PIC_W - ICON) / 2, y + 1);
+    say(s, LIST_X + PIC_W + 3, y + 1, line.name, line.wonder ? GOLD : INK);
+    let end = L.right - 1;
+    if (line.sells) {
+      const b = sellButton(L.right, y);
+      drawButton(s, b.x, b.y, b.w, b.h, "Sell", !sold, !!hover?.sell);
+      end = b.x - 3;
+    }
+    if (line.upkeep) say(s, end - textWidth(`${line.upkeep}$`), y + 1, `${line.upkeep}$`, LABEL);
+  });
+  if (!L.lines.length) say(s, LIST_X + 1, LIST_Y + 1, "None yet", LABEL);
+  if (L.bar) drawScrollTrack(s, L.bar, L.top > 0, L.top + L.rows < L.lines.length);
 }
 
 /**

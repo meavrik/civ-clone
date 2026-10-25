@@ -178,6 +178,8 @@ export interface City {
   foci?: CityFocus[];
   /** Culture gathered since it was founded, in saves before version 14 (`accruedCulture`); since then a city's culture is what it holds (`cityCulture` in territory.ts) and this stays 0. */
   culture: number;
+  /** The turn the city last sold an improvement (`sell`): one a turn, as in the original. Absent until it first sells one. */
+  soldOn?: number;
 }
 
 export interface Player {

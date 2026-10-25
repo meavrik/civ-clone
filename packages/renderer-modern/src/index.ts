@@ -96,6 +96,9 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     cityCitizenAt: (state, view, px, py) => cityCitizenAt(state, view, px, py),
     // Its Focus button opens the menu; the focus toggles are the retro map's corners.
     cityFocusAt: () => null,
+    // Set aside (the app draws retro only): its city screen keeps its plain list of improvements.
+    cityImprovementAt: () => null,
+    cityImprovementRows: () => Infinity,
     // Its own rates screen takes keys; a click anywhere closes it.
     ratesHit: () => null,
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px, py),

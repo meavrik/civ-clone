@@ -3,6 +3,8 @@ import {
   cityButtonAt,
   cityCitizenAt,
   cityFocusAt,
+  cityImprovementAt,
+  cityImprovementRows,
   cityExitHit,
   citySlotAt,
   cityUnitAt,
@@ -162,6 +164,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityUnitAt: (state, view, px, py) => cityUnitAt(state, view, px, py),
     cityCitizenAt: (state, view, px, py) => cityCitizenAt(state, view, px, py),
     cityFocusAt: (px, py) => cityFocusAt(px, py),
+    cityImprovementAt: (state, view, px, py) => cityImprovementAt(state, view, px, py),
+    cityImprovementRows: (state) => cityImprovementRows(state),
     ratesHit: (px, py) => ratesHit(px, py),
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px, py),
     tileAt(state: GameState, view: MainScreenView, px, py) {

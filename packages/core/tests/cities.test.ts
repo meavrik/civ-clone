@@ -18,13 +18,16 @@ import {
   makeSave,
   newGame,
   secondKind,
+  sellPrice,
   shieldsAfterChange,
+  slotInLand,
   slotScore,
   specialOf,
   Terrain,
   TERRAIN_RULES,
   tileYield,
   unitSupport,
+  whyNoSale,
   type City,
   type GameState,
 } from "../src/index.js";
@@ -645,6 +648,51 @@ describe("unit upkeep", () => {
     expect(applyCommand(s, { type: "home", unit: u.id }).ok).toBe(false);
     u.x = 30;
     expect(applyCommand(s, { type: "home", unit: u.id })).toEqual({ ok: false, reason: "not in our city" });
+  });
+});
+
+describe("selling improvements", () => {
+  it("sells a building for what it costs the city, one a city a turn, never the Palace or a wonder", () => {
+    const s = flatWorld();
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    c.buildings = ["palace", "temple", "granary"];
+    c.wonders.push("pyramids");
+    const me = s.players[0]!;
+    me.gold = 10;
+    expect(applyCommand(s, { type: "sell", city: c.id, building: "pyramids" })).toEqual({ ok: false, reason: "wonder" });
+    expect(applyCommand(s, { type: "sell", city: c.id, building: "palace" })).toEqual({ ok: false, reason: "palace" });
+    expect(applyCommand(s, { type: "sell", city: c.id, building: "library" })).toEqual({ ok: false, reason: "not built" });
+    expect(sellPrice(s, c, "temple")).toBe(40);
+    expect(applyCommand(s, { type: "sell", city: c.id, building: "temple" }).ok).toBe(true);
+    expect(me.gold).toBe(50);
+    expect(c.buildings).toEqual(["palace", "granary"]);
+    expect(whyNoSale(s, c, "granary")).toBe("sold this turn");
+    expect(applyCommand(s, { type: "sell", city: c.id, building: "granary" })).toEqual({ ok: false, reason: "sold this turn" });
+    applyCommand(s, { type: "endTurn" });
+    expect(s.currentPlayer).toBe(0);
+    expect(applyCommand(s, { type: "sell", city: c.id, building: "granary" }).ok).toBe(true);
+    // A trait's discount lowers the price as it lowers the cost: half for the French temple.
+    delete s.classicCivs;
+    me.civ = "french";
+    expect(sellPrice(s, c, "temple")).toBe(20);
+  });
+
+  it("takes the city's workers off the squares a smaller border gives up", () => {
+    const s = flatWorld();
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    // Size two and a temple make four culture: the border reaches two squares out, until the temple goes.
+    c.buildings = ["temple"];
+    c.size = 2;
+    const far = CITY_RADIUS.findIndex(([dx, dy]) => dx === 2 && dy === 0);
+    c.worked = [far, CITY_RADIUS.findIndex(([dx, dy]) => dx === 1 && dy === 0)];
+    c.specialists = [];
+    expect(slotInLand(s, c, far)).toBe(true);
+    expect(applyCommand(s, { type: "sell", city: c.id, building: "temple" }).ok).toBe(true);
+    expect(slotInLand(s, c, far)).toBe(false);
+    expect(c.worked).not.toContain(far);
+    expect(c.worked.length + c.specialists.length).toBe(2);
   });
 });
 

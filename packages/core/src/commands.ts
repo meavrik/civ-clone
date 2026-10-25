@@ -14,6 +14,8 @@ import {
   inciteCost,
   processCityTurn,
   routeBonus,
+  sellPrice,
+  whyNoSale,
   dropLostSquares,
   slotAvailable,
   arrangeCity,
@@ -81,6 +83,7 @@ export type Command =
   | { type: "setFoci"; city: number; foci: CityFocus[] } // any foci together (none: the old balance), then arranged for them
   | { type: "setSpecialist"; city: number; index: number; specialist: Specialist }
   | { type: "buy"; city: number }
+  | { type: "sell"; city: number; building: string } // an improvement for its cost in gold, one a city a turn
   | { type: "renameCity"; city: number; name: string }
   | { type: "setRates"; tax: number; lux: number; sci: number }
   | { type: "research"; advance: string }
@@ -332,6 +335,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     case "setFoci":
     case "setSpecialist":
     case "buy":
+    case "sell":
     case "renameCity":
       return applyCityCommand(state, cmd);
   }
@@ -876,6 +880,16 @@ function applyCityCommand(
       // Bought shields are the box a change of production is reckoned from.
       city.turnShields = city.shields;
       city.turnKind = city.production.kind;
+      return { ok: true };
+    }
+    case "sell": {
+      const why = whyNoSale(state, city, cmd.building);
+      if (why) return { ok: false, reason: why };
+      state.players[city.owner]!.gold += sellPrice(state, city, cmd.building);
+      city.buildings = city.buildings.filter((b) => b !== cmd.building);
+      city.soldOn = state.turn;
+      // Less culture may pull the border in: its workers leave the squares it no longer holds.
+      dropLostSquares(state, city);
       return { ok: true };
     }
     case "renameCity":

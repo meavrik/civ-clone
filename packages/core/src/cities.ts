@@ -450,6 +450,23 @@ export function costFor(state: GameState, owner: number, p: Production): number 
   return pct === 0 ? base : Math.max(1, Math.round((base * (100 + pct)) / 100));
 }
 
+/** The gold a city gets for selling improvement `id`: what it would pay to build it (FreeCiv's `impr_sell_gold`, a gold a shield). */
+export function sellPrice(state: GameState, city: City, id: string): number {
+  return costFor(state, city.owner, { kind: "building", id });
+}
+
+/**
+ * Why a city may not sell `id` now, or null when it may: one improvement a city a turn, never the
+ * Palace or a wonder (as in the original), and only what it holds.
+ */
+export function whyNoSale(state: GameState, city: City, id: string): "wonder" | "palace" | "not built" | "sold this turn" | null {
+  if (city.wonders.includes(id)) return "wonder";
+  if (!city.buildings.includes(id)) return "not built";
+  if (id === "palace") return "palace";
+  if (city.soldOn === state.turn) return "sold this turn";
+  return null;
+}
+
 export function productionName(p: Production): string {
   return p.kind === "unit" ? unitType(p.id).name : p.kind === "wonder" ? wonder(p.id).name : p.kind === "spaceship" ? spacePart(p.id).name : building(p.id).name;
 }

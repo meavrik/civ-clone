@@ -207,7 +207,19 @@ Never ship the original's sprites, palette art, fonts or text.
   trade), straight on the ground with no shade: food along the top half, shields then trade along the
   bottom, overlapping when a row is long (asked for 2026-10-22: the shade looked bad and the old 3x3
   marks could not be told apart); the box gives each a named row of icons (Food, Shields, Trade, then
-  Tax, Lux and Sci a row each; the buildings' upkeep heads the Improvements box). Tidied 2026-10-24
+  Tax, Lux and Sci a row each; the buildings' upkeep heads the Improvements box). The Improvements box
+  (asked for 2026-10-25: a small picture of each building, a scroll to see them all, and the option to sell
+  each) lists the city's wonders (gold) then its buildings (`cityImprovements` in renderer-api), a line each:
+  the user's picture of it in a 14x10 spot (`Surface.art`), its name, its upkeep and, for a building but the
+  Palace, a Sell button; more lines than fit (5, 6 in saves without culture) scroll (`CityScreenView.top`,
+  `scrollImprovements`; the wheel anywhere on the city screen, the bar's arrows a line and its track a page,
+  a drag on the phone). A click on a line or its Sell button asks first ("Sell the Temple?", its price
+  against the treasury, Keep it by default; `askSell` in the web app), then the core `sell` command: the
+  building's cost for its owner in gold (`sellPrice`, as FreeCiv's `impr_sell_gold`; a trait's discount
+  lowers it), one a city a turn (`City.soldOn`), never the Palace or a wonder (`whyNoSale`), the city's
+  workers leaving squares a shrunken border gives up (`dropLostSquares`). The line pointed at is lit and
+  told of beside the citizens (`improvementNote`, `CityScreenView.hoverImprovement`); once the city has sold
+  this turn its Sell buttons fade. No save version: old logs hold no `sell`. Tidied 2026-10-24
   (asked for: "a bit chaotic", a granary indication, citizens to click "like in the original civ"):
   the row of citizens (`citizenRow` in renderer-api: workers by mood, then specialists) is clickable
   (`cityCitizenAt`; the web app's `changeCitizen`): a worker leaves the square worth least to entertain
