@@ -25,7 +25,7 @@ import {
 } from "@civ/core";
 import { drawSpacedRinged, drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, spacedWidth, textPlateWidth, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
-import { C, mixColor, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
+import { C, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
@@ -724,17 +724,16 @@ const fromPixel = (k: number, p: number) => Math.ceil(p * k);
 
 /** How far a civilization's colour tints the land it claims, and its sea, on the world map. */
 export const TERRITORY_TINT = { land: 0.65, sea: 0.4 };
-/** The same on the minimap, stronger: a pixel a square shows the land's colour more than its ground. */
-export const MINIMAP_TINT = { land: 0.8, sea: 0.55 };
 
 /**
  * The minimap, one pixel a square on the original's world (a block of squares on a bigger
  * one: the first explored land in it, else its sea, so islands still show): explored squares
- * in their terrain's colour, shaded out of sight (`UNSEEN`); with borders shown, each civilization's
- * land filled with its colour (asked for 2026-10-26: "show all the civ territory as filled color"),
- * tinted toward it more strongly than the world map (`MINIMAP_TINT`), and a line of the colour along the inside
- * edge; units we see in their owner's colour; and each known city as a white dot in a cross of its
- * owner's colour (a darker shade inside a border, so the city stands out from the land round it).
+ * in their terrain's colour, shaded out of sight (`UNSEEN`); with borders shown, every explored square
+ * a civilization claims, land and sea, in its colour, whole and unshaded (asked for 2026-10-26: "show
+ * all the civ territory as filled color", then "not a single color full filled area": a tint inside a
+ * line of the colour still read as an outline); units we see in their owner's colour (its darker shade
+ * on its own land); and each known city as a black dot on its land, or, with borders off, a white dot
+ * in a cross of its owner's colour.
  */
 function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: number): void {
   const { map } = state;
@@ -743,9 +742,6 @@ function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: nu
   const { w, h } = minimapSize(map);
   const terr = view.borders ? territory(state) : null;
   s.rect(0, top, PANEL_W, h, C.BLACK!);
-  // The square each pixel shows (-1: nothing explored there), and the one its border reads.
-  const shown = new Int32Array(w * h).fill(-1);
-  const owned = new Int32Array(w * h);
   for (let py = 0; py < h; py++)
     for (let px = 0; px < w; px++) {
       const y0 = fromPixel(k, py);
@@ -760,43 +756,32 @@ function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: nu
           if (pick < 0 || map.tiles[i]!.terrain !== Terrain.Ocean) pick = i;
           if (map.tiles[pick]!.terrain !== Terrain.Ocean) break;
         }
-      shown[py * w + px] = pick;
-      owned[py * w + px] = pick >= 0 ? pick : y0 * map.width + x0;
       if (pick < 0) continue;
+      // A civilization's land in its colour, whole: one colour from border to border.
+      const own = terr ? ownerAt(terr, pick % map.width, Math.floor(pick / map.width)) : -1;
+      if (own >= 0) { s.set(px, top + py, playerColor(state, own)); continue; }
       // Shaded, as on the map, where no square of the block is in sight.
       let lit = false;
       for (let y = y0; y < y1 && !lit; y++) for (let x = x0; x < x1 && !lit; x++) lit = me.visible[y * map.width + x] === 1;
-      const ground = minimapColor(map, pick % map.width, Math.floor(pick / map.width), me.explored);
-      const own = terr ? ownerAt(terr, pick % map.width, Math.floor(pick / map.width)) : -1;
-      const tint = map.tiles[pick]!.terrain === Terrain.Ocean ? MINIMAP_TINT.sea : MINIMAP_TINT.land;
-      const color = own < 0 ? ground : mixColor(ground, playerColor(state, own), tint);
+      const color = minimapColor(map, pick % map.width, Math.floor(pick / map.width), me.explored);
       s.set(px, top + py, lit ? color : UNSEEN[color]!);
     }
-  if (terr) {
-    const ownerOf = (px: number, py: number) => {
-      if (py < 0 || py >= h) return -1;
-      const i = owned[py * w + (((px % w) + w) % w)]!;
-      return ownerAt(terr, i % map.width, Math.floor(i / map.width));
-    };
-    for (let py = 0; py < h; py++)
-      for (let px = 0; px < w; px++) {
-        if (shown[py * w + px]! < 0) continue;
-        const own = ownerOf(px, py);
-        if (own < 0) continue;
-        if (ownerOf(px - 1, py) !== own || ownerOf(px + 1, py) !== own || ownerOf(px, py - 1) !== own || ownerOf(px, py + 1) !== own)
-          s.set(px, top + py, playerColor(state, own));
-      }
+  for (const u of state.units) {
+    if (!me.visible[u.y * map.width + u.x]) continue;
+    const color = playerColor(state, u.owner);
+    s.set(toPixel(k, u.x), top + toPixel(k, u.y), terr && ownerAt(terr, u.x, u.y) === u.owner ? darker(color) : color);
   }
-  for (const u of state.units) if (me.visible[u.y * map.width + u.x]) s.set(toPixel(k, u.x), top + toPixel(k, u.y), playerColor(state, u.owner));
   const put = (px: number, py: number, color: number) => { if (py >= 0 && py < h) s.set(((px % w) + w) % w, top + py, color); };
-  // Every cross first, then every dot: on a bigger world cities share neighbouring pixels, and no arm may hide a city.
+  // Cities: on the filled land a black dot, nothing round it (a cross would cut a young city's
+  // land into a ring); without borders a white dot in a cross of the owner's colour, every cross
+  // first, then every dot: on a bigger world cities share neighbouring pixels, and no arm may hide a city.
   const known = state.cities.filter((c) => me.explored[c.y * map.width + c.x]);
-  for (const c of known) {
-    const color = playerColor(state, c.owner);
-    const arm = view.borders ? darker(color) : color;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) put(toPixel(k, c.x) + dx, toPixel(k, c.y) + dy, arm);
-  }
-  for (const c of known) put(toPixel(k, c.x), toPixel(k, c.y), C.WHITE!);
+  if (!terr)
+    for (const c of known) {
+      const color = playerColor(state, c.owner);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) put(toPixel(k, c.x) + dx, toPixel(k, c.y) + dy, color);
+    }
+  for (const c of known) put(toPixel(k, c.x), toPixel(k, c.y), terr ? C.BLACK! : C.WHITE!);
   // The unit awaiting orders: a blinking yellow box round its pixel, so it can be found from anywhere.
   const pending = shownActive(state, view);
   const unit = pending !== null ? unitById(state, pending) : undefined;

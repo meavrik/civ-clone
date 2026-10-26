@@ -1097,7 +1097,7 @@ describe("advisor screens", () => {
 describe("world with opponents", () => {
   it("renders enemy cities and units after AI rounds", async () => {
     const { aiTurn } = await import("@civ/ai");
-    const { minimapColor, MINIMAP_TINT } = await import("../src/index.js");
+    const { minimapColor } = await import("../src/index.js");
     const state = newGame(11, { opponents: 2 });
     for (let r = 0; r < 25; r++) {
       let guard = 0;
@@ -1122,7 +1122,7 @@ describe("world with opponents", () => {
     expect(changed.some((c) => c === playerColor(state, enemy.owner))).toBe(true);
 
     // The minimap (one pixel a square from y 11): each city a white dot in a cross of its owner's
-    // colour, darker inside a border; the border a line of the owner's colour round its land.
+    // colour; with borders, a black dot on its land filled with the owner's colour.
     const view = { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true };
     const { width, height } = state.map;
     const mm = (x: number, y: number) => s.get(((x % width) + width) % width, 11 + y);
@@ -1137,21 +1137,30 @@ describe("world with opponents", () => {
     expect(edge).toBeDefined();
     const [ex, ey] = edge!;
     drawMainScreen(s, state, { ...view, borders: true });
-    expect(mm(enemy.x, enemy.y)).toBe(C.WHITE!);
-    expect(mm(enemy.x + 1, enemy.y)).toBe(darker(color));
+    expect(mm(enemy.x, enemy.y)).toBe(C.BLACK!);
+    if (!state.units.some((u) => u.x === enemy.x + 1 && u.y === enemy.y)) expect(mm(enemy.x + 1, enemy.y)).toBe(color);
     expect(mm(ex, ey)).toBe(color);
-    // Inside the border the land is filled, tinted toward its owner's colour.
+    // The whole land is filled with its owner's colour, inside as on the edge, sea and land, seen or not.
+    let filled = 0;
+    let claimed = 0;
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) {
+        const own = ownerAt(terr, x, y);
+        if (own < 0 || state.units.some((u) => u.x === x && u.y === y) || state.cities.some((c) => c.x === x && c.y === y)) continue;
+        claimed++;
+        if (mm(x, y) === playerColor(state, own)) filled++;
+      }
+    expect(claimed).toBeGreaterThan(20);
+    expect(filled).toBe(claimed);
     let inner: [number, number] | undefined;
     for (let y = 1; y < height - 1 && !inner; y++)
       for (let x = 0; x < width && !inner; x++)
-        if (ownerAt(terr, x, y) >= 0 && !borderSides(terr, x, y).length && clear(x, y) && state.map.tiles[y * width + x]!.terrain !== Terrain.Ocean) inner = [x, y];
+        if (ownerAt(terr, x, y) >= 0 && !borderSides(terr, x, y).length && clear(x, y)) inner = [x, y];
     expect(inner).toBeDefined();
     const [ix, iy] = inner!;
     const ground = minimapColor(state.map, ix, iy, state.players[0]!.explored);
-    const filled = mixColor(ground, playerColor(state, ownerAt(terr, ix, iy)), MINIMAP_TINT.land);
-    expect(filled).not.toBe(ground);
-    expect(mm(ix, iy)).toBe(filled);
     drawMainScreen(s, state, view);
+    expect(mm(enemy.x, enemy.y)).toBe(C.WHITE!);
     expect(mm(enemy.x + 1, enemy.y)).toBe(color);
     expect(mm(ex, ey)).not.toBe(color);
     expect(mm(ix, iy)).toBe(ground);
