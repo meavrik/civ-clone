@@ -74,6 +74,7 @@ import {
   SCREEN_H,
   SCREEN_W,
   statusPanelAt,
+  statusPartAt,
   Surface,
   TILE,
   tileToScreen,
@@ -438,6 +439,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       return squareOnScreen(state, v, x, y);
     },
     statusAt: (state, view, px, py) => statusPanelAt(state, px, py, view),
+    statusPartAt: (state, view, px, py) => statusPartAt(state, px, py, view),
     minimapAt(state, px, py) {
       if (px >= VIEW_X) return null;
       return minimapSquare(state.map, px, py - (VIEW_Y + 2));

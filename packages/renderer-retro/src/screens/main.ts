@@ -20,6 +20,7 @@ import {
   wrapX,
   type City,
   type GameState,
+  type Unit,
   specialOf,
 } from "@civ/core";
 import { drawSpacedRinged, drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, spacedWidth, textPlateWidth, textWidth, wrapText } from "../font.js";
@@ -92,8 +93,8 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, fieldSides, isDeepWater, placeLabel, placeLabelText, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood } from "@civ/renderer-api";
-import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
+import { borderSides, cityLook, cityMood, empirePopulation, fieldSides, isDeepWater, placeLabel, placeLabelText, populationShort, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
 /** A player's colour: their civilization's slot, never their seat. */
@@ -541,27 +542,134 @@ function ratesLine(state: GameState): string {
   return `{coin}${me.taxRate}{gem}${me.luxRate}{bulb}${me.sciRate}`;
 }
 
-/** Where the status panel's rows fall: whether the rates wrap under the treasury, and the top of the research row. */
-function empireRows(state: GameState): { wrapRates: boolean; researchY: number } {
+/** The orders the unit can take where it stands, as keys and pictures: "B{city}  I{irrigate}  R{road}". */
+function orderKeys(state: GameState, unit: Unit): string {
+  const w = workOptions(state, unit);
+  return [
+    unitType(unit.type).flags?.includes("settler") && !canFoundCity(state, unit.x, unit.y) && "B{city}",
+    w.irrigate !== undefined && "I{irrigate}", w.mine !== undefined && "M{mine}",
+    w.road !== undefined ? "R{road}" : w.railroad !== undefined && "R{railroad}",
+    w.fortress !== undefined && "F{fortress}", w.clean !== undefined && "P{clean}",
+  ].filter(Boolean).join("  ");
+}
+
+/** A part of the status panel and a box it takes (a part may take more than one: the unit, its picture and its name). */
+interface PanelRow {
+  part: PanelPart;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Where the status panel lays out its parts: `drawStatusPanel` draws by it, `statusPartAt` and `statusPanelAt` hit-test it. */
+interface PanelLayout {
+  rows: PanelRow[];
+  /** Where tax, luxuries and science start: beside the treasury, or under it when they would not fit. */
+  ratesX: number;
+  ratesY: number;
+  /** The top of the research row (drawn only while research is under way). */
+  researchY: number;
+  /** The unit box's top, and the y after what it holds. */
+  boxY: number;
+  boxEnd: number;
+  /** The orders the unit in play can take here (`orderKeys`). */
+  keys: string;
+  /** Who we are at war with, whole names a line, and the top of those lines at the foot (`PANEL_BOTTOM` without a war). */
+  war: string[];
+  bottom: number;
+}
+
+function panelLayout(state: GameState, view?: MainScreenView): PanelLayout {
   const me = state.players[state.currentPlayer]!;
-  const top = VIEW_Y + 2 + minimapSize(state.map).h + 4;
-  const wrapRates = TEXT_X + iconLineWidth(`{purse}${me.gold}`) + 2 + iconLineWidth(ratesLine(state)) > PANEL_W - 2;
-  return { wrapRates, researchY: top + 9 * (wrapRates ? 5 : 4) };
+  const rows: PanelRow[] = [];
+  const add = (part: PanelPart, x: number, y: number, w: number, h: number) => { rows.push({ part, x, y, w, h }); };
+  const mm = minimapSize(state.map);
+  add("minimap", 0, VIEW_Y + 2, mm.w, mm.h);
+  // Empire: population, year, the treasury with tax, luxuries and science beside it (under it when they
+  // do not fit), the government, then the research while one is under way.
+  let y = VIEW_Y + 2 + mm.h + 4;
+  add("population", 0, y, PANEL_W, 9);
+  add("year", 0, y + 9, PANEL_W, 9);
+  y += 18;
+  const beside = TEXT_X + iconLineWidth(`{purse}${me.gold}`) + 2;
+  const wrapRates = beside + iconLineWidth(ratesLine(state)) > PANEL_W - 2;
+  add("gold", 0, y, wrapRates ? PANEL_W : beside, 9);
+  const ratesX = wrapRates ? TEXT_X : beside;
+  const ratesY = wrapRates ? y + 9 : y;
+  const taxEnd = ratesX + iconLineWidth(`{coin}${me.taxRate}`);
+  const luxEnd = taxEnd + iconLineWidth(`{gem}${me.luxRate}`);
+  add("tax", wrapRates ? 0 : ratesX, ratesY, wrapRates ? taxEnd : taxEnd - ratesX, 9);
+  add("lux", taxEnd, ratesY, luxEnd - taxEnd, 9);
+  add("sci", luxEnd, ratesY, PANEL_W - luxEnd, 9);
+  add("government", 0, ratesY + 9, PANEL_W, 9);
+  const researchY = ratesY + 18;
+  const researching = !!me.researching;
+  if (researching) add("research", 0, researchY - 1, PANEL_W, 15);
+  // The unit box, under a groove: the unit awaiting orders, a row for each thing told of it; else End of Turn.
+  const boxY = (researching ? researchY + 15 : researchY + 1) + 4;
+  y = boxY;
+  const shown = view ? shownActive(state, view) : state.activeUnit;
+  const active = shown !== null ? unitById(state, shown) : undefined;
+  let keys = "";
+  if (active) {
+    add("unit", 0, y, 24, 18);
+    add("unit", 24, y, PANEL_W - 24, 9);
+    add("moves", 24, y + 9, PANEL_W - 24, 9);
+    y += 18;
+    if (active.homeCity !== null && state.cities.some((c) => c.id === active.homeCity)) { add("home", 0, y, PANEL_W, 9); y += 9; }
+    if (showsRank(active)) { add("rank", 0, y, PANEL_W, 9); y += 9; }
+    if (getTile(state.map, active.x, active.y)) {
+      add("terrain", 0, y, PANEL_W, 9);
+      y += 9;
+      const n = wrapIcons(tileIconLine(state, active.x, active.y), TEXT_W).slice(0, Math.min(2, linesLeft(y))).length;
+      if (n) { add("yield", 0, y, PANEL_W, 9 * n); y += 9 * n; }
+    }
+    keys = orderKeys(state, active);
+    const n = keys ? wrapIcons(keys, TEXT_W).slice(0, Math.min(2, linesLeft(y))).length : 0;
+    if (n) { add("orders", 0, y, PANEL_W, 9 * n); y += 9 * n; }
+  } else if (view?.focus === undefined) {
+    add("endTurn", 0, y - 1, PANEL_W, 2 * FONT_HEIGHT + 3);
+    y += 2 * FONT_HEIGHT + 1;
+  }
+  const boxEnd = y;
+  // At the foot: who we are at war with, two lines at most, whole names per line so a comma never starts one.
+  const war: string[] = [];
+  for (const p of state.players) {
+    if (p.id === me.id || !p.alive || p.id === state.barbarians || !atWar(state, me.id, p.id)) continue;
+    const last = war.at(-1);
+    if (last !== undefined && textWidth(`${last}, ${p.name}`) <= TEXT_W - 10) war[war.length - 1] = `${last}, ${p.name}`;
+    else war.push(p.name);
+  }
+  war.splice(2);
+  const bottom = war.length ? PANEL_BOTTOM - war.length * FONT_HEIGHT - 2 : PANEL_BOTTOM;
+  if (war.length) add("war", 0, bottom + 1, PANEL_W, war.length * FONT_HEIGHT + 2);
+  return { rows, ratesX, ratesY, researchY, boxY, boxEnd, keys, war, bottom };
 }
 
 /**
- * What the status panel holds under a point: the research row (when research is under way) opens the
- * research panel; the End of Turn box (nothing awaiting orders) ends the turn, as Enter does.
+ * The part of the status panel under a point (asked for 2026-10-26: a tip on each), and the rows it
+ * spans on screen, where its tip points; null off the panel's parts (its grooves, the latest message).
  */
-export function statusPanelAt(state: GameState, px: number, py: number, view?: MainScreenView): "research" | "endTurn" | null {
+export function statusPartAt(state: GameState, px: number, py: number, view?: MainScreenView): PanelSpot | null {
   if (px < 0 || px >= PANEL_W) return null;
-  const { researchY } = empireRows(state);
-  const researching = !!researchOutlook(state).id;
-  if (researching && py >= researchY - 1 && py < researchY + 14) return "research";
-  // The unit box starts under the research row and its groove (`drawStatusPanel`).
-  const top = (researching ? researchY + 15 : researchY + 1) + 4;
-  const idle = view ? shownActive(state, view) === null && view.focus === undefined : state.activeUnit === null;
-  return idle && py >= top - 1 && py < top + 2 * FONT_HEIGHT + 2 ? "endTurn" : null;
+  const { rows } = panelLayout(state, view);
+  const hit = rows.find((r) => px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h);
+  if (!hit) return null;
+  const all = rows.filter((r) => r.part === hit.part);
+  const top = Math.min(...all.map((r) => r.y));
+  return { part: hit.part, y: top, h: Math.max(...all.map((r) => r.y + r.h)) - top };
+}
+
+/**
+ * What a click on the status panel asks: the research row (when research is under way) opens the
+ * research panel, tax, luxuries or science the rates window, and the End of Turn box (nothing awaiting
+ * orders) ends the turn, as Enter does.
+ */
+export function statusPanelAt(state: GameState, px: number, py: number, view?: MainScreenView): "research" | "endTurn" | "rates" | null {
+  const part = statusPartAt(state, px, py, view)?.part;
+  if (part === "research" || part === "endTurn") return part;
+  return part === "tax" || part === "lux" || part === "sci" ? "rates" : null;
 }
 
 /**
@@ -732,24 +840,19 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     s.set(right % mm.w, py, C.WHITE!);
   }
 
-  // Empire: population, year, treasury and tax/luxury/science, government and research, as icons.
-  let y = mmY + mm.h + 4;
+  // Empire: population, year, treasury and tax/luxury/science, government and research, as icons
+  // (each told of in words by its tip, `panelTip`), where `panelLayout` puts them.
+  const L = panelLayout(state, view);
+  const row = (part: PanelPart): PanelRow | undefined => L.rows.find((r) => r.part === part);
   const ink = INK;
   const dim = DIM;
-  const pop = state.cities.filter((c) => c.owner === state.currentPlayer).reduce((n, c) => n + c.size * (c.size + 1) * 5000, 0);
-  drawIconLine(s, TEXT_X, y, `{people}${pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : pop >= 1000 ? `${Math.floor(pop / 1000)},000` : String(pop)}`, ink);
-  y += 9;
-  drawIconLine(s, TEXT_X, y, `{calendar} ${formatYear(turnToYear(state.turn))}`, ink);
-  y += 9;
-  const { wrapRates, researchY } = empireRows(state);
-  let x = drawIconLine(s, TEXT_X, y, `{purse}${me.gold}`, ink) + 2;
-  if (wrapRates) { y += 9; x = TEXT_X; }
-  drawIconLine(s, x, y, ratesLine(state), dim);
-  y += 9;
-  drawIconLine(s, TEXT_X, y, `{crown}${GOVERNMENTS[me.government]?.name ?? me.government}`, dim);
-  y = drawResearch(s, state, researchY);
-  groove(s, y);
-  y += 4;
+  drawIconLine(s, TEXT_X, row("population")!.y, `{people}${populationShort(empirePopulation(state, me.id))}`, ink);
+  drawIconLine(s, TEXT_X, row("year")!.y, `{calendar} ${formatYear(turnToYear(state.turn))}`, ink);
+  drawIconLine(s, TEXT_X, row("gold")!.y, `{purse}${me.gold}`, ink);
+  drawIconLine(s, L.ratesX, L.ratesY, ratesLine(state), dim);
+  drawIconLine(s, TEXT_X, row("government")!.y, `{crown}${GOVERNMENTS[me.government]?.name ?? me.government}`, dim);
+  groove(s, drawResearch(s, state, L.researchY));
+  let y = L.boxY;
 
   // Unit box: the unit awaiting orders (moves as pips, its square and orders as icons), or the end of the turn.
   const shown = shownActive(state, view);
@@ -761,66 +864,78 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     if (active.hp < max) drawHpBar(s, 4, y, active.hp, max);
     drawTextWrapped(s, 24, y, PANEL_W - 26, type.name, ink, 1);
     drawMovePips(s, 24, y + 9, active.movesLeft, moveAllowance(state, active));
-    y += 18;
     const home = active.homeCity !== null ? state.cities.find((c) => c.id === active.homeCity) : undefined;
-    if (home) {
-      drawIcon(s, "house", TEXT_X, y);
-      drawTextWrapped(s, TEXT_X + 9, y, TEXT_W - 9, home.name, dim, 1);
-      y += 9;
+    const homeRow = row("home");
+    if (home && homeRow) {
+      drawIcon(s, "house", TEXT_X, homeRow.y);
+      drawTextWrapped(s, TEXT_X + 9, homeRow.y, TEXT_W - 9, home.name, dim, 1);
     }
     // Its rank: the chevrons, the name and what it adds ("Veteran +50%"); a fighter's, or any unit's that has won a fight.
-    if (showsRank(active)) {
-      drawIconLine(s, TEXT_X, y, rankLine(active.xp), dim);
-      y += 9;
-    }
+    const rank = row("rank");
+    if (rank) drawIconLine(s, TEXT_X, rank.y, rankLine(active.xp), dim);
     const t = getTile(map, active.x, active.y);
-    if (t) {
-      terrainSwatch(s, t.terrain, TEXT_X, y);
-      drawTextWrapped(s, TEXT_X + 10, y, TEXT_W - 10, TERRAIN_NAMES[t.terrain], dim, 1);
-      y += 9;
-      y += 9 * drawIconsWrapped(s, TEXT_X, y, TEXT_W, tileIconLine(state, active.x, active.y), ink, Math.min(2, linesLeft(y)));
+    const terrain = row("terrain");
+    if (t && terrain) {
+      terrainSwatch(s, t.terrain, TEXT_X, terrain.y);
+      drawTextWrapped(s, TEXT_X + 10, terrain.y, TEXT_W - 10, TERRAIN_NAMES[t.terrain], dim, 1);
     }
+    const yields = row("yield");
+    if (yields) drawIconsWrapped(s, TEXT_X, yields.y, TEXT_W, tileIconLine(state, active.x, active.y), ink, yields.h / 9);
     // Orders this unit can take here: its key, then a picture of the job.
-    const w = workOptions(state, active);
-    const keys = [
-      type.flags?.includes("settler") && !canFoundCity(state, active.x, active.y) && "B{city}",
-      w.irrigate !== undefined && "I{irrigate}", w.mine !== undefined && "M{mine}",
-      w.road !== undefined ? "R{road}" : w.railroad !== undefined && "R{railroad}",
-      w.fortress !== undefined && "F{fortress}", w.clean !== undefined && "P{clean}",
-    ].filter(Boolean) as string[];
-    if (keys.length) y += 9 * drawIconsWrapped(s, TEXT_X, y, TEXT_W, keys.join("  "), ink, Math.min(2, linesLeft(y)));
-  } else if (view.focus === undefined) {
+    const orders = row("orders");
+    if (orders) drawIconsWrapped(s, TEXT_X, orders.y, TEXT_W, L.keys, ink, orders.h / 9);
+  } else if (row("endTurn")) {
     // Nothing awaits orders: End of Turn stands steady; only "Press Enter" blinks in and out
     // (asked for 2026-10-24: the lit blue block was "too loud").
     drawIconLine(s, TEXT_X, y, "{hourglass} End of Turn", ink);
-    y += FONT_HEIGHT + 1;
-    if (view.blink) drawText(s, TEXT_X, y, "Press Enter", dim);
-    y += FONT_HEIGHT;
+    if (view.blink) drawText(s, TEXT_X, y + FONT_HEIGHT + 1, "Press Enter", dim);
   }
-  y += 2;
+  y = L.boxEnd + 2;
   groove(s, y);
   y += 4;
 
   // Bottom: who we are at war with, kept clear of everything above it.
-  const enemies = state.players.filter((p) => p.id !== me.id && p.alive && p.id !== state.barbarians && atWar(state, me.id, p.id));
-  let bottom = PANEL_BOTTOM;
-  if (enemies.length) {
-    // Whole names per line, so a comma never starts one.
-    const lines: string[] = [];
-    for (const p of enemies) {
-      const last = lines.at(-1);
-      if (last !== undefined && textWidth(`${last}, ${p.name}`) <= TEXT_W - 10) lines[lines.length - 1] = `${last}, ${p.name}`;
-      else lines.push(p.name);
-    }
-    lines.splice(2);
-    bottom = PANEL_BOTTOM - lines.length * FONT_HEIGHT - 2;
-    drawIcon(s, "swords", TEXT_X, bottom + 2);
-    lines.forEach((line, i) => drawText(s, TEXT_X + 10, bottom + 2 + i * FONT_HEIGHT, line, WAR));
+  if (L.war.length) {
+    drawIcon(s, "swords", TEXT_X, L.bottom + 2);
+    L.war.forEach((line, i) => drawText(s, TEXT_X + 10, L.bottom + 2 + i * FONT_HEIGHT, line, WAR));
   }
 
   // Info area: the tile under inspection, else the latest message.
   if (view.inspect) drawTileInfo(s, state, view.inspect.x, view.inspect.y, TEXT_X, y);
-  else if (view.message) drawTextWrapped(s, TEXT_X, y, TEXT_W, view.message, NEWS, Math.max(0, Math.floor((bottom - y) / FONT_HEIGHT)));
+  else if (view.message) drawTextWrapped(s, TEXT_X, y, TEXT_W, view.message, NEWS, Math.max(0, Math.floor((L.bottom - y) / FONT_HEIGHT)));
+}
+
+/** The widest a tip beside the panel grows, and its lines' pitch. */
+const TIP_W = 196;
+const TIP_LINE = 9;
+
+/**
+ * A tip beside the status panel (`MainScreenView.tip`, asked for 2026-10-26): a stone box over the
+ * map's left edge, its heading in blue over a groove and its lines under it, a point reaching back to
+ * the part it tells of. Kept on the screen below the menu bar.
+ */
+function drawPanelTip(s: Surface, tip: PanelTip): void {
+  const room = Math.floor((SCREEN_H - VIEW_Y - 4 - (6 + TIP_LINE + 3)) / TIP_LINE);
+  const body = tip.lines.flatMap((l) => wrapIcons(l, TIP_W - 10)).slice(0, room);
+  const w = Math.max(iconLineWidth(tip.title), ...body.map((l) => iconLineWidth(l))) + 10;
+  const h = 6 + TIP_LINE + (body.length ? 3 + body.length * TIP_LINE : 0);
+  const x = PANEL_W + 4;
+  const mid = tip.y + (tip.h >> 1);
+  const y = Math.max(VIEW_Y + 2, Math.min(SCREEN_H - 2 - h, mid - (h >> 1)));
+  s.frame(x, y, w, h, C.BLACK!);
+  drawStone(s, x + 1, y + 1, w - 2, h - 2);
+  drawIconLine(s, x + 5, y + 3, tip.title, NOTE);
+  if (body.length) {
+    s.hline(x + 3, y + 4 + TIP_LINE, w - 6, shade("panel", 2));
+    s.hline(x + 3, y + 5 + TIP_LINE, w - 6, shade("panel", 7));
+    body.forEach((l, i) => drawIconLine(s, x + 5, y + 7 + TIP_LINE + i * TIP_LINE, l, INK));
+  }
+  // The point: a black-rimmed wedge from the box's left edge toward the part.
+  const py = Math.max(y + 4, Math.min(y + h - 5, mid));
+  for (let i = 0; i < 4; i++) {
+    s.vline(x - i, py - (3 - i), 2 * (3 - i) + 1, C.BLACK!);
+    if (i < 3) s.vline(x - i, py - (2 - i), 2 * (2 - i) + 1, shade("panel", 5));
+  }
 }
 
 export function drawMainScreen(s: Surface, state: GameState, view: MainScreenView): void {
@@ -828,6 +943,7 @@ export function drawMainScreen(s: Surface, state: GameState, view: MainScreenVie
   drawMapViewport(s, state, view);
   magnifyViewport(s, viewZoom(view));
   drawStatusPanel(s, state, view);
+  if (view.tip) drawPanelTip(s, view.tip);
   drawMenuBar(s, view.menuOpen);
 }
 

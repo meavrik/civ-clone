@@ -115,6 +115,8 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     minimapAt: (state, px, py) => minimapAt(state, px, py),
     researchHit: (state, view, px, py) => researchHit(ctx, state, view, px, py),
     statusAt: (state, _view, px, py) => statusPanelAt(state, px, py),
+    // Set aside (2026-10-19): the panel's tips are drawn by the retro renderer only.
+    statusPartAt: () => null,
     report: (page) => drawReport(ctx, page),
     worldMap: (state) => drawWorldMap(ctx, state),
     menuBarHit: (px, py) => menuBarHit(ctx, px, py),

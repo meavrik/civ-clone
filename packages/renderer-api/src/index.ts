@@ -3,6 +3,7 @@ import type { MovePlan } from "./plan.js";
 import type { Lifting } from "./fog.js";
 import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
+import type { PanelSpot, PanelTip } from "./panel.js";
 import { setupQuestionCards, type SetupCards } from "./setup.js";
 import type { DiplomacyView } from "./audience.js";
 import type { NewTechHit, NewTechView } from "./newtech.js";
@@ -26,11 +27,14 @@ export * from "./plan.js";
 export * from "./watch.js";
 export * from "./sites.js";
 export * from "./ranks.js";
+export * from "./panel.js";
+export * from "./terrain-text.js";
 export * from "./places.js";
 import { squareTitle } from "./places.js";
 import { settlerSites, siteNote } from "./sites.js";
 import { rankedName, rankIcon, rankProgress } from "./ranks.js";
 import { ownerAt, territory } from "./territory.js";
+import { TERRAIN_TEXT } from "./terrain-text.js";
 export * from "./intro.js";
 export * from "./setup.js";
 export * from "./audience.js";
@@ -119,6 +123,8 @@ export interface MainScreenView {
   callout?: Callout | undefined;
   /** A note beside the square under the mouse (why it is a good city site), shown when no `callout` is. */
   hint?: Callout | undefined;
+  /** A tip beside the status panel on the part the mouse rests on (`panelTip`), or the part tapped. */
+  tip?: PanelTip | undefined;
   /** A move waiting for a second click on its square (`planMove`): its route and a note at its end. */
   plan?: MovePlan | undefined;
   /** Tile the player clicked to inspect; shown instead of the message. */
@@ -415,8 +421,10 @@ export interface Renderer {
   minimapAt(state: GameState, px: number, py: number): { x: number; y: number } | null;
   /** What lies under a point of the research panel: an advance in the list or on the card, a button, the scroll bar. */
   researchHit(state: GameState, view: ResearchView, px: number, py: number): ResearchHit | null;
-  /** What the main screen's status panel holds under a point: the research row opens the research panel. */
-  statusAt(state: GameState, view: MainScreenView, px: number, py: number): "research" | "endTurn" | null;
+  /** What the main screen's status panel holds under a point: the research row opens the research panel, the rates their window. */
+  statusAt(state: GameState, view: MainScreenView, px: number, py: number): "research" | "endTurn" | "rates" | null;
+  /** The part of the status panel under a point, for its tip (`panelTip`), or null off the panel's parts. */
+  statusPartAt(state: GameState, view: MainScreenView, px: number, py: number): PanelSpot | null;
 
   /** A report page (wonders, top cities...). */
   report(page: ReportPage): void;
@@ -739,21 +747,6 @@ export function opponentsForChoice(index: number): number {
  * ground wears units down, what settlers could do there, and the city and
  * units on it. Plain ASCII so every font can draw it.
  */
-/** A few words on each terrain for the square's window: what it is good for (our own words). */
-export const TERRAIN_TEXT: Record<Terrain, string> = {
-  [Terrain.Ocean]: "Open sea: fish to eat, and trade along the coast.",
-  [Terrain.Grassland]: "Rich open land, the best for farms.",
-  [Terrain.Plains]: "Open land for fields and herds, with a little timber.",
-  [Terrain.Forest]: "Timber for building; slow going for armies.",
-  [Terrain.Hills]: "Easy to hold, and rich in ore once mined.",
-  [Terrain.Mountains]: "A wall to armies, with gold and iron in the rock.",
-  [Terrain.Desert]: "Dry and poor, until water is brought to it.",
-  [Terrain.Tundra]: "Cold, thin land at the edge of the ice.",
-  [Terrain.Arctic]: "Ice where nothing grows.",
-  [Terrain.Swamp]: "Wet and slow; drained, it becomes grassland.",
-  [Terrain.Jungle]: "Thick and wet; cleared, it becomes grassland.",
-};
-
 /** What a special adds to its square, in icons: "+2 {shield}". */
 function specialGain(sp: { food?: number; shields?: number; trade?: number }): string {
   return [sp.food && `+${sp.food} {food}`, sp.shields && `+${sp.shields} {shield}`, sp.trade && `+${sp.trade} {trade}`].filter(Boolean).join(" ");

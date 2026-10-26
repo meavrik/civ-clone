@@ -464,7 +464,17 @@ Never ship the original's sprites, palette art, fonts or text.
   R asks for a road where the square has none, rails only on a road. A river takes a road once its civ
   knows Bridge Building, as in the original (before, never; no save version: the planner builds no
   roads on rivers and an old log holds no refused order). Both status panels show the research under way
-  (`researchOutlook`: advance, beakers, turns to go), and nothing while none is picked. Disbanding
+  (`researchOutlook`: advance, beakers, turns to go), and nothing while none is picked. Panel tips
+  (asked for 2026-10-26: "add tooltips for each relevant element - not clear now. money, taxes, science,
+  governance type etc"): every part of the status panel (`PanelPart`: minimap, population, year, treasury,
+  tax, luxuries and science each, government, research, the unit's name, moves, home, rank, terrain,
+  yields and orders, End of Turn, the wars) is told of in words (`panelTip` in renderer-api `panel.ts`,
+  numbers from the rules: the treasury's taxes and upkeep, a rate's yield and the government's cap, the
+  government's rules read from its `GovernmentRule` and the save's older rules, the unit's stats and upkeep)
+  in a stone box right of the panel pointing at the part (retro `drawPanelTip`, `MainScreenView.tip`),
+  shown when the mouse rests on it 350 ms (the next part at once while one shows) or a click or tap on a
+  part with no action (4 s); retro's `panelLayout` places the panel's rows for drawing and hit tests alike
+  (`statusPartAt`, `Renderer.statusPartAt`). A click on tax, luxuries or science opens the rates. Disbanding
   (Shift+D, Orders > Disband) asks "Are you sure?" first, No by default (`confirmDisband`).
   Width: the retro main screen draws as wide as its surface (`viewAcross`: the panel and bar as ever, the
   map's viewport taking the rest), menus, prompts and the status line centre on the surface they are

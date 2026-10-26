@@ -56,6 +56,7 @@ import {
   RESEARCH_LIST_ROWS,
   researchHit,
   statusPanelAt,
+  statusPartAt,
   TILE,
   tileToScreen,
   VIEW_TILES_X,
@@ -191,6 +192,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     researchHit: (state, view, px, py) => researchHit(state, view, px, py),
     statusAt: (state, view, px, py) => statusPanelAt(state, px, py, view),
+    statusPartAt: (state, view, px, py) => statusPartAt(state, px, py, view),
     minimapAt(state: GameState, px, py) {
       if (px >= VIEW_X) return null;
       return minimapSquare(state.map, px, py - (VIEW_Y + 2));

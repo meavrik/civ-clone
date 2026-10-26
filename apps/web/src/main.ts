@@ -127,6 +127,10 @@ import {
   placesFoundBy,
   settlerSites,
   siteNote,
+  panelTip,
+  shownActive,
+  type PanelPart,
+  type PanelSpot,
   setupCards,
   setupChoose,
   planMove,
@@ -720,6 +724,33 @@ function siteHint(): void {
   if (!hit || active === null) return;
   const site = settlerSites(state, active).find((s) => s.x === hit.x && s.y === hit.y);
   if (site) view.hint = { x: site.x, y: site.y, text: siteNote(state, site, 0) };
+}
+
+/**
+ * The status panel's tips (asked for 2026-10-26: its icons and numbers were "not clear"): the mouse
+ * resting on a part of the panel tells of it (`panelTip`) after a moment, and once one shows the next
+ * part the mouse moves on to tells of itself at once. A click (a tap on the phone) on a part that does
+ * nothing else shows its tip a while, until the next click or key, or the mouse moves on.
+ */
+const TIP_DELAY_MS = 350;
+const TIP_PINNED_MS = 4000;
+let tipPart: PanelPart | null = null;
+let tipSince = 0;
+let tipPinned: { spot: PanelSpot; until: number } | null = null;
+
+/** Each frame: the tip of the panel's part under the mouse, or the one clicked (`view.tip`). */
+function panelTipStep(now: number): void {
+  const onMap = screenState.kind === "map" && !watching;
+  const spot = onMap && pointer ? renderer.statusPartAt(state, view, pointer.x, pointer.y) : null;
+  const part = spot?.part ?? null;
+  if (part !== tipPart) {
+    tipSince = view.tip ? now - TIP_DELAY_MS : now;
+    tipPart = part;
+  }
+  if (tipPinned && (now > tipPinned.until || !onMap || (pointer && part !== tipPinned.spot.part))) tipPinned = null;
+  const shown = tipPinned?.spot ?? (spot && now - tipSince >= TIP_DELAY_MS ? spot : null);
+  const words = shown ? panelTip(state, shown.part, shownActive(state, view)) : null;
+  view.tip = shown && words ? { ...shown, ...words } : undefined;
 }
 
 /** Each frame: pan the camera while the pointer rests in an edge band. */
@@ -2317,6 +2348,7 @@ addEventListener("keydown", (e) => {
   view.inspect = undefined;
   view.callout = undefined;
   view.plan = undefined;
+  tipPinned = null;
   const sc = screenState;
   switch (sc.kind) {
     case "title": skipIntro(); break;
@@ -2458,6 +2490,7 @@ canvas.addEventListener("mousemove", (e) => {
 canvas.addEventListener("mousedown", (e) => {
   const [px, py] = toLogical(e);
   view.callout = undefined;
+  tipPinned = null;
   // A planned move lasts one click: carried out if that click is on its square, dropped otherwise.
   const pending = view.plan;
   view.plan = undefined;
@@ -2577,7 +2610,11 @@ canvas.addEventListener("mousedown", (e) => {
   const panelHit = e.button === 0 ? renderer.statusAt(state, view, px, py) : null;
   if (panelHit === "research") { openTree({ choosing: true, closable: true }); return; }
   if (panelHit === "endTurn" && state.activeUnit === null) { endTurn(); return; }
+  if (panelHit === "rates") { screenState = { kind: "rates" }; return; }
   if (handoff) { finishHandoff(); return; }
+  // Anywhere else on the panel a click (a tap on the phone) tells of the part clicked.
+  const part = e.button === 0 ? renderer.statusPartAt(state, view, px, py) : null;
+  if (part) { tipPinned = { spot: part, until: performance.now() + TIP_PINNED_MS }; return; }
   const hit = renderer.tileAt(state, view, px, py);
   const active = state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
   if (!hit) {
@@ -2732,7 +2769,7 @@ function frame(t: number): void {
   view.borders = borders;
   view.placeNames = placeNames;
   if (screenState.kind === "research") screenState.view.blink = blinkOn;
-  if (screenState.kind !== "title" && screenState.kind !== "setup") { stepCamera(t); stepEdgePan(t); siteHint(); }
+  if (screenState.kind !== "title" && screenState.kind !== "setup") { stepCamera(t); stepEdgePan(t); siteHint(); panelTipStep(t); }
   if (status && t > statusUntil) status = undefined;
   if (view.callout && t > calloutUntil) view.callout = undefined;
   if (view.plan && view.plan.unit !== state.activeUnit) view.plan = undefined;

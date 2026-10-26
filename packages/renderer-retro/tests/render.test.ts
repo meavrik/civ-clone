@@ -2,9 +2,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { DIMMED } from "../src/palette.js";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { civCard, settlerSites, standing, TERRAIN_TEXT } from "@civ/renderer-api";
+import { civCard, empireIncome, panelTip, settlerSites, standing, TERRAIN_TEXT, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, drawDiplomacyScreen, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
@@ -967,6 +967,62 @@ describe("advisor screens", () => {
     let bulb = false;
     for (let y = top; y < top + 9; y++) for (let x = 3; x < 11; x++) if (s.get(x, y) === C.YELLOW) bulb = true;
     expect(bulb).toBe(true);
+  });
+
+  it("tells of each part of the status panel in a tip beside it, and opens the rates from them", () => {
+    const state = newGame(2026);
+    const me = state.players[0]!;
+    applyCommand(state, { type: "research", advance: "alphabet" });
+    const settlers = state.units.find((u) => u.owner === 0 && u.type === "settlers")!;
+    state.activeUnit = settlers.id;
+    const view: MainScreenView = { originX: Math.max(0, settlers.x - 7), originY: Math.max(0, settlers.y - 6), blink: false };
+    const partsAt = (v: MainScreenView): Map<string, number> => {
+      const found = new Map<string, number>();
+      for (let y = 0; y < 200; y++) for (let x = 0; x < 80; x++) { const p = statusPartAt(state, x, y, v); if (p && !found.has(p.part)) found.set(p.part, y); }
+      return found;
+    };
+    // A settler in play: every row of the panel answers, each with words.
+    const parts = partsAt(view);
+    for (const part of ["minimap", "population", "year", "gold", "tax", "lux", "sci", "government", "research", "unit", "moves", "terrain", "yield", "orders"])
+      expect(parts.has(part), part).toBe(true);
+    for (const part of parts.keys()) expect(panelTip(state, part as PanelPart, settlers.id), part).not.toBeNull();
+    expect(statusPartAt(state, 100, parts.get("gold")!, view)).toBeNull();
+    // Tax, luxuries and science stand side by side on one row; a click on any opens the rates.
+    expect(parts.get("tax")).toBe(parts.get("lux"));
+    let rates = 0;
+    for (let x = 0; x < 80; x++) if (statusPanelAt(state, x, parts.get("tax")!, view) === "rates") rates++;
+    expect(rates).toBeGreaterThan(10);
+    // The treasury's tip reckons the turn's gold as the rates window does.
+    const gold = panelTip(state, "gold", null)!;
+    expect(gold.lines[0]).toMatch(new RegExp(`^\\+?${empireIncome(state, 0).gold} gold a turn`));
+    // Nothing awaiting orders: End of Turn in the unit's place, and no unit parts.
+    state.activeUnit = null;
+    const ended = partsAt(view);
+    expect(ended.has("endTurn")).toBe(true);
+    expect(ended.has("unit")).toBe(false);
+    state.activeUnit = settlers.id;
+
+    // Drawn: a stone box right of the panel, its point at the part, the panel itself untouched.
+    const plain = Surface.screen();
+    drawMainScreen(plain, state, view);
+    for (const part of ["gold", "tax", "government", "research", "unit", "moves", "yield", "orders"] as PanelPart[]) {
+      const spot = statusPartAt(state, 10, parts.get(part)!, view)!;
+      const s = Surface.screen();
+      drawMainScreen(s, state, { ...view, tip: { ...spot, ...panelTip(state, part, settlers.id)! } });
+      writeFileSync(new URL(`./out/panel-tip-${part}.png`, import.meta.url), encodePng(s, 3));
+      let same = true;
+      for (let y = 0; y < 200 && same; y++) for (let x = 0; x < 80; x++) if (s.get(x, y) !== plain.get(x, y)) { same = false; break; }
+      expect(same, part).toBe(true);
+      const row = spot.y + (spot.h >> 1);
+      // The point: black at its tip, stone inside, reaching back to the panel's edge.
+      expect(s.get(81, row), part).toBe(C.BLACK);
+      expect(s.get(82, row), part).toBe(shade("panel", 5));
+      let changed = 0;
+      for (let x = 84; x < 200; x++) if (s.get(x, row) !== plain.get(x, row)) changed++;
+      expect(changed, part).toBeGreaterThan(40);
+    }
+    me.government = "despotism";
+    expect(panelTip(state, "government", null)!.lines.join(" ")).toMatch(/60%/);
   });
 
   it("renders the science screen, and the rates window over the game with its blocks, steps and Done", () => {
