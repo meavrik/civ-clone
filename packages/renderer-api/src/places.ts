@@ -142,12 +142,16 @@ export function placeLabel(state: GameState, viewer: number, x0: number, y0: num
   return { region, name: r.name!, kind: r.kind, land, at: at.map(({ tx, ty }) => ({ tx, ty })) };
 }
 
-/** The square window's line on where a square lies: "The Sahara, Africa", "The Sea of Caesar". */
-export function placeLine(state: GameState, x: number, y: number): string | null {
+/**
+ * The square window's title: its terrain, then where it lies ("Grassland, Ausonia"; "The Sahara, Africa"). The
+ * terrain's word is left out when its place's name already says it ("The Apennine Mountains, Ausonia"), and
+ * a water's name always stands for the sea it is ("The Sea of Neptune", "Lake Avernus").
+ */
+export function squareTitle(state: GameState, x: number, y: number, terrain: string, water: boolean): string {
   const place = placeAt(state.map, x, y)?.name;
   const land = landAt(state.map, x, y)?.name;
-  const parts = [place, land].filter((n): n is string => !!n);
-  return parts.length ? placeTitle(parts.join(", ")) : null;
+  const said = place !== undefined && (water || new RegExp(`\\b${terrain}\\b`, "i").test(place));
+  return placeTitle([said ? undefined : terrain, place, land].filter((n): n is string => !!n).join(", "));
 }
 
 /** The places a player saw first (`Region.by`), by index into the geography's regions. */

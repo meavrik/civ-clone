@@ -27,7 +27,7 @@ export * from "./watch.js";
 export * from "./sites.js";
 export * from "./ranks.js";
 export * from "./places.js";
-import { placeLine } from "./places.js";
+import { squareTitle } from "./places.js";
 import { settlerSites, siteNote } from "./sites.js";
 import { rankedName, rankIcon, rankProgress } from "./ranks.js";
 import { ownerAt, territory } from "./territory.js";
@@ -775,9 +775,6 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   const defence = defenseMul === 1 ? "" : `  {tower} +${Math.round((defenseMul - 1) * 100)}%`;
   lines.push(`{food} ${yld.food}  {shield} ${yld.shields}  {trade} ${yld.trade}  {boot} ${r.moveCost}${defence}`);
   lines.push(TERRAIN_TEXT[t.terrain]);
-  // Where it lies: its sea or landform, and its continent or island ("The Sahara, Africa").
-  const where = placeLine(state, x, y);
-  if (where) lines.push(where);
   // Grassland's first special counts only in games before version 26 (`tileYield`).
   const sp = !state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial ? undefined : specialOf(t);
   const features = [
@@ -848,9 +845,9 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
       if (hurt.length) lines.push(hurt.map((u) => `{heart} ${unitType(u.type).name} ${u.hp}/${maxHp(state, u.type)}`).join("  "));
     }
   } else lines.push("Out of sight: units there are not seen."); // beyond our land and a square past it, and our units' sight (the shaded map)
-  // The title names the square's resource and river beside its terrain: "Jungle (Cotton)".
-  const extras = [sp?.name, t.river ? "River" : undefined].filter(Boolean);
-  return { title: `${TERRAIN_NAMES[t.terrain]}${extras.length ? ` (${extras.join(", ")})` : ""}`, lines };
+  // The title names the terrain and where it lies (asked for 2026-10-26: "show land/water mass name in the title -
+  // remove duplicates"): "Grassland, Ausonia", "The Sahara, Africa"; its resource and river are told of below.
+  return { title: squareTitle(state, x, y, TERRAIN_NAMES[t.terrain], t.terrain === Terrain.Ocean), lines };
 }
 
 /** Colour slots (see CIV_COLORS in core); renderers map each slot to their own palette. */

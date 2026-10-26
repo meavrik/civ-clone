@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, building, BUILDINGS, createUnit, getTile, newGame, revealAround, SPACE_PARTS, Terrain, wonder, WONDERS, type UnitBattle } from "@civ/core";
+import { applyCommand, building, BUILDINGS, createUnit, getTile, landAt, newGame, revealAround, SPACE_PARTS, Terrain, wonder, WONDERS, type UnitBattle } from "@civ/core";
 import { rankedName, rankLine, rankProgress, showsRank } from "../src/index.js";
 import { builtNotice, cityUnits, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, moveRefusal, workRefusal, NUDGE_MS, researchOutlook, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
@@ -72,18 +72,13 @@ describe("terrain info", () => {
     const working = createUnit(s, "settlers", 0, u.x + 1, u.y);
     working.order = { kind: "work", work: "road", turnsLeft: 2 };
     const info = terrainInfo(s, u.x + 1, u.y);
-    // The title names the resource and the river beside the terrain.
-    expect(info.title).toBe("Plains (Horses, River)");
-    t.river = false;
-    expect(terrainInfo(s, u.x + 1, u.y).title).toBe("Plains (Horses)");
-    t.special = false;
-    expect(terrainInfo(s, u.x + 1, u.y).title).toBe("Plains");
+    // The title names the terrain and the land it lies in; the resource and the river are told of below, once.
+    const land = landAt(s.map, u.x + 1, u.y)!.name!;
+    expect(info.title).toBe(`Plains, ${land}`);
     // Grassland has no first special in the original: a special flag there names nothing.
     t.terrain = Terrain.Grassland;
-    t.special = true;
-    expect(terrainInfo(s, u.x + 1, u.y).title).toBe("Grassland");
+    expect(terrainInfo(s, u.x + 1, u.y).lines.some((l) => l.includes("Horses"))).toBe(false);
     t.terrain = Terrain.Plains;
-    t.river = true;
     // Pictures stand in for the words: yields, movement and a river's defence on one line, then a word on the
     // terrain, then the features with what each adds.
     expect(info.lines[0]).toMatch(/^\{food\} \d+  \{shield\} \d+  \{trade\} \d+  \{boot\} 1  \{tower\} \+50%$/);

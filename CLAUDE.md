@@ -177,8 +177,8 @@ Never ship the original's sprites, palette art, fonts or text.
   parchment, lands in spaced gold capitals, ringed dark, over the fog and the shade, under cities and units,
   never across a city's name or out over the dark, kept inside the view. Game > Place Names (asked for the
   same day: "add option to disable mass names visibility"; `MainScreenView.placeNames`, kept per browser)
-  turns off the names and the notes of places found. The square's window says where it lies (`placeLine`,
-  third line: "The Sahara, Africa"), and a unit of ours that finds places says so beside it (`discoveryNote`:
+  turns off the names and the notes of places found. The square's window says where it lies in its title
+  (`squareTitle`; see Map clicks), and a unit of ours that finds places says so beside it (`discoveryNote`:
   "Discovered: Lake Caesar, the Roman Hills"; the web app's `announcePlaces`; found at the turn's start, in
   the status line).
   Moods (`computeCity`; asked for 2026-10-21, checked against FreeCiv's civ1 ruleset): citizens are born
@@ -427,8 +427,12 @@ Never ship the original's sprites, palette art, fonts or text.
   same square; any other click or key drops it. With nothing to do for the unit the map centres.
   A double click (two left clicks within `DOUBLE_CLICK_MS`, 300 ms, on the same screen point: the first
   may set the map gliding) centres the map on the first click's square and drops its plan, unmade.
-  Right-click opens the square's window (`terrainInfo`: title "Jungle (Cotton)", the resource and river
-  beside the terrain; headed by the square itself as the map draws it, twice the size in a sunken frame
+  Right-click opens the square's window (`terrainInfo`: titled with the terrain and where it lies,
+  `squareTitle` in renderer-api's `places.ts`: "Grassland, Ausonia", "Hills, the Alps, Europe"; since 2026-10-26,
+  asked for: "show land/water mass name in the title - remove duplicates": the terrain's word left out where
+  the place's name says it, "The Apennine Mountains, Ausonia", and a water's name standing for its square,
+  "The Sea of Neptune"; the resource and river, in the title from 2026-10-23, and the body's line naming the
+  place are gone, the body telling of the resource and river with what they add; headed by the square itself as the map draws it, twice the size in a sunken frame
   (`MenuState.square`, retro's `drawSquarePicture`/`squarePainter`, `Renderer.menu(menu, state)`; asked for
   2026-10-23: "more stylish, add the terrain image, more details"), beside it the yields, movement and
   defence, a few words on the terrain (`TERRAIN_TEXT`, our own) and what the resource, river and shield
