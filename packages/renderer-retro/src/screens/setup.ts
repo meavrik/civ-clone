@@ -129,11 +129,11 @@ function drawCard(s: Surface, card: SetupCard, b: Box, inset: Box, large: boolea
 /** A portrait's place: a soft sky framed (in the tribe's colour if it has one); the portrait itself is laid over it. */
 function drawPortrait(s: Surface, card: SetupCard, b: Box): void {
   s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, card.band !== undefined ? slotColor(card.band) : C.BLACK!);
-  backdrop(s, b);
+  drawPortraitSky(s, b);
 }
 
 /** A sky-blue ground behind a portrait, lighter toward the foot, dithered between its bands. */
-function backdrop(s: Surface, b: Box): void {
+export function drawPortraitSky(s: Surface, b: Box): void {
   const k = s.k;
   const tones = [shade("sky", 2), shade("sky", 3), shade("sky", 4), shade("sky", 5)];
   for (let fy = 0; fy < b.h * k; fy++) {

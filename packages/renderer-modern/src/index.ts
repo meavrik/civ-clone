@@ -1,4 +1,4 @@
-import { BUILT_BUTTONS, builtCard, NEW_TECH_BUTTONS, newTechCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
+import { BUILT_BUTTONS, builtCard, NEW_TECH_BUTTONS, newTechCard, REIGN_BUTTON, reignCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, cityButtonAt, cityCitizenAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
@@ -30,6 +30,8 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
   let newTechShown: MenuState | null = null;
   /** The Building Completed window last drawn, likewise. */
   let builtShown: MenuState | null = null;
+  /** The opening window last drawn, likewise. */
+  let reignShown: MenuState | null = null;
   return {
     id: "modern",
     width: W,
@@ -80,6 +82,13 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
       const i = builtShown ? menuHit(ctx, builtShown, px, py) : -1;
       return i === 0 ? "city" : i === 1 ? "continue" : null;
     },
+    // Set aside (not in the app): the opening window as a modal with its button.
+    reign: (state) => {
+      const card = reignCard(state);
+      reignShown = { title: card.name, body: [card.under, card.text, ...(card.trait ? [card.trait] : []), ...card.bonuses.map((b) => `{${b.icon}} ${b.text}`)], items: [REIGN_BUTTON], selected: 0 };
+      drawMenu(ctx, reignShown);
+    },
+    reignHit: (_view, px, py) => (reignShown && menuHit(ctx, reignShown, px, py) === 0 ? "begin" : null),
     end: (lines, rank) => drawEndScreen(ctx, lines, rank),
     spaceship: (state) => drawSpaceshipScreen(ctx, state),
     menu: (menu) => drawMenu(ctx, menu),

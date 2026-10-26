@@ -74,7 +74,7 @@ export function modalHit<F extends string>(l: { title: Rect; close: Rect; button
 }
 
 /** A parchment panel in a thin gold frame, a heading strip across its top when it has one. */
-function panel(s: Surface, b: { x: number; y: number; w: number; h: number }, heading?: string): void {
+export function drawModalPanel(s: Surface, b: { x: number; y: number; w: number; h: number }, heading?: string): void {
   s.frame(b.x, b.y, b.w, b.h, GOLD_DARK());
   speckle(s, b.x + 1, b.y + 1, b.w - 2, b.h - 2, STRIP(), PARCHMENT(), PARCHMENT());
   if (!heading) return;
@@ -90,7 +90,7 @@ function panel(s: Surface, b: { x: number; y: number; w: number; h: number }, he
 }
 
 /** Text cut to a width, with a full stop where it was cut. */
-function fit(text: string, w: number): string {
+export function fitText(text: string, w: number): string {
   if (textWidth(text) <= w) return text;
   let t = text;
   while (t.length > 1 && textWidth(`${t}.`) > w) t = t.slice(0, -1);
@@ -121,7 +121,7 @@ function drawUnlocks(s: Surface, panelRect: Rect, unlocks: Unlock[], leads: bool
     const x = x0 + i * colW;
     itemBox(s, x, top, BOX, u.icon, u.unit, owner);
     const room = colW - BOX - 6;
-    const end = drawText(s, x + BOX + 4, top + 4, fit(u.name, room), BROWN());
+    const end = drawText(s, x + BOX + 4, top + 4, fitText(u.name, room), BROWN());
     if (unlocks.length === 1 && !leads && end + 4 + textWidth(u.kind) <= x + BOX + 4 + room) drawText(s, end + 4, top + 4, u.kind, BROWN_DIM());
   });
 }
@@ -144,7 +144,7 @@ export function drawWindowButton(s: Surface, b: { x: number; y: number; w: numbe
 }
 
 /** The window's frame: tan stone inside a brown and gold border, studs at the corners, a shadow under it on the game. */
-function drawFrame(s: Surface, o: Rect): void {
+export function drawModalFrame(s: Surface, o: Rect): void {
   s.rect(o.x + 3, o.y + o.h, o.w, 2, C.BLACK!);
   s.rect(o.x + o.w, o.y + 3, 2, o.h - 1, C.BLACK!);
   speckle(s, o.x, o.y, o.w, o.h, shade("earth", 6), shade("earth", 7), shade("hide", 6));
@@ -197,11 +197,11 @@ function drawNewTechNow(s: Surface, state: GameState, view: NewTechView): void {
   const o = modalRect(s.width);
   const l = layout(o);
   hideArtUnder(s, o);
-  drawFrame(s, o);
+  drawModalFrame(s, o);
   drawModalTitle(s, l, "bulb", "New Technology");
 
   // The name, large, over its era between two gold rules.
-  panel(s, l.name);
+  drawModalPanel(s, l.name);
   s.frame(l.name.x + 1, l.name.y + 1, l.name.w - 2, l.name.h - 2, GOLD_LIGHT());
   drawModalName(s, l.name, card.name, card.era, BROWN(), BROWN_DIM(), true);
 
@@ -213,13 +213,13 @@ function drawNewTechNow(s: Surface, state: GameState, view: NewTechView): void {
   drawIcon(s, "bulb", p.x + Math.floor((p.w - ICON) / 2), p.y + Math.floor((p.h - ICON) / 2));
 
   // What it is, and what it needed, in a line under that.
-  panel(s, l.desc, "Description");
+  drawModalPanel(s, l.desc, "Description");
   const lines = wrapText(card.text, NEW_TECH_TEXT_W).slice(0, 3);
   lines.forEach((line, i) => drawText(s, l.desc.x + 5, l.desc.y + HEAD_H + 3 + i * FONT_HEIGHT, line, BROWN()));
   const needs = card.needs.length ? `Needs ${card.needs.map((n) => n.name).join(", ")}` : "One of the first discoveries";
-  if (lines.length < 3) drawText(s, l.desc.x + 5, l.desc.y + HEAD_H + 3 + lines.length * FONT_HEIGHT, fit(needs, NEW_TECH_TEXT_W), BROWN_DIM());
+  if (lines.length < 3) drawText(s, l.desc.x + 5, l.desc.y + HEAD_H + 3 + lines.length * FONT_HEIGHT, fitText(needs, NEW_TECH_TEXT_W), BROWN_DIM());
 
-  panel(s, l.unlocks, card.leads ? "Leads to" : "Unlocks");
+  drawModalPanel(s, l.unlocks, card.leads ? "Leads to" : "Unlocks");
   drawUnlocks(s, l.unlocks, card.unlocks, card.leads, owner);
 
   l.buttons.forEach((b, i) => drawWindowButton(s, b, NEW_TECH_BUTTONS[i]!, i === view.selected));

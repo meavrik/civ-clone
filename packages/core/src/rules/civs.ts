@@ -37,10 +37,10 @@ export type TraitEffect =
   | { kind: "growth"; keep: number }
   /** Size of the food box a city must fill to grow. */
   | { kind: "foodBoxPct"; pct: number }
-  /** New units of these types, or of this domain, come out veterans. */
-  | { kind: "veteran"; units?: string[]; domain?: UnitDomain }
-  /** More movement for units of these types or this domain, in whole squares. */
-  | { kind: "moves"; amount: number; units?: string[]; domain?: UnitDomain }
+  /** New units of these types, or of this domain, come out veterans; `who` names the types in a word or two. */
+  | { kind: "veteran"; units?: string[]; domain?: UnitDomain; who?: string }
+  /** More movement for units of these types or this domain, in whole squares; `who` names the types. */
+  | { kind: "moves"; amount: number; units?: string[]; domain?: UnitDomain; who?: string }
   /** A revolution's anarchy lasts at most this many turns. */
   | { kind: "anarchy"; turns: number }
   /** Villages never hide barbarians and give twice the gold. */
@@ -69,6 +69,8 @@ export interface CivRule {
   cities: string[];
   /** Absent only for the barbarians. */
   trait?: CivTrait;
+  /** The people in a sentence of our own, for the window a new game opens with. Absent only for the barbarians. */
+  text?: string;
   /** Save version that brought it in: older saves drew their rivals without it (`NewGameOptions.roster`). */
   since?: number;
 }
@@ -85,19 +87,43 @@ const TRAITS: Record<string, CivTrait> = {
   chinese: { name: "Granaries of the Realm", short: "Growth keeps food", text: "A growing city keeps a third of its food.", start: "pottery", effects: [{ kind: "growth", keep: 1 / 3 }] },
   indians: { name: "Peaceful Hearts", short: "+1 content", text: "One more content citizen in every city.", start: "ceremonial_burial", effects: [{ kind: "content", amount: 1 }] },
   aztecs: { name: "Floating Gardens", short: "Fast growth", text: "Cities need a fifth less food to grow.", start: "ceremonial_burial", effects: [{ kind: "foodBoxPct", pct: -20 }] },
-  zulus: { name: "Impi", short: "Veteran infantry", text: "Foot soldiers are trained as veterans.", start: "bronze_working", effects: [{ kind: "veteran", units: FOOT }] },
+  zulus: { name: "Impi", short: "Veteran infantry", text: "Foot soldiers are trained as veterans.", start: "bronze_working", effects: [{ kind: "veteran", units: FOOT, who: "Foot soldiers" }] },
   germans: { name: "Diligent Farmers", short: "Fast mines, farms", text: "Settlers mine and irrigate in half the time.", start: "masonry", effects: [{ kind: "fastWork", work: ["mine", "irrigate"] }] },
   americans: { name: "Constitution", short: "Short anarchy", text: "A revolution brings one turn of anarchy at most.", start: "the_wheel", effects: [{ kind: "anarchy", turns: 1 }] },
   russians: { name: "Vast Lands", short: "Half corruption", text: "Corruption takes half as much trade.", start: "horseback_riding", effects: [{ kind: "corruptionPct", pct: -50 }] },
   french: { name: "Cathedral Masons", short: "Cheap temples", text: "Temples, cathedrals and colosseums cost half.", start: "ceremonial_burial", effects: [{ kind: "cost", pct: -50, buildings: ["temple", "cathedral", "colosseum"] }] },
   english: { name: "Rule the Waves", short: "Faster ships", text: "Ships move one square further.", start: "alphabet", effects: [{ kind: "moves", amount: 1, domain: "sea" }] },
-  mongols: { name: "Horse Lords", short: "Faster horsemen", text: "Mounted units move one square further.", start: "horseback_riding", effects: [{ kind: "moves", amount: 1, units: MOUNTED }] },
+  mongols: { name: "Horse Lords", short: "Faster horsemen", text: "Mounted units move one square further.", start: "horseback_riding", effects: [{ kind: "moves", amount: 1, units: MOUNTED, who: "Mounted units" }] },
   spanish: { name: "Conquistadors", short: "Friendly villages", text: "Villages never hide barbarians and give twice the gold.", start: "horseback_riding", effects: [{ kind: "friendlyVillages" }] },
   vikings: { name: "Longships", short: "Veteran ships", text: "Ships are built as veterans.", start: "bronze_working", effects: [{ kind: "veteran", domain: "sea" }] },
   hittites: { name: "Iron and Chariots", short: "Cheap soldiers", text: "Soldiers cost a fifth less.", start: "the_wheel", effects: [{ kind: "cost", pct: -20, soldiers: true }] },
   persians: { name: "Satrapies", short: "+25% tax", text: "A quarter more tax in every city.", start: "pottery", effects: [{ kind: "taxPct", pct: 25 }] },
-  hebrews: { name: "Exodus", short: "Faster settlers", text: "Settlers move one square further.", start: "ceremonial_burial", effects: [{ kind: "moves", amount: 1, units: ["settlers"] }] },
-  japanese: { name: "Bushido", short: "Veteran horsemen", text: "Mounted units are trained as veterans.", start: "bronze_working", effects: [{ kind: "veteran", units: MOUNTED }] },
+  hebrews: { name: "Exodus", short: "Faster settlers", text: "Settlers move one square further.", start: "ceremonial_burial", effects: [{ kind: "moves", amount: 1, units: ["settlers"], who: "Settlers" }] },
+  japanese: { name: "Bushido", short: "Veteran horsemen", text: "Mounted units are trained as veterans.", start: "bronze_working", effects: [{ kind: "veteran", units: MOUNTED, who: "Mounted units" }] },
+};
+
+/** Each playable civilization in a sentence, by id: our own words, for the opening window. */
+const TEXTS: Record<string, string> = {
+  romans: "From a city of seven hills the Romans spread their law, their legions and their paved roads across the known world.",
+  babylonians: "Between two great rivers the Babylonians wrote the first laws on clay and charted the wandering stars.",
+  egyptians: "On the banks of the Nile the Egyptians raise tombs and temples meant to outlast time itself.",
+  greeks: "Sailors, thinkers and athletes, the Greeks fill their city-states with schools, theatres and debate.",
+  chinese: "Along their great rivers the Chinese farm, store grain against famine and keep a realm that endures.",
+  indians: "In the lands of the Indus and the Ganges the Indians seek wisdom in patience, learning and peace.",
+  aztecs: "On a lake in a high valley the Aztecs grow food on floating fields and raise a shining city.",
+  zulus: "Herders of cattle and fearless fighters, the Zulus train every young man for the battle line.",
+  germans: "Tribes of the deep forests, the Germans clear the land and work its fields and mines without rest.",
+  americans: "A young nation of settlers, the Americans govern themselves by a written constitution.",
+  russians: "Masters of endless forest and steppe, the Russians hold together lands too vast to cross.",
+  french: "Heirs of the Franks, the French raise churches of stone and coloured glass toward the sky.",
+  english: "An island people, the English look to the sea for their trade, their defence and new lands.",
+  mongols: "Born in the saddle, the Mongols ride across the steppe faster than word of their coming.",
+  spanish: "Proud and restless, the Spanish venture into unknown lands and seas in search of gold.",
+  vikings: "Raiders and traders of the north, the Vikings sail their longships wherever water runs.",
+  hittites: "Lords of the high plateau, the Hittites forge iron and drive the swiftest chariots of their age.",
+  persians: "Rulers of many peoples, the Persians govern their wide provinces through loyal satraps.",
+  hebrews: "A wandering people bound by one faith, the Hebrews journey in search of a promised land.",
+  japanese: "An island people of the rising sun, the Japanese hold honour, discipline and the sword dear.",
 };
 
 export const CIVS: CivRule[] = [
@@ -127,6 +153,8 @@ export const CIVS: CivRule[] = [
 for (const c of CIVS) {
   const t = TRAITS[c.id];
   if (t) c.trait = t;
+  const text = TEXTS[c.id];
+  if (text) c.text = text;
 }
 
 export const CIV_BY_ID: Record<string, CivRule> = Object.fromEntries(CIVS.map((c) => [c.id, c]));

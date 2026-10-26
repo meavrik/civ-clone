@@ -142,6 +142,7 @@ import {
   type DiplomacyView,
   type NewTechView,
   type BuiltView,
+  type ReignView,
   type MainScreenView,
   type MenuState,
   type Renderer,
@@ -261,6 +262,7 @@ type Screen =
   // An advance just found, `found[at]` of those found together; the research is `due` to be picked after.
   | { kind: "newTech"; view: NewTechView; found: string[]; at: number; due: boolean; back: Screen; then: () => void }
   | { kind: "built"; view: BuiltView; then: () => void; under: Screen } // a city of ours finished an improvement, a wonder or a spaceship part, the window over `under`
+  | { kind: "reign"; view: ReignView } // a new game's opening window over the map: our leader, the people, what the tribe brings
   | { kind: "science" }
   | { kind: "rates" }
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
@@ -572,10 +574,22 @@ function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0
   cam.ready = false;
   followActive(true);
   autosave();
+  // Our people, once, as the reign begins (asked for 2026-10-26: the leader's portrait, a word on the people, the tribe's bonuses).
+  screenState = { kind: "reign", view: {} };
+}
+
+/** Leave the opening window for the map, the leader bidden to glory. */
+function leaveReign(): void {
+  screenState = { kind: "map" };
   say(`${civ(state.players[0]!.civ).leader}, lead the ${state.players[0]!.name} to glory.`, 4000);
-  // Our strength, once, as the reign begins.
-  const t = civ(state.players[0]!.civ).trait;
-  if (t && !state.classicCivs) modal(`The ${state.players[0]!.name}`, [`{star} ${t.name}: ${t.text}`, `We start with ${advance(t.start).name}.`], ["OK"], () => { screenState = { kind: "map" }; }, 0, () => { screenState = { kind: "map" }; });
+}
+
+/** Keys on the opening window: Enter or Space (not held) and Esc begin. */
+function reignKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "reign" }>): void {
+  switch (e.code) {
+    case "Enter": case "NumpadEnter": case "Space": e.preventDefault(); if (!e.repeat && settled(sc.view)) leaveReign(); break;
+    case "Escape": leaveReign(); break;
+  }
 }
 
 function resumeGame(save: SaveGame): void {
@@ -2325,6 +2339,7 @@ addEventListener("keydown", (e) => {
     case "research": treeKey(e, sc); break;
     case "newTech": newTechKey(e, sc); break;
     case "built": builtKey(e, sc); break;
+    case "reign": reignKey(e, sc); break;
     case "diplomacy": diplomacyKey(e, sc); break;
     case "beat": e.preventDefault(); endBeat(sc); break;
     case "end": screenState = { kind: "title" }; break;
@@ -2490,6 +2505,9 @@ canvas.addEventListener("mousedown", (e) => {
       if (hit) leaveBuilt(sc, hit === "city");
       return;
     }
+    case "reign":
+      if (e.button === 0 && settled(sc.view) && renderer.reignHit(sc.view, px, py)) leaveReign();
+      return;
     case "end": screenState = { kind: "title" }; return;
     case "diplomacy": {
       // A button picks its choice; the close box steps back (or takes leave), as Esc does; elsewhere nothing.
@@ -2676,6 +2694,7 @@ function draw(sc: Screen): void {
       renderer.built(state, sc.view);
       break;
     }
+    case "reign": draw({ kind: "map" }); sc.view.enter = enterOf(sc.view); renderer.reign(state, sc.view); break;
     case "science": renderer.science(state); break;
     case "rates": draw({ kind: "map" }); renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;

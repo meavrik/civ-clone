@@ -7,6 +7,7 @@ import { setupQuestionCards, type SetupCards } from "./setup.js";
 import type { DiplomacyView } from "./audience.js";
 import type { NewTechHit, NewTechView } from "./newtech.js";
 import type { BuiltHit, BuiltView } from "./built.js";
+import type { ReignHit, ReignView } from "./reign.js";
 import type { ImprovementHit } from "./improvements.js";
 export * from "./motion.js";
 export * from "./icons.js";
@@ -36,6 +37,7 @@ export * from "./audience.js";
 export * from "./newtech.js";
 export * from "./art.js";
 export * from "./built.js";
+export * from "./reign.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
@@ -365,6 +367,10 @@ export interface Renderer {
   built(state: GameState, view: BuiltView): void;
   /** The Building Completed window's button (or close box) under a point, or null. */
   builtHit(view: BuiltView, px: number, py: number): BuiltHit | null;
+  /** The window a new game opens with over the map: our leader's portrait, the people in a sentence, what the tribe brings (`reignCard`). */
+  reign(state: GameState, view: ReignView): void;
+  /** The opening window's button (or close box) under a point, or null. */
+  reignHit(view: ReignView, px: number, py: number): ReignHit | null;
   /** A game starts or loads: a renderer may fetch the art its civilizations will want (their leaders' scenes). */
   prepare?(state: GameState): void;
   end(lines: string[], rank: string): void;

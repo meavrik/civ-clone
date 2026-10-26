@@ -1,4 +1,4 @@
-import type { AdvisorKind, CityScreenView, MainScreenView, MenuState, Renderer, TextInputState } from "@civ/renderer-api";
+import { reignCard, type AdvisorKind, type CityScreenView, type MainScreenView, type MenuState, type Renderer, type TextInputState } from "@civ/renderer-api";
 import {
   cityButtonAt,
   cityCitizenAt,
@@ -23,6 +23,9 @@ import {
   newTechHit,
   drawBuilt,
   builtHit,
+  drawReign,
+  reignHit,
+  reignPicture,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -150,6 +153,12 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     newTechHit: (view, px, py) => newTechHit(view, px, py),
     built: (state, view) => drawBuilt(screen, state, view),
     builtHit: (view, px, py) => builtHit(view, px, py),
+    reign: (state, view) => {
+      drawReign(screen, state, view);
+      // Our leader's portrait as it is, in its frame, once the window stands whole.
+      if ((view.enter ?? 1) >= 1) pictures.push(portraitPlace(reignCard(state).portrait, { ...reignPicture(), ...screenBox }));
+    },
+    reignHit: (view, px, py) => reignHit(view, px, py),
     prepare: (state) => preloadScenes(state),
     end: (lines, rank) => drawEndScreen(screen, lines, rank),
     spaceship: (state) => drawSpaceshipScreen(screen, state),

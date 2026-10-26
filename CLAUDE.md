@@ -81,6 +81,8 @@ Never ship the original's sprites, palette art, fonts or text.
   anarchy, friendly villages). `traits.ts` answers each kind; `costFor` is a production's cost for its owner (use it, not
   `productionCost`, for anything a city pays). `classicCivs` (old saves before version 5,
   `?civs=classic`, `--classic-civs`) turns them all off. Tests of base rules play classic civs.
+  Each civ also has `CivRule.text`, the people in a sentence of our own, and a `veteran`/`moves` effect
+  naming unit types carries `who` ("Foot soldiers") for the words.
   Diplomacy (`diplomacy.ts`): civilizations meet face to face (`contactRange` 1, as the original), and
   the unit that walked into the meeting stops for the turn, on a goto too (`meetAround`), so each side
   sees whom it met; a civilization sees its land and a square beyond it (Sight below). Meeting leaves them in contact, no treaty
@@ -523,6 +525,16 @@ Never ship the original's sprites, palette art, fonts or text.
   opens it (`openTree`) after the New Technology windows when research is due, from their View Tech Tree,
   and wherever research is picked (science advisor A, Advisors > Research, and a click on the status
   panel's research row: `Renderer.statusAt`); when research is due it closes only on a pick.
+  Opening window (`reign.ts` in renderer-api and renderer-retro; asked for 2026-10-26: "improve the
+  starting game first message ... add civ image + short description and civ bonuses", in place of a plain
+  message with the trait's line): a new game opens on the map with "A New Civilization", the New
+  Technology window's parchment and gold a little larger (248x151, `reignRect`), centred over the darkened
+  map: the people's name large over their leader and the year, the leader's setup portrait (the user's
+  picture, laid at `reignPicture` on the setup cards' sky, `drawPortraitSky`) in a gold frame ringed in the
+  civ's colour, The People (`CivRule.text`, three lines at most) and, under the trait's name, its bonuses a
+  line each with an icon (`reignCard`, `traitBonuses`/`bonusLine`: numbers from the `TraitEffect`s, then
+  "Starts knowing ..."; classic civs say every people is alike); Begin (Enter, Space, Esc, the close box).
+  `Renderer.reign`/`reignHit`; the web app's `reign` screen, the "lead the ... to glory" line after it.
   New Technology window (`newtech.ts`; asked for 2026-10-23 with the user's template and a picture for
   each advance): every advance found (end of turn, village, diplomat, treaty, Debug) gets one, in turn
   (`announce` in the web app), before the research panel; a small window over the game since 2026-10-24
@@ -805,8 +817,8 @@ settlers; Jerusalem) and Japanese (Bushido: veteran horsemen; Kyoto, two hill sq
 grid)). A civ added later carries `since` (the save version that brought it); saves before version 11
 load with `roster: 10`, so their rivals come from the 18 they were drawn from. Barbarians done (2026-10-17): uprisings and
 sea raids with leaders and ransom, barbarian-held cities, pillage. Civilization traits done (2026-10-17):
-one ability and one starting advance per civ, shown at the tribe choice, the opening and World >
-Civilizations. Extended tech tree done (2026-10-18, asked for): Weaving (after Pottery; ends arctic wear in
+one ability and one starting advance per civ, shown at the tribe choice, the opening window (with the
+leader's portrait and a sentence on the people since 2026-10-26) and World > Civilizations. Extended tech tree done (2026-10-18, asked for): Weaving (after Pottery; ends arctic wear in
 place of Medicine), Animal Husbandry (a root; Horseback Riding needs it; +1 food from Horses, Game and
 Seals for its owner, `special.learned`), and five modern advances in place of Future Tech. (The Internet,
 Mobile Phones, Renewable Energy, Artificial Intelligence, Quantum Computing), each unlocking an

@@ -1,6 +1,6 @@
 import { civ, wrapX, type GameState } from "@civ/core";
 import { scrollRows } from "./menus.js";
-import type { AdvisorKind, DiplomacyView, MainScreenView, MenuState, NewTechView, Renderer, ResearchView, SetupCards, TextInputState } from "@civ/renderer-api";
+import { reignCard, type AdvisorKind, type DiplomacyView, type MainScreenView, type MenuState, type NewTechView, type ReignView, type Renderer, type ResearchView, type SetupCards, type TextInputState } from "@civ/renderer-api";
 import {
   BAR_H,
   cityButtonAt,
@@ -27,6 +27,9 @@ import {
   newTechHit,
   drawBuilt,
   builtHit,
+  drawReign,
+  reignHit,
+  reignPicture,
   drawDomesticAdvisor,
   drawEndScreen,
   drawForeignAdvisor,
@@ -379,6 +382,13 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     newTechHit: (view, px, py) => (shown.wide ? newTechHit(view, px, py, screenW()) : newTechHit(view, px - inset(), py)),
     built: (state, view) => drawBuilt(surface(), state, view),
     builtHit: (view, px, py) => (shown.wide ? builtHit(view, px, py, screenW()) : builtHit(view, px - inset(), py)),
+    reign: (state: GameState, view: ReignView) => {
+      const s = surface();
+      drawReign(s, state, view);
+      const box = reignPicture(s.width);
+      if ((view.enter ?? 1) >= 1) pictures.push(portraitPlace(reignCard(state).portrait, wideFrame ? { ...box, logicalW: screenW(), logicalH: SCREEN_H } : onScreen(box)));
+    },
+    reignHit: (view, px, py) => (shown.wide ? reignHit(view, px, py, screenW()) : reignHit(view, px - inset(), py)),
     prepare: (state) => preloadScenes(state),
     end: screen(drawEndScreen),
     spaceship: screen(drawSpaceshipScreen),
