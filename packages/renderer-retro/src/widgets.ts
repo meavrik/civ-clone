@@ -1,8 +1,9 @@
 import { drawText, drawTextLarge, FONT_HEIGHT, textWidth, textWidthLarge } from "./font.js";
 import { drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
-import { unitSprite } from "./overlays.js";
+import { drawShield, unitSprite } from "./overlays.js";
 import { C, DIMMED, shade, slotColor } from "./palette.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
+import { darker } from "./sprites/index.js";
 import { SCREEN_H, SCREEN_W, Surface } from "./surface.js";
 
 /**
@@ -111,8 +112,8 @@ export function drawPage(s: Surface, title: string, hint = ""): void {
 
 /** A civilization's colour as a small framed square, so even grey and white show on the stone. */
 export function drawSwatch(s: Surface, x: number, y: number, color: number): void {
-  s.rect(x, y + 1, 6, 6, C.BLACK!);
-  s.rect(x + 1, y + 2, 4, 4, color);
+  // The civilization's shield as its units bear it, device and all, so the lists say whose shield is whose.
+  drawShield(s, x, y, 1, 2, color, darker(color));
 }
 
 /**

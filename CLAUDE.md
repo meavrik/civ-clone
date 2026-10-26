@@ -618,6 +618,15 @@ Never ship the original's sprites, palette art, fonts or text.
   Terrain (`terrain.art.ts`, recovered pixel for pixel from the user's reference sheet, no mirroring;
   two blues: coastal `ocean`, open `deep_ocean`), units (`units.art.ts`, the user's 32x32 sheet of the
   original's 28, standing free with the owner's shield in the top-left corner, `drawShield`/`SHIELD_AT`,
+  bearing its colour slot's device (`DEVICES` in `overlays.ts`, in the colour's darker partner: white a pale,
+  green per pale, blue a cross, yellow plain, cyan a chevron, magenta a base, grey a roundel, orange a fess,
+  the barbarians' red a saltire; asked for 2026-10-26: civs "same color ... maybe a color blind issue". No
+  nine colours stay apart for the colour blind (green, yellow, orange and red look alike to the red-green
+  blind whatever their shades: measured in CIEDE2000 under Machado's simulations, the best palette pick kept
+  pairs near 10), so the colours alike get devices least alike, each still its own below a wounded unit's
+  hp strip; cyan became the EGA's deep cyan and grey `stone` 3, light cyan and light grey having looked
+  white beside the Romans; `tests/colors.test.ts` draws `civ-colors*.png` and `civ-shields*.png` as each
+  colour blindness sees them; the lists' swatches (`drawSwatch`) are the shield too),
   a second shield behind for a stack, hp as a strip across its top, its rank's gold chevrons in the top
   right corner (the rank icon, `drawRankMark`); no owner box), cities
   (`cities.art.ts`, the user's 4x3 sheet of 2026-10-22 converted by `tools/sprites/draw/cities.ts` from
@@ -630,7 +639,8 @@ Never ship the original's sprites, palette art, fonts or text.
   `tools/sprites/draw/features.ts` as layers lit from the upper left with one-pixel outlines in the
   darkest of each thing's own colours). Nothing but the corner shield is drawn on a city's square: its
   population sits on a plate of the owner's colour before its name under the square, and its mood
-  (the viewer's own cities) as a pennant before the plate (`drawCityLabel`, `drawMoodPennant` in
+  (the viewer's own cities) as a pennant before the plate, another civ's city its owner's shield there
+  (`drawCityLabel`, `drawMoodPennant` in
   `screens/main.ts`; asked for 2026-10-21/22 after overlays on the town hid it) and resources (`resources.art.ts`, named after the special; one-pixel outlines in dark
   shades of their own colours, never thick black) are all 32x32 sheets with `k = 2`; icons are 16x16
   fine; citizens 32x32. Land borders blend: renderer-api `groundOwner` warps each fine pixel by world

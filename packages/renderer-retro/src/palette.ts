@@ -144,8 +144,14 @@ RAMP_SIZE.jewel = 6;
 if (PALETTE.length > 255) throw new Error(`palette has ${PALETTE.length} colours; 255 is kept clear`);
 while (PALETTE.length < 256) PALETTE.push([0, 0, 0]);
 
-/** Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
-export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.LCYAN!, C.LMAGENTA!, C.LGREY!, C.ORANGE!, C.LRED!];
+/**
+ * Palette colour for each colour slot, in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red.
+ * Cyan is the EGA's deep cyan and grey a mid stone grey (asked for 2026-10-26: civilizations "same color ... maybe a
+ * color blind issue"): the light cyan and light grey looked white beside the Romans, light cyan all but white to the
+ * red-blind. No nine colours stay apart for every colour blindness (green, yellow, orange and red are near alike to the
+ * red-green blind whatever their shades), so each slot also bears its own device on the shield (`DEVICES` in overlays.ts).
+ */
+export const PLAYER_COLORS = [C.WHITE!, C.LGREEN!, C.LBLUE!, C.YELLOW!, C.CYAN!, C.LMAGENTA!, C.STONE! + 3, C.ORANGE!, C.LRED!];
 export function slotColor(slot: number): number {
   return PLAYER_COLORS[((slot % PLAYER_COLORS.length) + PLAYER_COLORS.length) % PLAYER_COLORS.length]!;
 }

@@ -24,7 +24,7 @@ import {
   specialOf,
 } from "@civ/core";
 import { drawSpacedRinged, drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, spacedWidth, textPlateWidth, textWidth, wrapText } from "../font.js";
-import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
+import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawShield, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
@@ -214,7 +214,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // Their names under them, as the original showed them; drawn before the units so no unit is hidden by a name.
   for (const c of shownCities) {
     const pos = toScreen(c.x, c.y);
-    if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, c.size, playerColor(state, c.owner), c.owner === state.currentPlayer ? cityMood(state, c) : null);
+    if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, c.size, playerColor(state, c.owner), c.owner === state.currentPlayer ? cityMood(state, c) : null, c.owner !== state.currentPlayer);
   }
   // Settlers in play: pins on the best squares near them to found a city on (`settlerSites`), under the units.
   const active = shownActive(state, view);
@@ -356,14 +356,17 @@ function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, acro
 /**
  * A city's size on a plate of the owner's colour and its name after it, centred under its square:
  * the plate edged and the name ringed in black, so they read on any ground; the figures black, or
- * white on a dark colour.
+ * white on a dark colour. Before the plate our own city's mood pennant, or another's owner's shield,
+ * device and all (`shield`; asked for 2026-10-26: colours alike to the colour blind left a city's
+ * owner in doubt).
  */
-export function drawCityLabel(s: Surface, cx: number, y: number, name: string, size: number, color: number, mood: CityMood | null = null): void {
+export function drawCityLabel(s: Surface, cx: number, y: number, name: string, size: number, color: number, mood: CityMood | null = null, shield = false): void {
   const n = String(size);
   const plate = textPlateWidth(n);
-  const pennant = mood ? MOOD_PENNANT_W : 0;
+  const pennant = mood ? MOOD_PENNANT_W : shield ? CITY_SHIELD_W : 0;
   const x0 = cx - Math.floor((pennant + plate + 2 + textWidth(name)) / 2);
   if (mood) drawMoodPennant(s, x0, y, mood);
+  else if (shield) drawShield(s, x0, y, 0, 3, color, darker(color));
   const [r, g, b] = PALETTE[color]!;
   const ink = 0.299 * r + 0.587 * g + 0.114 * b > 140 ? C.BLACK! : C.WHITE!;
   drawTextPlate(s, x0 + pennant, y, n, color, C.BLACK!, ink);
@@ -372,6 +375,8 @@ export function drawCityLabel(s: Surface, cx: number, y: number, name: string, s
 
 /** Screen pixels a mood pennant takes before a city's size plate. */
 export const MOOD_PENNANT_W = 5;
+/** Screen pixels the owner's shield takes before another civilization's city's size plate. */
+const CITY_SHIELD_W = 6;
 
 /** The fill of a mood pennant: red in disorder, yellow one lost happy citizen from it, green while the city celebrates. */
 export function moodColor(mood: CityMood): number {

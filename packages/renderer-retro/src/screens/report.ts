@@ -3,7 +3,7 @@ import { borderSides, territory, territoryLabels, type ReportPage } from "@civ/r
 import { drawSpacedRinged, drawText, drawTextCentered, FONT_HEIGHT, spacedWidth, textWidth } from "../font.js";
 import { C, mixColor, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { DIM, drawPage, drawWindow, FADED, INK } from "../widgets.js";
+import { DIM, drawPage, drawSwatch, drawWindow, FADED, INK } from "../widgets.js";
 import { minimapColor, playerColor, slotColor, TERRITORY_TINT } from "./main.js";
 
 const ROW = 9;
@@ -28,8 +28,7 @@ export function drawReportScreen(s: Surface, page: ReportPage): void {
     const ink = line.dim ? FADED : INK;
     let tx = x;
     if (line.slot !== undefined) {
-      s.rect(x, y + 1, 6, 6, slotColor(line.slot));
-      s.frame(x, y + 1, 6, 6, C.BLACK!);
+      drawSwatch(s, x, y, slotColor(line.slot));
       tx += 9;
     }
     const right = line.right ? line.right : "";

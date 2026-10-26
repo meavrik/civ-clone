@@ -29,10 +29,11 @@ export const ICON_SHEET = parseSheet("icons", 16, iconsArt, ["grey", "earth", "s
 export const CITIZEN_SHEET = parseSheet("citizens", 32, citizensArt, ["flesh", "earth", "grey"], DETAIL);
 export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRAIN_SHEET, features: FEATURE_SHEET, cities: CITY_SHEET, resources: RESOURCE_SHEET, icons: ICON_SHEET, citizens: CITIZEN_SHEET };
 
-/** An owner colour's darker partner in the EGA set, for shading the box and `p` pixels. */
+/** An owner colour's darker partner (the EGA's where it has one), for shading the box and `p` pixels and the shield's device. */
 const DARKER: Record<number, number> = {
   [C.WHITE!]: C.LGREY!, [C.LGREEN!]: C.GREEN!, [C.LBLUE!]: C.BLUE!, [C.YELLOW!]: C.BROWN!,
   [C.LCYAN!]: C.CYAN!, [C.LRED!]: C.RED!, [C.LMAGENTA!]: C.MAGENTA!, [C.LGREY!]: C.DGREY!, [C.ORANGE!]: C.BROWN!,
+  [C.CYAN!]: C.SEA! + 1, [C.STONE! + 3]: C.STONE! + 1,
 };
 export function darker(fill: number): number {
   return DARKER[fill] ?? fill;

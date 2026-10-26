@@ -2,7 +2,7 @@ import { Terrain, unitType, type Unit, type WorldMap } from "@civ/core";
 import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, rankIcon, roadWays, WORK_ICON, type Explored, type RoadWays } from "@civ/renderer-api";
 import { drawIcon, drawIconFine, iconInk } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
-import { C, shade } from "./palette.js";
+import { C, PLAYER_COLORS, shade } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
 import { FINE, isWater, TILE, WATER } from "./tiles.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
@@ -321,6 +321,40 @@ const SHIELD = [
   "...kpk...",
   "....k....",
 ];
+/**
+ * Each colour slot's device on the shield, in CIV_COLORS order, drawn in the colour's darker partner over the
+ * shield's face (`D`; asked for 2026-10-26: civilizations of colours alike were confused, "maybe a color blind
+ * issue"). The colours the colour blind confuse bear devices least alike: green, yellow, orange and red (the
+ * red-green blind) a half, nothing, a band and a saltire; white, cyan and grey a pale, a chevron and a roundel;
+ * blue and magenta a cross and a base. A wounded unit's hit points cover the shield's top four rows, so each
+ * device keeps its shape below them.
+ */
+export const DEVICES: readonly (readonly string[])[] = [
+  // white: a pale
+  ["", "....D....", "....D....", "....D....", "....D....", "....D....", "....D....", "....D....", "....D....", "....D...."],
+  // green: per pale, the right half dark
+  ["", "....DDDD.", "....DDDD.", "....DDDD.", "....DDDD.", "....DDDD.", "....DDDD.", "....DDDD.", "....DDDD.", "....D...."],
+  // blue: a cross
+  ["", "....D....", "....D....", "....D....", ".DDDDDDD.", "....D....", "....D....", "....D....", "....D....", "....D...."],
+  // yellow: plain
+  [],
+  // cyan: a chevron
+  ["", "", "", "....D....", "...DDD...", "..DD.DD..", ".DD...DD."],
+  // magenta: a base, the point dark
+  ["", "", "", "", "", "", "", ".DDDDDDD.", ".DDDDDDD.", ".DDDDDDD."],
+  // grey: a roundel
+  ["", "", "", "", "...DDD...", "...DDD...", "...DDD..."],
+  // orange: a fess
+  ["", "", "", "", "", ".DDDDDDD.", ".DDDDDDD."],
+  // red (the barbarians): a saltire
+  ["", "", ".D.....D.", "..D...D..", "...D.D...", "....D....", "...D.D...", "..D...D..", ".D.....D."],
+];
+
+/** The device a shield of this colour bears (an index into DEVICES), or -1 for a colour no civilization has. */
+export function deviceOf(fill: number): number {
+  return PLAYER_COLORS.indexOf(fill);
+}
+
 /** Where the shield sits, and where the second shield of a stack peeks out from behind it. */
 export const SHIELD_AT = 1;
 const STACK_SHIFT = 2;
@@ -331,10 +365,13 @@ export function gridRect(s: Surface, dx: number, dy: number, x: number, y: numbe
   s.frect(dx * s.k + Math.floor(x * f), dy * s.k + Math.floor(y * f), Math.max(1, Math.round(w * f)), Math.max(1, Math.round(h * f)), c);
 }
 
-/** The owner's shield (SHIELD) at (x, y) of the square at screen (dx, dy), in its fine grid. */
-export function drawShield(s: Surface, dx: number, dy: number, x: number, y: number, fill: number, edge: number): void {
+/** The owner's shield (SHIELD) at (x, y) of the square at screen (dx, dy), in its fine grid, bearing its colour's device. */
+export function drawShield(s: Surface, dx: number, dy: number, x: number, y: number, fill: number, edge: number, device = deviceOf(fill)): void {
+  const marks = DEVICES[device] ?? [];
   SHIELD.forEach((row, j) => [...row].forEach((ch, i) => {
-    if (ch !== ".") gridRect(s, dx, dy, x + i, y + j, 1, 1, ch === "k" ? C.BLACK! : ch === "P" ? fill : edge);
+    if (ch === ".") return;
+    const face = ch === "P" ? (marks[j]?.[i] === "D" ? edge : fill) : edge;
+    gridRect(s, dx, dy, x + i, y + j, 1, 1, ch === "k" ? C.BLACK! : face);
   }));
 }
 
@@ -353,7 +390,7 @@ export function drawRankMark(s: Surface, dx: number, dy: number, xp: number): vo
 export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean): void {
   s.blit(unitSprite(u.type, color), dx, dy, SPRITE_CLEAR);
   // Whose it is: the owner's shield, a second one peeking out from behind for a stack.
-  if (stacked) drawShield(s, dx, dy, SHIELD_AT + STACK_SHIFT, SHIELD_AT + STACK_SHIFT, darker(color), darker(color));
+  if (stacked) drawShield(s, dx, dy, SHIELD_AT + STACK_SHIFT, SHIELD_AT + STACK_SHIFT, darker(color), darker(color), -1);
   drawShield(s, dx, dy, SHIELD_AT, SHIELD_AT, color, darker(color));
   if (u.order.kind === "fortified") {
     s.frame(dx, dy, TILE, TILE, shade("stone", 6));
