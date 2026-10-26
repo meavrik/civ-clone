@@ -983,10 +983,13 @@ describe("advisor screens", () => {
     };
     // A settler in play: every row of the panel answers, each with words.
     const parts = partsAt(view);
-    for (const part of ["minimap", "population", "year", "gold", "tax", "lux", "sci", "government", "research", "unit", "moves", "terrain", "yield", "orders"])
+    for (const part of ["population", "year", "gold", "tax", "lux", "sci", "government", "research", "unit", "moves", "terrain", "yield", "orders"])
       expect(parts.has(part), part).toBe(true);
     for (const part of parts.keys()) expect(panelTip(state, part as PanelPart, settlers.id), part).not.toBeNull();
     expect(statusPartAt(state, 100, parts.get("gold")!, view)).toBeNull();
+    // The minimap tells of nothing (asked for 2026-10-26).
+    expect(parts.has("minimap")).toBe(false);
+    expect(statusPartAt(state, 40, VIEW_Y + 20, view)).toBeNull();
     // Tax, luxuries and science stand side by side on one row; a click on any opens the rates.
     expect(parts.get("tax")).toBe(parts.get("lux"));
     let rates = 0;

@@ -584,8 +584,8 @@ function panelLayout(state: GameState, view?: MainScreenView): PanelLayout {
   const me = state.players[state.currentPlayer]!;
   const rows: PanelRow[] = [];
   const add = (part: PanelPart, x: number, y: number, w: number, h: number) => { rows.push({ part, x, y, w, h }); };
+  // The minimap has no tip (asked for 2026-10-26); the empire's rows start under it.
   const mm = minimapSize(state.map);
-  add("minimap", 0, VIEW_Y + 2, mm.w, mm.h);
   // Empire: population, year, the treasury with tax, luxuries and science beside it (under it when they
   // do not fit), the government, then the research while one is under way.
   let y = VIEW_Y + 2 + mm.h + 4;

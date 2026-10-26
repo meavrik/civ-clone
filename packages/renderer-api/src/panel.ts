@@ -39,7 +39,7 @@ import { TERRAIN_TEXT } from "./terrain-text.js";
  * `panelTip` puts that part in words, and the renderer draws the tip beside the panel (`MainScreenView.tip`).
  */
 export type PanelPart =
-  | "minimap" | "population" | "year" | "gold" | "tax" | "lux" | "sci" | "government" | "research"
+  | "population" | "year" | "gold" | "tax" | "lux" | "sci" | "government" | "research"
   | "unit" | "moves" | "home" | "rank" | "terrain" | "yield" | "orders" | "endTurn" | "war";
 
 /** A part of the panel under a point, and the rows it spans on screen (where its tip points). */
@@ -136,8 +136,6 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
   const gov = government(me.government);
   const rates = (): string[] => [`${gov.name} allows ${gov.maxRate * 10}% at most.`, "Click to set the rates (T)."];
   switch (part) {
-    case "minimap":
-      return { title: "World Map", lines: ["The world as far as we have explored it; the white frame is the part on view.", "Cities and units are dots in their owner's colour.", "Click to look elsewhere."] };
     case "population": {
       const mine = state.cities.filter((c) => c.owner === me.id);
       const citizens = mine.reduce((n, c) => n + c.size, 0);

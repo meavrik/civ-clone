@@ -469,7 +469,7 @@ Never ship the original's sprites, palette art, fonts or text.
   roads on rivers and an old log holds no refused order). Both status panels show the research under way
   (`researchOutlook`: advance, beakers, turns to go), and nothing while none is picked. Panel tips
   (asked for 2026-10-26: "add tooltips for each relevant element - not clear now. money, taxes, science,
-  governance type etc"): every part of the status panel (`PanelPart`: minimap, population, year, treasury,
+  governance type etc"): every part of the status panel but the minimap (`PanelPart`: population, year, treasury,
   tax, luxuries and science each, government, research, the unit's name, moves, home, rank, terrain,
   yields and orders, End of Turn, the wars) is told of in words (`panelTip` in renderer-api `panel.ts`,
   numbers from the rules: the treasury's taxes and upkeep, a rate's yield and the government's cap, the
