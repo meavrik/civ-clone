@@ -4,7 +4,7 @@ import { drawSpacedRinged, drawText, drawTextCentered, FONT_HEIGHT, spacedWidth,
 import { C, mixColor, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { DIM, drawPage, drawWindow, FADED, INK } from "../widgets.js";
-import { minimapColor, playerColor, slotColor } from "./main.js";
+import { minimapColor, playerColor, slotColor, TERRITORY_TINT } from "./main.js";
 
 const ROW = 9;
 
@@ -43,14 +43,11 @@ export function drawReportScreen(s: Surface, page: ReportPage): void {
   });
 }
 
-/** How far a civilization's colour tints its land, and its sea, on the world map. */
-export const WORLD_TINT = { land: 0.65, sea: 0.4 };
-
 /**
  * The whole world as far as we have explored it, each square as many fine pixels as the screen allows
  * (8 on the original's 80x50, 5 on a medium world, 4 on a large one): terrain; each civilization's land
  * filled with its colour (asked for 2026-10-26: "show borders as filled colors - if possible show civ
- * names"), the land tinted toward it and its sea a little, a line of the colour along the border, and its
+ * names"), the land tinted toward it and its sea a little (`TERRITORY_TINT`, as the minimap), a line of the colour along the border, and its
  * name over the middle of its biggest piece of land (`territoryLabels`); then the units we see and cities.
  */
 export function drawWorldMap(s: Surface, state: GameState): void {
@@ -74,7 +71,7 @@ export function drawWorldMap(s: Surface, state: GameState): void {
       if (!me.explored[i]) continue;
       const ground = minimapColor(map, x, y, me.explored);
       const own = terr.owner[i]!;
-      const tint = map.tiles[i]!.terrain === Terrain.Ocean ? WORLD_TINT.sea : WORLD_TINT.land;
+      const tint = map.tiles[i]!.terrain === Terrain.Ocean ? TERRITORY_TINT.sea : TERRITORY_TINT.land;
       s.frect(ox + x * f, oy + y * f, f, f, own < 0 ? ground : mixColor(ground, colorOf(own), tint));
     }
   // Borders after every square: a line of the owner's colour just inside each side where the land

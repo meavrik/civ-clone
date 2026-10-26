@@ -25,7 +25,7 @@ import {
 } from "@civ/core";
 import { drawSpacedRinged, drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, spacedWidth, textPlateWidth, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
-import { C, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
+import { C, mixColor, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
@@ -722,19 +722,26 @@ const toPixel = (k: number, v: number) => Math.floor(v / k);
 /** The first square a minimap pixel stands for, along one axis (the next pixel's first ends it). */
 const fromPixel = (k: number, p: number) => Math.ceil(p * k);
 
+/** How far a civilization's colour tints the land it claims, and its sea, on the world map. */
+export const TERRITORY_TINT = { land: 0.65, sea: 0.4 };
+/** The same on the minimap, stronger: a pixel a square shows the land's colour more than its ground. */
+export const MINIMAP_TINT = { land: 0.8, sea: 0.55 };
+
 /**
  * The minimap, one pixel a square on the original's world (a block of squares on a bigger
  * one: the first explored land in it, else its sea, so islands still show): explored squares
- * in their terrain's colour, shaded out of sight (`UNSEEN`); with borders shown, a line of the owner's colour along the inside
- * edge of the land its cities reach; units we see in their owner's colour; and each known city
- * as a white dot in a cross of its owner's colour (a darker shade inside a border, so the city
- * stands out from the line round it).
+ * in their terrain's colour, shaded out of sight (`UNSEEN`); with borders shown, each civilization's
+ * land filled with its colour (asked for 2026-10-26: "show all the civ territory as filled color"),
+ * tinted toward it more strongly than the world map (`MINIMAP_TINT`), and a line of the colour along the inside
+ * edge; units we see in their owner's colour; and each known city as a white dot in a cross of its
+ * owner's colour (a darker shade inside a border, so the city stands out from the land round it).
  */
 function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: number): void {
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
   const k = minimapScale(map);
   const { w, h } = minimapSize(map);
+  const terr = view.borders ? territory(state) : null;
   s.rect(0, top, PANEL_W, h, C.BLACK!);
   // The square each pixel shows (-1: nothing explored there), and the one its border reads.
   const shown = new Int32Array(w * h).fill(-1);
@@ -759,11 +766,13 @@ function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: nu
       // Shaded, as on the map, where no square of the block is in sight.
       let lit = false;
       for (let y = y0; y < y1 && !lit; y++) for (let x = x0; x < x1 && !lit; x++) lit = me.visible[y * map.width + x] === 1;
-      const color = minimapColor(map, pick % map.width, Math.floor(pick / map.width), me.explored);
+      const ground = minimapColor(map, pick % map.width, Math.floor(pick / map.width), me.explored);
+      const own = terr ? ownerAt(terr, pick % map.width, Math.floor(pick / map.width)) : -1;
+      const tint = map.tiles[pick]!.terrain === Terrain.Ocean ? MINIMAP_TINT.sea : MINIMAP_TINT.land;
+      const color = own < 0 ? ground : mixColor(ground, playerColor(state, own), tint);
       s.set(px, top + py, lit ? color : UNSEEN[color]!);
     }
-  if (view.borders) {
-    const terr = territory(state);
+  if (terr) {
     const ownerOf = (px: number, py: number) => {
       if (py < 0 || py >= h) return -1;
       const i = owned[py * w + (((px % w) + w) % w)]!;

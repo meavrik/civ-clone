@@ -1097,6 +1097,7 @@ describe("advisor screens", () => {
 describe("world with opponents", () => {
   it("renders enemy cities and units after AI rounds", async () => {
     const { aiTurn } = await import("@civ/ai");
+    const { minimapColor, MINIMAP_TINT } = await import("../src/index.js");
     const state = newGame(11, { opponents: 2 });
     for (let r = 0; r < 25; r++) {
       let guard = 0;
@@ -1139,9 +1140,21 @@ describe("world with opponents", () => {
     expect(mm(enemy.x, enemy.y)).toBe(C.WHITE!);
     expect(mm(enemy.x + 1, enemy.y)).toBe(darker(color));
     expect(mm(ex, ey)).toBe(color);
+    // Inside the border the land is filled, tinted toward its owner's colour.
+    let inner: [number, number] | undefined;
+    for (let y = 1; y < height - 1 && !inner; y++)
+      for (let x = 0; x < width && !inner; x++)
+        if (ownerAt(terr, x, y) >= 0 && !borderSides(terr, x, y).length && clear(x, y) && state.map.tiles[y * width + x]!.terrain !== Terrain.Ocean) inner = [x, y];
+    expect(inner).toBeDefined();
+    const [ix, iy] = inner!;
+    const ground = minimapColor(state.map, ix, iy, state.players[0]!.explored);
+    const filled = mixColor(ground, playerColor(state, ownerAt(terr, ix, iy)), MINIMAP_TINT.land);
+    expect(filled).not.toBe(ground);
+    expect(mm(ix, iy)).toBe(filled);
     drawMainScreen(s, state, view);
     expect(mm(enemy.x + 1, enemy.y)).toBe(color);
     expect(mm(ex, ey)).not.toBe(color);
+    expect(mm(ix, iy)).toBe(ground);
     // Nothing of a square we have not explored, borders included.
     state.players[0]!.explored[ey * width + ex] = 0;
     drawMainScreen(s, state, { ...view, borders: true });
@@ -1203,7 +1216,7 @@ describe("world with opponents", () => {
 
   it("fills each civilization's land with its colour on the world map, its border lined, its name over it", async () => {
     const { aiTurn } = await import("@civ/ai");
-    const { drawWorldMap, minimapColor, playerColor, territory, territoryLabels, WORLD_TINT } = await import("../src/index.js");
+    const { drawWorldMap, minimapColor, playerColor, territory, territoryLabels, TERRITORY_TINT } = await import("../src/index.js");
     const state = newGame(7, { world: "earth", historical: true, civ: "romans", opponents: 5, size: "medium" });
     for (let r = 0; r < 100; r++) {
       do { aiTurn(state); applyCommand(state, { type: "endTurn" }); } while (state.currentPlayer !== 0);
@@ -1214,6 +1227,10 @@ describe("world with opponents", () => {
     const s = Surface.screen();
     drawWorldMap(s, state);
     writeFileSync(new URL("./out/world-map-borders.png", import.meta.url), encodePng(s, 3));
+    const capital = state.cities[0]!;
+    const main = Surface.screen();
+    drawMainScreen(main, state, { originX: capital.x - 7, originY: Math.max(0, capital.y - 6), blink: false, borders: true });
+    writeFileSync(new URL("./out/minimap-territory.png", import.meta.url), encodePng(main, 3));
     // Medium: 5 fine pixels a square, the map centred.
     const f = 5;
     const ox = (640 - map.width * f) / 2;
@@ -1237,7 +1254,7 @@ describe("world with opponents", () => {
         if (own < 0) { if (at(x, y) === ground) plain++; continue; }
         if (map.tiles[y * map.width + x]!.terrain === Terrain.Ocean) continue;
         land++;
-        const tint = mixColor(ground, playerColor(state, own), WORLD_TINT.land);
+        const tint = mixColor(ground, playerColor(state, own), TERRITORY_TINT.land);
         if (at(x, y) === tint) tinted++;
         else if (at(x, y) === ground && tint !== ground) bare++;
         if (owned(x, y - 1) === own) continue;
@@ -1260,7 +1277,7 @@ describe("world with opponents", () => {
     me.explored[hidden.y * map.width + hidden.x] = 0;
     drawWorldMap(s, state);
     const ground = minimapColor(map, hidden.x, hidden.y);
-    const shown = new Set([ground, mixColor(ground, playerColor(state, hidden.owner), WORLD_TINT.land), C.WHITE]);
+    const shown = new Set([ground, mixColor(ground, playerColor(state, hidden.owner), TERRITORY_TINT.land), C.WHITE]);
     for (let i = 0; i < f; i++) for (let j = 0; j < f; j++) expect(shown.has(s.fget(ox + hidden.x * f + i, oy + hidden.y * f + j))).toBe(false);
   });
 });
