@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { DIMMED } from "../src/palette.js";
+import { DIMMED, mixColor } from "../src/palette.js";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
@@ -1199,6 +1199,69 @@ describe("world with opponents", () => {
     for (let x = 0; x < 80; x++) expect(isStone(s.get(x, top + 52)), `x ${x}`).toBe(isStone(small.get(x, top + 52)));
     drawWorldMap(s, state);
     writeFileSync(new URL("./out/world-map-large.png", import.meta.url), encodePng(s, 3));
+  });
+
+  it("fills each civilization's land with its colour on the world map, its border lined, its name over it", async () => {
+    const { aiTurn } = await import("@civ/ai");
+    const { drawWorldMap, minimapColor, playerColor, territory, territoryLabels, WORLD_TINT } = await import("../src/index.js");
+    const state = newGame(7, { world: "earth", historical: true, civ: "romans", opponents: 5, size: "medium" });
+    for (let r = 0; r < 100; r++) {
+      do { aiTurn(state); applyCommand(state, { type: "endTurn" }); } while (state.currentPlayer !== 0);
+    }
+    const { map } = state;
+    const me = state.players[0]!;
+    me.explored.fill(1);
+    const s = Surface.screen();
+    drawWorldMap(s, state);
+    writeFileSync(new URL("./out/world-map-borders.png", import.meta.url), encodePng(s, 3));
+    // Medium: 5 fine pixels a square, the map centred.
+    const f = 5;
+    const ox = (640 - map.width * f) / 2;
+    const oy = Math.floor((400 - map.height * f) / 2);
+    const at = (x: number, y: number) => s.fget(ox + x * f + 2, oy + y * f + 2);
+    const terr = territory(state);
+    const owned = (x: number, y: number) => terr.owner[y * map.width + x]!;
+    const busy = (x: number, y: number) => state.units.some((u) => u.x === x && u.y === y) || state.cities.some((c) => c.x === x && c.y === y);
+    // Claimed land tinted, its edges lined, the rest as it was; names written over some of it.
+    let land = 0;
+    let tinted = 0;
+    let bare = 0;
+    let edges = 0;
+    let lined = 0;
+    let plain = 0;
+    for (let y = 1; y < map.height - 1; y++)
+      for (let x = 1; x < map.width - 1; x++) {
+        if (busy(x, y)) continue;
+        const own = owned(x, y);
+        const ground = minimapColor(map, x, y, me.explored);
+        if (own < 0) { if (at(x, y) === ground) plain++; continue; }
+        if (map.tiles[y * map.width + x]!.terrain === Terrain.Ocean) continue;
+        land++;
+        const tint = mixColor(ground, playerColor(state, own), WORLD_TINT.land);
+        if (at(x, y) === tint) tinted++;
+        else if (at(x, y) === ground && tint !== ground) bare++;
+        if (owned(x, y - 1) === own) continue;
+        edges++;
+        if (s.fget(ox + x * f + 2, oy + y * f) === playerColor(state, own)) lined++;
+      }
+    expect(land).toBeGreaterThan(100);
+    expect(bare).toBe(0);
+    expect(tinted / land).toBeGreaterThan(0.6);
+    expect(lined / edges).toBeGreaterThan(0.6);
+    expect(plain).toBeGreaterThan(1000);
+    // Every civilization with cities is named over its land.
+    const named = new Set(territoryLabels(state, terr).map((l) => l.owner));
+    for (const c of state.cities) expect(named.has(c.owner)).toBe(true);
+    // Nothing of what we have not explored: a claimed square under the fog shows neither its ground nor
+    // its tint, nor the city on it (a name may be written across it).
+    const hidden = state.cities[0]!;
+    me.explored.fill(0);
+    for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) if (dx || dy) { const y = hidden.y + dy; if (y >= 0 && y < map.height) me.explored[y * map.width + ((hidden.x + dx + map.width) % map.width)] = 1; }
+    me.explored[hidden.y * map.width + hidden.x] = 0;
+    drawWorldMap(s, state);
+    const ground = minimapColor(map, hidden.x, hidden.y);
+    const shown = new Set([ground, mixColor(ground, playerColor(state, hidden.owner), WORLD_TINT.land), C.WHITE]);
+    for (let i = 0; i < f; i++) for (let j = 0; j < f; j++) expect(shown.has(s.fget(ox + hidden.x * f + i, oy + hidden.y * f + j))).toBe(false);
   });
 });
 

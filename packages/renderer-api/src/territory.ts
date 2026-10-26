@@ -1,4 +1,4 @@
-import { claims, type GameState } from "@civ/core";
+import { claims, Terrain, type GameState } from "@civ/core";
 
 /**
  * Civilization borders, as drawn: the land each civilization claims (core's
@@ -63,4 +63,55 @@ export function borderSides(t: Territory, x: number, y: number): BorderSide[] {
     out.push({ side, startOut: turns(start), endOut: turns(end) });
   });
   return out;
+}
+
+/** Where a civilization's name goes on a map of its land (`territoryLabels`): a square, and how much land the name stands for. */
+export interface TerritoryLabel {
+  owner: number;
+  x: number;
+  y: number;
+  /** Land squares in the piece named. */
+  squares: number;
+}
+
+/**
+ * Where to write each civilization's name over its land (asked for 2026-10-26, the world map: "show
+ * borders as filled colors - if possible show civ names"): its biggest piece of explored land (claimed
+ * squares joined side to side, across the east-west seam too), at the land square nearest the middle
+ * of it, so the name sits on its land. Biggest first; nothing the viewer has not explored.
+ */
+export function territoryLabels(state: GameState, t: Territory, viewer = state.currentPlayer): TerritoryLabel[] {
+  const { width, height } = t;
+  const explored = state.players[viewer]!.explored;
+  const seen = new Uint8Array(width * height);
+  const best = new Map<number, TerritoryLabel>();
+  for (let i = 0; i < width * height; i++) {
+    const own = t.owner[i]!;
+    if (own < 0 || seen[i] || !explored[i]) continue;
+    // The piece, with x unwrapped from where it was entered, so a piece across the seam keeps its shape.
+    const piece: { i: number; x: number; y: number }[] = [];
+    const queue = [{ i, x: i % width, y: Math.floor(i / width) }];
+    seen[i] = 1;
+    while (queue.length) {
+      const q = queue.pop()!;
+      piece.push(q);
+      for (const [dx, dy] of SIDES) {
+        const y = q.y + dy;
+        if (y < 0 || y >= height) continue;
+        const x = q.x + dx;
+        const j = y * width + (((x % width) + width) % width);
+        if (seen[j] || !explored[j] || t.owner[j] !== own) continue;
+        seen[j] = 1;
+        queue.push({ i: j, x, y });
+      }
+    }
+    // A name stands on land: a piece of sea alone (its land not yet explored) names no one.
+    const land = piece.filter((p) => state.map.tiles[p.i]!.terrain !== Terrain.Ocean);
+    if (!land.length || (best.get(own)?.squares ?? 0) >= land.length) continue;
+    const mx = land.reduce((n, p) => n + p.x, 0) / land.length;
+    const my = land.reduce((n, p) => n + p.y, 0) / land.length;
+    const at = land.reduce((a, p) => ((p.x - mx) ** 2 + (p.y - my) ** 2 < (a.x - mx) ** 2 + (a.y - my) ** 2 ? p : a));
+    best.set(own, { owner: own, x: at.i % width, y: at.y, squares: land.length });
+  }
+  return [...best.values()].sort((a, b) => b.squares - a.squares);
 }

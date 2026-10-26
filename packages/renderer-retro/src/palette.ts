@@ -186,6 +186,32 @@ export const DIMMED: Uint8Array = darkTwins(0.45);
 /** Each colour's shaded twin, for explored squares out of the viewer's sight (`unseenSquare`): darker, still easy to read. */
 export const UNSEEN: Uint8Array = darkTwins(0.62);
 
+const mixes = new Map<number, number>();
+
+/**
+ * The palette entry nearest to colour `a` mixed with `share` (0..1) of colour `b`: the world map's
+ * tint of a civilization's land in its colour. Built from the palette and kept, as `DIMMED` is.
+ */
+export function mixColor(a: number, b: number, share: number): number {
+  const pct = Math.round(share * 100);
+  const key = (pct << 16) | (b << 8) | a;
+  const hit = mixes.get(key);
+  if (hit !== undefined) return hit;
+  const [ar, ag, ab] = PALETTE[a]!;
+  const [br, bg, bb] = PALETTE[b]!;
+  const w = pct / 100;
+  const r = ar + (br - ar) * w, g = ag + (bg - ag) * w, bl = ab + (bb - ab) * w;
+  let best = 0;
+  let bestD = Infinity;
+  for (let j = 0; j < 255; j++) {
+    const [pr, pg, pb] = PALETTE[j]!;
+    const d = (pr - r) ** 2 + (pg - g) ** 2 + (pb - bl) ** 2;
+    if (d < bestD) { bestD = d; best = j; }
+  }
+  mixes.set(key, best);
+  return best;
+}
+
 /** RGBA lookup table (256*4) for fast framebuffer conversion. */
 export const PALETTE_RGBA: Uint8ClampedArray = (() => {
   const t = new Uint8ClampedArray(256 * 4);

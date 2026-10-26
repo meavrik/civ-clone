@@ -584,6 +584,13 @@ Never ship the original's sprites, palette art, fonts or text.
   where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimaps
   follow the same toggle: a line of the owner's colour round each civ's explored land; cities are
   marked in their owner's colour either way (retro: a white dot in a cross, darker inside a border).
+  The World Map (World > World Map; asked for 2026-10-26: "show borders as filled colors - if possible
+  show civ names") is political whatever the toggle: retro `drawWorldMap` draws each square as many fine
+  pixels as fit (8 small, 5 medium, 4 large), each civ's claimed land tinted toward its colour and its sea
+  a little (`WORLD_TINT`, `mixColor` in palette.ts: the nearest palette entry to the mix, as `DIMMED` is
+  built), a line of the colour inside the border, cities white in black, and each civ's name in its colour
+  ringed in black over the middle of its biggest piece of explored land (`territoryLabels` in renderer-api),
+  the biggest first, nudged up or down off other names and, nearby, off cities; only explored squares.
   The unit awaiting orders blinks on the minimap in a yellow box (modern: a ring), so it can be found
   from anywhere. City names stand under their squares on the map (retro: the owner's colour ringed in
   black, drawn before the units so a name never hides one; asked for 2026-10-21).
