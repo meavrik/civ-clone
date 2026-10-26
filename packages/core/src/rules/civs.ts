@@ -1,4 +1,5 @@
 import type { WorkKind } from "../types.js";
+import { CIV_PLACES, type CivPlaces } from "./civ-places.js";
 import type { UnitDomain } from "./units.js";
 
 /**
@@ -71,6 +72,8 @@ export interface CivRule {
   trait?: CivTrait;
   /** The people in a sentence of our own, for the window a new game opens with. Absent only for the barbarians. */
   text?: string;
+  /** Its own names for the places it finds first on a generated world (`CIV_PLACES`). Absent only for the barbarians. */
+  places?: CivPlaces;
   /** Save version that brought it in: older saves drew their rivals without it (`NewGameOptions.roster`). */
   since?: number;
 }
@@ -155,6 +158,8 @@ for (const c of CIVS) {
   if (t) c.trait = t;
   const text = TEXTS[c.id];
   if (text) c.text = text;
+  const places = CIV_PLACES[c.id];
+  if (places) c.places = places;
 }
 
 export const CIV_BY_ID: Record<string, CivRule> = Object.fromEntries(CIVS.map((c) => [c.id, c]));

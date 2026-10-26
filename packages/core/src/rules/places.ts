@@ -2,7 +2,8 @@
  * Names of the world's great features (asked for 2026-10-25: "names for great masses of land or
  * water, like the great desert of..., lake x, the sea of..., x mountains; the name could be driven
  * from the civ or leader who discovers them first; on the premade maps give the real names").
- * `map/geography.ts` finds the places; the first civilization to see one names it from these.
+ * `map/geography.ts` finds the places; the first civilization to see one names it from these: from its
+ * own lists first (`CIV_PLACES`, since 2026-10-26), then after its leader, people and cities.
  */
 export type PlaceKind =
   | "ocean" | "sea" | "bay" | "lake"
@@ -16,38 +17,46 @@ export const WATER_KINDS: ReadonlySet<PlaceKind> = new Set(["ocean", "sea", "bay
 export interface PlaceRule {
   /** A few words for one, for the news ("a great desert"). */
   noun: string;
+  /** Which of the discoverer's own lists names one first (`CivPlaces` in `civ-places.ts`). */
+  list: "lands" | "waters" | "wilds";
+  /** How a name from that list is written for one: {name} the name ("the Sea of {name}"). */
+  own: string[];
   /**
-   * Names for one, first unused in the world wins: {leader} the discoverer's leader, {adj} its
-   * adjective (Roman), {people} its name (Romans), {city} each of its cities in turn.
+   * Names for one once the discoverer's own are used up, first unused in the world wins: {leader} the
+   * discoverer's leader, {adj} its adjective (Roman), {people} its name (Romans), {city} each of its cities in turn.
    */
   names: string[];
-  /** For one this big or bigger (squares of the original's world), these names come first. */
-  great?: { size: number; names: string[] };
+  /** For one this big or bigger (squares of the original's world), these come first: its own names written so, then these. */
+  great?: { size: number; own?: string[]; names: string[] };
 }
 
 export const PLACE_RULES: Readonly<Record<PlaceKind, PlaceRule>> = {
-  ocean: { noun: "an ocean", names: ["the {adj} Ocean", "the Ocean of {leader}", "the {city} Ocean"] },
-  sea: { noun: "a sea", names: ["the Sea of {leader}", "the {adj} Sea", "the Sea of {city}", "the {city} Sea"] },
-  bay: { noun: "a gulf", names: ["the Bay of {city}", "the Gulf of {leader}", "{leader} Bay", "the {adj} Gulf", "the Gulf of {city}", "{city} Bay"] },
-  lake: { noun: "a lake", names: ["Lake {leader}", "Lake {city}", "the {adj} Lake"] },
-  continent: { noun: "a continent", names: ["{leader's} Land", "the {adj} Lands", "New {city}", "{city} Land"] },
-  island: { noun: "an island", names: ["{leader} Island", "the Isle of {city}", "{adj} Island", "{city} Island", "New {city}"] },
+  ocean: { noun: "an ocean", list: "waters", own: ["the Ocean of {name}"], names: ["the {adj} Ocean", "the Ocean of {leader}", "the {city} Ocean"] },
+  sea: { noun: "a sea", list: "waters", own: ["the Sea of {name}"], names: ["the Sea of {leader}", "the {adj} Sea", "the Sea of {city}", "the {city} Sea"] },
+  bay: { noun: "a gulf", list: "waters", own: ["the Gulf of {name}"], names: ["the Bay of {city}", "the Gulf of {leader}", "{leader} Bay", "the {adj} Gulf", "the Gulf of {city}", "{city} Bay"] },
+  lake: { noun: "a lake", list: "waters", own: ["Lake {name}"], names: ["Lake {leader}", "Lake {city}", "the {adj} Lake"] },
+  continent: { noun: "a continent", list: "lands", own: ["{name}"], names: ["{leader's} Land", "the {adj} Lands", "New {city}", "{city} Land"] },
+  island: { noun: "an island", list: "lands", own: ["{name}"], names: ["{leader} Island", "the Isle of {city}", "{adj} Island", "{city} Island", "New {city}"] },
   desert: {
     noun: "a desert",
+    list: "wilds",
+    own: ["the {name} Desert"],
     names: ["the {leader} Desert", "the {adj} Sands", "the Desert of {city}", "the {city} Sands"],
-    great: { size: 16, names: ["the Great Desert of {leader}", "the Great {adj} Desert"] },
+    great: { size: 16, own: ["the Great {name} Desert"], names: ["the Great Desert of {leader}", "the Great {adj} Desert"] },
   },
-  mountains: { noun: "a mountain range", names: ["the {leader} Mountains", "the {adj} Mountains", "the Mountains of {city}", "the {city} Range"] },
-  hills: { noun: "a range of hills", names: ["the {leader} Hills", "the {adj} Hills", "the Hills of {city}", "the {city} Downs"] },
+  mountains: { noun: "a mountain range", list: "wilds", own: ["the {name} Mountains"], names: ["the {leader} Mountains", "the {adj} Mountains", "the Mountains of {city}", "the {city} Range"] },
+  hills: { noun: "a range of hills", list: "wilds", own: ["the {name} Hills"], names: ["the {leader} Hills", "the {adj} Hills", "the Hills of {city}", "the {city} Downs"] },
   forest: {
     noun: "a forest",
+    list: "wilds",
+    own: ["the {name} Forest"],
     names: ["the {leader} Forest", "the {adj} Woods", "the Forest of {city}", "the {city} Woods"],
-    great: { size: 24, names: ["the Great {adj} Forest", "the Great Forest of {leader}"] },
+    great: { size: 24, own: ["the Great {name} Forest"], names: ["the Great {adj} Forest", "the Great Forest of {leader}"] },
   },
-  jungle: { noun: "a jungle", names: ["the {adj} Jungle", "the {leader} Jungle", "the Jungle of {city}"] },
-  swamp: { noun: "a marsh", names: ["the {leader} Marshes", "the {adj} Fens", "the Marshes of {city}", "the {city} Swamp"] },
-  tundra: { noun: "a tundra", names: ["the {adj} Tundra", "the {leader} Barrens", "the {city} Tundra"] },
-  ice: { noun: "an ice field", names: ["the {adj} Ice", "the {leader} Icefield", "the {city} Glacier"] },
+  jungle: { noun: "a jungle", list: "wilds", own: ["the {name} Jungle"], names: ["the {adj} Jungle", "the {leader} Jungle", "the Jungle of {city}"] },
+  swamp: { noun: "a marsh", list: "wilds", own: ["the {name} Marshes"], names: ["the {leader} Marshes", "the {adj} Fens", "the Marshes of {city}", "the {city} Swamp"] },
+  tundra: { noun: "a tundra", list: "wilds", own: ["the {name} Tundra"], names: ["the {adj} Tundra", "the {leader} Barrens", "the {city} Tundra"] },
+  ice: { noun: "an ice field", list: "wilds", own: ["the {name} Ice"], names: ["the {adj} Ice", "the {leader} Icefield", "the {city} Glacier"] },
 };
 
 /**

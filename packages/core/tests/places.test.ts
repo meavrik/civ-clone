@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyCommand, civ, discoverSquare, findGeography, landAt, loadSave, makeSave, newGame, placeAt, placeNames,
+  applyCommand, civ, CIVS, discoverSquare, findGeography, landAt, loadSave, makeSave, newGame, placeAt, placeNames,
   premadeMap, createRng, revealAround, Terrain, WATER_KINDS, LAND_KINDS, type Command, type GameState, type WorldMap,
 } from "../src/index.js";
 
@@ -57,13 +57,13 @@ describe("places", () => {
     const g = state.map.geography!;
     const me = state.players[0]!;
     const rome = civ(me.civ);
-    // Our first settlers stand on land we named as the game began: "Caesar's Land".
+    // Our first settlers stand on land we named as the game began, the first of our own lands: Ausonia.
     const u = state.units.find((o) => o.owner === 0)!;
     const home = landAt(state.map, u.x, u.y)!;
     expect(home.by).toBe(0);
     expect(home.turn).toBe(0);
     expect(home.name).toBe(placeNames(home.kind, home.size, me.civ)[0]);
-    expect(home.name).toContain(rome.leader);
+    expect(home.name).toBe(rome.places!.lands[0]);
     // Places nobody has seen have no name; every name is used once.
     const named = g.regions.filter((r) => r.name);
     expect(named.length).toBeLessThan(g.regions.length);
@@ -74,6 +74,56 @@ describe("places", () => {
     discoverSquare(state, 1, i);
     expect(home.by).toBe(0);
     expect(home.name).toBe(placeNames(home.kind, home.size, me.civ)[0]);
+  });
+
+  it("names from each civilization's own lists of real and legendary places, then after its leader", () => {
+    for (const c of CIVS.filter((o) => o.id !== "barbarians")) {
+      const p = c.places!;
+      expect(p.lands.length, c.id).toBeGreaterThanOrEqual(10);
+      expect(p.waters.length, c.id).toBeGreaterThanOrEqual(10);
+      expect(Object.values(p.wilds).flat().length, c.id).toBeGreaterThanOrEqual(8);
+      // Written in the game's letters, no list naming a place twice.
+      for (const n of [...p.lands, ...p.waters, ...Object.values(p.wilds).flat()]) expect(n, c.id).toMatch(/^[A-Z][A-Za-z' -]*$/);
+      expect(new Set(p.lands).size, c.id).toBe(p.lands.length);
+      expect(new Set(p.waters).size, c.id).toBe(p.waters.length);
+    }
+    // No two peoples share a land's or a water's name.
+    const lands = CIVS.flatMap((c) => c.places?.lands ?? []);
+    const waters = CIVS.flatMap((c) => c.places?.waters ?? []);
+    expect(new Set(lands).size).toBe(lands.length);
+    expect(new Set(waters).size).toBe(waters.length);
+    expect(civ("barbarians").places).toBeUndefined();
+    // Each kind writes the name its way; a landform's own kind's names first, then its others', then the leader's.
+    expect(placeNames("continent", 300, "greeks").slice(0, 3)).toEqual(["Hellas", "Hyperborea", "Atlantis"]);
+    expect(placeNames("ocean", 300, "vikings")[0]).toBe("the Ocean of Jormungandr");
+    expect(placeNames("sea", 60, "vikings")[0]).toBe("the Sea of Jormungandr");
+    expect(placeNames("bay", 30, "vikings")[4]).toBe("the Gulf of Ginnungagap");
+    expect(placeNames("lake", 5, "egyptians")[8]).toBe("Lake Moeris");
+    expect(placeNames("swamp", 5, "romans")[0]).toBe("the Pomptine Marshes");
+    expect(placeNames("desert", 5, "mongols").slice(0, 2)).toEqual(["the Gobi Desert", "the Gurvan Desert"]);
+    expect(placeNames("desert", 40, "mongols").slice(0, 2)).toEqual(["the Great Gobi Desert", "the Gobi Desert"]);
+    const jungle = placeNames("jungle", 6, "romans");
+    expect(jungle[0]).toBe("the Apennine Jungle");
+    expect(jungle.indexOf("the Roman Jungle")).toBe(Object.values(civ("romans").places!.wilds).flat().length);
+    expect(jungle).toContain("the Caesar Jungle");
+  });
+
+  it("names a generated world's places from the lists of the civilizations that find them", () => {
+    const state = newGame(2026, { opponents: 3 });
+    const g = state.map.geography!;
+    // Each homeland bears the first of its finder's own lands (a land two peoples share, the first's).
+    for (const p of state.players.filter((o) => o.id !== state.barbarians)) {
+      const u = state.units.find((o) => o.owner === p.id)!;
+      const home = landAt(state.map, u.x, u.y)!;
+      expect(home.name, p.civ).toBe(civ(state.players[home.by!]!.civ).places!.lands[0]);
+    }
+    // The whole world revealed to us: every place we found carries one of our names, our own lists first.
+    applyCommand(state, { type: "cheat", cheat: "revealMap" });
+    const ours = g.regions.filter((r) => r.by === 0);
+    expect(ours.length).toBeGreaterThan(10);
+    const p = civ(state.players[0]!.civ).places!;
+    const fromLists = ours.filter((r) => [...p.lands, ...p.waters, ...Object.values(p.wilds).flat()].some((n) => r.name!.includes(n)));
+    expect(fromLists.length).toBeGreaterThan(ours.length / 2);
   });
 
   it("gives the next unused name once a civilization has used the first", () => {

@@ -153,10 +153,17 @@ Never ship the original's sprites, palette art, fonts or text.
   water and size), landforms are pieces of one terrain (mountains with hills a range) of at least a size,
   the polar rows an ice field, land pieces continents from `continentMin`. The first civilization to
   explore a square of a place (`discoverSquare`, from `revealAround` and the land sight; `discoverExplored`
-  after the map is revealed at once) discovers it, and a place without a name takes the first unused of
-  `placeNames` from its leader, adjective or cities (`PLACE_RULES`: "Lake Caesar", "the Great Desert of
-  Hammurabi", "Shaka's Land"; never the barbarians); the starting lands are named as the game begins, the
-  player's first. A premade world carries its real places (`PremadeGrid.places`, a `PlaceTable`: names
+  after the map is revealed at once) discovers it, and a place without a name takes one of the discoverer's own
+  (`placeNames`): since 2026-10-26 (asked for: "more creative - a list of real earth and fantasy known worlds
+  names - each civ would own its own land masses names") each civ's lists in `rules/civ-places.ts`
+  (`CIV_PLACES`, `CivRule.places`): lands (its homeland first, then the lands of its legends and its world:
+  Hellas, Hyperborea, Atlantis; Midgard, Vinland, Asgard), waters (the Sea of Ran, the Gulf of Ginnungagap,
+  Lake Moeris) and wilds by the landform they suit (the Pomptine Marshes, the Great Gobi Desert), written by
+  each kind's `PLACE_RULES.own`; old myths and real places only, no modern books' worlds (theirs to name).
+  Each own name goes to one place before any goes to a second (a landform borrowing its civ's other kinds'
+  names first), then again written for the new kind, then after its leader, adjective or cities ("Lake
+  Caesar", "the Great Desert of Hammurabi", "Shaka's Land"); never the barbarians. The starting lands are
+  named as the game begins, the player's first, so a homeland two peoples share bears the first's name. A premade world carries its real places (`PremadeGrid.places`, a `PlaceTable`: names
   per layer and rows of one `PLACE_CHARS` character a square; `premadeGeography`), drawn by `tools/maps`
   (`places.ts`). A landform shows on a square only while its terrain still fits (`placeAt`, `landAt`).
   Nothing in the rules or the AI reads places: no RNG, no save version (old saves replay and name them).

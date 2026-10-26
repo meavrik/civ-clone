@@ -1,4 +1,4 @@
-import { civ } from "../rules/civs.js";
+import { civ, type CivRule } from "../rules/civs.js";
 import { LAND_KINDS, PLACE_RULES, PLACES, WATER_KINDS, type PlaceKind } from "../rules/places.js";
 import { MAP_WIDTH, NEIGHBOURS, Terrain, wrapX, type GameState, type WorldMap } from "../types.js";
 
@@ -315,21 +315,53 @@ function roman(n: number): string {
   return out;
 }
 
-/** The names a civilization would give a place of that kind and size, in its order of preference. */
-export function placeNames(kind: PlaceKind, size: number, civId: string, k = 1): string[] {
+/** The landform kinds in the order a landform borrows another kind's names once its own are used up. */
+const WILD_KINDS: PlaceKind[] = ["mountains", "hills", "forest", "desert", "swamp", "jungle", "tundra", "ice"];
+
+/** A civilization's own names for a place of a kind (`CivPlaces`): a landform's own kind's first, then the other landforms'. */
+function ownNames(c: CivRule, kind: PlaceKind): string[] {
+  const p = c.places;
+  if (!p) return [];
+  const list = PLACE_RULES[kind].list;
+  if (list !== "wilds") return p[list];
+  return [...new Set([...(p.wilds[kind] ?? []), ...WILD_KINDS.flatMap((w) => p.wilds[w] ?? [])])];
+}
+
+/** A name a civilization would give a place, and the name from its own lists it is made of (null for one after its leader). */
+interface Naming {
+  name: string;
+  own: string | null;
+}
+
+function namings(kind: PlaceKind, size: number, civId: string, k: number): Naming[] {
   const rule = PLACE_RULES[kind];
   const c = civ(civId);
-  const patterns = [...(rule.great && size >= rule.great.size * k * k ? rule.great.names : []), ...rule.names];
+  const great = rule.great && size >= rule.great.size * k * k ? rule.great : null;
+  const out: Naming[] = [];
+  const add = (name: string, own: string | null) => { if (!out.some((n) => n.name === name)) out.push({ name, own }); };
+  for (const own of ownNames(c, kind)) for (const p of [...(great?.own ?? []), ...rule.own]) add(p.replace("{name}", own), own);
   const possessive = c.leader.endsWith("s") ? `${c.leader}'` : `${c.leader}'s`;
-  const out: string[] = [];
-  for (const p of patterns) {
+  for (const p of [...(great?.names ?? []), ...rule.names]) {
     const base = p.replace("{leader's}", possessive).replace("{leader}", c.leader).replace("{adj}", c.adjective).replace("{people}", c.name);
-    for (const city of base.includes("{city}") ? c.cities : [null]) {
-      const name = city === null ? base : base.replace("{city}", city);
-      if (!out.includes(name)) out.push(name);
-    }
+    for (const city of base.includes("{city}") ? c.cities : [null]) add(city === null ? base : base.replace("{city}", city), null);
   }
   return out;
+}
+
+/**
+ * The names a civilization would give a place of that kind and size, in its order of preference: its own
+ * names written for the kind (`CIV_PLACES`, the great place's way first), then after its leader, people and cities.
+ */
+export function placeNames(kind: PlaceKind, size: number, civId: string, k = 1): string[] {
+  return namings(kind, size, civId, k).map((n) => n.name);
+}
+
+/** Whether a name of a civilization's own already stands in a place's name (the Sea of Neptune holds Neptune). */
+function holds(name: string, own: string): boolean {
+  const at = name.indexOf(own);
+  if (at < 0) return false;
+  const word = (ch: string | undefined) => ch !== undefined && /[A-Za-z]/.test(ch);
+  return !word(name[at - 1]) && !word(name[at + own.length]);
 }
 
 function discoverRegion(state: GameState, g: Geography, r: number, player: number): void {
@@ -340,8 +372,12 @@ function discoverRegion(state: GameState, g: Geography, r: number, player: numbe
   if (region.name) return;
   const used = new Set<string>();
   for (const o of g.regions) if (o.name) used.add(o.name);
-  const names = placeNames(region.kind, region.size, state.players[player]!.civ, state.map.width / MAP_WIDTH);
-  let name = names.find((n) => !used.has(n));
+  const choices = namings(region.kind, region.size, state.players[player]!.civ, state.map.width / MAP_WIDTH);
+  const names = choices.map((n) => n.name);
+  // Each of its own names goes to one place before any goes to a second (the Sea of Neptune, then the Gulf of
+  // Salacia, not the Gulf of Neptune), then again, written for the new kind; then names after its leader.
+  const fresh = (n: Naming) => n.own !== null && ![...used].some((u) => holds(u, n.own!));
+  let name = choices.find((n) => fresh(n) && !used.has(n.name))?.name ?? names.find((n) => !used.has(n));
   for (let n = 2; !name; n++) name = names.map((s) => `${s} ${roman(n)}`).find((s) => !used.has(s));
   region.name = name;
 }
