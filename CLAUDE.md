@@ -171,9 +171,12 @@ Never ship the original's sprites, palette art, fonts or text.
   view was "too crowded", then the places near every unit still were: "show only 1 at a time - the closest
   to the unit"): the place nearest the unit in play (none while no unit of ours is in play), from the
   explored squares on view within `NAME_REACH` (2) of it, its own square's sea or landform before the land
-  under it (the Alps before Europe), a tie to the bigger place; written on the first of that place's squares
-  near the unit where it fits (`PlaceLabel.at`: in from the view's sides, off our units, on another row than
-  the unit, nearest it, deepest inside the place); retro `drawPlaceNames`: waters pale blue, landforms
+  under it (the Alps before Europe), a tie to the bigger place; written where the place's own anchors stand,
+  not beside the unit (asked for 2026-10-26: the continent's name "follow the unit - fix that - show static"):
+  in each block of `ANCHOR_CELL` (8x6) squares it covers, its square furthest inside it, none on its edge where
+  it has an inside, fixed by the world alone; the anchor nearest the unit first, an anchor off the view or
+  unexplored giving way to the place's explored square on view nearest it, a square in from the view's sides
+  (`PlaceLabel.at`, the first where the name fits); retro `drawPlaceNames`: waters pale blue, landforms
   parchment, lands in spaced gold capitals, ringed dark, over the fog and the shade, under cities and units,
   never across a city's name or out over the dark, kept inside the view. Game > Place Names (asked for the
   same day: "add option to disable mass names visibility"; `MainScreenView.placeNames`, kept per browser)

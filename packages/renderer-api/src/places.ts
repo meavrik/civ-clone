@@ -61,6 +61,63 @@ function depthsOf(map: WorldMap, g: Geography): Depths {
   return d;
 }
 
+/**
+ * Where a place's name stands in the world (asked for 2026-10-26: the continent's name "follow the unit - fix
+ * that - show static"): in each block of `ANCHOR_CELL` squares the place covers, its square furthest inside it
+ * (the first in reading order on a tie), and none on its edge where it has an inside. Fixed by the world alone,
+ * so a name stays where it is written while a unit walks about.
+ */
+export const ANCHOR_CELL = { w: 8, h: 6 } as const;
+interface Anchors {
+  place: Map<number, number[]>;
+  land: Map<number, number[]>;
+}
+const anchorCache = new WeakMap<Geography, Anchors>();
+
+function layerAnchors(map: WorldMap, layer: Int16Array, depth: Uint8Array): Map<number, number[]> {
+  const deepest = new Map<number, number>();
+  for (let i = 0; i < layer.length; i++) {
+    const r = layer[i]!;
+    if (r >= 0 && depth[i]! > (deepest.get(r) ?? 0)) deepest.set(r, depth[i]!);
+  }
+  const across = Math.ceil(map.width / ANCHOR_CELL.w);
+  const best = new Map<string, number>();
+  for (let i = 0; i < layer.length; i++) {
+    const r = layer[i]!;
+    if (r < 0 || depth[i]! < Math.min(2, deepest.get(r)!)) continue;
+    const x = i % map.width;
+    const cell = Math.floor((i - x) / map.width / ANCHOR_CELL.h) * across + Math.floor(x / ANCHOR_CELL.w);
+    const key = `${r}:${cell}`;
+    const b = best.get(key);
+    if (b === undefined || depth[i]! > depth[b]!) best.set(key, i);
+  }
+  const out = new Map<number, number[]>();
+  for (const i of best.values()) {
+    const r = layer[i]!;
+    out.set(r, [...(out.get(r) ?? []), i]);
+  }
+  return out;
+}
+
+function anchorsOf(map: WorldMap, g: Geography): Anchors {
+  let a = anchorCache.get(g);
+  if (!a) {
+    const d = depthsOf(map, g);
+    a = { place: layerAnchors(map, g.place, d.place), land: layerAnchors(map, g.land, d.land) };
+    anchorCache.set(g, a);
+  }
+  return a;
+}
+
+/** The squares between two, as the crow flies (squared), the short way round the world's seam. */
+function apart(map: WorldMap, i: number, x: number, y: number): number {
+  const ix = i % map.width;
+  let dx = Math.abs(ix - x) % map.width;
+  if (dx > map.width / 2) dx = map.width - dx;
+  const dy = (i - ix) / map.width - y;
+  return dx * dx + dy * dy;
+}
+
 /** A place's name to write on the map: the squares of the view (from its top left) it may be centred on, the best first. */
 export interface PlaceLabel {
   region: number;
@@ -82,9 +139,10 @@ export const NAME_REACH = 2;
  * The one place to name in a view `cols` x `rows` squares from (x0, y0): the place nearest the player's
  * unit in play (none when no unit of theirs is in play), from the explored squares on view within
  * `NAME_REACH` of it. The square it stands on names its sea or landform before its land (the Alps before
- * Europe), and nearer places come before further ones; a tie goes to the bigger place. The label may sit on
- * any square of that place near the unit: best a square in from the view's sides, clear of our units, on
- * another row than the unit (a name runs across its row), nearest the unit, furthest inside the place.
+ * Europe), and nearer places come before further ones; a tie goes to the bigger place. The name is written
+ * where the place's own anchors stand (`ANCHOR_CELL`), the one nearest the unit first, not beside the unit: an
+ * anchor off the view or unexplored gives way to the place's explored square on view nearest it, a square in
+ * from the view's sides.
  */
 export function placeLabel(state: GameState, viewer: number, x0: number, y0: number, cols: number, rows: number): PlaceLabel | null {
   const { map } = state;
@@ -92,35 +150,28 @@ export function placeLabel(state: GameState, viewer: number, x0: number, y0: num
   const me = state.players[viewer];
   const unit = state.activeUnit === null ? undefined : state.units.find((u) => u.id === state.activeUnit);
   if (!g || !me || !unit || unit.owner !== viewer) return null;
-  const ours = new Set(state.units.filter((u) => u.owner === viewer).map((u) => u.y * map.width + u.x));
-  const depth = depthsOf(map, g);
-  // Every square of every place near the unit, with how far it lies.
-  type Spot = { tx: number; ty: number; dx: number; dy: number; d: number; i: number };
-  const spots = new Map<number, { land: boolean; d: number; at: Spot[] }>();
-  for (let ty = 0; ty < rows; ty++) {
-    const y = y0 + ty;
-    const dy = y - unit.y;
-    if (y < 0 || y >= map.height || Math.abs(dy) > NAME_REACH) continue;
-    for (let tx = 0; tx < cols; tx++) {
-      const x = wrapX(map, x0 + tx);
-      let dx = ((x - unit.x) % map.width + map.width) % map.width;
-      if (dx > map.width / 2) dx -= map.width;
-      if (Math.abs(dx) > NAME_REACH) continue;
+  // Every place near the unit, with how far it lies.
+  const near = new Map<number, { land: boolean; d: number }>();
+  for (let dy = -NAME_REACH; dy <= NAME_REACH; dy++) {
+    const y = unit.y + dy;
+    if (y < 0 || y >= map.height || y < y0 || y >= y0 + rows) continue;
+    for (let dx = -NAME_REACH; dx <= NAME_REACH; dx++) {
+      const x = wrapX(map, unit.x + dx);
+      const tx = ((x - x0) % map.width + map.width) % map.width;
       const i = y * map.width + x;
-      if (!me.explored[i]) continue;
-      const spot = { tx, ty, dx, dy, d: dx * dx + dy * dy, i };
+      if (tx >= cols || !me.explored[i]) continue;
+      const d = dx * dx + dy * dy;
       const add = (r: number, land: boolean) => {
         if (!g.regions[r]?.name) return;
-        const b = spots.get(r);
-        if (!b) spots.set(r, { land, d: spot.d, at: [spot] });
-        else { b.d = Math.min(b.d, spot.d); b.at.push(spot); }
+        const b = near.get(r);
+        if (!b || d < b.d) near.set(r, { land, d });
       };
       if (placeAt(map, x, y)) add(g.place[i]!, false);
       if (landAt(map, x, y)) add(g.land[i]!, true);
     }
   }
-  let best: [number, { land: boolean; d: number; at: Spot[] }] | null = null;
-  for (const e of spots) {
+  let best: [number, { land: boolean; d: number }] | null = null;
+  for (const e of near) {
     if (!best) { best = e; continue; }
     const [r, b] = e;
     const [br, bb] = best;
@@ -128,18 +179,37 @@ export function placeLabel(state: GameState, viewer: number, x0: number, y0: num
     if (nearer < 0) best = e;
   }
   if (!best) return null;
-  const [region, { land, at }] = best;
-  const edge = (p: Spot) => (p.tx >= 1 && p.tx < cols - 1 ? 0 : 1);
-  const layer = land ? depth.land : depth.place;
-  at.sort((a, b) =>
-    edge(a) - edge(b) ||
-    Number(ours.has(a.i)) - Number(ours.has(b.i)) ||
-    Number(a.dy === 0) - Number(b.dy === 0) ||
-    Math.max(Math.abs(a.dx), Math.abs(a.dy)) - Math.max(Math.abs(b.dx), Math.abs(b.dy)) ||
-    Math.abs(a.dx) - Math.abs(b.dx) ||
-    layer[b.i]! - layer[a.i]!);
+  const [region, { land }] = best;
+  // The place's explored squares on view, those a square in from the sides if it has any.
+  const fits = (x: number, y: number) => (land ? landAt(map, x, y) : placeAt(map, x, y)) === g.regions[region];
+  const all: { tx: number; ty: number; i: number }[] = [];
+  for (let ty = 0; ty < rows; ty++) {
+    const y = y0 + ty;
+    if (y < 0 || y >= map.height) continue;
+    for (let tx = 0; tx < cols; tx++) {
+      const x = wrapX(map, x0 + tx);
+      const i = y * map.width + x;
+      if (me.explored[i] && fits(x, y)) all.push({ tx, ty, i });
+    }
+  }
+  const inner = all.filter((s) => s.tx >= 1 && s.tx < cols - 1);
+  const shown = inner.length ? inner : all;
+  if (!shown.length) return null;
+  // Its anchors nearest the unit first, each written on itself or the shown square nearest it.
+  const anchors = [...((land ? anchorsOf(map, g).land : anchorsOf(map, g).place).get(region) ?? [])]
+    .sort((a, b) => apart(map, a, unit.x, unit.y) - apart(map, b, unit.x, unit.y) || a - b)
+    .slice(0, 4);
+  const at: { tx: number; ty: number }[] = [];
+  for (const a of anchors) {
+    const ax = a % map.width;
+    const ay = (a - ax) / map.width;
+    let pick = shown[0]!;
+    for (const s of shown) if (apart(map, s.i, ax, ay) < apart(map, pick.i, ax, ay)) pick = s;
+    if (!at.some((p) => p.tx === pick.tx && p.ty === pick.ty)) at.push({ tx: pick.tx, ty: pick.ty });
+  }
+  if (!at.length) at.push({ tx: shown[0]!.tx, ty: shown[0]!.ty });
   const r = g.regions[region]!;
-  return { region, name: r.name!, kind: r.kind, land, at: at.map(({ tx, ty }) => ({ tx, ty })) };
+  return { region, name: r.name!, kind: r.kind, land, at };
 }
 
 /**

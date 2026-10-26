@@ -13,17 +13,27 @@ describe("place names", () => {
     me.explored.fill(0);
     expect(placeLabel(state, 0, ...view)).toBeNull();
     me.explored.fill(1);
-    // The land the settlers stand on, near them, not on their square, a square in from the view's sides.
+    // The land the settlers stand on, written on a square of it a square in from the view's sides.
     const label = placeLabel(state, 0, ...view)!;
     expect(label).toMatchObject({ name: "Europe", land: true });
-    for (const { tx, ty } of label.at) {
-      expect(Math.abs(view[0] + tx - settlers.x)).toBeLessThanOrEqual(NAME_REACH);
-      expect(Math.abs(view[1] + ty - settlers.y)).toBeLessThanOrEqual(NAME_REACH);
-    }
     const first = label.at[0]!;
     expect(first.tx).toBeGreaterThanOrEqual(1);
     expect(first.tx).toBeLessThan(view[2] - 1);
-    expect(view[1] + first.ty).not.toBe(settlers.y);
+    expect(landAt(state.map, view[0] + first.tx, view[1] + first.ty)?.name).toBe("Europe");
+    // It stays where it is written while the settlers walk about Europe (asked for: "show static").
+    const home = { x: settlers.x, y: settlers.y };
+    let stayed = 0;
+    for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]] as const) {
+      settlers.x = home.x + dx;
+      settlers.y = home.y + dy;
+      const moved = placeLabel(state, 0, ...view);
+      if (moved?.name !== "Europe") continue;
+      expect(moved.at[0], `${dx},${dy}`).toEqual(first);
+      stayed++;
+    }
+    expect(stayed).toBeGreaterThanOrEqual(3);
+    settlers.x = home.x;
+    settlers.y = home.y;
     // At sea the sea is named; in mountains the range before the land under it.
     const at = (x: number, y: number) => { settlers.x = x; settlers.y = y; return placeLabel(state, 0, ...view)?.name; };
     const g = state.map.geography!;
