@@ -96,6 +96,8 @@ export interface NewGameOptions extends MapGenOptions {
   noResources?: boolean;
   /** Settlers fortify and found cities two squares apart (see `GameState.looseSettlers`). Old saves load with it. */
   looseSettlers?: boolean;
+  /** Triremes sail open water unharmed (see `GameState.safeTriremes`). Old saves load with it. */
+  safeTriremes?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -274,6 +276,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.sizeFreeUnits ? { sizeFreeUnits: true } : {}),
     ...(opts.noResources ? { noResources: true } : {}),
     ...(opts.looseSettlers ? { looseSettlers: true } : {}),
+    ...(opts.safeTriremes ? { safeTriremes: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

@@ -39,7 +39,11 @@ export interface UnitTypeRule {
   /** Barbarians field it in these roles; with `needsTech`, only once some civilization knows `requires`. */
   barbarian?: { as: BarbarianRole[]; needsTech?: true };
   /** `leader`: the barbarians' chief, never built; caught alone by a land unit, it pays a ransom. */
-  flags?: ("settler" | "diplomat" | "caravan" | "ignoreZoc" | "nuclear" | "leader")[];
+  /**
+   * `coastal`: a ship that must end its turn by a coast (the Trireme): one left on deep water (no land
+   * beside it, `deepWater`) at its owner's turn's end sinks with its cargo, and gotos keep off deep water.
+   */
+  flags?: ("settler" | "diplomat" | "caravan" | "ignoreZoc" | "nuclear" | "leader" | "coastal")[];
 }
 
 const U = (
@@ -86,7 +90,7 @@ export const UNIT_TYPES: UnitTypeRule[] = [
   U("diplomat", "Diplomat", 0, 0, 2, 30, "land", { requires: "writing", sight: 2, sightSince: 30, flags: ["diplomat", "ignoreZoc"] }),
   U("caravan", "Caravan", 0, 1, 1, 50, "land", { requires: "trade", flags: ["caravan", "ignoreZoc"] }),
   U("barbarian_leader", "Barbarian Leader", 0, 0, 2, 40, "land", { flags: ["leader", "ignoreZoc"] }),
-  U("trireme", "Trireme", 1, 0, 3, 40, "sea", { requires: "map_making", capacity: 2 }),
+  U("trireme", "Trireme", 1, 0, 3, 40, "sea", { requires: "map_making", capacity: 2, flags: ["coastal"] }),
   U("sail", "Sail", 1, 1, 3, 40, "sea", { requires: "navigation", capacity: 3, barbarian: { as: ["boat"] } }),
   U("frigate", "Frigate", 2, 2, 3, 40, "sea", { requires: "magnetism", capacity: 4, hp: 20 }),
   U("ironclad", "Ironclad", 4, 4, 4, 60, "sea", { requires: "steam_engine", needs: ["Iron", "Coal"], hp: 30 }),

@@ -4,6 +4,8 @@ import {
   canFoundCity,
   checkMove,
   createUnit,
+  deepWater,
+  findPath,
   foundCity,
   getTile,
   lastTurnEvents,
@@ -109,6 +111,70 @@ describe("settler work and turns", () => {
     applyCommand(s, { type: "endTurn" });
     expect(a.order.kind).toBe("fortified");
     expect(s.activeUnit).toBe(b.id); // fortified units don't ask for orders
+  });
+});
+
+describe("triremes", () => {
+  /** A sea 20 squares across in the flat world, a Trireme on it carrying a Legion. */
+  function sea(x: number, y: number) {
+    const s = flatWorld();
+    for (let sy = 10; sy <= 30; sy++) for (let sx = 10; sx <= 30; sx++) getTile(s.map, sx, sy)!.terrain = Terrain.Ocean;
+    const ship = createUnit(s, "trireme", 0, x, y);
+    const legion = createUnit(s, "legion", 0, x, y);
+    legion.aboard = ship.id;
+    legion.order = { kind: "sentry" };
+    return { s, ship, legion };
+  }
+  const round = (s: GameState) => { do applyCommand(s, { type: "endTurn" }); while (s.currentPlayer !== 0); };
+
+  it("sink with their cargo when the turn ends on deep water, and live beside land; old saves sail on", () => {
+    const { s, ship, legion } = sea(20, 20);
+    expect(deepWater(s, 20, 20)).toBe(true);
+    expect(deepWater(s, 10, 20)).toBe(false);
+    applyCommand(s, { type: "endTurn" });
+    expect(s.units.some((u) => u.id === ship.id || u.id === legion.id)).toBe(false);
+    expect(lastTurnEvents).toContainEqual({ kind: "lostAtSea", player: 0, type: "trireme", x: 20, y: 20, cargo: 1 });
+
+    const safe = sea(10, 20);
+    round(safe.s);
+    expect(safe.s.units).toHaveLength(2);
+
+    const old = sea(20, 20);
+    old.s.safeTriremes = true;
+    round(old.s);
+    expect(old.s.units).toHaveLength(2);
+    expect(loadSave({ ...makeSave(newGame(7), {}, []), version: 34 as const }, () => {}).state.safeTriremes).toBe(true);
+  });
+
+  it("cross deep water on their gotos only where the turn ends beside land", () => {
+    const { s, ship } = sea(10, 12);
+    // Never to deep water; across the open sea only a ship that need not hug the coast goes.
+    expect(findPath(s, ship, 20, 20)).toBeNull();
+    const around = findPath(s, ship, 30, 20)!;
+    expect(around.length).toBeGreaterThan(findPath(s, { ...ship, type: "sail" }, 30, 20)!.length);
+    // Three steps a turn: every third square is where a turn ends, beside land.
+    around.forEach(([x, y], i) => { if (i % 3 === 2) expect(deepWater(s, x, y), `${x},${y}`).toBe(false); });
+    s.safeTriremes = true;
+    expect(findPath(s, ship, 20, 20)).not.toBeNull();
+
+    // A strait three squares wide, its middle row deep: crossed in one turn, or after a step along the shore when one move is left.
+    const t = flatWorld();
+    for (let y = 19; y <= 21; y++) for (let x = 10; x <= 30; x++) getTile(t.map, x, y)!.terrain = Terrain.Ocean;
+    const boat = createUnit(t, "trireme", 0, 15, 19);
+    expect(deepWater(t, 15, 20)).toBe(true);
+    expect(findPath(t, boat, 15, 21)).toHaveLength(2);
+    boat.movesLeft = 3;
+    const late = findPath(t, boat, 15, 21)!;
+    expect(late).toHaveLength(3);
+    expect(deepWater(t, ...late[0]!)).toBe(false);
+    // Walked as a goto, it never stands on deep water as a turn ends.
+    expect(applyCommand(t, { type: "goto", unit: boat.id, x: 15, y: 21 }).ok).toBe(true);
+    for (let r = 0; r < 3 && boat.order.kind === "goto"; r++) {
+      expect(deepWater(t, boat.x, boat.y)).toBe(false);
+      round(t);
+    }
+    expect([boat.x, boat.y]).toEqual([15, 21]);
+    expect(t.units).toContain(boat);
   });
 });
 

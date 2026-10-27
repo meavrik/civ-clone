@@ -57,7 +57,7 @@ import { HEALING, unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
 import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type CityFocus, type GameState, type Player, type Production, type Specialist, type Unit, type WorkKind } from "./types.js";
 import { FOCI } from "./rules/focus.js";
-import { applyMove, attrition, cargo, checkMove, createUnit, fullMoves, lastActions, maxHp, unitById, whyNoWork, workOptions } from "./units.js";
+import { applyMove, attrition, cargo, checkMove, createUnit, deepWater, fullMoves, hugsCoast, lastActions, maxHp, unitById, whyNoWork, workOptions } from "./units.js";
 import { traitAnarchyCap, traitFriendlyVillages, traitMoves } from "./traits.js";
 import { recomputeVisibility, revealAround, unitSight } from "./visibility.js";
 
@@ -143,6 +143,8 @@ export type TurnEvent =
   | { kind: "cityLost"; name: string; player: number; by: number; x: number; y: number; plunder: number; capital: boolean }
   | { kind: "cityCaptured"; name: string; player: number; by: number; cityId: number; x: number; y: number; plunder: number; capital: boolean }
   | { kind: "unitLost"; unit: string; by: number }
+  // `player`'s ship (`type`, a Trireme) left on deep water at its turn's end sank at (x, y), with `cargo` units aboard.
+  | { kind: "lostAtSea"; player: number; type: string; x: number; y: number; cargo: number }
   | { kind: "barbarians"; x: number; y: number; sea: boolean; near: string; player: number } // a band appeared near `player`'s city `near`
   | { kind: "ransom"; amount: number; player: number } // a barbarian leader caught alone
   | { kind: "eliminated"; player: number }
@@ -755,7 +757,8 @@ export function runGoto(state: GameState, u: Unit, planned?: [number, number][])
     const met = state.farContact ? [] : meetAround(state, u);
     for (const id of met) lastTurnEvents.push({ kind: "contact", player: id });
     if (u.x === x && u.y === y) { u.order = { kind: "none" }; break; }
-    if (met.length) { u.movesLeft = 0; break; } // the meeting stops it here; the walk goes on next turn
+    // The meeting stops it here, the walk going on next turn (not a Trireme on deep water, which would sink).
+    if (met.length && !(hugsCoast(state, unitType(u.type)) && deepWater(state, u.x, u.y))) { u.movesLeft = 0; break; }
   }
   recomputeVisibility(state, u.owner);
 }
@@ -1040,6 +1043,8 @@ export function endTurn(state: GameState): void {
   lastCombat = null;
   lastActions.length = 0;
 
+  // Triremes left on deep water sink with their cargo (not before version 35).
+  sinkAtSea(state, player);
   // Units that spent the whole turn without moving recover hit points; harsh ground away from home wears them down instead.
   for (const u of state.units) if (u.owner === player && !wearDown(state, u)) heal(state, u);
 
@@ -1217,6 +1222,21 @@ function heal(state: GameState, u: Unit): void {
   // Camped, it heals as in a fortress at least.
   if (u.order.kind === "camp") share = Math.max(share, HEALING.camp);
   u.hp = Math.min(max, u.hp + Math.max(1, Math.round(max * share)));
+}
+
+/** `player`'s ships that must hug the coast (`hugsCoast`), left on deep water as its turn ends, sink with all aboard. */
+function sinkAtSea(state: GameState, player: number): void {
+  const lost: Unit[] = state.units.filter((u) => u.owner === player && hugsCoast(state, unitType(u.type)) && deepWater(state, u.x, u.y));
+  if (!lost.length) return;
+  const gone = new Set<number>();
+  for (const ship of lost) {
+    const aboard = cargo(state, ship);
+    gone.add(ship.id);
+    for (const c of aboard) gone.add(c.id);
+    lastTurnEvents.push({ kind: "lostAtSea", player, type: ship.type, x: ship.x, y: ship.y, cargo: aboard.length });
+  }
+  state.units = state.units.filter((u) => !gone.has(u.id));
+  if (state.activeUnit !== null && gone.has(state.activeUnit)) state.activeUnit = null;
 }
 
 /** A land unit ending its turn on harsh ground loses hit points (never its last one); false where the ground is safe. */

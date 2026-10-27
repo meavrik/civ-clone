@@ -30,6 +30,7 @@ import {
   canTradeRoute,
   cargo,
   cityAt,
+  deepWater,
   cityDistance,
   coastal,
   computeCity,
@@ -1747,7 +1748,8 @@ function nearLandMask(state: GameState): Uint8Array {
  * Breadth-first over the sea from one or more squares for the nearest water
  * square that borders the unknown. A trireme keeps within two squares of
  * land, as the original's had to hug the coast, so it can cross a narrow
- * strait but open ocean waits for Navigation.
+ * strait but open ocean waits for Navigation; since its turn must end beside
+ * land (`deepWater`, not in old saves), it never makes for deep water.
  */
 function seaFrontierFrom(state: GameState, owner: number, starts: number[], coastOnly: boolean, limit = 4000): [number, number] | null {
   const p = state.players[owner]!;
@@ -1762,11 +1764,12 @@ function seaFrontierFrom(state: GameState, owner: number, starts: number[], coas
   const ownCity = new Set<number>();
   for (const c of state.cities) if (c.owner === owner) ownCity.add(c.y * w + c.x);
   const near = coastOnly ? nearLandMask(state) : null;
+  const sinks = coastOnly && !state.safeTriremes;
   while (head < queue.length && head < limit) {
     const i = queue[head++]!;
     const x = i % w;
     const y = Math.floor(i / w);
-    if (!startSet.has(i) && state.map.tiles[i]!.terrain === Terrain.Ocean) {
+    if (!startSet.has(i) && state.map.tiles[i]!.terrain === Terrain.Ocean && !(sinks && deepWater(state, x, y))) {
       for (const [dx, dy] of NEIGHBOURS) {
         const ny = y + dy;
         if (ny >= 0 && ny < h && !p.explored[ny * w + wrapX(state.map, x + dx)]) return [x, y];

@@ -70,6 +70,8 @@ import {
   workOptions,
   whyNoCamp,
   maxHp,
+  deepWater,
+  hugsCoast,
   WORLD_SIZES,
   exportable,
   hasResource,
@@ -2110,6 +2112,7 @@ function eventMessage(ev: TurnEvent): string | null {
           : ev.player === state.barbarians ? `${ev.name} is freed from the barbarians!`
           : `${ev.name} captured!`;
       case "unitLost": return `${ev.unit} lost to the ${state.players[ev.by]?.name}`;
+      case "lostAtSea": return `Our ${unitType(ev.type).name} was lost in deep water${ev.cargo ? `, with ${ev.cargo === 1 ? "the unit" : `all ${ev.cargo} units`} aboard` : ""}!`;
       case "barbarians": return ev.sea ? `Barbarian ships sighted off ${ev.near}!` : `Barbarians rise up near ${ev.near}!`;
       case "ransom": return `Barbarian leader captured! ${ev.amount} gold ransom.`;
       case "eliminated": return `The ${state.players[ev.player]?.name} civilization has been destroyed.`;
@@ -2317,6 +2320,15 @@ const MOVES: Record<string, [number, number]> = {
   Numpad7: [-1, -1], Numpad9: [1, -1], Numpad1: [-1, 1], Numpad3: [1, 1],
 };
 
+/** A Trireme steered onto deep water is warned beside it: back by a coast before the turn ends, or it sinks. */
+function warnDeepWater(unit: number): void {
+  const u = unitById(state, unit);
+  if (!u || !hugsCoast(state, unitType(u.type)) || !deepWater(state, u.x, u.y)) return;
+  const name = unitType(u.type).name;
+  view.callout = { x: u.x, y: u.y, text: u.movesLeft > 0 ? `Deep water! End the turn beside land, or the ${name} sinks` : `Deep water! The ${name} will sink as the turn ends` };
+  calloutUntil = performance.now() + CALLOUT_MS;
+}
+
 function tryMove(unit: number, dx: number, dy: number): void {
   const before = state.activeUnit;
   const mark = lastActions.length;
@@ -2334,6 +2346,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
       lastTurnEvents.length = 0;
       whenStill(() => conquestNews(ev, () => { if (after.length) presentEvents(after); else followActive(true); }));
     } else if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
+    else warnDeepWater(unit);
   } else if (r.reason === "treaty") {
     const u = unitById(state, unit)!;
     const target = unitAt(state, u.x + dx, u.y + dy)[0] ?? cityAt(state, u.x + dx, u.y + dy);

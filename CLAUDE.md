@@ -1025,6 +1025,15 @@ audience and between computer civs.
    `attrition` (desert 10% until Trade, arctic 20% until Medicine) takes hp instead of healing from land
    units ending a turn outside their own cities' radius, never the last one; rivers and specials spare
    them. `classicTerrain` (saves before version 3, `?terrain=classic`) turns both off.
+   Deep water (asked for 2026-10-27: "trireme should sink in deep water"): a `coastal` ship (the Trireme)
+   left on `deepWater` (sea with no land beside it, corner to corner too: the map's darker blue, which the
+   viewer sees by the land it knows) as its owner's turn ends sinks with its cargo, no dice (`sinkAtSea`,
+   the `lostAtSea` event, the web app's news). Its gotos (`findPath`'s `coastalRoute`: breadth-first over
+   square and steps taken this turn) may cross deep water mid-turn, a narrow strait, but never stop on it
+   at a turn's end, and never aim for it; a meeting that would halt it there lets it sail on; steered onto
+   it by hand, a note beside it warns ("Deep water! End the turn beside land, or the Trireme sinks"). The
+   planner's triremes keep within two squares of land as before and never make for deep water.
+   `hugsCoast`; saves before version 35 load with `safeTriremes` (headless `--safe-triremes`).
    Legion 3/1, Musketeers 2/3, Riflemen 3/5 follow the ruleset even though the 1991 manual is often
    quoted as 4/2, 3/3, 5/4.
    Unit upkeep (`unitSupport`, `freeUnits` in `cities.ts`, `freeUnits` per government in
@@ -1103,8 +1112,8 @@ audience and between computer civs.
    foreign city: steal an advance, sabotage, incite revolt via `inciteCost`; a victim at peace declares
    war; a diplomat never walks into a foreign city, guarded or not: the move is refused with reason
    `diplomat` and the web app offers the missions, also when a goto brings it to the gate). Nuclear units detonate: everything within a tile dies, the city is halved, fallout is
-   left; SDI Defense within three tiles stops them. No embassies, city investigation, air fuel or
-   trireme loss at sea yet.
+   left; SDI Defense within three tiles stops them. Triremes sink on deep water (see Ground above). No
+   embassies, city investigation or air fuel yet.
 4. Diplomacy: no embassies; computer civilizations mind neither each other's land nor the player's
    (only the player is asked to leave), and a refused tribute demand costs nothing.
 5. Modern renderer (set aside, not in the app): real sprites/icons for units and specials, animation,

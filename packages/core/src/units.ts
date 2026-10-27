@@ -77,6 +77,24 @@ export function roadOnly(state: GameState, to: Tile): boolean {
   return !state.classicTerrain && !state.openMountains && TERRAIN_RULES[to.terrain].roadOnly === true;
 }
 
+/** Deep water: a sea square with no land beside it, even corner to corner (the map's darker blue). */
+export function deepWater(state: GameState, x: number, y: number): boolean {
+  if (getTile(state.map, x, y)?.terrain !== Terrain.Ocean) return false;
+  for (const [dx, dy] of NEIGHBOURS) {
+    const t = getTile(state.map, x + dx, y + dy);
+    if (t && t.terrain !== Terrain.Ocean) return false;
+  }
+  return true;
+}
+
+/**
+ * Whether a unit must keep off deep water at its turn's end, or sink (a Trireme, `coastal`; since save
+ * version 35, asked for 2026-10-27: "trireme should sink in deep water"; `safeTriremes` saves let it sail).
+ */
+export function hugsCoast(state: GameState, type: UnitTypeRule): boolean {
+  return !state.safeTriremes && (type.flags?.includes("coastal") ?? false);
+}
+
 /**
  * Can a land unit of this type enter this land square? Off the road, only
  * settlers climb steep ground (mountains) and wheeled units keep off rough

@@ -88,6 +88,8 @@ export interface GameConfig {
   noResources?: boolean;
   /** Settlers fortify and found cities two squares apart (`GameState.looseSettlers`). */
   looseSettlers?: boolean;
+  /** Triremes sail deep water unharmed (`GameState.safeTriremes`). */
+  safeTriremes?: boolean;
 }
 
 export interface PlayerStats {
@@ -187,6 +189,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.simpleVeterans ? { simpleVeterans: true } : {}),
     ...(config.noResources ? { noResources: true } : {}),
     ...(config.looseSettlers ? { looseSettlers: true } : {}),
+    ...(config.safeTriremes ? { safeTriremes: true } : {}),
   };
 }
 

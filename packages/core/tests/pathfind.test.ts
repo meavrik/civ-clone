@@ -5,6 +5,8 @@ import { legacyFindPath } from "./pathfind-legacy.js";
 /** A crowded world: soldiers, ships and cities of several owners scattered over a generated map. */
 function crowded(seed: number): GameState {
   const s = newGame(seed, { opponents: 3 });
+  // The old search knew nothing of triremes sinking on deep water (`safeTriremes`, saves before version 35).
+  s.safeTriremes = true;
   const land: [number, number][] = [];
   const sea: [number, number][] = [];
   for (let y = 1; y < s.map.height - 1; y++)

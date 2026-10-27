@@ -1,7 +1,8 @@
 import { MOVE_FRAC, TERRAIN_RULES } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Unit } from "./types.js";
-import { canEnter } from "./units.js";
+import { moveAllowance } from "./commands.js";
+import { canEnter, deepWater, hugsCoast } from "./units.js";
 
 let DIST = new Float64Array(0);
 let PREV = new Int32Array(0);
@@ -100,6 +101,8 @@ export function findPath(state: GameState, u: Unit, tx: number, ty: number): [nu
     if (c.owner === u.owner) ownCity[c.y * w + c.x] = 1;
     else blocked[c.y * w + c.x] = 1;
   }
+  // A ship that sinks where its turn ends on deep water (a Trireme) goes its own way.
+  if (hugsCoast(state, type)) return coastalRoute(state, u, start, target, blocked, ownCity);
 
   while (pop()) {
     const d = topD;
@@ -140,6 +143,65 @@ export function findPath(state: GameState, u: Unit, tx: number, ty: number): [nu
   if (!Number.isFinite(dist[target])) return null;
   const path: [number, number][] = [];
   for (let i = target; i !== start; i = prev[i]!) path.push([i % w, Math.floor(i / w)]);
+  path.reverse();
+  return path;
+}
+
+let SEEN = new Uint8Array(0);
+let FROM = new Int32Array(0);
+
+/**
+ * The way for a ship that sinks if its turn ends on deep water (a Trireme, `hugsCoast`; since save
+ * version 35): breadth-first over (square, steps taken this turn), every step at sea costing the same,
+ * so a route may cross deep water mid-turn (a narrow strait) but never stands on it as a turn ends, its
+ * first turn counting the moves the ship has left. The goal is never deep water. Fewest steps; among
+ * equals the first found in the neighbours' order, so replays walk the same way.
+ */
+function coastalRoute(state: GameState, u: Unit, start: number, target: number, blocked: Uint8Array, ownCity: Uint8Array): [number, number][] | null {
+  const { width: w, height: h } = state.map;
+  if (deepWater(state, target % w, Math.floor(target / w))) return null;
+  const perTurn = Math.max(1, Math.ceil(moveAllowance(state, u) / MOVE_FRAC));
+  const first = Math.min(perTurn, Math.ceil(u.movesLeft / MOVE_FRAC));
+  const phases = perTurn + 1;
+  const size = w * h * phases;
+  if (SEEN.length < size) { SEEN = new Uint8Array(size); FROM = new Int32Array(size); }
+  const seen = SEEN.fill(0, 0, size);
+  const from = FROM;
+  // A state is square * phases + steps taken in the turn; a ship with no moves left has taken them all.
+  const begin = start * phases + (perTurn - first);
+  seen[begin] = 1;
+  const queue = [begin];
+  let found = -1;
+  for (let head = 0; head < queue.length && found < 0; head++) {
+    const at = queue[head]!;
+    const i = Math.floor(at / phases);
+    const taken = at % phases;
+    const step = taken === perTurn ? 1 : taken + 1;
+    const x = i % w;
+    const y = Math.floor(i / w);
+    for (const [dx, dy] of NEIGHBOURS) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= h) continue;
+      const nx = wrapX(state.map, x + dx);
+      const ni = ny * w + nx;
+      if (state.map.tiles[ni]!.terrain !== Terrain.Ocean && ownCity[ni] !== 1) continue;
+      if (ni !== target && blocked[ni] === 1) continue;
+      // The turn ends here: beside land, or the ship sinks.
+      if (step === perTurn && ni !== target && deepWater(state, nx, ny)) continue;
+      const next = ni * phases + step;
+      if (seen[next]) continue;
+      seen[next] = 1;
+      from[next] = at;
+      if (ni === target) { found = next; break; }
+      queue.push(next);
+    }
+  }
+  if (found < 0) return null;
+  const path: [number, number][] = [];
+  for (let at = found; at !== begin; at = from[at]!) {
+    const i = Math.floor(at / phases);
+    path.push([i % w, Math.floor(i / w)]);
+  }
   path.reverse();
   return path;
 }

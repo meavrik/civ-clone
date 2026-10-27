@@ -336,6 +336,11 @@ export interface GameState {
    * original) and a new city stands `CITY_MIN_DISTANCE` (3) squares from every city.
    */
   looseSettlers?: boolean;
+  /**
+   * Triremes as before version 35: they sail deep water unharmed and their gotos cross it. Since 35 a
+   * `coastal` ship left on deep water (`deepWater`) as its owner's turn ends sinks with its cargo.
+   */
+  safeTriremes?: boolean;
   /** Strategic resources traded between civilizations (`resources.ts`), oldest first. Missing: none. */
   resourceTrades?: ResourceTrade[];
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
