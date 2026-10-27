@@ -1,4 +1,4 @@
-import { BUILT_BUTTONS, builtCard, conquestCard, NEW_TECH_BUTTONS, newTechCard, REIGN_BUTTON, reignCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
+import { BUILT_BUTTON, builtCard, conquestCard, NEW_TECH_BUTTONS, newTechCard, REIGN_BUTTON, reignCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, cityButtonAt, cityCitizenAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
@@ -74,15 +74,16 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
       const i = newTechShown ? menuHit(ctx, newTechShown, px, py) : -1;
       return i === 0 ? "tree" : i === 1 ? "continue" : null;
     },
-    // Set aside (not in the app): the Building Completed window as a modal with its two buttons.
+    // Set aside (not in the app): the Building Completed window as a modal with its button.
     built: (state, view) => {
       const card = builtCard(state, view);
-      builtShown = { title: card?.title ?? "Completed", body: [card?.text ?? ""], items: [...BUILT_BUTTONS], selected: view.selected };
+      const effects = card ? [...card.effects.map((e) => `{${e.icon}} ${e.text}`), ...(card.upkeep ? [`{coin} Upkeep ${card.upkeep} gold a turn`] : [])] : [];
+      builtShown = { title: card?.title ?? "Completed", body: [card?.text ?? "", ...effects], items: [BUILT_BUTTON], selected: 0 };
       drawMenu(ctx, builtShown);
     },
     builtHit: (_state, _view, px, py) => {
       const i = builtShown ? menuHit(ctx, builtShown, px, py) : -1;
-      return i === 0 ? "city" : i === 1 ? "continue" : null;
+      return i === 0 ? "city" : null;
     },
     // Set aside (not in the app): a city taken as a modal, its buttons (View City, Continue) when it has them, else Continue.
     conquest: (state, view) => {

@@ -46,7 +46,7 @@ describe("the user's pictures of buildings", () => {
 });
 
 describe("Building Completed window", () => {
-  it("says it all in its title: what was completed and where", () => {
+  it("says in its title what was completed and where, and what it does in numbers", () => {
     const { state, city } = withCity();
     const all: Production[] = [
       ...BUILDINGS.map((b) => ({ kind: "building" as const, id: b.id })),
@@ -54,49 +54,51 @@ describe("Building Completed window", () => {
       ...SPACE_PARTS.map((p) => ({ kind: "spaceship" as const, id: p.id })),
     ];
     for (const production of all) {
-      const card = builtCard(state, { city, production, selected: 1 })!;
+      const card = builtCard(state, { city, production })!;
       expect(card.text, production.id).not.toBe("");
       expect(card.title).toBe(`${card.name} is completed in ${state.cities[0]!.name}`);
+      expect(card.effects.length, production.id).toBeGreaterThan(0);
     }
     const name = state.cities[0]!.name;
-    expect(builtCard(state, { city, production: { kind: "building", id: "temple" }, selected: 1 })).toMatchObject({ title: `Temple is completed in ${name}`, name: "Temple" });
-    expect(builtCard(state, { city, production: { kind: "wonder", id: "pyramids" }, selected: 1 })!.title).toBe(`Pyramids is completed in ${name}`);
-    expect(builtCard(state, { city: 9999, production: { kind: "building", id: "temple" }, selected: 1 })).toBeNull();
-    expect(builtCard(state, { city, production: { kind: "unit", id: "settlers" }, selected: 1 })).toBeNull();
+    const temple = builtCard(state, { city, production: { kind: "building", id: "temple" } })!;
+    expect(temple).toMatchObject({ title: `Temple is completed in ${name}`, name: "Temple", upkeep: 1 });
+    expect(temple.effects).toEqual([{ icon: "heart", text: "+1 content citizen" }, { icon: "culture", text: "+2 culture" }]);
+    expect(builtCard(state, { city, production: { kind: "wonder", id: "pyramids" } })!.title).toBe(`Pyramids is completed in ${name}`);
+    expect(builtCard(state, { city: 9999, production: { kind: "building", id: "temple" } })).toBeNull();
+    expect(builtCard(state, { city, production: { kind: "unit", id: "settlers" } })).toBeNull();
   });
 
-  it("draws a small window, the news in its title, its picture's spot in its bed, its buttons answering clicks", () => {
+  it("draws a small window, the news in its title, its picture's spot in its bed, its effects beside it, one button into the city", () => {
     const { state, city } = withCity();
     const s = Surface.screen();
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     const shown: [Production["kind"], string][] = [["building", "temple"], ["building", "hydro_plant"], ["wonder", "michelangelos"], ["spaceship", "module"], ["building", "granary"], ["building", "palace"]];
     for (const [kind, id] of shown) {
       s.art = [];
-      const shownView: BuiltView = { city, production: { kind, id } as Production, selected: 1 };
+      const shownView: BuiltView = { city, production: { kind, id } as Production };
       drawBuilt(s, state, shownView);
       writeFileSync(new URL(`./out/built-${id}.png`, import.meta.url), encodePng(s, 3));
       expect(s.art).toEqual([{ id, ...builtPicture(state, shownView), middle: true }]);
-      // As wide as its title needs, never off the screen.
+      // As wide as its title and effects need, never off the screen.
       const o = builtRect(state, shownView);
       expect(o.x).toBeGreaterThan(0);
       expect(o.x + o.w).toBeLessThan(320);
     }
-    const view = { city, production: { kind: "building", id: "temple" } as Production, selected: 1 };
+    const view = { city, production: { kind: "building", id: "temple" } as Production };
     const hits = new Set<string | null>();
     for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) hits.add(builtHit(state, view, x, y));
-    expect([...hits].sort()).toEqual(["city", "close", "continue", null].sort());
-    // A small window over the game (168x88 until 2026-10-27), the picture at its left, its buttons beside it.
+    expect([...hits].sort()).toEqual(["city", "close", null].sort());
+    // A small window over the game (168x88 until 2026-10-27), the picture at its left, View City along its foot.
     const o = builtRect(state, view);
-    expect(o.h).toBeLessThan(60);
+    expect(o.h).toBeLessThan(80);
     expect(o.w).toBeLessThan(168);
     const p = builtPicture(state, view);
     expect(p.w).toBeLessThan(36);
-    const mid = p.y + (p.h >> 1);
-    expect(builtHit(state, view, p.x + p.w + 15, mid)).toBe("city");
-    expect(builtHit(state, view, o.x + o.w - 15, mid)).toBe("continue");
+    expect(builtHit(state, view, o.x + (o.w >> 1), o.y + o.h - 10)).toBe("city");
+    expect(builtHit(state, view, p.x + p.w + 15, p.y + (p.h >> 1))).toBeNull();
     expect(builtHit(state, view, 30, 185)).toBeNull();
     // A long name and city widen it to fit the title.
-    const wide = { city, production: { kind: "wonder", id: "michelangelos" } as Production, selected: 1 };
+    const wide = { city, production: { kind: "wonder", id: "michelangelos" } as Production };
     state.cities[0]!.name = "Constantinople";
     expect(builtRect(state, wide).w).toBeGreaterThan(o.w);
   });
@@ -111,12 +113,12 @@ describe("Building Completed window", () => {
     const [x, y] = tileToScreen(state, map, c.x, c.y)!;
     const square = { x, y, w: TILE, h: TILE };
     const lit = s.fget(x * 2 + 9, y * 2 + 9);
-    const view: BuiltView = { city, production: { kind: "building", id: "temple" }, selected: 1, square };
+    const view: BuiltView = { city, production: { kind: "building", id: "temple" }, square };
     drawBuilt(s, state, view);
     writeFileSync(new URL("./out/built-over-map.png", import.meta.url), encodePng(s, 3));
     const place = builtPlace(320, square, builtRect(state, view));
     expect(place.side).toBe("above");
-    expect(place.win.w * place.win.h).toBeLessThan(168 * 88 * 0.6);
+    expect(place.win.w * place.win.h).toBeLessThan(168 * 88 * 0.85);
     expect(place.win.y).toBeGreaterThan(VIEW_Y);
     // The point reaches from the window's foot to the ring round the square, over the square's middle.
     expect(place.win.y + place.win.h + 6).toBe(y - 2);
@@ -127,7 +129,8 @@ describe("Building Completed window", () => {
     expect(builtHit(state, view, x + 8, y + 8)).toBe("city");
     expect(builtHit(state, view, x + 8, y + 20)).toBeNull();
     const o = place.win;
-    expect(builtHit(state, view, o.x + o.w - 20, o.y + 30)).toBe("continue");
+    expect(builtHit(state, view, o.x + (o.w >> 1), o.y + o.h - 10)).toBe("city");
+    expect(builtHit(state, view, o.x + o.w - 10, o.y + 8)).toBe("close");
     // No room above (a city by the top of the view): below it; none either: beside it.
     const size = { w: o.w, h: o.h };
     expect(builtPlace(320, { x: 200, y: 20, w: 16, h: 16 }, size).side).toBe("below");

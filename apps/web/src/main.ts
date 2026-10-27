@@ -953,9 +953,10 @@ function activateFromCity(sc: Extract<Screen, { kind: "city" }>, unit: number): 
 
 /**
  * A city finished an improvement, a wonder or a spaceship part: the Building Completed window (asked
- * for 2026-10-24, after the user's template), then the city's builders ask what comes next, over the
- * city screen (View City) or the map (Continue). Settlers get a window over the city saying what
- * they cost it. Either way the turn's news goes on after.
+ * for 2026-10-24, after the user's template), then the city's builders ask what comes next over the
+ * city screen (since 2026-10-27, asked for: "enter the city view to select the next building"; the
+ * map's Continue is gone). Settlers get a window over the city saying what they cost it. Either way
+ * the turn's news goes on once the city is left.
  */
 function builtWindow(cityId: number, p: Production, then: () => void, change?: CityTurnEvent["change"]): void {
   const city = state.cities.find((c) => c.id === cityId);
@@ -967,7 +968,7 @@ function builtWindow(cityId: number, p: Production, then: () => void, change?: C
     // only then does its window open, over that picture.
     wonderShow(cityId, p.id, () => {
       const under: Screen = { kind: "cityView", view: { city: cityId }, city: { kind: "city", view: { city: cityId } } };
-      screenState = { kind: "built", view: { city: cityId, production: p, selected: 1 }, then, under };
+      screenState = { kind: "built", view: { city: cityId, production: p }, then, under };
     });
     return;
   }
@@ -977,7 +978,7 @@ function builtWindow(cityId: number, p: Production, then: () => void, change?: C
     // pointing at it (2026-10-25, `BuiltView.square`, set as each frame is drawn).
     const under = screenState.kind === "built" ? screenState.under : screenState;
     if (under.kind === "map") centerOn(city.x, city.y - 1);
-    screenState = { kind: "built", view: { city: cityId, production: p, selected: 1 }, then, under };
+    screenState = { kind: "built", view: { city: cityId, production: p }, then, under };
     return;
   }
   openCity(cityId, then);
@@ -1066,22 +1067,19 @@ function conquestKey(e: KeyboardEvent, sc: ConquestScreen): void {
   }
 }
 
-/** Leave the Building Completed window: into the city (`toCity`) or onto the map, the builders asking what next. */
-function leaveBuilt(sc: BuiltScreen, toCity: boolean): void {
+/** Leave the Building Completed window into the city, its builders asking what next over the city screen. */
+function leaveBuilt(sc: BuiltScreen): void {
   const id = sc.view.city;
   if (!state.cities.some((c) => c.id === id)) { screenState = { kind: "map" }; sc.then(); return; }
-  if (toCity) { openCity(id, sc.then); openProductionMenu(id); return; }
-  screenState = { kind: "map" };
-  openProductionMenu(id, sc.then);
+  openCity(id, sc.then);
+  openProductionMenu(id);
 }
 
-/** Keys on the window: Left, Right or Tab move between its buttons, Enter (not held) presses the lit one, V views the city, Esc goes on. */
+/** Keys on the window: Enter (not held), Space, V or Esc go into the city. */
 function builtKey(e: KeyboardEvent, sc: BuiltScreen): void {
   switch (e.code) {
-    case "ArrowLeft": case "ArrowRight": case "Tab": e.preventDefault(); sc.view.selected = 1 - sc.view.selected; break;
-    case "Enter": case "NumpadEnter": case "Space": e.preventDefault(); if (!e.repeat && settled(sc.view)) leaveBuilt(sc, sc.view.selected === 0); break;
-    case "KeyV": leaveBuilt(sc, true); break;
-    case "Escape": leaveBuilt(sc, false); break;
+    case "Enter": case "NumpadEnter": case "Space": e.preventDefault(); if (!e.repeat && settled(sc.view)) leaveBuilt(sc); break;
+    case "KeyV": case "Escape": leaveBuilt(sc); break;
   }
 }
 
@@ -2839,12 +2837,6 @@ canvas.addEventListener("mousemove", (e) => {
     if (hit === "tree" || hit === "continue") sc.view.selected = hit === "tree" ? 0 : 1;
     return;
   }
-  if (sc.kind === "built") {
-    const [px, py] = toLogical(e);
-    const hit = renderer.builtHit(state, sc.view, px, py);
-    if (hit === "city" || hit === "continue") sc.view.selected = hit === "city" ? 0 : 1;
-    return;
-  }
   if (sc.kind === "conquest") {
     const [px, py] = toLogical(e);
     const hit = renderer.conquestHit(state, sc.view, px, py);
@@ -2922,7 +2914,7 @@ function mouseDown(e: MouseEvent): void {
     }
     case "built": {
       const hit = e.button === 0 && settled(sc.view) ? renderer.builtHit(state, sc.view, px, py) : null;
-      if (hit) leaveBuilt(sc, hit === "city");
+      if (hit) leaveBuilt(sc);
       return;
     }
     case "reign":

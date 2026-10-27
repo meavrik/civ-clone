@@ -393,13 +393,16 @@ Never ship the original's sprites, palette art, fonts or text.
   its window opens over that picture, darkened with it (`ArtSpot.dim`: the pictures under a window take
   `brightness(45%)`); the web app draws the screen under it,
   `under`): since 2026-10-27 (asked for: "make more simplified. place all the text in the title - <building>
-  is completed in <city name> - smaller image and modal"; the name, city and effects on parchment are gone)
-  a navy title strip saying it all in gold, "Temple is completed in Rome" (`BuiltCard.title`; shield, close
-  box), the window as wide as that needs (140x58 at least, was 168x88; `builtSize`, so `builtHit` takes the
-  state), under it the user's picture in a 28-square spot on a slate bed at the left (was 36) and beside it
-  View City (the city screen, its build menu up) and Continue (the build menu over the map); the rule's
-  `text` is the modern renderer's body only. Either way the
-  turn's news goes on after (`then`). Left/Right/Tab, Enter (not held), V, Esc; the pointer lights a button.
+  is completed in <city name> - smaller image and modal", then "keep the building benefits"; the name large
+  and the city line are gone) a navy title strip saying what and where in gold, "Temple is completed in Rome"
+  (`BuiltCard.title`; shield, close box), the window as wide as that and its lines need (140x74 at least, was
+  168x88; `builtSize`, so `builtHit` takes the state), under it the user's picture in a 28-square spot on a
+  slate bed at the left (was 36), beside it a parchment panel of its effects (icon and numbers from the rule's
+  fields: "+50% science", "+2 culture"), three lines with the upkeep last, and one button along the foot, View
+  City (asked for the same day: "enter the city view to select the next building"; the map's Continue is gone):
+  it, Enter, V, Esc, the close box and a click on the city all open the city screen with its build menu up
+  (`leaveBuilt`); the rule's `text` is the modern renderer's body only. Leaving the city, the
+  turn's news goes on (`then`).
   `Renderer.built`/`builtHit`. Finished units say nothing (the city goes on building them), except Settlers: they cost a
   citizen, so their window asks what to build next, short and in numbers (asked for 2026-10-24): "Rome generates
   a group of Settlers", then Population 3 → 2 and each of food, shields and trade a turn that changed (core
