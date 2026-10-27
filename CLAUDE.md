@@ -1109,7 +1109,15 @@ audience and between computer civs.
    Deep water (asked for 2026-10-27: "trireme should sink in deep water"): a `coastal` ship (the Trireme)
    left on `deepWater` (sea with no land beside it, corner to corner too: the map's darker blue, which the
    viewer sees by the land it knows) as its owner's turn ends sinks with its cargo, no dice (`sinkAtSea`,
-   the `lostAtSea` event, the web app's news). Its gotos (`findPath`'s `coastalRoute`: breadth-first over
+   which `sinkingShips` names, the `lostAtSea` event). The player sees it go down (asked for 2026-10-27: "when
+   ship sinks - show it sinking in water - with message above it"): before the turn passes, while it still
+   stands there, the web app glides the map to each such ship (`showSinkings`, the `sinking` screen, `SINK_MS`
+   3 s, a key or click after 0.4 s cuts it short, the `sink` sound) and the map draws it going down
+   (`MainScreenView.sinking`, `Sinking` in renderer-api's `sinking.ts`; retro `drawSinking`, `sinking.ts`: it
+   rocks, tips stern first and slips under the foot of its picture, foam at the waterline, then rings and
+   bubbles, hashed, never the RNG; it and its cargo not drawn on their square meanwhile) under a callout
+   above the square (`sinkingWords`: "Our Trireme sinks in deep water, with the Settlers aboard!"); the
+   news then leaves `lostAtSea` out. Its gotos (`findPath`'s `coastalRoute`: breadth-first over
    square and steps taken this turn) may cross deep water mid-turn, a narrow strait, but never stop on it
    at a turn's end, and never aim for it; a meeting that would halt it there lets it sail on; steered onto
    it by hand, a note beside it warns ("Deep water! End the turn beside land, or the Trireme sinks"). The

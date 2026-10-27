@@ -72,6 +72,7 @@ import {
   maxHp,
   deepWater,
   hugsCoast,
+  sinkingShips,
   WORLD_SIZES,
   exportable,
   hasResource,
@@ -167,6 +168,8 @@ import {
   type NewTechView,
   type BuiltView,
   conquestCard,
+  sinkingWords,
+  type Sinking,
   type ConquestEvent,
   type ConquestView,
   type ReignView,
@@ -298,6 +301,7 @@ type Screen =
   | { kind: "built"; view: BuiltView; then: () => void; under: Screen } // a city of ours finished an improvement, a wonder or a spaceship part, the window over `under`
   | { kind: "triumph"; event: ConquestEvent; start: number; cheer: string; then: () => void } // the map, fireworks bursting over a city we just took
   | { kind: "conquest"; view: ConquestView; then: () => void } // a city taken by us or from us: its window over the map
+  | { kind: "sinking"; sinking: Omit<Sinking, "t">; start: number; then: () => void } // the map, a ship of ours going down as the turn ends
   | { kind: "reign"; view: ReignView } // a new game's opening window over the map: our leader, the people, what the tribe brings
   | { kind: "science" }
   | { kind: "rates" }
@@ -1045,6 +1049,48 @@ function stepTriumph(sc: TriumphScreen, t: number): void {
 /** A key or click ends the fireworks once they have had their first moment. */
 function skipTriumph(sc: TriumphScreen): void {
   if (performance.now() - sc.start >= FIREWORKS_SKIP_AFTER_MS) sc.then();
+}
+
+/**
+ * Ships that sink as our turn ends (core `sinkingShips`: a Trireme left on deep water; asked for 2026-10-27:
+ * "when ship sinks - show it sinking in water - with message above it"): before the turn passes, while they
+ * still stand on their squares, the map glides to each in turn and shows it going down, the words above it
+ * (`sinkingWords`), for `SINK_MS`; a key or click after the first moment cuts it short. Core sinks them as the
+ * turn then ends, and the news leaves them out.
+ */
+const SINK_MS = 3000;
+const SINK_SKIP_AFTER_MS = 400;
+type SinkingScreen = Extract<Screen, { kind: "sinking" }>;
+
+function showSinkings(ships: Unit[], then: () => void): void {
+  const ship = ships[0];
+  screenState = { kind: "map" };
+  view.sinking = undefined;
+  if (!ship) { then(); return; }
+  const aboard = state.units.filter((u) => u.aboard === ship.id).map((u) => u.type);
+  view.callout = undefined;
+  view.plan = undefined;
+  centerOn(ship.x, ship.y);
+  sound.play("sink");
+  screenState = {
+    kind: "sinking",
+    sinking: { unit: ship.id, x: ship.x, y: ship.y, type: ship.type, owner: ship.owner, stacked: aboard.length > 0, text: sinkingWords(ship.type, aboard) },
+    // Once the map has come to it.
+    start: performance.now() + (cam.animating ? CAMERA_MS : 0),
+    then: () => showSinkings(ships.slice(1), then),
+  };
+}
+
+/** Each frame of the sinking: how far it has gone; over, the next ship, then the turn goes on. */
+function stepSinking(sc: SinkingScreen, t: number): void {
+  const el = Math.max(0, t - sc.start);
+  if (el >= SINK_MS) { sc.then(); return; }
+  view.sinking = { ...sc.sinking, t: el / SINK_MS };
+}
+
+/** A key or click ends the sinking once it has had its first moment. */
+function skipSinking(sc: SinkingScreen): void {
+  if (performance.now() - sc.start >= SINK_SKIP_AFTER_MS) sc.then();
 }
 
 /** Leave the window: into the city we took (`toCity`, when it offers that), else back to the map; the news goes on after. */
@@ -2225,7 +2271,6 @@ function eventMessage(ev: TurnEvent): string | null {
           : ev.player === state.barbarians ? `${ev.name} is freed from the barbarians!`
           : `${ev.name} captured!`;
       case "unitLost": return `${ev.unit} lost to the ${state.players[ev.by]?.name}`;
-      case "lostAtSea": return `Our ${unitType(ev.type).name} was lost in deep water${ev.cargo ? `, with ${ev.cargo === 1 ? "the unit" : `all ${ev.cargo} units`} aboard` : ""}!`;
       case "barbarians": return ev.sea ? `Barbarian ships sighted off ${ev.near}!` : `Barbarians rise up near ${ev.near}!`;
       case "ransom": return `Barbarian leader captured! ${ev.amount} gold ransom.`;
       case "eliminated": return `The ${state.players[ev.player]?.name} civilization has been destroyed.`;
@@ -2381,6 +2426,15 @@ function concernsUs(ev: TurnEvent): boolean {
 function endTurn(): void {
   // Last turn's news has not been shown yet (slides still running): show it first.
   if (afterSlides.length) { skipWatch(); return; }
+  if (screenState.kind === "sinking") return;
+  // Ships left on deep water go down before the turn passes, while we still see them.
+  const doomed = sinkingShips(state, 0);
+  if (doomed.length) { autoEndAt = null; showSinkings(doomed, passTurn); return; }
+  passTurn();
+}
+
+/** The turn passes: ours ends, the other civilizations move, and what happened is shown. */
+function passTurn(): void {
   sound.play("turn");
   skipWatch();
   handoff = null;
@@ -2393,7 +2447,8 @@ function endTurn(): void {
   const sawBefore = state.players[0]!.visible.slice();
   dispatch({ type: "endTurn" });
   // Our own end of turn (contacts come from the relations; other civs' villages are theirs).
-  const events: TurnEvent[] = lastTurnEvents.filter((ev) => ev.kind !== "contact" && !(ev.kind === "hut" && ev.player !== 0));
+  // Ships lost at sea were shown going down before the turn passed.
+  const events: TurnEvent[] = lastTurnEvents.filter((ev) => ev.kind !== "contact" && !(ev.kind === "hut" && ev.player !== 0) && ev.kind !== "lostAtSea");
   // Other civilizations move now. Each one's moves are read before its own end of turn clears them.
   let seen = lastTurnEvents.length;
   let guard = 0;
@@ -2733,6 +2788,7 @@ addEventListener("keydown", (e) => {
     case "cityView": screenState = sc.city; break;
     case "wonderShow": e.preventDefault(); skipWonderShow(sc); break;
     case "triumph": e.preventDefault(); skipTriumph(sc); break;
+    case "sinking": e.preventDefault(); skipSinking(sc); break;
     case "conquest": conquestKey(e, sc); break;
     case "rates": ratesKey(e); break;
     case "science":
@@ -2932,6 +2988,7 @@ function mouseDown(e: MouseEvent): void {
     case "beat": endBeat(sc); return;
     case "wonderShow": skipWonderShow(sc); return;
     case "triumph": skipTriumph(sc); return;
+    case "sinking": skipSinking(sc); return;
     case "conquest": {
       // Its buttons, the close box or the city it points at; a window with nothing to choose goes on at a click anywhere.
       if (e.button !== 0 || !settled(sc.view)) return;
@@ -3106,7 +3163,7 @@ function draw(sc: Screen): void {
       renderer.menu({ ...m, selected: setupSelection });
       break;
     }
-    case "map": case "beat": case "triumph": view.message = status; renderer.main(state, view); break;
+    case "map": case "beat": case "triumph": case "sinking": view.message = status; renderer.main(state, view); break;
     case "report": renderer.report(sc.page); break;
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
@@ -3177,6 +3234,8 @@ function frame(t: number): void {
   if (screenState.kind === "wonderShow") stepWonderShow(screenState, t);
   if (screenState.kind === "triumph") stepTriumph(screenState, t);
   else view.fireworks = undefined;
+  if (screenState.kind === "sinking") stepSinking(screenState, t);
+  else view.sinking = undefined;
   const shown = motion.at(t);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;

@@ -9,6 +9,7 @@ import type { DiplomacyView } from "./audience.js";
 import type { NewTechHit, NewTechView } from "./newtech.js";
 import type { BuiltHit, BuiltView } from "./built.js";
 import type { ConquestHit, ConquestView, Fireworks } from "./conquest.js";
+import type { Sinking } from "./sinking.js";
 import type { ReignHit, ReignView } from "./reign.js";
 import type { ImprovementHit } from "./improvements.js";
 export * from "./motion.js";
@@ -44,6 +45,7 @@ export * from "./newtech.js";
 export * from "./art.js";
 export * from "./built.js";
 export * from "./conquest.js";
+export * from "./sinking.js";
 export * from "./reign.js";
 export * from "./resources.js";
 import { resourceNote } from "./resources.js";
@@ -144,6 +146,8 @@ export interface MainScreenView {
   battle?: BattleFrame | undefined;
   /** Fireworks bursting over a city the viewer has just taken (`Fireworks`). */
   fireworks?: Fireworks | undefined;
+  /** A ship of the viewer's going down on deep water as the turn ends, the words above it (`Sinking`). */
+  sinking?: Sinking | undefined;
   /** Fog still lifting off squares just explored (`FogLifter`): square index to fog left, 1 down to 0. */
   lifting?: Lifting | undefined;
   /** Draw civilization borders: the edge of the squares known cities reach (`territory`). */

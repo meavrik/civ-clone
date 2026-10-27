@@ -59,7 +59,7 @@ import { HEALING, unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
 import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type CityFocus, type GameState, type Player, type Production, type Proposal, type Specialist, type Unit, type WorkKind } from "./types.js";
 import { FOCI } from "./rules/focus.js";
-import { applyMove, attrition, cargo, checkMove, createUnit, deepWater, fullMoves, hugsCoast, lastActions, maxHp, unitById, whyNoWork, workOptions } from "./units.js";
+import { applyMove, attrition, cargo, checkMove, createUnit, deepWater, fullMoves, hugsCoast, lastActions, maxHp, sinkingShips, unitById, whyNoWork, workOptions } from "./units.js";
 import { traitAnarchyCap, traitFriendlyVillages, traitMoves } from "./traits.js";
 import { recomputeVisibility, revealAround, unitSight } from "./visibility.js";
 
@@ -1299,9 +1299,9 @@ function heal(state: GameState, u: Unit): void {
   u.hp = Math.min(max, u.hp + Math.max(1, Math.round(max * share)));
 }
 
-/** `player`'s ships that must hug the coast (`hugsCoast`), left on deep water as its turn ends, sink with all aboard. */
+/** `player`'s ships that must hug the coast (`hugsCoast`), left on deep water as its turn ends, sink with all aboard (`sinkingShips`). */
 function sinkAtSea(state: GameState, player: number): void {
-  const lost: Unit[] = state.units.filter((u) => u.owner === player && hugsCoast(state, unitType(u.type)) && deepWater(state, u.x, u.y));
+  const lost = sinkingShips(state, player);
   if (!lost.length) return;
   const gone = new Set<number>();
   for (const ship of lost) {

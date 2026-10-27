@@ -32,6 +32,7 @@ import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
 import { BAD, DIM, drawStone, drawSwatch, INK, NOTE } from "../widgets.js";
 import { drawFireworks } from "../fireworks.js";
+import { drawSinking } from "../sinking.js";
 import { drawCity } from "./map-city.js";
 import { techLabel } from "./research.js";
 
@@ -238,6 +239,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const activeId = shownActive(state, view);
   const slidingIds = new Set(moving.map((m) => m.unit));
   if (battle) { slidingIds.add(battle.attacker.unit); slidingIds.add(battle.defender.unit); }
+  // A ship going down: it and its cargo are drawn sinking, not on their square.
+  const sinking = view.sinking;
+  if (sinking) for (const u of state.units) if (u.id === sinking.unit || u.aboard === sinking.unit) slidingIds.add(u.id);
   const units = slidingIds.size ? state.units.filter((u) => !slidingIds.has(u.id)) : state.units;
   const drawn = new Set<number>();
   for (const u of units) {
@@ -280,6 +284,10 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       if (f.dying > 0) drawBurst(s, pos[0] + 8, pos[1] + 8, f.dying);
     }
 
+  // The ship going down, under the words above it.
+  const sinkAt = sinking ? toScreen(sinking.x, sinking.y) : null;
+  if (sinking && sinkAt) drawSinking(s, sinkAt[0], sinkAt[1], sinking.type, playerColor(state, sinking.owner), sinking.stacked, sinking.t, VIEW_X, VIEW_Y);
+
   // Goto destination of the active unit.
   const act = activeId !== null ? state.units.find((u) => u.id === activeId) : undefined;
   if (act?.order.kind === "goto") {
@@ -302,7 +310,8 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     drawFireworks(s, fwAt[0], fwAt[1], fw.t, color, darker(color), fw.cheer, VIEW_X, VIEW_Y);
   }
 
-  if (view.callout) drawCallout(s, state, view, view.callout);
+  if (sinking) drawCallout(s, state, view, { x: sinking.x, y: sinking.y, text: sinking.text });
+  else if (view.callout) drawCallout(s, state, view, view.callout);
   else if (view.hint) drawCallout(s, state, view, view.hint);
 
   // Letterbox the bottom half-row like the original's hard panel edge.

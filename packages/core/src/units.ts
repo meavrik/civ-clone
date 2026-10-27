@@ -95,6 +95,11 @@ export function hugsCoast(state: GameState, type: UnitTypeRule): boolean {
   return !state.safeTriremes && (type.flags?.includes("coastal") ?? false);
 }
 
+/** `player`'s ships that sink with all aboard as its turn ends: those that must hug the coast, left on deep water. */
+export function sinkingShips(state: GameState, player: number): Unit[] {
+  return state.units.filter((u) => u.owner === player && hugsCoast(state, unitType(u.type)) && deepWater(state, u.x, u.y));
+}
+
 /**
  * Can a land unit of this type enter this land square? Off the road, only
  * settlers climb steep ground (mountains) and wheeled units keep off rough

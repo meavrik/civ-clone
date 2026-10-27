@@ -7,7 +7,7 @@
 
 export type Sfx =
   | "click" | "deny" | "found" | "built" | "wonder" | "tech" | "clash" | "hit" | "boom"
-  | "triumph" | "lament" | "war" | "turn" | "gift" | "meet";
+  | "triumph" | "lament" | "war" | "turn" | "gift" | "meet" | "sink";
 
 /** A note of an effect: when it starts (s), its pitch (MIDI number), length, wave and loudness; `to` slides the pitch there. */
 export interface Tone { at: number; note: number; dur: number; wave: OscillatorType; vol: number; to?: number }
@@ -37,6 +37,11 @@ export const SFX: Readonly<Record<Sfx, SfxRecipe>> = {
   turn: { tones: run([72, 67], 0.08, "triangle", 0.1, 0.18) },
   gift: { tones: run([83, 88, 91], 0.05, "triangle", 0.12, 0.2) },
   meet: { tones: run([62, 69, 74], 0.12, "square", 0.06, 0.4) },
+  // A ship going down: a splash, then the hull's groan falling away under bubbling water.
+  sink: {
+    tones: [{ at: 0.05, note: 50, to: 31, dur: 1.2, wave: "triangle", vol: 0.16 }, ...run([74, 71, 77, 72], 0.17, "triangle", 0.05, 0.08).map((t) => ({ ...t, at: t.at + 0.45 }))],
+    hiss: [{ at: 0, dur: 0.35, vol: 0.2, cut: 1600 }, { at: 0.3, dur: 0.9, vol: 0.1, cut: 500 }],
+  },
 };
 
 /**

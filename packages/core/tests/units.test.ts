@@ -15,6 +15,7 @@ import {
   Terrain,
   type GameState,
   siteScore,
+  sinkingShips,
 } from "../src/index.js";
 
 /** Flat test world: all grassland except the poles, one unit placed by caller. */
@@ -131,6 +132,7 @@ describe("triremes", () => {
     const { s, ship, legion } = sea(20, 20);
     expect(deepWater(s, 20, 20)).toBe(true);
     expect(deepWater(s, 10, 20)).toBe(false);
+    expect(sinkingShips(s, 0).map((u) => u.id)).toEqual([ship.id]);
     applyCommand(s, { type: "endTurn" });
     expect(s.units.some((u) => u.id === ship.id || u.id === legion.id)).toBe(false);
     expect(lastTurnEvents).toContainEqual({ kind: "lostAtSea", player: 0, type: "trireme", x: 20, y: 20, cargo: 1 });
