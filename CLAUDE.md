@@ -460,24 +460,21 @@ Never ship the original's sprites, palette art, fonts or text.
   behind them; `pictures.ts` in the web app as for the audience. `Renderer.setup`/`setupHit`; the web app lights
   the card under the pointer and picks it on a click (a first tap on the phone lights it); arrows move in
   two dimensions, Enter picks. Modern shows the cards' labels as its old menu.
-  Map clicks (asked for 2026-10-22): left-click opens our city (next door to the unit in play it asks
-  first, a window with View city and "Move Settlers in", asked for 2026-10-25 after a click moved the
-  unit in at once, 2026-10-24: "can't move with a mouse units into a city"; with the unit inside, or
-  none in play, the city opens) or picks our unit as ever; a square
+  Map clicks (since 2026-10-27, asked for: "make same as civ1 movement: units move with right click. left
+  click will center map or enter city view. when a stack of units is clicked open a units menu"; until then
+  the left button did both, 2026-10-22): left-click opens our city, picks our unit (centred), and on a square
   holding several of ours lists them in a window (`openStack` in the web app; `MenuState.units` puts
   each unit's sprite before its row, the row grown to hold it, with its standing at the right: Fortified,
-  Sentry, Going, Mining 3, Ready, No moves; asked for 2026-10-24) and the one picked wakes and comes
-  into play (one with no moves left keeps its orders); next door to the unit in play, a square with our
-  own units is a step onto it, joining them (asked for 2026-10-24: the click had picked the unit there,
-  so a unit could not be moved onto a friend's square by mouse); otherwise,
-  with a unit in play, `planMove` (renderer-api `plan.ts`) decides: a step next door goes at once (a
-  refused one says why); a fight ("Attack: 62%", `attackOdds`), an empty enemy city ("Take Rome") or a
-  square further off (the `findPath` route, "This turn"/"3 turns" by `routeTurns`) becomes `view.plan`,
-  drawn as dots on the way, corners round the end and the note, and goes only on a second click on the
-  same square; any other click or key drops it. With nothing to do for the unit the map centres.
-  A double click (two left clicks within `DOUBLE_CLICK_MS`, 300 ms, on the same screen point: the first
-  may set the map gliding) centres the map on the first click's square and drops its plan, unmade.
-  Right-click opens the square's window (`terrainInfo`: titled with the terrain and where it lies,
+  Sentry, Going, Mining 3, Ready, No moves; asked for 2026-10-24), the one picked waking and coming
+  into play (one with no moves left keeps its orders); anywhere else it centres the map on the square
+  (`view.inspect` shows it in the panel). Right-click with a unit in play moves it (`moveClick`):
+  `planMove` (renderer-api `plan.ts`) decides: a step next door goes at once (a refused one says why),
+  into our city or onto our units' square too; a fight ("Attack: 62%", `attackOdds`), an empty enemy city
+  ("Take Rome") or a square further off (the `findPath` route, "This turn"/"3 turns" by `routeTurns`)
+  becomes `view.plan`, drawn as dots on the way, corners round the end and the note, and goes only on a
+  second right-click on the same square; any other click or key drops it. A right-click on the unit's own
+  square opens its orders; where it has no way, a note says "No way there.".
+  Shift with either button, or a right-click with no unit in play, opens the square's window (`terrainInfo`: titled with the terrain and where it lies,
   `squareTitle` in renderer-api's `places.ts`: "Grassland, Ausonia", "Hills, the Alps, Europe"; since 2026-10-26,
   asked for: "show land/water mass name in the title - remove duplicates": the terrain's word left out where
   the place's name says it, "The Apennine Mountains, Ausonia", and a water's name standing for its square,
@@ -491,7 +488,8 @@ Never ship the original's sprites, palette art, fonts or text.
   here removed 2026-10-23, asked for); it opens clear of the square clicked, `MenuState.avoid`, so a second
   click there closes it), closed by the X in its title
   strip (`MenuState.close`; retro draws it, modern ignores it; any click off a window's choices closes
-  it). On the phone a tap is a left-click and a hold a right-click.
+  it). On the phone a tap moves the unit in play onto a square not ours, else is a left-click; a hold on
+  our city or units moves it in, elsewhere shows the square's window (see apps/mobile).
   Edge scrolling (asked for 2026-10-23): a mouse resting in the band along an edge of the map
   (`Renderer.mapView`, the band 6% of its shorter side) pans the camera that way after 220 ms, gathering
   speed to 8 squares a second (`stepEdgePan` in the web app); not over the panel or the menu bar, not
@@ -606,6 +604,17 @@ Never ship the original's sprites, palette art, fonts or text.
   line each with an icon (`reignCard`, `traitBonuses`/`bonusLine`: numbers from the `TraitEffect`s, then
   "Starts knowing ..."; classic civs say every people is alike); Begin (Enter, Space, Esc, the close box).
   `Renderer.reign`/`reignHit`; the web app's `reign` screen, the "lead the ... to glory" line after it.
+  Tutorial (`tutorial.ts` in renderer-api; asked for 2026-10-27: "add a short tutorial for new players"):
+  `TUTORIAL`, nine tips (moving units, founding a city, your city, ending the turn, science, the map,
+  villages, defence, neighbours), each `due` at the moment it helps (the first unit in play, settlers with no
+  city, the first city, nothing left to order with a city, research from turn 2, the map from turn 4, a hut
+  in sight from turn 1, an unguarded city from turn 8, a civ met); `nextTip` gives the first due one not yet
+  seen; `touch` words for the phone (`tipLines`; the web app reads a renderer without `mapView` as the phone).
+  The web app shows it (`tutorialStep`) once the map has been still `TIP_WAIT_MS` (700 ms; before the turn
+  ends by itself) in a modal titled "Tutorial: ..." with Continue and End tutorial, standing clear of the
+  tip's `focus` square (its city, hut, unguarded city; else the unit in play). Each tip shows once per
+  browser (`epochs.tutorial` in localStorage: on, seen); End tutorial turns it off, Game > Tutorial turns it
+  on again and starts it over. UI only: nothing in the rules, the log or the saves.
   New Technology window (`newtech.ts`; asked for 2026-10-23 with the user's template and a picture for
   each advance): every advance found (end of turn, village, diplomat, treaty, Debug) gets one, in turn
   (`announce` in the web app), before the research panel; a small window over the game since 2026-10-24
@@ -852,7 +861,12 @@ Never ship the original's sprites, palette art, fonts or text.
   (`drawSetupChoose`, `setupChooseAt`): a tap lights a card, Choose or a second tap picks it. The
   research panel, the city screen and the audience keep their sizes.
   `touch.ts` turns fingers (`gestures.ts`) into the mouse the game knows: tap = mousedown 0, hold 450 ms
-  = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. A tap or a
+  = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. On the map
+  (since the game's mouse moves units with the right button, 2026-10-27) a tap with a unit in play on a square
+  holding no city or unit of ours is the right button (`moveTap`: a step, or the route and a second tap
+  sending it; the dragged view stays), a hold on our city or units with the unit in play elsewhere is the
+  right button too (moving it in, joining them), and a hold anywhere else Shift + the right button (the
+  square's window). A tap or a
   held finger (asked for 2026-10-25) on our units' square (not a city, where a held finger opens only the
   orders of the unit in play standing there) brings one into play as the game would and opens its orders
   (the game's Esc) just above it (`ordersAbove`: the next menu drawn is anchored over the unit, without its key

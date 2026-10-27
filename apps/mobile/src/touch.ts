@@ -10,9 +10,12 @@ import { syncText } from "./text.js";
 
 /**
  * Fingers on the game screen become the mouse the web game knows: a tap is a click, a press held
- * still is a right-click (the square's window), a drag pans the map or scrolls the research list (on
- * a city screen its improvements, in a long menu its rows), and two fingers on the map pinch it in or
- * out (`ZOOMS`).
+ * still is a right-click, a drag pans the map or scrolls the research list (on a city screen its
+ * improvements, in a long menu its rows), and two fingers on the map pinch it in or out (`ZOOMS`).
+ * On the map the game moves units with the right button and opens, picks and centres with the left
+ * (asked for 2026-10-27, as the original's mouse), so there a tap moves the unit in play onto a square
+ * that is not ours (`moveTap`), a finger held on our city or units moves it in, and held anywhere else
+ * shows the square's window (the game's Shift+click).
  * There are no buttons beside the screen, so the few things the game takes from keys only are
  * touches here: a tap or a held finger on our unit opens its orders just above it (the menu bar has
  * no Orders on a phone), a tap on a setup card's Choose button picks it, a touch on a rates bar sets
@@ -29,8 +32,23 @@ let menuDrag = 0;
 const at = { x: 0, y: 0 };
 let barY = 0;
 
-function click(x: number, y: number, button: 0 | 2): void {
-  canvas.dispatchEvent(new MouseEvent("mousedown", { clientX: x, clientY: y, button, buttons: button === 2 ? 2 : 1, bubbles: true, cancelable: true }));
+function click(x: number, y: number, button: 0 | 2, shiftKey = false): void {
+  canvas.dispatchEvent(new MouseEvent("mousedown", { clientX: x, clientY: y, button, buttons: button === 2 ? 2 : 1, shiftKey, bubbles: true, cancelable: true }));
+}
+
+/**
+ * Where a unit of ours is in play, what a finger on the map's square at (x, y) means for it: "own" its
+ * own square, "ours" our city or another of our units' square, "away" any other square; null with no
+ * unit in play or off the map.
+ */
+function moveTap(x: number, y: number): "own" | "ours" | "away" | null {
+  const st = game()?.state;
+  const sq = tileUnder(...logicalAt(x, y));
+  const u = st?.units.find((o) => o.id === st.activeUnit);
+  if (!st || !sq || !u) return null;
+  if (u.x === sq.x && u.y === sq.y) return "own";
+  const here = (o: { owner: number; x: number; y: number }) => o.owner === 0 && o.x === sq.x && o.y === sq.y;
+  return st.cities.some(here) || st.units.some(here) ? "ours" : "away";
 }
 
 function showRing(x: number, y: number, state: "" | "holding" | "fired"): void {
@@ -88,7 +106,10 @@ function act(g: Gesture | null): void {
       if (screen === "spaceship" && readyToLaunch()) { press("Enter", "Enter"); break; }
       if (screen === "setup" && chooseAt(...logicalAt(g.x, g.y))) { press("Enter", "Enter"); break; }
       if (screen === "map" && ordersAt(g.x, g.y)) break;
-      // A tap on the map shows that square: the view comes back from wherever it was dragged.
+      // The unit in play goes where a tap sends it: a step at once, else its route first and a second tap
+      // on the square sends it (the game's right-click); the view stays where it was dragged, to show it.
+      if (screen === "map" && moveTap(g.x, g.y) === "away") { click(g.x, g.y, 2); break; }
+      // Any other tap on the map shows that square: the view comes back from wherever it was dragged.
       if (screen === "map" && tileUnder(...logicalAt(g.x, g.y))) pan.letGo(performance.now());
       click(g.x, g.y, 0);
       syncText(); // a prompt this opened takes the keyboard while the tap still counts as the player's
@@ -98,8 +119,9 @@ function act(g: Gesture | null): void {
       showRing(g.x, g.y, "fired");
       navigator.vibrate?.(12);
       if (screen === "city") press("KeyN", "n"); // the city's name, in the game's prompt
+      else if (screen === "map" && moveTap(g.x, g.y) === "ours") click(g.x, g.y, 2); // the unit in play moves in
       else if (screen === "map" && ordersAt(g.x, g.y, true)) break; // our unit: its orders
-      else click(g.x, g.y, 2);
+      else click(g.x, g.y, 2, screen === "map"); // on the map, the square's window
       syncText();
       break;
     case "dragStart": {

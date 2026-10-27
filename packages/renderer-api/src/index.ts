@@ -25,6 +25,7 @@ export * from "./refusal.js";
 export * from "./works.js";
 export * from "./cityview.js";
 export * from "./plan.js";
+export * from "./tutorial.js";
 export * from "./watch.js";
 export * from "./sites.js";
 export * from "./ranks.js";

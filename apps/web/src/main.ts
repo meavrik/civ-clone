@@ -140,6 +140,10 @@ import {
   setupCards,
   setupChoose,
   planMove,
+  type MovePlan,
+  nextTip,
+  tipLines,
+  type Tip,
   setupMenu,
   setupOptions,
   terrainInfo,
@@ -488,6 +492,51 @@ let borders = (() => { try { return localStorage.getItem("epochs.borders") !== "
 function setBorders(on: boolean): void {
   borders = on;
   try { localStorage.setItem("epochs.borders", on ? "on" : "off"); } catch { /* private mode */ }
+}
+
+/**
+ * The tutorial (asked for 2026-10-27): renderer-api's tips, each shown once per browser in a small
+ * window over the map when the map has been still a moment (`TIP_WAIT_MS`), until the player ends it
+ * (a tip's End tutorial, or Game > Tutorial, which also starts it over).
+ */
+const tutorial = (() => {
+  try {
+    const t = JSON.parse(localStorage.getItem("epochs.tutorial") ?? "{}") as { on?: boolean; seen?: unknown };
+    return { on: t.on !== false, seen: new Set<string>(Array.isArray(t.seen) ? t.seen.filter((x): x is string => typeof x === "string") : []) };
+  } catch { return { on: true, seen: new Set<string>() }; }
+})();
+function saveTutorial(): void {
+  try { localStorage.setItem("epochs.tutorial", JSON.stringify({ on: tutorial.on, seen: [...tutorial.seen] })); } catch { /* private mode */ }
+}
+function setTutorial(on: boolean): void {
+  tutorial.on = on;
+  if (on) tutorial.seen.clear();
+  saveTutorial();
+}
+const TIP_WAIT_MS = 700;
+let stillSince: number | null = null;
+/** The phone app's renderer has no `mapView` (fingers drag its map), so its tips speak of taps. */
+const touchScreen = !renderer.mapView;
+
+/** A tip's window, standing clear of what it speaks of (else the unit in play); it is seen once shown. */
+function showTip(tip: Tip): void {
+  tutorial.seen.add(tip.id);
+  saveTutorial();
+  modal(`Tutorial: ${tip.title}`, [...tipLines(tip, touchScreen)], ["Continue", "End tutorial"], (i) => {
+    if (i === 1) { setTutorial(false); say("Tutorial ended. Game > Tutorial starts it again.", 4000); }
+  }, 0, () => {});
+  const at = tip.focus ? tip.focus(state, 0) : state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
+  const sq = at && renderer.squareRect?.(state, view, at.x, at.y);
+  if (sq && screenState.kind === "menu") screenState.menu.avoid = { x: sq.x + (sq.w >> 1), y: sq.y + (sq.h >> 1) };
+}
+
+/** Once the map has been still a moment, the next tip that is due (none while a unit slides, a window is up or the turn is handed on). */
+function tutorialStep(t: number, still: boolean): void {
+  if (!tutorial.on || !still) { stillSince = null; return; }
+  stillSince ??= t;
+  if (t - stillSince < TIP_WAIT_MS) return;
+  const tip = nextTip(state, 0, tutorial.seen);
+  if (tip) { stillSince = null; showTip(tip); }
 }
 
 /**
@@ -1468,6 +1517,7 @@ function barEntries(index: number): MenuEntry[] {
         ["Revolution!", "G", () => askRevolution(), governmentsAvailable(state, 0).length <= 1],
         [`Borders: ${borders ? "On" : "Off"}`, "", () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
         [`Place Names: ${placeNames ? "On" : "Off"}`, "", () => { setPlaceNames(!placeNames); say(`Place names ${placeNames ? "on" : "off"}`); }],
+        [`Tutorial: ${tutorial.on ? "On" : "Off"}`, "", () => { setTutorial(!tutorial.on); say(tutorial.on ? "Tutorial on: its tips start again" : "Tutorial off"); }],
         ["Save Game", "", () => void openSaveMenu()],
         ["Load Game", "", () => void openLoadMenu()],
         ["Retire", "", () => endGame({ kind: "time" })],
@@ -2790,66 +2840,50 @@ canvas.addEventListener("mousedown", (e) => {
   }
   const { x: tx, y: ty } = hit;
 
-  // Right-click: the square's window (terrain, what is on it, and a few things to do about it).
-  if (e.button === 2) { openTerrainInfo(tx, ty, { x: px, y: py }); return; }
-  // A double click centres the map on its square (the move its first click showed is dropped, not made).
-  // Its second click is matched by where it lands on the screen: the first may have set the map gliding.
-  const now = performance.now();
-  const first = lastClick;
-  lastClick = { px, py, x: tx, y: ty, at: now };
-  if (first && now - first.at < DOUBLE_CLICK_MS && Math.abs(px - first.px) <= 4 && Math.abs(py - first.py) <= 4) {
-    lastClick = null;
-    centerOn(first.x, first.y);
-    return;
-  }
-  // Left-click on a planned move's square, a second time: the unit goes (or fights, or takes the city).
-  if (pending && active && pending.unit === active.id && pending.x === tx && pending.y === ty) {
-    if (isAdjacent(active, tx, ty)) tryMove(active.id, stepTo(active, tx), ty - active.y);
-    else sendTo(active.id, tx, ty);
-    return;
-  }
-  // Our city opens, our unit is picked, and a stack of ours is listed to pick from.
+  // The mouse as the original had it (asked for 2026-10-27): the right button moves the unit in play,
+  // the left one opens, picks and centres. Shift with either button, or a right-click with no unit in
+  // play, opens the square's window (terrain, what is on it, and a few things to do about it).
+  if (e.shiftKey || (e.button === 2 && !active)) { openTerrainInfo(tx, ty, { x: px, y: py }); return; }
+  if (e.button === 2 && active) { moveClick(active, tx, ty, pending); return; }
+  // Left-click: our city opens, our unit is picked, and a stack of ours is listed to pick from.
   const city = cityAt(state, tx, ty);
   const mine = unitAt(state, tx, ty).filter((u) => u.owner === 0);
   if (city && city.owner === 0) {
     centerOn(tx, ty);
-    // Next door to the unit in play, a click on our city asks: view the city, or move the unit in (asked
-    // for 2026-10-25, after the click moved the unit in at once); with the unit inside, or none in play, the city opens.
-    if (active && !(active.x === tx && active.y === ty) && isAdjacent(active, tx, ty)) {
-      const unit = active;
-      menu(city.name, ["View city", `Move ${unitType(unit.type).name} in`], (i) => {
-        if (i === 0) openCity(city.id);
-        else tryMove(unit.id, stepTo(unit, tx), ty - unit.y);
-      });
-      return;
-    }
     openCity(city.id);
     return;
   }
-  // Next door to the unit in play, a square with our own units is a step: it joins them (asked for
-  // 2026-10-24: the click picked the unit there instead). Further off, the click picks from them.
-  if (mine.length && active && !(active.x === tx && active.y === ty) && isAdjacent(active, tx, ty)) { tryMove(active.id, stepTo(active, tx), ty - active.y); return; }
   if (mine.length > 1) { openStack(tx, ty, mine); return; }
-  const own = mine.find((u) => u.movesLeft > 0) ?? mine[0];
+  const own = mine[0];
   if (own) {
     centerOn(tx, ty);
     dispatch({ type: "activate", unit: own.id });
     if (state.activeUnit !== own.id) say("No moves left this turn");
     return;
   }
-  // The active unit: a step next door at once; a fight, a city to take or a square further off is
-  // shown first (route, turns, odds) and goes on a second click on the same square.
-  const move = active ? planMove(state, active.id, tx, ty) : null;
-  if (active && move === "step") { tryMove(active.id, stepTo(active, tx), ty - active.y); return; }
-  if (move && move !== "step") { view.plan = move; return; }
   // Anywhere else the map centres on the square and shows it in the panel.
   centerOn(tx, ty);
   view.inspect = { x: tx, y: ty };
 });
 
-/** Two left clicks on the map this close together, in time and on the screen, are a double click. */
-const DOUBLE_CLICK_MS = 300;
-let lastClick: { px: number; py: number; x: number; y: number; at: number } | null = null;
+/**
+ * A right-click on the map with a unit in play: a step next door goes at once (into our city or onto
+ * our units' square too); a fight, a city to take or a square further off is shown first (route, turns,
+ * odds) and goes on a second right-click on the same square. On the unit's own square its orders open.
+ */
+function moveClick(active: Unit, tx: number, ty: number, pending: MovePlan | undefined): void {
+  if (pending && pending.unit === active.id && pending.x === tx && pending.y === ty) {
+    if (isAdjacent(active, tx, ty)) tryMove(active.id, stepTo(active, tx), ty - active.y);
+    else sendTo(active.id, tx, ty);
+    return;
+  }
+  if (active.x === tx && active.y === ty) { openActionMenu(active.id); return; }
+  const move = planMove(state, active.id, tx, ty);
+  if (move === "step") { tryMove(active.id, stepTo(active, tx), ty - active.y); return; }
+  if (move) { view.plan = move; return; }
+  view.callout = { x: active.x, y: active.y, text: "No way there." };
+  calloutUntil = performance.now() + CALLOUT_MS;
+}
 
 // ---- frame loop ---------------------------------------------------------------
 /** When each window first drew, so it can grow in (`WINDOW_ENTER_MS`); keyed by the window's own state. */
@@ -2964,6 +2998,9 @@ function frame(t: number): void {
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
   if (!animating && afterSlides.length && screenState.kind === "map") for (const fn of afterSlides.splice(0)) fn();
+  // The tutorial's next tip, once the map has been still a moment (it holds off the turn's end below).
+  if ((state as GameState | undefined) && screenState.kind !== "title" && screenState.kind !== "setup")
+    tutorialStep(t, screenState.kind === "map" && state.players[0]!.alive && !animating && !afterSlides.length && !handoff && !watching);
   // The last unit ordered this turn: the turn ends by itself a moment later (see `actedThisTurn`).
   const idle = screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length && !handoff;
   if (actedThisTurn && idle) {

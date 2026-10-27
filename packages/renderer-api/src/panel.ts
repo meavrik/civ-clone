@@ -235,7 +235,7 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
         lines: [
           TERRAIN_TEXT[tile.terrain],
           `Entering costs ${plural(r.moveCost, "move")}${defence !== 1 ? `; defence +${Math.round((defence - 1) * 100)}%` : ""}.`,
-          "Right-click any square to learn more.",
+          "Shift+click a square (hold it on a phone) to learn more.",
         ],
       };
     }

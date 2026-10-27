@@ -1,7 +1,7 @@
 import { attackOdds, bestDefender, checkMove, cityAt, findPath, moveAllowance, Terrain, unitAt, unitById, unitType, wrapX, type GameState, type Unit } from "@civ/core";
 
 /**
- * A move that waits for a second click on its square: what the map shows first, so that no single
+ * A move that waits for a second right-click on its square: what the map shows first, so that no single
  * click sends a unit across the map or into a fight. The route runs from the unit's first step to
  * the target; `text` is the note at its end ("3 turns", "Attack: 62%", "Take Rome").
  */
@@ -41,7 +41,7 @@ export function routeTurns(state: GameState, u: Unit, route: readonly [number, n
 }
 
 /**
- * What a left-click on (tx, ty) does with unit `id`: "step" when it moves next door at once (a plain
+ * What a right-click on (tx, ty) does with unit `id`: "step" when it moves next door at once (a plain
  * step, or a move the rules refuse, which then says why), a plan to show first when it would fight,
  * take a city or go further than next door, or null when the click has nothing to do with the unit
  * (its own square, or a square it has no route to).
