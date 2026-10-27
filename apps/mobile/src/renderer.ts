@@ -1,6 +1,6 @@
 import { civ, wrapX, type GameState } from "@civ/core";
 import { scrollRows } from "./menus.js";
-import { reignCard, type AdvisorKind, type DiplomacyView, type MainScreenView, type MenuState, type NewTechView, type ReignView, type Renderer, type ResearchView, type SetupCards, type TextInputState } from "@civ/renderer-api";
+import { reignCard, type AdvisorKind, type CityScreenView, type DiplomacyView, type MainScreenView, type MenuState, type NewTechView, type ReignView, type Renderer, type ResearchView, type SetupCards, type TextInputState } from "@civ/renderer-api";
 import {
   BAR_H,
   cityButtonAt,
@@ -8,6 +8,11 @@ import {
   cityFocusAt,
   cityImprovementAt,
   cityImprovementRows,
+  cityBoxAt,
+  cityZoomPlace,
+  cityZoomPoint,
+  drawCityZoom,
+  type CityZoom,
   cardPicture,
   LEADER_PORTRAITS,
   ratesHit,
@@ -148,6 +153,8 @@ interface Shown {
   title: boolean;
   /** The setup question the last frame showed as cards, with its Choose button. */
   setup?: SetupCards | undefined;
+  /** The city screen the last frame showed, as the game handed it (the touch layer asks what a tap there would hit). */
+  city?: CityScreenView | undefined;
 }
 
 export const shown: Shown = { wide: false, title: false };
@@ -160,6 +167,64 @@ function inset(): number {
 /** A point on the phone's screen as a point of the 320x200 screen shown, when one is. */
 export function narrowPoint(px: number, py: number): [number, number] {
   return shown.wide ? [px, py] : [px - inset(), py];
+}
+
+/**
+ * The city screen's box shown enlarged over the rest (asked for 2026-10-27: "on mobile only - inside the
+ * city view - when click on a box area - enlarge it to see it bigger"; `drawCityZoom`): a tap on a box
+ * opens it, a tap off it (or on its close box) closes it, and taps on it reach its controls. It closes by
+ * itself once the city screen is gone.
+ */
+let cityZoom: { city: number; zoom: CityZoom } | null = null;
+let cityDrawn = false;
+
+/** A box of the city screen is shown enlarged. */
+export function cityZoomed(): boolean {
+  return cityZoom !== null;
+}
+
+/** On the city screen with no box enlarged, enlarge the box under logical point (px, py); false off the boxes. */
+export function zoomCityAt(px: number, py: number): boolean {
+  const view = shown.city;
+  if (!view || cityZoom || shown.wide) return false;
+  const box = cityBoxAt(px - inset(), py);
+  if (!box) return false;
+  cityZoom = { city: view.city, zoom: cityZoomPlace(box, screenW()) };
+  return true;
+}
+
+export function closeCityZoom(): void {
+  cityZoom = null;
+}
+
+/** A logical point of the phone's screen as the city screen's own point: through the enlarged box when one is shown (off it, none). */
+function cityPoint(px: number, py: number): [number, number] {
+  if (!cityZoom || !shown.wide) return [px - inset(), py];
+  return cityZoomPoint(cityZoom.zoom, px, py) ?? [-1, -1];
+}
+
+/** The point is on the enlarged box. */
+export function inCityZoom(px: number, py: number): boolean {
+  return cityZoom !== null && cityZoomPoint(cityZoom.zoom, px, py) !== null;
+}
+
+/**
+ * Something of the city screen answers a tap at logical point (px, py): a button, a citizen, a unit, an
+ * improvement, a square of its map. The game leaves the city on a click that hits nothing, which a tap
+ * on an enlarged box must not do.
+ */
+export function cityAnswersAt(px: number, py: number): boolean {
+  const { state, city: view } = shown;
+  if (!state || !view) return false;
+  const [x, y] = cityPoint(px, py);
+  if (x < 0) return false;
+  return cityExitHit(x, y) || cityFocusAt(x, y) !== null || cityButtonAt(x, y) !== null || cityUnitAt(state, view, x, y) !== null
+    || cityCitizenAt(state, view, x, y) !== null || cityImprovementAt(state, view, x, y) !== null || citySlotAt(x, y) !== null;
+}
+
+/** How many times its size the city screen's enlarged box stands (1 with none): a finger scrolling its list moves that much further a line. */
+export function cityZoomScale(): number {
+  return cityZoom?.zoom.scale ?? 1;
 }
 
 /**
@@ -289,6 +354,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       wideFrame = false;
       titleFrame = false;
       setupFrame = undefined;
+      cityDrawn = false;
       if (wide.width !== screenW()) {
         wide = new Surface(screenW(), SCREEN_H, undefined, DETAIL);
         image = ctx.createImageData(wide.fw, wide.fh);
@@ -298,6 +364,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       shown.wide = wideFrame;
       shown.title = titleFrame;
       shown.setup = setupFrame;
+      // The enlarged box goes with the city screen.
+      if (!cityDrawn) { cityZoom = null; shown.city = undefined; }
       const px = image.data;
       const paint = (j: number, c: number) => {
         const p = c * 4;
@@ -345,7 +413,18 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       preloadTech(state.players[state.currentPlayer]?.researching);
       preloadBuildings(state);
     },
-    city: screen(drawCityScreen),
+    // The city screen, and over it the box a tap enlarged, on the wide screen (menus then open over both).
+    city: (state: GameState, view: CityScreenView) => {
+      wideFrame = false;
+      cityDrawn = true;
+      shown.city = view;
+      if (cityZoom && cityZoom.city !== view.city) cityZoom = null;
+      drawCityScreen(narrow, state, view);
+      if (!cityZoom) return;
+      if (cityZoom.zoom.x + cityZoom.zoom.w > screenW()) cityZoom.zoom = cityZoomPlace(cityZoom.zoom.box, screenW());
+      wideFrame = true;
+      drawCityZoom(wide, narrow, cityZoom.zoom, inset());
+    },
     cityView: screen(drawCityView),
     // The research panel is a window over whatever is drawn under it (the wide map, or a 320x200 screen), centred on it.
     research: (state: GameState, view: ResearchView) => drawResearch(surface(), state, view),
@@ -422,13 +501,14 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       const sh = shapeOf(m);
       return sh.style ? null : menuScrollAt(sh.menu, px - sh.dx, py, sh.screenW, TOUCH_MENU);
     },
-    citySlotAt: (px, py) => citySlotAt(px - inset(), py),
-    cityExitHit: (px, py) => cityExitHit(px - inset(), py),
-    cityButtonAt: (px, py) => cityButtonAt(px - inset(), py),
-    cityUnitAt: (state, view, px, py) => cityUnitAt(state, view, px - inset(), py),
-    cityCitizenAt: (state, view, px, py) => cityCitizenAt(state, view, px - inset(), py),
-    cityFocusAt: (px, py) => cityFocusAt(px - inset(), py),
-    cityImprovementAt: (state, view, px, py) => cityImprovementAt(state, view, px - inset(), py),
+    // The city screen's points, through the enlarged box when one is shown.
+    citySlotAt: (px, py) => citySlotAt(...cityPoint(px, py)),
+    cityExitHit: (px, py) => cityExitHit(...cityPoint(px, py)),
+    cityButtonAt: (px, py) => cityButtonAt(...cityPoint(px, py)),
+    cityUnitAt: (state, view, px, py) => cityUnitAt(state, view, ...cityPoint(px, py)),
+    cityCitizenAt: (state, view, px, py) => cityCitizenAt(state, view, ...cityPoint(px, py)),
+    cityFocusAt: (px, py) => cityFocusAt(...cityPoint(px, py)),
+    cityImprovementAt: (state, view, px, py) => cityImprovementAt(state, view, ...cityPoint(px, py)),
     cityImprovementRows: (state) => cityImprovementRows(state),
     ratesHit: (px, py) => (shown.wide ? ratesHit(px, py, screenW()) : ratesHit(px - inset(), py)),
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px - inset(), py),

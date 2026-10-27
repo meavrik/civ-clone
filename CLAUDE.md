@@ -875,6 +875,16 @@ Never ship the original's sprites, palette art, fonts or text.
   text, stay rows. The setup cards (difficulty, tribe) get a Choose button in their panel
   (`drawSetupChoose`, `setupChooseAt`): a tap lights a card, Choose or a second tap picks it. The
   research panel, the city screen and the audience keep their sizes.
+  On the city screen a tap on one of its six boxes (renderer-retro `CITY_BOXES`: resources, map, improvements,
+  food, units, production) enlarges it (asked for 2026-10-27: "on mobile only - inside the city view - when
+  click on an box area - enlarge it to see it bigger"): `drawCityZoom` lays the 320x200 screen on the wide one,
+  darkened, and the box over its middle twice its size (`cityZoomPlace`: whole times, so each fine pixel a
+  block), its pictures grown with it and the ones it covers hidden, a close box above its corner. The adapter
+  maps points on it back to the screen's (`cityZoomPoint`, its city hit tests), so its buttons, lines, units and
+  squares answer there; `touch.ts` passes a tap on it to the game only where something answers
+  (`cityAnswersAt`: the game leaves the city on a click on nothing), closes it on a tap off it, and scrolls an
+  enlarged list that much further a line (`cityZoomScale`). Windows opened over it darken it in turn and leave
+  it standing; it goes with the city screen. The title row (close box, View, Happy, citizens) answers at once.
   `touch.ts` turns fingers (`gestures.ts`) into the mouse the game knows: tap = mousedown 0, hold 450 ms
   = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. On the map
   (since the game's mouse moves units with the right button, 2026-10-27) a tap with a unit in play on a square

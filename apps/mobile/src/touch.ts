@@ -4,7 +4,7 @@ import { game, press, screenKind } from "./civ.js";
 import { canvas, displayScale, logicalAt } from "./display.js";
 import { GESTURES, Pinch, Recognizer, type Gesture } from "./gestures.js";
 import { rateKeys } from "./rates.js";
-import { chooseAt, mapZoom, narrowPoint, ordersAbove, pan, scrollMenu, setMapZoom, shown, TILE_PX, tileUnder, ZOOMS } from "./renderer.js";
+import { chooseAt, cityAnswersAt, cityZoomed, cityZoomScale, closeCityZoom, inCityZoom, mapZoom, narrowPoint, ordersAbove, pan, scrollMenu, setMapZoom, shown, TILE_PX, tileUnder, zoomCityAt, ZOOMS } from "./renderer.js";
 import { screenW } from "./display.js";
 import { syncText } from "./text.js";
 
@@ -20,7 +20,8 @@ import { syncText } from "./text.js";
  * touches here: a tap or a held finger on our unit opens its orders just above it (the menu bar has
  * no Orders on a phone), a tap on a setup card's Choose button picks it, a touch on a rates bar sets
  * that rate, a tap on a spaceship ready to go asks to launch it, and a press held on a city screen
- * renames the city. A real mouse is left to the browser.
+ * renames the city. On the city screen a tap on a box enlarges it (asked for 2026-10-27), and the
+ * box's controls answer there; a tap off it closes it. A real mouse is left to the browser.
  */
 const fingers = new Recognizer();
 const ring = document.getElementById("ring")!;
@@ -90,6 +91,19 @@ function ordersAt(x: number, y: number, held = false): boolean {
   return true;
 }
 
+/**
+ * A tap on the city screen, where a box enlarges (`cityZoomed`): with none, a tap on a box opens it; with
+ * one, a tap off it (its close box too) closes it and a tap on it goes to the game only where something
+ * answers (a click on nothing would leave the city). False: the game takes the tap as ever (the title row).
+ */
+function cityTap(x: number, y: number): boolean {
+  const [px, py] = logicalAt(x, y);
+  if (!cityZoomed()) return zoomCityAt(px, py);
+  if (!inCityZoom(px, py)) closeCityZoom();
+  else if (cityAnswersAt(px, py)) click(x, y, 0);
+  return true;
+}
+
 /** Our spaceship is built enough to go and still on the ground. */
 function readyToLaunch(): boolean {
   const ship = game()?.state?.players[0]?.spaceship;
@@ -105,6 +119,7 @@ function act(g: Gesture | null): void {
       if (screen === "rates" && setRate(g.x, g.y, false)) break;
       if (screen === "spaceship" && readyToLaunch()) { press("Enter", "Enter"); break; }
       if (screen === "setup" && chooseAt(...logicalAt(g.x, g.y))) { press("Enter", "Enter"); break; }
+      if (screen === "city" && cityTap(g.x, g.y)) break;
       if (screen === "map" && ordersAt(g.x, g.y)) break;
       // The unit in play goes where a tap sends it: a step at once, else its route first and a second tap
       // on the square sends it (the game's right-click); the view stays where it was dragged, to show it.
@@ -143,7 +158,7 @@ function act(g: Gesture | null): void {
       else if (dragging === "list") {
         // The list scrolls with the finger: the wheel it answers to moves a row for every 30 of its pixels, a
         // row being 9 logical ones in the research list, IMPROVEMENT_LINE_H in a city's improvements.
-        const row = screen === "city" ? IMPROVEMENT_LINE_H : 9;
+        const row = screen === "city" ? IMPROVEMENT_LINE_H * cityZoomScale() : 9;
         canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: (-g.dy / scale / row) * 30, deltaMode: 0, bubbles: true, cancelable: true }));
       } else if (dragging === "menu") {
         // The rows follow the finger, one for every row's height it travels.

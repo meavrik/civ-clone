@@ -56,6 +56,25 @@ const LEFT = { x: 1, w: 106 };
 const MID = { x: 108, w: 84 };
 const RIGHT = { x: 193, w: 126 };
 
+/** A box of the city screen, by what it shows. */
+export interface CityBox {
+  id: "resources" | "map" | "improvements" | "food" | "units" | "production";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The city screen's six boxes under its title row (the phone enlarges one on a tap: `drawCityZoom`). */
+export const CITY_BOXES: readonly CityBox[] = [
+  { id: "resources", x: LEFT.x, y: ROW1.y, w: LEFT.w, h: ROW1.h },
+  { id: "map", x: MID.x, y: ROW1.y, w: MID.w, h: ROW1.h },
+  { id: "improvements", x: RIGHT.x, y: ROW1.y, w: RIGHT.w, h: ROW1.h },
+  { id: "food", x: LEFT.x, y: ROW2.y, w: LEFT.w, h: ROW2.h },
+  { id: "units", x: MID.x, y: ROW2.y, w: MID.w, h: ROW2.h },
+  { id: "production", x: RIGHT.x, y: ROW2.y, w: RIGHT.w, h: ROW2.h },
+];
+
 export const CITY_MAP_X = MID.x + 2;
 export const CITY_MAP_Y = ROW1.y + 2;
 
