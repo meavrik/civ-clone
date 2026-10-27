@@ -824,6 +824,13 @@ Never ship the original's sprites, palette art, fonts or text.
   gold: a tenth, a quarter or half our treasury, `giftAmounts`, thanked by its weight to them, `giftWeight`
   modest, generous from half their `goldScale`, lavish from 1.5, `giftThanks`; with Trade an advance) and demands (their units off our
   land, tribute with Writing, close borders, declare war or break the treaty). Writing and Trade stand for
+  Sound (`sound.ts`, `GameSound`; asked for 2026-10-27): effects and a looping tune made in the browser with the
+  Web Audio API from oscillators and noise on notes of our own (`SFX`, `TUNE`: two eight-bar halves in D dorian,
+  a square lead over a triangle bass), nothing downloaded; silent until the first key, click or touch (the
+  browser's rule), hushed while the page is hidden. Effects: a menu pick, a refused move, a city founded, a
+  building or wonder finished, an advance, a fight (a clash, each blow, the loser's burst, read off
+  `view.battle` each frame, `battleSound`), a city taken or lost, war, a meeting, a gift, a leader's demand, the
+  turn's end. Game > Options has Sound and Music (`epochs.sound` in localStorage); the phone app shares it.
   the knowledge that brings more to say (asked for 2026-10-24, "when get diplomacy tech add more diplomacy
   options, when get trade tech add trade options"; the tree has no Diplomacy, so Writing, the Diplomat's).
   Up to four buttons, farewell last: a subject's topics stand as buttons where they fit, else the subject

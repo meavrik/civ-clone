@@ -1,3 +1,4 @@
+import { GameSound } from "./sound.js";
 import { acceptsPeace, aiTurn, attitude, bordersAnswer, bordersPrice, peaceAnswer, peacePrice, resourceAsk, resourceOffers, resourcePrice, stayPrice, tradeAsk, tributeOffer, withdrawAnswer } from "@civ/ai";
 import {
   advance,
@@ -190,6 +191,10 @@ import { createRetroRenderer } from "./retro-renderer.js";
 import { listSlots, readSlot, SLOTS, writeSlot } from "./storage.js";
 
 // ---- renderer ----------------------------------------------------------------
+/** The game's sound: effects as things happen, the tune under the map (`sound.ts`). */
+const sound = new GameSound();
+sound.attach(window);
+
 // The game is drawn retro. The modern renderer (packages/renderer-modern) is set aside for
 // now: the app no longer offers it, though it still builds and passes its tests.
 const renderer: Renderer = createRetroRenderer(canvas);
@@ -607,6 +612,8 @@ function dispatch(cmd: Command): boolean {
   if (r.ok) {
     log.push(cmd);
     if ("unit" in cmd) actedThisTurn = true;
+    if (cmd.type === "found") sound.play("found");
+    else if (cmd.type === "declareWar") sound.play("war");
     if (cmd.type !== "endTurn") slideOwn(lastActions.slice(mark));
     if (cmd.type === "move" && lastCombat) reportCombat(lastCombat);
     if (cmd.type !== "endTurn") afterAction("unit" in cmd ? cmd.unit : undefined);
@@ -954,6 +961,7 @@ function builtWindow(cityId: number, p: Production, then: () => void, change?: C
   const notice = builtNotice(state, cityId, p, change);
   if (!city || city.owner !== 0 || !notice) { then(); return; }
   if (p.kind === "wonder") {
+  sound.play(p.kind === "wonder" ? "wonder" : "built");
     // A wonder is a spectacle (asked for 2026-10-24): it rises in the city's picture, sparkles, and
     // only then does its window open, over that picture.
     wonderShow(cityId, p.id, () => {
@@ -1021,6 +1029,7 @@ function conquestNews(ev: ConquestEvent, then: () => void): void {
   centerOn(ev.x, ev.y - 2);
   const view: ConquestView = { event: ev, viewer: 0, selected: 1 };
   if (ev.by !== 0) { screenState = { kind: "conquest", view, then }; return; }
+  sound.play(ev.by === 0 ? "triumph" : "lament");
   screenState = { kind: "triumph", event: ev, start: performance.now(), cheer: conquestCard(state, view).cheer, then: () => { screenState = { kind: "conquest", view, then }; } };
 }
 
@@ -1309,6 +1318,7 @@ type NewTechScreen = Extract<Screen, { kind: "newTech" }>;
  */
 function announce(found: string[], due: boolean, then: () => void, back: Screen = { kind: "map" }, at = 0): void {
   screenState = { kind: "newTech", view: { advance: found[at]!, selected: 1 }, found, at, due, back, then };
+  sound.play("tech");
 }
 
 function leaveNewTech(sc: NewTechScreen, tree: boolean): void {
@@ -1644,6 +1654,8 @@ const OPTIONS = "Options";
 function switches(): [label: string, on: boolean, flip: () => void][] {
   return [
     ["Borders", borders, () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
+    ["Sound", sound.sound, () => { sound.setSound(!sound.sound); say(`Sound ${sound.sound ? "on" : "off"}`); }],
+    ["Music", sound.music, () => { sound.setMusic(!sound.music); say(`Music ${sound.music ? "on" : "off"}`); }],
     ["Place Names", placeNames, () => { setPlaceNames(!placeNames); say(`Place names ${placeNames ? "on" : "off"}`); }],
     ["Tutorial", tutorial.on, () => { setTutorial(!tutorial.on); say(tutorial.on ? "Tutorial on: its tips start again" : "Tutorial off"); }],
   ];
@@ -1813,6 +1825,7 @@ function greeting(player: number): string {
 /** First contact: the map shows whom we met, then their leader receives us. */
 function meet(player: number, then: () => void): void {
   const place = meetingPlace(player);
+  sound.play("meet");
   const talk = () => audience(player, greeting(player), then, { first: true });
   if (place) beat(place.x, place.y, `The ${state.players[player]!.name}`, talk);
   else talk();
@@ -2370,6 +2383,7 @@ function endTurn(): void {
   if (wars.length) presentEvents(wars, watch); else watch();
 }
 
+  sound.play("turn");
 // ---- input: keyboard --------------------------------------------------------
 const MOVES: Record<string, [number, number]> = {
   Numpad8: [0, -1], ArrowUp: [0, -1],
@@ -2422,7 +2436,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
     const city = cityAt(state, u.x + dx, u.y + dy);
     if (city) openDiplomatMenu(unit, city.id);
     return;
-  } else refuseMove(unit, dx, dy, r.reason);
+  } else { sound.play("deny"); refuseMove(unit, dx, dy, r.reason); }
   blinkOn = true;
   lastBlink = performance.now();
   afterUnitOrder(before, mark);
@@ -2565,7 +2579,7 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     case "PageDown": case "Numpad3": moveSelection(m, page); break;
     case "Home": case "Numpad7": moveSelection(m, -m.items.length); break;
     case "End": case "Numpad1": moveSelection(m, m.items.length); break;
-    case "Enter": case "NumpadEnter": case "Space": if (!ready) return; screenState = sc.under; sc.onPick(m.selected); return;
+    case "Enter": case "NumpadEnter": case "Space": if (!ready) return; sound.play("click"); screenState = sc.under; sc.onPick(m.selected); return;
     case "Escape": screenState = sc.under; sc.onCancel?.(); return;
   }
   m.top = keepInView(m, renderer.menuRows(m));
@@ -2849,7 +2863,7 @@ function mouseDown(e: MouseEvent): void {
       if (sc.bar === undefined && !sc.sub && !settled(sc.menu)) return;
       const i = renderer.menuHit(sc.menu, px, py);
       screenState = sc.under;
-      if (i >= 0) sc.onPick(i); else sc.onCancel?.();
+      if (i >= 0) { sound.play("click"); sc.onPick(i); } else sc.onCancel?.();
       return;
     }
     case "report": case "worldMap": screenState = { kind: "map" }; return;
@@ -3054,6 +3068,22 @@ function draw(sc: Screen): void {
       renderer.built(state, sc.view);
       break;
     }
+/** The fight last heard: whose, how hard each side was last struck, whether one has fallen. */
+let heard: { a: number; d: number; aHit: number; dHit: number; fell: boolean } | null = null;
+
+/** The sound of the fight on show: a clash as it begins, a blow as each lands, a burst as the loser falls. */
+function battleSound(b: typeof view.battle): void {
+  if (!b) { heard = null; return; }
+  if (!heard || heard.a !== b.attacker.unit || heard.d !== b.defender.unit) {
+    sound.play("clash");
+    heard = { a: b.attacker.unit, d: b.defender.unit, aHit: 0, dHit: 0, fell: false };
+  }
+  if ((b.attacker.hit > 0.8 && heard.aHit <= 0.8) || (b.defender.hit > 0.8 && heard.dHit <= 0.8)) sound.play("hit");
+  if (!heard.fell && (b.attacker.dying > 0 || b.defender.dying > 0)) { sound.play("boom"); heard.fell = true; }
+  heard.aHit = b.attacker.hit;
+  heard.dHit = b.defender.hit;
+}
+
     case "conquest": {
       draw({ kind: "map" });
       sc.view.enter = enterOf(sc.view);
@@ -3138,3 +3168,4 @@ function frame(t: number): void {
 requestAnimationFrame(frame);
 
 (window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return log; }, get moving() { return view.moving; }, get battle() { return view.battle; }, get view() { return view; }, get screen() { return screenState.kind; }, get menu() { return screenState.kind === "menu" ? screenState.menu : undefined; }, dispatch, atWar, DIFFICULTIES };
+  battleSound(shown.battle);
