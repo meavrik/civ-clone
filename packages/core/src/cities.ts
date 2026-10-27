@@ -12,7 +12,7 @@ import { nextCityName } from "./rules/names.js";
 import { specialOf, TERRAIN_RULES, type SpecialRule } from "./rules/terrain.js";
 import { INFLUENCE_YIELD } from "./rules/culture.js";
 import { VETERAN_XP } from "./rules/experience.js";
-import { UNIT_TYPES, unitType } from "./rules/units.js";
+import { UNIT_TYPES, unitType, type UnitTypeRule } from "./rules/units.js";
 import {
   CITY_RADIUS,
   getTile,
@@ -872,6 +872,7 @@ export function foundCity(state: GameState, owner: number, x: number, y: number,
     celebrating: false,
     routes: [],
   };
+  city.production = defaultProduction(state, city);
   state.cities.push(city);
   // Founding the city builds its road.
   getTile(state.map, city.x, city.y)!.road = true;
@@ -1011,6 +1012,8 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
     }
     city.shields += Math.max(0, surplus);
   }
+  // A unit its civilization has retired since it was set (an advance traded or granted) gives way to the default.
+  if (city.production.kind === "unit" && unitRetired(state, city.owner, city.production.id)) city.production = defaultProduction(state, city);
   const cost = costFor(state, city.owner, city.production);
   if (city.shields >= cost) {
     const p = city.production;
@@ -1048,26 +1051,55 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
       addPart(player.spaceship, p.id);
       city.shields -= cost;
       events.push({ city: city.id, kind: "built", detail: spacePart(p.id).name, production: { ...p } });
-      city.production = { kind: "unit", id: "militia" };
+      city.production = defaultProduction(state, city);
     } else if (p.kind === "wonder") {
       if (wonderBuilt(state, p.id)) {
         // Someone else finished it first: the shields stay for the next choice.
-        city.production = { kind: "unit", id: "militia" };
+        city.production = defaultProduction(state, city);
         return events;
       }
       city.wonders.push(p.id);
       city.shields -= cost;
       events.push({ city: city.id, kind: "wonder", detail: wonder(p.id).name, production: { ...p } });
-      city.production = { kind: "unit", id: "militia" };
+      city.production = defaultProduction(state, city);
     } else {
       if (!city.buildings.includes(p.id)) city.buildings.push(p.id);
       city.shields -= cost;
       events.push({ city: city.id, kind: "built", detail: building(p.id).name, production: { ...p } });
       // Move on to something sensible rather than rebuilding.
-      city.production = { kind: "unit", id: "militia" };
+      city.production = defaultProduction(state, city);
     }
   }
   return events;
+}
+
+/** A unit `owner` has retired: it knows the advance that ends it (`UnitTypeRule.obsolete`; never in saves before version 39). */
+export function unitRetired(state: GameState, owner: number, id: string): boolean {
+  const end = unitType(id).obsolete;
+  return end !== undefined && !state.lastingUnits && knows(state.players[owner]?.advances ?? [], end);
+}
+
+/**
+ * What a city turns to with nothing else in hand (founded, taken, an improvement or wonder finished, a unit
+ * retired): Militia, or once its civilization has retired them, the stoutest defender it can build now, the
+ * cheaper on a tie.
+ */
+export function defaultProduction(state: GameState, city: City): Production {
+  if (!unitRetired(state, city.owner, "militia")) return { kind: "unit", id: "militia" };
+  let best: UnitTypeRule | null = null;
+  for (const p of buildOptions(state, city)) {
+    if (p.kind !== "unit") continue;
+    const t = unitType(p.id);
+    if (t.domain !== "land" || t.attack === 0) continue;
+    if (!best || t.defense > best.defense || (t.defense === best.defense && t.cost < best.cost)) best = t;
+  }
+  return { kind: "unit", id: best?.id ?? "militia" };
+}
+
+/** `player`'s cities building a unit it has just retired turn to their default (`defaultProduction`). */
+export function retireProduction(state: GameState, player: number): void {
+  for (const c of state.cities)
+    if (c.owner === player && c.production.kind === "unit" && unitRetired(state, player, c.production.id)) c.production = defaultProduction(state, c);
 }
 
 /**
@@ -1082,6 +1114,7 @@ export function unitChoices(state: GameState, city: City): { id: string; missing
   for (const t of UNIT_TYPES) {
     if (t.flags?.includes("leader")) continue;
     if (t.requires && !knows(p.advances, t.requires)) continue;
+    if (unitRetired(state, city.owner, t.id)) continue;
     if (t.domain === "sea" && !coastal(state, city)) continue;
     if (t.flags?.includes("nuclear") && !hasWonder(state, city.owner, "manhattan_project")) continue;
     out.push({ id: t.id, missing: held ? missingResources(state, city.owner, t.id, held) : [] });

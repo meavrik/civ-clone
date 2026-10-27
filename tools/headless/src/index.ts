@@ -94,6 +94,8 @@ export interface GameConfig {
   wideCapital?: boolean;
   /** The planner AI's habits before version 38 (`GameState.oldPlanner`). */
   oldPlanner?: boolean;
+  /** No unit retires (`GameState.lastingUnits`). */
+  lastingUnits?: boolean;
 }
 
 export interface PlayerStats {
@@ -196,6 +198,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.safeTriremes ? { safeTriremes: true } : {}),
     ...(config.wideCapital ? { wideCapital: true } : {}),
     ...(config.oldPlanner ? { oldPlanner: true } : {}),
+    ...(config.lastingUnits ? { lastingUnits: true } : {}),
   };
 }
 

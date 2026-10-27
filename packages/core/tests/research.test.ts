@@ -10,8 +10,12 @@ import {
   BUILDINGS,
   computeCity,
   createUnit,
+  defaultProduction,
+  discover,
   governmentsAvailable,
   lastTurnEvents,
+  loadSave,
+  makeSave,
   newGame,
   researchCost,
   Terrain,
@@ -127,6 +131,48 @@ describe("research", () => {
     expect(ids()).toContain("colossus");
     c.wonders.push("colossus");
     expect(ids()).not.toContain("colossus");
+  });
+
+  it("retires Militia with Gunpowder: off the list, a city building them turns to its stoutest defender; old saves keep them", () => {
+    const s = flatWorld();
+    const p = s.players[0]!;
+    p.advances.push("bronze_working");
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    const ids = () => buildOptions(s, c).map((o) => o.id);
+    const militia = createUnit(s, "militia", 0, 10, 10, c.id);
+    expect(c.production).toEqual({ kind: "unit", id: "militia" });
+    expect(ids()).toContain("militia");
+
+    discover(s, 0, "gunpowder");
+    expect(ids()).not.toContain("militia");
+    expect(applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id: "militia" } }).ok).toBe(false);
+    // Musketeers wait on Saltpeter this flat world lacks: the Phalanx stands best.
+    expect(c.production).toEqual({ kind: "unit", id: "phalanx" });
+    expect(s.units).toContain(militia); // those in the field stay
+    // A city founded now starts on it too; with Saltpeter to hand, on Musketeers.
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 20, 10).id });
+    expect(s.cities[1]!.production).toEqual({ kind: "unit", id: "phalanx" });
+    s.noResources = true;
+    expect(defaultProduction(s, c)).toEqual({ kind: "unit", id: "musketeers" });
+
+    // An advance handed over (not discovered) retires them by the city's next turn.
+    s.noResources = false;
+    p.advances.splice(p.advances.indexOf("gunpowder"), 1);
+    c.production = { kind: "unit", id: "militia" };
+    c.shields = 50;
+    p.advances.push("gunpowder");
+    applyCommand(s, { type: "endTurn" });
+    expect(s.units.filter((u) => u.homeCity === c.id && u.type === "militia")).toEqual([militia]);
+
+    // Saves before version 39 keep them.
+    const old = flatWorld();
+    old.lastingUnits = true;
+    old.players[0]!.advances.push("bronze_working", "gunpowder");
+    applyCommand(old, { type: "found", unit: createUnit(old, "settlers", 0, 10, 10).id });
+    expect(buildOptions(old, old.cities[0]!).map((o) => o.id)).toContain("militia");
+    expect(old.cities[0]!.production).toEqual({ kind: "unit", id: "militia" });
+    expect(loadSave({ ...makeSave(newGame(7), {}, []), version: 38 as const }, () => {}).state.lastingUnits).toBe(true);
   });
 });
 

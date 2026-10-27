@@ -365,6 +365,8 @@ export interface GameState {
    * six), a wonder city per six cities starts its wonder first, and spare shields go to it as caravans.
    */
   oldPlanner?: boolean;
+  /** No unit retires (`UnitTypeRule.obsolete`): Militia stay on offer after Gunpowder, as before version 39. */
+  lastingUnits?: boolean;
   /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.

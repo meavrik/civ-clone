@@ -1128,6 +1128,14 @@ audience and between computer civs.
    (0-16, 121 vs 246 before), overseas cities 1.1 a planner seat, all replaying exactly.
    Legion 3/1, Musketeers 2/3, Riflemen 3/5 follow the ruleset even though the 1991 manual is often
    quoted as 4/2, 3/3, 5/4.
+   Retired units (`UnitTypeRule.obsolete`, the advance that ends one; asked for 2026-10-27: "when get
+   gunpowder - remove militia from the options"): Militia retire with Gunpowder. No city of that civ builds
+   them (`unitRetired`, read by `unitChoices`, so the build menu and `setProduction`), and a city building
+   them as the advance comes (`discover`, a trade, the Debug grant; else at its turn) turns to its default
+   (`defaultProduction`: Militia, or once they are retired the stoutest land defender it can build now, the
+   cheaper on a tie; also what a new or taken city starts on and a city turns to after an improvement or
+   wonder); Militia in the field stay. Saves before version 39 load with `lastingUnits` (headless
+   `--lasting-units`).
    Unit upkeep (`unitSupport`, `freeUnits` in `cities.ts`, `freeUnits` per government in
    `rules/governments.ts`; since save version 29, asked for 2026-10-24: "units should take resources
    from the city, otherwise can generate infinite units and fast"): a city supports a fixed number of

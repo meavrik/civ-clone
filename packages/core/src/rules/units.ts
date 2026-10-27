@@ -30,6 +30,12 @@ export interface UnitTypeRule {
    * on its land or by a trade, when it is set and when it is finished. Unread in saves before version 33.
    */
   needs?: string[];
+  /**
+   * The advance that retires it (since save version 39, asked for 2026-10-27: "when get gunpowder - remove
+   * militia from the options"): once its civilization knows it, no city of theirs builds it, and one building
+   * it turns to the city's default (`unitRetired`, `defaultProduction`). Units already in the field stay.
+   */
+  obsolete?: string;
   /** Hit points at full health. */
   hp: number;
   /** Hit points each round it wins takes off the enemy. */
@@ -74,7 +80,7 @@ const U = (
  */
 export const UNIT_TYPES: UnitTypeRule[] = [
   U("settlers", "Settlers", 0, 1, 1, 40, "land", { flags: ["settler"] }),
-  U("militia", "Militia", 1, 1, 1, 10),
+  U("militia", "Militia", 1, 1, 1, 10, "land", { obsolete: "gunpowder" }),
   U("phalanx", "Phalanx", 1, 2, 1, 20, "land", { requires: "bronze_working" }),
   U("legion", "Legion", 3, 1, 1, 20, "land", { requires: "iron_working", needs: ["Iron"], barbarian: { as: ["sea", "build"] } }),
   U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding", needs: ["Horses"], sight: 2, sightSince: 30, barbarian: { as: ["land"] } }),

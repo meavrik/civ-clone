@@ -1,4 +1,4 @@
-import { cityAt, hasWonder } from "./cities.js";
+import { cityAt, defaultProduction, hasWonder } from "./cities.js";
 import { barbarianUnits } from "./barbarians.js";
 import { atWar } from "./diplomacy.js";
 import { BARBARIANS } from "./rules/barbarians.js";
@@ -184,7 +184,7 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
   city.specialists = [];
   city.food = 0;
   city.shields = 0;
-  city.production = { kind: "unit", id: u.owner === state.barbarians ? barbarianUnits(state, "build")[0] ?? "militia" : "militia" };
+  city.production = u.owner === state.barbarians ? { kind: "unit", id: barbarianUnits(state, "build")[0] ?? "militia" } : defaultProduction(state, city);
   // Its moods start afresh with its new master: no riots on the record, no festival.
   city.disorder = false;
   city.unrest = 0;

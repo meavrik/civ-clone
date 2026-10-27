@@ -108,6 +108,8 @@ export interface NewGameOptions extends MapGenOptions {
   quietLeaders?: boolean;
   /** The planner AI's habits before version 38 (see `GameState.oldPlanner`). Old saves load with it. */
   oldPlanner?: boolean;
+  /** No unit retires (see `GameState.lastingUnits`). Old saves load with it. */
+  lastingUnits?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -292,6 +294,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.noGoodwill ? { noGoodwill: true } : {}),
     ...(opts.quietLeaders ? { quietLeaders: true } : {}),
     ...(opts.oldPlanner ? { oldPlanner: true } : {}),
+    ...(opts.lastingUnits ? { lastingUnits: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

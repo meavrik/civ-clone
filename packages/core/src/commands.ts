@@ -23,6 +23,7 @@ import {
   weakestWorked,
   type CityTurnEvent,
   shieldsAfterChange,
+  retireProduction,
 } from "./cities.js";
 import { maybeSpawnBarbarians } from "./barbarians.js";
 import { captureCity, checkElimination, resolveCombat } from "./combat.js";
@@ -385,6 +386,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       if (!them || !hasContact(state, me.id, them.id)) return { ok: false, reason: "no contact" };
       if (!me.advances.includes(cmd.advance)) return { ok: false, reason: "we don't know that" };
       if (!them.advances.includes(cmd.advance)) them.advances.push(cmd.advance);
+      retireProduction(state, them.id);
       return { ok: true };
     }
     case "exchangeAdvances": {
@@ -393,6 +395,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       if (!them || !hasContact(state, me.id, them.id)) return { ok: false, reason: "no contact" };
       if (!me.advances.includes(cmd.give) || !them.advances.includes(cmd.receive)) return { ok: false, reason: "invalid exchange" };
       if (!them.advances.includes(cmd.give)) them.advances.push(cmd.give);
+      retireProduction(state, them.id);
       discover(state, me.id, cmd.receive);
       return { ok: true };
     }
@@ -1043,6 +1046,7 @@ function applyCheat(state: GameState, cheat: Cheat): CommandResult {
     case "allAdvances":
       // Straight into the list: one discovery screen per advance would be a long evening.
       for (const a of advancesFor(state)) if (!p.advances.includes(a.id)) p.advances.push(a.id);
+      retireProduction(state, p.id);
       p.researching = null;
       return { ok: true };
     case "production":
@@ -1349,6 +1353,8 @@ export function discover(state: GameState, player: number, id: string): void {
   const p = state.players[player]!;
   if (p.advances.includes(id)) return;
   p.advances.push(id);
+  // Its cities building a unit this retires turn to their default.
+  retireProduction(state, player);
   lastTurnEvents.push({ kind: "discovered", advance: id });
   void advance(id);
 }
