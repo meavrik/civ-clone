@@ -264,7 +264,10 @@ Never ship the original's sprites, palette art, fonts or text.
   City spacing (asked for 2026-10-22: AI cities went down two or three squares apart): a new city keeps
   `CITY_SPACING` (4 squares from its own cities, 5 from anyone else's; `roomForCity`) at every founding
   (listed sites, a settler standing on a fit square, a first city, colonists put ashore), and two settlers
-  never aim within 4 of each other. The rules still allow two squares (the player may). Saves before version
+  never aim within 4 of each other. The rules allow three squares, two between (`CITY_MIN_DISTANCE` in
+  `canFoundCity`; since save version 34, asked for 2026-10-27: the player could found two squares out), and settlers
+  never fortify (the `fortify` command refuses them; their F builds a fortress, as in the original); saves before
+  34 load with `looseSettlers` (headless `--loose-settlers`): two squares, fortified settlers. Saves before version
   22 load with `packedCities` (the old habit, so their AI turns replay; headless `--packed-cities`).
   Head to head (planner vs v2, 16 x 300): packed 13-3, score 136 vs 94, cities 15.9 vs 7.1; spaced
   12-4, 124 vs 99, cities 13.0 vs 8.4 (4 from every city was worse: 10-6, 116 vs 104).
@@ -524,6 +527,12 @@ Never ship the original's sprites, palette art, fonts or text.
   part with no action (4 s); retro's `panelLayout` places the panel's rows for drawing and hit tests alike
   (`statusPartAt`, `Renderer.statusPartAt`). A click on tax, luxuries or science opens the rates. Disbanding
   (Shift+D, Orders > Disband) asks "Are you sure?" first, No by default (`confirmDisband`).
+  A unit's orders (`unitOrders` in the web app; asked for 2026-10-27) end with Disband, in red (`MenuState.danger`:
+  a red row, lit dark red, or a red-lettered button on the phone), then Pillage last; settlers have no Fortify,
+  and Found city stands faded ("Found city: too close", `MenuState.disabled`) within `CITY_MIN_DISTANCE` of a
+  city (B says which city, beside the settlers); a job that changes the land says so ("Plant forest", "Clear to
+  plains": mining grassland, plains, swamp or jungle grows forest, as in the original; nothing mines forest,
+  tundra or arctic, so no Mine there).
   Width: the retro main screen draws as wide as its surface (`viewAcross`: the panel and bar as ever, the
   map's viewport taking the rest), menus, prompts and the status line centre on the surface they are
   drawn on, and the menu hit tests take the width (default 320); the web game draws 320 wide, the mobile

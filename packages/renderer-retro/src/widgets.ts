@@ -153,7 +153,7 @@ export function hideArtUnder(s: Surface, r: { x: number; y: number; w: number; h
  * choice Enter takes) is the same stone warmed to parchment gold, grain and bevel kept (`litStone`;
  * since 2026-10-25, asked for: the whitened, speckled face ringed in gold was "not good").
  */
-export function drawButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true, primary = false, scale: 1 | 2 = 1): void {
+export function drawButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true, primary = false, scale: 1 | 2 = 1, danger = false): void {
   if (primary && enabled) litStone(s, x, y, w, h);
   else {
     stipple(s, x + 1, y + 1, w - 2, h - 2, "panel");
@@ -162,7 +162,8 @@ export function drawButton(s: Surface, x: number, y: number, w: number, h: numbe
     s.hline(x + 1, y + h - 1, w - 1, shade("panel", 1));
     s.vline(x + w - 1, y + 1, h - 1, shade("panel", 1));
   }
-  const ink = !enabled ? FADED : INK;
+  // A button that undoes something for good (Disband) says so in red.
+  const ink = !enabled ? FADED : danger ? BAD : INK;
   // A label twice the font's size (the phone's setup questions) stands on a line twice as tall.
   if (scale === 2) drawTextLarge(s, x + Math.floor((w - textWidthLarge(label)) / 2), y + Math.floor((h - 2 * FONT_HEIGHT) / 2) + 1, label, ink);
   else drawText(s, x + Math.floor((w - textWidth(label)) / 2), y + Math.floor((h - FONT_HEIGHT) / 2) + 1, label, ink);
@@ -434,20 +435,22 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
   m.items.forEach((item, i) => {
     const off = m.disabled?.includes(i) === true;
     const sel = i === m.selected && !off;
+    const danger = m.danger?.includes(i) === true;
     if (buttons) {
-      drawButton(s, bx, itemsY + 1 + i * (size.button + size.buttonGap), bw, size.button, item, !off, sel, t);
+      drawButton(s, bx, itemsY + 1 + i * (size.button + size.buttonGap), bw, size.button, item, !off, sel, t, danger);
       return;
     }
     if (i < top || i >= top + rows) return;
     const ry = itemsY + (i - top) * row;
-    if (sel) s.rect(x + 4, ry - 1, rowW, row, shade("azure", 2));
+    // A row that undoes something for good is red, lit in dark red.
+    if (sel) s.rect(x + 4, ry - 1, rowW, row, danger ? shade("brick", 2) : shade("azure", 2));
     // A unit's sprite before the row, the words (and the sprite) in the middle of the row's height.
     const unit = m.units?.[i];
     const ty = unit ? ry + Math.floor((row - lineH) / 2) - 1 : ry + Math.max(0, Math.floor((row - lineH - 1) / 2));
     if (unit) s.blit(unitSprite(unit.type, slotColor(unit.color)), x + 8, ry + Math.floor((row - UNIT_ROW) / 2), SPRITE_CLEAR);
-    write(x + 10 + (unit ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : C.BLACK!);
+    write(x + 10 + (unit ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : danger ? BAD : C.BLACK!);
     const r = m.right?.[i];
-    if (r) write(x + 4 + rowW - 6 - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? shade("azure", 7) : DIM);
+    if (r) write(x + 4 + rowW - 6 - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("brick", 6) : shade("azure", 7)) : danger ? BAD : DIM);
   });
   if (scrolls) drawScrollBar(s, m, l);
 }

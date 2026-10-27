@@ -385,6 +385,8 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       return { ok: true };
     case "fortify":
       if (unitType(u.type).domain !== "land") return { ok: false, reason: "only land units fortify" };
+      // Settlers never fortify (their F builds a fortress), as in the original; old saves let them.
+      if (unitType(u.type).flags?.includes("settler") && !state.looseSettlers) return { ok: false, reason: "settlers do not fortify" };
       u.order = { kind: "fortifying" };
       selectNextUnit(state, u.id);
       return { ok: true };

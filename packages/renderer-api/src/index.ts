@@ -252,6 +252,8 @@ export interface MenuState {
   enter?: number | undefined;
   /** Rows that cannot be picked now (Revolution! with no government to turn to): drawn faded, never hit. */
   disabled?: number[];
+  /** Rows that undo something for good (a unit's Disband): drawn in warning red, as a row or a button. Modern ignores it. */
+  danger?: number[];
   /**
    * A unit's sprite before each row (the stack chooser, asked for 2026-10-24: a click on a square
    * holding several of our units lists them to pick from): its type and its owner's colour slot.

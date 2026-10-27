@@ -328,6 +328,12 @@ export interface GameState {
    * (`UnitTypeRule.needs` unread), as before version 33.
    */
   noResources?: boolean;
+  /**
+   * Settlers as before version 34: they fortify like soldiers, and found a city two squares from
+   * another (only a neighbour refused). Since 34 they cannot fortify (F builds a fortress, as in the
+   * original) and a new city stands `CITY_MIN_DISTANCE` (3) squares from every city.
+   */
+  looseSettlers?: boolean;
   /** Strategic resources traded between civilizations (`resources.ts`), oldest first. Missing: none. */
   resourceTrades?: ResourceTrade[];
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */

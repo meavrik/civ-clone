@@ -112,7 +112,7 @@ export function drawChoices(s: Surface, m: MenuState, style: ChoiceStyle): void 
     m.items.forEach((item, i) => {
       const b = l.buttons[i]!;
       const off = m.disabled?.includes(i) === true;
-      drawButton(t, b.x, b.y, b.w, b.h, item, !off, i === m.selected && !off, scale);
+      drawButton(t, b.x, b.y, b.w, b.h, item, !off, i === m.selected && !off, scale, m.danger?.includes(i) === true);
     });
   };
   if (m.enter !== undefined && m.enter < 1 && !m.anchor) drawEntering(s, m.enter, l, draw);

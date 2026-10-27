@@ -809,14 +809,23 @@ export function computeCity(state: GameState, city: City): CityReport {
   };
 }
 
+/**
+ * How near (squares, either way) the rules let any new city stand to another: three, two squares between
+ * them (since save version 34, asked for 2026-10-27: settlers founded cities two squares from another;
+ * `looseSettlers` saves refuse only a neighbour). The planner keeps `CITY_SPACING` (sites.ts), further.
+ */
+export const CITY_MIN_DISTANCE = 3;
+
+/** Why a city cannot be founded on (x, y), or null when it can. */
 export function canFoundCity(state: GameState, x: number, y: number): string | null {
   const t = getTile(state.map, x, y);
   if (!t) return "off map";
   if (t.terrain === Terrain.Ocean) return "cannot found at sea";
   if (cityAt(state, x, y)) return "a city is already here";
+  const near = state.looseSettlers ? 1 : CITY_MIN_DISTANCE - 1;
   for (const c of state.cities) {
     const dx = Math.min(Math.abs(c.x - x), state.map.width - Math.abs(c.x - x));
-    if (dx <= 1 && Math.abs(c.y - y) <= 1) return "too close to another city";
+    if (dx <= near && Math.abs(c.y - y) <= near) return "too close to another city";
   }
   return null;
 }

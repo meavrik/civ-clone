@@ -74,7 +74,8 @@ describe("planner AI", () => {
   it("does not found a city where its settlers stand two squares from one of ours, as it did in old saves", () => {
     const run = (packed: boolean): GameState => {
       const s = newGame(3, { opponents: 1 });
-      if (packed) s.packedCities = true;
+      // Saves that old load with the old settler rules too (`looseSettlers`: two squares apart).
+      if (packed) Object.assign(s, { packedCities: true, looseSettlers: true });
       s.cities = [];
       s.units = [];
       for (let y = 10; y < 30; y++) for (let x = 10; x < 40; x++) Object.assign(getTile(s.map, x, y)!, { terrain: Terrain.Grassland, river: false, special: false, continent: 77 });

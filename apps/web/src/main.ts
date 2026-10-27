@@ -17,6 +17,7 @@ import {
   sellPrice,
   whyNoSale,
   canFoundCity,
+  CITY_MIN_DISTANCE,
   exitSquare,
   canHelpWonder,
   canTradeRoute,
@@ -54,6 +55,8 @@ import {
   runAiPlayers,
   shipStats,
   Terrain,
+  TERRAIN_NAMES,
+  TERRAIN_RULES,
   traitMoves,
   trespassers,
   turnToYear,
@@ -1190,6 +1193,13 @@ function foundWithName(unit: number): void {
   const u = unitById(state, unit);
   if (!u) return;
   const why = canFoundCity(state, u.x, u.y);
+  if (why === "too close to another city") {
+    // A note beside the settlers names the city in the way (cities stand `CITY_MIN_DISTANCE` apart).
+    const near = state.cities.find((c) => mapDistance(state.map, c.x, c.y, u.x, u.y) < CITY_MIN_DISTANCE);
+    view.callout = { x: u.x, y: u.y, text: `Too close to ${near?.name ?? "another city"}: cities stand ${CITY_MIN_DISTANCE} squares apart` };
+    calloutUntil = performance.now() + CALLOUT_MS;
+    return;
+  }
   if (why) { say(why); return; }
   askText("Name the new city", defaultCityName(state, 0), (name) => {
     if (dispatch({ type: "found", unit, name })) { const c = cityAt(state, u.x, u.y); if (c) openCity(c.id); }
@@ -1416,8 +1426,8 @@ function openDiplomatMenu(unit: number, cityId: number): void {
   menu(`${city.name} (${state.players[city.owner]!.name}): our diplomat...`, items.map((i) => i[0]), (i) => items[i]?.[1]());
 }
 
-/** A menu entry: its label, the key that does the same on the map, and what it does. */
-type MenuEntry = [label: string, key: string, run: () => void, disabled?: boolean];
+/** A menu entry: its label, the key that does the same on the map, what it does, whether it is faded, whether it undoes something for good (red). */
+type MenuEntry = [label: string, key: string, run: () => void, disabled?: boolean, danger?: boolean];
 
 /** What the active unit can be ordered to do, with each order's key. */
 function unitOrders(unit: number): MenuEntry[] {
@@ -1426,15 +1436,21 @@ function unitOrders(unit: number): MenuEntry[] {
   const w = workOptions(state, u);
   const type = unitType(u.type);
   const items: MenuEntry[] = [];
-  if (type.flags?.includes("settler") && canFoundCity(state, u.x, u.y) === null) items.push(["Found city", "B", () => foundWithName(unit)]);
-  if (w.irrigate !== undefined) items.push([`Irrigate (${w.irrigate} turns)`, "I", () => dispatch({ type: "work", unit, work: "irrigate" })]);
-  if (w.mine !== undefined) items.push([`Mine (${w.mine} turns)`, "M", () => dispatch({ type: "work", unit, work: "mine" })]);
+  if (type.flags?.includes("settler")) {
+    // Too near another city, Found city stands faded and says why (cities stand `CITY_MIN_DISTANCE` apart).
+    const why = canFoundCity(state, u.x, u.y);
+    if (why === null) items.push(["Found city", "B", () => foundWithName(unit)]);
+    else if (why === "too close to another city" && u.aboard === null) items.push(["Found city: too close", "B", () => {}, true]);
+  }
+  // Irrigating forest, swamp or jungle and mining grassland, plains, swamp or jungle change the land, as in the original: the order says so.
+  const rule = TERRAIN_RULES[getTile(state.map, u.x, u.y)!.terrain];
+  const into = (becomes: Terrain | undefined, plain: string, changed: string) => (becomes === undefined ? plain : `${changed} ${TERRAIN_NAMES[becomes].toLowerCase()}`);
+  if (w.irrigate !== undefined) items.push([`${into(rule.irrigate?.becomes, "Irrigate", "Clear to")} (${w.irrigate} turns)`, "I", () => dispatch({ type: "work", unit, work: "irrigate" })]);
+  if (w.mine !== undefined) items.push([`${into(rule.mine?.becomes, "Mine", "Plant")} (${w.mine} turns)`, "M", () => dispatch({ type: "work", unit, work: "mine" })]);
   if (w.road !== undefined) items.push([`Road (${w.road} turns)`, "R", () => dispatch({ type: "work", unit, work: "road" })]);
   if (w.railroad !== undefined) items.push([`Railroad (${w.railroad} turns)`, "R", () => dispatch({ type: "work", unit, work: "railroad" })]);
   if (w.fortress !== undefined) items.push([`Fortress (${w.fortress} turns)`, "F", () => dispatch({ type: "work", unit, work: "fortress" })]);
   if (w.clean !== undefined) items.push([`Clean pollution (${w.clean} turns)`, "P", () => dispatch({ type: "work", unit, work: "clean" })]);
-  const loot = pillageTarget(state, u);
-  if (loot) items.push([`Pillage ${loot}`, "P", () => dispatch({ type: "pillage", unit })]);
   if (type.flags?.includes("caravan")) {
     const c = cityAt(state, u.x, u.y);
     if (c && canHelpWonder(state, u, c) === null) items.push(["Help build wonder", "", () => dispatch({ type: "helpWonder", unit })]);
@@ -1447,13 +1463,17 @@ function unitOrders(unit: number): MenuEntry[] {
       items.push([`Diplomat: ${c.name}`, "", () => openDiplomatMenu(unit, c.id)]);
     }
   }
-  if (type.domain === "land") items.push(["Fortify", "F", () => dispatch({ type: "fortify", unit })]);
+  // Settlers never fortify: their F builds a fortress, as in the original.
+  if (type.domain === "land" && !type.flags?.includes("settler")) items.push(["Fortify", "F", () => dispatch({ type: "fortify", unit })]);
   items.push(["Sentry", "S", () => dispatch({ type: "sentry", unit })]);
   const here = cityAt(state, u.x, u.y);
   if (here && here.owner === u.owner && u.homeCity !== here.id) items.push([`Home city: ${here.name}`, "H", () => setHome(unit)]);
   items.push(["Wait", "W", () => dispatch({ type: "wait", unit })]);
   items.push(["Skip turn", "Space", () => dispatch({ type: "skip", unit })]);
-  items.push(["Disband", "Shift+D", () => confirmDisband(unit)]);
+  items.push(["Disband", "Shift+D", () => confirmDisband(unit), false, true]);
+  // Pillage last, after Disband (asked for 2026-10-27), so it is never picked by a slip.
+  const loot = pillageTarget(state, u);
+  if (loot) items.push([`Pillage ${loot}`, "P", () => dispatch({ type: "pillage", unit })]);
   return items;
 }
 
@@ -1483,8 +1503,8 @@ function openActionMenu(unit: number): void {
   screenState = {
     kind: "menu",
     under: screenState,
-    menu: { title: `${unitType(u.type).name}: orders`, items: items.map((i) => i[0]), right: items.map((i) => i[1]), selected: 0 },
-    onPick: (i) => { items[i]?.[2](); followActive(true); },
+    menu: { title: `${unitType(u.type).name}: orders`, items: items.map((i) => i[0]), right: items.map((i) => i[1]), selected: items.findIndex((e) => !e[3]), ...entryMarks(items) },
+    onPick: (i) => { if (items[i]?.[3]) return; items[i]?.[2](); followActive(true); },
   };
 }
 
@@ -1526,7 +1546,7 @@ function barEntries(index: number): MenuEntry[] {
     case "Orders": {
       const active = state.activeUnit;
       if (active === null) return [["End Turn", "Enter", () => endTurn()]];
-      return unitOrders(active).map(([l, k, run]): MenuEntry => [l, k, () => { run(); followActive(true); }]);
+      return unitOrders(active).map(([l, k, run, off = false, danger = false]): MenuEntry => [l, k, () => { run(); followActive(true); }, off, danger]);
     }
     case "Diplomacy": {
       // Every civilization met: its leader, how we stand, and a click opens its card.
@@ -1579,6 +1599,11 @@ function cheat(c: Cheat, message?: string): void {
   if (events.length) presentEvents(events);
 }
 
+/** A menu's faded rows and its red ones, from its entries. */
+function entryMarks(items: MenuEntry[]): { disabled: number[]; danger: number[] } {
+  return { disabled: items.flatMap((e, k) => (e[3] ? [k] : [])), danger: items.flatMap((e, k) => (e[4] ? [k] : [])) };
+}
+
 /** Open a menu bar dropdown over the map. */
 function openBarMenu(index: number): void {
   const n = MENU_BAR.length;
@@ -1588,7 +1613,7 @@ function openBarMenu(index: number): void {
     kind: "menu",
     under: { kind: "map" },
     bar: i,
-    menu: { title: "", items: items.map((e) => e[0]), right: items.map((e) => e[1]), selected: items.findIndex((e) => !e[3]), anchor: renderer.menuBarAnchor(i), disabled: items.flatMap((e, k) => (e[3] ? [k] : [])) },
+    menu: { title: "", items: items.map((e) => e[0]), right: items.map((e) => e[1]), selected: items.findIndex((e) => !e[3]), anchor: renderer.menuBarAnchor(i), ...entryMarks(items) },
     onPick: (k) => { if (!items[k]?.[3]) items[k]?.[2](); },
   };
 }
@@ -2337,7 +2362,9 @@ function mapKey(e: KeyboardEvent): void {
     case "KeyW": order({ type: "wait", unit: active! }); break;
     case "KeyF": {
       const u = active !== null ? unitById(state, active) : undefined;
-      order(u && workOptions(state, u).fortress !== undefined ? { type: "work", unit: active!, work: "fortress" } : { type: "fortify", unit: active! });
+      // Settlers build a fortress (a refusal says what it needs), never fortify; soldiers fortify.
+      const settler = u && unitType(u.type).flags?.includes("settler");
+      order(u && (settler || workOptions(state, u).fortress !== undefined) ? { type: "work", unit: active!, work: "fortress" } : { type: "fortify", unit: active! });
       break;
     }
     case "KeyS": order({ type: "sentry", unit: active! }); break;

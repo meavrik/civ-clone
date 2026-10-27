@@ -86,6 +86,8 @@ export interface GameConfig {
   simpleVeterans?: boolean;
   /** No strategic resources or deposits: units built from their advance alone (`GameState.noResources`). */
   noResources?: boolean;
+  /** Settlers fortify and found cities two squares apart (`GameState.looseSettlers`). */
+  looseSettlers?: boolean;
 }
 
 export interface PlayerStats {
@@ -184,6 +186,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.cheapWonderBuy ? { cheapWonderBuy: true } : {}),
     ...(config.simpleVeterans ? { simpleVeterans: true } : {}),
     ...(config.noResources ? { noResources: true } : {}),
+    ...(config.looseSettlers ? { looseSettlers: true } : {}),
   };
 }
 

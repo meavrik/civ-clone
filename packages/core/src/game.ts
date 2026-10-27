@@ -94,6 +94,8 @@ export interface NewGameOptions extends MapGenOptions {
   sizeFreeUnits?: boolean;
   /** No strategic resources or deposits (see `GameState.noResources`). Old saves load with it. */
   noResources?: boolean;
+  /** Settlers fortify and found cities two squares apart (see `GameState.looseSettlers`). Old saves load with it. */
+  looseSettlers?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -271,6 +273,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.noInfluenceYields ? { noInfluenceYields: true } : {}),
     ...(opts.sizeFreeUnits ? { sizeFreeUnits: true } : {}),
     ...(opts.noResources ? { noResources: true } : {}),
+    ...(opts.looseSettlers ? { looseSettlers: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

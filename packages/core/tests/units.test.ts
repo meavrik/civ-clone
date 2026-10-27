@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   applyCommand,
+  canFoundCity,
   checkMove,
   createUnit,
+  foundCity,
   getTile,
   lastTurnEvents,
+  loadSave,
+  makeSave,
   newGame,
   Terrain,
   type GameState,
@@ -105,6 +109,29 @@ describe("settler work and turns", () => {
     applyCommand(s, { type: "endTurn" });
     expect(a.order.kind).toBe("fortified");
     expect(s.activeUnit).toBe(b.id); // fortified units don't ask for orders
+  });
+});
+
+describe("settlers", () => {
+  it("found a city only three squares from every other, and never fortify; old saves keep two squares and fortified settlers", () => {
+    for (const loose of [false, true]) {
+      const s = flatWorld();
+      if (loose) s.looseSettlers = true;
+      s.cities = [];
+      foundCity(s, 1, 20, 20);
+      expect(canFoundCity(s, 21, 21)).toBe("too close to another city");
+      expect(canFoundCity(s, 22, 18)).toBe(loose ? null : "too close to another city");
+      expect(canFoundCity(s, 23, 20)).toBeNull();
+      // Round the wrap too.
+      foundCity(s, 1, 0, 10);
+      expect(canFoundCity(s, s.map.width - 2, 10)).toBe(loose ? null : "too close to another city");
+      const settlers = createUnit(s, "settlers", 0, 30, 30);
+      expect(applyCommand(s, { type: "fortify", unit: settlers.id }).ok).toBe(loose);
+      const soldier = createUnit(s, "militia", 0, 32, 30);
+      expect(applyCommand(s, { type: "fortify", unit: soldier.id }).ok).toBe(true);
+    }
+    expect(loadSave({ ...makeSave(newGame(7), {}, []), version: 33 as const }, () => {}).state.looseSettlers).toBe(true);
+    expect(loadSave(makeSave(newGame(7), {}, []), () => {}).state.looseSettlers).toBeUndefined();
   });
 });
 
