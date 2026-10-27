@@ -2496,16 +2496,35 @@ const MOVES: Record<string, [number, number]> = {
 /**
  * A Trireme steered onto deep water is warned beside it once its slide is over: back by a coast before
  * the turn ends, or it sinks. It comes after the note of places found on the way, so it is the one left.
+ * Once a game (asked for 2026-10-27: "show warning message - once in a game"; `deepWaterWarned`).
  */
 function warnDeepWater(unit: number): void {
   const u = unitById(state, unit);
-  if (!u || !hugsCoast(state, unitType(u.type)) || !deepWater(state, u.x, u.y)) return;
+  if (!u || !hugsCoast(state, unitType(u.type)) || !deepWater(state, u.x, u.y) || deepWaterWarned()) return;
+  markDeepWaterWarned();
   const name = unitType(u.type).name;
   const text = u.movesLeft > 0 ? `Deep water! End the turn beside land, or the ${name} sinks` : `Deep water! The ${name} will sink as the turn ends`;
   whenStill(() => {
     view.callout = { x: u.x, y: u.y, text };
     calloutUntil = performance.now() + CALLOUT_MS;
   });
+}
+
+/** The games whose deep-water warning has been shown, by seed, the latest `DEEP_WATER_KEEP` kept per browser, so a game loaded again stays quiet. */
+const DEEP_WATER_KEY = "epochs.deepWater";
+const DEEP_WATER_KEEP = 20;
+function warnedSeeds(): number[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(DEEP_WATER_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is number => typeof x === "number") : [];
+  } catch { return []; }
+}
+function deepWaterWarned(): boolean {
+  return warnedSeeds().includes(state.seed);
+}
+function markDeepWaterWarned(): void {
+  const seeds = [...warnedSeeds().filter((x) => x !== state.seed), state.seed].slice(-DEEP_WATER_KEEP);
+  try { localStorage.setItem(DEEP_WATER_KEY, JSON.stringify(seeds)); } catch { /* private mode: it may show again */ }
 }
 
 function tryMove(unit: number, dx: number, dy: number): void {

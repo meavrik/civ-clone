@@ -1120,7 +1120,8 @@ audience and between computer civs.
    news then leaves `lostAtSea` out. Its gotos (`findPath`'s `coastalRoute`: breadth-first over
    square and steps taken this turn) may cross deep water mid-turn, a narrow strait, but never stop on it
    at a turn's end, and never aim for it; a meeting that would halt it there lets it sail on; steered onto
-   it by hand, a note beside it warns ("Deep water! End the turn beside land, or the Trireme sinks"). The
+   it by hand, a note beside it warns ("Deep water! End the turn beside land, or the Trireme sinks"), once a
+   game (asked for 2026-10-27; `deepWaterWarned`: the games warned, by seed, in `epochs.deepWater`). The
    planner's triremes keep within two squares of land as before and never make for deep water.
    `hugsCoast`; saves before version 35 load with `safeTriremes` (headless `--safe-triremes`). Head to head
    (planner vs v2, 16 x 300, versions 34 and 35: three-square cities, sinking triremes): 3-13, score 137 vs 198
