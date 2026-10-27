@@ -176,6 +176,20 @@ describe("triremes", () => {
     expect([boat.x, boat.y]).toEqual([15, 21]);
     expect(t.units).toContain(boat);
   });
+
+  it("are not halted on deep water by meeting a new people, as other units are", () => {
+    const s = newGame(1, { opponents: 1, classicCivs: true });
+    for (const t of s.map.tiles) Object.assign(t, { terrain: Terrain.Grassland, river: false, hut: false });
+    for (let y = 10; y <= 30; y++) for (let x = 10; x <= 30; x++) getTile(s.map, x, y)!.terrain = Terrain.Ocean;
+    s.units = [];
+    s.cities = [];
+    const ship = createUnit(s, "trireme", 0, 10, 20);
+    createUnit(s, "trireme", 1, 12, 21);
+    expect(applyCommand(s, { type: "move", unit: ship.id, dx: 1, dy: 0 }).ok).toBe(true);
+    expect(lastTurnEvents).toContainEqual({ kind: "contact", player: 1 });
+    expect(deepWater(s, 11, 20)).toBe(true);
+    expect(ship.movesLeft).toBeGreaterThan(0);
+  });
 });
 
 describe("camping", () => {

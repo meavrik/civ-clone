@@ -544,8 +544,9 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
   noteTrespass(state, u, wasOn);
   const met = detectContacts(state, u.owner);
   for (const id of met) lastTurnEvents.push({ kind: "contact", player: id });
-  // Meeting a new civilization stops the unit there for the turn, so both sides see whom they met.
-  if (met.length && !state.farContact) u.movesLeft = 0;
+  // Meeting a new civilization stops the unit there for the turn, so both sides see whom they met
+  // (not a Trireme on deep water, which would sink there).
+  if (met.length && !state.farContact && !(hugsCoast(state, unitType(u.type)) && deepWater(state, u.x, u.y))) u.movesLeft = 0;
   if (u.movesLeft === 0 || r.board !== undefined) selectNextUnit(state, u.id);
   return { ok: true };
 }

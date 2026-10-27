@@ -76,14 +76,14 @@ describe("the city screen's improvements", () => {
     const state = cityWithBuildings();
     const city = state.cities[0]!;
     city.buildings = ["palace", "temple", "granary"];
-    expect(improvementNote(state, city, "temple")).toBe("Temple: 1 gold a turn. Stop saves it, and stops it");
+    expect(improvementNote(state, city, "temple")).toBe("Temple: 1 gold a turn. Stop: no cost, no effect");
     expect(improvementNote(state, city, "palace")).toBe("The Palace costs nothing to keep");
     expect(improvementNote(state, city, "pyramids")).toBe("Pyramids: wonders cost nothing to keep");
     const s = Surface.screen();
     drawCityScreen(s, state, { city: city.id, hoverImprovement: { id: "temple", toggle: true } });
     writeFileSync(new URL("./out/city-improvements-hover.png", import.meta.url), encodePng(s, 3));
     expect(applyCommand(state, { type: "support", city: city.id, building: "temple", on: false }).ok).toBe(true);
-    expect(improvementNote(state, city, "temple")).toBe("Temple unsupported: Use pays 1 gold a turn");
+    expect(improvementNote(state, city, "temple")).toBe("Temple stopped: Use pays 1 gold a turn");
     const t = Surface.screen();
     drawCityScreen(t, state, { city: city.id, hoverImprovement: { id: "temple", toggle: true } });
     writeFileSync(new URL("./out/city-improvements-idle.png", import.meta.url), encodePng(t, 3));

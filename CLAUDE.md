@@ -1039,7 +1039,9 @@ audience and between computer civs.
    at a turn's end, and never aim for it; a meeting that would halt it there lets it sail on; steered onto
    it by hand, a note beside it warns ("Deep water! End the turn beside land, or the Trireme sinks"). The
    planner's triremes keep within two squares of land as before and never make for deep water.
-   `hugsCoast`; saves before version 35 load with `safeTriremes` (headless `--safe-triremes`).
+   `hugsCoast`; saves before version 35 load with `safeTriremes` (headless `--safe-triremes`). Head to head
+   (planner vs v2, 16 x 300, versions 34 and 35: three-square cities, sinking triremes): 3-13, score 137 vs 198
+   (0-16, 121 vs 246 before), overseas cities 1.1 a planner seat, all replaying exactly.
    Legion 3/1, Musketeers 2/3, Riflemen 3/5 follow the ruleset even though the 1991 manual is often
    quoted as 4/2, 3/3, 5/4.
    Unit upkeep (`unitSupport`, `freeUnits` in `cities.ts`, `freeUnits` per government in

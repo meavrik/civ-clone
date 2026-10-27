@@ -49,7 +49,7 @@ export function improvementNote(_state: GameState, city: City, id: string): stri
   if (city.wonders.includes(id)) return `${wonder(id).name}: wonders cost nothing to keep`;
   if (id === "palace") return "The Palace costs nothing to keep";
   const b = building(id);
-  if (city.idle?.includes(id)) return `${b.name} unsupported: Use pays ${b.upkeep} gold a turn`;
+  if (city.idle?.includes(id)) return `${b.name} stopped: Use pays ${b.upkeep} gold a turn`;
   if (!city.buildings.includes(id)) return "";
-  return `${b.name}: ${b.upkeep} gold a turn. Stop saves it, and stops it`;
+  return `${b.name}: ${b.upkeep} gold a turn. Stop: no cost, no effect`;
 }

@@ -2323,13 +2323,19 @@ const MOVES: Record<string, [number, number]> = {
   Numpad7: [-1, -1], Numpad9: [1, -1], Numpad1: [-1, 1], Numpad3: [1, 1],
 };
 
-/** A Trireme steered onto deep water is warned beside it: back by a coast before the turn ends, or it sinks. */
+/**
+ * A Trireme steered onto deep water is warned beside it once its slide is over: back by a coast before
+ * the turn ends, or it sinks. It comes after the note of places found on the way, so it is the one left.
+ */
 function warnDeepWater(unit: number): void {
   const u = unitById(state, unit);
   if (!u || !hugsCoast(state, unitType(u.type)) || !deepWater(state, u.x, u.y)) return;
   const name = unitType(u.type).name;
-  view.callout = { x: u.x, y: u.y, text: u.movesLeft > 0 ? `Deep water! End the turn beside land, or the ${name} sinks` : `Deep water! The ${name} will sink as the turn ends` };
-  calloutUntil = performance.now() + CALLOUT_MS;
+  const text = u.movesLeft > 0 ? `Deep water! End the turn beside land, or the ${name} sinks` : `Deep water! The ${name} will sink as the turn ends`;
+  whenStill(() => {
+    view.callout = { x: u.x, y: u.y, text };
+    calloutUntil = performance.now() + CALLOUT_MS;
+  });
 }
 
 function tryMove(unit: number, dx: number, dy: number): void {
