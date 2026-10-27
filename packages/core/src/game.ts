@@ -106,6 +106,8 @@ export interface NewGameOptions extends MapGenOptions {
   noGoodwill?: boolean;
   /** Computer leaders ask nothing of the player (see `GameState.quietLeaders`). Old saves load with it. */
   quietLeaders?: boolean;
+  /** The planner AI's habits before version 38 (see `GameState.oldPlanner`). Old saves load with it. */
+  oldPlanner?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -289,6 +291,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.askOnEntry ? { askOnEntry: true } : {}),
     ...(opts.noGoodwill ? { noGoodwill: true } : {}),
     ...(opts.quietLeaders ? { quietLeaders: true } : {}),
+    ...(opts.oldPlanner ? { oldPlanner: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

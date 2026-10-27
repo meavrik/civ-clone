@@ -683,9 +683,10 @@ function bestGovernment(state: GameState, ctx: Ctx): string {
   const avail = governmentsAvailable(state, ctx.me);
   const abroad = ctx.units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length;
   if (avail.includes("republic") && ctx.atWarWith.length === 0 && ctx.cities.length >= 6 && abroad <= 1 && ctx.turn >= 100 && ctx.military <= ctx.cities.length * 1.5) return "republic";
-  // Under the original's upkeep Monarchy pays a shield for every unit, while Despotism keeps as many free as
-  // each city's size: head to head, going from Despotism straight to the Republic won more. Old saves keep Monarchy.
-  if (avail.includes("monarchy") && state.looseUpkeep) return "monarchy";
+  // Under the upkeep of versions 8 to 28 Monarchy paid a shield for every unit, while Despotism kept as many free
+  // as each city's size: going from Despotism straight to the Republic won more. Since 29 Monarchy keeps three free
+  // to Despotism's two and lifts the -1 on rich squares, so the planner crowns a king again (`oldPlanner` saves do not).
+  if (avail.includes("monarchy") && (state.looseUpkeep || !state.oldPlanner)) return "monarchy";
   return "despotism";
 }
 
@@ -1200,6 +1201,15 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
   const affordsSettlers = state.sizeFreeUnits && !state.settlerShields ? (keep: number) => r.shieldSurplus >= keep : affords;
 
   if (here < wanted) return bestUnit(options, "defense");
+  // Since version 38 (not in `oldPlanner` saves) the wonder city of a settled empire at peace starts its wonder before
+  // settlers, ships or soldiers: a wonder counts as much as twenty citizens, and a rival may finish it first.
+  const retuned = !state.oldPlanner;
+  if (retuned && wonderCity && r.shields >= 5 && (ctx.threat.get(c.id) ?? 0) === 0 && (ctx.cities.length >= 8 || ctx.turn >= 120) && ctx.atWarWith.length === 0) {
+    for (const id of WONDER_ORDER) {
+      const w = pick("wonder", id);
+      if (w && (id !== "colossus" || coastal(state, c))) return w;
+    }
+  }
   // A ship to carry settlers overseas, from a port with no room left at home.
   const homeSites = ctx.wantMoreCities && sitesOn(state, ctx.sites(), c.x, c.y);
   if (ctx.ferries < ctx.ferriesWanted && !homeSites && coastal(state, c) && r.shields >= 2 && affords(2) && (ctx.threat.get(c.id) ?? 0) === 0 && ctx.wantOverseas()) {
@@ -1242,15 +1252,19 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
 
   // A young empire grabs land fast: up to half its city count in settlers at once, a third later.
   const allowance = ctx.cities.length < 8 ? Math.max(2, Math.ceil(ctx.cities.length / 2)) : Math.ceil(ctx.cities.length / 3);
+  // Every settler eats from its home: a small city feeding settlers on the road never grows. Since version 38 a city
+  // feeds one at a time (two from size six) before it trains another; `oldPlanner` saves trained any number.
+  const fed = retuned ? ctx.units.filter((u) => u.homeCity === c.id && isSettler(u)).length : 0;
+  const feeds = !retuned || fed < (c.size >= 6 ? 2 : 1);
   // Settlers for land this city can walk to, or (from a port) for a colony across the sea.
   const colonists = !homeSites && coastal(state, c) && ctx.overseasSettlers < 2 && ctx.wantOverseas();
-  if (colonists && settlersOut < allowance + 1 && r.foodSurplus >= 1 && c.size >= 3 && affordsSettlers(0)) {
+  if (colonists && feeds && settlersOut < allowance + 1 && r.foodSurplus >= 1 && c.size >= 3 && affordsSettlers(0)) {
     const s = pick("unit", "settlers");
     if (s) { ctx.overseasSettlers++; return s; }
   }
   const sitesLeft = homeSites;
   // Settlers off to found a city pay upkeep only until they do.
-  if (sitesLeft && settlersOut < allowance && r.foodSurplus >= 1 && (c.size >= 2 || r.foodSurplus >= 2) && affordsSettlers(0)) {
+  if (sitesLeft && feeds && settlersOut < allowance && r.foodSurplus >= 1 && (c.size >= 2 || r.foodSurplus >= 2) && affordsSettlers(0)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -1259,7 +1273,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     if (t) return t;
   }
   const workers = ctx.units.filter((u) => unitType(u.type).flags?.includes("settler") && u.order.kind === "work").length;
-  if (workers < ctx.workersWanted && c.size >= 3 && r.foodSurplus >= 2 && settlersOut <= allowance && affordsSettlers(1)) {
+  if (workers < ctx.workersWanted && feeds && c.size >= 3 && r.foodSurplus >= 2 && settlersOut <= allowance && affordsSettlers(1)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -1291,7 +1305,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     if (d) return d;
   }
   if (c.size >= 3 && r.shields >= 3 && threat === 0 && affords(1)) {
-    const toWonder = ctx.wonderSite !== null && ctx.wonderSite.id !== c.id && ctx.caravans < 3;
+    const toWonder = ctx.wonderSite !== null && ctx.wonderSite.id !== c.id && ctx.caravans < (retuned ? 2 + Math.floor(ctx.cities.length / 4) : 3);
     const toTrade = ctx.wonderSite === null && ctx.cities.length >= 6 && c.size >= 5 && c.routes.length < MAX_TRADE_ROUTES && ctx.caravans < 2 && tradePartner(state, ctx, c) !== null;
     if (toWonder || toTrade) {
       const cv = pick("unit", "caravan");
@@ -1324,7 +1338,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     const a = bestUnit(options, "attack", ctx.campaignFoot ? state : null);
     if (a) return a;
   }
-  if (sitesLeft && r.foodSurplus >= 1 && affordsSettlers(0)) {
+  if (sitesLeft && r.foodSurplus >= 1 && affordsSettlers(0) && (!retuned || (feeds && settlersOut < allowance))) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -1335,16 +1349,24 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
       if (w && (id !== "colossus" || coastal(state, c))) return w;
     }
   }
+  // Since version 38 spare shields ride to the wonder city as caravans before going into improvements, and never
+  // into ones that do nothing: a colosseum or cathedral where nobody is unhappy, a courthouse where little trade is lost.
+  if (retuned && ctx.wonderSite !== null && ctx.wonderSite.id !== c.id && threat === 0 && c.size >= 3 && affords(1) && ctx.caravans < 2 + Math.floor(ctx.cities.length / 3)) {
+    const cv = pick("unit", "caravan");
+    if (cv) return cv;
+  }
   if (!starved) {
     let cheapest: Production | undefined;
     for (const o of options) {
       if (o.kind !== "building" || !FALLBACK_BUILDINGS.has(o.id)) continue;
       if (o.id === "aqueduct" && c.size < 6) continue;
+      if (retuned && (o.id === "colosseum" || o.id === "cathedral") && r.unhappy === 0) continue;
+      if (retuned && o.id === "courthouse" && r.corruption < 2) continue;
       if (!cheapest || building(o.id).cost < building(cheapest.id).cost) cheapest = o;
     }
     if (cheapest) return cheapest;
   }
-  if (r.foodSurplus >= 2 && settlersOut + workers < ctx.workersWanted + (sitesLeft ? allowance : 0) && affordsSettlers(1)) {
+  if (r.foodSurplus >= 2 && feeds && settlersOut + workers < ctx.workersWanted + (sitesLeft ? allowance : 0) && affordsSettlers(1)) {
     const s = pick("unit", "settlers");
     if (s) return s;
   }
@@ -1361,10 +1383,12 @@ function manageCities(state: GameState, ctx: Ctx): void {
   const settlersOut = ctx.units.filter((u) => unitType(u.type).flags?.includes("settler") && u.order.kind !== "work").length;
   const army = ctx.units.filter(isAttacker).length;
   const military = ctx.units.filter(isMilitary).length;
-  // One wonder city, two once the empire is large; the best shield city that is not already on one.
+  // One wonder city, and one more for every six cities (since version 38; `oldPlanner` saves: two once the empire
+  // is large); the best shield city that is not already on one.
   const wonderBuilders = ctx.cities.filter((c) => c.production.kind === "wonder").length;
   let wonderCity: City | null = null;
-  if (wonderBuilders < (ctx.cities.length >= 12 ? 2 : 1)) {
+  const builders = state.oldPlanner ? (ctx.cities.length >= 12 ? 2 : 1) : 1 + Math.floor(ctx.cities.length / 6);
+  if (wonderBuilders < builders) {
     for (const c of ctx.cities) {
       if (c.production.kind === "wonder") continue;
       const r = ctx.reports.get(c.id)!;

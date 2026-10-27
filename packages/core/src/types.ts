@@ -358,6 +358,14 @@ export interface GameState {
   /** Computer leaders never demand tribute of the player, send gifts or ask for resources (`Proposal`), as before version 38. */
   quietLeaders?: boolean;
   /**
+   * The computer players' planner (AI v3) as before version 38: it kept Despotism until the Republic
+   * (Monarchy only under `looseUpkeep`), let a city feed any number of settlers, had one wonder city (two
+   * from twelve cities) that started its wonder only once nothing else called, and put spare shields into
+   * the cheapest improvement. Since 38 it crowns a king, a city feeds one settler at a time (two from size
+   * six), a wonder city per six cities starts its wonder first, and spare shields go to it as caravans.
+   */
+  oldPlanner?: boolean;
+  /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.
    */

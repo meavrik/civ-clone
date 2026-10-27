@@ -51,7 +51,8 @@ export interface SaveGame {
    * 32: saved before units needed strategic resources and the world held their deposits; no resources.
    * 35: saved while the palace's culture gave the capital its 21 squares the day it was founded; wide capital.
    * 36: saved while stepping onto foreign land was the first demand to leave, and gifts swayed no one; ask on entry, no goodwill.
-   * 37: saved while computer leaders asked nothing of the player (no tribute, gifts or resource requests); quiet leaders.
+   * 37: saved while computer leaders asked nothing of the player (no tribute, gifts or resource requests), and the
+   *     planner AI kept its habits from before it was retuned to the rules as they stand; quiet leaders, old planner.
    */
   version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38;
   seed: number;
@@ -145,7 +146,10 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
     options.askOnEntry = true;
     options.noGoodwill = true;
   }
-  if (save.version < 38) options.quietLeaders = true;
+  if (save.version < 38) {
+    options.quietLeaders = true;
+    options.oldPlanner = true;
+  }
   const state = newGame(save.seed, options);
   const log: Command[] = [];
   for (const cmd of save.log) {

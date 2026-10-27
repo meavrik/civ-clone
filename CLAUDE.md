@@ -1168,7 +1168,18 @@ audience and between computer civs.
    10-6 wins, score 153 vs 125, cities 20.5 vs 9.6, techs 30.5 vs 29.3 (with `--loose-upkeep` 10-6,
    210 vs 184). On the extended tech tree (version 9; the planner also seeks Weaving after Medicine,
    the modern advances after Fusion Power, and values their improvements): 11-5, score 160 vs 124,
-   cities 20.9 vs 10.3, techs 30.0 vs 29.4. Open AI gaps: no amphibious invasions, no tribute demands to the player (it asks the player off its land and offers treaties), its units ignore the player's borders,
+   cities 20.9 vs 10.3, techs 30.0 vs 29.4. Retuned in save version 38 (2026-10-27: the rule changes since had
+   left it 3-13 against v2, score 140 vs 199, pop 49 vs 71): it crowns a king again (since version 29 Monarchy
+   keeps three units free to Despotism's two and lifts the -1; the old planner sat in Despotism all game), a city
+   feeds one settler at a time (two from size six) so small cities grow instead of feeding settlers on the road,
+   one wonder city per six cities, and a settled empire's wonder city (8 cities or turn 120, at peace) starts its
+   wonder first, spare shields riding there as caravans before improvements that do nothing (a colosseum or
+   cathedral where nobody is unhappy, a courthouse where little trade is lost). 16 x 300: 9-7, score 212 vs 178
+   (seeds 1-16) and 13-3, 218 vs 174 (seeds 17-32), pop 77 vs 73, all replaying exactly; Monarchy alone gave 9-7
+   both ways, 192 vs 193 and 202 vs 185. Saves before 38 load with `oldPlanner` (headless `--old-planner`).
+   Tried and dropped: an early Republic (researched after Literacy, garrisons thinned to its upkeep) lost 4-12
+   and 2-14 (cities shrank, settlers eating two, and fell); more food in `governCity`, library weights and a
+   lower tax cushion made no difference beyond the noise. Open AI gaps: no amphibious invasions, no tribute demands to the player (it asks the player off its land and offers treaties), its units ignore the player's borders,
    colonists sometimes wait long in port. A 7-civ round costs ~1.3-1.6x v2 (~55 ms late game);
    core's `findPath` (typed-array heap, results identical to the old search, see
    `tests/pathfind.test.ts`) is still the hot spot. Measure AI changes with

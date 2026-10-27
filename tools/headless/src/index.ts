@@ -92,6 +92,8 @@ export interface GameConfig {
   safeTriremes?: boolean;
   /** The palace gives the capital its 21 squares at once (`GameState.wideCapital`). */
   wideCapital?: boolean;
+  /** The planner AI's habits before version 38 (`GameState.oldPlanner`). */
+  oldPlanner?: boolean;
 }
 
 export interface PlayerStats {
@@ -193,6 +195,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.looseSettlers ? { looseSettlers: true } : {}),
     ...(config.safeTriremes ? { safeTriremes: true } : {}),
     ...(config.wideCapital ? { wideCapital: true } : {}),
+    ...(config.oldPlanner ? { oldPlanner: true } : {}),
   };
 }
 
