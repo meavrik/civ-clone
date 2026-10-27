@@ -1,4 +1,4 @@
-import { acceptsMapSwap, acceptsPeace, aiTurn, attitude, bordersAnswer, BORDERS_PRICE, peaceAnswer, PEACE_PRICE, tradeAsk, tributeOffer, withdrawAnswer } from "@civ/ai";
+import { acceptsMapSwap, acceptsPeace, aiTurn, attitude, bordersAnswer, BORDERS_PRICE, peaceAnswer, PEACE_PRICE, resourceAsk, resourceOffers, RESOURCE_PRICE, tradeAsk, tributeOffer, withdrawAnswer } from "@civ/ai";
 import {
   advance,
   applyCommand,
@@ -66,6 +66,11 @@ import {
   bestFreeSlot,
   workOptions,
   WORLD_SIZES,
+  exportable,
+  hasResource,
+  missingResources,
+  resourceHoldings,
+  unitChoices,
   type Cheat,
   type CityFocus,
   type CityTurnEvent,
@@ -87,6 +92,7 @@ import {
   builtNotice,
   canResearch,
   civCard,
+  resourcesReport,
   standing,
   citizenRole,
   citizenRow,
@@ -630,6 +636,7 @@ if (params.has("seed")) {
       ...(params.get("terrain") === "classic" ? { classicTerrain: true } : {}),
       ...(params.get("mountains") === "open" ? { openMountains: true } : {}),
       ...(params.get("civs") === "classic" ? { classicCivs: true } : {}),
+      ...(params.get("resources") === "off" ? { noResources: true } : {}),
     },
     Number(params.get("seed")) || 2026,
   );
@@ -953,6 +960,8 @@ function askBuy(cityId: number): void {
   const gold = state.players[city.owner]!.gold;
   const name = productionName(city.production);
   if (cost === 0) { say(`${name} is already paid for`); return; }
+  const lacks = city.production.kind === "unit" ? missingResources(state, city.owner, city.production.id) : [];
+  if (lacks.length) { say(`${name} needs ${lacks.join(" and ")}`); return; }
   const price = `{purse} ${cost} gold  {coin} ${gold} in the treasury`;
   if (gold < cost) { modal(`Buy ${name}?`, [price, "Not enough gold yet."], ["OK"], () => {}); return; }
   modal(`Buy ${name}?`, [price], ["Buy", "Not now"], (i) => {
@@ -1091,10 +1100,17 @@ function inputKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "input" }>): voi
   if (e.key.length === 1 && inp.text.length < inp.maxLength) inp.text += e.key;
 }
 
-/** What a city should build next; `then` runs once it is picked or the menu is left. */
-function openProductionMenu(cityId: number, then?: () => void): void {
+/**
+ * What a city should build next; `then` runs once it is picked or the menu is left. Units waiting on a
+ * strategic resource we lack stand among the units, faded, saying what they need (`unitChoices`).
+ */
+function openProductionMenu(cityId: number, then?: () => void, title?: string): void {
   const city = state.cities.find((c) => c.id === cityId)!;
-  const opts = buildOptions(state, city);
+  const ready = buildOptions(state, city);
+  const lacking = new Map(unitChoices(state, city).filter((u) => u.missing.length).map((u) => [u.id, u.missing]));
+  const units = unitChoices(state, city).map((u): Production => ({ kind: "unit", id: u.id }));
+  const opts = [...units, ...ready.filter((p) => p.kind !== "unit")];
+  const missing = (p: Production) => (p.kind === "unit" ? lacking.get(p.id) : undefined);
   const surplus = computeCity(state, city).shieldSurplus;
   // The turns each choice takes from here, counting the shields the change would keep (all of the
   // box for its own kind of production, half for another, as the rules take); "never" while the
@@ -1110,17 +1126,19 @@ function openProductionMenu(cityId: number, then?: () => void): void {
     kind: "menu",
     under: screenState,
     menu: {
-      title: `${city.name}: build what?`,
+      title: title ?? `${city.name}: build what?`,
       items: opts.map((p) => productionName(p)),
       right: opts.map((p) => {
         const t = p.kind === "unit" ? unitType(p.id) : null;
-        return `${t ? `${t.attack}/${t.defense}/${t.moves + traitMoves(state, city.owner, p.id)} ` : ""}${turns(p)}`;
+        const lacks = missing(p);
+        return `${t ? `${t.attack}/${t.defense}/${t.moves + traitMoves(state, city.owner, p.id)} ` : ""}${lacks ? `needs ${lacks.join(", ")}` : turns(p)}`;
       }),
-      selected: Math.max(0, opts.findIndex((p) => p.kind === city.production.kind && p.id === city.production.id)),
+      selected: Math.max(0, opts.findIndex((p) => p.kind === city.production.kind && p.id === city.production.id && !missing(p))),
+      disabled: opts.flatMap((p, i) => (missing(p) ? [i] : [])),
     },
     onPick: (i) => {
       const p: Production | undefined = opts[i];
-      if (p) dispatch({ type: "setProduction", city: cityId, production: p });
+      if (p && !missing(p)) dispatch({ type: "setProduction", city: cityId, production: p });
       then?.();
     },
     ...(then ? { onCancel: then } : {}),
@@ -1417,6 +1435,7 @@ function barEntries(index: number): MenuEntry[] {
         ["Foreign Minister", "F3", () => { screenState = { kind: "advisor", which: "foreign" }; }],
         ["Science Advisor", "F4", () => { screenState = { kind: "science" }; }],
         ["Research", "", () => openTree({ choosing: true, closable: true })],
+        ["Resources", "", () => { screenState = { kind: "report", page: resourcesReport(state) }; }],
       ];
     case "World":
       return [
@@ -1636,6 +1655,8 @@ function audience(player: number, line: string, done: () => void = () => { scree
   const them = () => state.players[player]!;
   // They would trade knowledge: they know something we do not, and name something of ours for it.
   const swap = () => them().advances.some((a) => !state.players[0]!.advances.includes(a)) && tradeAsk(state, player, 0) !== null;
+  // They would let us have a strategic resource we lack (the AI's `resourceOffers`).
+  const goods = () => resourceOffers(state, player, 0).length > 0;
   /** The leader's answer: their words, and the turn the talk takes with it. */
   const answer = (words: string, tone?: TalkTone): void => { if (tone) memo.tone = tone; talk(words); };
   const say = (topic: TalkTopic, words: string): void => {
@@ -1664,6 +1685,12 @@ function audience(player: number, line: string, done: () => void = () => { scree
         }, () => { dispatch({ type: "openBorders", player }); answer("Our borders are open to you, and yours to us.", "friendly"); });
         return;
       case "knowledge": tradeKnowledge(player, answer, back); return;
+      case "resources": tradeGoods(player, answer, back); return;
+      case "resource": giveGoods(player, answer, back); return;
+      case "endTrade":
+        dispatch({ type: "endTrade", player });
+        answer("So be it. Our caravans will carry nothing more between us.", "hostile");
+        return;
       case "gold":
         dispatch({ type: "giveGold", player, amount: GIFT_GOLD });
         answer("Your generosity will be remembered.", "friendly");
@@ -1699,12 +1726,12 @@ function audience(player: number, line: string, done: () => void = () => { scree
   /** A subject's list: the leader asks what we propose, bring or demand; the close box comes back. */
   const open = (subject: TalkSubject, words: string): void => {
     speak(SUBJECT_WORDS[subject][mood()]);
-    const topics = talkTopics(state, 0, player, memo, swap())[subject];
+    const topics = talkTopics(state, 0, player, memo, swap(), goods())[subject];
     talkMenu(topics.map((t) => topicLabel(state, 0, player, t)), (i) => { const t = topics[i]; if (t) say(t, words); }, () => talk(words));
   };
   const talk = (words: string): void => {
     speak(words);
-    const buttons = talkButtons(talkTopics(state, 0, player, memo, swap()), memo);
+    const buttons = talkButtons(talkTopics(state, 0, player, memo, swap(), goods()), memo);
     talkMenu(buttons.map((b) => talkLabel(state, 0, player, b, memo)), (i) => {
       const b = buttons[i];
       if (!b || "farewell" in b) done();
@@ -1771,6 +1798,52 @@ function tradeKnowledge(player: number, answer: (words: string, tone?: TalkTone)
       if (!dispatch({ type: "exchangeAdvances", player, give, receive })) { answer("Then keep your knowledge, and we ours."); return; }
       showFound([receive], () => answer("Knowledge for knowledge: a fair trade.", "friendly"));
     }, () => answer("Then keep your knowledge, and we ours."));
+  }, back);
+}
+
+/**
+ * Strategic resources (with Currency): pick one of theirs that they spare and we lack (the close box takes
+ * it back); they name one of ours they lack for it (the AI's `resourceAsk`), or, when we have none, a
+ * price in gold; one button makes the trade, the close box declines. Giving our last of a kind is said.
+ */
+function tradeGoods(player: number, answer: (words: string, tone?: TalkTone) => void, back: () => void): void {
+  const offers = resourceOffers(state, player, 0);
+  const declined = "Then we keep our goods, and you yours.";
+  if (!offers.length) { answer("We have nothing to spare."); return; }
+  screenState = { kind: "diplomacy", player, line: "Which of our goods would you have?" };
+  pagedChoices(offers, (i) => {
+    const receive = offers[i];
+    if (!receive) { back(); return; }
+    const give = resourceAsk(state, player, 0);
+    if (give) {
+      const h = resourceHoldings(state, 0).find((x) => x.id === give);
+      const last = h !== undefined && h.own - h.exported === 1 && h.imported === 0;
+      screenState = { kind: "diplomacy", player, line: `For our ${receive}, we ask your ${give} in return${last ? ", though it be your only one" : ""}.` };
+      talkMenu(["Make the trade"], () => {
+        if (!dispatch({ type: "tradeResources", player, give, receive })) { answer(declined); return; }
+        answer(`Our ${receive} for your ${give}: may both our peoples profit.`, "friendly");
+      }, () => answer(declined));
+      return;
+    }
+    if (state.players[0]!.gold < RESOURCE_PRICE) { answer(`You have nothing we need. For ${RESOURCE_PRICE} gold we might part with it; you have not so much.`); return; }
+    screenState = { kind: "diplomacy", player, line: `You have nothing we need. For ${RESOURCE_PRICE} gold, our ${receive} is yours.` };
+    talkMenu([`Pay ${RESOURCE_PRICE} gold`], () => {
+      if (!dispatch({ type: "tradeResources", player, receive })) { answer(declined); return; }
+      dispatch({ type: "giveGold", player, amount: RESOURCE_PRICE });
+      answer(`The gold is counted. Our ${receive} is yours for as long as we keep the peace.`, "friendly");
+    }, () => answer(declined));
+  }, back);
+}
+
+/** Give `player` one of our strategic resources they lack: their thanks; the close box on the list takes it back. */
+function giveGoods(player: number, answer: (words: string, tone?: TalkTone) => void, back: () => void): void {
+  const ours = exportable(state, 0).filter((id) => !hasResource(state, player, id));
+  if (!ours.length) { answer("We lack nothing you could spare."); return; }
+  screenState = { kind: "diplomacy", player, line: "Which of your goods would you share with us?" };
+  pagedChoices(ours, (i) => {
+    const id = ours[i];
+    if (!id || !dispatch({ type: "tradeResources", player, give: id })) { back(); return; }
+    answer(`${id}! A generous gift; it will not be forgotten.`, "friendly");
   }, back);
 }
 
@@ -1919,6 +1992,13 @@ function eventMessage(ev: TurnEvent): string | null {
           : "The village is deserted.";
       }
       case "overthrown": return ev.player === 0 ? "Riots have toppled the government: anarchy!" : `Riots topple the ${state.players[ev.player]?.name} government.`;
+      case "tradeEnded": {
+        const other = state.players[ev.a === 0 ? ev.b : ev.a]?.name ?? "";
+        const deal = ev.take ? `${ev.give} for ${ev.take}` : ev.give;
+        if (ev.why === "war") return `War ends our trade with the ${other}.`;
+        if (ev.why === "ended") return ev.by === 0 ? null : `The ${other} end our trade of ${deal}.`;
+        return ev.by === 0 ? `We have lost the ${ev.a === 0 ? ev.give : ev.take} we traded: our trade with the ${other} ends.` : `The ${other} have lost what they traded us: our trade of ${deal} ends.`;
+      }
       default: return null;
     }
   }
@@ -1936,6 +2016,7 @@ function eventMessage(ev: TurnEvent): string | null {
     case "pollution": return `Pollution near ${name}!`;
     case "disbanded": return `${name} cannot support ${ev.detail}: disbanded`;
     case "borders": return `${name}'s culture spreads: its border grows`;
+    case "lacks": return `${name} needs ${ev.missing?.join(" and ") ?? "a resource"} to build ${ev.detail}`;
   }
 }
 
@@ -1993,6 +2074,12 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       openCity(ev.city, next);
       if (screenState.kind === "city") screenState.view.happy = true;
     }
+    else if (ev.kind === "lacks" && state.cities.find((c) => c.id === ev.city)?.owner === 0) {
+      // A unit the city cannot finish for want of a resource: say so and ask what to build instead.
+      say(eventMessage(ev) ?? "", 4000);
+      const name = state.cities.find((c) => c.id === ev.city)?.name ?? "City";
+      openProductionMenu(ev.city, next, `${name} lacks ${ev.missing?.join(", ") ?? ""}: build what?`);
+    }
     else if (ev.kind === "overthrown" && ev.player === 0) modal("Revolution!", ["Riots have gone on too long: the people have toppled the government.", "Anarchy reigns until a new one is chosen."], ["OK"], () => next(), 0, next);
     else {
       const msg = eventMessage(ev);
@@ -2026,6 +2113,7 @@ function concernsUs(ev: TurnEvent): boolean {
   if (ev.kind === "leaveDemand") return ev.to === 0;
   if (ev.kind === "peaceOffer") return ev.to === 0;
   if (ev.kind === "trespass") return ev.intruder === 0; // our gotos, walked as our turn began
+  if (ev.kind === "tradeEnded") return ev.a === 0 || ev.b === 0;
   return ev.kind === "eliminated" || ev.kind === "globalWarming" || ev.kind === "nuked"
     || ev.kind === "spaceLaunched" || ev.kind === "spaceArrived" || ev.kind === "spaceLost";
 }

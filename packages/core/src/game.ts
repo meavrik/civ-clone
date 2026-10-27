@@ -1,5 +1,5 @@
 import { selectNextUnit } from "./commands.js";
-import { generateMap, type MapGenOptions } from "./map/generate.js";
+import { generateMap, scatterDeposits, type MapGenOptions } from "./map/generate.js";
 import { premadeMap, premadeStarts, premadeWorld, type PremadeWorld } from "./map/premade.js";
 import { createRng, nextInt } from "./rng.js";
 import { advancesFor } from "./rules/advances.js";
@@ -92,6 +92,8 @@ export interface NewGameOptions extends MapGenOptions {
   noInfluenceYields?: boolean;
   /** Free units by city size and settlers free of shields (see `GameState.sizeFreeUnits`). Old saves load with it. */
   sizeFreeUnits?: boolean;
+  /** No strategic resources or deposits (see `GameState.noResources`). Old saves load with it. */
+  noResources?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -198,6 +200,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
       if (grassShieldAt(i % map.width, Math.floor(i / map.width))) t.grassShield = true;
       if (t.terrain === Terrain.Grassland && t.special && !t.secondSpecial) t.special = false;
     });
+  // Strategic resources lie in deposits besides the lattice's specials (rules/resources.ts).
+  if (!opts.noResources) scatterDeposits(map, seed);
   const humanCiv = opts.civ ?? "romans";
   const roster = opts.roster;
   const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians" && (!homes || homes[c.id] !== undefined) && (roster === undefined || (c.since ?? 0) <= roster));
@@ -266,6 +270,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.slowCulture ? { slowCulture: true } : {}),
     ...(opts.noInfluenceYields ? { noInfluenceYields: true } : {}),
     ...(opts.sizeFreeUnits ? { sizeFreeUnits: true } : {}),
+    ...(opts.noResources ? { noResources: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

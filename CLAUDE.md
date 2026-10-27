@@ -65,6 +65,37 @@ Never ship the original's sprites, palette art, fonts or text.
   have a reach (`within`/`beyond` squares from land): Fish within 2, Whales beyond 2 (deep water), from
   version 19 (`SPECIAL_REACH_SINCE`). A city works whales only two squares out off a straight coast;
   the rest pay through influence yields once its border reaches them (see Land below).
+  Strategic resources (`rules/resources.ts`, `resources.ts`; asked for 2026-10-27, after Civilization III: "make
+  some units dependent on resources inside the civ borders - like legion need iron, musketeer or rifleman needs
+  gunpowder, horseman or chariot needs horses etc. also can exchange resources with other civs"): Horses, Iron,
+  Saltpeter (Gunpowder is an advance here, so its makings), Coal and Oil are specials a civ holds while a square
+  of one lies on its land (`claims`, `resourceSquares`) or another civ trades it one (`GameState.resourceTrades`).
+  A unit naming them in `UnitTypeRule.needs` (riders and chariots Horses, Legion Iron, Knights both, Musketeers
+  and Riflemen Saltpeter, Cannon and Artillery Iron and Saltpeter, Ironclad Iron and Coal, Transport Coal, the
+  engines Oil) is set and finished only while its civ holds them all (`buildOptions`; `unitChoices` gives what
+  each still `missing`; `missingResources`). A city whose unit lost its resource waits with its shields, says so
+  once (the `lacks` city event: the web app's news, then the build menu "Rome lacks Iron: build what?"), cannot
+  buy it, and the planner changes it at once; units in the field keep going; barbarians build from nothing.
+  The lattice's specials were far too rare to hang units on (1 civ in 24 held any Iron at turn 220), so worlds
+  since save version 33 hold deposits (`Tile.deposit`, `scatterDeposits`: on land without a special, off the
+  polar rows, a hash of the square and the seed picks a resource its terrain lists in `ResourceRule.deposits`;
+  no RNG), each that resource's special (`specialOf`), drawn and yielding as one. At turn 150 about 86% of civs
+  hold Horses and Iron, 58% Saltpeter, 67% Coal; Oil 50% by turn 220. Trades (`tradeResources`: we give
+  `give`, they give `receive`, either alone a gift or a purchase; `endTrade` calls every trade with a civ off):
+  a civ trades away only a square it holds and does not trade already, never what it was traded, so a trade can
+  take its last; war ends trades (`declareWar`), and as every turn begins so does a giver's loss of what it
+  gives (`settleTrades`; the `tradeEnded` event). In an audience, with Currency and not at war: Trade resources
+  (they offer their spares we lack, the AI's `resourceOffers`, and ask one of ours they lack, `resourceAsk`, the
+  one they want first, else `RESOURCE_PRICE` 80 gold), Give a resource (a gift), End our trade (a demand). The
+  planner swaps spares with other computer civs every third turn per pair (`manageResources`; spare: a second
+  square, or one it has no use for yet, `spareResources`, `wantsResource`) and calls off a trade that gave away
+  what it now needs. Shown in the build menu (faded, "needs Iron"), the production box ("Needs Iron", Buy
+  faded), the square's window ("Iron is needed for Legion, ..."), the civ card's Resources line and Advisors >
+  Resources (`resourcesReport`). Saltpeter's sprite is ours (`resources.art.ts`). Saves before version 33 load
+  with `noResources` (headless `--no-resources`, `?resources=off`). Head to head (planner vs v2, 16 x 300, twice:
+  seeds 1-16 and 17-32): without resources 1-15 both times, score 125 vs 228 and 135 vs 226; with them 0-16,
+  121 vs 246 and 133 vs 261, all replaying exactly. The planner holds its level (pop 45 vs 51 a seat); v2, packing
+  more cities onto the richer land, gains.
   Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
   FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
   starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail
@@ -891,7 +922,9 @@ celebrations with their government bonuses, a Democracy toppled by lasting riots
 (2026-10-21, after the user found the build menu's turns baffling; save version 21). Fine art merged (2026-10-21, asked for): branch
 terrain-tiles-test, the whole map at 32 fine pixels a square (terrain, units, resources, cities, icons,
 text), second special resources with reaches (save version 20; the branch's own 17-19 are mapped in
-`loadSave`, a 17 counting as main's).
+`loadSave`, a 17 counting as main's). Strategic resources done (2026-10-27, asked for; save version 33, see core above):
+units that need Horses, Iron, Saltpeter, Coal or Oil on the civ's land or traded, deposits on new worlds, trades in the
+audience and between computer civs.
 
 ## Known gaps / next steps
 

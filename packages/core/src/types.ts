@@ -76,6 +76,11 @@ export interface Tile {
    * version 26; their grassland has no other first special.
    */
   grassShield?: boolean;
+  /**
+   * A strategic resource's deposit (`ResourceRule.id`, rules/resources.ts): the square's special is that
+   * resource whatever its terrain. Worlds of games from save version 33 hold them; `special` is set with it.
+   */
+  deposit?: string;
 }
 
 export interface WorldMap {
@@ -318,6 +323,13 @@ export interface GameState {
    * settlers count like any unit.
    */
   sizeFreeUnits?: boolean;
+  /**
+   * No strategic resources: the world has no deposits and every unit is built from its advance alone
+   * (`UnitTypeRule.needs` unread), as before version 33.
+   */
+  noResources?: boolean;
+  /** Strategic resources traded between civilizations (`resources.ts`), oldest first. Missing: none. */
+  resourceTrades?: ResourceTrade[];
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */
   openBorders?: Record<string, true>;
   /** "owner>intruder": when `owner` last asked `intruder` to take its units off its land, and how often since they last stood clear. */
@@ -326,6 +338,20 @@ export interface GameState {
   tributePaid?: Record<string, number>;
   /** "offerer>to": the turn `offerer` last offered `to` peace. */
   peaceOffers?: Record<string, number>;
+}
+
+/**
+ * A trade of strategic resources: `a` lets `b` have `give` and, in a swap, `b` lets `a` have `take`, for
+ * as long as both still hold what they give and are not at war (`settleTrades`). A one-way trade (a gift,
+ * or one sold for gold) has no `take`.
+ */
+export interface ResourceTrade {
+  a: number;
+  b: number;
+  give: string;
+  take?: string;
+  /** The turn it was agreed. */
+  turn: number;
 }
 
 export interface Trespass {

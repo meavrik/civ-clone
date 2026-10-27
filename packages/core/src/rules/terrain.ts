@@ -1,4 +1,5 @@
 import { Terrain } from "../types.js";
+import { COAL, HORSES, IRON, OIL, RESOURCE_BY_ID } from "./resources.js";
 
 /**
  * Terrain ruleset. Yields are food/shields/trade per worked tile; move cost is
@@ -84,7 +85,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   },
   [Terrain.Plains]: {
     food: 1, shields: 1, trade: 0, moveCost: 1, defense: 1,
-    special: { name: "Horses", shields: 2, learned: { advance: "animal_husbandry", food: 1 } },
+    special: HORSES,
     // Pots keep the harvest.
     second: { name: "Wheat", food: 2, learned: { advance: "pottery", food: 1 }, since: 17 },
     irrigate: { food: 1, turns: 5 },
@@ -101,7 +102,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   },
   [Terrain.Hills]: {
     food: 1, shields: 0, trade: 0, moveCost: 2, defense: 2,
-    special: { name: "Coal", shields: 2 },
+    special: COAL,
     second: { name: "Wine", trade: 4, since: 18 },
     irrigate: { food: 1, turns: 10 },
     mine: { shields: 3, turns: 10 },
@@ -110,7 +111,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Mountains]: {
     food: 0, shields: 1, trade: 0, moveCost: 3, defense: 3,
     special: { name: "Gold", trade: 6 },
-    second: { name: "Iron", shields: 3, learned: { advance: "iron_working", shields: 1 }, since: 17 },
+    second: IRON,
     mine: { shields: 1, turns: 10 },
     road: { trade: 0, turns: 6 },
     rough: true,
@@ -119,8 +120,7 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Desert]: {
     food: 0, shields: 1, trade: 0, moveCost: 1, defense: 1,
     special: { name: "Oasis", food: 3 },
-    // A little bitumen until Refining makes it oil.
-    second: { name: "Oil", shields: 1, learned: { advance: "refining", shields: 3 }, since: 17 },
+    second: OIL,
     irrigate: { food: 1, turns: 5 },
     mine: { shields: 1, turns: 5 },
     road: { trade: 1, turns: 2 },
@@ -170,7 +170,6 @@ export function secondKind(rule: TerrainRule, resources?: number): SpecialRule |
   return s && (resources === undefined || (s.since ?? 0) <= resources) ? s : undefined;
 }
 
-/** The special on a square, if it has one: its terrain's second kind where the square says so, else the first. */
 /**
  * Whether square (x, y) lies on the original's bands of shield grassland: diagonal stripes two squares
  * wide, every other pair (x + y modulo 4 being 0 or 3), as the 1991 game lays them on grassland and rivers.
@@ -180,8 +179,11 @@ export function grassShieldAt(x: number, y: number): boolean {
   return m === 0 || m === 3;
 }
 
-export function specialOf(tile: { terrain: Terrain; special: boolean; secondSpecial?: boolean }): SpecialRule | undefined {
+/** The special on a square, if it has one: its deposit's, else its terrain's second kind where the square says so, else the first. */
+export function specialOf(tile: { terrain: Terrain; special: boolean; secondSpecial?: boolean; deposit?: string }): SpecialRule | undefined {
   if (!tile.special) return undefined;
+  // A strategic resource's deposit is its special whatever the terrain (rules/resources.ts).
+  if (tile.deposit) return RESOURCE_BY_ID[tile.deposit]?.special;
   const r = TERRAIN_RULES[tile.terrain];
   return (tile.secondSpecial ? r.second : undefined) ?? r.special;
 }

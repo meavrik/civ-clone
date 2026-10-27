@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { newGame, setBordersOpen, setRelation, type GameState, type Relation } from "@civ/core";
-import { AUDIENCE_CHOICES, talkButtons, talkLabel, talkTopics, TALK_SUBJECT, type TalkMemo, type TalkTone, type TalkTopic } from "../src/index.js";
+import { applyCommand, foundCity, newGame, setBordersOpen, setRelation, Terrain, type GameState, type Relation } from "@civ/core";
+import { AUDIENCE_CHOICES, civCard, resourcesReport, talkButtons, talkLabel, talkTopics, TALK_SUBJECT, type TalkMemo, type TalkTone, type TalkTopic } from "../src/index.js";
 
 /** Us (0) and civilization 1, standing as `relation`, knowing `advances`, with 100 gold. */
 function talkGame(relation: Relation, advances: string[] = []): GameState {
@@ -50,6 +50,30 @@ describe("a talk with a foreign leader", () => {
     setBordersOpen(s, 0, 1, true);
     expect(talkTopics(s, 0, 1, { said: [] }, false).demand).toContain("closeBorders");
     expect(talkTopics(s, 0, 1, { said: ["openBorders"], tone: "friendly" }, false).demand).toEqual([]);
+  });
+
+  it("trades strategic resources with Currency: a trade they would make, a gift they lack, and calling ours off", () => {
+    const s = talkGame("peace", ["currency"]);
+    for (const t of s.map.tiles) { Object.assign(t, { terrain: Terrain.Grassland, special: false }); delete t.deposit; }
+    s.cities = [];
+    foundCity(s, 0, 10, 10);
+    foundCity(s, 1, 30, 10);
+    expect(talkTopics(s, 0, 1, { said: [] }, false, true).propose).toEqual(["resources"]);
+    expect(talkTopics(s, 0, 1, { said: [] }, false, false).propose).toEqual([]);
+    expect(talkTopics(s, 0, 1, { said: [] }, false).gift).not.toContain("resource");
+    Object.assign(s.map.tiles[11 * s.map.width + 11]!, { special: true, deposit: "Iron" });
+    expect(talkTopics(s, 0, 1, { said: [] }, false).gift).toContain("resource");
+    expect(applyCommand(s, { type: "tradeResources", player: 1, give: "Iron" }).ok).toBe(true);
+    expect(talkTopics(s, 0, 1, { said: [] }, false).demand).toContain("endTrade");
+    expect(labels(s, { said: ["tribute"], tone: "hostile", subject: "demand" })).toContain("End our trade");
+    expect(civCard(s, 1, "friendly").at(-1)).toBe("Resources: none. We trade them our Iron.");
+    const report = resourcesReport(s);
+    expect(report.lines[0]).toMatchObject({ text: "Horses", right: "none", dim: true });
+    expect(report.lines[2]).toMatchObject({ text: "Iron", right: "all traded away", dim: true });
+    expect(report.lines.at(-1)).toMatchObject({ text: "Trade: our Iron, a gift" });
+    // Without Currency, or at war, none of it.
+    s.players[0]!.advances = [];
+    expect(talkTopics(s, 0, 1, { said: [] }, false, true).propose).toEqual([]);
   });
 
   it("at war offers peace and farewell, no gifts or tribute", () => {

@@ -228,7 +228,7 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
       if (!tile) return null;
       const r = TERRAIN_RULES[tile.terrain];
       // As the square's window has it: grassland's first special counts only before version 26, a river defends at +50%.
-      const sp = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial ? undefined : specialOf(tile);
+      const sp = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial && !tile.deposit ? undefined : specialOf(tile);
       const defence = tile.river && !state.freecivYields ? Math.max(1.5, r.defense) : r.defense;
       return {
         title: sp ? `${TERRAIN_NAMES[tile.terrain]}: ${sp.name}` : TERRAIN_NAMES[tile.terrain],

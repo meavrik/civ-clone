@@ -46,6 +46,7 @@ import {
 import { discoverExplored } from "./map/geography.js";
 import { findPath, stepDir } from "./pathfind.js";
 import { landOwner } from "./territory.js";
+import { addTrade, endTrades, missingResources, settleTrades, whyNoTrade } from "./resources.js";
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, researchCost } from "./rules/advances.js";
 import { building } from "./rules/buildings.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
@@ -107,6 +108,8 @@ export type Command =
   | { type: "withdraw"; player: number } // `player`'s units on the current player's land each set off for the nearest square outside it (a leader who agreed to leave)
   | { type: "giveAdvance"; player: number; advance: string }
   | { type: "exchangeAdvances"; player: number; give: string; receive: string }
+  | { type: "tradeResources"; player: number; give?: string; receive?: string } // we let `player` have `give`, it lets us have `receive`: a swap, a gift, or one bought (its gold given first)
+  | { type: "endTrade"; player: number } // call off every resource trade with `player`
   | { type: "launch" } // the spaceship, once it can fly
   | { type: "cheat"; cheat: Cheat } // the debug menu; logged like any order so saves still replay
   | { type: "endTurn" };
@@ -146,7 +149,9 @@ export type TurnEvent =
   | { kind: "spaceArrived"; player: number }
   | { kind: "spaceLost"; player: number }
   | { kind: "spy"; action: DiplomatAction; detail: string; target: string }
-  | { kind: "nuked"; x: number; y: number; by: number; stopped: boolean };
+  | { kind: "nuked"; x: number; y: number; by: number; stopped: boolean }
+  // A trade of resources ended: `by` could no longer give its side, went to war, or called it off.
+  | { kind: "tradeEnded"; a: number; b: number; give: string; take?: string; by: number; why: "lost" | "war" | "ended" };
 
 export type HutResult =
   | { kind: "gold"; amount: number }
@@ -229,6 +234,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       forgiveTrespass(state, me, cmd.player);
       forgiveTrespass(state, cmd.player, me);
       if (!already) lastTurnEvents.push({ kind: "warDeclared", player: me, on: cmd.player, ...(cmd.reason ? { reason: cmd.reason } : {}) });
+      for (const t of endTrades(state, me, cmd.player)) lastTurnEvents.push({ kind: "tradeEnded", ...t, by: me, why: "war" });
       return { ok: true };
     }
     case "makePeace": {
@@ -326,6 +332,20 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       if (!me.advances.includes(cmd.give) || !them.advances.includes(cmd.receive)) return { ok: false, reason: "invalid exchange" };
       if (!them.advances.includes(cmd.give)) them.advances.push(cmd.give);
       discover(state, me.id, cmd.receive);
+      return { ok: true };
+    }
+    case "tradeResources": {
+      const me = state.currentPlayer;
+      const why = whyNoTrade(state, me, cmd.player, cmd.give, cmd.receive);
+      if (why) return { ok: false, reason: why };
+      if (cmd.give) addTrade(state, me, cmd.player, cmd.give, cmd.receive);
+      else addTrade(state, cmd.player, me, cmd.receive!);
+      return { ok: true };
+    }
+    case "endTrade": {
+      const ended = endTrades(state, state.currentPlayer, cmd.player);
+      if (!ended.length) return { ok: false, reason: "no trade" };
+      for (const t of ended) lastTurnEvents.push({ kind: "tradeEnded", ...t, by: state.currentPlayer, why: "ended" });
       return { ok: true };
     }
     case "cheat":
@@ -880,6 +900,10 @@ function applyCityCommand(
       const p = state.players[city.owner]!;
       const cost = buyCost(state, city);
       if (cost === 0) return { ok: false, reason: "already complete" };
+      if (city.production.kind === "unit") {
+        const missing = missingResources(state, city.owner, city.production.id);
+        if (missing.length) return { ok: false, reason: `needs:${missing.join(",")}` };
+      }
       if (p.gold < cost) return { ok: false, reason: "not enough gold" };
       p.gold -= cost;
       city.shields = costFor(state, city.owner, city.production);
@@ -1014,7 +1038,7 @@ export function endTurn(state: GameState): void {
           else t.irrigation = true;
           t.mine = false;
           // Land drained into grassland keeps no first special (the original's grassland has none; its shields lie on the bands).
-          if (!state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial) t.special = false;
+          if (!state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial && !t.deposit) t.special = false;
         } else if (u.order.work === "mine") {
           if (rule.mine?.becomes !== undefined) t.terrain = rule.mine.becomes;
           else t.mine = true;
@@ -1193,6 +1217,8 @@ export function startTurn(state: GameState, player: number): void {
   recomputeVisibility(state, player);
   for (const met of detectContacts(state, player)) lastTurnEvents.push({ kind: "contact", player: met });
   clearTrespass(state, player);
+  // Resource trades whose giver has lost what it gave, or whose sides are at war, end now.
+  for (const { trade, by, why } of settleTrades(state)) lastTurnEvents.push({ kind: "tradeEnded", ...trade, by, why });
   selectNextUnit(state, null);
 }
 

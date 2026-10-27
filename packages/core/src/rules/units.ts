@@ -25,6 +25,11 @@ export interface UnitTypeRule {
   fuel?: number;
   /** Required advance id; wired to the tech tree in phase 4. */
   requires?: string;
+  /**
+   * Strategic resources it is built from (rules/resources.ts): its civilization must hold every one,
+   * on its land or by a trade, when it is set and when it is finished. Unread in saves before version 33.
+   */
+  needs?: string[];
   /** Hit points at full health. */
   hp: number;
   /** Hit points each round it wins takes off the enemy. */
@@ -59,37 +64,39 @@ const U = (
  * roles and the Barbarian Leader follow the same ruleset. Sight is the
  * original's (one square, two for warships and aircraft) but for the scouts,
  * horsemen and diplomats, who see two squares out (our departure, save
- * version 30).
+ * version 30). Many need strategic resources (`needs`, our departure, save
+ * version 33): riders and chariots horses, blades and guns iron, musketeers,
+ * riflemen and the big guns saltpeter, steamships coal, engines oil.
  */
 export const UNIT_TYPES: UnitTypeRule[] = [
   U("settlers", "Settlers", 0, 1, 1, 40, "land", { flags: ["settler"] }),
   U("militia", "Militia", 1, 1, 1, 10),
   U("phalanx", "Phalanx", 1, 2, 1, 20, "land", { requires: "bronze_working" }),
-  U("legion", "Legion", 3, 1, 1, 20, "land", { requires: "iron_working", barbarian: { as: ["sea", "build"] } }),
-  U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding", sight: 2, sightSince: 30, barbarian: { as: ["land"] } }),
-  U("chariot", "Chariot", 4, 1, 2, 40, "land", { requires: "the_wheel", wheeled: true }),
+  U("legion", "Legion", 3, 1, 1, 20, "land", { requires: "iron_working", needs: ["Iron"], barbarian: { as: ["sea", "build"] } }),
+  U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding", needs: ["Horses"], sight: 2, sightSince: 30, barbarian: { as: ["land"] } }),
+  U("chariot", "Chariot", 4, 1, 2, 40, "land", { requires: "the_wheel", needs: ["Horses"], wheeled: true }),
   U("catapult", "Catapult", 6, 1, 1, 40, "land", { requires: "mathematics", wheeled: true }),
-  U("knights", "Knights", 4, 2, 2, 40, "land", { requires: "chivalry", barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
-  U("musketeers", "Musketeers", 2, 3, 1, 30, "land", { requires: "gunpowder", hp: 20, barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
-  U("cannon", "Cannon", 8, 1, 1, 40, "land", { requires: "metallurgy", hp: 20, wheeled: true, barbarian: { as: ["land", "build"], needsTech: true } }),
-  U("riflemen", "Riflemen", 3, 5, 1, 30, "land", { requires: "conscription", hp: 20 }),
-  U("mech_inf", "Mech. Inf.", 6, 6, 3, 50, "land", { requires: "labor_union", hp: 30, wheeled: true }),
-  U("armor", "Armor", 10, 5, 3, 80, "land", { requires: "automobile", hp: 30, wheeled: true }),
-  U("artillery", "Artillery", 12, 2, 2, 60, "land", { requires: "robotics", hp: 20, firepower: 2, wheeled: true }),
+  U("knights", "Knights", 4, 2, 2, 40, "land", { requires: "chivalry", needs: ["Horses", "Iron"], barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
+  U("musketeers", "Musketeers", 2, 3, 1, 30, "land", { requires: "gunpowder", needs: ["Saltpeter"], hp: 20, barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
+  U("cannon", "Cannon", 8, 1, 1, 40, "land", { requires: "metallurgy", needs: ["Iron", "Saltpeter"], hp: 20, wheeled: true, barbarian: { as: ["land", "build"], needsTech: true } }),
+  U("riflemen", "Riflemen", 3, 5, 1, 30, "land", { requires: "conscription", needs: ["Saltpeter"], hp: 20 }),
+  U("mech_inf", "Mech. Inf.", 6, 6, 3, 50, "land", { requires: "labor_union", needs: ["Oil"], hp: 30, wheeled: true }),
+  U("armor", "Armor", 10, 5, 3, 80, "land", { requires: "automobile", needs: ["Oil", "Iron"], hp: 30, wheeled: true }),
+  U("artillery", "Artillery", 12, 2, 2, 60, "land", { requires: "robotics", needs: ["Iron", "Saltpeter"], hp: 20, firepower: 2, wheeled: true }),
   U("diplomat", "Diplomat", 0, 0, 2, 30, "land", { requires: "writing", sight: 2, sightSince: 30, flags: ["diplomat", "ignoreZoc"] }),
   U("caravan", "Caravan", 0, 1, 1, 50, "land", { requires: "trade", flags: ["caravan", "ignoreZoc"] }),
   U("barbarian_leader", "Barbarian Leader", 0, 0, 2, 40, "land", { flags: ["leader", "ignoreZoc"] }),
   U("trireme", "Trireme", 1, 0, 3, 40, "sea", { requires: "map_making", capacity: 2 }),
   U("sail", "Sail", 1, 1, 3, 40, "sea", { requires: "navigation", capacity: 3, barbarian: { as: ["boat"] } }),
   U("frigate", "Frigate", 2, 2, 3, 40, "sea", { requires: "magnetism", capacity: 4, hp: 20 }),
-  U("ironclad", "Ironclad", 4, 4, 4, 60, "sea", { requires: "steam_engine", hp: 30 }),
-  U("cruiser", "Cruiser", 6, 6, 6, 80, "sea", { requires: "combustion", sight: 2, hp: 30, firepower: 2 }),
-  U("battleship", "Battleship", 18, 12, 4, 160, "sea", { requires: "steel", sight: 2, hp: 40, firepower: 2 }),
-  U("submarine", "Submarine", 8, 2, 3, 50, "sea", { requires: "mass_production", sight: 2, hp: 30, firepower: 2 }),
-  U("carrier", "Carrier", 1, 12, 5, 160, "sea", { requires: "advanced_flight", capacity: 8, sight: 2, hp: 40, firepower: 2 }),
-  U("transport", "Transport", 0, 3, 4, 50, "sea", { requires: "industrialization", capacity: 8, hp: 30 }),
-  U("fighter", "Fighter", 4, 2, 10, 60, "air", { requires: "flight", fuel: 1, sight: 2, hp: 20, firepower: 2 }),
-  U("bomber", "Bomber", 12, 1, 8, 120, "air", { requires: "advanced_flight", fuel: 2, sight: 2, hp: 20, firepower: 2 }),
+  U("ironclad", "Ironclad", 4, 4, 4, 60, "sea", { requires: "steam_engine", needs: ["Iron", "Coal"], hp: 30 }),
+  U("cruiser", "Cruiser", 6, 6, 6, 80, "sea", { requires: "combustion", needs: ["Oil"], sight: 2, hp: 30, firepower: 2 }),
+  U("battleship", "Battleship", 18, 12, 4, 160, "sea", { requires: "steel", needs: ["Oil", "Iron"], sight: 2, hp: 40, firepower: 2 }),
+  U("submarine", "Submarine", 8, 2, 3, 50, "sea", { requires: "mass_production", needs: ["Oil"], sight: 2, hp: 30, firepower: 2 }),
+  U("carrier", "Carrier", 1, 12, 5, 160, "sea", { requires: "advanced_flight", needs: ["Oil"], capacity: 8, sight: 2, hp: 40, firepower: 2 }),
+  U("transport", "Transport", 0, 3, 4, 50, "sea", { requires: "industrialization", needs: ["Coal"], capacity: 8, hp: 30 }),
+  U("fighter", "Fighter", 4, 2, 10, 60, "air", { requires: "flight", needs: ["Oil"], fuel: 1, sight: 2, hp: 20, firepower: 2 }),
+  U("bomber", "Bomber", 12, 1, 8, 120, "air", { requires: "advanced_flight", needs: ["Oil"], fuel: 2, sight: 2, hp: 20, firepower: 2 }),
   U("nuclear", "Nuclear", 99, 0, 16, 160, "air", { requires: "rocketry", fuel: 1, flags: ["nuclear"] }),
 ];
 

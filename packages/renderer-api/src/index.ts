@@ -42,11 +42,14 @@ export * from "./newtech.js";
 export * from "./art.js";
 export * from "./built.js";
 export * from "./reign.js";
+export * from "./resources.js";
+import { resourceNote } from "./resources.js";
 export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
   ACCRUED_CULTURE,
   CITY_RADIUS,
+  resourceAt,
   advance,
   attrition,
   attritionCure,
@@ -769,7 +772,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   lines.push(`{food} ${yld.food}  {shield} ${yld.shields}  {trade} ${yld.trade}  {boot} ${r.moveCost}${defence}`);
   lines.push(TERRAIN_TEXT[t.terrain]);
   // Grassland's first special counts only in games before version 26 (`tileYield`).
-  const sp = !state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial ? undefined : specialOf(t);
+  const sp = !state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial && !t.deposit ? undefined : specialOf(t);
   const features = [
     sp && `{star} ${sp.name} ${specialGain(sp)}`,
     t.grassShield && t.terrain === Terrain.Grassland && "{shield} Shield grassland +1 {shield}",
@@ -780,6 +783,9 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     t.fortress && "{fortress} Fortress",
   ].filter(Boolean);
   if (features.length) lines.push(features.join("  "));
+  // A strategic resource says which units want it (rules/resources.ts).
+  const strategic = resourceAt(state, x, y);
+  if (strategic) lines.push(resourceNote(strategic));
   if (t.pollution) lines.push("{pollution} Polluted: output halved");
   if (t.hut) lines.push("{hut} A tribal village");
   if (roadOnly(state, t) && !t.road) lines.push("{road} Settlers only, until a road");

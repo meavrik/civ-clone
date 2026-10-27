@@ -1,6 +1,16 @@
 import {
   advance,
   applyCommand,
+  canExport,
+  exportable,
+  hasResource,
+  mayTrade,
+  missingResources,
+  resourceHoldings,
+  tradesOf,
+  tradeSides,
+  UNIT_TYPES,
+  whyNoTrade,
   slotInLand,
   atPeace,
   atWar,
@@ -97,6 +107,7 @@ export function plannerTurn(state: GameState): void {
   manageDiplomacy(state, ctx);
   guardBorders(state, ctx);
   manageTrade(state, ctx);
+  manageResources(state, ctx);
   manageSpaceship(state, ctx);
   manageCities(state, ctx);
   manageUpkeep(state, ctx);
@@ -819,6 +830,67 @@ export function tradeAsk(state: GameState, them: number, me: number): string | n
 }
 
 /**
+ * Does `player` want strategic resource `id`: some unit it can build, or could once it learns an
+ * advance it may research now, needs it.
+ */
+export function wantsResource(state: GameState, player: number, id: string): boolean {
+  if (state.noResources) return false;
+  const p = state.players[player]!;
+  const next = new Set(availableAdvances(p.advances, advancesFor(state)).map((a) => a.id));
+  return UNIT_TYPES.some((t) => t.needs?.includes(id) && (!t.requires || p.advances.includes(t.requires) || next.has(t.requires)));
+}
+
+/** The resources `player` may trade away without going short: a second square of one, or one it has no use for yet. */
+export function spareResources(state: GameState, player: number): string[] {
+  if (state.noResources) return [];
+  return resourceHoldings(state, player).filter((h) => h.own - h.exported >= 2 || (h.own - h.exported >= 1 && !wantsResource(state, player, h.id))).map((h) => h.id);
+}
+
+/** What `them` would let `me` have: its spare resources that `me` lacks; nothing while it is hostile. */
+export function resourceOffers(state: GameState, them: number, me: number): string[] {
+  if (!mayTrade(state, them, me) || attitude(state, them, me) === "hostile") return [];
+  return spareResources(state, them).filter((id) => !hasResource(state, me, id));
+}
+
+/**
+ * What `them` asks of `me` in return for one of its resources: one of `me`'s it lacks, the one it wants
+ * first; null when `me` has none to give (then it sells for `RESOURCE_PRICE` gold).
+ */
+export function resourceAsk(state: GameState, them: number, me: number): string | null {
+  const theirs = exportable(state, me).filter((id) => !hasResource(state, them, id));
+  return theirs.find((id) => wantsResource(state, them, id)) ?? theirs[0] ?? null;
+}
+
+/** The gold a computer leader asks for a resource when we have none it lacks to give for it. */
+export const RESOURCE_PRICE = 80;
+
+/**
+ * Resources with other computer civilizations not at war with us: one for one, each side's spare for
+ * one the other lacks and wants, every third turn per pair; and a trade that gave away a resource we
+ * now want and lack is called off. The player trades through the audience (`resourceOffers`, `resourceAsk`).
+ */
+function manageResources(state: GameState, ctx: Ctx): void {
+  if (state.noResources) return;
+  const me = ctx.me;
+  // Called off: a trade that takes what we need ourselves now.
+  for (const t of tradesOf(state, me)) {
+    const { gives } = tradeSides(t, me);
+    if (gives && !hasResource(state, me, gives) && wantsResource(state, me, gives) && applyCommand(state, { type: "endTrade", player: t.a === me ? t.b : t.a }).ok) break;
+  }
+  const spare = spareResources(state, me);
+  if (!spare.length) return;
+  for (const o of state.players) {
+    if (o.id === me || !o.isAi || !mayTrade(state, me, o.id) || (ctx.turn + me + o.id) % 3 !== 0) continue;
+    const give = spare.find((id) => !hasResource(state, o.id, id) && wantsResource(state, o.id, id) && canExport(state, me, id));
+    if (!give) continue;
+    const receive = spareResources(state, o.id).find((id) => !hasResource(state, me, id) && wantsResource(state, me, id));
+    if (!receive || whyNoTrade(state, me, o.id, give, receive)) continue;
+    applyCommand(state, { type: "tradeResources", player: o.id, give, receive });
+    return;
+  }
+}
+
+/**
  * A human civilization's units on our land, at peace and without open
  * borders: ask them to leave (stepping in counted as the first request), ask
  * once more, then go to war, unless we are far the weaker, when we only
@@ -1255,7 +1327,8 @@ function manageCities(state: GameState, ctx: Ctx): void {
     const r = computeCity(state, c);
     ctx.reports.set(c.id, r);
     const current = c.production;
-    const stale = current.kind === "wonder" && wonderBuilt(state, current.id);
+    // A wonder finished elsewhere, or a unit whose strategic resource is gone, is changed at once.
+    const stale = (current.kind === "wonder" && wonderBuilt(state, current.id)) || (current.kind === "unit" && missingResources(state, ctx.me, current.id).length > 0);
     const want = chooseProduction(state, ctx, c, r, settlersPlanned, army, military, c === wonderCity || current.kind === "wonder");
     if (want && (stale || !sameProduction(want, current))) {
       const urgent = want.kind === "unit" && garrison(state, ctx, c).length < (ctx.wanted.get(c.id) ?? 1) && (ctx.threat.get(c.id) ?? 0) > 0;

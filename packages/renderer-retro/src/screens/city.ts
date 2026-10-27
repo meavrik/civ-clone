@@ -2,6 +2,7 @@ import {
   bestFreeSlot,
   building,
   buyCost,
+  missingResources,
   cityFocus,
   cityTileYield,
   CITY_RADIUS,
@@ -565,10 +566,12 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const p = city.production;
   drawBox(s, RIGHT.x, ROW2.y, RIGHT.w, ROW2.h, productionName(p), `${city.shields}/${r.productionCost}`);
   const cost = buyCost(state, city);
+  // A unit waiting on a strategic resource we lack: it says what it needs, and cannot be bought.
+  const lacks = p.kind === "unit" ? missingResources(state, city.owner, p.id) : [];
   const change = CITY_BUTTONS.change!;
   const buy = CITY_BUTTONS.buy!;
   drawButton(s, change.x, change.y, change.w, change.h, "Change");
-  drawButton(s, buy.x, buy.y, buy.w, buy.h, "Buy", cost > 0 && player.gold >= cost);
+  drawButton(s, buy.x, buy.y, buy.w, buy.h, "Buy", cost > 0 && player.gold >= cost && !lacks.length);
   // The shields' slots between the buttons and the foot, beside the unit being built.
   const by = ROW2.y + ROW2.h - 10;
   const top = change.y + change.h;
@@ -579,6 +582,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   }
   drawStore(s, region, "shield", city.shields, r.productionCost);
   const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
+  if (lacks.length) { say(s, RIGHT.x + 4, by, `Needs ${lacks.join(", ")}`, BAD); return; }
   say(s, RIGHT.x + 4, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
   const price = cost ? `Buy ${cost}$` : "Complete";
   say(s, RIGHT.x + RIGHT.w - 4 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);

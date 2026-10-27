@@ -105,8 +105,8 @@ describe("the original's yields", () => {
     for (let i = 0; i < s.map.tiles.length; i++) {
       const t = s.map.tiles[i]!;
       expect(t.grassShield === true).toBe(grassShieldAt(i % s.map.width, Math.floor(i / s.map.width)));
-      // No grassland has a first special: its shields are the bands.
-      if (t.terrain === Terrain.Grassland) { grass++; if (t.grassShield) banded++; expect(t.special && !t.secondSpecial).toBe(false); }
+      // No grassland has a first special: its shields are the bands (a deposit of horses is no first special).
+      if (t.terrain === Terrain.Grassland) { grass++; if (t.grassShield) banded++; expect(t.special && !t.secondSpecial && !t.deposit).toBe(false); }
     }
     expect(banded / grass).toBeGreaterThan(0.35);
     expect(banded / grass).toBeLessThan(0.65);
@@ -231,16 +231,19 @@ describe("tile yields", () => {
     const count = (resources?: number) => {
       const names = new Map<string, number>();
       let specials = 0;
+      let deposits = 0;
       let terrains = "";
       for (let seed = 1; seed <= 8; seed++) {
-        // An old save's world comes with its old yields too (grassland's scattered Resources).
-        const { map } = newGame(seed, resources === undefined ? {} : { resources, freecivYields: true });
+        // An old save's world comes with its old yields too (grassland's scattered Resources), and no deposits.
+        const { map } = newGame(seed, resources === undefined ? {} : { resources, freecivYields: true, noResources: true });
         for (const t of map.tiles) { const n = specialOf(t)?.name; if (n) names.set(n, (names.get(n) ?? 0) + 1); }
-        // Grassland's first kind is gone from new worlds (the original's grassland has none): count the squares off grassland.
-        specials += map.tiles.filter((t) => t.special && t.terrain !== Terrain.Grassland).length;
+        // Grassland's first kind is gone from new worlds (the original's grassland has none): count the squares off grassland,
+        // and the lattice's only (new worlds add strategic deposits besides).
+        specials += map.tiles.filter((t) => t.special && !t.deposit && t.terrain !== Terrain.Grassland).length;
+        deposits += map.tiles.filter((t) => t.deposit).length;
         terrains += map.tiles.map((t) => t.terrain).join();
       }
-      return { names, specials, terrains };
+      return { names, specials, deposits, terrains };
     };
     const now = count();
     const old = count(16);
@@ -256,6 +259,11 @@ describe("tile yields", () => {
     expect(now.specials).toBe(old.specials);
     expect(now.names.has("Resources")).toBe(false);
     expect(old.names.get("Resources") ?? 0).toBeGreaterThan(0);
+    // Strategic deposits (version 33): new worlds only, Saltpeter among them.
+    expect(now.deposits).toBeGreaterThan(400);
+    expect(old.deposits + five.deposits).toBe(0);
+    expect(now.names.get("Saltpeter") ?? 0).toBeGreaterThan(0);
+    expect(old.names.has("Saltpeter")).toBe(false);
   });
 
   it("keeps fish within two squares of land and whales in deep water", () => {

@@ -128,15 +128,15 @@ describe("combat experience", () => {
   it("trains veterans in a city with barracks, recruits elsewhere", () => {
     const s = world();
     const city = foundCity(s, 0, 10, 10);
-    city.production = { kind: "unit", id: "legion" };
+    city.production = { kind: "unit", id: "phalanx" };
     city.shields = 40;
     processCityTurn(s, city);
-    expect(s.units.find((u) => u.type === "legion")!.xp).toBe(0);
+    expect(s.units.find((u) => u.type === "phalanx")!.xp).toBe(0);
     s.units = [];
     city.buildings.push(building("barracks").id);
     city.shields = 40;
     processCityTurn(s, city);
-    expect(rankOf(s.units.find((u) => u.type === "legion")!.xp).name).toBe("Veteran");
+    expect(rankOf(s.units.find((u) => u.type === "phalanx")!.xp).name).toBe("Veteran");
   });
 
   it("keeps the coin-toss veteran, and its draw, for saves before version 32", () => {

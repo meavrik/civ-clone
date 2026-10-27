@@ -28,6 +28,7 @@ import {
 } from "./types.js";
 import { borderRadius, claimant, cultureRate, landOwner, withinBorder } from "./territory.js";
 import { createUnit } from "./units.js";
+import { heldResources, missingResources } from "./resources.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
 export interface Yield {
@@ -47,7 +48,7 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
   let shields = r.shields;
   let trade = r.trade;
   // Grassland's first special counts only in games before version 26; since then its shields lie on the original's bands.
-  const sp = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial ? undefined : specialOf(tile);
+  const sp = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial && !tile.deposit ? undefined : specialOf(tile);
   if (sp) {
     food += sp.food ?? 0;
     shields += sp.shields ?? 0;
@@ -871,7 +872,9 @@ export function buyCost(state: GameState, city: City): number {
 
 export interface CityTurnEvent {
   city: number;
-  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "celebration" | "starving" | "famine" | "sold" | "pollution" | "disbanded" | "borders";
+  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "celebration" | "starving" | "famine" | "sold" | "pollution" | "disbanded" | "borders" | "lacks";
+  /** "lacks": the unit the box is full for (`detail` its name) and the strategic resources it waits on. */
+  missing?: string[];
   detail?: string;
   /** What was finished ("built", "wonder"). */
   production?: Production;
@@ -990,6 +993,13 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
   const cost = costFor(state, city.owner, city.production);
   if (city.shields >= cost) {
     const p = city.production;
+    // A unit whose strategic resource is gone (a city lost, a trade ended) waits, its shields kept, until
+    // the resource comes back or the city builds something else; told once, as the box fills.
+    const missing = p.kind === "unit" ? missingResources(state, city.owner, p.id) : [];
+    if (missing.length) {
+      if ((city.turnShields ?? 0) < cost) events.push({ city: city.id, kind: "lacks", detail: unitType(p.id).name, production: { ...p }, missing });
+      return events;
+    }
     if (p.kind === "unit") {
       const settler = unitType(p.id).flags?.includes("settler") === true;
       // What the city has before the settlers take their citizen (for the notice; computing changes nothing).
@@ -1039,19 +1049,31 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
   return events;
 }
 
-/** What a city may build right now, gated by the owner's advances. */
-export function buildOptions(state: GameState, city: City): Production[] {
-  // A barbarian city raises soldiers, nothing else.
-  if (city.owner === state.barbarians) return barbarianUnits(state, "build").map((id) => ({ kind: "unit", id }));
+/**
+ * The units a city could build by its owner's advances, its coast and its wonders, with the strategic
+ * resources each still waits on (none in saves before version 33): those with none are `buildOptions`.
+ */
+export function unitChoices(state: GameState, city: City): { id: string; missing: string[] }[] {
+  if (city.owner === state.barbarians) return barbarianUnits(state, "build").map((id) => ({ id, missing: [] }));
   const p = state.players[city.owner]!;
-  const out: Production[] = [];
+  const held = state.noResources ? undefined : heldResources(state, city.owner);
+  const out: { id: string; missing: string[] }[] = [];
   for (const t of UNIT_TYPES) {
     if (t.flags?.includes("leader")) continue;
     if (t.requires && !knows(p.advances, t.requires)) continue;
     if (t.domain === "sea" && !coastal(state, city)) continue;
     if (t.flags?.includes("nuclear") && !hasWonder(state, city.owner, "manhattan_project")) continue;
-    out.push({ kind: "unit", id: t.id });
+    out.push({ id: t.id, missing: held ? missingResources(state, city.owner, t.id, held) : [] });
   }
+  return out;
+}
+
+/** What a city may build right now, gated by the owner's advances (and for units, the strategic resources it holds). */
+export function buildOptions(state: GameState, city: City): Production[] {
+  // A barbarian city raises soldiers, nothing else.
+  if (city.owner === state.barbarians) return barbarianUnits(state, "build").map((id) => ({ kind: "unit", id }));
+  const p = state.players[city.owner]!;
+  const out: Production[] = unitChoices(state, city).filter((u) => !u.missing.length).map((u) => ({ kind: "unit", id: u.id }));
   for (const b of BUILDINGS) {
     if (b.id === "palace" && city.buildings.includes("palace")) continue;
     if (city.buildings.includes(b.id)) continue;
