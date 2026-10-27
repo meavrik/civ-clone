@@ -624,11 +624,11 @@ Never ship the original's sprites, palette art, fonts or text.
   "Starts knowing ..."; classic civs say every people is alike); Begin (Enter, Space, Esc, the close box).
   `Renderer.reign`/`reignHit`; the web app's `reign` screen, the "lead the ... to glory" line after it.
   Tutorial (`tutorial.ts` in renderer-api; asked for 2026-10-27: "add a short tutorial for new players"):
-  `TUTORIAL`, nine tips (moving units, founding a city, your city, ending the turn, science, the map,
+  `TUTORIAL`, nine tips, one short sentence each (asked for the same day: "too many text. one sentence"; moving units, founding a city, your city, ending the turn, science, the map,
   villages, defence, neighbours), each `due` at the moment it helps (the first unit in play, settlers with no
   city, the first city, nothing left to order with a city, research from turn 2, the map from turn 4, a hut
   in sight from turn 1, an unguarded city from turn 8, a civ met); `nextTip` gives the first due one not yet
-  seen; `touch` words for the phone (`tipLines`; the web app reads a renderer without `mapView` as the phone).
+  seen; `touch` words for the phone (`tipLine`; the web app reads a renderer without `mapView` as the phone).
   The web app shows it (`tutorialStep`) once the map has been still `TIP_WAIT_MS` (700 ms; before the turn
   ends by itself) in a modal titled "Tutorial: ..." with Continue and End tutorial, standing clear of the
   tip's `focus` square (its city, hut, unguarded city; else the unit in play). Each tip shows once per

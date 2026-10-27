@@ -148,7 +148,7 @@ import {
   planMove,
   type MovePlan,
   nextTip,
-  tipLines,
+  tipLine,
   type Tip,
   setupMenu,
   setupOptions,
@@ -531,7 +531,7 @@ const touchScreen = !renderer.mapView;
 function showTip(tip: Tip): void {
   tutorial.seen.add(tip.id);
   saveTutorial();
-  modal(`Tutorial: ${tip.title}`, [...tipLines(tip, touchScreen)], ["Continue", "End tutorial"], (i) => {
+  modal(`Tutorial: ${tip.title}`, [tipLine(tip, touchScreen)], ["Continue", "End tutorial"], (i) => {
     if (i === 1) { setTutorial(false); say("Tutorial ended. Game > Tutorial starts it again.", 4000); }
   }, 0, () => {});
   const at = tip.focus ? tip.focus(state, 0) : state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;

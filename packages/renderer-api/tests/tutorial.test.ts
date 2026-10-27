@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createUnit, foundCity, newGame, setRelation, unitType } from "@civ/core";
-import { nextTip, tipLines, TUTORIAL } from "../src/index.js";
+import { nextTip, tipLine, TUTORIAL } from "../src/index.js";
 
 describe("tutorial", () => {
   it("tells each tip once, as the game comes to it", () => {
@@ -48,10 +48,17 @@ describe("tutorial", () => {
 
   it("speaks of taps on the phone where the words differ", () => {
     const move = TUTORIAL.find((t) => t.id === "move")!;
-    expect(tipLines(move, false).join(" ")).toMatch(/Right-click/);
-    expect(tipLines(move, true).join(" ")).toMatch(/Tap a square/);
+    expect(tipLine(move, false)).toMatch(/Right-click/);
+    expect(tipLine(move, true)).toMatch(/Tap a square/);
     const village = TUTORIAL.find((t) => t.id === "village")!;
-    expect(tipLines(village, true)).toBe(village.lines);
+    expect(tipLine(village, true)).toBe(village.line);
     expect(new Set(TUTORIAL.map((t) => t.id)).size).toBe(TUTORIAL.length);
+  });
+
+  it("says each tip in one short sentence", () => {
+    for (const t of TUTORIAL) for (const line of [t.line, t.touch ?? t.line]) {
+      expect(line.replace(/\{\w+\}\s*/g, "").length).toBeLessThanOrEqual(90);
+      expect(line.match(/[.!?]/g)).toHaveLength(1);
+    }
   });
 });
