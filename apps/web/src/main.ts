@@ -89,6 +89,7 @@ import {
   type Production,
   type SaveGame,
   type TurnEvent,
+  type Proposal,
   type CombatReport,
   type UnitAction,
   type UnitBattle,
@@ -190,11 +191,11 @@ import { canvas, configureDisplay, fitCanvas, toLogical } from "./display.js";
 import { createRetroRenderer } from "./retro-renderer.js";
 import { listSlots, readSlot, SLOTS, writeSlot } from "./storage.js";
 
-// ---- renderer ----------------------------------------------------------------
 /** The game's sound: effects as things happen, the tune under the map (`sound.ts`). */
 const sound = new GameSound();
 sound.attach(window);
 
+// ---- renderer ----------------------------------------------------------------
 // The game is drawn retro. The modern renderer (packages/renderer-modern) is set aside for
 // now: the app no longer offers it, though it still builds and passes its tests.
 const renderer: Renderer = createRetroRenderer(canvas);
@@ -611,9 +612,9 @@ function dispatch(cmd: Command): boolean {
   const r = applyCommand(state, cmd);
   if (r.ok) {
     log.push(cmd);
-    if ("unit" in cmd) actedThisTurn = true;
     if (cmd.type === "found") sound.play("found");
     else if (cmd.type === "declareWar") sound.play("war");
+    if ("unit" in cmd) actedThisTurn = true;
     if (cmd.type !== "endTurn") slideOwn(lastActions.slice(mark));
     if (cmd.type === "move" && lastCombat) reportCombat(lastCombat);
     if (cmd.type !== "endTurn") afterAction("unit" in cmd ? cmd.unit : undefined);
@@ -960,8 +961,8 @@ function builtWindow(cityId: number, p: Production, then: () => void, change?: C
   const city = state.cities.find((c) => c.id === cityId);
   const notice = builtNotice(state, cityId, p, change);
   if (!city || city.owner !== 0 || !notice) { then(); return; }
-  if (p.kind === "wonder") {
   sound.play(p.kind === "wonder" ? "wonder" : "built");
+  if (p.kind === "wonder") {
     // A wonder is a spectacle (asked for 2026-10-24): it rises in the city's picture, sparkles, and
     // only then does its window open, over that picture.
     wonderShow(cityId, p.id, () => {
@@ -1028,8 +1029,8 @@ type ConquestScreen = Extract<Screen, { kind: "conquest" }>;
 function conquestNews(ev: ConquestEvent, then: () => void): void {
   centerOn(ev.x, ev.y - 2);
   const view: ConquestView = { event: ev, viewer: 0, selected: 1 };
-  if (ev.by !== 0) { screenState = { kind: "conquest", view, then }; return; }
   sound.play(ev.by === 0 ? "triumph" : "lament");
+  if (ev.by !== 0) { screenState = { kind: "conquest", view, then }; return; }
   screenState = { kind: "triumph", event: ev, start: performance.now(), cheer: conquestCard(state, view).cheer, then: () => { screenState = { kind: "conquest", view, then }; } };
 }
 
@@ -1317,8 +1318,8 @@ type NewTechScreen = Extract<Screen, { kind: "newTech" }>;
  * Tree opens the panel at once on the advance; Continue, the close box and Esc go on.
  */
 function announce(found: string[], due: boolean, then: () => void, back: Screen = { kind: "map" }, at = 0): void {
-  screenState = { kind: "newTech", view: { advance: found[at]!, selected: 1 }, found, at, due, back, then };
   sound.play("tech");
+  screenState = { kind: "newTech", view: { advance: found[at]!, selected: 1 }, found, at, due, back, then };
 }
 
 function leaveNewTech(sc: NewTechScreen, tree: boolean): void {
@@ -1653,9 +1654,9 @@ const OPTIONS = "Options";
 /** The game's switches, each with whether it is on and how to flip it. */
 function switches(): [label: string, on: boolean, flip: () => void][] {
   return [
-    ["Borders", borders, () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
     ["Sound", sound.sound, () => { sound.setSound(!sound.sound); say(`Sound ${sound.sound ? "on" : "off"}`); }],
     ["Music", sound.music, () => { sound.setMusic(!sound.music); say(`Music ${sound.music ? "on" : "off"}`); }],
+    ["Borders", borders, () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
     ["Place Names", placeNames, () => { setPlaceNames(!placeNames); say(`Place names ${placeNames ? "on" : "off"}`); }],
     ["Tutorial", tutorial.on, () => { setTutorial(!tutorial.on); say(tutorial.on ? "Tutorial on: its tips start again" : "Tutorial off"); }],
   ];
@@ -1824,8 +1825,8 @@ function greeting(player: number): string {
 
 /** First contact: the map shows whom we met, then their leader receives us. */
 function meet(player: number, then: () => void): void {
-  const place = meetingPlace(player);
   sound.play("meet");
+  const place = meetingPlace(player);
   const talk = () => audience(player, greeting(player), then, { first: true });
   if (place) beat(place.x, place.y, `The ${state.players[player]!.name}`, talk);
   else talk();
@@ -2129,9 +2130,52 @@ function peaceOfferAudience(player: number, then: () => void): void {
   }, refuse);
 }
 
+/**
+ * A computer leader's demand or request at our court (asked for 2026-10-27: leaders "use the new diplomacy
+ * on you"): tribute to pay or refuse (a refusal is a grievance, and a leader far the stronger may come for
+ * it), or one of our strategic resources for one of theirs or for gold. Our answer is the core `answer`;
+ * the close box or Esc refuses.
+ */
+function proposalAudience(player: number, p: Proposal, then: () => void): void {
+  if (!state.proposals?.[`${player}>0`]) { then(); return; }
+  sound.play("meet");
+  const reply = (accept: boolean, words: string): void => {
+    const ok = dispatch({ type: "answer", player, accept });
+    screenState = { kind: "diplomacy", player, line: ok || !accept ? words : "Then there is nothing more to say." };
+    talkMenu([], then, then); // nothing to answer: the close box, Enter or Esc go on
+  };
+  if (p.kind === "tribute") {
+    const refuse = () => reply(false, "So be it. You will come to regret it.");
+    screenState = { kind: "diplomacy", player, line: `Our armies are many, and yours are few. Pay us ${p.gold} gold, and we will leave you in peace.` };
+    const items: [string, () => void][] = [];
+    if (state.players[0]!.gold >= p.gold) items.push([`Pay ${p.gold} gold`, () => reply(true, "A wise choice. Let there be peace between us.")]);
+    items.push(["Refuse", refuse]);
+    talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), refuse);
+    return;
+  }
+  const price = p.give ? `our ${p.give}` : `${p.gold} gold`;
+  const refuse = () => reply(false, "As you wish. We will look elsewhere.");
+  screenState = { kind: "diplomacy", player, line: `We have need of ${p.want}. Let us have yours, for ${price}.` };
+  talkMenu(["Make the trade", "Refuse"], (i) => (i === 0 ? reply(true, `Your ${p.want} for ${price}: may both our peoples profit.`) : refuse()), refuse);
+}
+
+/** A computer leader sends us gold: their words, and on. */
+function giftAudience(player: number, gold: number, then: () => void): void {
+  sound.play("gift");
+  screenState = { kind: "diplomacy", player, line: `Accept these ${gold} gold, a token of our friendship.` };
+  talkMenu([], then, then);
+}
+
 /** A civilization declares war on us: its leader says so. */
-function warAudience(player: number, reason: "trespass" | undefined, then: () => void): void {
-  screenState = { kind: "diplomacy", player, line: reason === "trespass" ? "You were warned. Now our armies will drive you from our land." : "Enough words. Our armies march against you." };
+function warAudience(player: number, reason: "trespass" | "tribute" | undefined, then: () => void): void {
+  sound.play("war");
+  screenState = {
+    kind: "diplomacy",
+    player,
+    line: reason === "trespass" ? "You were warned. Now our armies will drive you from our land."
+      : reason === "tribute" ? "You would not pay. Now our armies will take what we asked, and more."
+      : "Enough words. Our armies march against you.",
+  };
   talkMenu([], () => then(), then); // nothing to answer: the close box, Enter or Esc go on
 }
 
@@ -2281,6 +2325,8 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
     else if ((ev.kind === "cityCaptured" || ev.kind === "cityLost") && (ev.player === 0 || ev.by === 0)) conquestNews(ev, next);
     else if (ev.kind === "warDeclared" && ev.on === 0) warAudience(ev.player, ev.reason, next);
     else if (ev.kind === "peaceOffer" && ev.to === 0) peaceOfferAudience(ev.player, next);
+    else if (ev.kind === "proposal" && ev.to === 0) proposalAudience(ev.player, ev.proposal, next);
+    else if (ev.kind === "gift" && ev.to === 0) giftAudience(ev.player, ev.gold, next);
     else if (ev.kind === "chooseResearch") askResearch(next);
     else if (ev.kind === "chooseGovernment") openGovernmentMenu({ kind: "map" }, next);
     else if (ev.kind === "disorder" && state.cities.find((c) => c.id === ev.city)?.owner === 0) {
@@ -2327,6 +2373,7 @@ function concernsUs(ev: TurnEvent): boolean {
   if (ev.kind === "warDeclared") return ev.on === 0;
   if (ev.kind === "leaveDemand") return ev.to === 0;
   if (ev.kind === "peaceOffer") return ev.to === 0;
+  if (ev.kind === "proposal" || ev.kind === "gift") return ev.to === 0;
   if (ev.kind === "trespass") return ev.intruder === 0; // our gotos, walked as our turn began
   if (ev.kind === "tradeEnded") return ev.a === 0 || ev.b === 0;
   return ev.kind === "eliminated" || ev.kind === "globalWarming" || ev.kind === "nuked"
@@ -2336,6 +2383,7 @@ function concernsUs(ev: TurnEvent): boolean {
 function endTurn(): void {
   // Last turn's news has not been shown yet (slides still running): show it first.
   if (afterSlides.length) { skipWatch(); return; }
+  sound.play("turn");
   skipWatch();
   handoff = null;
   view.focus = undefined;
@@ -2383,7 +2431,6 @@ function endTurn(): void {
   if (wars.length) presentEvents(wars, watch); else watch();
 }
 
-  sound.play("turn");
 // ---- input: keyboard --------------------------------------------------------
 const MOVES: Record<string, [number, number]> = {
   Numpad8: [0, -1], ArrowUp: [0, -1],
@@ -3021,6 +3068,22 @@ function moveClick(active: Unit, tx: number, ty: number, pending: MovePlan | und
   calloutUntil = performance.now() + CALLOUT_MS;
 }
 
+/** The fight last heard: whose, how hard each side was last struck, whether one has fallen. */
+let heard: { a: number; d: number; aHit: number; dHit: number; fell: boolean } | null = null;
+
+/** The sound of the fight on show: a clash as it begins, a blow as each lands, a burst as the loser falls. */
+function battleSound(b: typeof view.battle): void {
+  if (!b) { heard = null; return; }
+  if (!heard || heard.a !== b.attacker.unit || heard.d !== b.defender.unit) {
+    sound.play("clash");
+    heard = { a: b.attacker.unit, d: b.defender.unit, aHit: 0, dHit: 0, fell: false };
+  }
+  if ((b.attacker.hit > 0.8 && heard.aHit <= 0.8) || (b.defender.hit > 0.8 && heard.dHit <= 0.8)) sound.play("hit");
+  if (!heard.fell && (b.attacker.dying > 0 || b.defender.dying > 0)) { sound.play("boom"); heard.fell = true; }
+  heard.aHit = b.attacker.hit;
+  heard.dHit = b.defender.hit;
+}
+
 // ---- frame loop ---------------------------------------------------------------
 /** When each window first drew, so it can grow in (`WINDOW_ENTER_MS`); keyed by the window's own state. */
 const opened = new WeakMap<object, number>();
@@ -3068,22 +3131,6 @@ function draw(sc: Screen): void {
       renderer.built(state, sc.view);
       break;
     }
-/** The fight last heard: whose, how hard each side was last struck, whether one has fallen. */
-let heard: { a: number; d: number; aHit: number; dHit: number; fell: boolean } | null = null;
-
-/** The sound of the fight on show: a clash as it begins, a blow as each lands, a burst as the loser falls. */
-function battleSound(b: typeof view.battle): void {
-  if (!b) { heard = null; return; }
-  if (!heard || heard.a !== b.attacker.unit || heard.d !== b.defender.unit) {
-    sound.play("clash");
-    heard = { a: b.attacker.unit, d: b.defender.unit, aHit: 0, dHit: 0, fell: false };
-  }
-  if ((b.attacker.hit > 0.8 && heard.aHit <= 0.8) || (b.defender.hit > 0.8 && heard.dHit <= 0.8)) sound.play("hit");
-  if (!heard.fell && (b.attacker.dying > 0 || b.defender.dying > 0)) { sound.play("boom"); heard.fell = true; }
-  heard.aHit = b.attacker.hit;
-  heard.dHit = b.defender.hit;
-}
-
     case "conquest": {
       draw({ kind: "map" });
       sc.view.enter = enterOf(sc.view);
@@ -3141,6 +3188,7 @@ function frame(t: number): void {
   const shown = motion.at(t);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;
+  battleSound(shown.battle);
   showHold(shown.hold);
   // No game yet on the title screen and its menus.
   const lifting = (state as GameState | undefined) ? lifter.update(state, t, shown.moving) : undefined;
@@ -3168,4 +3216,3 @@ function frame(t: number): void {
 requestAnimationFrame(frame);
 
 (window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return log; }, get moving() { return view.moving; }, get battle() { return view.battle; }, get view() { return view; }, get screen() { return screenState.kind; }, get menu() { return screenState.kind === "menu" ? screenState.menu : undefined; }, dispatch, atWar, DIFFICULTIES };
-  battleSound(shown.battle);

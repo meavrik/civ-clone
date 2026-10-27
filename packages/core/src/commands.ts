@@ -57,7 +57,7 @@ import { newSpaceship, shipStats } from "./rules/spaceship.js";
 import { MOVE_FRAC, TERRAIN_RULES, WARMING_LIMIT, WARMING_THRESHOLD } from "./rules/terrain.js";
 import { HEALING, unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
-import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type CityFocus, type GameState, type Player, type Production, type Specialist, type Unit, type WorkKind } from "./types.js";
+import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type CityFocus, type GameState, type Player, type Production, type Proposal, type Specialist, type Unit, type WorkKind } from "./types.js";
 import { FOCI } from "./rules/focus.js";
 import { applyMove, attrition, cargo, checkMove, createUnit, deepWater, fullMoves, hugsCoast, lastActions, maxHp, unitById, whyNoWork, workOptions } from "./units.js";
 import { traitAnarchyCap, traitFriendlyVillages, traitMoves } from "./traits.js";
@@ -101,7 +101,7 @@ export type Command =
   | { type: "helpWonder"; unit: number } // caravan in a city building a wonder
   | { type: "tradeRoute"; unit: number } // caravan in a city far from its home
   | { type: "diplomat"; unit: number; action: DiplomatAction; x: number; y: number } // against the foreign city at (x, y) next door
-  | { type: "declareWar"; player: number; reason?: "trespass" }
+  | { type: "declareWar"; player: number; reason?: "trespass" | "tribute" }
   | { type: "makePeace"; player: number } // a treaty, from war or from first contact (the other side's answer is the caller's to ask)
   | { type: "offerPeace"; player: number } // a computer leader proposes a treaty; `player` answers with makePeace or not at all
   | { type: "openBorders"; player: number } // both civilizations' units may cross each other's land
@@ -110,6 +110,9 @@ export type Command =
   | { type: "tribute"; player: number; amount: number } // `player` gives in to a demand and pays the current player
   | { type: "demandLeave"; player: number } // ask `player` to take its units off the current player's land
   | { type: "giveGold"; player: number; amount: number } // a gift; it also forgives their trespass so far
+  | { type: "demandTribute"; player: number; amount: number } // a computer leader demands gold of `player`, who answers (`answer`)
+  | { type: "askResource"; player: number; want: string; give?: string; gold?: number } // a computer leader asks `player` for a resource, for one of its own or gold
+  | { type: "answer"; player: number; accept: boolean } // the current player answers `player`'s standing demand or request
   | { type: "withdraw"; player: number } // `player`'s units on the current player's land each set off for the nearest square outside it (a leader who agreed to leave)
   | { type: "giveAdvance"; player: number; advance: string }
   | { type: "exchangeAdvances"; player: number; give: string; receive: string }
@@ -137,10 +140,12 @@ export type TurnEvent =
   | { kind: "chooseGovernment" }
   | { kind: "overthrown"; player: number } // riots went on too long under `player`'s Democracy: anarchy
   | { kind: "contact"; player: number }
-  | { kind: "warDeclared"; player: number; on: number; reason?: "trespass" } // `player` declares war on `on`
+  | { kind: "warDeclared"; player: number; on: number; reason?: "trespass" | "tribute" } // `player` declares war on `on`
   | { kind: "trespass"; player: number; intruder: number; unit: number; x: number; y: number; warnings: number } // `intruder`'s unit stepped onto `player`'s land
   | { kind: "leaveDemand"; player: number; to: number; warnings: number } // `player` asks `to` to leave its land
   | { kind: "peaceOffer"; player: number; to: number } // `player` offers `to` a peace treaty
+  | { kind: "proposal"; player: number; to: number; proposal: Proposal } // `player` demands or asks something of `to`
+  | { kind: "gift"; player: number; to: number; gold: number } // `player` gives `to` gold
   // `by` took `player`'s city: razed (`cityLost`) or held (`cityCaptured`, its id `cityId`), at (x, y), with
   // the gold carried off (`plunder`) and whether it was `player`'s capital, for the window that tells of it.
   | { kind: "cityLost"; name: string; player: number; by: number; x: number; y: number; plunder: number; capital: boolean }
@@ -325,6 +330,53 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       me.gold -= cmd.amount;
       them.gold += cmd.amount;
       forgiveTrespass(state, them.id, me.id);
+      lastTurnEvents.push({ kind: "gift", player: me.id, to: them.id, gold: cmd.amount });
+      return { ok: true };
+    }
+    case "demandTribute":
+    case "askResource": {
+      const me = state.players[state.currentPlayer]!;
+      const them = state.players[cmd.player];
+      if (!them || them.id === me.id || !them.alive || !hasContact(state, me.id, them.id) || atWar(state, me.id, them.id)) return { ok: false, reason: "no talks" };
+      const k = `${me.id}>${them.id}`;
+      if (state.proposals?.[k]) return { ok: false, reason: "already asked" };
+      let p: Proposal;
+      if (cmd.type === "demandTribute") {
+        if (cmd.amount <= 0 || cmd.amount > them.gold) return { ok: false, reason: "they cannot pay that" };
+        p = { kind: "tribute", turn: state.turn, gold: cmd.amount };
+      } else {
+        // They would give us `want`, we them `give`, else our gold.
+        const why = whyNoTrade(state, them.id, me.id, cmd.want, cmd.give);
+        if (why) return { ok: false, reason: why };
+        if (cmd.gold !== undefined && (cmd.gold <= 0 || cmd.gold > me.gold)) return { ok: false, reason: "not enough gold" };
+        p = { kind: "resource", turn: state.turn, want: cmd.want, ...(cmd.give ? { give: cmd.give } : {}), ...(cmd.gold ? { gold: cmd.gold } : {}) };
+      }
+      (state.proposals ??= {})[k] = p;
+      (state.asked ??= {})[`${k}>${p.kind}`] = state.turn;
+      lastTurnEvents.push({ kind: "proposal", player: me.id, to: them.id, proposal: p });
+      return { ok: true };
+    }
+    case "answer": {
+      const me = state.players[state.currentPlayer]!;
+      const them = state.players[cmd.player];
+      const k = `${cmd.player}>${me.id}`;
+      const p = state.proposals?.[k];
+      if (!p || !them) return { ok: false, reason: "nothing asked" };
+      if (p.kind === "tribute") {
+        if (cmd.accept && me.gold < p.gold) return { ok: false, reason: "not enough gold" };
+        if (cmd.accept) {
+          me.gold -= p.gold;
+          them.gold += p.gold;
+          (state.tributePaid ??= {})[`${me.id}>${them.id}`] = state.turn;
+        } else (state.refusals ??= {})[`${me.id}>${them.id}`] = state.turn;
+      } else if (cmd.accept) {
+        const why = whyNoTrade(state, me.id, them.id, p.want, p.give);
+        if (why) return { ok: false, reason: why };
+        if (p.gold && them.gold < p.gold) return { ok: false, reason: "they cannot pay that" };
+        addTrade(state, me.id, them.id, p.want, p.give);
+        if (p.gold) { them.gold -= p.gold; me.gold += p.gold; }
+      }
+      delete state.proposals![k];
       return { ok: true };
     }
     case "giveAdvance": {
@@ -1285,6 +1337,8 @@ export function startTurn(state: GameState, player: number): void {
   recomputeVisibility(state, player);
   for (const met of detectContacts(state, player)) lastTurnEvents.push({ kind: "contact", player: met });
   clearTrespass(state, player);
+  // What this player asked of others and was not answered lapses as its turn comes round again.
+  for (const k of Object.keys(state.proposals ?? {})) if (k.startsWith(`${player}>`)) delete state.proposals![k];
   // Resource trades whose giver has lost what it gave, or whose sides are at war, end now.
   for (const { trade, by, why } of settleTrades(state)) lastTurnEvents.push({ kind: "tradeEnded", ...trade, by, why });
   selectNextUnit(state, null);

@@ -87,6 +87,7 @@ import {
   type WorkKind,
 } from "@civ/core";
 import { baselineTurn } from "./baseline.js";
+import { courtPlayers, ENVOYS } from "./envoys.js";
 
 /**
  * Planning opponent (AI v3). Once per turn it sizes up the empire — home
@@ -109,6 +110,7 @@ export function plannerTurn(state: GameState): void {
   manageGovernment(state, ctx);
   manageDiplomacy(state, ctx);
   guardBorders(state, ctx);
+  courtPlayers(state, me);
   manageTrade(state, ctx);
   manageResources(state, ctx);
   manageSpaceship(state, ctx);
@@ -716,7 +718,8 @@ function manageRates(state: GameState, ctx: Ctx): void {
   if (tax !== p.taxRate || lux !== p.luxRate || sci !== p.sciRate) applyCommand(state, { type: "setRates", tax, lux, sci });
 }
 
-function strength(state: GameState, owner: number): number {
+/** A civilization's land army: the attack and defence of all its land units. */
+export function strength(state: GameState, owner: number): number {
   let s = 0;
   for (const u of state.units) {
     if (u.owner !== owner) continue;
@@ -743,8 +746,9 @@ export function acceptsPeace(state: GameState, them: number, me: number): boolea
  * against `me`, a grievance (one warning), pride (far the stronger) and scorn
  * for `me`'s little influence, against admiration for great influence
  * (`esteem`) and the goodwill of `me`'s recent gifts (`goodwill`, since save
- * version 37): nothing against on balance is friendly, one thing wary, two
- * hostile. Read from the state alone, so the player's audience can ask
+ * version 37); a demand for tribute `me` refused lately counts against too
+ * (`ENVOYS.grudgeTurns`): nothing against on balance is friendly, one thing
+ * wary, two hostile. Read from the state alone, so the player's audience can ask
  * without touching the game.
  */
 export type Attitude = "friendly" | "wary" | "hostile";
@@ -759,6 +763,8 @@ export function attitude(state: GameState, them: number, me: number): Attitude {
   if (grievance && grievance.warnings > 0) mood--;
   if (strength(state, them) > strength(state, me) * 1.5) mood--;
   if (goodwill(state, me, them)) mood++;
+  const refused = state.refusals?.[`${me}>${them}`];
+  if (refused !== undefined && state.turn - refused < ENVOYS.grudgeTurns) mood--;
   return mood >= 0 ? "friendly" : mood === -1 ? "wary" : "hostile";
 }
 
@@ -859,7 +865,7 @@ export function tributeOffer(state: GameState, them: number, me: number): number
   const ratio = strength(state, me) / Math.max(1, strength(state, them));
   if (strength(state, them) * 2 >= strength(state, me)) return 0;
   const gold = state.players[them]!.gold;
-  const share = Math.min(0.5, 0.25 + (ratio - 2) / 12);
+  const share = Math.max(0.25, Math.min(0.5, 0.25 + (ratio - 2) / 12));
   return gold < 10 ? 0 : Math.max(10, Math.floor((gold * share) / 10) * 10);
 }
 

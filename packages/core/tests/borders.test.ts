@@ -608,3 +608,57 @@ describe("saves", () => {
     expect(loadSave(makeSave(s, { opponents: 2 }, []), () => {}).state.farContact).toBeUndefined();
   });
 });
+
+describe("a computer leader's demands and requests", () => {
+  /** Civ 1 (at peace with us) asks us; we hold Iron near our city. */
+  function court(): GameState {
+    const s = neighbours();
+    s.players[0]!.gold = 100;
+    s.players[1]!.gold = 100;
+    return s;
+  }
+
+  it("stands a demand for tribute until answered: paid, or refused and remembered", () => {
+    const s = court();
+    s.currentPlayer = 1;
+    expect(applyCommand(s, { type: "demandTribute", player: 0, amount: 500 })).toEqual({ ok: false, reason: "they cannot pay that" });
+    expect(applyCommand(s, { type: "demandTribute", player: 0, amount: 40 }).ok).toBe(true);
+    expect(lastTurnEvents.at(-1)).toEqual({ kind: "proposal", player: 1, to: 0, proposal: { kind: "tribute", turn: s.turn, gold: 40 } });
+    expect(applyCommand(s, { type: "demandTribute", player: 0, amount: 40 })).toEqual({ ok: false, reason: "already asked" });
+    s.currentPlayer = 0;
+    expect(applyCommand(s, { type: "answer", player: 1, accept: true }).ok).toBe(true);
+    expect([s.players[0]!.gold, s.players[1]!.gold]).toEqual([60, 140]);
+    expect(s.tributePaid?.["0>1"]).toBe(s.turn);
+    expect(applyCommand(s, { type: "answer", player: 1, accept: true })).toEqual({ ok: false, reason: "nothing asked" });
+    s.currentPlayer = 1;
+    applyCommand(s, { type: "demandTribute", player: 0, amount: 20 });
+    s.currentPlayer = 0;
+    applyCommand(s, { type: "answer", player: 1, accept: false });
+    expect(s.players[0]!.gold).toBe(60);
+    expect(s.refusals?.["0>1"]).toBe(s.turn);
+  });
+
+  it("trades a resource asked for on our yes, and lets an unanswered request lapse at the asker's next turn", () => {
+    const s = court();
+    for (const t of s.map.tiles) delete t.deposit;
+    const ours = s.cities.find((c) => c.owner === 0)!;
+    Object.assign(getTile(s.map, ours.x + 1, ours.y)!, { special: true, deposit: "Iron" });
+    s.currentPlayer = 1;
+    expect(applyCommand(s, { type: "askResource", player: 0, want: "Horses", gold: 30 }).ok).toBe(false); // we have none
+    expect(applyCommand(s, { type: "askResource", player: 0, want: "Iron", gold: 30 }).ok).toBe(true);
+    s.currentPlayer = 0;
+    expect(applyCommand(s, { type: "answer", player: 1, accept: true }).ok).toBe(true);
+    expect(s.resourceTrades).toContainEqual(expect.objectContaining({ a: 0, b: 1, give: "Iron" }));
+    expect([s.players[0]!.gold, s.players[1]!.gold]).toEqual([130, 70]);
+    applyCommand(s, { type: "endTrade", player: 1 });
+    s.currentPlayer = 1;
+    applyCommand(s, { type: "askResource", player: 0, want: "Iron", gold: 30 });
+    expect(s.proposals?.["1>0"]).toBeDefined();
+    // Unanswered: gone as civ 1's turn comes round again.
+    s.currentPlayer = 0;
+    applyCommand(s, { type: "endTurn" });
+    expect(s.currentPlayer).toBe(1);
+    expect(s.proposals?.["1>0"]).toBeUndefined();
+    expect(s.asked?.["1>0>resource"]).toBe(s.turn);
+  });
+});

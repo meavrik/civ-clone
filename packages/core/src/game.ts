@@ -104,6 +104,8 @@ export interface NewGameOptions extends MapGenOptions {
   askOnEntry?: boolean;
   /** Gifts of gold sway no leader (see `GameState.noGoodwill`). Old saves load with it. */
   noGoodwill?: boolean;
+  /** Computer leaders ask nothing of the player (see `GameState.quietLeaders`). Old saves load with it. */
+  quietLeaders?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -286,6 +288,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.wideCapital ? { wideCapital: true } : {}),
     ...(opts.askOnEntry ? { askOnEntry: true } : {}),
     ...(opts.noGoodwill ? { noGoodwill: true } : {}),
+    ...(opts.quietLeaders ? { quietLeaders: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

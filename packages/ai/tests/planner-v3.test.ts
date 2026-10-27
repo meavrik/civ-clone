@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, clearTrespass, createUnit, esteem, foundCity, getTile, goldScale, labelContinents, lastTurnEvents, newGame, peaceOffered, relation, setBordersOpen, setRelation, Terrain, trespassRecord, type GameState, type NewGameOptions } from "@civ/core";
-import { attitude, bordersAnswer, bordersPrice, describePlan, peaceAnswer, peacePrice, plannerTurn, resourcePrice, stayPrice, tributeOffer, withdrawAnswer } from "../src/index.js";
+import { applyCommand, clearTrespass, createRng, createUnit, esteem, foundCity, getTile, goldScale, labelContinents, lastTurnEvents, newGame, peaceOffered, relation, setBordersOpen, setRelation, Terrain, trespassRecord, type GameState, type NewGameOptions } from "@civ/core";
+import { attitude, bordersAnswer, bordersPrice, courtPlayers, describePlan, ENVOYS, peaceAnswer, peacePrice, plannerTurn, resourcePrice, stayPrice, tributeOffer, withdrawAnswer } from "../src/index.js";
 
 /** Player 0 plays (AI); everyone else just ends the turn. */
 function round(state: GameState): void {
@@ -310,5 +310,75 @@ describe("planner AI v3 treaties and influence", () => {
     };
     expect(declared(false)).toBe(true);
     expect(declared(true)).toBe(false);
+  });
+
+  it("demands tribute of a player far the weaker, takes a refusal ill, and may go to war over it", () => {
+    const s = met(); // two phalanxes (6) against our militia (2): three times as strong, and proud
+    s.players[0]!.gold = 200;
+    // Too small an army to threaten anyone: nothing asked.
+    for (let t = 0; t < 100; t++, s.turn++) courtPlayers(s, 1);
+    expect(s.proposals?.["1>0"]).toBeUndefined();
+    createUnit(s, "phalanx", 1, 30, 10); // 9 against 2
+    let asked = -1;
+    for (let t = 0; t < 200 && asked < 0; t++, s.turn++) {
+      courtPlayers(s, 1);
+      if (s.proposals?.["1>0"]) asked = s.turn;
+    }
+    // At four and a half times the strength, three eighths of 200, in tens.
+    expect(s.proposals?.["1>0"]).toEqual({ kind: "tribute", turn: asked, gold: 70 });
+    expect(lastTurnEvents).toContainEqual({ kind: "proposal", player: 1, to: 0, proposal: { kind: "tribute", turn: asked, gold: 70 } });
+    s.currentPlayer = 0;
+    applyCommand(s, { type: "answer", player: 1, accept: false });
+    expect(attitude(s, 1, 0)).toBe("hostile"); // proud, and refused
+    // Its turn this round: war, half the time; never again for that refusal.
+    s.currentPlayer = 1;
+    const wars = [0, 1, 2, 3, 4, 5, 6, 7].map((seed) => {
+      const c = structuredClone(s);
+      c.rng = createRng(seed);
+      courtPlayers(c, 1);
+      return relation(c, 0, 1) === "war";
+    });
+    expect(wars.some(Boolean)).toBe(true);
+    expect(wars.every(Boolean)).toBe(false);
+    s.turn += ENVOYS.grudgeTurns;
+    expect(attitude(s, 1, 0)).toBe("wary");
+  });
+
+  it("sends a player it likes a gift now and then, and asks for a resource it lacks", () => {
+    const s = met();
+    renowned(s, 0);
+    expect(attitude(s, 1, 0)).toBe("friendly");
+    s.players[1]!.gold = 400;
+    let gift: number | undefined;
+    for (let t = 0; t < 300 && gift === undefined; t++, s.turn++) {
+      courtPlayers(s, 1);
+      gift = s.gifts?.["1>0"]?.[0]?.gold;
+    }
+    expect(gift).toBe(40);
+    expect(lastTurnEvents).toContainEqual(expect.objectContaining({ kind: "gift", player: 1, to: 0, gold: 40 }));
+    // It learns Iron Working, lacks Iron, and we hold some.
+    for (const t of s.map.tiles) delete t.deposit;
+    Object.assign(getTile(s.map, 11, 10)!, { special: true, deposit: "Iron" });
+    s.players[1]!.advances.push("bronze_working", "iron_working");
+    s.gifts = {};
+    let ask: unknown;
+    for (let t = 0; t < 200 && !ask; t++, s.turn++) {
+      courtPlayers(s, 1);
+      ask = s.proposals?.["1>0"];
+      if (s.gifts?.["1>0"]) s.gifts = {};
+    }
+    expect(ask).toMatchObject({ kind: "resource", want: "Iron", gold: resourcePrice(s, 0) });
+  });
+
+  it("asks nothing of the player in saves before version 38, nor of another computer civilization", () => {
+    const s = met({ quietLeaders: true });
+    s.players[0]!.gold = 200;
+    for (let t = 0; t < 200; t++, s.turn++) courtPlayers(s, 1);
+    expect(s.proposals ?? {}).toEqual({});
+    const ai = met();
+    ai.players[0]!.isAi = true;
+    ai.players[0]!.gold = 200;
+    for (let t = 0; t < 200; t++, ai.turn++) courtPlayers(ai, 1);
+    expect(ai.proposals ?? {}).toEqual({});
   });
 });

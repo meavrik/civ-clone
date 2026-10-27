@@ -355,6 +355,8 @@ export interface GameState {
   askOnEntry?: boolean;
   /** Gifts of gold sway no leader (`GOODWILL`), as before version 37. */
   noGoodwill?: boolean;
+  /** Computer leaders never demand tribute of the player, send gifts or ask for resources (`Proposal`), as before version 38. */
+  quietLeaders?: boolean;
   /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.
@@ -370,6 +372,12 @@ export interface GameState {
   tributePaid?: Record<string, number>;
   /** "giver>receiver": the gold given within `GOODWILL.turns` (older gifts are dropped as new ones come). */
   gifts?: Record<string, Gift[]>;
+  /** "asker>asked": a computer leader's standing demand or request (`Proposal`). */
+  proposals?: Record<string, Proposal>;
+  /** "asker>asked>kind": the turn of the last such proposal, so a leader does not ask again too soon. */
+  asked?: Record<string, number>;
+  /** "refuser>asker": the turn a demand for tribute was refused (a grievance for a while; war from a far stronger asker). */
+  refusals?: Record<string, number>;
   /** "offerer>to": the turn `offerer` last offered `to` peace. */
   peaceOffers?: Record<string, number>;
 }
@@ -397,6 +405,15 @@ export interface Trespass {
    */
   warnings: number;
 }
+
+/**
+ * What a computer leader asks of the player (asked for 2026-10-27: "let computer leaders use the new diplomacy
+ * on you"), standing until answered (the `answer` command) or the asker's next turn: gold as tribute, or a
+ * strategic resource for one of theirs or for gold.
+ */
+export type Proposal =
+  | { kind: "tribute"; turn: number; gold: number }
+  | { kind: "resource"; turn: number; want: string; give?: string; gold?: number };
 
 /** Gold one civilization gave another (`giveGold`): when, how much, and what it was worth to the receiver then (`goldScale`). */
 export interface Gift {

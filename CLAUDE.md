@@ -169,7 +169,13 @@ Never ship the original's sprites, palette art, fonts or text.
   `giveGold` keeps each gift (`state.gifts`, `recordGift`: gold and its share of the receiver's worth), and gifts
   within `GOODWILL.turns` (20) worth half its worth all told leave its leader a step warmer (`goodwill`, read by
   the AI's `attitude`; saves before 37 load with `noGoodwill`). The AI never gives gold, so neither changes
-  all-AI games (planner vs v2, 16 x 300: identical, 3-13, score 140 vs 199). `warDeclared` says who declared on whom (`on`) and why (`reason`).
+  all-AI games (planner vs v2, 16 x 300: identical, 3-13, score 140 vs 199). A computer leader's demands and
+  requests (asked for 2026-10-27: "let computer leaders use the new diplomacy on you"): its `demandTribute` and
+  `askResource` commands leave a `Proposal` standing (`state.proposals`, "asker>asked"; a `proposal` event;
+  `state.asked` spaces them), which the player answers with `answer` (yes: the tribute paid, `tributePaid`, or the
+  resource traded and their gold taken; no: a refused tribute is kept, `state.refusals`); an unanswered one lapses
+  as the asker's next turn begins. `giveGold` says so (`gift` event). Saves before version 38 load with
+  `quietLeaders`. `warDeclared` says who declared on whom (`on`) and why (`reason`: trespass, tribute).
   Saves before version 10 load with `farContact` and `noTrespass` (meeting at two squares, no stop),
   saves before version 12 with `fixedBorders` (each city its 21 squares, the nearer then older winning).
   Sight (`visibility.ts`; asked for 2026-10-24: "an area of observability: one tile beyond the empire's
@@ -277,7 +283,15 @@ Never ship the original's sprites, palette art, fonts or text.
   peace and the weaker more for borders, admiration 0.75x, scorn 1.5x; `stayPrice` to look away from our units,
   0.3 and half again a unit more and after a last warning; `resourcePrice` 0.5; in tens), `acceptsPeace` (at
   war: the fighting decides), `tributeOffer` (only far weaker civs, once in 20 turns: a quarter of the treasury
-  at half our strength, rising to half at a fifth),
+  at half our strength, rising to half at a fifth), what a leader asks of the player or gives them
+  (`envoys.ts`, `courtPlayers` after `guardBorders`, `ENVOYS`; human players only, at most one word a turn at
+  their court from anyone, peace envoys included): tribute, from a leader not friendly with an army of 8 or more
+  at three times the player's strength, when the player holds 30 gold, every 20 turns at most, 10% a turn (a
+  quarter of the treasury, up to half at six times the strength); a resource it wants and lacks that the player
+  can spare, not while hostile, for one of its spares the player lacks or `resourcePrice` gold, every 15 turns at
+  most, 10% a turn; a gift from a friendly leader holding 150 gold and 10 a city, a tenth of it, every 20 turns at
+  most, 4% a turn. A refused tribute counts against the refuser in `attitude` for 20 turns, and the asker, still
+  three times the stronger, declares war at its turn that round half the time (`reason: "tribute"`).
   `tradeAsk`. Toward a human civ only (computer pairs play as before, so v3-v2 runs are unchanged): the
   planner's envoy offers a treaty to a player it is friendly with (10% a turn, one envoy a turn per player,
   20 turns apart per pair), offers peace to end a war it wants over instead of making it, spares a player
@@ -810,6 +824,13 @@ Never ship the original's sprites, palette art, fonts or text.
   order waits, the status panel's End of Turn standing with "Press Enter" blinking in and out under it (the lit blue
   block it had was "too loud", 2026-10-24), and Enter or a click on it
   (`statusAt` "endTurn") ends the turn, the phone's way too.
+  Sound (`sound.ts`, `GameSound`; asked for 2026-10-27): effects and a looping tune made in the browser with the
+  Web Audio API from oscillators and noise on notes of our own (`SFX`, `TUNE`: two eight-bar halves in D dorian,
+  a square lead over a triangle bass), nothing downloaded; silent until the first key, click or touch (the
+  browser's rule), hushed while the page is hidden. Effects: a menu pick, a refused move, a city founded, a
+  building or wonder finished, an advance, a fight (a clash, each blow, the loser's burst, read off
+  `view.battle` each frame, `battleSound`), a city taken or lost, war, a meeting, a gift, a leader's demand, the
+  turn's end. Game > Options has Sound and Music (`epochs.sound` in localStorage); the phone app shares it.
   Diplomacy: a meeting first holds the map on whom we met (the `beat` screen:
   a callout, 1.6 s or any key), then their leader receives us (`audience`), a talk (redone 2026-10-25,
   asked for: a choice answered by buttons for its opposite, war's "Keep the peace", "Break the treaty"
@@ -824,13 +845,6 @@ Never ship the original's sprites, palette art, fonts or text.
   gold: a tenth, a quarter or half our treasury, `giftAmounts`, thanked by its weight to them, `giftWeight`
   modest, generous from half their `goldScale`, lavish from 1.5, `giftThanks`; with Trade an advance) and demands (their units off our
   land, tribute with Writing, close borders, declare war or break the treaty). Writing and Trade stand for
-  Sound (`sound.ts`, `GameSound`; asked for 2026-10-27): effects and a looping tune made in the browser with the
-  Web Audio API from oscillators and noise on notes of our own (`SFX`, `TUNE`: two eight-bar halves in D dorian,
-  a square lead over a triangle bass), nothing downloaded; silent until the first key, click or touch (the
-  browser's rule), hushed while the page is hidden. Effects: a menu pick, a refused move, a city founded, a
-  building or wonder finished, an advance, a fight (a clash, each blow, the loser's burst, read off
-  `view.battle` each frame, `battleSound`), a city taken or lost, war, a meeting, a gift, a leader's demand, the
-  turn's end. Game > Options has Sound and Music (`epochs.sound` in localStorage); the phone app shares it.
   the knowledge that brings more to say (asked for 2026-10-24, "when get diplomacy tech add more diplomacy
   options, when get trade tech add trade options"; the tree has no Diplomacy, so Writing, the Diplomat's).
   Up to four buttons, farewell last: a subject's topics stand as buttons where they fit, else the subject
@@ -875,6 +889,9 @@ Never ship the original's sprites, palette art, fonts or text.
   note beside the unit ("Babylonian land: leave by next turn", `landNote`); once a demand stands, a step in
   (once a civ a turn, later steps get a callout) and the AI's demands after its turn show our unit, then the
   leader asks us out (`askToLeave`: leave = gotos to the nearest square outside, `stayPrice` gold, or stay); an AI declaring war on us says so in an audience.
+  A leader's demand or request comes as an audience after its turn (`proposalAudience`: "Pay 80 gold" while we
+  have it, or "Make the trade", and Refuse; the close box refuses), and its gift as one with its words
+  (`giftAudience`).
 - `apps/mobile` — the web game as a PWA for phones and tablets, asked for without changing the web game:
   `src/main.ts` imports `apps/web/src/main.ts` as it is, and `vite.config.ts` (`webGame`) hands that file
   three stand-ins for its own modules: `display.ts` (the screen as wide as the phone held sideways allows,
