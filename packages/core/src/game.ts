@@ -100,6 +100,10 @@ export interface NewGameOptions extends MapGenOptions {
   safeTriremes?: boolean;
   /** The capital's border at its 21 squares from the start (see `GameState.wideCapital`). Old saves load with it. */
   wideCapital?: boolean;
+  /** Stepping onto land that minds it is the first demand to leave (see `GameState.askOnEntry`). Old saves load with it. */
+  askOnEntry?: boolean;
+  /** Gifts of gold sway no leader (see `GameState.noGoodwill`). Old saves load with it. */
+  noGoodwill?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -280,6 +284,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.looseSettlers ? { looseSettlers: true } : {}),
     ...(opts.safeTriremes ? { safeTriremes: true } : {}),
     ...(opts.wideCapital ? { wideCapital: true } : {}),
+    ...(opts.askOnEntry ? { askOnEntry: true } : {}),
+    ...(opts.noGoodwill ? { noGoodwill: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

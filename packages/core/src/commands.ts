@@ -41,7 +41,8 @@ import {
   setRelation,
   trespassers,
   trespassOn,
-  trespassRecord,
+  noteTrespass,
+  recordGift,
   warnTrespass,
 } from "./diplomacy.js";
 import { discoverExplored } from "./map/geography.js";
@@ -320,6 +321,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       const them = state.players[cmd.player];
       if (!them || !hasContact(state, me.id, them.id)) return { ok: false, reason: "no contact" };
       if (cmd.amount <= 0 || cmd.amount > me.gold) return { ok: false, reason: "not enough gold" };
+      recordGift(state, me.id, them.id, cmd.amount);
       me.gold -= cmd.amount;
       them.gold += cmd.amount;
       forgiveTrespass(state, them.id, me.id);
@@ -541,7 +543,7 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
   for (const c of cargo(state, u)) revealAround(state, u.owner, c.x, c.y, 1);
   enterHut(state, u);
   recomputeVisibility(state, u.owner);
-  noteTrespass(state, u, wasOn);
+  noteEntry(state, u, wasOn);
   const met = detectContacts(state, u.owner);
   for (const id of met) lastTurnEvents.push({ kind: "contact", player: id });
   // Meeting a new civilization stops the unit there for the turn, so both sides see whom they met
@@ -553,13 +555,14 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
 
 /**
  * A unit just stepped onto the land of a civilization that minds it (at peace,
- * no open borders): that civilization asks its owner to leave. The first
- * step in counts as their first warning; the UI hears of every entry.
+ * no open borders): noted, and its owner has a turn to leave before that
+ * civilization asks (`noteTrespass`; in saves before version 37 the step in
+ * was the first demand). The UI hears of every entry, with the demands so far.
  */
-function noteTrespass(state: GameState, u: Unit, wasOn: number): void {
+function noteEntry(state: GameState, u: Unit, wasOn: number): void {
   const on = trespassOn(state, u);
   if (on < 0 || on === wasOn) return;
-  const rec = trespassRecord(state, on, u.owner) ?? warnTrespass(state, on, u.owner);
+  const rec = noteTrespass(state, on, u.owner);
   lastTurnEvents.push({ kind: "trespass", player: on, intruder: u.owner, unit: u.id, x: u.x, y: u.y, warnings: rec.warnings });
 }
 
@@ -757,7 +760,7 @@ export function runGoto(state: GameState, u: Unit, planned?: [number, number][])
     enterHut(state, u);
     if (r.board !== undefined) return; // boarded: stay sentried on the ship
     u.order = goal; // applyMove clears standing orders
-    noteTrespass(state, u, wasOn);
+    noteEntry(state, u, wasOn);
     const met = state.farContact ? [] : meetAround(state, u);
     for (const id of met) lastTurnEvents.push({ kind: "contact", player: id });
     if (u.x === x && u.y === y) { u.order = { kind: "none" }; break; }

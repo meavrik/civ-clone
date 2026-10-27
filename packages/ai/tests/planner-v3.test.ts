@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, createUnit, esteem, foundCity, getTile, labelContinents, lastTurnEvents, newGame, peaceOffered, relation, setBordersOpen, setRelation, Terrain, trespassRecord, type GameState, type NewGameOptions } from "@civ/core";
-import { acceptsMapSwap, attitude, bordersAnswer, describePlan, peaceAnswer, plannerTurn, tributeOffer, withdrawAnswer } from "../src/index.js";
+import { applyCommand, clearTrespass, createUnit, esteem, foundCity, getTile, goldScale, labelContinents, lastTurnEvents, newGame, peaceOffered, relation, setBordersOpen, setRelation, Terrain, trespassRecord, type GameState, type NewGameOptions } from "@civ/core";
+import { attitude, bordersAnswer, bordersPrice, describePlan, peaceAnswer, peacePrice, plannerTurn, resourcePrice, stayPrice, tributeOffer, withdrawAnswer } from "../src/index.js";
 
 /** Player 0 plays (AI); everyone else just ends the turn. */
 function round(state: GameState): void {
@@ -97,8 +97,15 @@ describe("planner AI v3 borders", () => {
     return { s, unit: u.id };
   }
 
-  it("asks a human civilization off its land, warns once more, then goes to war", () => {
+  it("gives a human civilization a turn to leave, then asks it off its land, warns once more, and goes to war", () => {
     const { s } = trespassed();
+    // Its turn begins with our militia on its land: noted, nothing said.
+    clearTrespass(s, 1);
+    plannerTurn(s);
+    expect(trespassRecord(s, 1, 0)?.warnings).toBe(0);
+    expect(lastTurnEvents.some((e) => e.kind === "leaveDemand")).toBe(false);
+    expect(attitude(s, 1, 0)).toBe("wary"); // proud only: being on its land is no grievance yet
+    s.turn++;
     plannerTurn(s);
     expect(trespassRecord(s, 1, 0)?.warnings).toBe(1);
     expect(lastTurnEvents).toContainEqual({ kind: "leaveDemand", player: 1, to: 0, warnings: 1 });
@@ -131,13 +138,16 @@ describe("planner AI v3 borders", () => {
     const { s } = trespassed();
     expect(attitude(s, 1, 0)).toBe("wary"); // four phalanx points against our militia's two: proud
     expect(bordersAnswer(s, 1, 0)).toBe("for gold");
-    expect(acceptsMapSwap(s, 1, 0)).toBe(true);
     expect(tributeOffer(s, 1, 0)).toBe(0); // the stronger never pays
     s.units = s.units.filter((u) => u.owner !== 1);
     for (let i = 0; i < 3; i++) createUnit(s, "legion", 0, 10, 10);
     s.players[1]!.gold = 120;
     expect(attitude(s, 1, 0)).toBe("friendly");
-    expect(tributeOffer(s, 1, 0)).toBe(30);
+    // A share of its treasury that grows with how far the weaker it is: half, with nothing to fight with.
+    expect(tributeOffer(s, 1, 0)).toBe(60);
+    createUnit(s, "phalanx", 1, 30, 10); // 14 strength against 3: under half
+    expect(tributeOffer(s, 1, 0)).toBe(50);
+    s.units = s.units.filter((u) => u.owner !== 1);
     // A friendly leader takes its units off our land when asked; a hostile one never; a wary one yields to strength.
     expect(withdrawAnswer(s, 1, 0)).toBe(true);
     s.units = s.units.filter((u) => u.owner !== 0);
@@ -192,7 +202,55 @@ describe("planner AI v3 treaties and influence", () => {
     expect(esteem(s, 1, 0)).toBe("scorned");
     expect(attitude(s, 1, 0)).toBe("hostile"); // proud and scornful
     expect(peaceAnswer(s, 1, 0)).toBe("no");
-    expect(acceptsMapSwap(s, 1, 0)).toBe(false);
+  });
+
+  it("asks prices in gold by what gold is worth to it, its strength against ours and our influence", () => {
+    const s = met();
+    s.players[1]!.gold = 100;
+    const scale = goldScale(s, 1);
+    expect(scale).toBe(20 + 50 + 5); // a city of one: gold means much to a young realm
+    // Far the stronger (two phalanxes, 6, to our militia's 2): peace costs the most, open borders the least.
+    const peace = peacePrice(s, 1, 0);
+    const borders = bordersPrice(s, 1, 0);
+    expect(peace).toBe(Math.round((scale * 0.6 * 2) / 10) * 10);
+    expect(borders).toBe(Math.round((scale * 0.4 * 0.75) / 10) * 10);
+    // A greater realm asks more, as does one that scorns us; one that admires us, less.
+    s.cities.find((c) => c.owner === 1)!.size = 12;
+    s.players[1]!.gold = 600;
+    expect(peacePrice(s, 1, 0)).toBeGreaterThan(peace * 3);
+    renowned(s, 1);
+    expect(esteem(s, 1, 0)).toBe("scorned");
+    const scorned = peacePrice(s, 1, 0);
+    s.cities.find((c) => c.owner === 1)!.buildings = [];
+    s.cities.find((c) => c.owner === 1)!.wonders = [];
+    expect(peacePrice(s, 1, 0)).toBeLessThan(scorned);
+    // Selling a resource; looking away from our units on its land, more for more of them.
+    expect(resourcePrice(s, 1)).toBe(Math.round((goldScale(s, 1) * 0.5) / 10) * 10);
+    setRelation(s, 0, 1, "peace");
+    createUnit(s, "militia", 0, 29, 10);
+    const one = stayPrice(s, 1, 0);
+    createUnit(s, "militia", 0, 29, 11);
+    expect(stayPrice(s, 1, 0)).toBeGreaterThan(one);
+    for (const p of [peacePrice(s, 1, 0), bordersPrice(s, 1, 0), resourcePrice(s, 1), stayPrice(s, 1, 0)]) expect(p % 10).toBe(0);
+  });
+
+  it("warms to a player whose gifts weigh with it, for a while", () => {
+    const s = met();
+    expect(attitude(s, 1, 0)).toBe("wary");
+    s.currentPlayer = 0;
+    s.players[0]!.gold = 500;
+    applyCommand(s, { type: "giveGold", player: 1, amount: 10 }); // a token: nothing changes
+    expect(attitude(s, 1, 0)).toBe("wary");
+    applyCommand(s, { type: "giveGold", player: 1, amount: Math.ceil(goldScale(s, 1) / 2) });
+    expect(attitude(s, 1, 0)).toBe("friendly");
+    expect(peaceAnswer(s, 1, 0)).toBe("yes");
+    s.turn += 20;
+    expect(attitude(s, 1, 0)).toBe("wary");
+    const old = met({ noGoodwill: true });
+    old.currentPlayer = 0;
+    old.players[0]!.gold = 500;
+    applyCommand(old, { type: "giveGold", player: 1, amount: 400 });
+    expect(attitude(old, 1, 0)).toBe("wary");
   });
 
   it("sends a player it thinks well of an offer of peace now and then, and leaves the answer to them", () => {

@@ -157,10 +157,19 @@ Never ship the original's sprites, palette art, fonts or text.
   Saves before version 14 load with
   `accruedCulture`: `City.culture` gathered every turn (`cultureRate`, frozen numbers in `ACCRUED_CULTURE`). Met and not at war, without open borders
   (`openBorders`/`closeBorders` commands, `state.openBorders`) a civilization minds land units on its
-  land (`trespassOn`: not diplomats, caravans or units aboard): stepping in records its first demand
-  to leave (`state.trespass`, a `trespass` event), `demandLeave` adds one, a gift (`giveGold`) forgives,
-  and the record drops at the owner's turn once the units are gone. Other deals: `shareMaps`,
-  `tribute` (`tributePaid`). `warDeclared` says who declared on whom (`on`) and why (`reason`).
+  land (`trespassOn`: not diplomats, caravans or units aboard): stepping in, or being found there as the
+  owner's turn begins, notes the units (`noteTrespass`: `state.trespass` with `warnings` 0, a `trespass`
+  event), and they have a turn to leave before the first demand (asked for 2026-10-27: "wait for another turn
+  before asking to go away"; saves before version 37 load with `askOnEntry`: stepping in was the first
+  demand); `demandLeave` adds one, a gift (`giveGold`) forgives, and the record drops at the owner's turn once
+  the units are gone. Other deals: `tribute` (`tributePaid`); `shareMaps` stays for the logs that hold it (the
+  audience no longer offers maps, asked for the same day). Gold between civilizations (same day: every gift
+  and price was 50 gold, "make the money tribute more sophisticated"; `rules/diplomacy.ts`): what gold is worth
+  to a realm (`goldScale`: 20, half its treasury, 5 a citizen) prices the leaders' deals and weighs gifts;
+  `giveGold` keeps each gift (`state.gifts`, `recordGift`: gold and its share of the receiver's worth), and gifts
+  within `GOODWILL.turns` (20) worth half its worth all told leave its leader a step warmer (`goodwill`, read by
+  the AI's `attitude`; saves before 37 load with `noGoodwill`). The AI never gives gold, so neither changes
+  all-AI games (planner vs v2, 16 x 300: identical, 3-13, score 140 vs 199). `warDeclared` says who declared on whom (`on`) and why (`reason`).
   Saves before version 10 load with `farContact` and `noTrespass` (meeting at two squares, no stop),
   saves before version 12 with `fixedBorders` (each city its 21 squares, the nearer then older winning).
   Sight (`visibility.ts`; asked for 2026-10-24: "an area of observability: one tile beyond the empire's
@@ -256,14 +265,19 @@ Never ship the original's sprites, palette art, fonts or text.
   boats land raiders beside the nearest city, soldiers storm cities at long odds, loot farms and mines
   on the way and keep their best defender home, the leader keeps to its band and slips away alone).
   The planner treats a barbarian-held city on its continent as a war to win back. Borders
-  (`guardBorders`): a human civ's units on its land are asked off (stepping in was the first request),
-  warned once more a turn later, then war (`reason: "trespass"`) unless the planner is under 0.6x the
+  (`guardBorders`): a human civ's units on its land, once noted a turn before, are asked off, warned once
+  more a turn later, then war (`reason: "trespass"`) unless the planner is under 0.6x the
   intruder's strength (then it complains every 5 turns); computer civs do not mind each other. The
   player's audience asks pure functions of the state: `attitude` (hostile at war or after a last
-  warning; else a grievance, pride (1.5x the strength) and scorn for the player's influence each count
-  one against, admiration one for: none on balance friendly, one wary, two hostile), `peaceAnswer` (a
-  treaty after meeting) and `bordersAnswer` (wary: for `PEACE_PRICE`/`BORDERS_PRICE` gold), `acceptsMapSwap`,
-  `acceptsPeace` (at war: the fighting decides), `tributeOffer` (only far weaker civs, once in 20 turns),
+  warning; else a grievance (a demand made, not units merely noted), pride (1.5x the strength) and scorn for
+  the player's influence each count one against, admiration and the player's recent gifts (`goodwill`) one
+  for: none on balance friendly, one wary, two hostile), `peaceAnswer` (a treaty after meeting) and
+  `bordersAnswer` (wary: for gold), their prices (`PRICES`, shares of the leader's `goldScale`: `peacePrice`
+  0.6 and `bordersPrice` 0.4, moved by half the strength ratio within 0.75x-2x, the stronger side asking more for
+  peace and the weaker more for borders, admiration 0.75x, scorn 1.5x; `stayPrice` to look away from our units,
+  0.3 and half again a unit more and after a last warning; `resourcePrice` 0.5; in tens), `acceptsPeace` (at
+  war: the fighting decides), `tributeOffer` (only far weaker civs, once in 20 turns: a quarter of the treasury
+  at half our strength, rising to half at a fifth),
   `tradeAsk`. Toward a human civ only (computer pairs play as before, so v3-v2 runs are unchanged): the
   planner's envoy offers a treaty to a player it is friendly with (10% a turn, one envoy a turn per player,
   20 turns apart per pair), offers peace to end a war it wants over instead of making it, spares a player
@@ -805,9 +819,10 @@ Never ship the original's sprites, palette art, fonts or text.
   `TalkMemo`): nothing said already; nothing needing a treaty before one (maps, open borders); once the
   talk turns friendly (a treaty, a deal, a gift) no demand or war, once it turns hostile (a demand) no
   proposal or gift, so a refused demand leaves war or farewell; at war only peace and farewell. What we
-  may say falls under three subjects: proposals (peace, `proposePeace`: yes, for `PEACE_PRICE` or no; with
-  Writing exchange maps and open borders, `acceptsMapSwap`, `bordersAnswer`; with Trade trade knowledge:
-  pick theirs, they name ours), gifts (`GIFT_GOLD`; with Trade an advance) and demands (their units off our
+  may say falls under three subjects: proposals (peace, `proposePeace`: yes, for `peacePrice` or no; with
+  Writing open borders, `bordersAnswer`; with Trade trade knowledge: pick theirs, they name ours), gifts (Give
+  gold: a tenth, a quarter or half our treasury, `giftAmounts`, thanked by its weight to them, `giftWeight`
+  modest, generous from half their `goldScale`, lavish from 1.5, `giftThanks`; with Trade an advance) and demands (their units off our
   land, tribute with Writing, close borders, declare war or break the treaty). Writing and Trade stand for
   the knowledge that brings more to say (asked for 2026-10-24, "when get diplomacy tech add more diplomacy
   options, when get trade tech add trade options"; the tree has no Diplomacy, so Writing, the Diplomat's).
@@ -849,9 +864,10 @@ Never ship the original's sprites, palette art, fonts or text.
   things the retro look does not draw through the palette. The phone app caches each picture when first shown,
   not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
   into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
-  whether they admire or scorn us (`regardWords`); Enter there opens a civilization's card. Stepping onto land that minds us (once a
-  civ a turn, later steps get a callout) and the AI's demands after its turn show our unit, then the
-  leader asks us out (`askToLeave`: leave = gotos to the nearest square outside, a gift, or stay); an AI declaring war on us says so in an audience.
+  whether they admire or scorn us (`regardWords`); Enter there opens a civilization's card. Stepping onto land that minds us puts a
+  note beside the unit ("Babylonian land: leave by next turn", `landNote`); once a demand stands, a step in
+  (once a civ a turn, later steps get a callout) and the AI's demands after its turn show our unit, then the
+  leader asks us out (`askToLeave`: leave = gotos to the nearest square outside, `stayPrice` gold, or stay); an AI declaring war on us says so in an audience.
 - `apps/mobile` — the web game as a PWA for phones and tablets, asked for without changing the web game:
   `src/main.ts` imports `apps/web/src/main.ts` as it is, and `vite.config.ts` (`webGame`) hands that file
   three stand-ins for its own modules: `display.ts` (the screen as wide as the phone held sideways allows,

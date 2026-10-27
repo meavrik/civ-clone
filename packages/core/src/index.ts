@@ -11,6 +11,7 @@ export * from "./rules/civs.js";
 export * from "./rules/spaceship.js";
 export * from "./rules/barbarians.js";
 export * from "./rules/culture.js";
+export * from "./rules/diplomacy.js";
 export * from "./rules/focus.js";
 export * from "./rules/difficulty.js";
 export * from "./rules/experience.js";

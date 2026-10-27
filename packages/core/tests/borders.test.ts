@@ -18,6 +18,10 @@ import {
   dropLostSquares,
   esteem,
   getTile,
+  GOLD_WORTH,
+  goldScale,
+  GOODWILL,
+  goodwill,
   INFLUENCE,
   influenceSpecials,
   landOwner,
@@ -322,16 +326,62 @@ describe("culture", () => {
 });
 
 describe("trespass", () => {
-  it("asks a unit stepping onto foreign land to leave, once, and counts it as the first warning", () => {
+  it("notes a unit stepping onto foreign land, a turn to leave before anyone asks (before version 37 the first warning)", () => {
     const s = neighbours();
     const u = createUnit(s, "militia", 0, 27, 10);
     applyCommand(s, { type: "move", unit: u.id, dx: 1, dy: 0 });
-    expect(lastTurnEvents).toContainEqual({ kind: "trespass", player: 1, intruder: 0, unit: u.id, x: 28, y: 10, warnings: 1 });
-    expect(trespassRecord(s, 1, 0)).toEqual({ turn: s.turn, warnings: 1 });
+    expect(lastTurnEvents).toContainEqual({ kind: "trespass", player: 1, intruder: 0, unit: u.id, x: 28, y: 10, warnings: 0 });
+    expect(trespassRecord(s, 1, 0)).toEqual({ turn: s.turn, warnings: 0 });
     lastTurnEvents.length = 0;
-    applyCommand(s, { type: "move", unit: u.id, dx: 0, dy: 1 }); // still inside: no new request
+    applyCommand(s, { type: "move", unit: u.id, dx: 0, dy: 1 }); // still inside: nothing new
     expect(lastTurnEvents.some((e) => e.kind === "trespass")).toBe(false);
     expect(trespassers(s, 1, 0).map((t) => t.id)).toEqual([u.id]);
+    // The first demand counts one.
+    s.currentPlayer = 1;
+    applyCommand(s, { type: "demandLeave", player: 0 });
+    expect(trespassRecord(s, 1, 0)?.warnings).toBe(1);
+    // Saves before version 37: stepping in was the first demand.
+    const old = neighbours({ askOnEntry: true });
+    const v = createUnit(old, "militia", 0, 27, 10);
+    applyCommand(old, { type: "move", unit: v.id, dx: 1, dy: 0 });
+    expect(trespassRecord(old, 1, 0)).toEqual({ turn: old.turn, warnings: 1 });
+  });
+
+  it("notes units found on the land as its owner's turn begins, and drops them once gone", () => {
+    const s = neighbours();
+    const u = createUnit(s, "militia", 0, 29, 10);
+    applyCommand(s, { type: "endTurn" });
+    expect(s.currentPlayer).toBe(1);
+    expect(trespassRecord(s, 1, 0)).toEqual({ turn: s.turn, warnings: 0 });
+    u.x = 20;
+    const noted = s.turn;
+    while (s.currentPlayer !== 1 || s.turn === noted) applyCommand(s, { type: "endTurn" });
+    expect(trespassRecord(s, 1, 0)).toBeUndefined();
+    // Not in saves before version 37: the AI asked at once.
+    const old = neighbours({ askOnEntry: true });
+    createUnit(old, "militia", 0, 29, 10);
+    applyCommand(old, { type: "endTurn" });
+    expect(trespassRecord(old, 1, 0)).toBeUndefined();
+  });
+
+  it("weighs gifts of gold by what gold is worth to the receiver, and lets generous ones sway them for a while", () => {
+    const s = neighbours();
+    s.players[0]!.gold = 1000;
+    s.players[1]!.gold = 0;
+    const scale = goldScale(s, 1);
+    expect(scale).toBe(GOLD_WORTH.base + GOLD_WORTH.perCitizen * s.cities.filter((c) => c.owner === 1).reduce((n, c) => n + c.size, 0));
+    applyCommand(s, { type: "giveGold", player: 1, amount: 10 });
+    expect(s.gifts?.["0>1"]).toEqual([{ turn: s.turn, gold: 10, share: 10 / scale }]);
+    expect(goodwill(s, 0, 1)).toBe(false);
+    applyCommand(s, { type: "giveGold", player: 1, amount: Math.ceil(scale / 2) });
+    expect(goodwill(s, 0, 1)).toBe(true);
+    expect(goodwill(s, 1, 0)).toBe(false);
+    s.turn += GOODWILL.turns;
+    expect(goodwill(s, 0, 1)).toBe(false);
+    // Old gifts are dropped as new ones come.
+    applyCommand(s, { type: "giveGold", player: 1, amount: 10 });
+    expect(s.gifts?.["0>1"]).toHaveLength(1);
+    expect(goodwill(neighbours({ noGoodwill: true }), 0, 1)).toBe(false);
   });
 
   it("minds neither diplomats and caravans, nor anyone at war or with open borders", () => {

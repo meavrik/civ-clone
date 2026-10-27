@@ -1,4 +1,4 @@
-import { atPeace, atWar, bordersOpen, civ, civInfluence, esteem, exportable, GOVERNMENTS, hasResource, resourceHoldings, tradesOf, tradeSides, trespassers, type GameState } from "@civ/core";
+import { atPeace, atWar, bordersOpen, civ, civInfluence, esteem, exportable, goldScale, GOVERNMENTS, hasResource, resourceHoldings, tradesOf, tradeSides, trespassers, type GameState } from "@civ/core";
 
 /**
  * The audience with a foreign leader (redone 2026-10-22, asked for, after the user's mock-up "Caesar
@@ -87,11 +87,12 @@ export function leaderTitle(state: GameState, player: number): string {
  * after it follow from it: nothing already said, no demand or war once the talk has turned friendly
  * (a treaty, a deal, a gift), no proposal or gift once it has turned hostile (a demand), nothing that
  * needs a treaty before there is one. What we may say falls under three subjects: proposals (peace;
- * with Writing maps and open borders, at peace; with Trade knowledge), gifts (gold; with Trade an
- * advance) and demands (their units off our land, tribute with Writing, closing borders, war).
+ * with Writing open borders, at peace; with Trade knowledge), gifts (gold; with Trade an advance) and
+ * demands (their units off our land, tribute with Writing, closing borders, war). The exchange of maps
+ * is gone (asked for 2026-10-27; core's `shareMaps` stays for the logs that hold it).
  */
 export type TalkSubject = "propose" | "gift" | "demand";
-export type TalkTopic = "peace" | "maps" | "openBorders" | "knowledge" | "resources" | "gold" | "advance" | "resource" | "leave" | "tribute" | "closeBorders" | "endTrade" | "war";
+export type TalkTopic = "peace" | "openBorders" | "knowledge" | "resources" | "gold" | "advance" | "resource" | "leave" | "tribute" | "closeBorders" | "endTrade" | "war";
 export type TalkTone = "friendly" | "hostile";
 
 /** What a talk remembers: what we have said, the turn it has taken, the subject last talked of. */
@@ -106,11 +107,36 @@ export interface TalkMemo {
 /** A button of the talk: something to say, a subject that opens as its own list, or the farewell. */
 export type TalkButton = { topic: TalkTopic } | { subject: TalkSubject } | { farewell: true };
 
-/** The gold we may give in an audience (and to be let stay on a leader's land). */
-export const GIFT_GOLD = 50;
+/**
+ * The gifts of gold we may offer (asked for 2026-10-27: it was always 50): a tenth, a quarter and half
+ * of our treasury, in tens, at least ten each, never the same twice; none under ten gold.
+ */
+export function giftAmounts(gold: number): number[] {
+  const out: number[] = [];
+  for (const share of [0.1, 0.25, 0.5]) {
+    const g = Math.max(10, Math.floor((gold * share) / 10) * 10);
+    if (g <= gold && !out.includes(g)) out.push(g);
+  }
+  return out;
+}
+
+/** How a gift of `gold` weighs with `them`: against what gold is worth to them (core `goldScale`). */
+export type GiftWeight = "modest" | "generous" | "lavish";
+export function giftWeight(state: GameState, them: number, gold: number): GiftWeight {
+  const share = gold / goldScale(state, them);
+  return share >= 1.5 ? "lavish" : share >= 0.5 ? "generous" : "modest";
+}
+
+/** The leader's thanks for a gift of gold, by its weight; a generous one or more turns the talk friendly. */
+export function giftThanks(state: GameState, them: number, weight: GiftWeight): string {
+  const people = civ(state.players[them]!.civ).name;
+  return weight === "lavish" ? `Such generosity! The ${people} will not forget it.`
+    : weight === "generous" ? "Your generosity will be remembered."
+    : "A modest gift. We accept it.";
+}
 
 export const TALK_SUBJECT: Record<TalkTopic, TalkSubject> = {
-  peace: "propose", maps: "propose", openBorders: "propose", knowledge: "propose", resources: "propose",
+  peace: "propose", openBorders: "propose", knowledge: "propose", resources: "propose",
   gold: "gift", advance: "gift", resource: "gift",
   leave: "demand", tribute: "demand", closeBorders: "demand", endTrade: "demand", war: "demand",
 };
@@ -120,7 +146,7 @@ const SUBJECTS: readonly TalkSubject[] = ["propose", "gift", "demand"];
 /**
  * What `me` may say to `them` now, by subject (`swap`: they would trade knowledge, the AI's `tradeAsk`;
  * `goods`: they would let us have a strategic resource, the AI's `resourceOffers`). Peace while there is
- * no treaty; maps and open borders only at peace; no gift at war. With Currency, resources: a trade, a
+ * no treaty; open borders only at peace; no gift at war. With Currency, resources: a trade, a
  * gift of one they lack, and calling off the trades we have.
  */
 export function talkTopics(state: GameState, me: number, them: number, memo: TalkMemo, swap: boolean, goods = false): Record<TalkSubject, TalkTopic[]> {
@@ -135,13 +161,12 @@ export function talkTopics(state: GameState, me: number, them: number, memo: Tal
   return {
     propose: memo.tone === "hostile" ? [] : fresh([
       ["peace", !peace],
-      ["maps", peace && knows("writing")],
       ["openBorders", peace && knows("writing") && !open],
       ["knowledge", !war && knows("trade") && swap],
       ["resources", !war && coins && goods],
     ]),
     gift: memo.tone === "hostile" || war ? [] : fresh([
-      ["gold", us.gold >= GIFT_GOLD],
+      ["gold", giftAmounts(us.gold).length > 0],
       ["advance", knows("trade") && us.advances.some((a) => !they.advances.includes(a))],
       ["resource", coins && exportable(state, me).some((id) => !hasResource(state, them, id))],
     ]),
@@ -179,13 +204,12 @@ export const SUBJECT_LABEL: Record<TalkSubject, string> = { propose: "Make a pro
 export function topicLabel(state: GameState, me: number, them: number, topic: TalkTopic): string {
   switch (topic) {
     case "peace": return "Propose peace";
-    case "maps": return "Exchange maps";
     case "openBorders": return "Open borders";
     case "knowledge": return "Trade knowledge";
     case "resources": return "Trade resources";
     case "resource": return "Give a resource";
     case "endTrade": return "End our trade";
-    case "gold": return `Give ${GIFT_GOLD} gold`;
+    case "gold": return "Give gold";
     case "advance": return "Give an advance";
     case "leave": return "Demand they leave our land";
     case "tribute": return "Demand tribute";

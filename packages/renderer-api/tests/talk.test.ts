@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, foundCity, newGame, setBordersOpen, setRelation, Terrain, type GameState, type Relation } from "@civ/core";
-import { AUDIENCE_CHOICES, civCard, resourcesReport, talkButtons, talkLabel, talkTopics, TALK_SUBJECT, type TalkMemo, type TalkTone, type TalkTopic } from "../src/index.js";
+import { applyCommand, foundCity, goldScale, newGame, setBordersOpen, setRelation, Terrain, type GameState, type Relation } from "@civ/core";
+import { AUDIENCE_CHOICES, civCard, giftAmounts, giftThanks, giftWeight, resourcesReport, talkButtons, talkLabel, talkTopics, TALK_SUBJECT, type TalkMemo, type TalkTone, type TalkTopic } from "../src/index.js";
 
 /** Us (0) and civilization 1, standing as `relation`, knowing `advances`, with 100 gold. */
 function talkGame(relation: Relation, advances: string[] = []): GameState {
@@ -17,30 +17,46 @@ const labels = (s: GameState, memo: TalkMemo, swap = false) =>
 describe("a talk with a foreign leader", () => {
   it("opens a first meeting with peace, a gift, war and a parting in peace", () => {
     const s = talkGame("contact");
-    expect(labels(s, { said: [], first: true })).toEqual(["Propose peace", "Give 50 gold", "Declare war", "Part in peace"]);
+    expect(labels(s, { said: [], first: true })).toEqual(["Propose peace", "Give gold", "Declare war", "Part in peace"]);
   });
 
   it("never offers to break a treaty just signed, nor war after a gift", () => {
     const s = talkGame("contact");
     setRelation(s, 0, 1, "peace");
     const memo: TalkMemo = { said: ["peace"], tone: "friendly", subject: "propose", first: true };
-    expect(labels(s, memo)).toEqual(["Give 50 gold", "Part in peace"]);
+    expect(labels(s, memo)).toEqual(["Give gold", "Part in peace"]);
     memo.said.push("gold");
     expect(labels(s, memo)).toEqual(["Part in peace"]);
   });
 
-  it("offers maps and open borders only once a treaty is signed", () => {
+  it("offers open borders only once a treaty is signed, and never an exchange of maps", () => {
     const s = talkGame("contact", ["writing"]);
     expect(talkTopics(s, 0, 1, { said: [] }, false).propose).toEqual(["peace"]);
     setRelation(s, 0, 1, "peace");
-    expect(talkTopics(s, 0, 1, { said: [] }, false).propose).toEqual(["maps", "openBorders"]);
+    expect(talkTopics(s, 0, 1, { said: [] }, false).propose).toEqual(["openBorders"]);
   });
 
-  it("follows the thread: after maps, the other proposals come first; after a demand, only demands", () => {
+  it("offers gifts of gold by our treasury, weighed by what gold is worth to them", () => {
+    expect(giftAmounts(5)).toEqual([]);
+    expect(giftAmounts(30)).toEqual([10]);
+    expect(giftAmounts(100)).toEqual([10, 20, 50]);
+    expect(giftAmounts(1000)).toEqual([100, 250, 500]);
+    const s = talkGame("peace");
+    expect(talkTopics(s, 0, 1, { said: [] }, false).gift).toEqual(["gold"]);
+    s.players[0]!.gold = 5;
+    expect(talkTopics(s, 0, 1, { said: [] }, false).gift).toEqual([]);
+    const scale = goldScale(s, 1);
+    expect(giftWeight(s, 1, Math.floor(scale / 4))).toBe("modest");
+    expect(giftWeight(s, 1, scale)).toBe("generous");
+    expect(giftWeight(s, 1, 2 * scale)).toBe("lavish");
+    expect(giftThanks(s, 1, "lavish")).toMatch(/will not forget it/);
+  });
+
+  it("follows the thread: after a proposal, the other proposals come first; after a demand, only demands", () => {
     const s = talkGame("peace", ["writing", "trade"]);
     expect(labels(s, { said: [] }, true)).toEqual(["Make a proposal", "Offer a gift", "Make demands", "Farewell"]);
-    const friendly: TalkMemo = { said: ["maps"], tone: "friendly", subject: "propose" };
-    expect(labels(s, friendly, true)).toEqual(["Open borders", "Trade knowledge", "Offer a gift", "Farewell"]);
+    const friendly: TalkMemo = { said: ["knowledge"], tone: "friendly", subject: "propose" };
+    expect(labels(s, friendly, true)).toEqual(["Open borders", "Give gold", "Give an advance", "Farewell"]);
     const hostile: TalkMemo = { said: ["tribute"], tone: "hostile", subject: "demand" };
     expect(labels(s, hostile, true)).toEqual(["Break the treaty", "Farewell"]);
   });

@@ -45,6 +45,8 @@ import {
   government,
   governmentsAvailable,
   esteem,
+  goldScale,
+  goodwill,
   hasContact,
   hasWaterNearby,
   peaceOffered,
@@ -740,7 +742,8 @@ export function acceptsPeace(state: GameState, them: number, me: number): boolea
  * has warned `me` off its land twice. Otherwise it weighs what it holds
  * against `me`, a grievance (one warning), pride (far the stronger) and scorn
  * for `me`'s little influence, against admiration for great influence
- * (`esteem`): nothing against on balance is friendly, one thing wary, two
+ * (`esteem`) and the goodwill of `me`'s recent gifts (`goodwill`, since save
+ * version 37): nothing against on balance is friendly, one thing wary, two
  * hostile. Read from the state alone, so the player's audience can ask
  * without touching the game.
  */
@@ -752,8 +755,10 @@ export function attitude(state: GameState, them: number, me: number): Attitude {
   if (grievance && grievance.warnings >= 2) return "hostile";
   const regard = esteem(state, them, me);
   let mood = regard === "admired" ? 1 : regard === "scorned" ? -1 : 0;
-  if (grievance) mood--;
+  // Units merely seen on the land (no demand yet) are no grievance.
+  if (grievance && grievance.warnings > 0) mood--;
   if (strength(state, them) > strength(state, me) * 1.5) mood--;
+  if (goodwill(state, me, them)) mood++;
   return mood >= 0 ? "friendly" : mood === -1 ? "wary" : "hostile";
 }
 
@@ -763,8 +768,56 @@ function dealAnswer(state: GameState, them: number, me: number): "yes" | "for go
   return a === "friendly" ? "yes" : a === "wary" ? "for gold" : "no";
 }
 
-/** The gift a wary civilization asks before it opens its borders. */
-export const BORDERS_PRICE = 50;
+/**
+ * What a leader asks in gold, as shares of what gold is worth to them (`goldScale`; asked for 2026-10-27:
+ * every price was 50 gold, "make the money tribute more sophisticated"): a wary leader's price to sign
+ * peace or open its borders, to look away from our units on its land, and to sell a resource for gold.
+ * Peace costs more from a leader far the stronger, open borders from one far the weaker (our armies would
+ * walk its land); either less from one that admires our influence, more from one that scorns it.
+ */
+export const PRICES = {
+  peace: 0.6,
+  borders: 0.4,
+  /** For the first of our units on its land; each more adds half again, and a last warning half again. */
+  stay: 0.3,
+  resource: 0.5,
+  /** The strength of one side against the other moves a price by half the ratio, within these bounds. */
+  power: [0.75, 2],
+  regard: { admired: 0.75, respected: 1, scorned: 1.5 },
+} as const;
+
+/** A price in gold: rounded to tens, at least ten. */
+function priced(gold: number): number {
+  return Math.max(10, Math.round(gold / 10) * 10);
+}
+
+/** How the strength of `a` against `b` moves a price (`PRICES.power`). */
+function powerFactor(state: GameState, a: number, b: number): number {
+  const [lo, hi] = PRICES.power;
+  return Math.min(hi, Math.max(lo, 0.5 + 0.5 * (strength(state, a) / Math.max(1, strength(state, b)))));
+}
+
+/** What a wary `them` asks `me` to sign a peace treaty. */
+export function peacePrice(state: GameState, them: number, me: number): number {
+  return priced(goldScale(state, them) * PRICES.peace * powerFactor(state, them, me) * PRICES.regard[esteem(state, them, me)]);
+}
+
+/** What a wary `them` asks `me` to open its borders. */
+export function bordersPrice(state: GameState, them: number, me: number): number {
+  return priced(goldScale(state, them) * PRICES.borders * powerFactor(state, me, them) * PRICES.regard[esteem(state, them, me)]);
+}
+
+/** What `them` takes to look away from `me`'s units on its land: more for more units, and after a last warning. */
+export function stayPrice(state: GameState, them: number, me: number): number {
+  const units = trespassers(state, them, me).length;
+  const last = (trespassRecord(state, them, me)?.warnings ?? 0) >= 2 ? 1.5 : 1;
+  return priced(goldScale(state, them) * PRICES.stay * (1 + 0.5 * Math.max(0, units - 1)) * last);
+}
+
+/** The gold `them` asks for a resource when `me` has none it lacks to give for it. */
+export function resourcePrice(state: GameState, them: number): number {
+  return priced(goldScale(state, them) * PRICES.resource);
+}
 
 /**
  * Does `them` take its units off `me`'s land when asked (the player's demand in an audience)? A
@@ -777,17 +830,14 @@ export function withdrawAnswer(state: GameState, them: number, me: number): bool
   return strength(state, me) >= strength(state, them);
 }
 
-/** Would `them` open borders with `me`? Friendly: yes; wary: for a gift of `BORDERS_PRICE` gold; hostile: no. */
+/** Would `them` open borders with `me`? Friendly: yes; wary: for `bordersPrice` gold; hostile: no. */
 export function bordersAnswer(state: GameState, them: number, me: number): "yes" | "for gold" | "no" {
   return dealAnswer(state, them, me);
 }
 
-/** The gift a wary civilization asks before it signs a peace treaty. */
-export const PEACE_PRICE = 50;
-
 /**
  * Would `them`, met but without a treaty, sign peace with `me`? Friendly: yes;
- * wary: for a gift of `PEACE_PRICE` gold; hostile: no. (At war `acceptsPeace`
+ * wary: for `peacePrice` gold; hostile: no. (At war `acceptsPeace`
  * answers: the fighting decides it.)
  */
 export function peaceAnswer(state: GameState, them: number, me: number): "yes" | "for gold" | "no" {
@@ -797,22 +847,20 @@ export function peaceAnswer(state: GameState, them: number, me: number): "yes" |
 /** Turns before a computer leader offers the same civilization peace again. */
 const PEACE_OFFER_GAP = 20;
 
-/** Would `them` swap maps with `me`? Unless hostile. */
-export function acceptsMapSwap(state: GameState, them: number, me: number): boolean {
-  return attitude(state, them, me) !== "hostile";
-}
-
 /**
- * The gold `them` pays when `me` demands tribute: a quarter of its treasury
- * (in tens, at least ten), and only when it is far the weaker (under half
- * `me`'s strength) and has not paid `me` in the last 20 turns. 0 is a refusal.
+ * The gold `them` pays when `me` demands tribute: only when it is far the weaker (under half `me`'s
+ * strength) and has not paid `me` in the last 20 turns; then a share of its treasury that grows with
+ * how much the weaker it is, a quarter at half `me`'s strength to half at a fifth or less (in tens,
+ * at least ten). 0 is a refusal.
  */
 export function tributeOffer(state: GameState, them: number, me: number): number {
   const paid = state.tributePaid?.[`${them}>${me}`];
   if (paid !== undefined && state.turn - paid < 20) return 0;
+  const ratio = strength(state, me) / Math.max(1, strength(state, them));
   if (strength(state, them) * 2 >= strength(state, me)) return 0;
   const gold = state.players[them]!.gold;
-  return gold < 10 ? 0 : Math.max(10, Math.floor(gold / 40) * 10);
+  const share = Math.min(0.5, 0.25 + (ratio - 2) / 12);
+  return gold < 10 ? 0 : Math.max(10, Math.floor((gold * share) / 10) * 10);
 }
 
 /** The advance of `me`'s that `them` asks for in a swap: the one its plans want most, then the deepest. */
@@ -855,15 +903,13 @@ export function resourceOffers(state: GameState, them: number, me: number): stri
 
 /**
  * What `them` asks of `me` in return for one of its resources: one of `me`'s it lacks, the one it wants
- * first; null when `me` has none to give (then it sells for `RESOURCE_PRICE` gold).
+ * first; null when `me` has none to give (then it sells for `resourcePrice` gold).
  */
 export function resourceAsk(state: GameState, them: number, me: number): string | null {
   const theirs = exportable(state, me).filter((id) => !hasResource(state, them, id));
   return theirs.find((id) => wantsResource(state, them, id)) ?? theirs[0] ?? null;
 }
 
-/** The gold a computer leader asks for a resource when we have none it lacks to give for it. */
-export const RESOURCE_PRICE = 80;
 
 /**
  * Resources with other computer civilizations not at war with us: one for one, each side's spare for
@@ -893,9 +939,11 @@ function manageResources(state: GameState, ctx: Ctx): void {
 
 /**
  * A human civilization's units on our land, at peace and without open
- * borders: ask them to leave (stepping in counted as the first request), ask
- * once more, then go to war, unless we are far the weaker, when we only
- * complain now and then. Computer civilizations do not mind each other.
+ * borders: once they have had a turn to leave (core notes them as they step
+ * in or as our turn begins; in saves before version 37 stepping in was the
+ * first request), ask them to leave, ask once more, then go to war, unless we
+ * are far the weaker, when we only complain now and then. Computer
+ * civilizations do not mind each other.
  */
 function guardBorders(state: GameState, ctx: Ctx): void {
   if (state.noTrespass) return;

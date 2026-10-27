@@ -1,4 +1,4 @@
-import { acceptsMapSwap, acceptsPeace, aiTurn, attitude, bordersAnswer, BORDERS_PRICE, peaceAnswer, PEACE_PRICE, resourceAsk, resourceOffers, RESOURCE_PRICE, tradeAsk, tributeOffer, withdrawAnswer } from "@civ/ai";
+import { acceptsPeace, aiTurn, attitude, bordersAnswer, bordersPrice, peaceAnswer, peacePrice, resourceAsk, resourceOffers, resourcePrice, stayPrice, tradeAsk, tributeOffer, withdrawAnswer } from "@civ/ai";
 import {
   advance,
   applyCommand,
@@ -118,7 +118,9 @@ import {
   leaderLine,
   leaderTitle,
   AUDIENCE_CHOICES,
-  GIFT_GOLD,
+  giftAmounts,
+  giftThanks,
+  giftWeight,
   SUBJECT_WORDS,
   TALK_SUBJECT,
   talkButtons,
@@ -569,6 +571,14 @@ function newContacts(): TurnEvent[] {
 /** Civilizations that have asked us off their land this turn: a unit stepping onto it again only gets a note. */
 const askedLeave = new Set<number>();
 
+/** A note beside our unit on another's land: whose it is, and, before they have asked anything, that they will ask at their next turn. */
+function landNote(ev: Extract<TurnEvent, { kind: "trespass" }>): void {
+  const them = state.players[ev.player]!;
+  const text = ev.warnings > 0 ? `Land of the ${them.name}` : `${civ(them.civ).adjective} land: leave by next turn`;
+  view.callout = { x: ev.x, y: ev.y, text };
+  calloutUntil = performance.now() + CALLOUT_MS;
+}
+
 /**
  * After one of our actions (by `unit`, if a unit acted): villages our units entered, civilizations we just met,
  * and land we stepped onto uninvited, each in its own window; places just found, in a note.
@@ -581,11 +591,9 @@ function afterAction(unit?: number): void {
     if (ev.kind === "hut" && ev.player === 0) { events.push(ev); lastTurnEvents.splice(i, 1); }
     else if (ev.kind === "trespass" && ev.intruder === 0) {
       lastTurnEvents.splice(i, 1);
-      if (!askedLeave.has(ev.player) && !events.some((e) => e.kind === "trespass" && e.player === ev.player)) events.push(ev);
-      else {
-        view.callout = { x: ev.x, y: ev.y, text: `Land of the ${state.players[ev.player]!.name}` };
-        calloutUntil = performance.now() + CALLOUT_MS;
-      }
+      // A first step in is only noted: they ask at their next turn if we stay (asked for 2026-10-27).
+      if (ev.warnings > 0 && !askedLeave.has(ev.player) && !events.some((e) => e.kind === "trespass" && e.player === ev.player)) events.push(ev);
+      else landNote(ev);
     } else i++;
   }
   events.unshift(...newContacts());
@@ -1819,7 +1827,7 @@ function meet(player: number, then: () => void): void {
  * that needs a treaty before one is signed. A subject with more to say than four buttons hold opens as a
  * list of its own (the leader asks what we propose, bring or demand; the close box or Esc comes back).
  * What we may say grows with our knowledge (asked for 2026-10-24): Writing (the Diplomat's advance; the
- * tree has no Diplomacy) brings maps, open borders and tribute, Trade the exchange of knowledge and the
+ * tree has no Diplomacy) brings open borders and tribute, Trade the exchange of knowledge and the
  * gift of an advance. A price or a war asks once more, its one button saying it and the close box
  * taking it back; a declaration of war ends the talk.
  */
@@ -1848,18 +1856,15 @@ function audience(player: number, line: string, done: () => void = () => { scree
         dispatch({ type: "makePeace", player });
         answer("Peace, then. Let the dead rest.", "friendly");
         return;
-      case "maps":
-        if (!acceptsMapSwap(state, player, 0)) { answer("Our maps are our own."); return; }
-        dispatch({ type: "shareMaps", player });
-        answer("Our cartographers have spoken with yours. Study the maps well.", "friendly");
-        return;
-      case "openBorders":
-        proposeDeal(player, bordersAnswer(state, player, 0), BORDERS_PRICE, answer, {
+      case "openBorders": {
+        const price = bordersPrice(state, player, 0);
+        proposeDeal(player, bordersAnswer(state, player, 0), price, answer, {
           no: "Our land is not open to your armies.",
-          price: `For a gift of ${BORDERS_PRICE} gold, our borders are open to you.`,
+          price: `For a gift of ${price} gold, our borders are open to you.`,
           declined: "Then our borders stay closed.",
         }, () => { dispatch({ type: "openBorders", player }); answer("Our borders are open to you, and yours to us.", "friendly"); });
         return;
+      }
       case "knowledge": tradeKnowledge(player, answer, back); return;
       case "resources": tradeGoods(player, answer, back); return;
       case "resource": giveGoods(player, answer, back); return;
@@ -1867,10 +1872,7 @@ function audience(player: number, line: string, done: () => void = () => { scree
         dispatch({ type: "endTrade", player });
         answer("So be it. Our caravans will carry nothing more between us.", "hostile");
         return;
-      case "gold":
-        dispatch({ type: "giveGold", player, amount: GIFT_GOLD });
-        answer("Your generosity will be remembered.", "friendly");
-        return;
+      case "gold": giveGold(player, answer, back); return;
       case "advance": giveAdvance(player, answer, back); return;
       case "leave": demandWithdraw(player, (w) => answer(w, "hostile")); return;
       case "tribute": {
@@ -1918,6 +1920,23 @@ function audience(player: number, line: string, done: () => void = () => { scree
   talk(line);
 }
 
+/**
+ * Give `player` gold (asked for 2026-10-27: it was always 50): a tenth, a quarter or half of our treasury
+ * (`giftAmounts`); they thank us by what it is worth to them (`giftWeight`), and a generous gift (or
+ * several) leaves them a step warmer for a while (core `goodwill`). The close box on the list takes it back.
+ */
+function giveGold(player: number, answer: (words: string, tone?: TalkTone) => void, back: () => void): void {
+  const amounts = giftAmounts(state.players[0]!.gold);
+  screenState = { kind: "diplomacy", player, line: "How much would you give?" };
+  talkMenu(amounts.map((g) => `${g} gold`), (i) => {
+    const gold = amounts[i];
+    if (gold === undefined) { back(); return; }
+    const weight = giftWeight(state, player, gold);
+    if (!dispatch({ type: "giveGold", player, amount: gold })) { back(); return; }
+    answer(giftThanks(state, player, weight), weight === "modest" ? undefined : "friendly");
+  }, back);
+}
+
 /** Give `player` one of our advances they lack (with Trade): goodwill, and their thanks; the close box on the list takes it back. */
 function giveAdvance(player: number, answer: (words: string, tone?: TalkTone) => void, back: () => void): void {
   const them = state.players[player]!;
@@ -1933,9 +1952,10 @@ function giveAdvance(player: number, answer: (words: string, tone?: TalkTone) =>
 
 /** Ask `player`, met without a treaty, for peace: a friendly civilization signs, a wary one asks a gift first, a hostile one refuses. */
 function proposePeace(player: number, answer: (words: string, tone?: TalkTone) => void): void {
-  proposeDeal(player, peaceAnswer(state, player, 0), PEACE_PRICE, answer, {
+  const price = peacePrice(state, player, 0);
+  proposeDeal(player, peaceAnswer(state, player, 0), price, answer, {
     no: esteem(state, player, 0) === "scorned" ? "A treaty with a people no one has heard of? No." : "We will bind ourselves to no treaty with you.",
-    price: `For a gift of ${PEACE_PRICE} gold, we will sign.`,
+    price: `For a gift of ${price} gold, we will sign.`,
     declined: "Then we have nothing to sign.",
   }, () => { dispatch({ type: "makePeace", player }); answer("Let there be peace between our peoples.", "friendly"); });
 }
@@ -2001,11 +2021,12 @@ function tradeGoods(player: number, answer: (words: string, tone?: TalkTone) => 
       }, () => answer(declined));
       return;
     }
-    if (state.players[0]!.gold < RESOURCE_PRICE) { answer(`You have nothing we need. For ${RESOURCE_PRICE} gold we might part with it; you have not so much.`); return; }
-    screenState = { kind: "diplomacy", player, line: `You have nothing we need. For ${RESOURCE_PRICE} gold, our ${receive} is yours.` };
-    talkMenu([`Pay ${RESOURCE_PRICE} gold`], () => {
+    const price = resourcePrice(state, player);
+    if (state.players[0]!.gold < price) { answer(`You have nothing we need. For ${price} gold we might part with it; you have not so much.`); return; }
+    screenState = { kind: "diplomacy", player, line: `You have nothing we need. For ${price} gold, our ${receive} is yours.` };
+    talkMenu([`Pay ${price} gold`], () => {
       if (!dispatch({ type: "tradeResources", player, receive })) { answer(declined); return; }
-      dispatch({ type: "giveGold", player, amount: RESOURCE_PRICE });
+      dispatch({ type: "giveGold", player, amount: price });
       answer(`The gold is counted. Our ${receive} is yours for as long as we keep the peace.`, "friendly");
     }, () => answer(declined));
   }, back);
@@ -2051,9 +2072,11 @@ function askToLeave(owner: number, warnings: number, then: () => void, at?: { x:
         then();
         say(n ? `Our units leave the land of the ${them.name}.` : "Our units find no way out.", 3000);
       }]);
-      if (state.players[0]!.gold >= GIFT_GOLD)
-        items.push([`Give ${GIFT_GOLD} gold`, () => {
-          dispatch({ type: "giveGold", player: owner, amount: GIFT_GOLD });
+      // What it takes to look away grows with our units there and a last warning (the AI's `stayPrice`).
+      const price = stayPrice(state, owner, 0);
+      if (state.players[0]!.gold >= price)
+        items.push([`Give ${price} gold`, () => {
+          dispatch({ type: "giveGold", player: owner, amount: price });
           then();
           say(`${leader} takes the gold and looks away, for now.`, 3500);
         }]);
@@ -2232,6 +2255,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
     }
     else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && builtNotice(state, ev.city, ev.production)) builtWindow(ev.city, ev.production, next, ev.change);
     else if (ev.kind === "contact") meet(ev.player, next);
+    else if (ev.kind === "trespass" && ev.warnings === 0) { landNote(ev); next(); }
     else if (ev.kind === "trespass" || ev.kind === "leaveDemand") {
       // One request a civilization at a time: the latest says how far it has gone.
       let warnings = ev.warnings;

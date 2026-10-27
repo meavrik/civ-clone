@@ -1,6 +1,7 @@
+import { GOLD_WORTH, GOODWILL } from "./rules/diplomacy.js";
 import { unitType } from "./rules/units.js";
 import { landOwner } from "./territory.js";
-import { getTile, Terrain, type GameState, type Relation, type Trespass, type Unit } from "./types.js";
+import { getTile, Terrain, type GameState, type Gift, type Relation, type Trespass, type Unit } from "./types.js";
 
 function key(a: number, b: number): string {
   return a < b ? `${a}:${b}` : `${b}:${a}`;
@@ -140,6 +141,20 @@ export function trespassRecord(state: GameState, owner: number, intruder: number
   return state.trespass?.[trespassKey(owner, intruder)];
 }
 
+/**
+ * `owner` sees `intruder`'s units on its land with no demand standing: noted, a turn to leave before the
+ * first demand (since save version 37; `askOnEntry` saves made it the first demand at once).
+ */
+export function noteTrespass(state: GameState, owner: number, intruder: number): Trespass {
+  const k = trespassKey(owner, intruder);
+  const had = state.trespass?.[k];
+  if (had) return had;
+  if (state.askOnEntry) return warnTrespass(state, owner, intruder);
+  const rec = { turn: state.turn, warnings: 0 };
+  (state.trespass ??= {})[k] = rec;
+  return rec;
+}
+
 /** `owner` asks `intruder` to leave (again): one more warning. */
 export function warnTrespass(state: GameState, owner: number, intruder: number): Trespass {
   const k = trespassKey(owner, intruder);
@@ -153,13 +168,44 @@ export function forgiveTrespass(state: GameState, owner: number, intruder: numbe
   if (state.trespass) delete state.trespass[trespassKey(owner, intruder)];
 }
 
-/** At the start of `owner`'s turn: grievances against civilizations whose units have all gone are dropped. */
+/**
+ * At the start of `owner`'s turn: grievances against civilizations whose units have all gone are dropped,
+ * and (since save version 37) units found on its land with nothing said yet are noted, to be asked off at
+ * its next turn if they stay.
+ */
 export function clearTrespass(state: GameState, owner: number): void {
-  if (!state.trespass) return;
-  for (const k of Object.keys(state.trespass)) {
+  for (const k of Object.keys(state.trespass ?? {})) {
     const [o, i] = k.split(">").map(Number) as [number, number];
-    if (o === owner && !trespassers(state, o, i).length) delete state.trespass[k];
+    if (o === owner && !trespassers(state, o, i).length) delete state.trespass![k];
   }
+  if (state.askOnEntry || state.noTrespass) return;
+  for (const p of state.players) if (p.alive && trespassers(state, owner, p.id).length) noteTrespass(state, owner, p.id);
+}
+
+// ---- gold between civilizations -----------------------------------------------------
+
+/** What gold is worth to `player` (`GOLD_WORTH`): more to a great, rich realm than to a young one. */
+export function goldScale(state: GameState, player: number): number {
+  let people = 0;
+  for (const c of state.cities) if (c.owner === player) people += c.size;
+  return GOLD_WORTH.base + Math.floor((state.players[player]?.gold ?? 0) * GOLD_WORTH.treasury) + GOLD_WORTH.perCitizen * people;
+}
+
+/** `from` gives `to` `gold`: kept, weighed by what gold is worth to `to` before it, while it may still sway them (`GOODWILL.turns`). */
+export function recordGift(state: GameState, from: number, to: number, gold: number): Gift {
+  const gift = { turn: state.turn, gold, share: gold / goldScale(state, to) };
+  const k = `${from}>${to}`;
+  const gifts = (state.gifts ??= {});
+  gifts[k] = [...(gifts[k] ?? []).filter((g) => state.turn - g.turn < GOODWILL.turns), gift];
+  return gift;
+}
+
+/** Whether `from`'s gifts of the last `GOODWILL.turns` turns, all told, leave `to` a step warmer toward it. Never in saves before version 37 (`noGoodwill`). */
+export function goodwill(state: GameState, from: number, to: number): boolean {
+  if (state.noGoodwill) return false;
+  let share = 0;
+  for (const g of state.gifts?.[`${from}>${to}`] ?? []) if (state.turn - g.turn < GOODWILL.turns) share += g.share;
+  return share >= GOODWILL.share;
 }
 
 // ---- peace offers -------------------------------------------------------------------

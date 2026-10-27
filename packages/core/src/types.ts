@@ -348,6 +348,14 @@ export interface GameState {
    */
   safeTriremes?: boolean;
   /**
+   * Trespass as before version 37: a unit stepping onto land that minds it counted as the first demand to
+   * leave (the leader asked at once), and units found there were asked off at the owner's next turn. Since
+   * 37 the units are only noted (`Trespass.warnings` 0) and have a turn to leave before the first demand.
+   */
+  askOnEntry?: boolean;
+  /** Gifts of gold sway no leader (`GOODWILL`), as before version 37. */
+  noGoodwill?: boolean;
+  /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.
    */
@@ -360,6 +368,8 @@ export interface GameState {
   trespass?: Record<string, Trespass>;
   /** "payer>receiver": the turn tribute was last paid. */
   tributePaid?: Record<string, number>;
+  /** "giver>receiver": the gold given within `GOODWILL.turns` (older gifts are dropped as new ones come). */
+  gifts?: Record<string, Gift[]>;
   /** "offerer>to": the turn `offerer` last offered `to` peace. */
   peaceOffers?: Record<string, number>;
 }
@@ -379,10 +389,20 @@ export interface ResourceTrade {
 }
 
 export interface Trespass {
-  /** Turn of the latest demand. */
+  /** Turn of the latest demand (or, with none yet, of the units first seen on the land). */
   turn: number;
-  /** Demands so far; the second is the last before war. */
+  /**
+   * Demands so far; the second is the last before war. 0: the units were seen on the land and have a
+   * turn to leave before the first demand (since save version 37; before, stepping in was the first).
+   */
   warnings: number;
+}
+
+/** Gold one civilization gave another (`giveGold`): when, how much, and what it was worth to the receiver then (`goldScale`). */
+export interface Gift {
+  turn: number;
+  gold: number;
+  share: number;
 }
 
 export function wrapX(map: WorldMap, x: number): number {
