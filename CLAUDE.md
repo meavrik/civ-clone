@@ -212,9 +212,16 @@ Never ship the original's sprites, palette art, fonts or text.
   unexplored giving way to the place's explored square on view nearest it, a square in from the view's sides
   (`PlaceLabel.at`, the first where the name fits); retro `drawPlaceNames`: waters pale blue, landforms
   parchment, lands in spaced gold capitals, ringed dark, over the fog and the shade, under cities and units,
-  never across a city's name or out over the dark, kept inside the view. Game > Options > Place Names (asked for the
+  never across a city's name or out over the dark, kept inside the view. A land's name has what it is
+  written small under it in parchment, "continent" or "island" (`landWord`: none when the name says it, "the
+  Isle of Capua"; asked for 2026-10-27: "not clear that is a continent name - maybe add continent to it"). The
+  minimap names the continents the viewer has found (asked for the same day; `continentLabels`: each continent
+  with a square explored, over its explored square nearest the middle of what was explored of it, the most
+  explored first; islands left out), retro `drawMinimapNames`: the map's gold ringed dark, over the view's
+  white frame (the ring hides it behind the letters) and under the unit's blinking box, nudged six pixels off
+  a name before it (else left out) and off the unit's box where it can. Game > Options > Place Names (asked for the
   same day: "add option to disable mass names visibility"; `MainScreenView.placeNames`, kept per browser)
-  turns off the names and the notes of places found. The square's window says where it lies in its title
+  turns off the names (the minimap's too) and the notes of places found. The square's window says where it lies in its title
   (`squareTitle`; see Map clicks), and a unit of ours that finds places says so beside it (`discoveryNote`:
   "Discovered: Lake Caesar, the Roman Hills"; the web app's `announcePlaces`; found at the turn's start, in
   the status line).

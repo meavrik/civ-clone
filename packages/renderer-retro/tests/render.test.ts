@@ -1125,8 +1125,9 @@ describe("world with opponents", () => {
     expect(changed.some((c) => c === playerColor(state, enemy.owner))).toBe(true);
 
     // The minimap (one pixel a square from y 11): each city a white dot in a cross of its owner's
-    // colour; with borders, a black dot on its land filled with the owner's colour.
-    const view = { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true };
+    // colour; with borders, a black dot on its land filled with the owner's colour. (Without the
+    // continents' names, which are written over it.)
+    const view = { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true, placeNames: false };
     const { width, height } = state.map;
     const mm = (x: number, y: number) => s.get(((x % width) + width) % width, 11 + y);
     const color = playerColor(state, enemy.owner);

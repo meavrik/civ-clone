@@ -224,6 +224,63 @@ export function squareTitle(state: GameState, x: number, y: number, terrain: str
   return placeTitle([said ? undefined : terrain, place, land].filter((n): n is string => !!n).join(", "));
 }
 
+/**
+ * The word written small under a land's name on the map (asked for 2026-10-27: a continent's name alone was
+ * "not clear that is a continent name"): "continent" or "island"; null for any other place, or when the name
+ * says it already ("the Isle of Capua").
+ */
+export function landWord(kind: PlaceKind, name: string): string | null {
+  if (kind !== "continent" && kind !== "island") return null;
+  return (kind === "island" ? /\b(isle|island)s?\b/i : /\bcontinents?\b/i).test(name) ? null : kind;
+}
+
+/** A continent's name on the minimap, written over square (x, y); `squares` is how much of it the viewer has explored. */
+export interface ContinentLabel {
+  region: number;
+  name: string;
+  x: number;
+  y: number;
+  squares: number;
+}
+
+/**
+ * The continents `viewer` has found, to name on the minimap (asked for 2026-10-27: "when discovered add to the
+ * minimap"): each continent with a name and a square of it explored, written over its explored square nearest
+ * the middle of all it has explored of it (unwrapped across the world's seam), the most explored first.
+ * Islands are left to the map: on the minimap they would crowd it.
+ */
+export function continentLabels(state: GameState, viewer: number): ContinentLabel[] {
+  const { map } = state;
+  const g = map.geography;
+  const me = state.players[viewer];
+  if (!g || !me) return [];
+  const w = map.width;
+  const found = new Map<number, { x: number; y: number }[]>();
+  for (let i = 0; i < g.land.length; i++) {
+    if (!me.explored[i]) continue;
+    const x = i % w;
+    const y = (i - x) / w;
+    const r = landAt(map, x, y);
+    if (r?.kind !== "continent" || !r.name) continue;
+    const region = g.land[i]!;
+    const squares = found.get(region);
+    if (!squares) { found.set(region, [{ x, y }]); continue; }
+    // Unwrapped from the first square found, so a continent across the seam keeps its shape.
+    let dx = x - squares[0]!.x;
+    if (dx > w / 2) dx -= w;
+    if (dx < -w / 2) dx += w;
+    squares.push({ x: squares[0]!.x + dx, y });
+  }
+  const out: ContinentLabel[] = [];
+  for (const [region, squares] of found) {
+    const mx = squares.reduce((n, p) => n + p.x, 0) / squares.length;
+    const my = squares.reduce((n, p) => n + p.y, 0) / squares.length;
+    const at = squares.reduce((a, p) => ((p.x - mx) ** 2 + (p.y - my) ** 2 < (a.x - mx) ** 2 + (a.y - my) ** 2 ? p : a));
+    out.push({ region, name: g.regions[region]!.name!, x: ((at.x % w) + w) % w, y: at.y, squares: squares.length });
+  }
+  return out.sort((a, b) => b.squares - a.squares || a.region - b.region);
+}
+
 /** The places a player saw first (`Region.by`), by index into the geography's regions. */
 export function placesFoundBy(state: GameState, player: number): number[] {
   const g = state.map.geography;

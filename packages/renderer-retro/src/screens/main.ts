@@ -94,7 +94,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, empirePopulation, fieldSides, isDeepWater, placeLabel, placeLabelText, populationShort, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -315,7 +315,8 @@ const PLACE_RING: Record<"water" | "landform" | "land", [string, number]> = { wa
 
 /**
  * The name of the place nearest the unit in play (`placeLabel`), centred on the first of its squares where
- * it fits: ringed so it reads on any ground, never across a city or its name, never out over the dark.
+ * it fits: ringed so it reads on any ground, never across a city or its name, never out over the dark. A
+ * land's name has what it is written small under it ("continent", `landWord`).
  */
 function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, across: number, cities: readonly City[]): void {
   const [ox, oy] = panOffset(view);
@@ -344,20 +345,23 @@ function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, acro
   };
   const text = placeLabelText(label.name);
   const style = label.land ? "land" : WATER_KINDS.has(label.kind) ? "water" : "landform";
-  const w = label.land ? spacedWidth(text) : textWidth(text);
+  const word = label.land ? landWord(label.kind, label.name) : null;
+  const w = Math.max(label.land ? spacedWidth(text) : textWidth(text), word ? textWidth(word) : 0);
+  const h = word ? 2 * FONT_HEIGHT : FONT_HEIGHT;
   // Kept inside the map's view (clear of the panel and the edges).
   const left = VIEW_X + 2;
   const right = VIEW_X + Math.floor((s.width - VIEW_X) / zoom) - 2;
   if (w > right - left) return;
   for (const { tx, ty } of label.at) {
     const cx = Math.min(right - (w >> 1) - 1, Math.max(left + (w >> 1) + 1, VIEW_X + tx * TILE - ox + (TILE >> 1)));
-    const y = Math.min(VIEW_Y + Math.floor(VIEW_H / zoom) - FONT_HEIGHT - 1, Math.max(VIEW_Y + 1, VIEW_Y + ty * TILE - oy + ((TILE - FONT_HEIGHT) >> 1)));
-    const box: [number, number, number, number] = [cx - (w >> 1) - 2, y - 1, w + 4, FONT_HEIGHT + 2];
+    const y = Math.min(VIEW_Y + Math.floor(VIEW_H / zoom) - h - 1, Math.max(VIEW_Y + 1, VIEW_Y + ty * TILE - oy + ((TILE - h) >> 1)));
+    const box: [number, number, number, number] = [cx - (w >> 1) - 2, y - 1, w + 4, h + 2];
     if (!clear(box) || !overExplored(box)) continue;
     const ink = shade(...PLACE_INK[style]);
     const ring = shade(...PLACE_RING[style]);
     if (label.land) drawSpacedRinged(s, cx, y, text, ink, ring);
     else drawTextRinged(s, cx - (w >> 1), y, text, ink, ring);
+    if (word) drawTextRinged(s, cx - (textWidth(word) >> 1), y + FONT_HEIGHT - 1, word, shade(...PLACE_INK.landform), ring);
     return;
   }
 }
@@ -796,18 +800,76 @@ function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: nu
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) put(toPixel(k, c.x) + dx, toPixel(k, c.y) + dy, color);
     }
   for (const c of known) put(toPixel(k, c.x), toPixel(k, c.y), terr ? C.BLACK! : C.WHITE!);
-  // The unit awaiting orders: a blinking yellow box round its pixel, so it can be found from anywhere.
+}
+
+/** Where the unit awaiting orders stands on the minimap, if one does. */
+function minimapUnit(state: GameState, view: MainScreenView, top: number): { x: number; y: number } | null {
   const pending = shownActive(state, view);
   const unit = pending !== null ? unitById(state, pending) : undefined;
-  if (unit && view.blink) {
-    const ux = toPixel(k, unit.x);
-    const uy = toPixel(k, unit.y);
-    for (let d = -2; d <= 2; d++) {
-      put(ux + d, uy - 2, C.YELLOW!);
-      put(ux + d, uy + 2, C.YELLOW!);
-      put(ux - 2, uy + d, C.YELLOW!);
-      put(ux + 2, uy + d, C.YELLOW!);
-    }
+  if (!unit) return null;
+  const k = minimapScale(state.map);
+  return { x: toPixel(k, unit.x), y: top + toPixel(k, unit.y) };
+}
+
+/** The unit awaiting orders on the minimap: a blinking yellow box round its pixel, so it can be found from anywhere. */
+function drawMinimapUnit(s: Surface, state: GameState, view: MainScreenView, top: number): void {
+  const at = minimapUnit(state, view, top);
+  if (!at || !view.blink) return;
+  const { w, h } = minimapSize(state.map);
+  const put = (px: number, py: number) => { if (py >= top && py < top + h) s.set(((px % w) + w) % w, py, C.YELLOW!); };
+  for (let d = -2; d <= 2; d++) {
+    put(at.x + d, at.y - 2);
+    put(at.x + d, at.y + 2);
+    put(at.x - 2, at.y + d);
+    put(at.x + 2, at.y + d);
+  }
+}
+
+/** The white frame of the view on the minimap: its columns (`right` may run past the minimap's width, round the world) and rows. */
+function minimapFrame(s: Surface, state: GameState, view: MainScreenView, top: number): { left: number; right: number; topY: number; bottomY: number } {
+  const { map } = state;
+  const k = minimapScale(map);
+  const vx = ((view.originX % map.width) + map.width) % map.width;
+  const vy = Math.max(0, view.originY);
+  const shows = zoomedTiles(viewZoom(view), s.width);
+  const vh = Math.min(map.height - vy, shows.y);
+  return { left: toPixel(k, vx), right: toPixel(k, vx + shows.x - 1), topY: top + toPixel(k, vy), bottomY: top + toPixel(k, vy + vh - 1) };
+}
+
+/**
+ * The continents the viewer has found, named on the minimap (`continentLabels`; asked for 2026-10-27) in the
+ * map's gold ringed dark, over the land and the view's frame (the ring hides the frame behind the letters):
+ * the most explored first, each centred on its middle, else a few pixels up or down, kept inside the minimap
+ * and off the names before it, else left out. A name keeps off the blinking box of the unit in play where it
+ * can, moving first toward the side its land lies on.
+ */
+function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: number; y: number } | null): void {
+  const { map } = state;
+  const k = minimapScale(map);
+  const { w, h } = minimapSize(map);
+  const ink = shade(...PLACE_INK.land);
+  const ring = shade(...PLACE_RING.land);
+  // A line's letters stand in the middle of its FONT_HEIGHT; boxes hold only them and their ring.
+  type Box = [number, number, number, number];
+  const overlaps = (p: Box, q: Box) => p[0] < q[0] + q[2] && q[0] < p[0] + p[2] && p[1] < q[1] + q[3] && q[1] < p[1] + p[3];
+  const unitBox: Box | null = unit ? [unit.x - 2, unit.y - 2, 5, 5] : null;
+  const taken: Box[] = [];
+  for (const label of continentLabels(state, state.currentPlayer)) {
+    const text = placeLabelText(label.name);
+    const tw = textWidth(text);
+    if (tw + 2 > w) continue;
+    const x = Math.max(1, Math.min(w - tw - 1, toPixel(k, label.x) - (tw >> 1)));
+    const ay = top + toPixel(k, label.y);
+    const way = unit && ay < unit.y ? -1 : 1;
+    const places = [0, 6, -6].map((dy): Box => {
+      const y = Math.max(top - 1, Math.min(top + h - FONT_HEIGHT + 1, ay - (FONT_HEIGHT >> 1) + way * dy));
+      return [x - 1, y + 1, tw + 2, FONT_HEIGHT - 2];
+    });
+    const free = places.filter((b) => !taken.some((t) => overlaps(b, t)));
+    const box = free.find((b) => !unitBox || !overlaps(b, unitBox)) ?? free[0];
+    if (!box) continue;
+    taken.push(box);
+    drawTextRinged(s, box[0] + 1, box[1] - 1, text, ink, ring);
   }
 }
 
@@ -830,15 +892,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   // Minimap: 80x50, one pixel per tile on the original's world; the viewport framed in white.
   const mmY = VIEW_Y + 2;
   drawMinimap(s, state, view, mmY);
-  const k = minimapScale(map);
-  const vx = ((view.originX % map.width) + map.width) % map.width;
-  const vy = Math.max(0, view.originY);
-  const shows = zoomedTiles(viewZoom(view), s.width);
-  const vh = Math.min(map.height - vy, shows.y);
-  const left = toPixel(k, vx);
-  const right = toPixel(k, vx + shows.x - 1);
-  const topY = mmY + toPixel(k, vy);
-  const bottomY = mmY + toPixel(k, vy + vh - 1);
+  const { left, right, topY, bottomY } = minimapFrame(s, state, view, mmY);
   for (let px = left; px <= right; px++) {
     s.set(px % mm.w, topY, C.WHITE!);
     s.set(px % mm.w, bottomY, C.WHITE!);
@@ -847,6 +901,9 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     s.set(left % mm.w, py, C.WHITE!);
     s.set(right % mm.w, py, C.WHITE!);
   }
+  // Over the frame (their ring hides it behind the letters, so they read), the names of the continents found, then the unit's box.
+  if (view.placeNames !== false) drawMinimapNames(s, state, mmY, minimapUnit(state, view, mmY));
+  drawMinimapUnit(s, state, view, mmY);
 
   // Empire: population, year, treasury and tax/luxury/science, government and research, as icons
   // (each told of in words by its tip, `panelTip`), where `panelLayout` puts them.

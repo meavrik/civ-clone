@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getTile, landAt, newGame, placeAt, Terrain, type Region } from "@civ/core";
-import { discoveryNote, NAME_REACH, placeLabel, placeLabelText, placeTitle, terrainInfo } from "../src/index.js";
+import { continentLabels, discoveryNote, landWord, NAME_REACH, placeLabel, placeLabelText, placeTitle, terrainInfo } from "../src/index.js";
 
 describe("place names", () => {
   it("names one place at a time, the nearest to the unit in play, near the unit", () => {
@@ -87,5 +87,37 @@ describe("place names", () => {
     expect(discoveryNote(found)).toBe("Discovered: Lake Caesar, Caesar's Land, the Caesar Desert");
     const many = Array.from({ length: 6 }, (_, i): Region => ({ kind: "lake", size: 9 - i, name: `Lake ${i}` }));
     expect(discoveryNote(many)).toBe("Discovered: Lake 0, Lake 1, Lake 2 and 3 more");
+  });
+
+  it("say a land's kind under its name unless the name says it", () => {
+    expect(landWord("continent", "Ausonia")).toBe("continent");
+    expect(landWord("island", "Great Britain")).toBe("island");
+    expect(landWord("island", "the Isle of Capua")).toBeNull();
+    expect(landWord("island", "Caesar Island")).toBeNull();
+    expect(landWord("sea", "the Sea of Caesar")).toBeNull();
+  });
+
+  it("name on the minimap the continents the viewer has found, not islands, the most explored first", () => {
+    const state = newGame(2026, { world: "earth", historical: true, opponents: 4 });
+    const { map } = state;
+    const me = state.players[0]!;
+    me.explored.fill(0);
+    expect(continentLabels(state, 0)).toEqual([]);
+    const squares = (name: string) => {
+      const out: number[] = [];
+      for (let i = 0; i < map.tiles.length; i++) if (landAt(map, i % map.width, Math.floor(i / map.width))?.name === name) out.push(i);
+      return out;
+    };
+    const africa = squares("Africa");
+    const europe = squares("Europe");
+    for (const i of africa) me.explored[i] = 1;
+    me.explored[europe[0]!] = 1;
+    const island = map.tiles.findIndex((_, i) => landAt(map, i % map.width, Math.floor(i / map.width))?.kind === "island");
+    me.explored[island] = 1;
+    const labels = continentLabels(state, 0);
+    expect(labels.map((l) => l.name)).toEqual(["Africa", "Europe"]);
+    // Over a square of the continent explored, Europe's its one square.
+    expect(africa).toContain(labels[0]!.y * map.width + labels[0]!.x);
+    expect(labels[1]!.y * map.width + labels[1]!.x).toBe(europe[0]);
   });
 });
