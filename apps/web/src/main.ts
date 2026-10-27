@@ -299,7 +299,7 @@ type Screen =
   | { kind: "end"; lines: string[]; rank: string }
   | { kind: "spaceship" }
   | { kind: "input"; input: TextInputState; onSubmit: (text: string) => void; under: Screen }
-  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number }
+  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number; sub?: boolean }
   | { kind: "report"; page: ReportPage }
   | { kind: "worldMap" };
 
@@ -506,7 +506,7 @@ function setBorders(on: boolean): void {
 /**
  * The tutorial (asked for 2026-10-27): renderer-api's tips, each shown once per browser in a small
  * window over the map when the map has been still a moment (`TIP_WAIT_MS`), until the player ends it
- * (a tip's End tutorial, or Game > Tutorial, which also starts it over).
+ * (a tip's End tutorial, or Game > Options > Tutorial, which also starts it over).
  */
 const tutorial = (() => {
   try {
@@ -532,7 +532,7 @@ function showTip(tip: Tip): void {
   tutorial.seen.add(tip.id);
   saveTutorial();
   modal(`Tutorial: ${tip.title}`, [tipLine(tip, touchScreen)], ["Continue", "End tutorial"], (i) => {
-    if (i === 1) { setTutorial(false); say("Tutorial ended. Game > Tutorial starts it again.", 4000); }
+    if (i === 1) { setTutorial(false); say("Tutorial ended. Game > Options turns it on again.", 4000); }
   }, 0, () => {});
   const at = tip.focus ? tip.focus(state, 0) : state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
   const sq = at && renderer.squareRect?.(state, view, at.x, at.y);
@@ -1548,9 +1548,7 @@ function barEntries(index: number): MenuEntry[] {
         ["Tax Rate", "T", () => { screenState = { kind: "rates" }; }],
         ["Find City", "", () => openFindCity()],
         ["Revolution!", "G", () => askRevolution(), governmentsAvailable(state, 0).length <= 1],
-        [`Borders: ${borders ? "On" : "Off"}`, "", () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
-        [`Place Names: ${placeNames ? "On" : "Off"}`, "", () => { setPlaceNames(!placeNames); say(`Place names ${placeNames ? "on" : "off"}`); }],
-        [`Tutorial: ${tutorial.on ? "On" : "Off"}`, "", () => { setTutorial(!tutorial.on); say(tutorial.on ? "Tutorial on: its tips start again" : "Tutorial off"); }],
+        [OPTIONS, "▸", () => openOptions()],
         ["Save Game", "", () => void openSaveMenu()],
         ["Load Game", "", () => void openLoadMenu()],
         ["Retire", "", () => endGame({ kind: "time" })],
@@ -1628,6 +1626,40 @@ function openBarMenu(index: number): void {
     bar: i,
     menu: { title: "", items: items.map((e) => e[0]), right: items.map((e) => e[1]), selected: items.findIndex((e) => !e[3]), anchor: renderer.menuBarAnchor(i), ...entryMarks(items) },
     onPick: (k) => { if (!items[k]?.[3]) items[k]?.[2](); },
+  };
+}
+
+/** The Game menu's row that opens the switches. */
+const OPTIONS = "Options";
+
+/** The game's switches, each with whether it is on and how to flip it. */
+function switches(): [label: string, on: boolean, flip: () => void][] {
+  return [
+    ["Borders", borders, () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
+    ["Place Names", placeNames, () => { setPlaceNames(!placeNames); say(`Place names ${placeNames ? "on" : "off"}`); }],
+    ["Tutorial", tutorial.on, () => { setTutorial(!tutorial.on); say(tutorial.on ? "Tutorial on: its tips start again" : "Tutorial off"); }],
+  ];
+}
+
+/**
+ * Game > Options (asked for 2026-10-27: the Game menu's switches moved into a submenu): a dropdown
+ * beside the Game menu's Options row, each switch with On or Off. A pick flips it and leaves the
+ * submenu open; Esc or Left goes back to the Game menu, a click off it goes to the Game menu under it.
+ */
+function openOptions(selected = 0): void {
+  openBarMenu(0);
+  const game = screenState;
+  if (game.kind !== "menu") return;
+  game.menu.selected = Math.max(0, game.menu.items.indexOf(OPTIONS));
+  const row = renderer.menuRowRect?.(game.menu, game.menu.selected);
+  const all = switches();
+  screenState = {
+    kind: "menu",
+    under: game,
+    sub: true,
+    // Its first row level with the Options row (an untitled dropdown's rows begin two pixels in).
+    menu: { title: "", items: all.map((s) => s[0]), right: all.map((s) => (s[1] ? "On" : "Off")), selected, anchor: row ? { x: row.x + row.w - 2, y: row.y - 2 } : renderer.menuBarAnchor(0) },
+    onPick: (i) => { all[i]?.[2](); openOptions(i); },
   };
 }
 
@@ -2489,10 +2521,12 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     openBarMenu(sc.bar + (e.code === "ArrowLeft" || e.code === "Numpad4" ? -1 : 1));
     return;
   }
+  // A submenu steps back to the dropdown it opened from.
+  if (sc.sub && (e.code === "ArrowLeft" || e.code === "Numpad4")) { screenState = sc.under; return; }
   const page = Math.max(1, renderer.menuRows(m) - 1);
   // A window answers Enter only once it stands whole, and never a key held down: a key held or mashed
   // through the playback must not dismiss the window that follows it. Dropdowns answer at once.
-  const ready = sc.bar !== undefined || (!e.repeat && settled(m));
+  const ready = sc.bar !== undefined || sc.sub || (!e.repeat && settled(m));
   if (!m.items.length) {
     // A message with nothing to choose: Enter or Esc close it and go on.
     if (!ready) return;
@@ -2753,7 +2787,7 @@ canvas.addEventListener("mousemove", (e) => {
   const i = renderer.setupHit(cards, px, py);
   if (i >= 0) setupSelection = i;
 });
-canvas.addEventListener("mousedown", (e) => {
+function mouseDown(e: MouseEvent): void {
   const [px, py] = toLogical(e);
   view.callout = undefined;
   tipPinned = null;
@@ -2778,6 +2812,8 @@ canvas.addEventListener("mousedown", (e) => {
       return;
     }
     case "menu": {
+      // Off a submenu the click goes to the dropdown under it: one of its rows, the bar, or off both to close.
+      if (sc.sub && renderer.menuHit(sc.menu, px, py) < 0) { screenState = sc.under; mouseDown(e); return; }
       if (sc.bar !== undefined) {
         const t = renderer.menuBarHit(px, py);
         if (t >= 0) { if (t === sc.bar) screenState = sc.under; else openBarMenu(t); return; }
@@ -2786,7 +2822,7 @@ canvas.addEventListener("mousedown", (e) => {
       const way = renderer.menuScrollAt(sc.menu, px, py);
       if (way !== null) { if (way) moveSelection(sc.menu, way * Math.max(1, renderer.menuRows(sc.menu) - 1)); return; }
       // A window still opening answers no click (a double click through the playback would close it).
-      if (sc.bar === undefined && !settled(sc.menu)) return;
+      if (sc.bar === undefined && !sc.sub && !settled(sc.menu)) return;
       const i = renderer.menuHit(sc.menu, px, py);
       screenState = sc.under;
       if (i >= 0) sc.onPick(i); else sc.onCancel?.();
@@ -2925,7 +2961,8 @@ canvas.addEventListener("mousedown", (e) => {
   if (view.inspect?.x === tx && view.inspect.y === ty) { openTerrainInfo(tx, ty, { x: px, y: py }); return; }
   centerOn(tx, ty);
   view.inspect = { x: tx, y: ty };
-});
+}
+canvas.addEventListener("mousedown", mouseDown);
 
 /**
  * A right-click on the map with a unit in play: a step next door goes at once (into our city or onto
@@ -3022,9 +3059,9 @@ function draw(sc: Screen): void {
       view.menuOpen = sc.bar;
       draw(sc.under);
       view.menuOpen = undefined;
-      if (sc.bar === undefined) sc.menu.enter = enterOf(sc.menu);
+      if (sc.bar === undefined && !sc.sub) sc.menu.enter = enterOf(sc.menu);
       renderer.menu(sc.menu, state as GameState | undefined);
-      if (status && sc.under.kind !== "map") renderer.statusLine(status);
+      if (status && sc.under.kind !== "map" && !sc.sub) renderer.statusLine(status);
       break;
   }
 }

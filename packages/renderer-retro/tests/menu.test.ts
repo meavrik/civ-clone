@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { keepInView, type MenuState } from "@civ/renderer-api";
-import { C, DESK_MENU, drawMenu, menuHit, menuRect, menuRows, menuScrollAt, Surface, TOUCH_MENU, TOUCH_MENU_SMALL } from "../src/index.js";
+import { C, DESK_MENU, drawMenu, menuHit, menuRect, menuRowRect, menuRows, menuScrollAt, Surface, TOUCH_MENU, TOUCH_MENU_SMALL } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 /** A city late in the game: more to build than the screen holds. */
@@ -93,6 +93,18 @@ describe("menus", () => {
     const hits = [0, 1, 2].map((i) => menuHit(m, r.x + 12, r.y + 17 + i * 18 + 8));
     expect(hits).toEqual([0, 1, 2]);
     expect(menuHit(m, r.x + r.w - 10, r.y + 17 + 8)).toBe(0);
+  });
+
+  it("tell where each row lies, so a submenu opens level with its row beside the dropdown", () => {
+    for (const size of [DESK_MENU, TOUCH_MENU]) {
+      const game: MenuState = { title: "", items: ["Tax Rate", "Find City", "Options", "Save Game"], right: ["T", "", "▸", ""], selected: 2, anchor: { x: 0, y: 9 } };
+      const row = menuRowRect(game, 2, 320, size)!;
+      expect(menuHit(game, row.x + row.w / 2, row.y + row.h / 2, 320, size)).toBe(2);
+      expect(row.x + row.w).toBe(menuRect(game, 320, size).x + menuRect(game, 320, size).w);
+      const options: MenuState = { title: "", items: ["Borders", "Place Names", "Tutorial"], right: ["On", "On", "Off"], selected: 0, anchor: { x: row.x + row.w - 2, y: row.y - 2 } };
+      expect(menuRowRect(options, 0, 320, size)!.y).toBe(row.y);
+      expect(menuHit(options, row.x + row.w + 10, row.y + row.h / 2, 320, size)).toBe(0);
+    }
   });
 });
 

@@ -408,6 +408,8 @@ export interface Renderer {
   menuRows(menu: MenuState): number;
   /** A point on a scrolling menu's bar: -1 above its thumb (page up), 1 below (page down), 0 on it; null off the bar. */
   menuScrollAt(menu: MenuState, px: number, py: number): number | null;
+  /** Where a row of a menu lies as drawn, across the menu's width (a submenu opens beside it); null for buttons or a row off view. */
+  menuRowRect?(menu: MenuState, row: number): { x: number; y: number; w: number; h: number } | null;
   /** Radius slot under a point on the city screen's resource map, or null. */
   citySlotAt(px: number, py: number): number | null;
   /** True when the point is on the city screen's exit bar. */

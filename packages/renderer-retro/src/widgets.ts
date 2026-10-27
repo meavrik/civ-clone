@@ -500,6 +500,13 @@ export function menuHit(m: MenuState, px: number, py: number, screenW = SCREEN_W
   return m.disabled?.includes(hit) ? -1 : hit;
 }
 
+/** Where row `i` of a menu of rows lies, across the menu's whole width (a submenu opens beside it); null for buttons or a row off view. */
+export function menuRowRect(m: MenuState, i: number, screenW = SCREEN_W, wanted = DESK_MENU): { x: number; y: number; w: number; h: number } | null {
+  const { x, w, itemsY, row, buttons, rows, top } = menuLayout(m, screenW, wanted);
+  if (buttons || i < top || i >= top + rows) return null;
+  return { x, y: itemsY - 1 + (i - top) * row, w, h: row };
+}
+
 /** A one-line text prompt: title, the text being typed, a blinking cursor. */
 export function drawTextInput(s: Surface, input: TextInputState, cursorOn: boolean): void {
   const w = 200;

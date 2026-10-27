@@ -63,6 +63,7 @@ import {
   menuRect,
   menuRows,
   menuScrollAt,
+  menuRowRect,
   TOUCH_MENU,
   choiceAt,
   choicesFit,
@@ -497,6 +498,11 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       return sh.style ? choiceAt(sh.menu, px - sh.dx, py, sh.screenW, sh.style) : menuHit(sh.menu, px - sh.dx, py, sh.screenW, TOUCH_MENU);
     },
     menuRows: (m) => shownMenuRows(m),
+    menuRowRect: (m, row) => {
+      const sh = shapeOf(m);
+      const r = sh.style ? null : menuRowRect(sh.menu, row, sh.screenW, TOUCH_MENU);
+      return r && { ...r, x: r.x + sh.dx };
+    },
     menuScrollAt: (m, px, py) => {
       const sh = shapeOf(m);
       return sh.style ? null : menuScrollAt(sh.menu, px - sh.dx, py, sh.screenW, TOUCH_MENU);

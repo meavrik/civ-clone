@@ -212,7 +212,7 @@ Never ship the original's sprites, palette art, fonts or text.
   unexplored giving way to the place's explored square on view nearest it, a square in from the view's sides
   (`PlaceLabel.at`, the first where the name fits); retro `drawPlaceNames`: waters pale blue, landforms
   parchment, lands in spaced gold capitals, ringed dark, over the fog and the shade, under cities and units,
-  never across a city's name or out over the dark, kept inside the view. Game > Place Names (asked for the
+  never across a city's name or out over the dark, kept inside the view. Game > Options > Place Names (asked for the
   same day: "add option to disable mass names visibility"; `MainScreenView.placeNames`, kept per browser)
   turns off the names and the notes of places found. The square's window says where it lies in its title
   (`squareTitle`; see Map clicks), and a unit of ours that finds places says so beside it (`discoveryNote`:
@@ -407,7 +407,12 @@ Never ship the original's sprites, palette art, fonts or text.
   Diplomacy, World, Debug) above map and panel; a `MenuState` with an `anchor` and an empty title is a bar
   dropdown; rows in its `disabled` list are drawn faded and never hit (the web app's `MenuEntry` fourth
   element; Game > Revolution! while `governmentsAvailable` offers one government only, asked for
-  2026-10-24). Diplomacy (added 2026-10-24, asked for) lists every civilization met with how we stand,
+  2026-10-24). The game's switches (Borders, Place Names, Tutorial, each On or Off) are a submenu, Game >
+  Options ▸ (asked for 2026-10-27: "move all Game menu switch options to be sub menu under options"; the web
+  app's `openOptions`, a menu `Screen` with `sub`): a dropdown opened beside the Options row
+  (`Renderer.menuRowRect`), over the Game dropdown, which stays drawn under it; a pick flips the switch and
+  leaves it open, Esc or Left goes back to the Game menu, and a click off it goes on to the Game menu (its
+  rows, the bar, or off both to close). Diplomacy (added 2026-10-24, asked for) lists every civilization met with how we stand,
   and opens its card: the audience screen with the leader's portrait at the left (`CARD_PICTURE`) and
   `civCard`'s lines beside it (`DiplomacyView.card`: leader and realm, trait, government, capital, size,
   what they make of our influence, their mood toward us (the AI's `attitude`), their units on our land),
@@ -632,7 +637,7 @@ Never ship the original's sprites, palette art, fonts or text.
   The web app shows it (`tutorialStep`) once the map has been still `TIP_WAIT_MS` (700 ms; before the turn
   ends by itself) in a modal titled "Tutorial: ..." with Continue and End tutorial, standing clear of the
   tip's `focus` square (its city, hut, unguarded city; else the unit in play). Each tip shows once per
-  browser (`epochs.tutorial` in localStorage: on, seen); End tutorial turns it off, Game > Tutorial turns it
+  browser (`epochs.tutorial` in localStorage: on, seen); End tutorial turns it off, Game > Options > Tutorial turns it
   on again and starts it over. UI only: nothing in the rules, the log or the saves.
   New Technology window (`newtech.ts`; asked for 2026-10-23 with the user's template and a picture for
   each advance): every advance found (end of turn, village, diplomat, treaty, Debug) gets one, in turn
@@ -654,7 +659,7 @@ Never ship the original's sprites, palette art, fonts or text.
   `screens/newtech.ts` (`newTechPicture(screenW)` is where the picture goes), modern as a plain modal.
   The adapters drop the pictures of the screen under a small window (they would cover it), and the
   phone draws it on whichever surface is under it, the wide map's or a 320x200 screen's.
-  Borders (`territory.ts`, toggled in the Game menu, which hides only the drawing): core's `claims`
+  Borders (`territory.ts`, toggled in Game > Options, which hides only the drawing): core's `claims`
   from the cities the viewer knows, the same land the rules read for trespass; `borderSides` gives the edges and
   where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimaps
   follow the same toggle: every explored square a civ claims, land and sea, in its colour, solid and
