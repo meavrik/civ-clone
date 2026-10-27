@@ -600,9 +600,13 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
     region = { ...region, x: region.x + 18, w: region.w - 18 };
   }
   drawStore(s, region, "shield", city.shields, r.productionCost);
+  // Civil disorder stops the shields (asked for 2026-10-27: "show production is halted"): a red strip, as
+  // the title's, across the slots, and the foot says why.
+  if (r.disorder) drawTitleStrip(s, region.x - 1, region.y + ((region.h - TITLE_H) >> 1), buy.x + buy.w - region.x + 1, "PRODUCTION HALTED", { centred: true, color: C.RED! });
   const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
   if (lacks.length) { say(s, RIGHT.x + 4, by, `Needs ${lacks.join(", ")}`, BAD); return; }
-  say(s, RIGHT.x + 4, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
+  if (r.disorder) say(s, RIGHT.x + 4, by, "Halted by disorder", BAD);
+  else say(s, RIGHT.x + 4, by, turns === null ? "Never" : `${turns} turn${turns === 1 ? "" : "s"}`, LABEL);
   const price = cost ? `Buy ${cost}$` : "Complete";
   say(s, RIGHT.x + RIGHT.w - 4 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);
 

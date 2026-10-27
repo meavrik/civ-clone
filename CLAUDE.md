@@ -237,7 +237,8 @@ Never ship the original's sprites, palette art, fonts or text.
   war weariness: each unit away from any city under the Republic (1) or Democracy (2) sours a content citizen,
   then a happy one for two steps; Women's Suffrage excuses one a city), wonders (Hanging Gardens, Cure for
   Cancer, Bach's, then Shakespeare's). Disorder when the unhappy outnumber the happy: no shields (the units'
-  upkeep still owed), tax or science; food and luxuries go on. `City.unrest` counts the turns in a row, and a
+  upkeep still owed), tax or science; food and luxuries go on (the city screen's production box lays a red
+  PRODUCTION HALTED strip across its shields, "Halted by disorder" at its foot; asked for 2026-10-27). `City.unrest` counts the turns in a row, and a
   Democracy falls into anarchy once a city passes `revolutionAfter` (2): the `overthrown` event. Celebration
   (the original's festival, in our words): from size `CELEBRATION_SIZE` (3) with nobody unhappy and half the
   people happy at the turn's end (`CityReport.celebration` becomes `City.celebrating`, a `celebration` city
