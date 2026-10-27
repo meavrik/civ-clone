@@ -103,9 +103,10 @@ export const UNIT_TYPES: UnitTypeRule[] = [
 /**
  * Share of full hit points recovered by a unit that spends its whole turn
  * without moving: in the field, in a fortress, in a city. Barracks heal land
- * units completely.
+ * units completely. A unit ordered to camp (asked for 2026-10-27: "camp and
+ * heal/regroup") recovers at least `camp`, as in a fortress.
  */
-export const HEALING = { field: 0.1, fortress: 0.25, city: 1 / 3 } as const;
+export const HEALING = { field: 0.1, fortress: 0.25, city: 1 / 3, camp: 0.25 } as const;
 
 /** With classic combat (old saves, `classicCombat`) every unit has these: one round settles a fight. */
 export const CLASSIC_HP = 10;

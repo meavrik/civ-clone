@@ -130,7 +130,7 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
   lastActions.push(battle);
   state.units = state.units.filter((x) => !destroyed.includes(x.id));
   u.movesLeft = Math.max(0, u.movesLeft - 3);
-  if (u.order.kind === "fortified" || u.order.kind === "sentry") u.order = { kind: "none" };
+  if (u.order.kind === "fortified" || u.order.kind === "sentry" || u.order.kind === "camp") u.order = { kind: "none" };
 
   const result: CombatResult = { attackerWon, attacker: u, defender, destroyed };
   if (promoted) result.promoted = promoted;

@@ -70,6 +70,8 @@ export type Command =
   | { type: "move"; unit: number; dx: number; dy: number }
   | { type: "fortify"; unit: number }
   | { type: "sentry"; unit: number }
+  /** A wounded unit makes camp until healed (K): it heals as in a fortress, and wakes once whole or when anyone comes near. */
+  | { type: "camp"; unit: number }
   | { type: "skip"; unit: number } // space: done for this turn
   | { type: "wait"; unit: number } // w: come back to it later
   | { type: "work"; unit: number; work: WorkKind }
@@ -394,6 +396,13 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       u.order = { kind: "sentry" };
       selectNextUnit(state, u.id);
       return { ok: true };
+    case "camp": {
+      const why = whyNoCamp(state, u);
+      if (why) return { ok: false, reason: why };
+      u.order = { kind: "camp" };
+      selectNextUnit(state, u.id);
+      return { ok: true };
+    }
     case "home": {
       const c = cityAt(state, u.x, u.y);
       if (!c || c.owner !== u.owner) return { ok: false, reason: "not in our city" };
@@ -976,6 +985,13 @@ function applyCheat(state: GameState, cheat: Cheat): CommandResult {
   }
 }
 
+/** Why a unit cannot make camp to heal, or null when it can: it must be wounded, and aircraft land to mend. */
+export function whyNoCamp(state: GameState, u: Unit): string | null {
+  if (unitType(u.type).domain === "air") return "aircraft cannot camp";
+  if (u.hp >= maxHp(state, u.type)) return "not wounded";
+  return null;
+}
+
 /** A unit needs orders if it has moves and no standing order. */
 export function needsOrders(u: Unit): boolean {
   return u.movesLeft > 0 && u.order.kind === "none";
@@ -1002,10 +1018,11 @@ export function selectNextUnit(state: GameState, after: number | null, wait = fa
   state.activeUnit = mine[0]!.id;
 }
 
-/** Wake sentried units when an enemy comes adjacent (checked each turn start). */
+/** Wake sentried and camped units when an enemy comes adjacent, and camped ones once healed (checked each turn start). */
 function wakeSentries(state: GameState, player: number): void {
   for (const u of state.units) {
-    if (u.owner !== player || u.order.kind !== "sentry") continue;
+    if (u.owner !== player || (u.order.kind !== "sentry" && u.order.kind !== "camp")) continue;
+    if (u.order.kind === "camp" && u.hp >= maxHp(state, u.type)) { u.order = { kind: "none" }; continue; }
     const near = state.units.some(
       (o) =>
         o.owner !== player &&
@@ -1197,6 +1214,8 @@ function heal(state: GameState, u: Unit): void {
   let share: number = HEALING.field;
   if (city) share = unitType(u.type).domain === "land" && city.buildings.some((b) => building(b).barracks) ? 1 : HEALING.city;
   else if (getTile(state.map, u.x, u.y)?.fortress) share = HEALING.fortress;
+  // Camped, it heals as in a fortress at least.
+  if (u.order.kind === "camp") share = Math.max(share, HEALING.camp);
   u.hp = Math.min(max, u.hp + Math.max(1, Math.round(max * share)));
 }
 

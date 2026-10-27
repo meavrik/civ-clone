@@ -112,6 +112,32 @@ describe("settler work and turns", () => {
   });
 });
 
+describe("camping", () => {
+  it("heals a wounded unit as in a fortress, skips it until whole, then wakes it; a whole unit has nothing to heal", () => {
+    const s = flatWorld();
+    const u = createUnit(s, "legion", 0, 20, 20);
+    expect(applyCommand(s, { type: "camp", unit: u.id })).toEqual({ ok: false, reason: "not wounded" });
+    u.hp = 2;
+    const other = createUnit(s, "legion", 0, 30, 20);
+    expect(applyCommand(s, { type: "camp", unit: u.id }).ok).toBe(true);
+    expect(u.order.kind).toBe("camp");
+    expect(s.activeUnit).toBe(other.id);
+    applyCommand(s, { type: "sentry", unit: other.id });
+    // A quarter of its hit points a turn (of a legion's 10, 2.5 rounded up), where the field heals a tenth.
+    const round = () => { do applyCommand(s, { type: "endTurn" }); while (s.currentPlayer !== 0); };
+    const hp = [u.hp];
+    for (let t = 0; t < 3; t++) { round(); hp.push(u.hp); }
+    expect(hp).toEqual([2, 5, 8, 10]);
+    expect(u.order.kind).toBe("none");
+    expect(s.activeUnit).toBe(u.id);
+    // Moving breaks camp.
+    u.hp = 4;
+    applyCommand(s, { type: "camp", unit: u.id });
+    applyCommand(s, { type: "activate", unit: u.id });
+    expect(u.order.kind).toBe("none");
+  });
+});
+
 describe("settlers", () => {
   it("found a city only three squares from every other, and never fortify; old saves keep two squares and fortified settlers", () => {
     for (const loose of [false, true]) {

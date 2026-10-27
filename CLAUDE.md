@@ -992,6 +992,10 @@ audience and between computer civs.
    load with `oceanColossus` (headless `--ocean-colossus`). Units have hit points and firepower (`hp`,
    `firepower` in `rules/units.ts`: 10 ancient, 20 gunpowder, 30-40 mechanised/steel; heavy guns hit
    for 2): fights go in rounds won with A/(A+D), survivors keep wounds and heal by resting (`HEALING`).
+   A wounded unit (not an aircraft) may make camp (K, its orders' "Camp and heal", "Rest and repair" at sea; the
+   `camp` command, `whyNoCamp`; asked for 2026-10-27: "camp and heal/regroup"): skipped like a sentry, it heals at
+   least as in a fortress (`HEALING.camp`, a quarter a turn), wakes once whole or when anyone comes near, and wears
+   a heart badge on the map; no save version (old logs hold no camp).
    `attackOdds` gives the exact chance. `classicCombat` (version 1 saves, `?combat=classic`) restores
    the original one-roll fights with the same RNG use, so old saves replay unchanged.
    Combat experience (asked for 2026-10-25: "for every unit produced a combat experience factor that will

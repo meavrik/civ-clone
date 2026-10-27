@@ -68,6 +68,8 @@ import {
   weakestWorked,
   bestFreeSlot,
   workOptions,
+  whyNoCamp,
+  maxHp,
   WORLD_SIZES,
   exportable,
   hasResource,
@@ -257,6 +259,9 @@ function refuseWork(unit: number, reason: string): void {
 const REASONS: Record<string, string> = {
   "not in our city": "Only in one of our cities",
   "already home": "This city already supports it",
+  "not wounded": "Not wounded: nothing to heal",
+  "aircraft cannot camp": "Aircraft mend only at base",
+  "settlers do not fortify": "Settlers cannot fortify",
   terrain: "Can't go there",
   rough: "Needs a road",
   steep: "Needs a road",
@@ -840,6 +845,7 @@ function unitStanding(u: Unit): string {
     case "fortified": return "Fortified";
     case "fortifying": return "Fortifying";
     case "sentry": return "Sentry";
+    case "camp": return "Healing";
     case "goto": return "Going";
     case "work": { const job = WORK_NAME[u.order.work]; return `${job[0]!.toUpperCase()}${job.slice(1)}, ${u.order.turnsLeft}`; }
     default: return u.movesLeft > 0 ? "Ready" : "No moves";
@@ -1466,6 +1472,8 @@ function unitOrders(unit: number): MenuEntry[] {
   // Settlers never fortify: their F builds a fortress, as in the original.
   if (type.domain === "land" && !type.flags?.includes("settler")) items.push(["Fortify", "F", () => dispatch({ type: "fortify", unit })]);
   items.push(["Sentry", "S", () => dispatch({ type: "sentry", unit })]);
+  // A wounded unit may make camp until healed (asked for 2026-10-27): it heals faster and wakes once whole.
+  if (whyNoCamp(state, u) === null) items.push([`${type.domain === "sea" ? "Rest and repair" : "Camp and heal"} (${u.hp}/${maxHp(state, u.type)})`, "K", () => dispatch({ type: "camp", unit })]);
   const here = cityAt(state, u.x, u.y);
   if (here && here.owner === u.owner && u.homeCity !== here.id) items.push([`Home city: ${here.name}`, "H", () => setHome(unit)]);
   items.push(["Wait", "W", () => dispatch({ type: "wait", unit })]);
@@ -2368,6 +2376,7 @@ function mapKey(e: KeyboardEvent): void {
       break;
     }
     case "KeyS": order({ type: "sentry", unit: active! }); break;
+    case "KeyK": order({ type: "camp", unit: active! }); break;
     case "KeyI": order({ type: "work", unit: active!, work: "irrigate" }); break;
     case "KeyM": order({ type: "work", unit: active!, work: "mine" }); break;
     case "KeyR": {

@@ -100,6 +100,8 @@ export type UnitOrder =
   | { kind: "fortified" }
   | { kind: "fortifying" }
   | { kind: "sentry" }
+  /** Resting until healed (the `camp` command): skipped like a sentry, healing faster, awake once whole or when anyone comes near. */
+  | { kind: "camp" }
   | { kind: "goto"; x: number; y: number }
   | { kind: "work"; work: WorkKind; turnsLeft: number };
 

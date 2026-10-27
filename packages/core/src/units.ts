@@ -252,7 +252,7 @@ export function applyMove(state: GameState, u: Unit, dx: number, dy: number, r: 
   u.y += dy;
   lastActions.push({ kind: "step", unit: u.id, type: u.type, owner: u.owner, fromX, fromY, toX: u.x, toY: u.y });
   u.movesLeft = Math.max(0, u.movesLeft - r.cost);
-  if (u.order.kind === "fortified" || u.order.kind === "fortifying" || u.order.kind === "sentry")
+  if (u.order.kind === "fortified" || u.order.kind === "fortifying" || u.order.kind === "sentry" || u.order.kind === "camp")
     u.order = { kind: "none" };
   if (r.board !== undefined) {
     u.aboard = r.board;

@@ -396,13 +396,13 @@ export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: nu
     s.frame(dx, dy, TILE, TILE, shade("stone", 6));
   } else if (u.order.kind === "sentry") {
     s.hline(dx + 4, dy + 15, 8, C.WHITE!);
-  } else if (u.order.kind === "work") {
-    // A settler at work wears a badge of its job in the top right corner.
+  } else if (u.order.kind === "work" || u.order.kind === "camp") {
+    // A settler at work wears a badge of its job in the top right corner; a unit camped to heal, a heart.
     s.rect(dx + 7, dy, 9, 9, C.BLACK!);
-    drawIcon(s, WORK_ICON[u.order.work], dx + 8, dy);
+    drawIcon(s, u.order.kind === "camp" ? "heart" : WORK_ICON[u.order.work], dx + 8, dy);
   }
   // Its rank there otherwise.
-  if (u.order.kind !== "work" && u.xp) drawRankMark(s, dx, dy, u.xp);
+  if (u.order.kind !== "work" && u.order.kind !== "camp" && u.xp) drawRankMark(s, dx, dy, u.xp);
 }
 
 /**
