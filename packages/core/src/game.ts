@@ -98,6 +98,8 @@ export interface NewGameOptions extends MapGenOptions {
   looseSettlers?: boolean;
   /** Triremes sail open water unharmed (see `GameState.safeTriremes`). Old saves load with it. */
   safeTriremes?: boolean;
+  /** The capital's border at its 21 squares from the start (see `GameState.wideCapital`). Old saves load with it. */
+  wideCapital?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -277,6 +279,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.noResources ? { noResources: true } : {}),
     ...(opts.looseSettlers ? { looseSettlers: true } : {}),
     ...(opts.safeTriremes ? { safeTriremes: true } : {}),
+    ...(opts.wideCapital ? { wideCapital: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

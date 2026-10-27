@@ -199,6 +199,21 @@ describe("culture", () => {
     expect(nextBorderLevel(s, theirs)).toBeNull();
   });
 
+  it("gives the capital its 21 squares at size three, not the day it is founded (before version 36 at once)", () => {
+    for (const wideCapital of [false, true]) {
+      const s = world(wideCapital ? { wideCapital } : {});
+      const settlers = createUnit(s, "settlers", 0, 10, 10);
+      applyCommand(s, { type: "found", unit: settlers.id });
+      const capital = s.cities[0]!;
+      expect(capital.buildings).toContain("palace");
+      expect(borderRadius(s, capital)).toBe(wideCapital ? 2 : 1);
+      capital.size = 3;
+      expect(borderRadius(s, capital)).toBe(2);
+    }
+    const old = { ...makeSave(newGame(9, { opponents: 1 }), { opponents: 1 }, []), version: 35 as const };
+    expect(loadSave(old, () => {}).state.wideCapital).toBe(true);
+  });
+
   it("is what a city's people, buildings and wonders make it, not more each turn, and says when the border grows", () => {
     const s = neighbours();
     const ours = s.cities.find((c) => c.owner === 0)!;

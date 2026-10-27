@@ -43,7 +43,7 @@ const B = (id: string, name: string, cost: number, upkeep: number, text: string,
 });
 
 export const BUILDINGS: BuildingRule[] = [
-  B("palace", "Palace", 200, 0, "The seat of government: the farther a city lies from it, the more trade corruption takes.", { requires: "masonry", culture: 3 }),
+  B("palace", "Palace", 200, 0, "The seat of government: the farther a city lies from it, the more trade corruption takes.", { requires: "masonry", culture: 1 }),
   B("barracks", "Barracks", 40, 1, "Land units trained here start as veterans.", { barracks: true }),
   B("granary", "Granary", 60, 1, "Half the food stays in store when the city grows.", { requires: "pottery", granary: true }),
   B("temple", "Temple", 40, 1, "Calms one unhappy citizen.", { requires: "ceremonial_burial", content: 1, culture: 2 }),

@@ -347,6 +347,11 @@ export interface GameState {
    * `coastal` ship left on deep water (`deepWater`) as its owner's turn ends sinks with its cargo.
    */
   safeTriremes?: boolean;
+  /**
+   * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
+   * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.
+   */
+  wideCapital?: boolean;
   /** Strategic resources traded between civilizations (`resources.ts`), oldest first. Missing: none. */
   resourceTrades?: ResourceTrade[];
   /** Pairs "a:b" (a < b) whose lands are open to each other's units. Missing: none agreed. */

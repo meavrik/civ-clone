@@ -16,8 +16,15 @@ import type { City, GameState } from "./types.js";
 export function cityCulture(state: GameState, city: City): number {
   if (state.accruedCulture) return city.culture;
   let n = city.size * CULTURE.perCitizen;
-  for (const b of city.buildings) n += building(b).culture ?? 0;
+  for (const b of city.buildings) n += buildingCulture(state, b);
   return n + city.wonders.length * CULTURE.wonder;
+}
+
+/** The culture a building adds to its city, as the game's rules have it (a turn's share in saves before version 14). */
+export function buildingCulture(state: GameState, id: string): number {
+  if (state.accruedCulture) return ACCRUED_CULTURE.buildings[id] ?? 0;
+  if (id === "palace" && state.wideCapital) return CULTURE.widePalace;
+  return building(id).culture ?? 0;
 }
 
 /** A civilization's influence: the culture of all its cities. */

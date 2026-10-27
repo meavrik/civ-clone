@@ -130,9 +130,12 @@ Never ship the original's sprites, palette art, fonts or text.
   (`claimant` names the city, `landOwner` its owner). The levels are 4, 12, 24, 40 since save version
   28 (asked for 2026-10-24, "unbalanced city and culture growth": the first levels, 8/16/28/45, kept a
   young city to its 8 squares until size six with a temple, which starved it; now the capital has its 21
-  squares at once (its palace), another city at size four, or two with a temple; saves before 28 load
+  squares at size three (its palace's 1 culture), another city at size four, or two with a temple; saves before 28 load
   with `slowCulture`, headless `--slow-culture`; 6 planner games x 250 turns: pop 47 vs 40 a seat,
-  techs 25.7 vs 22.5, score 142 vs 112). Influence yields (same version; asked for: "whales or other
+  techs 25.7 vs 22.5, score 142 vs 112). Until save version 36 the palace gave 3, so the capital had its 21
+  squares the day it was founded (asked for 2026-10-27: "influence growth at first city is instant - shouldnt
+  be"; saves before 36 load with `wideCapital`, `CULTURE.widePalace`, headless `--wide-capital`; read a
+  building's culture with `buildingCulture`). Influence yields (same version; asked for: "whales or other
   resources can't be reached by a city, so think of other value they can provide when in the city
   influence"): a special inside a city's border but beyond the 21 squares it can work (whales in deep
   water, anything in its outer rings), claimed by that city and worked by no one, brings it half the

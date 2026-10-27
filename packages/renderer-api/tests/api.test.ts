@@ -178,7 +178,7 @@ describe("finished builds", () => {
       lines: [`{food} ${building("granary").text}`, "{purse} Upkeep 1 gold"],
     });
     // The palace costs nothing to keep, so it says no upkeep, only the culture it brings.
-    expect(builtNotice(s, c.id, { kind: "building", id: "palace" })!.lines).toEqual([`{crown} ${building("palace").text}`, "{culture} Culture +3"]);
+    expect(builtNotice(s, c.id, { kind: "building", id: "palace" })!.lines).toEqual([`{crown} ${building("palace").text}`, "{culture} Culture +1"]);
     expect(builtNotice(s, c.id, { kind: "building", id: "temple" })!.lines.at(-1)).toBe("{purse} Upkeep 1 gold  {culture} Culture +2");
     expect(builtNotice(s, c.id, { kind: "wonder", id: "pyramids" })).toEqual({
       title: `${c.name} completes Pyramids`,

@@ -15,16 +15,20 @@ export const CULTURE = {
    * A new city's border reaches the squares round it (radius 1); each of these
    * levels reached takes it a square further, so a border grows only as the
    * city both grows and builds (asked for: it grew after two new citizens).
-   * Radius 2 is the 21 squares a city works: the capital at once (its palace),
+   * Radius 2 is the 21 squares a city works: the capital at three (its palace),
    * another city at four, or at two with a temple (since version 28; the first
    * levels, `slowLevels`, kept young cities to their 8 squares until size six
    * with a temple, which starved them: "unbalanced city and culture growth").
+   * Until version 36 the palace's culture (`widePalace`) took the capital
+   * there the day it was founded ("influence growth at first city is instant").
    * Radius 3 wants a city of eight with a temple and a library (or a courthouse
    * for one of six); 4 and 5 the great cities of the late game.
    */
   levels: [4, 12, 24, 40],
   /** The levels of saves before version 28 (`slowCulture`). */
   slowLevels: [8, 16, 28, 45],
+  /** The palace's culture in saves before version 36 (`wideCapital`; since, its `BuildingRule.culture`). */
+  widePalace: 3,
 } as const;
 
 /**

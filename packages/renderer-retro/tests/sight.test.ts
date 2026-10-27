@@ -12,6 +12,7 @@ function scene(): { state: GameState; view: MainScreenView; cx: number; cy: numb
   const cy = u.y;
   state.units = state.units.filter((o) => o.owner !== 0 || o.id === u.id);
   applyCommand(state, { type: "found", unit: u.id });
+  state.cities[0]!.size = 3; // the capital's border reaches two squares out from size three
   for (const p of state.players) { p.explored.fill(0); p.visible.fill(0); }
   revealAround(state, 0, cx, cy, 9);
   setRelation(state, 0, 1, "war");

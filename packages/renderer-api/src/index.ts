@@ -51,6 +51,7 @@ export { hash } from "./hash.js";
 import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
 import {
   ACCRUED_CULTURE,
+  buildingCulture,
   CITY_RADIUS,
   resourceAt,
   advance,
@@ -732,7 +733,7 @@ export function builtNotice(state: GameState, cityId: number, p: Production, cha
     case "building": {
       const b = building(p.id);
       // Upkeep and culture share the second line.
-      const culture = state.accruedCulture ? ACCRUED_CULTURE.buildings[b.id] : b.culture;
+      const culture = buildingCulture(state, b.id);
       const costs = [b.upkeep ? `{purse} Upkeep ${b.upkeep} gold` : "", culture && !state.fixedBorders ? `{culture} Culture +${culture}${perTurn}` : ""];
       return { title: `${city.name} builds ${b.name}`, lines: [`{${buildingIcon(b)}} ${b.text}`, costs.filter(Boolean).join("  ")].filter(Boolean) };
     }

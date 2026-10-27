@@ -1,5 +1,5 @@
 import {
-  ACCRUED_CULTURE, advance, BUILDINGS, building, CULTURE, partCount, spacePart, wonder,
+  ACCRUED_CULTURE, advance, BUILDINGS, building, buildingCulture, CULTURE, partCount, spacePart, wonder,
   type BuildingRule, type GameState, type Production, type WonderRule,
 } from "@civ/core";
 import type { IconName } from "./icons.js";
@@ -68,7 +68,7 @@ function buildingEffects(state: GameState, b: BuildingRule): BuiltEffect[] {
   if (b.wallsPct) out.push({ icon: "tower", text: `x${1 + b.wallsPct / 100} defence against land attacks` });
   if (b.id === "sdi_defense") out.push({ icon: "fortress", text: "Stops nuclear attacks within 3 squares" });
   if (b.pollutionPct) out.push({ icon: "clean", text: b.id === "mass_transit" ? "No pollution from population" : `-${b.pollutionPct}% pollution` });
-  const culture = state.accruedCulture ? ACCRUED_CULTURE.buildings[b.id] : b.culture;
+  const culture = buildingCulture(state, b.id);
   if (culture && !state.fixedBorders) out.push({ icon: "culture", text: `+${culture} culture${state.accruedCulture ? " a turn" : ""}` });
   return out;
 }

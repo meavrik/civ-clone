@@ -90,6 +90,8 @@ export interface GameConfig {
   looseSettlers?: boolean;
   /** Triremes sail deep water unharmed (`GameState.safeTriremes`). */
   safeTriremes?: boolean;
+  /** The palace gives the capital its 21 squares at once (`GameState.wideCapital`). */
+  wideCapital?: boolean;
 }
 
 export interface PlayerStats {
@@ -190,6 +192,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.noResources ? { noResources: true } : {}),
     ...(config.looseSettlers ? { looseSettlers: true } : {}),
     ...(config.safeTriremes ? { safeTriremes: true } : {}),
+    ...(config.wideCapital ? { wideCapital: true } : {}),
   };
 }
 
