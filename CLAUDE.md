@@ -91,7 +91,7 @@ Never ship the original's sprites, palette art, fonts or text.
   square, or one it has no use for yet, `spareResources`, `wantsResource`) and calls off a trade that gave away
   what it now needs. Shown in the build menu (faded, "needs Iron"), the production box ("Needs Iron", Buy
   faded), the square's window ("Iron is needed for Legion, ..."), the civ card's Resources line and Advisors >
-  Resources (`resourcesReport`). Saltpeter's sprite is ours (`resources.art.ts`). Saves before version 33 load
+  Resources (`resourcesReport`). Saltpeter's sprite is the user's, as every resource's (`resources.art.ts`). Saves before version 33 load
   with `noResources` (headless `--no-resources`, `?resources=off`). Head to head (planner vs v2, 16 x 300, twice:
   seeds 1-16 and 17-32): without resources 1-15 both times, score 125 vs 228 and 135 vs 226; with them 0-16,
   121 vs 246 and 133 vs 261, all replaying exactly. The planner holds its level (pop 45 vs 51 a seat); v2, packing
@@ -757,8 +757,11 @@ Never ship the original's sprites, palette art, fonts or text.
   population sits on a plate of the owner's colour before its name under the square, and its mood
   (the viewer's own cities) as a pennant before the plate, another civ's city its owner's shield there
   (`drawCityLabel`, `drawMoodPennant` in
-  `screens/main.ts`; asked for 2026-10-21/22 after overlays on the town hid it) and resources (`resources.art.ts`, named after the special; one-pixel outlines in dark
-  shades of their own colours, never thick black) are all 32x32 sheets with `k = 2`; icons are 16x16
+  `screens/main.ts`; asked for 2026-10-21/22 after overlays on the town hid it) and resources (`resources.art.ts`, named after the special: the user's sheet of 22 icons of
+  2026-10-27, "replace ... resources on terrain tiles", converted by `tools/sprites/draw/resources.ts` from
+  `resources.png`: the glow behind each cleared, a 256-pixel cell the map's square (three of the art's pixels to
+  two of ours; two to one was muddy), each icon in the five ramps nearest its colours, the silhouette's edge
+  the block's darkest colour so the outline stays one pixel in the icon's own dark shades) are all 32x32 sheets with `k = 2`; icons are 16x16
   fine; citizens 32x32. Land borders blend: renderer-api `groundOwner` warps each fine pixel by world
   noise so the line between different grounds wanders, and each terrain sprite splits at load into
   ground + objects (objects never cut). Text (`font.ts`): our own proportional pixel font drawn on the fine
@@ -806,7 +809,8 @@ Never ship the original's sprites, palette art, fonts or text.
   back into `src/art`, rejecting any pixel outside the sprite's palette legend; `npm run sprites -- icons`
   draws the mobile app's icons (a walled city, `icons.ts`) into `apps/mobile/public/icons`. A sprite may
   name up to five ramps (`ramps=a,b,c,d,e`; characters 0-7, a-h, A-H, JKLMOQST, jloqstvx), for pictures
-  of many colours. `draw/*.ts` make sheets: `cities.ts`, `features.ts`, `citizens.ts` (the city screen's people from part grids).
+  of many colours. `draw/*.ts` make sheets: `cities.ts`, `features.ts`, `citizens.ts` (the city screen's people from part grids),
+  `resources.ts` (the user's resource icons from `resources.png`).
 - `packages/renderer-modern` — canvas-2D renderer on a 960x600 logical surface (same panel/
   viewport split, 48px tiles): `theme.ts` (all colours and fonts), `draw.ts` (panels, wrapped
   text, bars), `tiles.ts`/`markers.ts` (terrain, overlays, units, cities), `screens/*`. It draws
