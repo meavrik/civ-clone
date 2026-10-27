@@ -481,6 +481,18 @@ export function whyNoSale(state: GameState, city: City, id: string): "wonder" | 
   return null;
 }
 
+/**
+ * Why a city may not stop supporting building `id` (`on` false) or support it again (`on` true), or null
+ * when it may (asked for 2026-10-27, in place of selling: "stop supporting the building - reduce the
+ * upkeep and disable building effect"). Any building but the Palace, which costs nothing; never a wonder.
+ */
+export function whyNoSupportChange(city: City, id: string, on: boolean): "wonder" | "palace" | "not built" | "supported" | null {
+  if (city.wonders.includes(id)) return "wonder";
+  if (id === "palace") return "palace";
+  if (on) return city.idle?.includes(id) ? null : city.buildings.includes(id) ? "supported" : "not built";
+  return city.buildings.includes(id) ? null : "not built";
+}
+
 export function productionName(p: Production): string {
   return p.kind === "unit" ? unitType(p.id).name : p.kind === "wonder" ? wonder(p.id).name : p.kind === "spaceship" ? spacePart(p.id).name : building(p.id).name;
 }
@@ -1085,7 +1097,7 @@ export function buildOptions(state: GameState, city: City): Production[] {
   const out: Production[] = unitChoices(state, city).filter((u) => !u.missing.length).map((u) => ({ kind: "unit", id: u.id }));
   for (const b of BUILDINGS) {
     if (b.id === "palace" && city.buildings.includes("palace")) continue;
-    if (city.buildings.includes(b.id)) continue;
+    if (city.buildings.includes(b.id) || city.idle?.includes(b.id)) continue;
     if (b.requires && !knows(p.advances, b.requires)) continue;
     if (b.needs && !city.buildings.includes(b.needs)) continue;
     out.push({ kind: "building", id: b.id });

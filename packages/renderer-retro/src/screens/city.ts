@@ -66,7 +66,7 @@ const inRect = (b: Rect, px: number, py: number) => px >= b.x && px < b.x + b.w 
 
 /**
  * The Improvements box's list (`cityImprovements`), a line each: the building's picture in a box
- * PIC_W by PIC_H, its name, upkeep and Sell button; a bar beside the lines when there are more than fit.
+ * PIC_W by PIC_H, its name, upkeep and Stop (or Use) button; a bar beside the lines when there are more than fit.
  */
 const LIST_X = RIGHT.x + 3;
 const LIST_Y = ROW1.y + BOX_HEAD + 2;
@@ -75,8 +75,8 @@ const LINE_H = 11;
 export const IMPROVEMENT_LINE_H = LINE_H;
 const PIC_W = 14;
 const PIC_H = 10;
-const SELL_W = 17;
-const SELL_H = 9;
+const TOGGLE_W = 17;
+const TOGGLE_H = 9;
 /** The city's culture, along the foot of the Improvements box (not in saves whose borders never grow). */
 const CULTURE_Y = ROW1.y + ROW1.h - 3 - FONT_HEIGHT;
 
@@ -97,10 +97,10 @@ function listLayout(state: GameState, city: City, view: CityScreenView): { lines
   return { lines, rows, top, right, bar };
 }
 
-/** A line's Sell button, at the right end of the line whose top is `y`. */
-const sellButton = (right: number, y: number): Rect => ({ x: right - SELL_W, y: y + 1, w: SELL_W, h: SELL_H });
+/** A line's Stop (or Use) button, at the right end of the line whose top is `y`. */
+const toggleButton = (right: number, y: number): Rect => ({ x: right - TOGGLE_W, y: y + 1, w: TOGGLE_W, h: TOGGLE_H });
 
-/** What a point of the Improvements box holds: a line (on its Sell button or not), or the bar: an arrow a line, the track a page. */
+/** What a point of the Improvements box holds: a line (on its Stop or Use button or not), or the bar: an arrow a line, the track a page. */
 export function cityImprovementAt(state: GameState, view: CityScreenView, px: number, py: number): ImprovementHit | null {
   const city = state.cities.find((c) => c.id === view.city);
   if (!city) return null;
@@ -115,7 +115,7 @@ export function cityImprovementAt(state: GameState, view: CityScreenView, px: nu
   const i = Math.floor((py - LIST_Y) / LINE_H);
   const line = i < L.rows ? L.lines[L.top + i] : undefined;
   if (!line) return null;
-  return { kind: "line", id: line.id, sell: line.sells && inRect(sellButton(L.right, LIST_Y + i * LINE_H), px, py) };
+  return { kind: "line", id: line.id, toggle: line.toggles && inRect(toggleButton(L.right, LIST_Y + i * LINE_H), px, py) };
 }
 
 /** The close box at the title strip's right end, as every window has, and View (the city's picture) beside it. */
@@ -592,27 +592,27 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
 /**
  * The Improvements box (asked for 2026-10-25): a line for each wonder (in gold) and building the city
  * holds, its picture (the user's, laid over the canvas by the apps: `Surface.art`), name, upkeep and,
- * for a building but the Palace, a Sell button (faded once the city has sold one this turn); the line
- * under the pointer lit. More lines than the box holds scroll, with a bar beside them.
+ * for a building but the Palace, a Stop button (its support; asked for 2026-10-27 in place of Sell); a
+ * building no longer supported follows, its name faded and its picture darkened, with a Use button and
+ * no upkeep. The line under the pointer lit. More lines than the box holds scroll, with a bar beside them.
  */
 function drawImprovements(s: Surface, state: GameState, city: City, view: CityScreenView, r: CityReport): void {
   drawBox(s, RIGHT.x, ROW1.y, RIGHT.w, ROW1.h, "Improvements", r.buildingUpkeep ? `Upkeep ${r.buildingUpkeep}$` : "");
   const L = listLayout(state, city, view);
-  const sold = city.soldOn === state.turn;
   L.lines.slice(L.top, L.top + L.rows).forEach((line, i) => {
     const y = LIST_Y + i * LINE_H;
     const hover = view.hoverImprovement?.id === line.id ? view.hoverImprovement : null;
     if (hover) s.rect(LIST_X, y, L.right - LIST_X, LINE_H - 1, shade("panel", 7));
-    if (buildingArt(line.id)) s.art.push({ id: line.id, x: LIST_X + 1, y, w: PIC_W, h: PIC_H, middle: true });
+    if (buildingArt(line.id)) s.art.push({ id: line.id, x: LIST_X + 1, y, w: PIC_W, h: PIC_H, middle: true, ...(line.idle ? { dim: true } : {}) });
     else drawIcon(s, line.wonder ? "star" : "house", LIST_X + 1 + (PIC_W - ICON) / 2, y + 1);
-    say(s, LIST_X + PIC_W + 3, y + 1, line.name, line.wonder ? GOLD : INK);
+    say(s, LIST_X + PIC_W + 3, y + 1, line.name, line.wonder ? GOLD : line.idle ? FADED : INK);
     let end = L.right - 1;
-    if (line.sells) {
-      const b = sellButton(L.right, y);
-      drawButton(s, b.x, b.y, b.w, b.h, "Sell", !sold, !!hover?.sell);
+    if (line.toggles) {
+      const b = toggleButton(L.right, y);
+      drawButton(s, b.x, b.y, b.w, b.h, line.idle ? "Use" : "Stop", true, !!hover?.toggle);
       end = b.x - 3;
     }
-    if (line.upkeep) say(s, end - textWidth(`${line.upkeep}$`), y + 1, `${line.upkeep}$`, LABEL);
+    if (line.upkeep && !line.idle) say(s, end - textWidth(`${line.upkeep}$`), y + 1, `${line.upkeep}$`, LABEL);
   });
   if (!L.lines.length) say(s, LIST_X + 1, LIST_Y + 1, "None yet", LABEL);
   if (L.bar) drawScrollTrack(s, L.bar, L.top > 0, L.top + L.rows < L.lines.length);

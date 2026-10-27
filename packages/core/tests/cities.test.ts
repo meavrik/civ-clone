@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   applyCommand,
   autoAssignWorkers,
+  buildOptions,
   buyCost,
+  captureCity,
+  cityCulture,
   bestFreeSlot,
   CITY_RADIUS,
   cityYieldGovernment,
@@ -715,6 +718,51 @@ describe("selling improvements", () => {
     expect(slotInLand(s, c, far)).toBe(false);
     expect(c.worked).not.toContain(far);
     expect(c.worked.length + c.specialists.length).toBe(2);
+  });
+});
+
+describe("stopping a building's support", () => {
+  it("takes its upkeep, effect and culture away until it is supported again, and never lets the city build it twice", () => {
+    const s = flatWorld();
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    c.buildings = ["palace", "temple", "granary"];
+    c.wonders.push("pyramids");
+    c.size = 6;
+    autoAssignWorkers(s, c);
+    const before = computeCity(s, c);
+    const culture = cityCulture(s, c);
+    expect(applyCommand(s, { type: "support", city: c.id, building: "pyramids", on: false })).toEqual({ ok: false, reason: "wonder" });
+    expect(applyCommand(s, { type: "support", city: c.id, building: "palace", on: false })).toEqual({ ok: false, reason: "palace" });
+    expect(applyCommand(s, { type: "support", city: c.id, building: "library", on: false })).toEqual({ ok: false, reason: "not built" });
+    expect(applyCommand(s, { type: "support", city: c.id, building: "temple", on: true })).toEqual({ ok: false, reason: "supported" });
+    expect(applyCommand(s, { type: "support", city: c.id, building: "temple", on: false }).ok).toBe(true);
+    expect(c.buildings).toEqual(["palace", "granary"]);
+    expect(c.idle).toEqual(["temple"]);
+    const after = computeCity(s, c);
+    expect(after.buildingUpkeep).toBe(before.buildingUpkeep - 1);
+    expect(after.unhappy).toBeGreaterThan(before.unhappy);
+    expect(cityCulture(s, c)).toBeLessThan(culture);
+    // It is not built again while it stands idle, but supported again it works as before.
+    expect(buildOptions(s, c).some((p) => p.id === "temple")).toBe(false);
+    expect(applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "temple" } }).ok).toBe(false);
+    expect(applyCommand(s, { type: "support", city: c.id, building: "temple", on: true }).ok).toBe(true);
+    expect(c.idle).toBeUndefined();
+    expect(computeCity(s, c)).toEqual(before);
+    expect(cityCulture(s, c)).toBe(culture);
+  });
+
+  it("is undone by a conqueror, who finds the building standing and supports it", () => {
+    const s = flatWorld();
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    c.buildings = ["palace", "temple", "granary"];
+    c.size = 3;
+    applyCommand(s, { type: "support", city: c.id, building: "granary", on: false });
+    captureCity(s, createUnit(s, "legion", s.barbarians, 11, 10), c);
+    expect(c.owner).toBe(s.barbarians);
+    expect(c.buildings).toEqual(["temple", "granary"]);
+    expect(c.idle).toBeUndefined();
   });
 });
 

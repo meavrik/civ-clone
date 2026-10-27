@@ -16,6 +16,7 @@ import {
   routeBonus,
   sellPrice,
   whyNoSale,
+  whyNoSupportChange,
   dropLostSquares,
   slotAvailable,
   arrangeCity,
@@ -87,7 +88,8 @@ export type Command =
   | { type: "setFoci"; city: number; foci: CityFocus[] } // any foci together (none: the old balance), then arranged for them
   | { type: "setSpecialist"; city: number; index: number; specialist: Specialist }
   | { type: "buy"; city: number }
-  | { type: "sell"; city: number; building: string } // an improvement for its cost in gold, one a city a turn
+  | { type: "sell"; city: number; building: string } // an improvement for its cost in gold, one a city a turn (old logs; the game now stops support instead)
+  | { type: "support"; city: number; building: string; on: boolean } // stop paying for a building (its effect stops too), or pay for it again
   | { type: "renameCity"; city: number; name: string }
   | { type: "setRates"; tax: number; lux: number; sci: number }
   | { type: "research"; advance: string }
@@ -365,6 +367,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     case "setSpecialist":
     case "buy":
     case "sell":
+    case "support":
     case "renameCity":
       return applyCityCommand(state, cmd);
   }
@@ -938,6 +941,22 @@ function applyCityCommand(
       city.soldOn = state.turn;
       // Less culture may pull the border in: its workers leave the squares it no longer holds.
       dropLostSquares(state, city);
+      return { ok: true };
+    }
+    case "support": {
+      const why = whyNoSupportChange(city, cmd.building, cmd.on);
+      if (why) return { ok: false, reason: why };
+      if (cmd.on) {
+        const idle = city.idle!.filter((b) => b !== cmd.building);
+        if (idle.length) city.idle = idle;
+        else delete city.idle;
+        city.buildings.push(cmd.building);
+      } else {
+        city.buildings = city.buildings.filter((b) => b !== cmd.building);
+        (city.idle ??= []).push(cmd.building);
+        // Less culture may pull the border in: its workers leave the squares it no longer holds.
+        dropLostSquares(state, city);
+      }
       return { ok: true };
     }
     case "renameCity":

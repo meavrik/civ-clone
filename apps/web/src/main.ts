@@ -14,8 +14,7 @@ import {
   shieldsAfterChange,
   buyCost,
   building,
-  sellPrice,
-  whyNoSale,
+  whyNoSupportChange,
   canFoundCity,
   CITY_MIN_DISTANCE,
   exitSquare,
@@ -273,7 +272,7 @@ const REASONS: Record<string, string> = {
   treaty: "We have a treaty",
   "no route": "No route there",
   "nothing to pillage": "Nothing to pillage here",
-  "sold this turn": "A city sells one building a turn",
+  supported: "Already supported",
   palace: "The Palace is never sold",
   wonder: "Wonders are never sold",
 };
@@ -1086,20 +1085,24 @@ function askBuy(cityId: number): void {
 }
 
 /**
- * Sell an improvement of the city (the Improvements box's Sell button, or its line, as the original
- * asked on a click): what it brings against the treasury first, Keep by default. One a city a turn,
- * never the Palace or a wonder: those say why instead.
+ * Stop paying for a building of the city, or pay for it again (the Improvements box's Stop or Use button,
+ * or its line; asked for 2026-10-27 in place of selling). Stopping asks first, with what it saves and
+ * what stops working, Keep by default; supporting again goes at once. The Palace and wonders cost
+ * nothing: those say so instead.
  */
-function askSell(cityId: number, id: string): void {
+function askSupport(cityId: number, id: string): void {
   const city = state.cities.find((c) => c.id === cityId);
   if (!city) return;
-  if (whyNoSale(state, city, id)) { say(improvementNote(state, city, id)); return; }
-  const name = building(id).name;
-  const price = sellPrice(state, city, id);
-  const gold = state.players[city.owner]!.gold;
-  modal(`Sell the ${name}?`, [`{purse} ${price} gold for it  {coin} ${gold} in the treasury`, "A city sells one building a turn."], ["Sell", "Keep it"], (i) => {
-    if (i === 0 && dispatch({ type: "sell", city: cityId, building: id })) say(`${name} sold for ${price} gold`);
-  }, 1);
+  const on = city.idle?.includes(id) === true;
+  if (whyNoSupportChange(city, id, on)) { say(improvementNote(state, city, id)); return; }
+  const b = building(id);
+  if (on) {
+    if (dispatch({ type: "support", city: cityId, building: id, on: true })) say(`${b.name} supported again: ${b.upkeep} gold a turn`);
+    return;
+  }
+  modal(`Stop supporting the ${b.name}?`, [`{coin} Saves ${b.upkeep} gold a turn.`, `It stops working until supported again: ${b.text}`], ["Keep it", "Stop support"], (i) => {
+    if (i === 1 && dispatch({ type: "support", city: cityId, building: id, on: false })) say(`${b.name} no longer supported`);
+  }, 0);
 }
 
 /**
@@ -2728,7 +2731,7 @@ canvas.addEventListener("mousemove", (e) => {
     sc.view.hover = renderer.cityCitizenAt(state, sc.view, px, py) ?? undefined;
     sc.view.hoverControl = renderer.cityButtonAt(px, py) ?? (renderer.cityExitHit(px, py) ? "exit" : null) ?? renderer.cityFocusAt(px, py) ?? undefined;
     const line = renderer.cityImprovementAt(state, sc.view, px, py);
-    sc.view.hoverImprovement = line?.kind === "line" ? { id: line.id, sell: line.sell } : undefined;
+    sc.view.hoverImprovement = line?.kind === "line" ? { id: line.id, toggle: line.toggle } : undefined;
     return;
   }
   if (sc.kind === "diplomacy" && sc.talk) {
@@ -2843,9 +2846,9 @@ canvas.addEventListener("mousedown", (e) => {
       if (unit !== null) { activateFromCity(sc, unit); return; }
       const person = renderer.cityCitizenAt(state, sc.view, px, py);
       if (person !== null) { changeCitizen(sc.view.city, person); return; }
-      // The Improvements box: a line (or its Sell button) asks to sell it, the bar scrolls the list.
+      // The Improvements box: a line (or its Stop or Use button) stops or resumes its support, the bar scrolls the list.
       const line = renderer.cityImprovementAt(state, sc.view, px, py);
-      if (line?.kind === "line") { askSell(sc.view.city, line.id); return; }
+      if (line?.kind === "line") { askSupport(sc.view.city, line.id); return; }
       if (line?.kind === "scroll") { scrollCityList(sc, line.by); return; }
       // A worked square frees its citizen; an unworked one takes a free citizen or the worker on the
       // weakest square; the city's own square puts every citizen on the best squares. A click on

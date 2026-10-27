@@ -191,6 +191,12 @@ export interface City {
   culture: number;
   /** The turn the city last sold an improvement (`sell`): one a turn, as in the original. Absent until it first sells one. */
   soldOn?: number;
+  /**
+   * Buildings it still holds but no longer supports (the `support` command): no upkeep, no effect, no
+   * culture, until supported again. Kept out of `buildings`, so every rule reading those passes them by;
+   * never built twice (`buildOptions`). Absent: none.
+   */
+  idle?: string[];
 }
 
 export interface Player {

@@ -173,8 +173,8 @@ export interface CityScreenView {
   hoverControl?: CityControl | undefined;
   /** The first line on view of the Improvements box's list (`cityImprovements`), when it is longer than the box: it scrolls. */
   top?: number | undefined;
-  /** The improvement under the pointer, lit and told of beside the citizens (`improvementNote`); `sell` on its Sell button. */
-  hoverImprovement?: { id: string; sell: boolean } | undefined;
+  /** The improvement under the pointer, lit and told of beside the citizens (`improvementNote`); `toggle` on its Stop or Use button. */
+  hoverImprovement?: { id: string; toggle: boolean } | undefined;
 }
 
 /** What can be pointed at on the city screen besides its citizens and squares: its buttons, the close box, the focus toggles. */
@@ -417,7 +417,7 @@ export interface Renderer {
   cityUnitAt(state: GameState, view: CityScreenView, px: number, py: number): number | null;
   /** The focus toggle under a point (a corner of the city screen's map), or null. */
   cityFocusAt(px: number, py: number): CityFocus | null;
-  /** What lies under a point of the city screen's Improvements box: a line or its Sell button, or the list's scroll bar; null elsewhere. */
+  /** What lies under a point of the city screen's Improvements box: a line or its Stop (or Use) button, or the list's scroll bar; null elsewhere. */
   cityImprovementAt(state: GameState, view: CityScreenView, px: number, py: number): ImprovementHit | null;
   /** How many lines of the Improvements box show at once; a longer list scrolls (`CityScreenView.top`, `scrollImprovements`). */
   cityImprovementRows(state: GameState): number;

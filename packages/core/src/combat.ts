@@ -178,6 +178,8 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
   city.size -= 1;
   city.owner = u.owner;
   city.buildings = city.buildings.filter((b) => b !== "palace");
+  // The conqueror finds every building standing, and supports those its old owner had stopped.
+  if (city.idle) { city.buildings.push(...city.idle); delete city.idle; }
   city.worked = [];
   city.specialists = [];
   city.food = 0;

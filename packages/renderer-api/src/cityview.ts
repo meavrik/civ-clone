@@ -543,7 +543,9 @@ export function cityScene(state: GameState, city: City): CityScene {
       if (!place(l, [0, 1, 2, 3], cap)) put(least(), l);
     }
   });
-  const buildings = city.buildings.filter((b) => b !== "city_walls" && PICTURES[b]);
+  // Buildings no longer supported (`City.idle`) still stand in the picture.
+  const standing = city.idle ? [...city.buildings, ...city.idle] : city.buildings;
+  const buildings = standing.filter((b) => b !== "city_walls" && PICTURES[b]);
   if (buildings.includes("palace")) put(1, lot("palace", "building", PICTURES.palace!, 0));
   buildings.filter((b) => b !== "palace").forEach((id, i) => {
     const l = lot(id, "building", PICTURES[id]!, 1 + hash(i, 2, salt));
@@ -557,7 +559,7 @@ export function cityScene(state: GameState, city: City): CityScene {
 
   // Each row from the middle outward in order of its keys (the palace first), a street along it, trees beyond.
   const front = Math.max(0, ...rows.map((row, r) => (row.length ? r : 0)));
-  const walls = city.buildings.includes("city_walls");
+  const walls = standing.includes("city_walls");
   const surface = knows(known, "automobile") ? "asphalt" : knows(known, "construction") ? "stone" : "dirt";
   const streets: CityScene["streets"] = [];
   const items: SceneItem[] = [];

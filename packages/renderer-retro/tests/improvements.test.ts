@@ -24,7 +24,7 @@ function hits(state: GameState, view: CityScreenView): Map<string, ImprovementHi
   for (let y = BOX.y; y < BOX.y + BOX.h; y++)
     for (let x = BOX.x; x < BOX.x + BOX.w; x++) {
       const h = cityImprovementAt(state, view, x, y);
-      if (h) out.set(h.kind === "line" ? `${h.id}${h.sell ? ":sell" : ""}` : `scroll:${h.by}`, h);
+      if (h) out.set(h.kind === "line" ? `${h.id}${h.toggle ? ":toggle" : ""}` : `scroll:${h.by}`, h);
     }
   return out;
 }
@@ -59,41 +59,40 @@ describe("the city screen's improvements", () => {
     expect(scrollImprovements(city, 0, -1, rows)).toBe(0);
   });
 
-  it("finds each line and its Sell button, none for the Palace or a wonder, and the bar's arrows and pages", () => {
+  it("finds each line and its Stop button, none for the Palace or a wonder, and the bar's arrows and pages", () => {
     const state = cityWithBuildings();
     const city = state.cities[0]!;
     const found = hits(state, { city: city.id });
-    expect([...found.keys()].filter((k) => k.endsWith(":sell")).sort()).toEqual(["barracks:sell", "granary:sell", "temple:sell"]);
+    expect([...found.keys()].filter((k) => k.endsWith(":toggle")).sort()).toEqual(["barracks:toggle", "granary:toggle", "temple:toggle"]);
     for (const id of ["pyramids", "palace", "barracks", "granary", "temple"]) expect(found.has(id)).toBe(true);
-    expect(found.has("pyramids:sell") || found.has("palace:sell")).toBe(false);
+    expect(found.has("pyramids:toggle") || found.has("palace:toggle")).toBe(false);
     expect([...found.keys()].filter((k) => k.startsWith("scroll:")).sort()).toEqual(["scroll:-1", "scroll:0", "scroll:1", "scroll:5"]);
     // A short list does not scroll: no bar.
     city.buildings = ["palace", "temple"];
     expect([...hits(state, { city: city.id }).keys()].some((k) => k.startsWith("scroll:"))).toBe(false);
   });
 
-  it("tells beside the citizens what the pointed line sells for, or why it cannot, and fades the buttons once the city has sold", () => {
+  it("tells beside the citizens what stopping a building saves, lists a stopped one last, faded, with Use", () => {
     const state = cityWithBuildings();
     const city = state.cities[0]!;
-    expect(improvementNote(state, city, "temple")).toBe("Sell the Temple for 40 gold");
-    expect(improvementNote(state, city, "palace")).toBe("The Palace is never sold");
-    expect(improvementNote(state, city, "pyramids")).toBe("Pyramids: wonders are never sold");
+    city.buildings = ["palace", "temple", "granary"];
+    expect(improvementNote(state, city, "temple")).toBe("Temple: 1 gold a turn. Stop saves it, and stops it");
+    expect(improvementNote(state, city, "palace")).toBe("The Palace costs nothing to keep");
+    expect(improvementNote(state, city, "pyramids")).toBe("Pyramids: wonders cost nothing to keep");
     const s = Surface.screen();
-    drawCityScreen(s, state, { city: city.id, hoverImprovement: { id: "temple", sell: true } });
+    drawCityScreen(s, state, { city: city.id, hoverImprovement: { id: "temple", toggle: true } });
     writeFileSync(new URL("./out/city-improvements-hover.png", import.meta.url), encodePng(s, 3));
-    expect(applyCommand(state, { type: "sell", city: city.id, building: "temple" }).ok).toBe(true);
-    expect(improvementNote(state, city, "granary")).toBe(`${city.name} has sold a building this turn`);
+    expect(applyCommand(state, { type: "support", city: city.id, building: "temple", on: false }).ok).toBe(true);
+    expect(improvementNote(state, city, "temple")).toBe("Temple unsupported: Use pays 1 gold a turn");
     const t = Surface.screen();
-    drawCityScreen(t, state, { city: city.id });
-    writeFileSync(new URL("./out/city-improvements-sold.png", import.meta.url), encodePng(t, 3));
-    // The Sell buttons are drawn differently (faded) once the city has sold this turn.
-    const box = (x: Surface) => { const out: number[] = []; for (let y = BOX.y; y < BOX.y + BOX.h; y++) for (let k = BOX.x; k < BOX.x + BOX.w; k++) out.push(x.get(k, y)); return out; };
-    const u = Surface.screen();
-    city.soldOn = undefined;
-    drawCityScreen(u, state, { city: city.id });
-    expect(box(t)).not.toEqual(box(u));
+    drawCityScreen(t, state, { city: city.id, hoverImprovement: { id: "temple", toggle: true } });
+    writeFileSync(new URL("./out/city-improvements-idle.png", import.meta.url), encodePng(t, 3));
+    // The stopped temple comes last, its picture darkened; its line still answers, on its Use button too.
+    expect(t.art.map((a) => [a.id, a.dim === true])).toEqual([["pyramids", false], ["palace", false], ["granary", false], ["temple", true]]);
+    const found = hits(state, { city: city.id });
+    expect(found.has("temple:toggle")).toBe(true);
     // A window over the screen hides the pictures under it and darkens the rest.
-    drawMenu(t, { title: "Sell the Granary?", body: ["{purse} 60 gold for it"], items: ["Sell", "Keep it"], selected: 1 });
+    drawMenu(t, { title: "Stop supporting the Granary?", body: ["{coin} Saves 1 gold a turn."], items: ["Keep it", "Stop support"], selected: 0 });
     expect(t.art.every((a) => a.dim)).toBe(true);
   });
 });
