@@ -2919,7 +2919,10 @@ canvas.addEventListener("mousedown", (e) => {
     if (state.activeUnit !== own.id) say("No moves left this turn");
     return;
   }
-  // Anywhere else the map centres on the square and shows it in the panel.
+  // Anywhere else the map centres on the square and shows it in the panel; a second left-click on it
+  // opens the square's window (asked for 2026-10-27: with the right button moving the unit in play,
+  // a square's terrain could not be seen without Shift).
+  if (view.inspect?.x === tx && view.inspect.y === ty) { openTerrainInfo(tx, ty, { x: px, y: py }); return; }
   centerOn(tx, ty);
   view.inspect = { x: tx, y: ty };
 });

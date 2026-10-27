@@ -479,14 +479,15 @@ Never ship the original's sprites, palette art, fonts or text.
   each unit's sprite before its row, the row grown to hold it, with its standing at the right: Fortified,
   Sentry, Going, Mining 3, Ready, No moves; asked for 2026-10-24), the one picked waking and coming
   into play (one with no moves left keeps its orders); anywhere else it centres the map on the square
-  (`view.inspect` shows it in the panel). Right-click with a unit in play moves it (`moveClick`):
+  (`view.inspect` shows it in the panel), and a second left-click on that square opens the square's window
+  (asked for the same day: with the right button moving units, "cant see tile terrain info"). Right-click with a unit in play moves it (`moveClick`):
   `planMove` (renderer-api `plan.ts`) decides: a step next door goes at once (a refused one says why),
   into our city or onto our units' square too; a fight ("Attack: 62%", `attackOdds`), an empty enemy city
   ("Take Rome") or a square further off (the `findPath` route, "This turn"/"3 turns" by `routeTurns`)
   becomes `view.plan`, drawn as dots on the way, corners round the end and the note, and goes only on a
   second right-click on the same square; any other click or key drops it. A right-click on the unit's own
   square opens its orders; where it has no way, a note says "No way there.".
-  Shift with either button, or a right-click with no unit in play, opens the square's window (`terrainInfo`: titled with the terrain and where it lies,
+  Shift with either button, a right-click with no unit in play, or a second left-click, opens the square's window (`terrainInfo`: titled with the terrain and where it lies,
   `squareTitle` in renderer-api's `places.ts`: "Grassland, Ausonia", "Hills, the Alps, Europe"; since 2026-10-26,
   asked for: "show land/water mass name in the title - remove duplicates": the terrain's word left out where
   the place's name says it, "The Apennine Mountains, Ausonia", and a water's name standing for its square,
