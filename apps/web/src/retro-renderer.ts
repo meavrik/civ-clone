@@ -156,7 +156,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     newTechHit: (view, px, py) => newTechHit(view, px, py),
     built: (state, view) => drawBuilt(screen, state, view),
-    builtHit: (view, px, py) => builtHit(view, px, py),
+    builtHit: (state, view, px, py) => builtHit(state, view, px, py),
     conquest: (state, view) => drawConquest(screen, state, view),
     conquestHit: (state, view, px, py) => conquestHit(state, view, px, py),
     reign: (state, view) => {

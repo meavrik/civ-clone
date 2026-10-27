@@ -77,10 +77,10 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     // Set aside (not in the app): the Building Completed window as a modal with its two buttons.
     built: (state, view) => {
       const card = builtCard(state, view);
-      builtShown = { title: `${card?.title ?? "Completed"}: ${card?.name ?? ""}`, body: [card?.where ?? "", card?.text ?? ""], items: [...BUILT_BUTTONS], selected: view.selected };
+      builtShown = { title: card?.title ?? "Completed", body: [card?.text ?? ""], items: [...BUILT_BUTTONS], selected: view.selected };
       drawMenu(ctx, builtShown);
     },
-    builtHit: (_view, px, py) => {
+    builtHit: (_state, _view, px, py) => {
       const i = builtShown ? menuHit(ctx, builtShown, px, py) : -1;
       return i === 0 ? "city" : i === 1 ? "continue" : null;
     },

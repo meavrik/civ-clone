@@ -380,7 +380,7 @@ Never ship the original's sprites, palette art, fonts or text.
   the Building Completed window (`built.ts`, `builtCard`; asked for 2026-10-24 with the user's template; retro
   `screens/built.ts`, modern a plain modal), a small window over the game since 2026-10-24 ("should be a
   modal opened on top of the game and not a full screen window"; smaller again since 2026-10-25 and standing
-  by its city, "smaller - and placed above the relevant built city with an arrow": 168x88, `builtPlace`;
+  by its city, "smaller - and placed above the relevant built city with an arrow": `builtPlace`;
   over the map the map glides to put the city a square below the middle, the web app hands each frame the
   city's square on screen (`BuiltView.square`, `Renderer.squareRect`, the phone's through its pan and zoom)
   and the window stands above it, else below, else beside it, a point of its stone reaching to a gold ring
@@ -392,12 +392,13 @@ Never ship the original's sprites, palette art, fonts or text.
   click after 0.4 s ending it; "a new wonder build WOW effect, the construction in fast forward") and
   its window opens over that picture, darkened with it (`ArtSpot.dim`: the pictures under a window take
   `brightness(45%)`); the web app draws the screen under it,
-  `under`): a navy title strip (shield, BUILDING/WONDER/SPACESHIP PART COMPLETED, close box), the user's
-  picture on a slate bed at the left, beside it the name large over "Completed in Rome" and a parchment
-  panel of its effects (icon and numbers from the rule's fields: "+50% science", "+2 culture"), three lines
-  with the upkeep last (the description, `text` on each rule in `rules/buildings.ts`, `wonders.ts`,
-  `spaceship.ts`, is the modern renderer's only since 2026-10-25), then
-  View City (the city screen, its build menu up) and Continue (the build menu over the map); either way the
+  `under`): since 2026-10-27 (asked for: "make more simplified. place all the text in the title - <building>
+  is completed in <city name> - smaller image and modal"; the name, city and effects on parchment are gone)
+  a navy title strip saying it all in gold, "Temple is completed in Rome" (`BuiltCard.title`; shield, close
+  box), the window as wide as that needs (140x58 at least, was 168x88; `builtSize`, so `builtHit` takes the
+  state), under it the user's picture in a 28-square spot on a slate bed at the left (was 36) and beside it
+  View City (the city screen, its build menu up) and Continue (the build menu over the map); the rule's
+  `text` is the modern renderer's body only. Either way the
   turn's news goes on after (`then`). Left/Right/Tab, Enter (not held), V, Esc; the pointer lights a button.
   `Renderer.built`/`builtHit`. Finished units say nothing (the city goes on building them), except Settlers: they cost a
   citizen, so their window asks what to build next, short and in numbers (asked for 2026-10-24): "Rome generates

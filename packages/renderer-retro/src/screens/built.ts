@@ -1,31 +1,40 @@
 import type { GameState } from "@civ/core";
-import { BUILT_BUTTONS, builtCard, buildingArt, PICTURES, type BuiltHit, type BuiltView, type IconName } from "@civ/renderer-api";
-import { drawText, drawTextLarge, FONT_HEIGHT, textWidth } from "../font.js";
-import { drawIcon, ICON } from "../icons.js";
+import { BUILT_BUTTONS, builtCard, buildingArt, PICTURES, type BuiltHit, type BuiltView } from "@civ/renderer-api";
+import { drawText, spacedWidth, textWidth } from "../font.js";
 import { C, shade, slotColor } from "../palette.js";
 import { rasterize } from "../pictures.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { dimScreen, hideArtUnder, drawEntering, drawStone, INK, speckle } from "../widgets.js";
+import { dimScreen, hideArtUnder, drawEntering, drawStone, speckle } from "../widgets.js";
 import { VIEW_Y } from "./main.js";
-import { drawModalTitle, drawWindowButton, modalHit } from "./newtech.js";
+import { drawModalTitle, drawWindowButton, fitText, modalHit } from "./newtech.js";
 
 /**
  * The Building Completed window, after the user's template (2026-10-24), a small window over the game:
- * the game's stone with a navy title strip (the shield, BUILDING COMPLETED, a close box), the user's
- * picture of it on a slate bed (a spot in `Surface.art`: the apps lay the picture there, as it is), its
- * name large over the city that built it, what it does for the city and its upkeep on parchment, then
- * View City on the stone and Continue in gold. Smaller since 2026-10-25 and standing by its city (asked
- * for: "smaller, and placed above the relevant built city with an arrow"): over the map it stands above
- * the city's square (`BuiltView.square`), else below or beside it, a point of the window's stone reaching
- * to the square, which stays lit in a gold ring while the rest darkens; elsewhere (a wonder over its
- * city's picture) it is centred. Its sentence of description (`BuiltCard.text`) went to make it small:
- * the effects say what it does in numbers.
+ * the game's stone with a navy title strip (the shield, the news, a close box), the user's picture of
+ * it on a slate bed (a spot in `Surface.art`: the apps lay the picture there, as it is), then View City
+ * on the stone and Continue in gold. Smaller since 2026-10-25 and standing by its city (asked for:
+ * "smaller, and placed above the relevant built city with an arrow"): over the map it stands above the
+ * city's square (`BuiltView.square`), else below or beside it, a point of the window's stone reaching to
+ * the square, which stays lit in a gold ring while the rest darkens; elsewhere (a wonder over its city's
+ * picture) it is centred. Simpler since 2026-10-27 (asked for: "place all the text in the title -
+ * <building> is completed in <city name> - smaller image and modal"): the title is the one line of words,
+ * "Temple is completed in Rome", the window as wide as it needs, the picture small at the left with the
+ * buttons beside it; the name, the city and the effects on parchment are gone.
  */
 
 type Rect = { x: number; y: number; w: number; h: number };
 const at = (o: Rect, x: number, y: number, w: number, h: number): Rect => ({ x: o.x + x, y: o.y + y, w, h });
-/** The window's size (204x128 until 2026-10-25). */
-const WIN = { w: 168, h: 88 };
+/** The picture's room (36 square until 2026-10-27), and its slate bed's round it. */
+const PIC = 28;
+const BED = PIC + 6;
+/** The buttons beside the picture, as wide as the longer label needs. */
+const BUTTON_W = Math.max(...BUILT_BUTTONS.map((b) => spacedWidth(b))) + 14;
+const BUTTON_H = 12;
+const BUTTON_GAP = 4;
+/** The title strip's room besides its words: the strip's inset, the shield at its left and the close box at its right, the same each side. */
+const TITLE_ROOM = 2 * (3 + 17);
+/** The window's least width: the bed and both buttons beside it. */
+const MIN_W = 5 + BED + 8 + 2 * BUTTON_W + BUTTON_GAP + 8;
 /** How far the point reaches from the window's edge toward the city's ring. */
 const POINT = 6;
 /** The ring round the city's square: black outside, gold within. */
@@ -42,8 +51,8 @@ export interface BuiltPlace {
   bounds: Rect;
 }
 
-/** The window (of `size`, the Building Completed window's by default) on a screen `screenW` wide: by the city's square when given, else centred. */
-export function builtPlace(screenW = SCREEN_W, square?: Rect, size: { w: number; h: number } = WIN): BuiltPlace {
+/** A window of `size` (the Building Completed window's, the conquest window's) on a screen `screenW` wide: by the city's square when given, else centred. */
+export function builtPlace(screenW: number, square: Rect | undefined, size: { w: number; h: number }): BuiltPlace {
   const { w, h } = size;
   const centred = { win: { x: Math.floor((screenW - w) / 2), y: Math.floor((SCREEN_H - h) / 2), w, h }, side: null, tip: null };
   if (!square) return { ...centred, bounds: centred.win };
@@ -79,59 +88,53 @@ export function builtPlace(screenW = SCREEN_W, square?: Rect, size: { w: number;
   return { ...centred, bounds: centred.win };
 }
 
-/** The centred window on a screen `screenW` wide (a wonder's, over its city's picture). */
-export function builtRect(screenW = SCREEN_W, square?: Rect): Rect {
-  return builtPlace(screenW, square).win;
+/** The window's size: as wide as its title's words need (no less than the picture and buttons, no wider than the screen `screenW`). */
+function builtSize(title: string, screenW: number): { w: number; h: number } {
+  return { w: Math.min(screenW - 6, Math.max(MIN_W, textWidth(title) + TITLE_ROOM)), h: 19 + BED + 5 };
 }
 
-/** Where each part of the window stands, the window's top left at `o`: the picture at the left, the words beside it, the buttons along the foot. */
+/** Where the window stands on a screen `screenW` wide, by the city's square when the view gives it, else centred (a wonder's, over its city's picture). */
+function placeOf(state: GameState, view: BuiltView, screenW: number): BuiltPlace {
+  return builtPlace(screenW, view.square, builtSize(builtCard(state, view)?.title ?? "", screenW));
+}
+
+/** The window on a screen `screenW` wide. */
+export function builtRect(state: GameState, view: BuiltView, screenW = SCREEN_W): Rect {
+  return placeOf(state, view, screenW).win;
+}
+
+/** Where each part of the window stands, the window's top left at `o`: the title strip, the picture's bed at the left and the buttons beside it. */
 function layout(o: Rect) {
-  const frame = at(o, 5, 19, 42, 42);
+  const bed = at(o, 5, 19, BED, BED);
+  // The buttons in the middle of the room right of the bed, level with its middle.
+  const room = bed.x + BED;
+  const x = room + Math.floor((o.x + o.w - 5 - room - (2 * BUTTON_W + BUTTON_GAP)) / 2);
+  const y = bed.y + ((BED - BUTTON_H) >> 1);
   return {
     title: at(o, 3, 3, o.w - 6, 13),
     close: at(o, o.w - 15, 5, 9, 9),
-    frame,
-    picture: { x: frame.x + 3, y: frame.y + 3, w: frame.w - 6, h: frame.h - 6 },
-    name: at(o, 51, 17, o.w - 56, 21),
-    info: at(o, 49, 40, o.w - 54, 30),
-    buttons: [at(o, 5, o.h - 16, 77, 12), at(o, o.w - 5 - 77, o.h - 16, 77, 12)],
+    bed,
+    picture: { x: bed.x + 3, y: bed.y + 3, w: PIC, h: PIC },
+    buttons: [{ x, y, w: BUTTON_W, h: BUTTON_H }, { x: x + BUTTON_W + BUTTON_GAP, y, w: BUTTON_W, h: BUTTON_H }],
   };
 }
-/** Where the building's picture goes, on a screen `screenW` wide, the window by `square` if given: its drawing fills this box, centred in the frame. */
-export function builtPicture(screenW = SCREEN_W, square?: Rect): Rect {
-  return layout(builtRect(screenW, square)).picture;
+/** Where the building's picture goes on a screen `screenW` wide: its drawing fills this box, centred in the bed. */
+export function builtPicture(state: GameState, view: BuiltView, screenW = SCREEN_W): Rect {
+  return layout(builtRect(state, view, screenW)).picture;
 }
 
-// Colours, all from the palette's ramps: the template's navy, gold, slate and parchment.
-const NAVY = () => shade("azure", 0);
+// Colours, all from the palette's ramps: the template's gold and slate.
 const GOLD = () => shade("wheat", 6);
-const PARCHMENT = () => shade("hide", 7);
-const PARCHMENT_DARK = () => shade("hide", 6);
 const RULE = () => shade("panel", 2);
-const QUIET = () => shade("panel", 2);
 const STONE = () => shade("panel", 5);
 
 /** What lies under a point: a button (View City on the left, Continue on the right), the close box (a little round it counts too), the city pointed at (View City), or nothing. */
-export function builtHit(view: BuiltView, px: number, py: number, screenW = SCREEN_W): BuiltHit | null {
-  const hit = modalHit(layout(builtRect(screenW, view.square)), px, py, "city");
+export function builtHit(state: GameState, view: BuiltView, px: number, py: number, screenW = SCREEN_W): BuiltHit | null {
+  const hit = modalHit(layout(builtRect(state, view, screenW)), px, py, "city");
   if (hit) return hit;
   const q = view.square;
   if (q && px >= q.x && px < q.x + q.w && py >= q.y && py < q.y + q.h) return "city";
   return null;
-}
-
-/** A parchment panel ringed in the stone's dark edge. */
-function parchment(s: Surface, b: Rect): void {
-  s.frame(b.x, b.y, b.w, b.h, RULE());
-  speckle(s, b.x + 1, b.y + 1, b.w - 2, b.h - 2, PARCHMENT_DARK(), PARCHMENT(), PARCHMENT());
-}
-
-/** Text cut to a width, with a full stop where it was cut. */
-function fit(text: string, w: number): string {
-  if (textWidth(text) <= w) return text;
-  let t = text;
-  while (t.length > 1 && textWidth(`${t}.`) > w) t = t.slice(0, -1);
-  return `${t.trimEnd()}.`;
 }
 
 /** A drawn picture's pixels (`rasterize`, `gw` by `gh`, -1 clear) as large as whole blocks fit in the picture's box, in its middle. */
@@ -180,7 +183,7 @@ export function drawWindowPoint(s: Surface, p: BuiltPlace): void {
 export function drawBuilt(s: Surface, state: GameState, view: BuiltView): void {
   // The city stays lit, ringed, while the rest darkens.
   dimScreen(s, view.square);
-  const place = builtPlace(s.width, view.square);
+  const place = placeOf(state, view, s.width);
   if (view.square && place.side) drawSquareRing(s, view.square);
   const enter = view.enter ?? 1;
   // Opening, the window grows out of its point (the city), or about its middle.
@@ -200,14 +203,18 @@ function drawBuiltNow(s: Surface, state: GameState, view: BuiltView, place: Buil
   hideArtUnder(s, place.bounds);
   drawStone(s, o.x + 1, o.y + 1, o.w - 2, o.h - 2);
   drawWindowPoint(s, place);
-  drawModalTitle(s, l, "shield", card.title, C.BLACK!);
+  // The news in ordinary letters (a sentence, not the strip's spaced capitals), gold in the middle of the strip.
+  drawModalTitle(s, l, "shield", "", C.BLACK!);
+  const { title: t } = l;
+  const words = fitText(card.title, t.w - TITLE_ROOM + 6);
+  drawText(s, t.x + Math.floor((t.w - textWidth(words)) / 2), t.y + 3, words, GOLD());
 
   // The picture's slate bed, sunk into the stone (seen bare only until the picture has loaded).
-  const { frame } = l;
-  s.frame(frame.x, frame.y, frame.w, frame.h, RULE());
-  speckle(s, frame.x + 1, frame.y + 1, frame.w - 2, frame.h - 2, shade("steel", 3), shade("steel", 4), shade("steel", 4));
-  s.hline(frame.x + 1, frame.y + 1, frame.w - 2, shade("steel", 3));
-  s.vline(frame.x + 1, frame.y + 1, frame.h - 2, shade("steel", 3));
+  const { bed } = l;
+  s.frame(bed.x, bed.y, bed.w, bed.h, RULE());
+  speckle(s, bed.x + 1, bed.y + 1, bed.w - 2, bed.h - 2, shade("steel", 3), shade("steel", 4), shade("steel", 4));
+  s.hline(bed.x + 1, bed.y + 1, bed.w - 2, shade("steel", 3));
+  s.vline(bed.x + 1, bed.y + 1, bed.h - 2, shade("steel", 3));
   const id = view.production.id;
   // The picture itself is laid over the canvas once the window stands whole (it would cover the window growing).
   if (buildingArt(id)) { if ((view.enter ?? 1) >= 1) s.art.push({ id, ...l.picture, middle: true }); }
@@ -217,26 +224,6 @@ function drawBuiltNow(s: Surface, state: GameState, view: BuiltView, place: Buil
     const owner = state.cities.find((c) => c.id === view.city)?.owner ?? 0;
     if (pic) drawEnlarged(s, l.picture, rasterize(pic, slotColor(state.players[owner]!.color)), pic.w + 2, pic.h + 2);
   }
-
-  // The name, large where it fits, over the city that built it.
-  const { name } = l;
-  const big = card.name.toUpperCase();
-  const scale = textWidth(big) * 2 <= name.w ? 2 : 1;
-  drawTextLarge(s, name.x, name.y + (scale === 2 ? 0 : 3), big, NAVY(), scale);
-  drawText(s, name.x, name.y + 13, card.where, INK);
-
-  // What it does for the city, a line each, and its upkeep last (none for a wonder or a part).
-  const { info } = l;
-  parchment(s, info);
-  const x = info.x + 4;
-  const rows: { icon: IconName; text: string; ink: number }[] = card.effects.map((e) => ({ ...e, ink: INK }));
-  const upkeep = card.upkeep ? [{ icon: "coin" as IconName, text: `Upkeep ${card.upkeep} gold a turn`, ink: QUIET() }] : [];
-  const lines = [...rows.slice(0, 3 - upkeep.length), ...upkeep];
-  lines.forEach((r, i) => {
-    const y = info.y + 2 + i * (FONT_HEIGHT + 1);
-    drawIcon(s, r.icon, x, y);
-    drawText(s, x + ICON + 3, y, fit(r.text, info.w - ICON - 10), r.ink);
-  });
 
   l.buttons.forEach((b, i) => drawWindowButton(s, b, BUILT_BUTTONS[i]!, i === view.selected));
 }

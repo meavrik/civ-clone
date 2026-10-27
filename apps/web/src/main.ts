@@ -2841,7 +2841,7 @@ canvas.addEventListener("mousemove", (e) => {
   }
   if (sc.kind === "built") {
     const [px, py] = toLogical(e);
-    const hit = renderer.builtHit(sc.view, px, py);
+    const hit = renderer.builtHit(state, sc.view, px, py);
     if (hit === "city" || hit === "continue") sc.view.selected = hit === "city" ? 0 : 1;
     return;
   }
@@ -2921,7 +2921,7 @@ function mouseDown(e: MouseEvent): void {
       return;
     }
     case "built": {
-      const hit = e.button === 0 && settled(sc.view) ? renderer.builtHit(sc.view, px, py) : null;
+      const hit = e.button === 0 && settled(sc.view) ? renderer.builtHit(state, sc.view, px, py) : null;
       if (hit) leaveBuilt(sc, hit === "city");
       return;
     }

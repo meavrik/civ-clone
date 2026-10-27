@@ -380,10 +380,10 @@ export interface Renderer {
   newTech(state: GameState, view: NewTechView): void;
   /** The New Technology window's button (or close box) under a point, or null. */
   newTechHit(view: NewTechView, px: number, py: number): NewTechHit | null;
-  /** The Building Completed window: an improvement, wonder or spaceship part a city just finished, its picture, what it does. */
+  /** The Building Completed window: an improvement, wonder or spaceship part a city just finished, said in its title, its picture under it. */
   built(state: GameState, view: BuiltView): void;
-  /** The Building Completed window's button (or close box) under a point, or null. */
-  builtHit(view: BuiltView, px: number, py: number): BuiltHit | null;
+  /** The Building Completed window's button (or close box) under a point, or null (its width follows its title). */
+  builtHit(state: GameState, view: BuiltView, px: number, py: number): BuiltHit | null;
   /** A city taken, by us or from us (`conquestCard`): a small window by the city, in triumph or in mourning. */
   conquest(state: GameState, view: ConquestView): void;
   /** What lies under a point of the conquest window: View City, Continue, the close box, or nothing. */
