@@ -189,6 +189,17 @@ export function drawTextLarge(s: Surface, x: number, y: number, text: string, co
   return x + Math.ceil((dx * f) / s.k);
 }
 
+/** `drawTextLarge` text ringed a dot round in another colour, so it reads on any ground (a cheer over the map). */
+export function drawTextLargeRinged(s: Surface, x: number, y: number, text: string, color: number, ring: number, scale = 2): void {
+  const f = Math.max(1, s.k / 2) * scale;
+  const scratch = new Surface(textWidthLarge(text, scale) + 2, FONT_HEIGHT * scale + 2, undefined, s.k);
+  scratch.fill(SPRITE_CLEAR);
+  drawTextLarge(scratch, 1, 1, text, ring, scale);
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const)
+    s.fblit(scratch, (x - 1) * s.k + dx * f, (y - 1) * s.k + dy * f, SPRITE_CLEAR);
+  drawTextLarge(s, x, y, text, color, scale);
+}
+
 /** Width of `drawTextLarge` text on the screen (two fine pixels to a screen pixel), in screen pixels. */
 export function textWidthLarge(text: string, scale = 2): number {
   return Math.ceil((dotWidth(text) * scale) / 2);

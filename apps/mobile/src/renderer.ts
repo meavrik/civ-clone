@@ -27,6 +27,8 @@ import {
   newTechHit,
   drawBuilt,
   builtHit,
+  drawConquest,
+  conquestHit,
   drawReign,
   reignHit,
   reignPicture,
@@ -383,6 +385,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     newTechHit: (view, px, py) => (shown.wide ? newTechHit(view, px, py, screenW()) : newTechHit(view, px - inset(), py)),
     built: (state, view) => drawBuilt(surface(), state, view),
     builtHit: (view, px, py) => (shown.wide ? builtHit(view, px, py, screenW()) : builtHit(view, px - inset(), py)),
+    conquest: (state, view) => drawConquest(surface(), state, view),
+    conquestHit: (state, view, px, py) => (shown.wide ? conquestHit(state, view, px, py, screenW()) : conquestHit(state, view, px - inset(), py)),
     reign: (state: GameState, view: ReignView) => {
       const s = surface();
       drawReign(s, state, view);

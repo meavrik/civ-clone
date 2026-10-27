@@ -23,6 +23,8 @@ export * from "./screens/advisors.js";
 export * from "./screens/diplomacy.js";
 export * from "./screens/newtech.js";
 export * from "./screens/built.js";
+export * from "./screens/conquest.js";
+export * from "./fireworks.js";
 export * from "./screens/reign.js";
 export * from "./screens/spaceship.js";
 export * from "./screens/report.js";

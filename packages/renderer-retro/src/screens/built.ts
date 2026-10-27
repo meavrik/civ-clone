@@ -42,9 +42,9 @@ export interface BuiltPlace {
   bounds: Rect;
 }
 
-/** The window on a screen `screenW` wide: by the city's square when given, else centred. */
-export function builtPlace(screenW = SCREEN_W, square?: Rect): BuiltPlace {
-  const { w, h } = WIN;
+/** The window (of `size`, the Building Completed window's by default) on a screen `screenW` wide: by the city's square when given, else centred. */
+export function builtPlace(screenW = SCREEN_W, square?: Rect, size: { w: number; h: number } = WIN): BuiltPlace {
+  const { w, h } = size;
   const centred = { win: { x: Math.floor((screenW - w) / 2), y: Math.floor((SCREEN_H - h) / 2), w, h }, side: null, tip: null };
   if (!square) return { ...centred, bounds: centred.win };
   const cx = square.x + (square.w >> 1);
@@ -146,8 +146,8 @@ function drawEnlarged(s: Surface, b: Rect, px: Int16Array, gw: number, gh: numbe
     }
 }
 
-/** The city's square ringed: black outside, gold within, so it shows on any ground. */
-function drawRing(s: Surface, q: Rect): void {
+/** The city's square ringed: black outside, gold within, so it shows on any ground (the conquest window's too). */
+export function drawSquareRing(s: Surface, q: Rect): void {
   s.frame(q.x - 2, q.y - 2, q.w + 4, q.h + 4, C.BLACK!);
   s.frame(q.x - 1, q.y - 1, q.w + 2, q.h + 2, GOLD());
 }
@@ -156,7 +156,7 @@ function drawRing(s: Surface, q: Rect): void {
  * The window's point: a wedge of its stone, rimmed in black, from its edge (joining the stone through
  * the frame) to the tip on the city's ring, narrowing a pixel a side each step.
  */
-function drawPoint(s: Surface, p: BuiltPlace): void {
+export function drawWindowPoint(s: Surface, p: BuiltPlace): void {
   const { side, tip, win } = p;
   if (!side || !tip) return;
   // Step i from the window's edge (0, the frame's line) to the tip (POINT).
@@ -181,7 +181,7 @@ export function drawBuilt(s: Surface, state: GameState, view: BuiltView): void {
   // The city stays lit, ringed, while the rest darkens.
   dimScreen(s, view.square);
   const place = builtPlace(s.width, view.square);
-  if (view.square && place.side) drawRing(s, view.square);
+  if (view.square && place.side) drawSquareRing(s, view.square);
   const enter = view.enter ?? 1;
   // Opening, the window grows out of its point (the city), or about its middle.
   if (enter < 1) { drawEntering(s, enter, place.bounds, (t) => drawBuiltNow(t, state, view, place), place.tip ?? undefined); return; }
@@ -199,7 +199,7 @@ function drawBuiltNow(s: Surface, state: GameState, view: BuiltView, place: Buil
   s.frame(o.x, o.y, o.w, o.h, C.BLACK!);
   hideArtUnder(s, place.bounds);
   drawStone(s, o.x + 1, o.y + 1, o.w - 2, o.h - 2);
-  drawPoint(s, place);
+  drawWindowPoint(s, place);
   drawModalTitle(s, l, "shield", card.title, C.BLACK!);
 
   // The picture's slate bed, sunk into the stone (seen bare only until the picture has loaded).

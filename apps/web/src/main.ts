@@ -152,6 +152,9 @@ import {
   type DiplomacyView,
   type NewTechView,
   type BuiltView,
+  conquestCard,
+  type ConquestEvent,
+  type ConquestView,
   type ReignView,
   type MainScreenView,
   type MenuState,
@@ -272,6 +275,8 @@ type Screen =
   // An advance just found, `found[at]` of those found together; the research is `due` to be picked after.
   | { kind: "newTech"; view: NewTechView; found: string[]; at: number; due: boolean; back: Screen; then: () => void }
   | { kind: "built"; view: BuiltView; then: () => void; under: Screen } // a city of ours finished an improvement, a wonder or a spaceship part, the window over `under`
+  | { kind: "triumph"; event: ConquestEvent; start: number; cheer: string; then: () => void } // the map, fireworks bursting over a city we just took
+  | { kind: "conquest"; view: ConquestView; then: () => void } // a city taken by us or from us: its window over the map
   | { kind: "reign"; view: ReignView } // a new game's opening window over the map: our leader, the people, what the tribe brings
   | { kind: "science" }
   | { kind: "rates" }
@@ -931,6 +936,57 @@ function stepWonderShow(sc: WonderShowScreen, t: number): void {
 /** A key or click ends the show once it has had its first moment. */
 function skipWonderShow(sc: WonderShowScreen): void {
   if (performance.now() - sc.start >= WONDER_SKIP_AFTER_MS) sc.then();
+}
+
+/**
+ * A city taken (asked for 2026-10-27: "a sad message (if lost) and celebration message + animation if
+ * player won"). One we took: the map glides to it, fireworks burst over it with our cheer for
+ * `FIREWORKS_MS` (a key or click after the first moment cuts them short), then its window in triumph.
+ * One of ours taken or razed: the map glides to it and its window opens in mourning. The map stands the
+ * city two squares below its middle, so the window has room above it to point down at it.
+ */
+const FIREWORKS_MS = 2600;
+const FIREWORKS_SKIP_AFTER_MS = 400;
+type TriumphScreen = Extract<Screen, { kind: "triumph" }>;
+type ConquestScreen = Extract<Screen, { kind: "conquest" }>;
+
+function conquestNews(ev: ConquestEvent, then: () => void): void {
+  centerOn(ev.x, ev.y - 2);
+  const view: ConquestView = { event: ev, viewer: 0, selected: 1 };
+  if (ev.by !== 0) { screenState = { kind: "conquest", view, then }; return; }
+  screenState = { kind: "triumph", event: ev, start: performance.now(), cheer: conquestCard(state, view).cheer, then: () => { screenState = { kind: "conquest", view, then }; } };
+}
+
+/** Each frame of the fireworks: how far the show has gone; over, the window opens. */
+function stepTriumph(sc: TriumphScreen, t: number): void {
+  const el = t - sc.start;
+  if (el >= FIREWORKS_MS) { view.fireworks = undefined; sc.then(); return; }
+  view.fireworks = { x: sc.event.x, y: sc.event.y, t: el / FIREWORKS_MS, owner: sc.event.by, cheer: sc.cheer };
+}
+
+/** A key or click ends the fireworks once they have had their first moment. */
+function skipTriumph(sc: TriumphScreen): void {
+  if (performance.now() - sc.start >= FIREWORKS_SKIP_AFTER_MS) sc.then();
+}
+
+/** Leave the window: into the city we took (`toCity`, when it offers that), else back to the map; the news goes on after. */
+function leaveConquest(sc: ConquestScreen, toCity: boolean): void {
+  const ev = sc.view.event;
+  const ours = toCity && ev.kind === "cityCaptured" && state.cities.find((c) => c.id === ev.cityId)?.owner === 0;
+  screenState = { kind: "map" };
+  if (ours) { openCity(ev.cityId, sc.then); return; }
+  sc.then();
+}
+
+/** Keys on the window: Left, Right or Tab move between its buttons, Enter (not held) presses the lit one, V views the city, Esc goes on. */
+function conquestKey(e: KeyboardEvent, sc: ConquestScreen): void {
+  const buttons = conquestCard(state, sc.view).buttons.length;
+  switch (e.code) {
+    case "ArrowLeft": case "ArrowRight": case "Tab": e.preventDefault(); if (buttons) sc.view.selected = 1 - sc.view.selected; break;
+    case "Enter": case "NumpadEnter": case "Space": e.preventDefault(); if (!e.repeat && settled(sc.view)) leaveConquest(sc, buttons > 0 && sc.view.selected === 0); break;
+    case "KeyV": if (buttons) leaveConquest(sc, true); break;
+    case "Escape": leaveConquest(sc, false); break;
+  }
 }
 
 /** Leave the Building Completed window: into the city (`toCity`) or onto the map, the builders asking what next. */
@@ -2064,6 +2120,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       }
       askToLeave(ev.player, warnings, next, ev.kind === "trespass" ? { x: ev.x, y: ev.y } : undefined);
     }
+    else if ((ev.kind === "cityCaptured" || ev.kind === "cityLost") && (ev.player === 0 || ev.by === 0)) conquestNews(ev, next);
     else if (ev.kind === "warDeclared" && ev.on === 0) warAudience(ev.player, ev.reason, next);
     else if (ev.kind === "peaceOffer" && ev.to === 0) peaceOfferAudience(ev.player, next);
     else if (ev.kind === "chooseResearch") askResearch(next);
@@ -2188,7 +2245,12 @@ function tryMove(unit: number, dx: number, dy: number): void {
     if (lastCombat) reportCombat(lastCombat);
     afterAction(unit);
     const ev = lastTurnEvents.find((e) => e.kind === "cityCaptured" || e.kind === "cityLost" || e.kind === "tradeRoute" || e.kind === "nuked" || e.kind === "ransom");
-    if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
+    if (ev && (ev.kind === "cityCaptured" || ev.kind === "cityLost")) {
+      // A city taken: fireworks and its window once the unit has marched in, then what came of it (a civilization destroyed, a ship lost).
+      const after = lastTurnEvents.filter((e) => e.kind === "eliminated" || e.kind === "spaceLost");
+      lastTurnEvents.length = 0;
+      whenStill(() => conquestNews(ev, () => { if (after.length) presentEvents(after); else followActive(true); }));
+    } else if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
   } else if (r.reason === "treaty") {
     const u = unitById(state, unit)!;
     const target = unitAt(state, u.x + dx, u.y + dy)[0] ?? cityAt(state, u.x + dx, u.y + dy);
@@ -2445,6 +2507,8 @@ addEventListener("keydown", (e) => {
     case "city": cityKey(e, sc); break;
     case "cityView": screenState = sc.city; break;
     case "wonderShow": e.preventDefault(); skipWonderShow(sc); break;
+    case "triumph": e.preventDefault(); skipTriumph(sc); break;
+    case "conquest": conquestKey(e, sc); break;
     case "rates": ratesKey(e); break;
     case "science":
       if (e.code === "KeyA") openTree({ choosing: true, closable: true }, undefined, sc);
@@ -2554,6 +2618,12 @@ canvas.addEventListener("mousemove", (e) => {
     if (hit === "city" || hit === "continue") sc.view.selected = hit === "city" ? 0 : 1;
     return;
   }
+  if (sc.kind === "conquest") {
+    const [px, py] = toLogical(e);
+    const hit = renderer.conquestHit(state, sc.view, px, py);
+    if (hit === "city" || hit === "continue") sc.view.selected = hit === "city" ? 0 : 1;
+    return;
+  }
   if (sc.kind === "city") {
     const [px, py] = toLogical(e);
     sc.view.hover = renderer.cityCitizenAt(state, sc.view, px, py) ?? undefined;
@@ -2640,6 +2710,15 @@ canvas.addEventListener("mousedown", (e) => {
     }
     case "beat": endBeat(sc); return;
     case "wonderShow": skipWonderShow(sc); return;
+    case "triumph": skipTriumph(sc); return;
+    case "conquest": {
+      // Its buttons, the close box or the city it points at; a window with nothing to choose goes on at a click anywhere.
+      if (e.button !== 0 || !settled(sc.view)) return;
+      const hit = renderer.conquestHit(state, sc.view, px, py);
+      if (hit) leaveConquest(sc, hit === "city");
+      else if (!conquestCard(state, sc.view).buttons.length) leaveConquest(sc, false);
+      return;
+    }
     case "rates": {
       const hit = renderer.ratesHit(px, py);
       if (!hit || hit.kind === "done") { screenState = { kind: "map" }; return; }
@@ -2802,7 +2881,7 @@ function draw(sc: Screen): void {
       renderer.menu({ ...m, selected: setupSelection });
       break;
     }
-    case "map": case "beat": view.message = status; renderer.main(state, view); break;
+    case "map": case "beat": case "triumph": view.message = status; renderer.main(state, view); break;
     case "report": renderer.report(sc.page); break;
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
@@ -2817,6 +2896,14 @@ function draw(sc: Screen): void {
       const city = sc.under.kind === "map" ? state.cities.find((c) => c.id === sc.view.city) : undefined;
       sc.view.square = (city && renderer.squareRect?.(state, view, city.x, city.y)) ?? undefined;
       renderer.built(state, sc.view);
+      break;
+    }
+    case "conquest": {
+      draw({ kind: "map" });
+      sc.view.enter = enterOf(sc.view);
+      // The window stands by the city (or where it stood) wherever the camera has it.
+      sc.view.square = renderer.squareRect?.(state, view, sc.view.event.x, sc.view.event.y) ?? undefined;
+      renderer.conquest(state, sc.view);
       break;
     }
     case "reign": draw({ kind: "map" }); sc.view.enter = enterOf(sc.view); renderer.reign(state, sc.view); break;
@@ -2863,6 +2950,8 @@ function frame(t: number): void {
   if (view.plan && view.plan.unit !== state.activeUnit) view.plan = undefined;
   if (screenState.kind === "beat" && t >= screenState.until) endBeat(screenState);
   if (screenState.kind === "wonderShow") stepWonderShow(screenState, t);
+  if (screenState.kind === "triumph") stepTriumph(screenState, t);
+  else view.fireworks = undefined;
   const shown = motion.at(t);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;

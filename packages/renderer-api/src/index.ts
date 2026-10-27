@@ -8,6 +8,7 @@ import { setupQuestionCards, type SetupCards } from "./setup.js";
 import type { DiplomacyView } from "./audience.js";
 import type { NewTechHit, NewTechView } from "./newtech.js";
 import type { BuiltHit, BuiltView } from "./built.js";
+import type { ConquestHit, ConquestView, Fireworks } from "./conquest.js";
 import type { ReignHit, ReignView } from "./reign.js";
 import type { ImprovementHit } from "./improvements.js";
 export * from "./motion.js";
@@ -41,6 +42,7 @@ export * from "./audience.js";
 export * from "./newtech.js";
 export * from "./art.js";
 export * from "./built.js";
+export * from "./conquest.js";
 export * from "./reign.js";
 export * from "./resources.js";
 import { resourceNote } from "./resources.js";
@@ -138,6 +140,8 @@ export interface MainScreenView {
   moving?: UnitMotion[] | undefined;
   /** The fight being shown: both fighters are drawn from here, with hit points, blows and the loser's end. */
   battle?: BattleFrame | undefined;
+  /** Fireworks bursting over a city the viewer has just taken (`Fireworks`). */
+  fireworks?: Fireworks | undefined;
   /** Fog still lifting off squares just explored (`FogLifter`): square index to fog left, 1 down to 0. */
   lifting?: Lifting | undefined;
   /** Draw civilization borders: the edge of the squares known cities reach (`territory`). */
@@ -376,6 +380,10 @@ export interface Renderer {
   built(state: GameState, view: BuiltView): void;
   /** The Building Completed window's button (or close box) under a point, or null. */
   builtHit(view: BuiltView, px: number, py: number): BuiltHit | null;
+  /** A city taken, by us or from us (`conquestCard`): a small window by the city, in triumph or in mourning. */
+  conquest(state: GameState, view: ConquestView): void;
+  /** What lies under a point of the conquest window: View City, Continue, the close box, or nothing. */
+  conquestHit(state: GameState, view: ConquestView, px: number, py: number): ConquestHit | null;
   /** The window a new game opens with over the map: our leader's portrait, the people in a sentence, what the tribe brings (`reignCard`). */
   reign(state: GameState, view: ReignView): void;
   /** The opening window's button (or close box) under a point, or null. */

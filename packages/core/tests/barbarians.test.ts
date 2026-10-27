@@ -153,7 +153,7 @@ describe("barbarian cities", () => {
     expect(move(s, raider.id, 1, 0).ok).toBe(true);
     expect(c.owner).toBe(s.barbarians);
     expect(c.size).toBe(2);
-    expect(lastTurnEvents).toContainEqual({ kind: "cityCaptured", name: c.name, player: 1, by: s.barbarians });
+    expect(lastTurnEvents).toContainEqual({ kind: "cityCaptured", name: c.name, player: 1, by: s.barbarians, cityId: c.id, x: 11, y: 10, plunder: 0, capital: true });
     expect(buildOptions(s, c)).toEqual([{ kind: "unit", id: "legion" }]);
     expect(c.production).toEqual({ kind: "unit", id: "legion" });
     // With no unit left on the map, the city alone still gives them a turn.
@@ -172,7 +172,7 @@ describe("barbarian cities", () => {
       s.currentPlayer = s.barbarians;
       expect(move(s, raider.id, 1, 0).ok).toBe(true);
       expect(s.cities.includes(c)).toBe(false);
-      expect(lastTurnEvents).toContainEqual({ kind: "cityLost", name: c.name, player: 1, by: s.barbarians });
+      expect(lastTurnEvents).toContainEqual(expect.objectContaining({ kind: "cityLost", name: c.name, player: 1, by: s.barbarians, x: 11, y: 10 }));
     }
   });
 });

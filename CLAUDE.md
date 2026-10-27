@@ -355,7 +355,23 @@ Never ship the original's sprites, palette art, fonts or text.
   citizen, so their window asks what to build next, short and in numbers (asked for 2026-10-24): "Rome generates
   a group of Settlers", then Population 3 → 2 and each of food, shields and trade a turn that changed (core
   records them on the `built` event, `CityTurnEvent.change`; the font has a → for it), over its city screen;
-  leaving the city goes on with the turn's news (the city `Screen`'s `then`). City view (`cityview.ts`, the original's View:
+  leaving the city goes on with the turn's news (the city `Screen`'s `then`).
+  A city taken (`conquest.ts` in renderer-api and renderer-retro; asked for 2026-10-27: "a sad message (if lost) and
+  celebration message + animation if player won"; core's `cityCaptured`/`cityLost` events carry the square, `plunder`,
+  `capital` and the held city's `cityId`): one we take, once the unit has marched in (`tryMove`), glides the map to it
+  (two squares below the middle, so the window fits above) and plays fireworks there (the web app's `triumph` screen,
+  `FIREWORKS_MS` 2.6 s, a key or click after 0.4 s cuts it short; `MainScreenView.fireworks`, retro `fireworks.ts`:
+  dusk falls over the view through the Bayer dither to `DIMMED`, the city's square kept lit, nine rockets climb and
+  burst in rings of gold, our colour and the bright EGA colours, placed by hashes, and the cheer, "Rome is ours!",
+  `drawTextLargeRinged` under the city's name); then the window by the city (`conquestCard`, `drawConquest`, placed and
+  pointed as the Building Completed window, `builtPlace` with its size): the square as the map draws it
+  (`drawSquarePicture`), the name large over "Taken from the Babylonians", a cheering line, then on parchment up to
+  three facts (capital fallen, wonders won, gold plundered, citizens, buildings kept), View City and Continue. One of
+  ours taken or razed (the turn's news, `presentEvents`): the map glides to it and the window mourns, a black strip with
+  the frowning face, name, words and ring in dark red ("Its streets fall silent under foreign soldiers.", a line hashed
+  from the city), what was lost, no buttons (the close box, Enter, Esc or any click go on). Razed by us: City Razed,
+  fireworks too; freed from the barbarians: "Freed from the Barbarians". `Renderer.conquest`/`conquestHit`; modern
+  draws a plain modal. No save version (events are a UI side channel). City view (`cityview.ts`, the original's View:
   the city screen's View icon or V; the modern city screen shows it small as the button): every improvement
   and wonder has a `PICTURES` entry made of shapes (`Part`: rect, poly, oval, line, each of a `Material`) on a
   grid of retro pixels; `cityScene` lays a city out (wonders on the back row, the palace in the middle, then

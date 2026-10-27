@@ -136,8 +136,10 @@ export type TurnEvent =
   | { kind: "trespass"; player: number; intruder: number; unit: number; x: number; y: number; warnings: number } // `intruder`'s unit stepped onto `player`'s land
   | { kind: "leaveDemand"; player: number; to: number; warnings: number } // `player` asks `to` to leave its land
   | { kind: "peaceOffer"; player: number; to: number } // `player` offers `to` a peace treaty
-  | { kind: "cityLost"; name: string; player: number; by: number }
-  | { kind: "cityCaptured"; name: string; player: number; by: number }
+  // `by` took `player`'s city: razed (`cityLost`) or held (`cityCaptured`, its id `cityId`), at (x, y), with
+  // the gold carried off (`plunder`) and whether it was `player`'s capital, for the window that tells of it.
+  | { kind: "cityLost"; name: string; player: number; by: number; x: number; y: number; plunder: number; capital: boolean }
+  | { kind: "cityCaptured"; name: string; player: number; by: number; cityId: number; x: number; y: number; plunder: number; capital: boolean }
   | { kind: "unitLost"; unit: string; by: number }
   | { kind: "barbarians"; x: number; y: number; sea: boolean; near: string; player: number } // a band appeared near `player`'s city `near`
   | { kind: "ransom"; amount: number; player: number } // a barbarian leader caught alone
@@ -507,9 +509,11 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
     }
     if (unitType(u.type).domain !== "land") return { ok: false, reason: "only land units take cities" };
     const prevOwner = city.owner;
-    const name = city.name;
+    const { name, id, x, y } = city;
+    const capital = city.buildings.includes("palace");
     const cap = captureCity(state, u, city);
-    lastTurnEvents.push({ kind: cap.captured ? "cityCaptured" : "cityLost", name, player: prevOwner, by: u.owner });
+    const taken = { name, player: prevOwner, by: u.owner, x, y, plunder: cap.plunder, capital };
+    lastTurnEvents.push(cap.captured ? { kind: "cityCaptured", cityId: id, ...taken } : { kind: "cityLost", ...taken });
     if (cap.shipLost) lastTurnEvents.push({ kind: "spaceLost", player: prevOwner });
     for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
     // The city's land, and the sight of it, leaves its old owner at once.

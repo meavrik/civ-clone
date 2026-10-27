@@ -158,17 +158,17 @@ export function drawModalFrame(s: Surface, o: Rect): void {
   }
 }
 
-/** A window's navy title strip: an icon, the title spaced in gold, and the close box. */
-export function drawModalTitle(s: Surface, l: { title: Rect; close: Rect }, icon: IconName, title: string, edge = GOLD_DARK()): void {
+/** A window's navy title strip (or `fill`): an icon, the title spaced in gold (or `ink`), and the close box. */
+export function drawModalTitle(s: Surface, l: { title: Rect; close: Rect }, icon: IconName, title: string, edge = GOLD_DARK(), fill = NAVY(), ink = GOLD_INK()): void {
   const { title: t, close } = l;
-  s.rect(t.x, t.y, t.w, t.h, NAVY());
+  s.rect(t.x, t.y, t.w, t.h, fill);
   s.frame(t.x, t.y, t.w, t.h, edge);
   drawIcon(s, icon, t.x + 5, t.y + 3);
-  drawSpaced(s, t.x + Math.floor(t.w / 2), t.y + 3, title, GOLD_INK());
-  s.frame(close.x, close.y, close.w, close.h, GOLD_LIGHT());
+  drawSpaced(s, t.x + Math.floor(t.w / 2), t.y + 3, title, ink);
+  s.frame(close.x, close.y, close.w, close.h, ink === GOLD_INK() ? GOLD_LIGHT() : ink);
   for (let i = 0; i < close.w - 4; i++) {
-    s.set(close.x + 2 + i, close.y + 2 + i, GOLD_INK());
-    s.set(close.x + close.w - 3 - i, close.y + 2 + i, GOLD_INK());
+    s.set(close.x + 2 + i, close.y + 2 + i, ink);
+    s.set(close.x + close.w - 3 - i, close.y + 2 + i, ink);
   }
 }
 

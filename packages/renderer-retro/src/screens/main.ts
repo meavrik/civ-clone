@@ -31,6 +31,7 @@ import { drawHut, drawSpecial, fogSquare, shadeUnseen, terrainSquare, TILE, unse
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
 import { BAD, DIM, drawStone, drawSwatch, INK, NOTE } from "../widgets.js";
+import { drawFireworks } from "../fireworks.js";
 import { drawCity } from "./map-city.js";
 import { techLabel } from "./research.js";
 
@@ -291,6 +292,14 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     const pos = toScreen(view.plan.x, view.plan.y);
     if (pos) drawTargetCorners(s, pos[0], pos[1]);
     drawCallout(s, state, view, { x: view.plan.x, y: view.plan.y, text: view.plan.text });
+  }
+
+  // Fireworks over a city just taken, the cheer over them.
+  const fw = view.fireworks;
+  const fwAt = fw ? toScreen(fw.x, fw.y) : null;
+  if (fw && fwAt) {
+    const color = playerColor(state, fw.owner);
+    drawFireworks(s, fwAt[0], fwAt[1], fw.t, color, darker(color), fw.cheer, VIEW_X, VIEW_Y);
   }
 
   if (view.callout) drawCallout(s, state, view, view.callout);

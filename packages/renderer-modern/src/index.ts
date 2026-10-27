@@ -1,4 +1,4 @@
-import { BUILT_BUTTONS, builtCard, NEW_TECH_BUTTONS, newTechCard, REIGN_BUTTON, reignCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
+import { BUILT_BUTTONS, builtCard, conquestCard, NEW_TECH_BUTTONS, newTechCard, REIGN_BUTTON, reignCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, cityButtonAt, cityCitizenAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
@@ -28,6 +28,8 @@ const cardMenu = (cards: SetupCards, selected: number): MenuState => ({ title: c
 export function createModernRenderer(ctx: Context2D, scale: () => number = () => 1): Renderer {
   /** The New Technology window last drawn, as the modal it is here, for its hit test. */
   let newTechShown: MenuState | null = null;
+  /** The conquest window last drawn, as the modal it is here, for its hit test. */
+  let conquestShown: MenuState | null = null;
   /** The Building Completed window last drawn, likewise. */
   let builtShown: MenuState | null = null;
   /** The opening window last drawn, likewise. */
@@ -81,6 +83,17 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     builtHit: (_view, px, py) => {
       const i = builtShown ? menuHit(ctx, builtShown, px, py) : -1;
       return i === 0 ? "city" : i === 1 ? "continue" : null;
+    },
+    // Set aside (not in the app): a city taken as a modal, its buttons (View City, Continue) when it has them, else Continue.
+    conquest: (state, view) => {
+      const card = conquestCard(state, view);
+      conquestShown = { title: `${card.title}: ${card.name}`, body: [card.where, card.words, ...card.facts.map((f) => `{${f.icon}} ${f.text}`)], items: card.buttons.length ? card.buttons : ["Continue"], selected: card.buttons.length ? view.selected : 0 };
+      drawMenu(ctx, conquestShown);
+    },
+    conquestHit: (_state, _view, px, py) => {
+      const i = conquestShown ? menuHit(ctx, conquestShown, px, py) : -1;
+      if (i < 0 || !conquestShown) return null;
+      return conquestShown.items.length > 1 && i === 0 ? "city" : "continue";
     },
     // Set aside (not in the app): the opening window as a modal with its button.
     reign: (state) => {
