@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, checkGameEnd, computeScore, loadSave, makeSave, newGame, parseSave, rankTitle, replaySave, rewindSave, serializeSave, turnStarts, type Command, type ReplayProgress } from "../src/index.js";
+import { applyCommand, checkGameEnd, computeScore, loadSave, loadSnapshot, makeSave, newGame, parseSave, rankTitle, replaySave, rewindSave, SAVE_VERSION, serializeSave, turnStarts, withSnapshot, type Command, type GameState, type ReplayProgress } from "../src/index.js";
 
 /** Trivial stand-in for the AI: skip every unit. */
 function skipAll(state: Parameters<typeof applyCommand>[0]): void {
@@ -54,6 +54,43 @@ describe("save/load", () => {
     expect(step.value.log).toEqual(whole.log);
     // A save it cannot read fails at the first step.
     expect(() => replaySave({ ...save, version: 0 }, skipAll).next()).toThrow(/unsupported save version/);
+  });
+
+  it("carries the game's state, loaded at once as it was, and only by this version", () => {
+    const opts = { opponents: 1 as const };
+    const state = newGame(321, opts);
+    const log: Command[] = [];
+    const run = (cmd: Command) => { if (applyCommand(state, cmd).ok) log.push(cmd); };
+    run({ type: "found", unit: state.units[0]!.id });
+    for (let i = 0; i < 4; i++) {
+      skipAll(state);
+      run({ type: "endTurn" });
+      while (state.currentPlayer !== 0) { skipAll(state); applyCommand(state, { type: "endTurn" }); }
+    }
+    // Everything, typed arrays as their numbers.
+    const all = (s: GameState) => JSON.stringify(s, (_k, v) => (ArrayBuffer.isView(v) ? Array.from(v as Uint8Array) : v));
+    const save = withSnapshot(makeSave(state, opts, log), state);
+    const then = all(state);
+    // A copy: play going on changes nothing in the save.
+    skipAll(state);
+    applyCommand(state, { type: "endTurn" });
+    expect(all(save.state!)).toBe(then);
+    const loaded = loadSnapshot(save)!;
+    expect(all(loaded.state)).toBe(then);
+    expect(all(loaded.state)).toBe(all(loadSave(save, skipAll).state));
+    expect(loaded.log).toEqual(log);
+    expect(loaded.options).toEqual(opts);
+    // Its own copy again: the save can load twice.
+    loaded.state.players[0]!.explored.fill(0);
+    loaded.state.units.length = 0;
+    expect(all(loadSnapshot(save)!.state)).toBe(then);
+    // Not from an older version, nor without a snapshot, nor one of another turn: those replay.
+    expect(loadSnapshot({ ...save, version: SAVE_VERSION - 1 })).toBeNull();
+    expect(loadSnapshot(makeSave(state, opts, log))).toBeNull();
+    expect(loadSnapshot({ ...save, turn: save.turn + 1 })).toBeNull();
+    // JSON and a rewind keep the recipe only.
+    expect(parseSave(serializeSave(save)).state).toBeUndefined();
+    expect(rewindSave(save, save.turn - 1)!.state).toBeUndefined();
   });
 
   it("goes back to the start of any turn it saw, the same as it was then", () => {

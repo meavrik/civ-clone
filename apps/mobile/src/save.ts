@@ -1,4 +1,4 @@
-import { makeSave } from "@civ/core";
+import { makeSave, withSnapshot } from "@civ/core";
 import { game } from "./civ.js";
 import { lastAutosave, writeSlot } from "./storage.js";
 
@@ -10,7 +10,7 @@ function saveTurnSoFar(): void {
   const g = game();
   const auto = lastAutosave();
   if (!g?.state || !auto || g.state.seed !== auto.seed || g.log.length === auto.log.length) return;
-  void writeSlot(0, makeSave(g.state, auto.options, g.log)).catch(() => {});
+  void writeSlot(0, withSnapshot(makeSave(g.state, auto.options, g.log), g.state)).catch(() => {});
 }
 
 addEventListener("visibilitychange", () => {

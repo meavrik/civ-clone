@@ -3,11 +3,13 @@ import { newGame, type NewGameOptions } from "./game.js";
 import type { GameState } from "./types.js";
 
 /**
- * A save is the game's recipe, not its state: the seed, the setup options
- * and every command issued since. Replaying them through the same engine
- * rebuilds an identical state (the RNG is part of the state, so AI and
- * combat rolls come out the same). This keeps saves tiny and doubles as the
- * replay format for the AI tournament harness.
+ * A save is the game's recipe: the seed, the setup options and every command
+ * issued since. Replaying them through the same engine rebuilds an identical
+ * state (the RNG is part of the state, so AI and combat rolls come out the
+ * same). This keeps saves tiny and doubles as the replay format for the AI
+ * tournament harness. The game's own saves carry its state as well
+ * (`withSnapshot`), so they load at once (`loadSnapshot`); the recipe stays
+ * their truth, for old saves, rewinds and checks.
  */
 export interface SaveGame {
   /**
@@ -67,6 +69,14 @@ export interface SaveGame {
   turn: number;
   civ: string;
   label?: string;
+  /**
+   * The game as it stood when saved (`withSnapshot`; asked for 2026-10-28: loading replayed the whole log,
+   * every computer player's turn too, 2.5 s at turn 150 with seven civilizations and growing): a deep copy
+   * of the state, loaded as it is (`loadSnapshot`, a few milliseconds) by the same version only, the rules
+   * and the state's shape as they were. The browser's store keeps it (typed arrays and all); `serializeSave`
+   * and `rewindSave` leave it out.
+   */
+  state?: GameState;
 }
 
 export const SAVE_VERSION = 39;
@@ -99,9 +109,39 @@ export interface ReplayProgress {
   to: number;
 }
 
+/** A save that carries the game as it stands (`SaveGame.state`), copied now, so later play cannot change it. */
+export function withSnapshot(save: SaveGame, state: GameState): SaveGame {
+  return { ...save, state: copyState(state) };
+}
+
 /**
- * Rebuild a game from a save. `aiTurn` is injected so core stays free of the
- * AI package; it runs whenever the replayed log hands the turn to an AI.
+ * The game straight from its save's snapshot, without replaying: only from a save of this version (older ones
+ * replay with their older rules) whose snapshot is the turn it says; else null, and the save replays.
+ */
+export function loadSnapshot(save: SaveGame): LoadedGame | null {
+  const s = save.state;
+  if (!s || save.version !== SAVE_VERSION || s.seed !== save.seed || s.turn !== save.turn) return null;
+  return { state: copyState(s), log: [...save.log], options: { ...save.options } };
+}
+
+/** A deep copy of the game's state: plain objects, arrays and typed arrays are all it holds. */
+export function copyState(state: GameState): GameState {
+  return copyData(state);
+}
+
+function copyData<T>(v: T): T {
+  if (v === null || typeof v !== "object") return v;
+  if (ArrayBuffer.isView(v)) return (v as unknown as Uint8Array).slice() as unknown as T;
+  if (Array.isArray(v)) return v.map(copyData) as unknown as T;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(v)) out[k] = copyData(x);
+  return out as T;
+}
+
+/**
+ * Rebuild a game from a save by replaying its log (never its snapshot: this is the check that the log
+ * rebuilds the game). `aiTurn` is injected so core stays free of the AI package; it runs whenever the
+ * replayed log hands the turn to an AI.
  */
 export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): LoadedGame {
   const replay = replaySave(save, aiTurn);
@@ -216,7 +256,9 @@ export function turnStarts(save: SaveGame): { turn: number; length: number }[] {
 /** The save as it stood when `turn` began, its log cut back to there; null if it never saw that turn begin. */
 export function rewindSave(save: SaveGame, turn: number): SaveGame | null {
   const at = turnStarts(save).find((t) => t.turn === turn);
-  return at ? { ...save, log: save.log.slice(0, at.length), turn } : null;
+  if (!at) return null;
+  const { state: _later, ...rest } = save;
+  return { ...rest, log: save.log.slice(0, at.length), turn };
 }
 
 /**
@@ -233,8 +275,10 @@ export function runAiPlayers(state: GameState, aiTurn: (state: GameState) => voi
   }
 }
 
+/** A save as JSON: its recipe; the snapshot stays in the browser's store (JSON would mangle its typed arrays). */
 export function serializeSave(save: SaveGame): string {
-  return JSON.stringify(save);
+  const { state: _snapshot, ...recipe } = save;
+  return JSON.stringify(recipe);
 }
 
 export function parseSave(text: string): SaveGame {

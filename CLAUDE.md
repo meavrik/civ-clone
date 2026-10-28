@@ -844,8 +844,16 @@ Never ship the original's sprites, palette art, fonts or text.
   set aside for now, still built and tested but not offered), `retro-renderer.ts` (adapter), `display.ts`
   (canvas fitting: crisp integer scale for retro, DPR-aware for modern), `storage.ts` (IndexedDB saves,
   per browser: slot 0 is the autosave, written as every turn begins and when a game starts or loads).
-  The title offers "Continue" (the autosave). Loading a save replays its whole log, every computer player's
-  turn included (about 2.5 s at turn 150 with seven civs, growing with the game), so it goes a slice of each
+  The title offers "Continue" (the autosave). The game's saves carry its state as well as its log (asked for
+  2026-10-28: "should you just save a state and build new game from the state"): `withSnapshot` (autosave,
+  Save Game, the phone's save on hide) keeps a deep copy (`copyState`; 586 KB in the browser's store at turn 150
+  with seven civs, small world), and `loadSnapshot` takes it back as it is when the save is of this
+  `SAVE_VERSION` and its seed and turn agree: Continue in one frame (17 ms, against 2.3 s replaying). The log
+  stays the save's truth: `loadSave` always replays it (headless `--verify`), `rewindSave` and `serializeSave`
+  (JSON) drop the snapshot, and a snapshot played on matches the game and its replay exactly
+  (`packages/ai/tests/ai.test.ts`). A save without a snapshot (older ones, or of another version) replays
+  its whole log, every computer player's turn included (about 2.5 s at turn 150 with seven civs, growing with
+  the game), then is saved again with one; that replay goes a slice of each
   frame under a Loading window (asked for 2026-10-28: Continue froze the page for seconds): core's
   `replaySave` is `loadSave` as a generator yielding after each command (`ReplayProgress`: the turn reached),
   the web app's `loading` screen runs it `LOAD_SLICE_MS` (70) a frame once the window stands whole
@@ -1015,6 +1023,10 @@ Never ship the original's sprites, palette art, fonts or text.
   Human input, AI and replays use the same `Command` union. Add new actions as commands.
 - Randomness only via `state.rng` (`nextInt`/`nextFloat`). Never `Math.random` in core/ai.
   Seed + command log must replay to an identical state (`save.ts`, test in `tests/save.test.ts`).
+- A save's snapshot (`SaveGame.state`) loads as it is at the same `SAVE_VERSION` only: bump the version
+  whenever `GameState`'s shape changes (a field added, renamed or meaning something new), or older
+  snapshots load wrong. `GameState` holds only plain objects, arrays and typed arrays (`copyState`): no
+  `Map`, `Set`, class instance or shared reference, and nothing that matters to play lives outside it.
 - Renderers never touch `state.rng` and never change state, and draw nothing of a square the player
   has not explored: coast, river, road and fog shapes take `player.explored` (tests rewrite the hidden
   squares and expect the same picture). The retro renderer draws into

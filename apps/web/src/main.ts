@@ -42,6 +42,8 @@ import {
   lastTurnEvents,
   landOwner,
   replaySave,
+  loadSnapshot,
+  withSnapshot,
   makeSave,
   mapDistance,
   mindsTrespass,
@@ -668,9 +670,14 @@ function reportCombat(report: CombatReport): void {
 }
 
 // ---- game start -------------------------------------------------------------
+/** The game as a save: its log and, so it loads at once, its state (`withSnapshot`). */
+function saveNow(): SaveGame {
+  return withSnapshot(makeSave(state, options, log), state);
+}
+
 /** Keep the game in the autosave slot: written as every turn begins, and when a game starts or is loaded. */
 function autosave(): void {
-  void writeSlot(0, makeSave(state, options, log)).catch(() => {});
+  void writeSlot(0, saveNow()).catch(() => {});
 }
 
 /** A save as its civilization and year: "Romans, 1200 BC". */
@@ -711,12 +718,15 @@ function reignKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "reign" }>): voi
 }
 
 /**
- * Pick up a saved game. A save is its seed and log, so every turn of it is replayed, the computer
- * players' too: seconds for a long game. It goes a slice of each frame (`stepLoading`) under the
- * loading window, its bar moving, rather than all at once with the page frozen (asked for 2026-10-28).
+ * Pick up a saved game: at once from the state it carries (`loadSnapshot`, asked for 2026-10-28), else, an
+ * older save, by replaying its seed and log, every turn of it, the computer players' too: seconds for a long
+ * game. That goes a slice of each frame (`stepLoading`) under the loading window, its bar moving, rather than
+ * all at once with the page frozen (asked for the same day).
  */
 function resumeGame(save: SaveGame): void {
   if (screenState.kind === "loading") return;
+  const snapshot = loadSnapshot(save);
+  if (snapshot) { enterLoaded(snapshot); return; }
   const under = screenState.kind === "menu" ? screenState.under : screenState;
   const label = saveLabel(save);
   screenState = { kind: "loading", view: loadingView(label), label, replay: replaySave(save, aiTurn), under };
@@ -1796,7 +1806,7 @@ async function openSaveMenu(): Promise<void> {
   const items = slots.map((s, i) => (i === 0 ? "(autosave)" : s ? `${i}. ${saveLabel(s)}` : `${i}. empty`));
   menu("Save to slot", items, (i) => {
     if (i === 0) return;
-    void writeSlot(i, makeSave(state, options, log)).then(() => say(`Saved to slot ${i}`));
+    void writeSlot(i, saveNow()).then(() => say(`Saved to slot ${i}`));
   });
 }
 
