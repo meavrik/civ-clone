@@ -714,6 +714,16 @@ Never ship the original's sprites, palette art, fonts or text.
   built), a line of the colour inside the border, cities white in black, and each civ's name in its colour
   ringed in black over the middle of its biggest piece of explored land (`territoryLabels` in renderer-api),
   the biggest first, nudged up or down off other names and, nearby, off cities; only explored squares.
+  The map and the minimap name the civilizations too, with the borders shown (asked for 2026-10-28: "show name
+  of the civ on the territory and on the minimap"; Game > Options > Civ Names, `MainScreenView.civNames`,
+  `epochs.civNames` per browser): on the map once a civilization on view (retro `drawCivNames`), the World Map's
+  spaced capitals in its colour ringed black, at spots fixed by its land as the places' names are
+  (`civNameSpots` in renderer-api: in each `ANCHOR_CELL` block its explored land square deepest inside its border,
+  never a city's, so a young city's 3x3 has none; the one nearest the view's middle first), else half a square or
+  a square up or down, clear of the cities, their names and the place name (`nameRoom`, drawn after the place
+  name, under cities and units); on the minimap over each civilization's biggest piece of land (`territoryLabels`,
+  at least 3 squares), in its colour ringed black, before the continents, which take the room left
+  (`minimapNames`).
   The unit awaiting orders blinks on the minimap in a yellow box (modern: a ring), so it can be found
   from anywhere. City names stand under their squares on the map (retro: the owner's colour ringed in
   black, drawn before the units so a name never hides one; asked for 2026-10-21).

@@ -95,7 +95,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, civNameSpots, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, territoryLabels, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -202,8 +202,11 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const citySquares = new Set(shownCities.map((c) => c.y * map.width + c.x));
   for (const [mask, dx, dy, idx] of unseen) if (!citySquares.has(idx)) shadeUnseen(s, dx, dy, mask);
   for (const [fog, dx, dy] of fogs) s.blit(fog, dx, dy, SPRITE_CLEAR);
-  // The names of the seas, lands and landforms on view, over the fog's edge, under the cities and units.
-  if (view.placeNames !== false) drawPlaceNames(s, state, view, across, shownCities);
+  // The names of the seas, lands and landforms on view, then of the civilizations whose land it is, over
+  // the fog's edge, under the cities and units, each clear of the cities, their names and the names before it.
+  const room = nameRoom(s, state, view, across, shownCities);
+  if (view.placeNames !== false) drawPlaceNames(s, state, view, across, room);
+  if (terr && view.civNames !== false) drawCivNames(s, state, view, across, terr, room);
 
   // A city with units inside shows a shield: always on our own, on others' while we see the square.
   const held = new Set(state.units.map((u) => u.y * map.width + u.x));
@@ -322,26 +325,31 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
 const PLACE_INK: Record<"water" | "landform" | "land", [string, number]> = { water: ["ice", 6], landform: ["rock", 7], land: ["wheat", 6] };
 const PLACE_RING: Record<"water" | "landform" | "land", [string, number]> = { water: ["sea", 0], landform: ["mound", 0], land: ["mound", 0] };
 
-/**
- * The name of the place nearest the unit in play (`placeLabel`), centred on the first of its squares where
- * it fits: ringed so it reads on any ground, never across a city or its name, never out over the dark. A
- * land's name has what it is written small under it ("continent", `landWord`).
- */
-function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, across: number, cities: readonly City[]): void {
+type Box = [x: number, y: number, w: number, h: number];
+
+/** Where names may go on the map: inside the view as drawn (zoomed or not), clear of what is `taken` (the cities and their names, the names written), over explored squares. */
+interface NameRoom {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  taken: Box[];
+  free(box: Box): boolean;
+}
+
+function nameRoom(s: Surface, state: GameState, view: MainScreenView, across: number, cities: readonly City[]): NameRoom {
   const [ox, oy] = panOffset(view);
   const zoom = viewZoom(view);
-  const label = placeLabel(state, state.currentPlayer, view.originX, view.originY, Math.ceil((across + 1) / zoom), Math.ceil((VIEW_TILES_Y + 1) / zoom));
-  if (!label) return;
-  const taken: [number, number, number, number][] = [];
+  const taken: Box[] = [];
   for (const c of cities) {
     const pos = tileToScreen(state, view, c.x, c.y, across);
     if (!pos) continue;
     const w = Math.max(TILE, textPlateWidth(String(c.size)) + 2 + textWidth(c.name) + MOOD_PENNANT_W);
     taken.push([pos[0] + (TILE >> 1) - (w >> 1), pos[1], w, TILE + FONT_HEIGHT + 2]);
   }
-  const clear = ([x, y, w, h]: [number, number, number, number]) => taken.every(([a, b, c, d]) => x + w <= a || a + c <= x || y + h <= b || b + d <= y);
+  const clear = ([x, y, w, h]: Box) => taken.every(([a, b, c, d]) => x + w <= a || a + c <= x || y + h <= b || b + d <= y);
   const me = state.players[state.currentPlayer]!;
-  const overExplored = ([x, y, w, h]: [number, number, number, number]) => {
+  const overExplored = ([x, y, w, h]: Box) => {
     for (const py of [y, y + h - 1]) {
       const my = view.originY + Math.floor((py - VIEW_Y + oy) / TILE);
       if (my < 0 || my >= state.map.height) return false;
@@ -352,26 +360,81 @@ function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, acro
     }
     return true;
   };
+  // Kept inside the map's view (clear of the panel and the edges).
+  return {
+    left: VIEW_X + 2,
+    right: VIEW_X + Math.floor((s.width - VIEW_X) / zoom) - 2,
+    top: VIEW_Y + 1,
+    bottom: VIEW_Y + Math.floor(VIEW_H / zoom) - 1,
+    taken,
+    free: (box) => clear(box) && overExplored(box),
+  };
+}
+
+/**
+ * The name of the place nearest the unit in play (`placeLabel`), centred on the first of its squares where
+ * it fits: ringed so it reads on any ground, never across a city or its name, never out over the dark. A
+ * land's name has what it is written small under it ("continent", `landWord`).
+ */
+function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, across: number, room: NameRoom): void {
+  const [ox, oy] = panOffset(view);
+  const zoom = viewZoom(view);
+  const label = placeLabel(state, state.currentPlayer, view.originX, view.originY, Math.ceil((across + 1) / zoom), Math.ceil((VIEW_TILES_Y + 1) / zoom));
+  if (!label) return;
   const text = placeLabelText(label.name);
   const style = label.land ? "land" : WATER_KINDS.has(label.kind) ? "water" : "landform";
   const word = label.land ? landWord(label.kind, label.name) : null;
   const w = Math.max(label.land ? spacedWidth(text) : textWidth(text), word ? textWidth(word) : 0);
   const h = word ? 2 * FONT_HEIGHT : FONT_HEIGHT;
-  // Kept inside the map's view (clear of the panel and the edges).
-  const left = VIEW_X + 2;
-  const right = VIEW_X + Math.floor((s.width - VIEW_X) / zoom) - 2;
+  const { left, right } = room;
   if (w > right - left) return;
   for (const { tx, ty } of label.at) {
     const cx = Math.min(right - (w >> 1) - 1, Math.max(left + (w >> 1) + 1, VIEW_X + tx * TILE - ox + (TILE >> 1)));
-    const y = Math.min(VIEW_Y + Math.floor(VIEW_H / zoom) - h - 1, Math.max(VIEW_Y + 1, VIEW_Y + ty * TILE - oy + ((TILE - h) >> 1)));
-    const box: [number, number, number, number] = [cx - (w >> 1) - 2, y - 1, w + 4, h + 2];
-    if (!clear(box) || !overExplored(box)) continue;
+    const y = Math.min(room.bottom - h, Math.max(room.top, VIEW_Y + ty * TILE - oy + ((TILE - h) >> 1)));
+    const box: Box = [cx - (w >> 1) - 2, y - 1, w + 4, h + 2];
+    if (!room.free(box)) continue;
+    room.taken.push(box);
     const ink = shade(...PLACE_INK[style]);
     const ring = shade(...PLACE_RING[style]);
     if (label.land) drawSpacedRinged(s, cx, y, text, ink, ring);
     else drawTextRinged(s, cx - (w >> 1), y, text, ink, ring);
     if (word) drawTextRinged(s, cx - (textWidth(word) >> 1), y + FONT_HEIGHT - 1, word, shade(...PLACE_INK.landform), ring);
     return;
+  }
+}
+
+/** A civilization's name as written over its land: its people ("Romans"), or the barbarians. */
+function civLabel(state: GameState, owner: number): string | undefined {
+  return owner === state.barbarians ? "Barbarians" : state.players[owner]?.name;
+}
+
+/**
+ * Each civilization's name over its land on view (asked for 2026-10-28: "show name of the civ on the
+ * territory"), as the world map writes it: spaced capitals in its colour ringed in black, once a
+ * civilization, at the first of its fixed spots (`civNameSpots`, deep inside its border) where the name
+ * fits, else half a square or a square up or down (a spot beside a city has its row and its name's row
+ * taken); clear of the cities, their names and the names before it.
+ */
+function drawCivNames(s: Surface, state: GameState, view: MainScreenView, across: number, terr: Territory, room: NameRoom): void {
+  const [ox, oy] = panOffset(view);
+  const zoom = viewZoom(view);
+  const spots = civNameSpots(state, terr, state.currentPlayer, view.originX, view.originY, Math.ceil((across + 1) / zoom), Math.ceil((VIEW_TILES_Y + 1) / zoom));
+  for (const spot of spots) {
+    const name = civLabel(state, spot.owner);
+    if (!name) continue;
+    const w = spacedWidth(name);
+    const { left, right } = room;
+    if (w + 4 > right - left) continue;
+    find: for (const { tx, ty } of spot.at)
+      for (const dy of [0, -(TILE >> 1), TILE >> 1, -TILE, TILE]) {
+        const cx = Math.min(right - (w >> 1) - 1, Math.max(left + (w >> 1) + 1, VIEW_X + tx * TILE - ox + (TILE >> 1)));
+        const y = Math.min(room.bottom - FONT_HEIGHT, Math.max(room.top, VIEW_Y + ty * TILE - oy + ((TILE - FONT_HEIGHT) >> 1) + dy));
+        const box: Box = [cx - (w >> 1) - 2, y - 1, w + 4, FONT_HEIGHT + 2];
+        if (!room.free(box)) continue;
+        room.taken.push(box);
+        drawSpacedRinged(s, cx, y, name, playerColor(state, spot.owner), C.BLACK!);
+        break find;
+      }
   }
 }
 
@@ -762,12 +825,11 @@ export const TERRITORY_TINT = { land: 0.65, sea: 0.4 };
  * on its own land); and each known city as a black dot on its land, or, with borders off, a white dot
  * in a cross of its owner's colour.
  */
-function drawMinimap(s: Surface, state: GameState, view: MainScreenView, top: number): void {
+function drawMinimap(s: Surface, state: GameState, top: number, terr: Territory | null): void {
   const { map } = state;
   const me = state.players[state.currentPlayer]!;
   const k = minimapScale(map);
   const { w, h } = minimapSize(map);
-  const terr = view.borders ? territory(state) : null;
   s.rect(0, top, PANEL_W, h, C.BLACK!);
   for (let py = 0; py < h; py++)
     for (let px = 0; px < w; px++) {
@@ -845,30 +907,33 @@ function minimapFrame(s: Surface, state: GameState, view: MainScreenView, top: n
   return { left: toPixel(k, vx), right: toPixel(k, vx + shows.x - 1), topY: top + toPixel(k, vy), bottomY: top + toPixel(k, vy + vh - 1) };
 }
 
+/** A name to write on the minimap over square (x, y), in its ink ringed in another colour. */
+interface MinimapName {
+  text: string;
+  x: number;
+  y: number;
+  ink: number;
+  ring: number;
+}
+
 /**
- * The continents the viewer has found, named on the minimap (`continentLabels`; asked for 2026-10-27) in the
- * map's gold ringed dark, over the land and the view's frame (the ring hides the frame behind the letters):
- * the most explored first, each centred on its middle, else a few pixels up or down, kept inside the minimap
- * and off the names before it, else left out. A name keeps off the blinking box of the unit in play where it
- * can, moving first toward the side its land lies on.
+ * The names on the minimap, over the land and the view's frame (the ring hides the frame behind the letters),
+ * in the order given (`minimapNames`): each centred on its square, else a few pixels up or down, kept inside
+ * the minimap and off the names before it, else left out. A name keeps off the blinking box of the unit in
+ * play where it can, moving first toward the side its land lies on.
  */
-function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: number; y: number } | null): void {
-  const { map } = state;
-  const k = minimapScale(map);
-  const { w, h } = minimapSize(map);
-  const ink = shade(...PLACE_INK.land);
-  const ring = shade(...PLACE_RING.land);
+function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: number; y: number } | null, names: readonly MinimapName[]): void {
+  const k = minimapScale(state.map);
+  const { w, h } = minimapSize(state.map);
   // A line's letters stand in the middle of its FONT_HEIGHT; boxes hold only them and their ring.
-  type Box = [number, number, number, number];
   const overlaps = (p: Box, q: Box) => p[0] < q[0] + q[2] && q[0] < p[0] + p[2] && p[1] < q[1] + q[3] && q[1] < p[1] + p[3];
   const unitBox: Box | null = unit ? [unit.x - 2, unit.y - 2, 5, 5] : null;
   const taken: Box[] = [];
-  for (const label of continentLabels(state, state.currentPlayer)) {
-    const text = placeLabelText(label.name);
-    const tw = textWidth(text);
+  for (const name of names) {
+    const tw = textWidth(name.text);
     if (tw + 2 > w) continue;
-    const x = Math.max(1, Math.min(w - tw - 1, toPixel(k, label.x) - (tw >> 1)));
-    const ay = top + toPixel(k, label.y);
+    const x = Math.max(1, Math.min(w - tw - 1, toPixel(k, name.x) - (tw >> 1)));
+    const ay = top + toPixel(k, name.y);
     const way = unit && ay < unit.y ? -1 : 1;
     const places = [0, 6, -6].map((dy): Box => {
       const y = Math.max(top - 1, Math.min(top + h - FONT_HEIGHT + 1, ay - (FONT_HEIGHT >> 1) + way * dy));
@@ -878,8 +943,27 @@ function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: 
     const box = free.find((b) => !unitBox || !overlaps(b, unitBox)) ?? free[0];
     if (!box) continue;
     taken.push(box);
-    drawTextRinged(s, box[0] + 1, box[1] - 1, text, ink, ring);
+    drawTextRinged(s, box[0] + 1, box[1] - 1, name.text, name.ink, name.ring);
   }
+}
+
+/**
+ * What the minimap names, first first: with the borders shown, each civilization over its biggest piece of
+ * land (asked for 2026-10-28: the civ's name "on the minimap"; `territoryLabels`, as the world map), in its
+ * colour ringed in black, the most land first; then the continents the viewer has found (`continentLabels`;
+ * asked for 2026-10-27) in the map's gold ringed dark, the most explored first.
+ */
+function minimapNames(state: GameState, view: MainScreenView, terr: Territory | null): MinimapName[] {
+  const out: MinimapName[] = [];
+  if (terr && view.civNames !== false)
+    for (const l of territoryLabels(state, terr)) {
+      const text = civLabel(state, l.owner);
+      if (text && l.squares >= 3) out.push({ text, x: l.x, y: l.y, ink: playerColor(state, l.owner), ring: C.BLACK! });
+    }
+  if (view.placeNames !== false)
+    for (const l of continentLabels(state, state.currentPlayer))
+      out.push({ text: placeLabelText(l.name), x: l.x, y: l.y, ink: shade(...PLACE_INK.land), ring: shade(...PLACE_RING.land) });
+  return out;
 }
 
 /** The map square under a minimap pixel (the middle of the block it stands for), or null off the map. */
@@ -900,7 +984,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
 
   // Minimap: 80x50, one pixel per tile on the original's world; the viewport framed in white.
   const mmY = VIEW_Y + 2;
-  drawMinimap(s, state, view, mmY);
+  const terr = view.borders ? territory(state) : null;
+  drawMinimap(s, state, mmY, terr);
   const { left, right, topY, bottomY } = minimapFrame(s, state, view, mmY);
   for (let px = left; px <= right; px++) {
     s.set(px % mm.w, topY, C.WHITE!);
@@ -910,8 +995,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
     s.set(left % mm.w, py, C.WHITE!);
     s.set(right % mm.w, py, C.WHITE!);
   }
-  // Over the frame (their ring hides it behind the letters, so they read), the names of the continents found, then the unit's box.
-  if (view.placeNames !== false) drawMinimapNames(s, state, mmY, minimapUnit(state, view, mmY));
+  // Over the frame (their ring hides it behind the letters, so they read), the civilizations' names and the continents found, then the unit's box.
+  drawMinimapNames(s, state, mmY, minimapUnit(state, view, mmY), minimapNames(state, view, terr));
   drawMinimapUnit(s, state, view, mmY);
 
   // Empire: population, year, treasury and tax/luxury/science, government and research, as icons

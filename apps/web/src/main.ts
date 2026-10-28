@@ -520,6 +520,13 @@ function setBorders(on: boolean): void {
   try { localStorage.setItem("epochs.borders", on ? "on" : "off"); } catch { /* private mode */ }
 }
 
+/** Each civilization's name over its land on the map and the minimap, shown with the borders (game menu toggles them; remembered per browser). */
+let civNames = (() => { try { return localStorage.getItem("epochs.civNames") !== "off"; } catch { return true; } })();
+function setCivNames(on: boolean): void {
+  civNames = on;
+  try { localStorage.setItem("epochs.civNames", on ? "on" : "off"); } catch { /* private mode */ }
+}
+
 /**
  * The tutorial (asked for 2026-10-27): renderer-api's tips, each shown once per browser in a small
  * window over the map when the map has been still a moment (`TIP_WAIT_MS`), until the player ends it
@@ -1738,6 +1745,7 @@ function switches(): [label: string, on: boolean, flip: () => void][] {
     ["Sound", sound.sound, () => { sound.setSound(!sound.sound); say(`Sound ${sound.sound ? "on" : "off"}`); }],
     ["Music", sound.music, () => { sound.setMusic(!sound.music); say(`Music ${sound.music ? "on" : "off"}`); }],
     ["Borders", borders, () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
+    ["Civ Names", civNames, () => { setCivNames(!civNames); say(civNames ? (borders ? "Civilization names on" : "Civilization names on, shown with the borders") : "Civilization names off"); }],
     ["Place Names", placeNames, () => { setPlaceNames(!placeNames); say(`Place names ${placeNames ? "on" : "off"}`); }],
     ["Tutorial", tutorial.on, () => { setTutorial(!tutorial.on); say(tutorial.on ? "Tutorial on: its tips start again" : "Tutorial off"); }],
   ];
@@ -3282,6 +3290,7 @@ function frame(t: number): void {
   view.blink = blinkOn;
   view.borders = borders;
   view.placeNames = placeNames;
+  view.civNames = civNames;
   if (screenState.kind === "research") screenState.view.blink = blinkOn;
   if (screenState.kind === "loading") stepLoading(screenState);
   if (screenState.kind !== "title" && screenState.kind !== "setup" && screenState.kind !== "loading") { stepCamera(t); stepEdgePan(t); siteHint(); panelTipStep(t); }

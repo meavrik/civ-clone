@@ -1126,8 +1126,8 @@ describe("world with opponents", () => {
 
     // The minimap (one pixel a square from y 11): each city a white dot in a cross of its owner's
     // colour; with borders, a black dot on its land filled with the owner's colour. (Without the
-    // continents' names, which are written over it.)
-    const view = { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true, placeNames: false };
+    // continents' and civilizations' names, which are written over it.)
+    const view = { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true, placeNames: false, civNames: false };
     const { width, height } = state.map;
     const mm = (x: number, y: number) => s.get(((x % width) + width) % width, 11 + y);
     const color = playerColor(state, enemy.owner);
@@ -1242,8 +1242,17 @@ describe("world with opponents", () => {
     writeFileSync(new URL("./out/world-map-borders.png", import.meta.url), encodePng(s, 3));
     const capital = state.cities[0]!;
     const main = Surface.screen();
-    drawMainScreen(main, state, { originX: capital.x - 7, originY: Math.max(0, capital.y - 6), blink: false, borders: true });
+    const mainView = { originX: capital.x - 7, originY: Math.max(0, capital.y - 6), blink: false };
+    drawMainScreen(main, state, { ...mainView, borders: true });
     writeFileSync(new URL("./out/minimap-territory.png", import.meta.url), encodePng(main, 3));
+    // The civilizations' names over their land, on the map and the minimap (the panel's only names), with
+    // the borders and only then, and not with Civ Names off.
+    const drawn = (v: Partial<MainScreenView>) => { const t = Surface.screen(); drawMainScreen(t, state, { ...mainView, ...v }); return t.data; };
+    const unnamed = drawn({ borders: true, civNames: false });
+    const differ = (a: Uint8Array, b: Uint8Array, panel: boolean) => a.filter((c, i) => c !== b[i] && (i % main.fw < 80 * main.k) === panel).length;
+    expect(differ(main.data, unnamed, false)).toBeGreaterThan(0);
+    expect(differ(main.data, unnamed, true)).toBeGreaterThan(0);
+    expect(drawn({ borders: false })).toEqual(drawn({ borders: false, civNames: false }));
     // Medium: 5 fine pixels a square, the map centred.
     const f = 5;
     const ox = (640 - map.width * f) / 2;

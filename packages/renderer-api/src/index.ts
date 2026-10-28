@@ -156,6 +156,8 @@ export interface MainScreenView {
   borders?: boolean | undefined;
   /** Write the names of seas, lands and landforms on the map (`placeLabels`); on when unset. */
   placeNames?: boolean | undefined;
+  /** Write each civilization's name over its land, on the map (`civNameSpots`) and the minimap (`territoryLabels`), with the borders; on when unset. */
+  civNames?: boolean | undefined;
   /**
    * The unit shown as the one in play, when it is not `state.activeUnit`: just after a unit has
    * moved or fought, the view stays with it a moment before the next unit takes over. null while

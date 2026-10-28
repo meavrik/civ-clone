@@ -1,4 +1,5 @@
-import { claims, Terrain, type GameState } from "@civ/core";
+import { claims, NEIGHBOURS, Terrain, wrapX, type GameState } from "@civ/core";
+import { ANCHOR_CELL } from "./places.js";
 
 /**
  * Civilization borders, as drawn: the land each civilization claims (core's
@@ -114,4 +115,110 @@ export function territoryLabels(state: GameState, t: Territory, viewer = state.c
     best.set(own, { owner: own, x: at.i % width, y: at.y, squares: land.length });
   }
   return [...best.values()].sort((a, b) => b.squares - a.squares);
+}
+
+/** A civilization's name to write on the map (`civNameSpots`): the squares of the view (from its top left) it may be centred on, the best first. */
+export interface CivNameSpot {
+  owner: number;
+  at: { tx: number; ty: number }[];
+}
+
+/**
+ * Where to write each civilization's name on the map (asked for 2026-10-28: "show name of the civ on the
+ * territory"). Fixed by its land alone, as the places' names are (`ANCHOR_CELL`), so a name stays put while
+ * the camera moves: in each block of `ANCHOR_CELL` squares its explored land covers, the land square deepest
+ * inside its border, never a city's square and none on the border's edge where it has an inside (on a tie the
+ * nearest the middle of its land in the block, then the first in reading order). A city's first land (its 3x3)
+ * holds nothing inside but the city, so no name until its border grows. For the view: each civilization with
+ * an anchor on it a square in from its sides, its anchors nearest the view's middle first; the civilizations
+ * with the most land on view first.
+ */
+export function civNameSpots(state: GameState, t: Territory, viewer: number, x0: number, y0: number, cols: number, rows: number): CivNameSpot[] {
+  const { map } = state;
+  const { width, height } = t;
+  const explored = state.players[viewer]?.explored;
+  if (!explored) return [];
+  const own = (i: number) => (explored[i] ? t.owner[i]! : -1);
+  // How deep each explored claimed square lies inside its owner's land: 1 on its edge (next to another's
+  // land, no one's, the unexplored or the end of the world), more inward.
+  const depth = new Uint8Array(width * height);
+  const queue: number[] = [];
+  for (let i = 0; i < width * height; i++) {
+    const o = own(i);
+    if (o < 0) continue;
+    const x = i % width;
+    const y = (i - x) / width;
+    for (const [dx, dy] of NEIGHBOURS) {
+      if (y + dy < 0 || y + dy >= height || own((y + dy) * width + wrapX(map, x + dx)) !== o) { depth[i] = 1; queue.push(i); break; }
+    }
+  }
+  for (let q = 0; q < queue.length; q++) {
+    const c = queue[q]!;
+    const x = c % width;
+    const y = (c - x) / width;
+    for (const [dx, dy] of NEIGHBOURS) {
+      if (y + dy < 0 || y + dy >= height) continue;
+      const j = (y + dy) * width + wrapX(map, x + dx);
+      if (depth[j] || own(j) !== own(c)) continue;
+      depth[j] = Math.min(255, depth[c]! + 1);
+      queue.push(j);
+    }
+  }
+  // The land a name may stand on, the deepest of it for each owner, and the middle of each owner's land in each block.
+  const cities = new Set(state.cities.map((c) => c.y * width + c.x));
+  const across = Math.ceil(width / ANCHOR_CELL.w);
+  const cellOf = (x: number, y: number) => Math.floor(y / ANCHOR_CELL.h) * across + Math.floor(x / ANCHOR_CELL.w);
+  const blocks = across * Math.ceil(height / ANCHOR_CELL.h);
+  const land = (i: number) => own(i) >= 0 && map.tiles[i]!.terrain !== Terrain.Ocean;
+  const ground = (i: number) => land(i) && !cities.has(i);
+  // How deep its land goes (its cities' squares too: a young city's 3x3 has an inside, the city).
+  const deepest = new Map<number, number>();
+  for (let i = 0; i < width * height; i++) if (land(i)) deepest.set(own(i), Math.max(deepest.get(own(i)) ?? 0, depth[i]!));
+  const middle = new Map<number, { n: number; x: number; y: number }>();
+  for (let i = 0; i < width * height; i++) {
+    if (!ground(i)) continue;
+    const o = own(i);
+    const x = i % width;
+    const y = (i - x) / width;
+    const key = o * blocks + cellOf(x, y);
+    const m = middle.get(key) ?? { n: 0, x: 0, y: 0 };
+    middle.set(key, { n: m.n + 1, x: m.x + x, y: m.y + y });
+  }
+  const best = new Map<number, { i: number; d: number; off: number }>();
+  for (let i = 0; i < width * height; i++) {
+    if (!ground(i)) continue;
+    const o = own(i);
+    if (depth[i]! < Math.min(2, deepest.get(o)!)) continue;
+    const x = i % width;
+    const y = (i - x) / width;
+    const key = o * blocks + cellOf(x, y);
+    const m = middle.get(key)!;
+    const off = (x - m.x / m.n) ** 2 + (y - m.y / m.n) ** 2;
+    const b = best.get(key);
+    if (!b || depth[i]! > b.d || (depth[i] === b.d && off < b.off)) best.set(key, { i, d: depth[i]!, off });
+  }
+  // The view: each owner's land on it, and its anchors a square in from its sides, the nearest its middle first.
+  const onView = new Map<number, number>();
+  for (let ty = 0; ty < rows; ty++) {
+    const y = y0 + ty;
+    if (y < 0 || y >= height) continue;
+    for (let tx = 0; tx < cols; tx++) {
+      const o = own(y * width + wrapX(map, x0 + tx));
+      if (o >= 0) onView.set(o, (onView.get(o) ?? 0) + 1);
+    }
+  }
+  const spots = new Map<number, { tx: number; ty: number; d: number }[]>();
+  for (const [key, { i }] of best) {
+    const owner = Math.floor(key / blocks);
+    const x = i % width;
+    const tx = (((x - x0) % width) + width) % width;
+    const ty = (i - x) / width - y0;
+    if (tx < 1 || tx >= cols - 1 || ty < 0 || ty >= rows) continue;
+    const list = spots.get(owner) ?? [];
+    list.push({ tx, ty, d: (tx - (cols - 1) / 2) ** 2 + (ty - (rows - 1) / 2) ** 2 });
+    spots.set(owner, list);
+  }
+  return [...spots]
+    .map(([owner, at]) => ({ owner, at: at.sort((a, b) => a.d - b.d || a.ty - b.ty || a.tx - b.tx).map(({ tx, ty }) => ({ tx, ty })) }))
+    .sort((a, b) => (onView.get(b.owner) ?? 0) - (onView.get(a.owner) ?? 0) || a.owner - b.owner);
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, cityCulture, CITY_RADIUS, CULTURE, newGame } from "@civ/core";
-import { borderSides, ownerAt, territory, type Territory } from "../src/index.js";
+import { applyCommand, cityCulture, CITY_RADIUS, CULTURE, newGame, Terrain, type City, type GameState } from "@civ/core";
+import { borderSides, civNameSpots, ownerAt, territory, type Territory } from "../src/index.js";
 
 /** The capital, grown until its border reaches the 21 squares it works. */
 function founded() {
@@ -64,5 +64,47 @@ describe("territory", () => {
     const t: Territory = { width: 4, height: 1, owner };
     expect(borderSides(t, 0, 0).map((b) => b.side).sort()).toEqual([0, 1, 2]); // west neighbour is square 3, also ours
     expect(borderSides(t, 1, 0).map((b) => b.side).sort()).toEqual([0, 2, 3]);
+  });
+});
+
+describe("civilization names on the map", () => {
+  /** A world with a block of grassland owned by player 1 (x 17-23, y 12-16: inside one `ANCHOR_CELL` block), all explored. */
+  function block(): { state: GameState; t: Territory } {
+    const state = newGame(3, { opponents: 1 });
+    const { width, height } = state.map;
+    state.players[0]!.explored.fill(1);
+    state.cities.length = 0;
+    const owner = new Int16Array(width * height).fill(-1);
+    for (let y = 12; y <= 16; y++)
+      for (let x = 17; x <= 23; x++) {
+        state.map.tiles[y * width + x]!.terrain = Terrain.Grassland;
+        owner[y * width + x] = 1;
+      }
+    return { state, t: { width, height, owner } };
+  }
+
+  it("names a civilization deep inside its land, at a spot fixed by the land as the view moves", () => {
+    const { state, t } = block();
+    expect(civNameSpots(state, t, 0, 10, 8, 16, 11)).toEqual([{ owner: 1, at: [{ tx: 10, ty: 6 }] }]);
+    expect(civNameSpots(state, t, 0, 11, 9, 16, 11)).toEqual([{ owner: 1, at: [{ tx: 9, ty: 5 }] }]);
+  });
+
+  it("never on a city, nor in a young city's 3x3, nor unexplored, nor at the view's side", () => {
+    const { state, t } = block();
+    // A city on the deepest square: the next deepest, the nearest the middle, the first in reading order.
+    state.cities.push({ x: 20, y: 14 } as City);
+    expect(civNameSpots(state, t, 0, 10, 8, 16, 11)[0]!.at).toEqual([{ tx: 9, ty: 6 }]);
+    // A city's first land: nothing inside but the city.
+    t.owner.fill(-1);
+    for (let y = 13; y <= 15; y++) for (let x = 19; x <= 21; x++) t.owner[y * t.width + x] = 1;
+    expect(civNameSpots(state, t, 0, 10, 8, 16, 11)).toEqual([]);
+    // Land the viewer has not explored names no one.
+    const fresh = block();
+    fresh.state.players[0]!.explored.fill(0);
+    expect(civNameSpots(fresh.state, fresh.t, 0, 10, 8, 16, 11)).toEqual([]);
+    // A spot in the view's first or last column waits for the view to move.
+    const b = block();
+    expect(civNameSpots(b.state, b.t, 0, 20, 8, 16, 11)).toEqual([]);
+    expect(civNameSpots(b.state, b.t, 0, 19, 8, 16, 11)).toEqual([{ owner: 1, at: [{ tx: 1, ty: 6 }] }]);
   });
 });
