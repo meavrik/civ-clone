@@ -334,3 +334,86 @@ export function drawTextCentered(
 ): void {
   drawText(s, Math.floor(cx - textWidth(text) / 2), y, text, color, shadow);
 }
+
+/**
+ * Small capitals for quiet labels where the font would shout (the minimap's continents; asked for
+ * 2026-10-28: "make continents name smaller and less noticeable - to distinct from the civ names"):
+ * drawn by hand on the fine grid as the font is, a dot a fine pixel, one dot a stroke, five dots tall and
+ * three wide (I one; N, O, D, G, Q and U four; M and W five). Written letter-spaced, a map's region
+ * labels; small letters are written as capitals and accents dropped.
+ */
+const SMALL: Record<string, string[]> = {
+  A: [" # ", "# #", "###", "# #", "# #"],
+  B: ["## ", "# #", "## ", "# #", "## "],
+  C: [" ##", "#  ", "#  ", "#  ", " ##"],
+  D: ["### ", "#  #", "#  #", "#  #", "### "],
+  E: ["###", "#  ", "## ", "#  ", "###"],
+  F: ["###", "#  ", "## ", "#  ", "#  "],
+  G: [" ###", "#   ", "# ##", "#  #", " ###"],
+  H: ["# #", "# #", "###", "# #", "# #"],
+  I: ["#", "#", "#", "#", "#"],
+  J: ["  #", "  #", "  #", "# #", " # "],
+  K: ["# #", "# #", "## ", "# #", "# #"],
+  L: ["#  ", "#  ", "#  ", "#  ", "###"],
+  M: ["#   #", "## ##", "# # #", "#   #", "#   #"],
+  N: ["#  #", "## #", "# ##", "#  #", "#  #"],
+  O: [" ## ", "#  #", "#  #", "#  #", " ## "],
+  P: ["## ", "# #", "## ", "#  ", "#  "],
+  Q: [" ## ", "#  #", "#  #", "# # ", " # #"],
+  R: ["## ", "# #", "## ", "# #", "# #"],
+  S: [" ##", "#  ", " # ", "  #", "## "],
+  T: ["###", " # ", " # ", " # ", " # "],
+  U: ["#  #", "#  #", "#  #", "#  #", " ## "],
+  V: ["# #", "# #", "# #", "# #", " # "],
+  W: ["#   #", "#   #", "# # #", "## ##", "#   #"],
+  X: ["# #", "# #", " # ", "# #", "# #"],
+  Y: ["# #", "# #", " # ", " # ", " # "],
+  Z: ["###", "  #", " # ", "#  ", "###"],
+  "'": ["#", "#"],
+  "-": ["", "", "##"],
+  ".": ["", "", "", "", "#"],
+};
+const SMALL_GLYPHS = new Map<string, Glyph>();
+for (const [ch, rows] of Object.entries(SMALL)) {
+  const dots: [number, number][] = [];
+  rows.forEach((r, y) => { for (let c = 0; c < r.length; c++) if (r[c] === "#") dots.push([c, y]); });
+  SMALL_GLYPHS.set(ch, { dots, advance: Math.max(...rows.map((r) => r.length)) });
+}
+/** Dots between two small capitals, and a space's width. */
+const SMALL_GAP = 2;
+const SMALL_SPACE = 4;
+/** The letters as small capitals write them: capitals, accents dropped, anything else left out. */
+function smallLetters(text: string): string[] {
+  return [...text.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase()].filter((ch) => ch === " " || SMALL_GLYPHS.has(ch));
+}
+
+function smallDots(letters: string[]): number {
+  let w = 0;
+  letters.forEach((ch, i) => { w += (ch === " " ? SMALL_SPACE : SMALL_GLYPHS.get(ch)!.advance) + (i < letters.length - 1 && ch !== " " && letters[i + 1] !== " " ? SMALL_GAP : 0); });
+  return w;
+}
+
+/** Width of small capitals in screen pixels (two dots to a pixel on the fine screen), rounded up. */
+export function smallCapsWidth(text: string): number {
+  return Math.ceil(smallDots(smallLetters(text)) / 2);
+}
+
+/** Height of small capitals in screen pixels, a dot of shadow under them included. */
+export const SMALL_CAPS_HEIGHT = 3;
+
+/** Small capitals with their top left at (x, y), in `color`, over a `shadow` one dot down and right. */
+export function drawSmallCaps(s: Surface, x: number, y: number, text: string, color: number, shadow?: number): void {
+  const letters = smallLetters(text);
+  const f = Math.max(1, s.k / 2);
+  const pass = (ink: number, d: number) => {
+    let dx = 0;
+    letters.forEach((ch, i) => {
+      if (ch === " ") { dx += SMALL_SPACE; return; }
+      const g = SMALL_GLYPHS.get(ch)!;
+      for (const [c, r] of g.dots) s.frect(x * s.k + (dx + c + d) * f, y * s.k + (r + d) * f, f, f, ink);
+      dx += g.advance + (i < letters.length - 1 && letters[i + 1] !== " " ? SMALL_GAP : 0);
+    });
+  };
+  if (shadow !== undefined) pass(shadow, 1);
+  pass(color, 0);
+}

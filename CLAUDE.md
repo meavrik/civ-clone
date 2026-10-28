@@ -232,9 +232,11 @@ Never ship the original's sprites, palette art, fonts or text.
   Isle of Capua"; asked for 2026-10-27: "not clear that is a continent name - maybe add continent to it"). The
   minimap names the continents the viewer has found (asked for the same day; `continentLabels`: each continent
   with a square explored, over its explored square nearest the middle of what was explored of it, the most
-  explored first; islands left out), retro `drawMinimapNames`: the map's gold ringed dark, over the view's
-  white frame (the ring hides it behind the letters) and under the unit's blinking box, nudged six pixels off
-  a name before it (else left out) and off the unit's box where it can. Game > Options > Place Names (asked for the
+  explored first; islands left out), retro `drawMinimapNames`: since 2026-10-28 (asked for: "make continents
+  name smaller and less noticeable - to distinct from the civ names") in small capitals, letter-spaced, pale
+  parchment (`rock` 5) over a dark shadow (`drawSmallCaps` in font.ts: our own letters, five dots tall, three
+  wide, accents dropped; the map's gold ringed dark before), over the view's white frame and under the unit's
+  blinking box, nudged four pixels off a name before it (else left out) and off the unit's box where it can. Game > Options > Place Names (asked for the
   same day: "add option to disable mass names visibility"; `MainScreenView.placeNames`, kept per browser)
   turns off the names (the minimap's too) and the notes of places found. The square's window says where it lies in its title
   (`squareTitle`; see Map clicks), and a unit of ours that finds places says so beside it (`discoveryNote`:
@@ -722,8 +724,8 @@ Never ship the original's sprites, palette art, fonts or text.
   never a city's, so a young city's 3x3 has none; the one nearest the view's middle first), else half a square or
   a square up or down, clear of the cities, their names and the place name (`nameRoom`, drawn after the place
   name, under cities and units); on the minimap over each civilization's biggest piece of land (`territoryLabels`,
-  at least 3 squares), in its colour ringed black, before the continents, which take the room left
-  (`minimapNames`).
+  at least 3 squares), in its colour ringed black in the font, before the continents' small capitals, which
+  take the room left (`minimapNames`).
   The unit awaiting orders blinks on the minimap in a yellow box (modern: a ring), so it can be found
   from anywhere. City names stand under their squares on the map (retro: the owner's colour ringed in
   black, drawn before the units so a name never hides one; asked for 2026-10-21).

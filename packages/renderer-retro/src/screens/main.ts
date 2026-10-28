@@ -23,7 +23,7 @@ import {
   type Unit,
   specialOf,
 } from "@civ/core";
-import { drawSpacedRinged, drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, spacedWidth, textPlateWidth, textWidth, wrapText } from "../font.js";
+import { drawSmallCaps, drawSpacedRinged, drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, SMALL_CAPS_HEIGHT, smallCapsWidth, spacedWidth, textPlateWidth, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawShield, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
 import { C, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
@@ -907,19 +907,20 @@ function minimapFrame(s: Surface, state: GameState, view: MainScreenView, top: n
   return { left: toPixel(k, vx), right: toPixel(k, vx + shows.x - 1), topY: top + toPixel(k, vy), bottomY: top + toPixel(k, vy + vh - 1) };
 }
 
-/** A name to write on the minimap over square (x, y), in its ink ringed in another colour. */
+/** A name to write on the minimap over square (x, y), in its ink ringed in another colour; `small`, in small capitals over a shadow of that colour. */
 interface MinimapName {
   text: string;
   x: number;
   y: number;
   ink: number;
   ring: number;
+  small?: boolean;
 }
 
 /**
  * The names on the minimap, over the land and the view's frame (the ring hides the frame behind the letters),
- * in the order given (`minimapNames`): each centred on its square, else a few pixels up or down, kept inside
- * the minimap and off the names before it, else left out. A name keeps off the blinking box of the unit in
+ * in the order given (`minimapNames`): each centred on its square, else a few pixels up or down (fewer for small
+ * capitals), kept inside the minimap and off the names before it, else left out. A name keeps off the blinking box of the unit in
  * play where it can, moving first toward the side its land lies on.
  */
 function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: number; y: number } | null, names: readonly MinimapName[]): void {
@@ -930,12 +931,13 @@ function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: 
   const unitBox: Box | null = unit ? [unit.x - 2, unit.y - 2, 5, 5] : null;
   const taken: Box[] = [];
   for (const name of names) {
-    const tw = textWidth(name.text);
+    const tw = name.small ? smallCapsWidth(name.text) : textWidth(name.text);
     if (tw + 2 > w) continue;
     const x = Math.max(1, Math.min(w - tw - 1, toPixel(k, name.x) - (tw >> 1)));
     const ay = top + toPixel(k, name.y);
     const way = unit && ay < unit.y ? -1 : 1;
-    const places = [0, 6, -6].map((dy): Box => {
+    const places = (name.small ? [0, 4, -4] : [0, 6, -6]).map((dy): Box => {
+      if (name.small) return [x - 1, Math.max(top, Math.min(top + h - SMALL_CAPS_HEIGHT, ay - 1 + way * dy)), tw + 2, SMALL_CAPS_HEIGHT];
       const y = Math.max(top - 1, Math.min(top + h - FONT_HEIGHT + 1, ay - (FONT_HEIGHT >> 1) + way * dy));
       return [x - 1, y + 1, tw + 2, FONT_HEIGHT - 2];
     });
@@ -943,7 +945,8 @@ function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: 
     const box = free.find((b) => !unitBox || !overlaps(b, unitBox)) ?? free[0];
     if (!box) continue;
     taken.push(box);
-    drawTextRinged(s, box[0] + 1, box[1] - 1, name.text, name.ink, name.ring);
+    if (name.small) drawSmallCaps(s, box[0] + 1, box[1], name.text, name.ink, name.ring);
+    else drawTextRinged(s, box[0] + 1, box[1] - 1, name.text, name.ink, name.ring);
   }
 }
 
@@ -951,7 +954,8 @@ function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: 
  * What the minimap names, first first: with the borders shown, each civilization over its biggest piece of
  * land (asked for 2026-10-28: the civ's name "on the minimap"; `territoryLabels`, as the world map), in its
  * colour ringed in black, the most land first; then the continents the viewer has found (`continentLabels`;
- * asked for 2026-10-27) in the map's gold ringed dark, the most explored first.
+ * asked for 2026-10-27), the most explored first, quieter (asked for 2026-10-28: "smaller and less noticeable -
+ * to distinct from the civ names"): letter-spaced small capitals in a pale parchment over a dark shadow.
  */
 function minimapNames(state: GameState, view: MainScreenView, terr: Territory | null): MinimapName[] {
   const out: MinimapName[] = [];
@@ -962,7 +966,7 @@ function minimapNames(state: GameState, view: MainScreenView, terr: Territory | 
     }
   if (view.placeNames !== false)
     for (const l of continentLabels(state, state.currentPlayer))
-      out.push({ text: placeLabelText(l.name), x: l.x, y: l.y, ink: shade(...PLACE_INK.land), ring: shade(...PLACE_RING.land) });
+      out.push({ text: placeLabelText(l.name), x: l.x, y: l.y, ink: shade("rock", 5), ring: shade("mound", 0), small: true });
   return out;
 }
 
