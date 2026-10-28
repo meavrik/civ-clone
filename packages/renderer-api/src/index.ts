@@ -47,6 +47,8 @@ export * from "./built.js";
 export * from "./conquest.js";
 export * from "./sinking.js";
 export * from "./reign.js";
+export * from "./loading.js";
+import type { LoadingView } from "./loading.js";
 export * from "./resources.js";
 import { resourceNote } from "./resources.js";
 export { hash } from "./hash.js";
@@ -398,6 +400,8 @@ export interface Renderer {
   reignHit(view: ReignView, px: number, py: number): ReignHit | null;
   /** A game starts or loads: a renderer may fetch the art its civilizations will want (their leaders' scenes). */
   prepare?(state: GameState): void;
+  /** The window over the screen while a saved game is replayed (`LoadingView`): the save, a bar of how far it has come. */
+  loading(view: LoadingView): void;
   end(lines: string[], rank: string): void;
   spaceship(state: GameState): void;
   /** Overlays drawn on top of whatever screen is underneath. */

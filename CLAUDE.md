@@ -823,7 +823,14 @@ Never ship the original's sprites, palette art, fonts or text.
   set aside for now, still built and tested but not offered), `retro-renderer.ts` (adapter), `display.ts`
   (canvas fitting: crisp integer scale for retro, DPR-aware for modern), `storage.ts` (IndexedDB saves,
   per browser: slot 0 is the autosave, written as every turn begins and when a game starts or loads).
-  The title offers "Continue" (the autosave). Going back to an earlier turn is gone from the game
+  The title offers "Continue" (the autosave). Loading a save replays its whole log, every computer player's
+  turn included (about 2.5 s at turn 150 with seven civs, growing with the game), so it goes a slice of each
+  frame under a Loading window (asked for 2026-10-28: Continue froze the page for seconds): core's
+  `replaySave` is `loadSave` as a generator yielding after each command (`ReplayProgress`: the turn reached),
+  the web app's `loading` screen runs it `LOAD_SLICE_MS` (70) a frame once the window stands whole
+  (`stepLoading`), and `Renderer.loading` draws the window over the screen it opened on (`LoadingView`,
+  `loadingView` in renderer-api: the save, a bar of the turns replayed, "Retracing history: 875 BC"; retro
+  `screens/loading.ts`). Nothing to press; a failed replay goes back with "Load failed". Going back to an earlier turn is gone from the game
   (the title's 2026-10-22, the Game menu's 2026-10-24, both asked for); core's `turnStarts`/`rewindSave`
   (`save.ts`) stay, tested, for anyone who needs a log cut back. The turn ends by itself only once the player has ordered the last unit awaiting orders that turn
   (`actedThisTurn`, `AUTO_END_MS` after; asked for 2026-10-24: "auto next turn when no actions left, but

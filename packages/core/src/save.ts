@@ -85,11 +85,39 @@ export function makeSave(state: GameState, options: NewGameOptions, log: Command
   return s;
 }
 
+/** A game rebuilt from its save. */
+export interface LoadedGame {
+  state: GameState;
+  log: Command[];
+  options: NewGameOptions;
+}
+
+/** How far a replay has come: the turn it has reached, between the turn the game began on and the one it was saved on. */
+export interface ReplayProgress {
+  turn: number;
+  from: number;
+  to: number;
+}
+
 /**
  * Rebuild a game from a save. `aiTurn` is injected so core stays free of the
  * AI package; it runs whenever the replayed log hands the turn to an AI.
  */
-export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { state: GameState; log: Command[]; options: NewGameOptions } {
+export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): LoadedGame {
+  const replay = replaySave(save, aiTurn);
+  for (;;) {
+    const step = replay.next();
+    if (step.done) return step.value;
+  }
+}
+
+/**
+ * `loadSave` a step at a time, for a screen that shows how far it has come (asked for 2026-10-28:
+ * Continue hung for seconds, every turn of the game and its computer players' turns replayed at
+ * once): it yields once the world is made, then after each command of the log (an end of turn with
+ * the computer players' turns after it), and returns the game.
+ */
+export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void): Generator<ReplayProgress, LoadedGame, void> {
   if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
@@ -152,17 +180,24 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): { 
   }
   if (save.version < 39) options.lastingUnits = true;
   const state = newGame(save.seed, options);
+  const from = state.turn;
+  const progress = (): ReplayProgress => ({ turn: state.turn, from, to: Math.max(from, save.turn) });
+  yield progress();
   const log: Command[] = [];
   for (const cmd of save.log) {
     const r = applyCommand(state, cmd);
     if (!r.ok) throw new Error(`replay diverged at command ${log.length}: ${r.reason}`);
     log.push(cmd);
     if (cmd.type === "endTurn") runAiPlayers(state, aiTurn);
+    yield progress();
   }
   // No human seat: nothing is logged, so play the recorded number of rounds.
   if (options.allAi) {
     let guard = 0;
-    while (state.turn < save.turn && guard++ < 10000) runAiPlayers(state, aiTurn);
+    while (state.turn < save.turn && guard++ < 10000) {
+      runAiPlayers(state, aiTurn);
+      yield progress();
+    }
   }
   return { state, log, options };
 }

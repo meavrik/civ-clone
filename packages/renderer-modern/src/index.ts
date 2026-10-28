@@ -1,4 +1,4 @@
-import { BUILT_BUTTON, builtCard, conquestCard, NEW_TECH_BUTTONS, newTechCard, REIGN_BUTTON, reignCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
+import { BUILT_BUTTON, builtCard, conquestCard, NEW_TECH_BUTTONS, newTechCard, LOADING_TITLE, REIGN_BUTTON, reignCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, cityButtonAt, cityCitizenAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
@@ -103,6 +103,8 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
       drawMenu(ctx, reignShown);
     },
     reignHit: (_view, px, py) => (reignShown && menuHit(ctx, reignShown, px, py) === 0 ? "begin" : null),
+    // Set aside (not in the app): a plain modal with the save, how far it has come and the year reached.
+    loading: (view) => drawMenu(ctx, { title: LOADING_TITLE, body: [view.label, `${Math.round(view.done * 100)}%  ${view.line}`], items: [], selected: 0 }),
     end: (lines, rank) => drawEndScreen(ctx, lines, rank),
     spaceship: (state) => drawSpaceshipScreen(ctx, state),
     menu: (menu) => drawMenu(ctx, menu),

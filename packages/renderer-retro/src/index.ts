@@ -27,5 +27,6 @@ export * from "./screens/built.js";
 export * from "./screens/conquest.js";
 export * from "./fireworks.js";
 export * from "./screens/reign.js";
+export * from "./screens/loading.js";
 export * from "./screens/spaceship.js";
 export * from "./screens/report.js";

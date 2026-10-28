@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, checkGameEnd, computeScore, loadSave, makeSave, newGame, parseSave, rankTitle, rewindSave, serializeSave, turnStarts, type Command } from "../src/index.js";
+import { applyCommand, checkGameEnd, computeScore, loadSave, makeSave, newGame, parseSave, rankTitle, replaySave, rewindSave, serializeSave, turnStarts, type Command, type ReplayProgress } from "../src/index.js";
 
 /** Trivial stand-in for the AI: skip every unit. */
 function skipAll(state: Parameters<typeof applyCommand>[0]): void {
@@ -25,6 +25,35 @@ describe("save/load", () => {
     expect(JSON.stringify(again.cities)).toBe(JSON.stringify(state.cities));
     expect(JSON.stringify(again.units)).toBe(JSON.stringify(state.units));
     expect(again.rng.s).toEqual(state.rng.s);
+  });
+
+  it("replays a step at a time, saying how far it has come, to the state loadSave makes", () => {
+    const opts = { opponents: 1 as const };
+    const state = newGame(321, opts);
+    const log: Command[] = [];
+    const run = (cmd: Command) => { if (applyCommand(state, cmd).ok) log.push(cmd); };
+    const first = state.turn;
+    run({ type: "found", unit: state.units[0]!.id });
+    for (let i = 0; i < 6; i++) {
+      skipAll(state);
+      run({ type: "endTurn" });
+      while (state.currentPlayer !== 0) { skipAll(state); applyCommand(state, { type: "endTurn" }); }
+    }
+    const save = makeSave(state, opts, log);
+    const replay = replaySave(save, skipAll);
+    const seen: ReplayProgress[] = [];
+    let step = replay.next();
+    while (!step.done) { seen.push(step.value); step = replay.next(); }
+    // Once the world is made, then once a command.
+    expect(seen).toHaveLength(log.length + 1);
+    expect(seen[0]).toEqual({ turn: first, from: first, to: state.turn });
+    expect(seen.at(-1)!.turn).toBe(state.turn);
+    expect(seen.every((p, i) => i === 0 || p.turn >= seen[i - 1]!.turn)).toBe(true);
+    const whole = loadSave(save, skipAll);
+    expect(JSON.stringify(step.value.state)).toBe(JSON.stringify(whole.state));
+    expect(step.value.log).toEqual(whole.log);
+    // A save it cannot read fails at the first step.
+    expect(() => replaySave({ ...save, version: 0 }, skipAll).next()).toThrow(/unsupported save version/);
   });
 
   it("goes back to the start of any turn it saw, the same as it was then", () => {

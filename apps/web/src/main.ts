@@ -41,7 +41,7 @@ import {
   lastActions,
   lastTurnEvents,
   landOwner,
-  loadSave,
+  replaySave,
   makeSave,
   mapDistance,
   mindsTrespass,
@@ -86,8 +86,10 @@ import {
   type DiplomatAction,
   type GameState,
   type HutResult,
+  type LoadedGame,
   type NewGameOptions,
   type Production,
+  type ReplayProgress,
   type SaveGame,
   type TurnEvent,
   type Proposal,
@@ -173,6 +175,8 @@ import {
   type ConquestEvent,
   type ConquestView,
   type ReignView,
+  loadingView,
+  type LoadingView,
   type MainScreenView,
   type MenuState,
   type Renderer,
@@ -303,6 +307,7 @@ type Screen =
   | { kind: "conquest"; view: ConquestView; then: () => void } // a city taken by us or from us: its window over the map
   | { kind: "sinking"; sinking: Omit<Sinking, "t">; start: number; then: () => void } // the map, a ship of ours going down as the turn ends
   | { kind: "reign"; view: ReignView } // a new game's opening window over the map: our leader, the people, what the tribe brings
+  | { kind: "loading"; view: LoadingView; label: string; replay: Generator<ReplayProgress, LoadedGame, void>; under: Screen } // a save replayed a slice a frame, its window over `under`
   | { kind: "science" }
   | { kind: "rates" }
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
@@ -685,9 +690,41 @@ function reignKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "reign" }>): voi
   }
 }
 
+/**
+ * Pick up a saved game. A save is its seed and log, so every turn of it is replayed, the computer
+ * players' too: seconds for a long game. It goes a slice of each frame (`stepLoading`) under the
+ * loading window, its bar moving, rather than all at once with the page frozen (asked for 2026-10-28).
+ */
 function resumeGame(save: SaveGame): void {
+  if (screenState.kind === "loading") return;
+  const under = screenState.kind === "menu" ? screenState.under : screenState;
+  const label = saveLabel(save);
+  screenState = { kind: "loading", view: loadingView(label), label, replay: replaySave(save, aiTurn), under };
+}
+
+/** How long a frame gives the replay: the window draws and its bar moves between slices. */
+const LOAD_SLICE_MS = 70;
+
+/** Replay the next slice of the save (once the window stands whole); with the last, the game. */
+function stepLoading(sc: Extract<Screen, { kind: "loading" }>): void {
+  if (!settled(sc.view)) return;
+  const end = performance.now() + LOAD_SLICE_MS;
+  let step: IteratorResult<ReplayProgress, LoadedGame>;
   try {
-    const loaded = loadSave(save, aiTurn);
+    do step = sc.replay.next();
+    while (!step.done && performance.now() < end);
+  } catch (err) {
+    screenState = sc.under;
+    say(`Load failed: ${(err as Error).message}`, 4000);
+    return;
+  }
+  if (!step.done) { Object.assign(sc.view, loadingView(sc.label, step.value)); return; }
+  enterLoaded(step.value);
+}
+
+/** A replayed save becomes the game, on the map. */
+function enterLoaded(loaded: LoadedGame): void {
+  try {
     state = loaded.state;
     renderer.prepare?.(state);
     log = loaded.log;
@@ -3208,6 +3245,7 @@ function draw(sc: Screen): void {
       break;
     }
     case "reign": draw({ kind: "map" }); sc.view.enter = enterOf(sc.view); renderer.reign(state, sc.view); break;
+    case "loading": draw(sc.under); sc.view.enter = enterOf(sc.view); renderer.loading(sc.view); break;
     case "science": renderer.science(state); break;
     case "rates": draw({ kind: "map" }); renderer.rates(state); break;
     case "advisor": renderer.advisor(state, sc.which); break;
@@ -3245,7 +3283,8 @@ function frame(t: number): void {
   view.borders = borders;
   view.placeNames = placeNames;
   if (screenState.kind === "research") screenState.view.blink = blinkOn;
-  if (screenState.kind !== "title" && screenState.kind !== "setup") { stepCamera(t); stepEdgePan(t); siteHint(); panelTipStep(t); }
+  if (screenState.kind === "loading") stepLoading(screenState);
+  if (screenState.kind !== "title" && screenState.kind !== "setup" && screenState.kind !== "loading") { stepCamera(t); stepEdgePan(t); siteHint(); panelTipStep(t); }
   if (status && t > statusUntil) status = undefined;
   if (view.callout && t > calloutUntil) view.callout = undefined;
   if (view.plan && view.plan.unit !== state.activeUnit) view.plan = undefined;
@@ -3269,7 +3308,7 @@ function frame(t: number): void {
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
   if (!animating && afterSlides.length && screenState.kind === "map") for (const fn of afterSlides.splice(0)) fn();
   // The tutorial's next tip, once the map has been still a moment (it holds off the turn's end below).
-  if ((state as GameState | undefined) && screenState.kind !== "title" && screenState.kind !== "setup")
+  if ((state as GameState | undefined) && screenState.kind !== "title" && screenState.kind !== "setup" && screenState.kind !== "loading")
     tutorialStep(t, screenState.kind === "map" && state.players[0]!.alive && !animating && !afterSlides.length && !handoff && !watching);
   // The last unit ordered this turn: the turn ends by itself a moment later (see `actedThisTurn`).
   const idle = screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length && !handoff;

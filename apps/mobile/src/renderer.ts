@@ -35,6 +35,7 @@ import {
   drawConquest,
   conquestHit,
   drawReign,
+  drawLoading,
   reignHit,
   reignPicture,
   drawDomesticAdvisor,
@@ -475,6 +476,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     reignHit: (view, px, py) => (shown.wide ? reignHit(view, px, py, screenW()) : reignHit(view, px - inset(), py)),
     prepare: (state) => preloadScenes(state),
+    // Over whatever is drawn under it (the title's 320x200 screen, or the wide map), centred on it.
+    loading: (view) => drawLoading(surface(), view),
     end: screen(drawEndScreen),
     spaceship: screen(drawSpaceshipScreen),
     report: screen(drawReportScreen),
