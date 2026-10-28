@@ -25,12 +25,12 @@ import {
 } from "@civ/core";
 import { drawSmallCaps, drawSpacedRinged, drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, SMALL_CAPS_HEIGHT, smallCapsWidth, spacedWidth, textPlateWidth, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawShield, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
-import { C, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
+import { C, DIMMED, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
-import { BAD, DIM, drawStone, drawSwatch, INK, NOTE } from "../widgets.js";
+import { BAD, DIM, drawButton, drawStone, drawSwatch, INK, NOTE } from "../widgets.js";
 import { drawFireworks } from "../fireworks.js";
 import { drawSinking } from "../sinking.js";
 import { drawCity } from "./map-city.js";
@@ -95,7 +95,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, civNameSpots, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, territoryLabels, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, civNameSpots, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, territoryLabels, type MinimapButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -743,6 +743,8 @@ function panelLayout(state: GameState, view?: MainScreenView): PanelLayout {
  */
 export function statusPartAt(state: GameState, px: number, py: number, view?: MainScreenView): PanelSpot | null {
   if (px < 0 || px >= PANEL_W) return null;
+  const button = minimapButtonAt(state, px, py);
+  if (button) return { part: button === "names" ? "minimapNames" : "minimapBorders", y: VIEW_Y + 2 + minimapSize(state.map).h - MINIMAP_BUTTON, h: MINIMAP_BUTTON };
   const { rows } = panelLayout(state, view);
   const hit = rows.find((r) => px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h);
   if (!hit) return null;
@@ -929,7 +931,8 @@ function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: 
   // A line's letters stand in the middle of its FONT_HEIGHT; boxes hold only them and their ring.
   const overlaps = (p: Box, q: Box) => p[0] < q[0] + q[2] && q[0] < p[0] + p[2] && p[1] < q[1] + q[3] && q[1] < p[1] + p[3];
   const unitBox: Box | null = unit ? [unit.x - 2, unit.y - 2, 5, 5] : null;
-  const taken: Box[] = [];
+  // Clear of the minimap's buttons.
+  const taken: Box[] = minimapButtons(state.map, top).map((b): Box => [b.x - 1, b.y - 1, b.w + 2, b.h + 1]);
   for (const name of names) {
     const tw = name.small ? smallCapsWidth(name.text) : textWidth(name.text);
     if (tw + 2 > w) continue;
@@ -951,7 +954,7 @@ function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: 
 }
 
 /**
- * What the minimap names, first first: with the borders shown, each civilization over its biggest piece of
+ * What the minimap names, first first, while its names are shown (its button): with its borders shown, each civilization over its biggest piece of
  * land (asked for 2026-10-28: the civ's name "on the minimap"; `territoryLabels`, as the world map), in its
  * colour ringed in black, the most land first; then the continents the viewer has found (`continentLabels`;
  * asked for 2026-10-27), the most explored first, quieter (asked for 2026-10-28: "smaller and less noticeable -
@@ -959,15 +962,47 @@ function drawMinimapNames(s: Surface, state: GameState, top: number, unit: { x: 
  */
 function minimapNames(state: GameState, view: MainScreenView, terr: Territory | null): MinimapName[] {
   const out: MinimapName[] = [];
-  if (terr && view.civNames !== false)
+  if (view.minimapNames === false) return out;
+  if (terr)
     for (const l of territoryLabels(state, terr)) {
       const text = civLabel(state, l.owner);
       if (text && l.squares >= 3) out.push({ text, x: l.x, y: l.y, ink: playerColor(state, l.owner), ring: C.BLACK! });
     }
-  if (view.placeNames !== false)
-    for (const l of continentLabels(state, state.currentPlayer))
-      out.push({ text: placeLabelText(l.name), x: l.x, y: l.y, ink: shade("rock", 5), ring: shade("mound", 0), small: true });
+  for (const l of continentLabels(state, state.currentPlayer))
+    out.push({ text: placeLabelText(l.name), x: l.x, y: l.y, ink: shade("rock", 5), ring: shade("mound", 0), small: true });
   return out;
+}
+
+/** The minimap's buttons are this many pixels a side, in its bottom right corner a pixel apart. */
+const MINIMAP_BUTTON = 10;
+
+/** Where the minimap's buttons stand (`MinimapButton`): names, then borders, along its foot at the right. */
+function minimapButtons(map: GameState["map"], top: number): { which: MinimapButton; x: number; y: number; w: number; h: number }[] {
+  const { w, h } = minimapSize(map);
+  const y = top + h - MINIMAP_BUTTON;
+  return (["names", "borders"] as const).map((which, i) => ({ which, x: w - 1 - (2 - i) * (MINIMAP_BUTTON + 1) + 1, y, w: MINIMAP_BUTTON, h: MINIMAP_BUTTON }));
+}
+
+/** The minimap's button under a point of the main screen, or null. */
+export function minimapButtonAt(state: GameState, px: number, py: number): MinimapButton | null {
+  const b = minimapButtons(state.map, VIEW_Y + 2).find((b) => px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h);
+  return b?.which ?? null;
+}
+
+/**
+ * The minimap's buttons (asked for 2026-10-28: "icon buttons to show or hide minimap names or borders"):
+ * small stone buttons with their icons, a card of writing for the names and two lands for the borders;
+ * a button whose layer is hidden is darkened (`DIMMED`).
+ */
+function drawMinimapButtons(s: Surface, view: MainScreenView, top: number, map: GameState["map"]): void {
+  for (const b of minimapButtons(map, top)) {
+    drawButton(s, b.x, b.y, b.w, b.h, "");
+    drawIcon(s, b.which === "names" ? "label" : "borders", b.x + 1, b.y + 1);
+    const on = b.which === "names" ? view.minimapNames !== false : view.minimapBorders !== false;
+    if (on) continue;
+    for (let fy = b.y * s.k; fy < (b.y + b.h) * s.k; fy++)
+      for (let fx = b.x * s.k; fx < (b.x + b.w) * s.k; fx++) s.fset(fx, fy, DIMMED[s.fget(fx, fy)]!);
+  }
 }
 
 /** The map square under a minimap pixel (the middle of the block it stands for), or null off the map. */
@@ -988,7 +1023,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
 
   // Minimap: 80x50, one pixel per tile on the original's world; the viewport framed in white.
   const mmY = VIEW_Y + 2;
-  const terr = view.borders ? territory(state) : null;
+  const terr = view.minimapBorders !== false ? territory(state) : null;
   drawMinimap(s, state, mmY, terr);
   const { left, right, topY, bottomY } = minimapFrame(s, state, view, mmY);
   for (let px = left; px <= right; px++) {
@@ -1002,6 +1037,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   // Over the frame (their ring hides it behind the letters, so they read), the civilizations' names and the continents found, then the unit's box.
   drawMinimapNames(s, state, mmY, minimapUnit(state, view, mmY), minimapNames(state, view, terr));
   drawMinimapUnit(s, state, view, mmY);
+  // Its switches, over everything on it.
+  drawMinimapButtons(s, view, mmY, map);
 
   // Empire: population, year, treasury and tax/luxury/science, government and research, as icons
   // (each told of in words by its tip, `panelTip`), where `panelLayout` puts them.

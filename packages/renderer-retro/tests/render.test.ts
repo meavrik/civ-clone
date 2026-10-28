@@ -1125,9 +1125,11 @@ describe("world with opponents", () => {
     expect(changed.some((c) => c === playerColor(state, enemy.owner))).toBe(true);
 
     // The minimap (one pixel a square from y 11): each city a white dot in a cross of its owner's
-    // colour; with borders, a black dot on its land filled with the owner's colour. (Without the
-    // continents' and civilizations' names, which are written over it.)
-    const view = { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true, placeNames: false, civNames: false };
+    // colour; with its borders, a black dot on its land filled with the owner's colour. (Without its
+    // names, which are written over it; its buttons cover its bottom right corner.)
+    const view = { originX: enemy.x - 7, originY: Math.max(0, enemy.y - 6), blink: true, minimapNames: false, minimapBorders: false };
+    const { minimapButtonAt } = await import("../src/index.js");
+    const underButton = (x: number, y: number) => minimapButtonAt(state, x, 11 + y) !== null;
     const { width, height } = state.map;
     const mm = (x: number, y: number) => s.get(((x % width) + width) % width, 11 + y);
     const color = playerColor(state, enemy.owner);
@@ -1140,7 +1142,7 @@ describe("world with opponents", () => {
         if (ownerAt(terr, x, y) === enemy.owner && borderSides(terr, x, y).length && clear(x, y)) edge = [x, y];
     expect(edge).toBeDefined();
     const [ex, ey] = edge!;
-    drawMainScreen(s, state, { ...view, borders: true });
+    drawMainScreen(s, state, { ...view, minimapBorders: true });
     expect(mm(enemy.x, enemy.y)).toBe(C.BLACK!);
     if (!state.units.some((u) => u.x === enemy.x + 1 && u.y === enemy.y)) expect(mm(enemy.x + 1, enemy.y)).toBe(color);
     expect(mm(ex, ey)).toBe(color);
@@ -1150,7 +1152,7 @@ describe("world with opponents", () => {
     for (let y = 0; y < height; y++)
       for (let x = 0; x < width; x++) {
         const own = ownerAt(terr, x, y);
-        if (own < 0 || state.units.some((u) => u.x === x && u.y === y) || state.cities.some((c) => c.x === x && c.y === y)) continue;
+        if (own < 0 || underButton(x, y) || state.units.some((u) => u.x === x && u.y === y) || state.cities.some((c) => c.x === x && c.y === y)) continue;
         claimed++;
         if (mm(x, y) === playerColor(state, own)) filled++;
       }
@@ -1170,7 +1172,7 @@ describe("world with opponents", () => {
     expect(mm(ix, iy)).toBe(ground);
     // Nothing of a square we have not explored, borders included.
     state.players[0]!.explored[ey * width + ex] = 0;
-    drawMainScreen(s, state, { ...view, borders: true });
+    drawMainScreen(s, state, { ...view, minimapBorders: true });
     expect(mm(ex, ey)).toBe(C.BLACK!);
   });
 
@@ -1190,7 +1192,7 @@ describe("world with opponents", () => {
     me.explored.fill(1);
     me.visible.fill(1);
     const city = state.cities.find((c) => c.owner !== 0) ?? state.cities[0]!;
-    const view = { originX: city.x - 7, originY: Math.max(0, city.y - 6), blink: true };
+    const view = { originX: city.x - 7, originY: Math.max(0, city.y - 6), blink: true, minimapBorders: false };
     const s = Surface.screen();
     drawMainScreen(s, state, view);
     writeFileSync(new URL("./out/main-screen-large.png", import.meta.url), encodePng(s, 3));
@@ -1245,13 +1247,14 @@ describe("world with opponents", () => {
     const mainView = { originX: capital.x - 7, originY: Math.max(0, capital.y - 6), blink: false };
     drawMainScreen(main, state, { ...mainView, borders: true });
     writeFileSync(new URL("./out/minimap-territory.png", import.meta.url), encodePng(main, 3));
-    // The civilizations' names over their land, on the map and the minimap (the panel's only names), with
-    // the borders and only then, and not with Civ Names off.
+    // The civilizations' names over their land: on the map with the borders and only then, and not with
+    // Civ Names off; on the minimap (the panel's only names) by its own switch, whatever the map's.
     const drawn = (v: Partial<MainScreenView>) => { const t = Surface.screen(); drawMainScreen(t, state, { ...mainView, ...v }); return t.data; };
     const unnamed = drawn({ borders: true, civNames: false });
     const differ = (a: Uint8Array, b: Uint8Array, panel: boolean) => a.filter((c, i) => c !== b[i] && (i % main.fw < 80 * main.k) === panel).length;
     expect(differ(main.data, unnamed, false)).toBeGreaterThan(0);
-    expect(differ(main.data, unnamed, true)).toBeGreaterThan(0);
+    expect(differ(main.data, unnamed, true)).toBe(0);
+    expect(differ(main.data, drawn({ borders: true, minimapNames: false }), true)).toBeGreaterThan(0);
     expect(drawn({ borders: false })).toEqual(drawn({ borders: false, civNames: false }));
     // Medium: 5 fine pixels a square, the map centred.
     const f = 5;

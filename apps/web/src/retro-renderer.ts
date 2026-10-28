@@ -52,6 +52,7 @@ import {
   menuScrollAt,
   menuRowRect,
   minimapSquare,
+  minimapButtonAt,
   PALETTE_RGBA,
   panOffset,
   SCREEN_H,
@@ -201,6 +202,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     researchHit: (state, view, px, py) => researchHit(state, view, px, py),
     statusAt: (state, view, px, py) => statusPanelAt(state, px, py, view),
     statusPartAt: (state, view, px, py) => statusPartAt(state, px, py, view),
+    minimapButtonAt: (state, px, py) => minimapButtonAt(state, px, py),
     minimapAt(state: GameState, px, py) {
       if (px >= VIEW_X) return null;
       return minimapSquare(state.map, px, py - (VIEW_Y + 2));

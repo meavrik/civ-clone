@@ -40,7 +40,21 @@ import { TERRAIN_TEXT } from "./terrain-text.js";
  */
 export type PanelPart =
   | "population" | "year" | "gold" | "tax" | "lux" | "sci" | "government" | "research"
-  | "unit" | "moves" | "home" | "rank" | "terrain" | "yield" | "orders" | "endTurn" | "war";
+  | "unit" | "moves" | "home" | "rank" | "terrain" | "yield" | "orders" | "endTurn" | "war"
+  | "minimapNames" | "minimapBorders";
+
+/**
+ * The minimap's own switches (asked for 2026-10-28: "place on the minimap itself icon buttons to show or
+ * hide minimap names or borders"): two small buttons in its corner, for its names (the civilizations' and
+ * the continents') and its borders (each civilization's land in its colour). Game > Options rules the map.
+ */
+export type MinimapButton = "names" | "borders";
+
+/** The minimap's switches as a view holds them: shown when unset. */
+export interface MinimapShows {
+  minimapNames?: boolean | undefined;
+  minimapBorders?: boolean | undefined;
+}
 
 /** A part of the panel under a point, and the rows it spans on screen (where its tip points). */
 export interface PanelSpot {
@@ -130,8 +144,8 @@ const FEATURE_WORDS: Partial<Record<IconName, string>> = {
   river: "River", road: "Road", railroad: "Railroad", irrigate: "Irrigation", mine: "Mine", fortress: "Fortress", pollution: "Pollution", hut: "Village",
 };
 
-/** What the panel's part says, for the current player; null when it shows nothing now (no unit in play, no research). */
-export function panelTip(state: GameState, part: PanelPart, unitId: number | null): PanelTipWords | null {
+/** What the panel's part says, for the current player; null when it shows nothing now (no unit in play, no research). `shows`: the minimap's switches. */
+export function panelTip(state: GameState, part: PanelPart, unitId: number | null, shows: MinimapShows = {}): PanelTipWords | null {
   const me = state.players[state.currentPlayer]!;
   const gov = government(me.government);
   const rates = (): string[] => [`${gov.name} allows ${gov.maxRate * 10}% at most.`, "Click to set the rates (T)."];
@@ -184,6 +198,14 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
       const names = enemies.length > 1 ? `${enemies.slice(0, -1).join(", ")} and ${enemies.at(-1)}` : enemies[0]!;
       return { title: "{swords}At War", lines: [`With the ${names}.`, "Their units attack ours on sight.", "Diplomacy: talk to them about peace."] };
     }
+    case "minimapNames":
+      return shows.minimapNames !== false
+        ? { title: "{label}Names on the minimap", lines: ["Shown: each civilization over its land, and the continents found.", "Click to hide them."] }
+        : { title: "{label}Names on the minimap", lines: ["Hidden.", "Click to show each civilization over its land, and the continents found."] };
+    case "minimapBorders":
+      return shows.minimapBorders !== false
+        ? { title: "{borders}Borders on the minimap", lines: ["Shown: each civilization's land in its colour.", "Click to hide them."] }
+        : { title: "{borders}Borders on the minimap", lines: ["Hidden: the land as it lies.", "Click to show each civilization's land in its colour."] };
     default:
       break;
   }

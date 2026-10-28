@@ -238,7 +238,8 @@ Never ship the original's sprites, palette art, fonts or text.
   wide, accents dropped; the map's gold ringed dark before), over the view's white frame and under the unit's
   blinking box, nudged four pixels off a name before it (else left out) and off the unit's box where it can. Game > Options > Place Names (asked for the
   same day: "add option to disable mass names visibility"; `MainScreenView.placeNames`, kept per browser)
-  turns off the names (the minimap's too) and the notes of places found. The square's window says where it lies in its title
+  turns off the map's names and the notes of places found (the minimap's names have their own button since
+  2026-10-28, see Borders below). The square's window says where it lies in its title
   (`squareTitle`; see Map clicks), and a unit of ours that finds places says so beside it (`discoveryNote`:
   "Discovered: Lake Caesar, the Roman Hills"; the web app's `announcePlaces`; found at the turn's start, in
   the status line).
@@ -703,12 +704,20 @@ Never ship the original's sprites, palette art, fonts or text.
   phone draws it on whichever surface is under it, the wide map's or a 320x200 screen's.
   Borders (`territory.ts`, toggled in Game > Options, which hides only the drawing): core's `claims`
   from the cities the viewer knows, the same land the rules read for trespass; `borderSides` gives the edges and
-  where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimaps
-  follow the same toggle: every explored square a civ claims, land and sea, in its colour, solid and
+  where a line must reach past an inner corner. Drawn after all squares, under the fog. The minimap has
+  its own switches (asked for 2026-10-28: "place on the minimap itself icon buttons to show or hide minimap
+  names or borders"): two small stone buttons along its foot at the right (`minimapButtons`, 10 pixels a
+  side, `minimapButtonAt`, `Renderer.minimapButtonAt`; a click flips one, `toggleMinimap` in the web app),
+  the `label` icon (a card of writing) for its names, the civilizations' and the continents', and the
+  `borders` icon (two lands and the border between them) for its borders; a button whose layer is hidden
+  is darkened (`DIMMED`); their tips are panel tips (`PanelPart` `minimapNames`/`minimapBorders`,
+  `panelTip`'s `shows`); `MainScreenView.minimapNames`/`minimapBorders`, `epochs.minimapNames`/`minimapBorders`
+  per browser, shown when unset; names keep off the buttons. Game > Options rules only the map. The
+  minimap's borders: every explored square a civ claims, land and sea, in its colour, solid and
   unshaded (asked for 2026-10-26: "show all the civ territory as filled color", then, of a tint inside a
   line of the colour, "still a counter and not a single color full filled area"; a unit on its own land
   in the darker shade); cities are a black dot there (a cross cut a young city's 3x3 land into a ring),
-  and with borders off a white dot in a cross of the owner's colour.
+  and with its borders off a white dot in a cross of the owner's colour.
   The World Map (World > World Map; asked for 2026-10-26: "show borders as filled colors - if possible
   show civ names") is political whatever the toggle: retro `drawWorldMap` draws each square as many fine
   pixels as fit (8 small, 5 medium, 4 large), each civ's claimed land tinted toward its colour and its sea
@@ -716,9 +725,9 @@ Never ship the original's sprites, palette art, fonts or text.
   built), a line of the colour inside the border, cities white in black, and each civ's name in its colour
   ringed in black over the middle of its biggest piece of explored land (`territoryLabels` in renderer-api),
   the biggest first, nudged up or down off other names and, nearby, off cities; only explored squares.
-  The map and the minimap name the civilizations too, with the borders shown (asked for 2026-10-28: "show name
-  of the civ on the territory and on the minimap"; Game > Options > Civ Names, `MainScreenView.civNames`,
-  `epochs.civNames` per browser): on the map once a civilization on view (retro `drawCivNames`), the World Map's
+  The map and the minimap name the civilizations too, each with its borders shown (asked for 2026-10-28: "show
+  name of the civ on the territory and on the minimap"; on the map Game > Options > Civ Names,
+  `MainScreenView.civNames`, `epochs.civNames` per browser; on the minimap its names button): on the map once a civilization on view (retro `drawCivNames`), the World Map's
   spaced capitals in its colour ringed black, at spots fixed by its land as the places' names are
   (`civNameSpots` in renderer-api: in each `ANCHOR_CELL` block its explored land square deepest inside its border,
   never a city's, so a young city's 3x3 has none; the one nearest the view's middle first), else half a square or

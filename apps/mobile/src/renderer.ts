@@ -76,6 +76,7 @@ import {
   SETUP_CHOICES,
   type ChoiceStyle,
   minimapSquare,
+  minimapButtonAt,
   PALETTE_RGBA,
   panOffset,
   RESEARCH_LIST_ROWS,
@@ -533,6 +534,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     statusAt: (state, view, px, py) => statusPanelAt(state, px, py, view),
     statusPartAt: (state, view, px, py) => statusPartAt(state, px, py, view),
+    minimapButtonAt: (state, px, py) => minimapButtonAt(state, px, py),
     minimapAt(state, px, py) {
       if (px >= VIEW_X) return null;
       return minimapSquare(state.map, px, py - (VIEW_Y + 2));

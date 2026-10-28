@@ -148,6 +148,7 @@ import {
   siteNote,
   panelTip,
   shownActive,
+  type MinimapButton,
   type PanelPart,
   type PanelSpot,
   setupCards,
@@ -520,11 +521,23 @@ function setBorders(on: boolean): void {
   try { localStorage.setItem("epochs.borders", on ? "on" : "off"); } catch { /* private mode */ }
 }
 
-/** Each civilization's name over its land on the map and the minimap, shown with the borders (game menu toggles them; remembered per browser). */
+/** Each civilization's name over its land on the map, shown with the borders (game menu toggles them; remembered per browser). */
 let civNames = (() => { try { return localStorage.getItem("epochs.civNames") !== "off"; } catch { return true; } })();
 function setCivNames(on: boolean): void {
   civNames = on;
   try { localStorage.setItem("epochs.civNames", on ? "on" : "off"); } catch { /* private mode */ }
+}
+
+/** The minimap's own switches, its buttons (asked for 2026-10-28): its names and its borders (remembered per browser; Game > Options rules the map). */
+const minimapShows: Record<MinimapButton, boolean> = (() => {
+  const on = (key: string) => { try { return localStorage.getItem(key) !== "off"; } catch { return true; } };
+  return { names: on("epochs.minimapNames"), borders: on("epochs.minimapBorders") };
+})();
+function toggleMinimap(which: MinimapButton): void {
+  const on = (minimapShows[which] = !minimapShows[which]);
+  try { localStorage.setItem(which === "names" ? "epochs.minimapNames" : "epochs.minimapBorders", on ? "on" : "off"); } catch { /* private mode */ }
+  sound.play("click");
+  say(`Minimap ${which} ${on ? "shown" : "hidden"}`);
 }
 
 /**
@@ -883,7 +896,7 @@ function panelTipStep(now: number): void {
   }
   if (tipPinned && (now > tipPinned.until || !onMap || (pointer && part !== tipPinned.spot.part))) tipPinned = null;
   const shown = tipPinned?.spot ?? (spot && now - tipSince >= TIP_DELAY_MS ? spot : null);
-  const words = shown ? panelTip(state, shown.part, shownActive(state, view)) : null;
+  const words = shown ? panelTip(state, shown.part, shownActive(state, view), view) : null;
   view.tip = shown && words ? { ...shown, ...words } : undefined;
 }
 
@@ -3113,6 +3126,9 @@ function mouseDown(e: MouseEvent): void {
   if (watching && motion.busy(performance.now())) { skipWatch(); return; }
   const bar = renderer.menuBarHit(px, py);
   if (bar >= 0) { openBarMenu(bar); return; }
+  // The minimap's switches in its corner, then the minimap itself.
+  const mmButton = renderer.minimapButtonAt?.(state, px, py);
+  if (mmButton) { if (e.button === 0) toggleMinimap(mmButton); return; }
   const mm = renderer.minimapAt(state, px, py);
   if (mm) { centerOn(mm.x, mm.y); return; }
   // The research row of the status panel opens the research panel; its End of Turn ends the turn.
@@ -3291,6 +3307,8 @@ function frame(t: number): void {
   view.borders = borders;
   view.placeNames = placeNames;
   view.civNames = civNames;
+  view.minimapNames = minimapShows.names;
+  view.minimapBorders = minimapShows.borders;
   if (screenState.kind === "research") screenState.view.blink = blinkOn;
   if (screenState.kind === "loading") stepLoading(screenState);
   if (screenState.kind !== "title" && screenState.kind !== "setup" && screenState.kind !== "loading") { stepCamera(t); stepEdgePan(t); siteHint(); panelTipStep(t); }

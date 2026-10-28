@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { newGame, recomputeVisibility, type GameState } from "@civ/core";
-import { drawMainScreen, Surface, type MainScreenView } from "../src/index.js";
+import { drawMainScreen, minimapButtonAt, Surface, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 /** Earth with every square explored and seen, the view on the Mediterranean. */
@@ -28,22 +28,26 @@ describe("place names on the map", () => {
     expect(differ).toBeGreaterThan(200);
   });
 
-  it("names the continents found on the minimap, and none when names are turned off", () => {
+  it("names the continents found on the minimap, and none when its names are turned off", () => {
     const { state, view } = earth();
     const named = Surface.screen();
     drawMainScreen(named, state, view);
     const bare = Surface.screen();
-    drawMainScreen(bare, state, { ...view, placeNames: false });
+    drawMainScreen(bare, state, { ...view, minimapNames: false });
     // The minimap's 80x50 under the menu bar.
     let differ = 0;
     for (let y = 10; y < 60; y++) for (let x = 0; x < 80; x++) if (named.get(x, y) !== bare.get(x, y)) differ++;
     expect(differ).toBeGreaterThan(100);
-    // Nothing found, nothing named.
+    // The map's place names are the map's: the minimap keeps its own.
+    const mapBare = Surface.screen();
+    drawMainScreen(mapBare, state, { ...view, placeNames: false });
+    for (let y = 10; y < 60; y++) for (let x = 0; x < 80; x++) expect(mapBare.get(x, y)).toBe(named.get(x, y));
+    // Nothing found, nothing named (the names button is darkened, nothing more).
     state.players[0]!.explored.fill(0);
     const dark = Surface.screen();
     drawMainScreen(dark, state, view);
     const darkBare = Surface.screen();
-    drawMainScreen(darkBare, state, { ...view, placeNames: false });
-    for (let y = 10; y < 60; y++) for (let x = 0; x < 80; x++) expect(dark.get(x, y)).toBe(darkBare.get(x, y));
+    drawMainScreen(darkBare, state, { ...view, minimapNames: false });
+    for (let y = 10; y < 60; y++) for (let x = 0; x < 80; x++) if (!minimapButtonAt(state, x, y)) expect(dark.get(x, y)).toBe(darkBare.get(x, y));
   });
 });

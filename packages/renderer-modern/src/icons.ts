@@ -66,6 +66,18 @@ const DRAW: Record<IconName, (ctx: Context2D) => void> = {
   veteran: (c) => chevrons(c, 2),
   hardened: (c) => chevrons(c, 3),
   elite: (c) => chevrons(c, 4),
+  label: (c) => {
+    // A card of writing.
+    box(c, 1.5, 3.5, 13, 9, ICON.dark); box(c, 2.5, 4.5, 11, 7, ICON.wall);
+    for (const [x, w, y] of [[3.5, 5, 6], [3.5, 3, 8], [7.5, 5, 8], [3.5, 7, 10]] as const) box(c, x, y, w, 1, ICON.smoke);
+  },
+  borders: (c) => {
+    // Two lands and the border between them.
+    box(c, 1.5, 2.5, 13, 11, ICON.dark);
+    poly(c, [[2.5, 3.5], [8, 3.5], [7, 6.5], [8.5, 9], [9, 12.5], [2.5, 12.5]], ICON.roof);
+    poly(c, [[8, 3.5], [13.5, 3.5], [13.5, 12.5], [9, 12.5], [8.5, 9], [7, 6.5]], ICON.shirt);
+    line(c, [[8, 3.5], [7, 6.5], [8.5, 9], [9, 12.5]], ICON.dark, 1);
+  },
   people: (c) => {
     // A man and a woman, full length.
     poly(c, [[8.6, 4], [8.8, 2], [10.5, 1.2], [12.6, 2], [13.4, 4], [13.6, 8.6], [9, 8.6]], CITIZEN.hair[4]!);

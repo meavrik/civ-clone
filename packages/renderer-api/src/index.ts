@@ -3,7 +3,7 @@ import type { MovePlan } from "./plan.js";
 import type { Lifting } from "./fog.js";
 import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
-import type { PanelSpot, PanelTip } from "./panel.js";
+import type { MinimapButton, PanelSpot, PanelTip } from "./panel.js";
 import { setupQuestionCards, type SetupCards } from "./setup.js";
 import type { DiplomacyView } from "./audience.js";
 import type { NewTechHit, NewTechView } from "./newtech.js";
@@ -152,12 +152,15 @@ export interface MainScreenView {
   sinking?: Sinking | undefined;
   /** Fog still lifting off squares just explored (`FogLifter`): square index to fog left, 1 down to 0. */
   lifting?: Lifting | undefined;
-  /** Draw civilization borders: the edge of the squares known cities reach (`territory`). */
+  /** Draw civilization borders on the map: the edge of the squares known cities reach (`territory`). The minimap has its own switch. */
   borders?: boolean | undefined;
   /** Write the names of seas, lands and landforms on the map (`placeLabels`); on when unset. */
   placeNames?: boolean | undefined;
-  /** Write each civilization's name over its land, on the map (`civNameSpots`) and the minimap (`territoryLabels`), with the borders; on when unset. */
+  /** Write each civilization's name over its land on the map (`civNameSpots`), with the borders; on when unset. */
   civNames?: boolean | undefined;
+  /** The minimap's switches (its buttons, `MinimapButton`): its names, the civilizations' and the continents' (`territoryLabels`, `continentLabels`), and its borders, each civilization's land in its colour; shown when unset. */
+  minimapNames?: boolean | undefined;
+  minimapBorders?: boolean | undefined;
   /**
    * The unit shown as the one in play, when it is not `state.activeUnit`: just after a unit has
    * moved or fought, the view stays with it a moment before the next unit takes over. null while
@@ -452,6 +455,8 @@ export interface Renderer {
   statusAt(state: GameState, view: MainScreenView, px: number, py: number): "research" | "endTurn" | "rates" | null;
   /** The part of the status panel under a point, for its tip (`panelTip`), or null off the panel's parts. */
   statusPartAt(state: GameState, view: MainScreenView, px: number, py: number): PanelSpot | null;
+  /** The minimap's switch under a point (its names or its borders), or null; absent on a renderer without them. */
+  minimapButtonAt?(state: GameState, px: number, py: number): MinimapButton | null;
 
   /** A report page (wonders, top cities...). */
   report(page: ReportPage): void;

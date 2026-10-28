@@ -8,7 +8,8 @@ export default String.raw`
 # the user's sheet of the city's people (2026-10-25), outlined in its dark brown (skin 0); food: an ear of wheat; shield (production, the rules' shields): a steel-rimmed
 # blue shield, as the original showed it (a hammer before 2026-10-24, "not good");
 # culture: a column; regular, veteran, hardened, elite: a unit's rank, gold chevrons, one more a rank
-# (2026-10-25). Then the small marks, at their cells' top left: tick (discovered), new (within
+# (2026-10-25); label: a card of writing (names), borders: two lands and the border between them (the
+# minimap's switches, 2026-10-28). Then the small marks, at their cells' top left: tick (discovered), new (within
 # reach), move/_part/_none (movement, 8x8).
 # Legend: . clear  k black  w white  r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey
 #   0-7 shades of ramp 1, a-h of ramp 2, A-H of ramp 3. Default ramps: grey, earth, stone.
@@ -623,6 +624,42 @@ k66666666555k...
 ....k75k46k.....
 ...k75k.k46k....
 ...kkk...kkk....
+................
+
+@label ramps=rock,hide
+................
+................
+................
+.kkkkkkkkkkkkkk.
+.k777777777775k.
+.k6bbbbb6bbb65k.
+.k666666666665k.
+.k6bbb6bbbbb65k.
+.k666666666665k.
+.k6bbbbbbb6665k.
+.k666666666665k.
+.k555555555554k.
+.kkkkkkkkkkkkkk.
+................
+................
+................
+
+@borders ramps=brick,azure
+................
+................
+.kkkkkkkkkkkkkk.
+.k666666kggggdk.
+.k655555kffffdk.
+.k65555kfffffdk.
+.k65555kfffffdk.
+.k655555kffffdk.
+.k6555555kfffdk.
+.k6555555kfffdk.
+.k655555kffffdk.
+.k655555kffffdk.
+.k3333333kddddk.
+.kkkkkkkkkkkkkk.
+................
 ................
 
 @tick ramps=leaf
