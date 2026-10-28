@@ -618,10 +618,18 @@ Never ship the original's sprites, palette art, fonts or text.
   map's viewport taking the rest), menus, prompts and the status line centre on the surface they are
   drawn on, and the menu hit tests take the width (default 320); the web game draws 320 wide, the mobile
   app as wide as the phone.
-  Zoom (`MainScreenView.zoom`, set by the mobile app's pinch, never by the web game): retro draws the
+  Zoom (`MainScreenView.zoom`, set by the mobile app's pinch, and since 2026-10-28 by the web game, asked
+  for: "add also in the web browser game version a main map zoom option"): retro draws the
   map as usual, then `magnifyViewport` blows the viewport's top-left 1/zoom up to fill it (fine pixels,
   in place) before the panel and bar; `zoomedTiles` sizes the minimap's box, `unzoomPoint` maps a tap
-  back. The modern renderer ignores it.
+  back. The modern renderer ignores it. The web game (only with a mouse: `renderer.mapView`; the phone
+  zooms in its own renderer) keeps 1x, 2x or 3x in `view.zoom` (`epochs.zoom` per browser): the wheel over
+  the map (a notch a level, the square under the pointer staying put, `setZoom`), + and - (about the
+  middle, the unit in play kept on view) and World > Zoom In / Zoom Out (faded at the ends), with "Map zoom
+  2x" in the panel. `Renderer.viewTilesX`/`viewTilesY` stay the unzoomed count: the web app's camera
+  (centring, following, edge scrolling at the same speed on screen, the other civs' playback) reads
+  `viewTiles()`, the whole squares shown at the zoom, and the web adapter's `tileAt` and `squareRect` go
+  through the zoom (a square off the zoomed view has no rect).
   Unit animation: core appends every step (`applyMove`) and fight (`resolveCombat`, round by round) to
   `lastActions` (a UI side channel like `lastTurnEvents`, emptied by `endTurn`, never read by replays or
   AI); `MotionPlayer` (`renderer-api/src/motion.ts`) times them into `view.moving` (slides) and

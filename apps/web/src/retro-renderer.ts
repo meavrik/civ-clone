@@ -64,6 +64,8 @@ import {
   statusPartAt,
   TILE,
   tileToScreen,
+  unzoomPoint,
+  viewZoom,
   VIEW_TILES_X,
   VIEW_TILES_Y,
   VIEW_H,
@@ -188,11 +190,16 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityImprovementRows: (state) => cityImprovementRows(state),
     ratesHit: (px, py) => ratesHit(px, py),
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px, py),
+    // Through the map's zoom (`MainScreenView.zoom`): a square wholly off the view as drawn has none.
     squareRect(state: GameState, view: MainScreenView, x, y) {
       const p = tileToScreen(state, view, x, y);
-      return p ? { x: p[0], y: p[1], w: TILE, h: TILE } : null;
+      if (!p) return null;
+      const z = viewZoom(view);
+      const r = { x: VIEW_X + (p[0] - VIEW_X) * z, y: VIEW_Y + (p[1] - VIEW_Y) * z, w: TILE * z, h: TILE * z };
+      return r.x < VIEW_X + VIEW_W && r.y < VIEW_Y + VIEW_H ? r : null;
     },
     tileAt(state: GameState, view: MainScreenView, px, py) {
+      [px, py] = unzoomPoint(view, px, py);
       if (px < VIEW_X || py < VIEW_Y) return null;
       const [ox, oy] = panOffset(view);
       const ty = view.originY + Math.floor((py - VIEW_Y + oy) / TILE);

@@ -341,6 +341,32 @@ const cam = { x: 0, y: 0, fromX: 0, fromY: 0, toX: 0, toY: 0, start: 0, animatin
 const CAMERA_MS = 280;
 
 /**
+ * The map's zoom (asked for 2026-10-28: "add also in the web browser game version a main map zoom option"):
+ * its squares drawn 1, 2 or 3 times larger (`MainScreenView.zoom`, whole numbers so the pixels stay square),
+ * by the wheel over the map (the square under the pointer staying put), + and - (about the middle of the
+ * view) or World > Zoom In and Zoom Out; kept per browser. Only with a mouse: the phone pinches its own
+ * (its renderer has no `mapView` and zooms what it draws).
+ */
+const ZOOMS = [1, 2, 3] as const;
+const ZOOM_KEY = "epochs.zoom";
+const zoomable = renderer.mapView !== undefined;
+if (zoomable) {
+  try {
+    const z = Number(localStorage.getItem(ZOOM_KEY));
+    if ((ZOOMS as readonly number[]).includes(z) && z > 1) view.zoom = z;
+  } catch { /* private mode */ }
+}
+function mapZoom(): number {
+  return view.zoom ?? 1;
+}
+
+/** The whole squares the map shows across and down at its zoom (the renderer counts them unzoomed): the camera centres and follows in these. */
+function viewTiles(): { x: number; y: number } {
+  const z = mapZoom();
+  return { x: Math.floor(renderer.viewTilesX / z), y: Math.floor(renderer.viewTilesY / z) };
+}
+
+/**
  * Units slide from square to square instead of jumping. The state has
  * already moved; this only times the drawing. Our own moves play at once
  * (a new order snaps any slide still running); after the other
@@ -444,8 +470,8 @@ function watchOthers(actions: readonly UnitAction[], sawBefore: Uint8Array): voi
   const camera = {
     originX: ((Math.round(cam.animating ? cam.toX : cam.x) % w) + w) % w,
     originY: Math.round(cam.animating ? cam.toY : cam.y),
-    tilesX: renderer.viewTilesX,
-    tilesY: renderer.viewTilesY,
+    tilesX: viewTiles().x,
+    tilesY: viewTiles().y,
   };
   const now = performance.now();
   for (const b of watchTurn(state, actions, { viewer: 0, camera, seen, glideMs: CAMERA_MS })) {
@@ -836,8 +862,7 @@ function applyCamera(): void {
 }
 
 function centerOn(x: number, y: number, instant = false): void {
-  const tx = renderer.viewTilesX;
-  const ty = renderer.viewTilesY;
+  const { x: tx, y: ty } = viewTiles();
   const w = state.map.width;
   const targetX = ((x - (tx >> 1)) % w + w) % w;
   const targetY = Math.max(0, Math.min(state.map.height - ty, y - (ty >> 1)));
@@ -873,6 +898,59 @@ function stepCamera(now: number): void {
     cam.x = ((cam.x % w) + w) % w;
   }
   applyCamera();
+}
+
+/**
+ * Zoom the map to `z`, the square under logical point `at` (else the middle of the view) staying under
+ * it: the camera moves by what the zoom takes from, or gives to, the squares before that point.
+ */
+function setZoom(z: number, at?: { x: number; y: number }): void {
+  const area = renderer.mapView;
+  const from = mapZoom();
+  if (!area || !zoomable || z === from) return;
+  const tile = area.width / renderer.viewTilesX; // logical pixels across a square, unzoomed
+  const px = (at ? at.x : area.x + area.width / 2) - area.x;
+  const py = (at ? at.y : area.y + area.height / 2) - area.y;
+  const k = 1 / from - 1 / z;
+  if (cam.animating) { cam.x = cam.toX; cam.y = cam.toY; cam.animating = false; }
+  view.zoom = z > 1 ? z : undefined;
+  const w = state.map.width;
+  cam.x = (((cam.x + (px / tile) * k) % w) + w) % w;
+  cam.y = Math.max(0, Math.min(state.map.height - viewTiles().y, cam.y + (py / tile) * k));
+  applyCamera();
+  try { localStorage.setItem(ZOOM_KEY, String(z)); } catch { /* private mode */ }
+}
+
+/** One zoom level in (`step` 1) or out (-1); with no point given, the unit in play stays on view. */
+function zoomBy(step: number, at?: { x: number; y: number }): void {
+  if (!zoomable) return;
+  const i = Math.max(0, Math.min(ZOOMS.length - 1, (ZOOMS as readonly number[]).indexOf(mapZoom()) + step));
+  const z = ZOOMS[i]!;
+  if (z === mapZoom()) { say(step > 0 ? "Zoomed in all the way" : "Zoomed out all the way"); return; }
+  setZoom(z, at);
+  if (!at) followActive();
+  sound.play("click");
+  say(`Map zoom ${z}x`);
+}
+
+/** The wheel over the map: its turn gathered until it makes a notch (a pinch on a trackpad comes as the wheel with Ctrl), a level a notch, a pause after each. */
+const ZOOM_NOTCH = 60;
+const ZOOM_PAUSE_MS = 250;
+let zoomWheel = 0;
+let zoomWheelLast = 0;
+let zoomWheelHeld = 0;
+function wheelZoom(e: WheelEvent, at: { x: number; y: number }): void {
+  const now = performance.now();
+  if (now - zoomWheelLast > ZOOM_PAUSE_MS) zoomWheel = 0;
+  zoomWheelLast = now;
+  if (now < zoomWheelHeld) return;
+  const d = e.deltaMode === 1 ? e.deltaY * 20 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+  zoomWheel += e.ctrlKey ? d * 4 : d;
+  if (Math.abs(zoomWheel) < ZOOM_NOTCH) return;
+  const step = zoomWheel < 0 ? 1 : -1;
+  zoomWheel = 0;
+  zoomWheelHeld = now + ZOOM_PAUSE_MS;
+  zoomBy(step, at);
 }
 
 /**
@@ -954,11 +1032,12 @@ function stepEdgePan(now: number): void {
   edgeSince ??= now;
   const held = now - edgeSince - EDGE.delayMs;
   if (held <= 0) return;
-  const step = (EDGE.speed * Math.min(1, held / EDGE.rampMs) * dt) / 1000;
+  // As fast across the screen at any zoom: fewer squares a second when they are drawn larger.
+  const step = (EDGE.speed * Math.min(1, held / EDGE.rampMs) * dt) / 1000 / mapZoom();
   const w = state.map.width;
   cam.animating = false;
   cam.x = (((cam.x + dir.dx * step) % w) + w) % w;
-  cam.y = Math.max(0, Math.min(state.map.height - renderer.viewTilesY, cam.y + dir.dy * step));
+  cam.y = Math.max(0, Math.min(state.map.height - viewTiles().y, cam.y + dir.dy * step));
   applyCamera();
 }
 
@@ -1015,7 +1094,11 @@ function followActive(force = false): void {
   const w = state.map.width;
   const rx = (((u.x - view.originX) % w) + w) % w;
   const ry = u.y - view.originY;
-  if (force || rx < 2 || rx > renderer.viewTilesX - 3 || ry < 2 || ry > renderer.viewTilesY - 3) centerOn(u.x, u.y);
+  // Two squares from the edge, fewer on a view zoomed so far it has no room for them.
+  const { x: tx, y: ty } = viewTiles();
+  const mx = Math.min(2, (tx - 1) >> 1);
+  const my = Math.min(2, (ty - 1) >> 1);
+  if (force || rx < mx || rx > tx - 1 - mx || ry < my || ry > ty - 1 - my) centerOn(u.x, u.y);
 }
 
 function isAdjacent(u: { x: number; y: number }, tx: number, ty: number): boolean {
@@ -1134,7 +1217,7 @@ type TriumphScreen = Extract<Screen, { kind: "triumph" }>;
 type ConquestScreen = Extract<Screen, { kind: "conquest" }>;
 
 function conquestNews(ev: ConquestEvent, then: () => void): void {
-  centerOn(ev.x, ev.y - 2);
+  centerOn(ev.x, ev.y - Math.min(2, (viewTiles().y >> 1) - 1)); // one square below on a view zoomed to four rows
   const view: ConquestView = { event: ev, viewer: 0, selected: 1 };
   sound.play(ev.by === 0 ? "triumph" : "lament");
   if (ev.by !== 0) { screenState = { kind: "conquest", view, then }; return; }
@@ -1773,6 +1856,10 @@ function barEntries(index: number): MenuEntry[] {
         ["Civilization Score", "F5", () => { screenState = { kind: "advisor", which: "score" }; }],
         ["World Map", "", () => { screenState = { kind: "worldMap" }; }],
         ["Spaceships", "F6", () => { screenState = { kind: "spaceship" }; }],
+        ...(zoomable ? ([
+          ["Zoom In", "+", () => zoomBy(1), mapZoom() >= ZOOMS[ZOOMS.length - 1]!],
+          ["Zoom Out", "-", () => zoomBy(-1), mapZoom() <= 1],
+        ] satisfies MenuEntry[]) : []),
       ];
     case "Debug":
       return [
@@ -2734,6 +2821,8 @@ function mapKey(e: KeyboardEvent): void {
     case "KeyD": if (e.shiftKey && active !== null) confirmDisband(active); break;
     case "KeyH": if (active !== null) setHome(active); break;
     case "KeyC": followActive(true); break;
+    case "Equal": case "NumpadAdd": zoomBy(1); break;
+    case "Minus": case "NumpadSubtract": zoomBy(-1); break;
     case "KeyT": screenState = { kind: "rates" }; break;
     case "KeyA": screenState = { kind: "science" }; break;
     case "F1": e.preventDefault(); screenState = { kind: "advisor", which: "domestic" }; break;
@@ -2996,6 +3085,15 @@ canvas.addEventListener("wheel", (e) => {
   if (sc.kind === "menu" && renderer.menuRows(sc.menu) < sc.menu.items.length) {
     e.preventDefault();
     moveSelection(sc.menu, Math.sign(e.deltaY) * 3);
+    return;
+  }
+  // Over the map, the wheel zooms it about the square under the pointer.
+  if (sc.kind === "map" && zoomable) {
+    const [x, y] = toLogical(e);
+    const area = renderer.mapView!;
+    if (x < area.x || y < area.y || x >= area.x + area.width || y >= area.y + area.height) return;
+    e.preventDefault();
+    wheelZoom(e, { x, y });
     return;
   }
   if (sc.kind !== "research" && sc.kind !== "city") return;
