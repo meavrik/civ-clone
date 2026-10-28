@@ -216,10 +216,13 @@ describe("tile yields", () => {
     expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 2, shields: 1, trade: 2 });
     s.players[0]!.advances.push("navigation");
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
-    // Oil is little use until Refining.
+    // Oil is little use until Refining, and hidden until then (plain desert) since version 40; seen before it.
     t.terrain = Terrain.Desert;
     expect(specialOf(t)?.name).toBe("Oil");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(1);
+    s.visibleResources = true;
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
+    delete s.visibleResources;
     s.players[0]!.advances.push("refining");
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(5);
     // Hills' wine came with version 18; whales a version before.

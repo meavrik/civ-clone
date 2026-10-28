@@ -27,6 +27,8 @@ export interface Unlock {
   kind: string;
   /** A unit's id, so its sprite can stand in the box. */
   unit?: string;
+  /** A strategic resource it reveals (`ResourceRule.revealedBy`), so its picture can stand in the box. */
+  resource?: string;
 }
 
 export interface NewTechCard {
@@ -43,7 +45,7 @@ export interface NewTechCard {
 /** The kind each row of the research card's gifts stands for. */
 const KIND: Record<string, string> = {
   Government: "government", Units: "unit", Buildings: "building", Wonders: "wonder", Settlers: "settler work",
-  "Ends wear": "no more wear", Ends: "no longer works",
+  "Ends wear": "no more wear", Ends: "no longer works", Reveals: "now on the map",
 };
 
 /** What the window says of advance `id`, for the current player. */
@@ -53,11 +55,17 @@ export function newTechCard(state: GameState, id: string): NewTechCard {
   const unlocks: Unlock[] = d.rows.flatMap((row) => row.items.map((item, i): Unlock => {
     const unit = row.ids?.[i];
     if (unit) return { icon: row.icon, name: item.replace(/ \d+\/\d+\/\d+$/, ""), kind: "unit", unit };
+    if (row.label === "Reveals") return { icon: row.icon, name: item, kind: KIND.Reveals!, resource: item };
     // Yields from specials read "Horses +1": the gain becomes the kind.
     const gain = /^(.*) \+(\d+)$/.exec(item);
     if (gain) return { icon: row.icon, name: gain[1]!, kind: `+${gain[2]} ${row.label.toLowerCase()}` };
     return { icon: row.icon, name: item, kind: KIND[row.label] ?? row.label.toLowerCase() };
   }));
+  // A resource it reveals and makes yield more is one thing: the gain, with the resource's picture.
+  for (const r of unlocks.filter((u) => u.resource)) {
+    const gain = unlocks.find((u) => !u.resource && !u.unit && u.name === r.name && u.kind.startsWith("+"));
+    if (gain) { gain.resource = r.name; unlocks.splice(unlocks.indexOf(r), 1); }
+  }
   const leads = !unlocks.length;
   if (leads) for (const o of d.opens) unlocks.push({ icon: "bulb", name: o.name, kind: "advance" });
   return { name: rule.name, era: `${rule.era} Era`, text: rule.text, unlocks, leads, needs: rule.requires.map((r) => ({ id: r, name: advance(r).name })) };
@@ -66,4 +74,11 @@ export function newTechCard(state: GameState, id: string): NewTechCard {
 /** The advances that have a picture of the user's (every one but the 1991 tree's Future Tech.). */
 export function techPicture(id: string): string | null {
   return id === "future_tech" ? null : id;
+}
+
+/** The unlocks as a line, when there are too many for their boxes: "Phalanx, Colossus. Reveals Iron". */
+export function unlocksLine(unlocks: readonly Unlock[]): string {
+  const things = unlocks.filter((u) => !u.resource).map((u) => u.name);
+  const shown = unlocks.filter((u) => u.resource).map((u) => u.name);
+  return [things.join(", "), shown.length ? `Reveals ${shown.join(", ")}` : ""].filter(Boolean).join(". ");
 }

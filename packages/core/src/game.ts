@@ -110,6 +110,8 @@ export interface NewGameOptions extends MapGenOptions {
   oldPlanner?: boolean;
   /** No unit retires (see `GameState.lastingUnits`). Old saves load with it. */
   lastingUnits?: boolean;
+  /** Every strategic resource seen from the start (see `GameState.visibleResources`). Old saves load with it. */
+  visibleResources?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -295,6 +297,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.quietLeaders ? { quietLeaders: true } : {}),
     ...(opts.oldPlanner ? { oldPlanner: true } : {}),
     ...(opts.lastingUnits ? { lastingUnits: true } : {}),
+    ...(opts.visibleResources ? { visibleResources: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

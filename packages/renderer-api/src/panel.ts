@@ -13,7 +13,7 @@ import {
   governmentsAvailable,
   maxHp,
   moveAllowance,
-  specialOf,
+  specialFor,
   Terrain,
   TERRAIN_NAMES,
   TERRAIN_RULES,
@@ -250,7 +250,7 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
       if (!tile) return null;
       const r = TERRAIN_RULES[tile.terrain];
       // As the square's window has it: grassland's first special counts only before version 26, a river defends at +50%.
-      const sp = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial && !tile.deposit ? undefined : specialOf(tile);
+      const sp = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial && !tile.deposit ? undefined : specialFor(state, tile, me.id);
       const defence = tile.river && !state.freecivYields ? Math.max(1.5, r.defense) : r.defense;
       return {
         title: sp ? `${TERRAIN_NAMES[tile.terrain]}: ${sp.name}` : TERRAIN_NAMES[tile.terrain],
@@ -264,8 +264,8 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
     case "yield": {
       if (!tile) return null;
       const y = tileYield(state, tile, cityAt(state, u.x, u.y) !== undefined, me.government, me.id);
-      const sp = specialOf(tile);
-      const here = [...(tile.special && sp ? [`{star}${sp.name}`] : []), ...tileIcons(tile).map((i) => `{${i}}${FEATURE_WORDS[i] ?? i}`)];
+      const sp = specialFor(state, tile, me.id);
+      const here = [...(sp ? [`{star}${sp.name}`] : []), ...tileIcons(tile).map((i) => `{${i}}${FEATURE_WORDS[i] ?? i}`)];
       return {
         title: "This Square",
         lines: [`{food}${y.food} food  {shield}${plural(y.shields, "shield")}  {trade}${y.trade} trade`, "for a city working it.", ...(here.length ? [here.join("  ")] : [])],

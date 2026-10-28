@@ -1,4 +1,5 @@
 import { tileYield } from "./cities.js";
+import { tileAsKnown } from "./resources.js";
 import { CITY_RADIUS, getTile, Terrain, type GameState } from "./types.js";
 
 /**
@@ -21,9 +22,10 @@ const UNKNOWN_SQUARE = 5;
 /**
  * Value of founding a city at (x, y): yields of the 21-tile radius plus terrain bonuses; null if unfit.
  * With `known` (a player's explored squares) only what that player has seen counts: an unseen centre is
- * unfit, an unseen square of the radius counts `UNKNOWN_SQUARE` and is not land.
+ * unfit, an unseen square of the radius counts `UNKNOWN_SQUARE` and is not land. With `player`, a resource
+ * it has yet to reveal (`specialFor`) counts as the plain terrain under it.
  */
-export function siteScore(state: GameState, x: number, y: number, known?: Uint8Array): number | null {
+export function siteScore(state: GameState, x: number, y: number, known?: Uint8Array, player?: number): number | null {
   const t = getTile(state.map, x, y);
   if (!t || !SITE_CENTRES.has(t.terrain)) return null;
   if (known && !known[y * state.map.width + x]) return null;
@@ -33,8 +35,9 @@ export function siteScore(state: GameState, x: number, y: number, known?: Uint8A
   let sea = 0;
   for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
     const [dx, dy] = CITY_RADIUS[slot]!;
-    const n = getTile(state.map, x + dx, y + dy);
-    if (!n) continue;
+    const square = getTile(state.map, x + dx, y + dy);
+    if (!square) continue;
+    const n = tileAsKnown(state, square, player);
     if (known && !known[(y + dy) * state.map.width + (((x + dx) % state.map.width) + state.map.width) % state.map.width]) {
       score += UNKNOWN_SQUARE;
       continue;

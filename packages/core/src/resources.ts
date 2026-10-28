@@ -1,9 +1,9 @@
 import { atWar, hasContact } from "./diplomacy.js";
 import { RESOURCES, RESOURCE_BY_ID } from "./rules/resources.js";
-import { specialOf } from "./rules/terrain.js";
-import { unitType } from "./rules/units.js";
+import { specialOf, type SpecialRule } from "./rules/terrain.js";
+import { UNIT_TYPES, unitType } from "./rules/units.js";
 import { borderRadius, claimant, withinBorder } from "./territory.js";
-import { getTile, wrapX, type GameState, type ResourceTrade } from "./types.js";
+import { getTile, wrapX, type GameState, type ResourceTrade, type Tile } from "./types.js";
 
 /**
  * Who holds which strategic resource (rules/resources.ts): the squares of it on a civilization's land
@@ -14,6 +14,58 @@ import { getTile, wrapX, type GameState, type ResourceTrade } from "./types.js";
  * between the two, or when the one giving no longer holds the squares (`settleTrades`, as every
  * civilization's turn begins). Saves before version 33 (`noResources`) hold none and need none.
  */
+
+/** Each hidden resource's revealers (`resourceRevealers`), worked out once. */
+const REVEALERS: Readonly<Record<string, readonly string[]>> = Object.fromEntries(RESOURCES.map((r) => [r.id, r.revealedBy
+  ? [...new Set([r.revealedBy, ...UNIT_TYPES.flatMap((u) => (u.needs?.includes(r.id) && u.requires ? [u.requires] : []))])]
+  : []]));
+
+/**
+ * The advances that show resource `id` to a civilization (asked for 2026-10-28): its `revealedBy`, and the advance
+ * of every unit that needs it, so no unit asks for what its civilization cannot see. None for one seen from the start.
+ */
+export function resourceRevealers(id: string): readonly string[] {
+  return REVEALERS[id] ?? [];
+}
+
+/** Whether a civilization knowing `advances` sees resource `id`: one of its revealers known, or none needed. */
+export function seesResource(advances: readonly string[], id: string): boolean {
+  const by = resourceRevealers(id);
+  return !by.length || by.some((a) => advances.includes(a));
+}
+
+/** Whether `player` sees resource `id` (`seesResource`); every one in saves before version 40 (`visibleResources`), and to nobody in particular. */
+export function resourceKnown(state: GameState, player: number | undefined, id: string): boolean {
+  return player === undefined || state.visibleResources === true || seesResource(state.players[player]?.advances ?? [], id);
+}
+
+/**
+ * The resources advances `found` show `player`, which it sees with them and would not without them: what the
+ * New Technology window and the research card say an advance reveals (for one not yet known, what it would).
+ * None in saves before version 40 (`visibleResources`) or 33 (`noResources`).
+ */
+export function revealedBy(state: GameState, player: number, found: readonly string[]): string[] {
+  if (state.visibleResources || state.noResources) return [];
+  const known = state.players[player]?.advances ?? [];
+  const without = known.filter((a) => !found.includes(a));
+  const withThem = [...without, ...found];
+  return RESOURCES.filter((r) => seesResource(withThem, r.id) && !seesResource(without, r.id)).map((r) => r.id);
+}
+
+/**
+ * A square's special as `player` knows it: `specialOf`, unless it is a strategic resource `player` has yet to
+ * reveal (`resourceKnown`), when the square is plain terrain to it (drawn, yielding and held as such). Without a
+ * player, the special as it lies.
+ */
+export function specialFor(state: GameState, tile: Pick<Tile, "terrain" | "special" | "secondSpecial" | "deposit">, player?: number): SpecialRule | undefined {
+  const sp = specialOf(tile);
+  return sp && player !== undefined && !resourceKnown(state, player, sp.name) ? undefined : sp;
+}
+
+/** The square as `player` knows it: itself, or a copy without its special while that is a resource hidden from `player`. */
+export function tileAsKnown(state: GameState, tile: Tile, player?: number): Tile {
+  return tile.special && player !== undefined && !specialFor(state, tile, player) ? { ...tile, special: false } : tile;
+}
 
 /** What a civilization makes of one resource. */
 export interface ResourceHolding {
@@ -46,7 +98,7 @@ export function resourceSquares(state: GameState, player: number): Map<string, {
         if (seen.has(i)) continue;
         const t = map.tiles[i]!;
         if (!t.special) continue;
-        const id = specialOf(t)?.name;
+        const id = specialFor(state, t, player)?.name;
         if (!id || !RESOURCE_BY_ID[id]) continue;
         seen.add(i);
         if (claimant(state, x, y)?.owner !== player) continue;
@@ -175,9 +227,9 @@ export function settleTrades(state: GameState): { trade: ResourceTrade; by: numb
   return ended;
 }
 
-/** A tile's strategic resource, if its special is one. */
-export function resourceAt(state: GameState, x: number, y: number): string | null {
+/** A tile's strategic resource, if its special is one (and `viewer`, when given, has revealed it). */
+export function resourceAt(state: GameState, x: number, y: number, viewer?: number): string | null {
   const t = getTile(state.map, x, y);
-  const id = t?.special ? specialOf(t)?.name : undefined;
+  const id = t?.special ? specialFor(state, t, viewer)?.name : undefined;
   return id && RESOURCE_BY_ID[id] && !state.noResources ? id : null;
 }

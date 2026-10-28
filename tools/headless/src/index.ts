@@ -96,6 +96,8 @@ export interface GameConfig {
   oldPlanner?: boolean;
   /** No unit retires (`GameState.lastingUnits`). */
   lastingUnits?: boolean;
+  /** Every civ sees every strategic resource from the start (`GameState.visibleResources`). */
+  visibleResources?: boolean;
 }
 
 export interface PlayerStats {
@@ -199,6 +201,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.wideCapital ? { wideCapital: true } : {}),
     ...(config.oldPlanner ? { oldPlanner: true } : {}),
     ...(config.lastingUnits ? { lastingUnits: true } : {}),
+    ...(config.visibleResources ? { visibleResources: true } : {}),
   };
 }
 

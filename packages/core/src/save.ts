@@ -56,7 +56,7 @@ export interface SaveGame {
    * 37: saved while computer leaders asked nothing of the player (no tribute, gifts or resource requests), and the
    *     planner AI kept its habits from before it was retuned to the rules as they stand; quiet leaders, old planner.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -79,7 +79,7 @@ export interface SaveGame {
   state?: GameState;
 }
 
-export const SAVE_VERSION = 39;
+export const SAVE_VERSION = 40;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -158,7 +158,7 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): Lo
  * the computer players' turns after it), and returns the game.
  */
 export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void): Generator<ReplayProgress, LoadedGame, void> {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
@@ -219,6 +219,7 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
     options.oldPlanner = true;
   }
   if (save.version < 39) options.lastingUnits = true;
+  if (save.version < 40) options.visibleResources = true;
   const state = newGame(save.seed, options);
   const from = state.turn;
   const progress = (): ReplayProgress => ({ turn: state.turn, from, to: Math.max(from, save.turn) });

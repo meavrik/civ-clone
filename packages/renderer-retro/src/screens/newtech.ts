@@ -1,11 +1,12 @@
 import type { GameState } from "@civ/core";
-import { NEW_TECH_BUTTONS, newTechCard, type IconName, type NewTechHit, type NewTechView, type Unlock } from "@civ/renderer-api";
+import { NEW_TECH_BUTTONS, newTechCard, unlocksLine, type IconName, type NewTechHit, type NewTechView, type Unlock } from "@civ/renderer-api";
 import { drawSpaced, drawText, drawTextLarge, drawTextWrapped, FONT_HEIGHT, spacedWidth, textWidth, wrapText } from "../font.js";
 import { drawIcon, ICON } from "../icons.js";
 import { unitSprite } from "../overlays.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
+import { specialSprite, TILE } from "../tiles.js";
 import { dimScreen, hideArtUnder, drawEntering, drawStone, INK, speckle } from "../widgets.js";
 
 /**
@@ -97,11 +98,13 @@ export function fitText(text: string, w: number): string {
   return `${t.trimEnd()}.`;
 }
 
-/** A small sunken box with what it holds: a unit standing in it, else the icon of its kind. */
-function itemBox(s: Surface, x: number, y: number, size: number, icon: Unlock["icon"], unit: string | undefined, owner: number): void {
+/** A small sunken box with what it holds: a unit standing in it, a resource as the map draws it, else the icon of its kind. */
+function itemBox(s: Surface, x: number, y: number, size: number, icon: Unlock["icon"], unit: string | undefined, owner: number, resource?: string): void {
   s.frame(x, y, size, size, BROWN_DIM());
   s.rect(x + 1, y + 1, size - 2, size - 2, shade("earth", 7));
+  const picture = resource ? specialSprite(resource) : null;
   if (unit) s.blit(unitSprite(unit, owner), x, y, SPRITE_CLEAR);
+  else if (picture) s.blit(picture, x + Math.floor((size - TILE) / 2), y + Math.floor((size - TILE) / 2), SPRITE_CLEAR);
   else drawIcon(s, icon, x + Math.floor((size - ICON) / 2), y + Math.floor((size - ICON) / 2));
 }
 
@@ -113,13 +116,13 @@ function drawUnlocks(s: Surface, panelRect: Rect, unlocks: Unlock[], leads: bool
   const top = panelRect.y + HEAD_H + 3;
   const x0 = panelRect.x + 4;
   if (unlocks.length > 2) {
-    drawTextWrapped(s, x0 + 1, top, panelRect.w - 10, unlocks.map((u) => u.name).join(", "), BROWN(), 2);
+    drawTextWrapped(s, x0 + 1, top, panelRect.w - 10, unlocksLine(unlocks), BROWN(), 2);
     return;
   }
   const colW = Math.floor((panelRect.w - 8) / Math.max(1, unlocks.length));
   unlocks.forEach((u, i) => {
     const x = x0 + i * colW;
-    itemBox(s, x, top, BOX, u.icon, u.unit, owner);
+    itemBox(s, x, top, BOX, u.icon, u.unit, owner, u.resource);
     const room = colW - BOX - 6;
     const end = drawText(s, x + BOX + 4, top + 4, fitText(u.name, room), BROWN());
     if (unlocks.length === 1 && !leads && end + 4 + textWidth(u.kind) <= x + BOX + 4 + room) drawText(s, end + 4, top + 4, u.kind, BROWN_DIM());

@@ -77,6 +77,9 @@ import {
   sinkingShips,
   WORLD_SIZES,
   exportable,
+  heldResources,
+  RESOURCES,
+  resourceKnown,
   hasResource,
   missingResources,
   resourceHoldings,
@@ -145,6 +148,8 @@ import {
   moveRefusal,
   workRefusal,
   discoveryNote,
+  knownResourceSquares,
+  resourceReveals,
   placesFoundBy,
   settlerSites,
   siteNote,
@@ -501,13 +506,41 @@ function knowPlaces(): void {
   for (const r of placesFoundBy(state, 0)) foundPlaces.add(r);
 }
 
-/** Places our explorers have just found and named, said beside the unit that found them (else in the status line); nothing while place names are off. */
+/**
+ * The squares of strategic resources we have been told of (`knownResourceSquares`), and the resources we had
+ * revealed then: a square new to us of a resource just revealed is told by `showReveals`, not as a find.
+ */
+const toldResources = new Set<number>();
+let toldKinds = new Set<string>();
+function knowResources(): void {
+  toldResources.clear();
+  for (const i of knownResourceSquares(state, 0).keys()) toldResources.add(i);
+  toldKinds = new Set(RESOURCES.filter((r) => resourceKnown(state, 0, r.id)).map((r) => r.id));
+}
+
+/** Strategic resources we lack that our explorers have just come upon (asked for 2026-10-28), each named once a find. */
+function resourceFinds(): string[] {
+  const held = heldResources(state, 0);
+  const out = new Set<string>();
+  for (const [i, id] of knownResourceSquares(state, 0)) {
+    if (toldResources.has(i)) continue;
+    toldResources.add(i);
+    if (toldKinds.has(id) && !held.has(id)) out.add(id);
+  }
+  return [...out];
+}
+
+/**
+ * Places our explorers have just found and named, and strategic resources we lack that they came upon, said
+ * beside the unit that found them (else in the status line); places not while place names are off.
+ */
 function announcePlaces(unit?: number): void {
   const fresh = placesFoundBy(state, 0).filter((r) => !foundPlaces.has(r));
-  if (!fresh.length) return;
   for (const r of fresh) foundPlaces.add(r);
-  if (!placeNames) return;
-  const text = discoveryNote(fresh.map((r) => state.map.geography!.regions[r]!));
+  const finds = resourceFinds();
+  const places = placeNames ? fresh : [];
+  if (!places.length && !finds.length) return;
+  const text = discoveryNote(places.map((r) => state.map.geography!.regions[r]!), finds);
   const u = unit !== undefined ? unitById(state, unit) : undefined;
   if (!u) { say(text, 4000); return; }
   whenStill(() => {
@@ -694,6 +727,7 @@ function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0
   log = [];
   announced.clear();
   knowPlaces();
+  knowResources();
   resetMotion();
   screenState = { kind: "map" };
   cam.ready = false;
@@ -761,6 +795,7 @@ function enterLoaded(loaded: LoadedGame): void {
     options = loaded.options; // an old save keeps its one-roll fights
     announced.clear();
     knowPlaces();
+    knowResources();
     resetMotion();
     for (const p of state.players) if (p.id !== 0 && hasContact(state, 0, p.id)) announced.add(p.id);
     screenState = { kind: "map" };
@@ -1434,15 +1469,41 @@ function announce(found: string[], due: boolean, then: () => void, back: Screen 
 }
 
 function leaveNewTech(sc: NewTechScreen, tree: boolean): void {
+  // Once the windows (and the panel) are done, the resources the advances revealed, then what comes next.
+  const then = (): void => showReveals(sc.found, sc.then);
   if (tree) {
-    openTree({ discovered: sc.found, choosing: true, closable: !sc.due }, sc.then, sc.back);
+    openTree({ discovered: sc.found, choosing: true, closable: !sc.due }, then, sc.back);
     if (screenState.kind === "research") treeSelect(screenState, sc.view.advance);
   } else if (sc.at + 1 < sc.found.length) announce(sc.found, sc.due, sc.then, sc.back, sc.at + 1);
-  else if (sc.due) openTree({ discovered: sc.found, choosing: true, closable: false }, sc.then, sc.back);
+  else if (sc.due) openTree({ discovered: sc.found, choosing: true, closable: false }, then, sc.back);
   else {
     screenState = sc.back;
-    sc.then();
+    then();
   }
+}
+
+/** How long the map holds on a resource an advance has just revealed, its squares ringed. */
+const REVEAL_MS = 2400;
+let revealStart = 0;
+
+/**
+ * The strategic resources the advances `found` have just revealed (`resourceReveals`; asked for 2026-10-28): for
+ * each, the map goes to its square nearest our capital, rings every square of it we have seen a moment
+ * (`view.revealed`) and says beside it "Iron revealed: 2 on our land, 3 nearby"; then `then`. With none near our
+ * cities, or over another screen than the map, the line goes to the status line.
+ */
+function showReveals(found: string[], then: () => void): void {
+  const reveals = resourceReveals(state, 0, found);
+  knowResources();
+  const next = (i: number): void => {
+    const rv = reveals[i];
+    if (!rv) { then(); return; }
+    if (!rv.focus || screenState.kind !== "map") { say(rv.text, 4000); next(i + 1); return; }
+    view.revealed = { squares: rv.squares, at: 0 };
+    revealStart = performance.now();
+    beat(rv.focus.x, rv.focus.y, rv.text, () => { view.revealed = undefined; next(i + 1); }, REVEAL_MS);
+  };
+  next(0);
 }
 
 /** Keys on the window: Left, Right or Tab move between its buttons, Enter (not held) presses the lit one, T the tree, Esc goes on. */
@@ -1825,14 +1886,14 @@ async function openLoadMenu(): Promise<void> {
 /** How long the map holds on whom we met, or on our unit asked to leave, before the leader speaks. */
 const BEAT_MS = 1600;
 
-/** Show square (x, y) with a note beside it for a moment, then go on (a key or click goes on at once). */
-function beat(x: number, y: number, text: string, then: () => void): void {
+/** Show square (x, y) with a note beside it for a moment (`ms`), then go on (a key or click goes on at once). */
+function beat(x: number, y: number, text: string, then: () => void, ms = BEAT_MS): void {
   screenState = { kind: "map" };
   centerOn(x, y);
   const now = performance.now();
   view.callout = { x, y, text };
-  calloutUntil = now + BEAT_MS;
-  screenState = { kind: "beat", until: now + BEAT_MS, then };
+  calloutUntil = now + ms;
+  screenState = { kind: "beat", until: now + ms, then };
 }
 
 function endBeat(sc: Extract<Screen, { kind: "beat" }>): void {
@@ -3326,6 +3387,7 @@ function frame(t: number): void {
   if (view.callout && t > calloutUntil) view.callout = undefined;
   if (view.plan && view.plan.unit !== state.activeUnit) view.plan = undefined;
   if (screenState.kind === "beat" && t >= screenState.until) endBeat(screenState);
+  if (view.revealed) view.revealed.at = Math.min(1, (t - revealStart) / REVEAL_MS);
   if (screenState.kind === "wonderShow") stepWonderShow(screenState, t);
   if (screenState.kind === "triumph") stepTriumph(screenState, t);
   else view.fireworks = undefined;

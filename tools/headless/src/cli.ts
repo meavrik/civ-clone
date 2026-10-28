@@ -46,6 +46,7 @@ interface Options {
   wideCapital: boolean;
   oldPlanner: boolean;
   lastingUnits: boolean;
+  visibleResources: boolean;
 }
 
 const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
@@ -85,12 +86,13 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --wide-capital      the palace gives the capital its 21 squares at once (saves before version 36)
   --old-planner       the planner AI's habits before it was retuned (saves before version 38)
   --lasting-units     no unit retires: Militia after Gunpowder (saves before version 39)
+  --visible-resources every civ sees Iron, Saltpeter and Oil from the start (saves before version 40)
   --verify        replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -140,6 +142,7 @@ function parseArgs(argv: string[]): Options {
       case "wide-capital": o.wideCapital = true; break;
       case "old-planner": o.oldPlanner = true; break;
       case "lasting-units": o.lastingUnits = true; break;
+      case "visible-resources": o.visibleResources = true; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
       default: throw new Error(`unknown option --${key}\n\n${HELP}`);
@@ -273,6 +276,7 @@ function main(argv: string[]): number {
       ...(o.wideCapital ? { wideCapital: true } : {}),
       ...(o.oldPlanner ? { oldPlanner: true } : {}),
       ...(o.lastingUnits ? { lastingUnits: true } : {}),
+      ...(o.visibleResources ? { visibleResources: true } : {}),
     });
     if (!o.quiet && o.every > 0) {
       console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).join(", ")}`);

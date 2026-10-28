@@ -1,4 +1,4 @@
-import { canFoundCity, CITY_RADIUS, CITY_SPACING, getTile, mapDistance, siteScore, specialOf, Terrain, tileYield, unitById, unitType, wrapX, type GameState } from "@civ/core";
+import { canFoundCity, CITY_RADIUS, CITY_SPACING, getTile, mapDistance, siteScore, specialFor, Terrain, tileAsKnown, tileYield, unitById, unitType, wrapX, type GameState } from "@civ/core";
 
 /** A square the map suggests for a city while settlers are in play; `best` marks the one to prefer. */
 export interface SuggestedSite {
@@ -48,7 +48,8 @@ export function settlerSites(state: GameState, unitId: number | null): Suggested
   const { map } = state;
   const known = me.explored;
   const seen = me.visible;
-  const key = `${u.id},${u.x},${u.y},${state.cities.length},${windowKey(state, u.x, u.y, known, seen)}`;
+  // Its advances too: one may reveal a resource (`specialFor`).
+  const key = `${u.id},${u.x},${u.y},${state.cities.length},${me.advances.length},${windowKey(state, u.x, u.y, known, seen)}`;
   const hit = memo.get(state);
   if (hit?.key === key) return hit.sites;
   const land = getTile(map, u.x, u.y)?.continent;
@@ -62,7 +63,7 @@ export function settlerSites(state: GameState, unitId: number | null): Suggested
       const t = map.tiles[y * map.width + x]!;
       if (t.continent !== land || canFoundCity(state, x, y) !== null) continue;
       if (cities.some((c) => mapDistance(map, c.x, c.y, x, y) < (c.owner === u.owner ? CITY_SPACING.own : CITY_SPACING.foreign))) continue;
-      const score = siteScore(state, x, y, known);
+      const score = siteScore(state, x, y, known, u.owner);
       if (score === null) continue;
       found.push({ x, y, value: score - STEP_COST * Math.max(Math.abs(dx), Math.abs(dy)) });
     }
@@ -95,8 +96,8 @@ export function siteNote(state: GameState, site: SuggestedSite, viewer: number):
     const x = wrapX(map, site.x + dx);
     const y = site.y + dy;
     if (y < 0 || y >= map.height || (known && !known[y * map.width + x])) continue;
-    const n = map.tiles[y * map.width + x]!;
-    if (specialOf(n)) specials++;
+    const n = tileAsKnown(state, map.tiles[y * map.width + x]!, viewer);
+    if (specialFor(state, n, viewer)) specials++;
     if (n.terrain === Terrain.Ocean) { if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) coast = true; continue; }
     const yld = tileYield(state, n, false, "monarchy");
     land++;

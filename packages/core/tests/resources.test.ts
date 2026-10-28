@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  advance,
+  ADVANCES,
   applyCommand,
+  CLASSIC_ADVANCES,
   buildOptions,
   createUnit,
   foundCity,
@@ -12,12 +15,19 @@ import {
   missingResources,
   newGame,
   processCityTurn,
+  resourceAt,
   resourceHoldings,
+  resourceKnown,
   RESOURCES,
+  revealedBy,
+  seesResource,
   setRelation,
+  siteScore,
+  specialFor,
   specialOf,
   startTurn,
   Terrain,
+  tileYield,
   unitChoices,
   UNIT_TYPES,
   type GameState,
@@ -172,6 +182,62 @@ describe("strategic resources", () => {
     expect(applyCommand(s, { type: "endTrade", player: 0 }).ok).toBe(true);
     expect(hasResource(s, 1, "Iron")).toBe(false);
     expect(applyCommand(s, { type: "endTrade", player: 0 }).ok).toBe(false);
+  });
+
+  it("hides Iron, Saltpeter and Oil from a civilization until it knows the advance that reveals each", () => {
+    const s = world();
+    s.players[0]!.advances = ["horseback_riding", "animal_husbandry", "the_wheel"];
+    foundCity(s, 0, 10, 10);
+    deposit(s, 11, 11, "Iron");
+    deposit(s, 9, 9, "Horses");
+    const t = s.map.tiles[11 * s.map.width + 11]!;
+    const plain = { ...t, special: false };
+    // Unrevealed, a square of it is plain terrain to that civilization: not drawn, yielding nothing of it, not held.
+    expect(resourceKnown(s, 0, "Iron")).toBe(false);
+    expect(specialFor(s, t, 0)).toBeUndefined();
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual(tileYield(s, plain, false, "monarchy", 0));
+    expect(hasResource(s, 0, "Iron")).toBe(false);
+    expect(resourceAt(s, 11, 11, 0)).toBeNull();
+    // To nobody in particular, and to a civilization that knows Bronze Working, it is there.
+    expect(specialFor(s, t)?.name).toBe("Iron");
+    expect(resourceAt(s, 11, 11)).toBe("Iron");
+    expect(specialFor(s, t, 1)?.name).toBe("Iron");
+    // Horses and Coal, the 1991 game's own specials, are seen from the start.
+    expect(resourceKnown(s, 0, "Horses")).toBe(true);
+    expect(resourceKnown(s, 0, "Coal")).toBe(true);
+    expect(hasResource(s, 0, "Horses")).toBe(true);
+    // A site's worth counts what its civilization knows.
+    expect(siteScore(s, 12, 12, undefined, 0)).toBeLessThan(siteScore(s, 12, 12, undefined, 1)!);
+    // Bronze Working reveals it.
+    s.players[0]!.advances.push("bronze_working");
+    expect(specialFor(s, t, 0)?.name).toBe("Iron");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(tileYield(s, plain, false, "monarchy", 0).shields + 3);
+    expect(hasResource(s, 0, "Iron")).toBe(true);
+    expect(siteScore(s, 12, 12, undefined, 0)).toBe(siteScore(s, 12, 12, undefined, 1));
+    // Each revealing advance is in both trees, and every unit that needs a resource reveals it too: Chivalry's
+    // Knights want Iron, and Chivalry needs no Bronze Working.
+    expect(RESOURCES.filter((r) => r.revealedBy).map((r) => r.id)).toEqual(["Iron", "Saltpeter", "Oil"]);
+    for (const r of RESOURCES) {
+      if (r.revealedBy) for (const tree of [ADVANCES, CLASSIC_ADVANCES]) expect(tree.some((a) => a.id === r.revealedBy), r.revealedBy).toBe(true);
+      for (const u of UNIT_TYPES.filter((x) => x.needs?.includes(r.id) && x.requires)) expect(seesResource([u.requires!], r.id), `${u.id} sees ${r.id}`).toBe(true);
+    }
+    expect(seesResource(["chivalry"], "Iron")).toBe(true);
+    expect(advance("chivalry").requires).not.toContain("bronze_working");
+    // What an advance reveals: what its civilization sees with it and would not without it.
+    s.players[0]!.advances = ["horseback_riding"];
+    expect(revealedBy(s, 0, ["bronze_working"])).toEqual(["Iron"]); // not yet known: what it would show
+    s.players[0]!.advances.push("bronze_working");
+    expect(revealedBy(s, 0, ["bronze_working"])).toEqual(["Iron"]); // just found: what it showed
+    s.players[0]!.advances.push("chivalry");
+    expect(revealedBy(s, 0, ["chivalry"])).toEqual([]); // Iron was seen already
+    expect(revealedBy(s, 0, ["gunpowder"])).toEqual(["Saltpeter"]);
+    // Saves before version 40 see them all.
+    s.players[0]!.advances = [];
+    s.visibleResources = true;
+    expect(specialFor(s, t, 0)?.name).toBe("Iron");
+    const old = loadSave({ ...makeSave(newGame(7), {}, []), version: 39 as const }, () => {}).state;
+    expect(old.visibleResources).toBe(true);
+    expect(loadSave(makeSave(newGame(7), {}, []), () => {}).state.visibleResources).toBeUndefined();
   });
 
   it("names only resources that exist, and barbarians build from nothing", () => {

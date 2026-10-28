@@ -96,6 +96,29 @@ Never ship the original's sprites, palette art, fonts or text.
   seeds 1-16 and 17-32): without resources 1-15 both times, score 125 vs 228 and 135 vs 226; with them 0-16,
   121 vs 246 and 133 vs 261, all replaying exactly. The planner holds its level (pop 45 vs 51 a seat); v2, packing
   more cities onto the richer land, gains.
+  Hidden resources (asked for 2026-10-28: "showing terrain resources only when relevant to the civ - when got the
+  resource related tech"; save version 40): Iron, Saltpeter and Oil carry `ResourceRule.revealedBy` (Bronze Working,
+  Gunpowder, Refining), and a civ sees one once it knows that advance or the advance of any unit that needs it
+  (`resourceRevealers`, `seesResource`: Chivalry's Knights want Iron without Bronze Working), whichever comes first;
+  Horses and Coal, the 1991 game's own plains and hills specials, are seen from the start, as are all the other
+  specials. Until then a square of it is plain terrain to that civ (`specialFor(state, tile, player)`, `tileAsKnown`;
+  `specialOf` stays the square as it lies): not drawn (retro `drawSpecial` takes the viewer), no yield from it
+  (`tileYield`'s `owner`, `influenceSpecials`), not held or tradeable (`resourceSquares`), not counted in a site's
+  worth (`siteScore`'s `player`, the planner's and the settler pins'), absent from the square's window, the panel
+  and `resourceAt(..., viewer)`. Advisors > Resources says "unseen until Bronze Working". What an advance reveals
+  (core `revealedBy(state, player, found)`: seen with it, unseen without) is a "Reveals" row on the research card
+  and an unlock in the New Technology window (`Unlock.resource`, the resource's picture in the box; merged with the
+  advance's gain on it, Refining's Oil +3; in a line "Phalanx, Colossus. Reveals Iron", `unlocksLine`). After those
+  windows (and the research panel when due) the web app's `showReveals` holds the map a moment (`REVEAL_MS` 2.4 s,
+  the `beat` screen) on the square nearest our capital, ours first, else one within 6 squares of our cities
+  (`resourceReveals` in renderer-api), every seen square of it ringed in gold, pulsing twice
+  (`MainScreenView.revealed`, retro `drawRevealRing`), the note "Iron revealed: 2 on our land, 3 nearby" or "none
+  on our land yet"; with none near, or over another screen, the status line. A strategic resource we lack that
+  our explorers or a growing border come upon is named in their note before the places ("Discovered: Iron, Lake
+  Capua", `discoveryNote`'s `resources`; the web app's `resourceFinds` over `knownResourceSquares`, a just-revealed
+  kind left to `showReveals`), even with place names off. Saves before version 40 load with `visibleResources`
+  (headless `--visible-resources`). Head to head (planner vs v2, 16 x 300, seeds 1-16): hidden 10-6, score 208 vs
+  179, pop 74 vs 73; visible 10-6, 213 vs 184, pop 77 vs 74; all replaying exactly.
   Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
   FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
   starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail
@@ -1084,7 +1107,8 @@ terrain-tiles-test, the whole map at 32 fine pixels a square (terrain, units, re
 text), second special resources with reaches (save version 20; the branch's own 17-19 are mapped in
 `loadSave`, a 17 counting as main's). Strategic resources done (2026-10-27, asked for; save version 33, see core above):
 units that need Horses, Iron, Saltpeter, Coal or Oil on the civ's land or traded, deposits on new worlds, trades in the
-audience and between computer civs.
+audience and between computer civs. Iron, Saltpeter and Oil hidden from a civ until their advance (2026-10-28, asked
+for; save version 40), told on the map as they appear.
 
 ## Known gaps / next steps
 

@@ -101,7 +101,7 @@ import {
   type Unit,
   type WorldSize,
   influenceSpecials,
-  specialOf,
+  specialFor,
 } from "@civ/core";
 
 /**
@@ -150,6 +150,11 @@ export interface MainScreenView {
   fireworks?: Fireworks | undefined;
   /** A ship of the viewer's going down on deep water as the turn ends, the words above it (`Sinking`). */
   sinking?: Sinking | undefined;
+  /**
+   * Squares of a strategic resource an advance has just revealed (`resourceReveals`), ringed in gold while the map
+   * holds on them; `at` runs 0..1 over that moment, the rings pulsing twice.
+   */
+  revealed?: { squares: { x: number; y: number }[]; at: number } | undefined;
   /** Fog still lifting off squares just explored (`FogLifter`): square index to fog left, 1 down to 0. */
   lifting?: Lifting | undefined;
   /** Draw civilization borders on the map: the edge of the squares known cities reach (`territory`). The minimap has its own switch. */
@@ -801,7 +806,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   lines.push(`{food} ${yld.food}  {shield} ${yld.shields}  {trade} ${yld.trade}  {boot} ${r.moveCost}${defence}`);
   lines.push(TERRAIN_TEXT[t.terrain]);
   // Grassland's first special counts only in games before version 26 (`tileYield`).
-  const sp = !state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial && !t.deposit ? undefined : specialOf(t);
+  const sp = !state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial && !t.deposit ? undefined : specialFor(state, t, me.id);
   const features = [
     sp && `{star} ${sp.name} ${specialGain(sp)}`,
     t.grassShield && t.terrain === Terrain.Grassland && "{shield} Shield grassland +1 {shield}",
@@ -813,7 +818,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   ].filter(Boolean);
   if (features.length) lines.push(features.join("  "));
   // A strategic resource says which units want it (rules/resources.ts).
-  const strategic = resourceAt(state, x, y);
+  const strategic = resourceAt(state, x, y, me.id);
   if (strategic) lines.push(resourceNote(strategic));
   if (t.pollution) lines.push("{pollution} Polluted: output halved");
   if (t.hut) lines.push("{hut} A tribal village");

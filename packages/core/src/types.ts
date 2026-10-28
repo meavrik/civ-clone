@@ -367,6 +367,8 @@ export interface GameState {
   oldPlanner?: boolean;
   /** No unit retires (`UnitTypeRule.obsolete`): Militia stay on offer after Gunpowder, as before version 39. */
   lastingUnits?: boolean;
+  /** Every civilization sees every strategic resource from the start (no `ResourceRule.revealedBy`), as before version 40. */
+  visibleResources?: boolean;
   /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.

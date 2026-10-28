@@ -13,6 +13,7 @@ import { bestFreeSlot, cityTileYield,
   productionName,
   slotAvailable,
   slotInLand,
+  specialFor,
   Terrain,
   tileYield,
   turnToYear,
@@ -183,7 +184,7 @@ export function drawCityScreen(ctx: Context2D, state: GameState, view: CityScree
       paintRoad(ctx, px, py, state.map, me.explored, wx, my, false);
       paintRoad(ctx, px, py, state.map, me.explored, wx, my, true);
       if (tile.mine) paintMine(ctx, px, py);
-      if (tile.special) paintSpecial(ctx, px, py);
+      if (specialFor(state, tile, city.owner)) paintSpecial(ctx, px, py);
       if (tile.fortress) paintFortress(ctx, px, py);
       if (tile.pollution) paintPollution(ctx, px, py);
       const worked = slot === 0 || city.worked.includes(slot);

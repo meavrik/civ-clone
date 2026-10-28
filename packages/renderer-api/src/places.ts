@@ -290,11 +290,14 @@ export function placesFoundBy(state: GameState, player: number): number[] {
   return out;
 }
 
-/** The note beside our explorer when it finds places: "Discovered: the Caesar Desert, Lake Capua"; past three, how many more. */
-export function discoveryNote(regions: readonly Region[]): string {
+/**
+ * The note beside our explorer when it finds places: "Discovered: the Caesar Desert, Lake Capua"; past three, how many
+ * more. `resources`, strategic resources it came upon that we lack ("Discovered: Iron, Lake Capua"), come first.
+ */
+export function discoveryNote(regions: readonly Region[], resources: readonly string[] = []): string {
   // Waters and continents first, as the bigger news.
   const rank = (r: Region) => (WATER_KINDS.has(r.kind) ? 0 : r.kind === "continent" || r.kind === "island" ? 1 : 2);
-  const names = [...regions].sort((a, b) => rank(a) - rank(b) || b.size - a.size).map((r) => r.name).filter((n): n is string => !!n);
+  const names = [...resources, ...[...regions].sort((a, b) => rank(a) - rank(b) || b.size - a.size).map((r) => r.name).filter((n): n is string => !!n)];
   const more = names.length - 3;
   return `Discovered: ${more > 1 ? `${names.slice(0, 3).join(", ")} and ${more} more` : names.join(", ")}`;
 }

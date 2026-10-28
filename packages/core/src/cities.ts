@@ -9,7 +9,7 @@ import { civ } from "./rules/civs.js";
 import { difficultyRule } from "./rules/difficulty.js";
 import { BALANCED_WEIGHTS, combinedFocus, focusRule, type FocusRule } from "./rules/focus.js";
 import { nextCityName } from "./rules/names.js";
-import { specialOf, TERRAIN_RULES, type SpecialRule } from "./rules/terrain.js";
+import { TERRAIN_RULES, type SpecialRule } from "./rules/terrain.js";
 import { INFLUENCE_YIELD } from "./rules/culture.js";
 import { VETERAN_XP } from "./rules/experience.js";
 import { UNIT_TYPES, unitType, type UnitTypeRule } from "./rules/units.js";
@@ -28,7 +28,7 @@ import {
 } from "./types.js";
 import { borderRadius, claimant, cultureRate, landOwner, withinBorder } from "./territory.js";
 import { createUnit } from "./units.js";
-import { heldResources, missingResources } from "./resources.js";
+import { heldResources, missingResources, specialFor } from "./resources.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
 export interface Yield {
@@ -40,7 +40,8 @@ export interface Yield {
 /** Yield of one tile for a city of `owner`, with improvements and the government's tile penalty. */
 /**
  * What a worked square yields under a government. `owner`, the civilization working it, adds
- * what its advances bring (pastures from Animal Husbandry); leave it out for a square nobody works.
+ * what its advances bring (pastures from Animal Husbandry) and finds only the resources it has
+ * revealed (`specialFor`); leave it out for a square nobody works.
  */
 export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId: string, owner?: number): Yield {
   const r = TERRAIN_RULES[tile.terrain];
@@ -48,7 +49,7 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
   let shields = r.shields;
   let trade = r.trade;
   // Grassland's first special counts only in games before version 26; since then its shields lie on the original's bands.
-  const sp = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial && !tile.deposit ? undefined : specialOf(tile);
+  const sp = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial && !tile.deposit ? undefined : specialFor(state, tile, owner);
   if (sp) {
     food += sp.food ?? 0;
     shields += sp.shields ?? 0;
@@ -646,7 +647,7 @@ export function influenceSpecials(state: GameState, city: City): InfluenceSpecia
     for (let dx = -r; dx <= r; dx++) {
       if (withinBorder(dx, dy, 2) || !withinBorder(dx, dy, r)) continue;
       const x = wrapX(state.map, city.x + dx);
-      const special = specialOf(tiles[y * width + x]!);
+      const special = specialFor(state, tiles[y * width + x]!, city.owner);
       if (!special) continue;
       if (claimant(state, x, y)?.id !== city.id || worked(x, y)) continue;
       out.push({ x, y, special, trade: Math.max(INFLUENCE_YIELD.min, Math.ceil((special.trade ?? 0) * INFLUENCE_YIELD.tradeShare)) });

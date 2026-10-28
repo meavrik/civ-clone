@@ -24,6 +24,14 @@ export interface ResourceRule {
   deposits: Partial<Record<Terrain, number>>;
   /** A few words of our own on what it is good for. */
   text: string;
+  /**
+   * The advance that shows it to a civilization (asked for 2026-10-28: "showing terrain resources only when relevant
+   * to the civ - when got the resource related tech"), or the advance of any unit that needs it, whichever comes first
+   * (`resourceRevealers`: Chivalry's Knights want Iron without Bronze Working). Until then its squares are plain
+   * terrain to that civ: not drawn, yielding nothing of the special, not held. None for Horses and Coal, the 1991
+   * game's own specials of plains and hills, seen from the start.
+   */
+  revealedBy?: string;
 }
 
 // The specials themselves; the terrains whose own kind they are name the same objects (rules/terrain.ts).
@@ -37,16 +45,20 @@ export const SALTPETER: SpecialRule = { name: "Saltpeter", shields: 1, learned: 
 
 export const RESOURCES: readonly ResourceRule[] = [
   { id: "Horses", special: HORSES, deposits: { [Terrain.Grassland]: 0.03, [Terrain.Plains]: 0.05 }, text: "Mounts for riders and chariots." },
-  { id: "Iron", special: IRON, deposits: { [Terrain.Hills]: 0.08, [Terrain.Mountains]: 0.08 }, text: "Blades, armour and guns." },
-  { id: "Saltpeter", special: SALTPETER, deposits: { [Terrain.Desert]: 0.08, [Terrain.Tundra]: 0.06, [Terrain.Plains]: 0.02, [Terrain.Hills]: 0.025 }, text: "The makings of gunpowder." },
+  { id: "Iron", special: IRON, deposits: { [Terrain.Hills]: 0.08, [Terrain.Mountains]: 0.08 }, text: "Blades, armour and guns.", revealedBy: "bronze_working" },
+  { id: "Saltpeter", special: SALTPETER, deposits: { [Terrain.Desert]: 0.08, [Terrain.Tundra]: 0.06, [Terrain.Plains]: 0.02, [Terrain.Hills]: 0.025 }, text: "The makings of gunpowder.", revealedBy: "gunpowder" },
   { id: "Coal", special: COAL, deposits: { [Terrain.Hills]: 0.04, [Terrain.Forest]: 0.025, [Terrain.Swamp]: 0.04 }, text: "Fuel for steamships." },
-  { id: "Oil", special: OIL, deposits: { [Terrain.Desert]: 0.06, [Terrain.Swamp]: 0.06, [Terrain.Tundra]: 0.05, [Terrain.Arctic]: 0.05, [Terrain.Jungle]: 0.02 }, text: "Fuel for engines on land, at sea and in the air." },
+  { id: "Oil", special: OIL, deposits: { [Terrain.Desert]: 0.06, [Terrain.Swamp]: 0.06, [Terrain.Tundra]: 0.05, [Terrain.Arctic]: 0.05, [Terrain.Jungle]: 0.02 }, text: "Fuel for engines on land, at sea and in the air.", revealedBy: "refining" },
 ];
 
 export const RESOURCE_BY_ID: Readonly<Record<string, ResourceRule>> = Object.fromEntries(RESOURCES.map((r) => [r.id, r]));
 
 /** The save version that brought strategic resources and their deposits. */
 export const RESOURCES_SINCE = 33;
+
+/** The save version from which a resource with `revealedBy` is hidden from a civilization until it knows that advance. */
+export const REVEAL_SINCE = 40;
+
 
 /** Whether a special is strategic (a resource units may need). */
 export function isStrategic(special: SpecialRule | undefined): boolean {

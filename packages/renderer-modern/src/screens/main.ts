@@ -18,7 +18,7 @@ import {
   workOptions,
   wrapX,
   type GameState,
-  specialOf,
+  specialFor,
 } from "@civ/core";
 import { cityMood, coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, ownerAt, rankIcon, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
@@ -147,7 +147,7 @@ function drawViewport(ctx: Context2D, state: GameState, view: MainScreenView): v
       paintRoad(ctx, dx, dy, map, me.explored, mx, my, false);
       paintRoad(ctx, dx, dy, map, me.explored, mx, my, true);
       if (tile.mine) paintMine(ctx, dx, dy);
-      if (tile.special) paintSpecial(ctx, dx, dy);
+      if (specialFor(state, tile, state.currentPlayer)) paintSpecial(ctx, dx, dy);
       if (tile.fortress) paintFortress(ctx, dx, dy);
       if (tile.hut) paintHut(ctx, dx, dy);
       if (tile.pollution) paintPollution(ctx, dx, dy);
@@ -303,7 +303,7 @@ function tileIconLine(state: GameState, x: number, y: number, extra = ""): strin
   const t = getTile(state.map, x, y)!;
   const yld = tileYield(state, t, cityAt(state, x, y) !== undefined, state.players[state.currentPlayer]!.government, state.currentPlayer);
   const features = tileIcons(t).map((i) => `{${i}}`);
-  if (t.special) features.unshift("{star}");
+  if (specialFor(state, t, state.currentPlayer)) features.unshift("{star}");
   return [`{food} ${yld.food}`, `{shield} ${yld.shields}`, `{trade} ${yld.trade}`, ...(extra ? [extra] : []), features.join(" ")].filter(Boolean).join("  ");
 }
 
@@ -318,7 +318,8 @@ function tileInfo(ctx: Context2D, state: GameState, tx: number, ty: number, y: n
   const t = state.map.tiles[idx]!;
   const r = TERRAIN_RULES[t.terrain];
   fillRound(ctx, TEXT_X, y + 2, 14, 14, 3, TERRAIN[t.terrain].base);
-  text(ctx, TEXT_X + 22, y, specialOf(t) ? `${TERRAIN_NAMES[t.terrain]} · ${specialOf(t)!.name}` : TERRAIN_NAMES[t.terrain], { weight: "600" });
+  const sp = specialFor(state, t, me.id);
+  text(ctx, TEXT_X + 22, y, sp ? `${TERRAIN_NAMES[t.terrain]} · ${sp.name}` : TERRAIN_NAMES[t.terrain], { weight: "600" });
   y += LINE + 2;
   const move = `{boot} ${r.moveCost}${r.defense !== 1 ? `  {tower} +${Math.round((r.defense - 1) * 100)}%` : ""}`;
   y += iconParagraph(ctx, TEXT_X, y, TEXT_W, tileIconLine(state, tx, ty, move), { size: 14, color: UI.ink }, Math.max(1, Math.floor((bottom - y) / 20)));

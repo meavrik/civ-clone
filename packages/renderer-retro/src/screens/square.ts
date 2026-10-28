@@ -33,7 +33,7 @@ export function drawSquarePicture(s: Surface, state: GameState, mx: number, my: 
   drawRoad(one, 0, 0, map, me.explored, wx, my, ground);
   drawRailroad(one, 0, 0, map, me.explored, wx, my);
   if (tile.mine) drawMine(one, 0, 0);
-  if (tile.special) drawSpecial(one, 0, 0, tile);
+  if (tile.special) drawSpecial(one, 0, 0, state, tile, state.currentPlayer);
   if (tile.hut) drawHut(one, 0, 0);
   if (tile.fortress) drawFortress(one, 0, 0);
   if (tile.pollution) drawPollution(one, 0, 0);

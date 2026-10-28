@@ -21,7 +21,7 @@ import {
   type City,
   type GameState,
   type Unit,
-  specialOf,
+  specialFor,
 } from "@civ/core";
 import { drawSmallCaps, drawSpacedRinged, drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, SMALL_CAPS_HEIGHT, smallCapsWidth, spacedWidth, textPlateWidth, textWidth, wrapText } from "../font.js";
 import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawShield, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
@@ -176,7 +176,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       drawRoad(s, dx, dy, map, me.explored, mx, my, ground);
       drawRailroad(s, dx, dy, map, me.explored, mx, my);
       if (tile.mine) drawMine(s, dx, dy);
-      if (tile.special) drawSpecial(s, dx, dy, tile);
+      if (tile.special) drawSpecial(s, dx, dy, state, tile, state.currentPlayer);
       if (tile.hut) drawHut(s, dx, dy);
       if (tile.fortress) drawFortress(s, dx, dy);
       if (tile.pollution) drawPollution(s, dx, dy);
@@ -227,6 +227,14 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   if (settler) for (const site of settlerSites(state, settler.id)) {
     const pos = toScreen(site.x, site.y);
     if (pos) drawSiteMark(s, pos[0], pos[1], site.best);
+  }
+  // A resource just revealed (`view.revealed`): its squares ringed in gold, pulsing twice, under the units.
+  if (view.revealed) {
+    const lit = Math.floor(view.revealed.at * 4) % 2 === 0;
+    for (const q of view.revealed.squares) {
+      const pos = toScreen(q.x, q.y);
+      if (pos) drawRevealRing(s, pos[0], pos[1], lit);
+    }
   }
   // A planned move's route, under the units: a dot on each square on the way.
   if (view.plan) for (const [x, y] of view.plan.route.slice(0, -1)) {
@@ -534,6 +542,12 @@ function drawSiteMark(s: Surface, x: number, y: number, best: boolean): void {
   }
 }
 
+/** A square of a resource just revealed: a gold edge round it with a dark line inside, bright and dim by turns. */
+function drawRevealRing(s: Surface, x: number, y: number, lit: boolean): void {
+  s.frame(x, y, TILE, TILE, shade("wheat", lit ? 7 : 4));
+  s.frame(x + 1, y + 1, TILE - 2, TILE - 2, shade("wheat", lit ? 1 : 0));
+}
+
 /** A dot on a planned route: white, ringed in black so it reads on any ground. */
 function drawRouteDot(s: Surface, cx: number, cy: number): void {
   s.rect(cx - 2, cy - 2, 4, 4, C.BLACK!);
@@ -586,7 +600,7 @@ function tileIconLine(state: GameState, x: number, y: number, extra = ""): strin
   const t = getTile(state.map, x, y)!;
   const yld = tileYield(state, t, cityAt(state, x, y) !== undefined, state.players[state.currentPlayer]!.government, state.currentPlayer);
   const features = tileIcons(t).map((i) => `{${i}}`);
-  if (t.special) features.unshift("{star}");
+  if (specialFor(state, t, state.currentPlayer)) features.unshift("{star}");
   // Yields stay together, then the extra (movement) and the features, each a group that may wrap.
   return [`{food}${yld.food} {shield}${yld.shields} {trade}${yld.trade}`, extra, features.join("")].filter(Boolean).join("  ");
 }
@@ -604,7 +618,8 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
   const t = state.map.tiles[idx]!;
   const r = TERRAIN_RULES[t.terrain];
   terrainSwatch(s, t.terrain, x, y);
-  drawTextWrapped(s, x + 10, y, TEXT_W - 10, specialOf(t) ? `${TERRAIN_NAMES[t.terrain]}: ${specialOf(t)!.name}` : TERRAIN_NAMES[t.terrain], ink, 1);
+  const sp = specialFor(state, t, me.id);
+  drawTextWrapped(s, x + 10, y, TEXT_W - 10, sp ? `${TERRAIN_NAMES[t.terrain]}: ${sp.name}` : TERRAIN_NAMES[t.terrain], ink, 1);
   y += 9;
   const move = `{boot}${r.moveCost}${r.defense !== 1 ? ` {tower}+${Math.round((r.defense - 1) * 100)}%` : ""}`;
   y += 9 * drawIconsWrapped(s, x, y, TEXT_W, tileIconLine(state, tx, ty, move), ink, Math.min(3, linesLeft(y)));

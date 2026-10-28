@@ -42,7 +42,7 @@ describe("New Technology window", () => {
     const state = newGame(5, { opponents: 2 });
     const s = Surface.screen();
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
-    for (const id of ["alphabet", "the_wheel", "monarchy", "bronze_working", "industrialization", "railroad", "artificial_intelligence", "the_corporation"]) {
+    for (const id of ["alphabet", "the_wheel", "monarchy", "bronze_working", "industrialization", "railroad", "artificial_intelligence", "the_corporation", "gunpowder", "refining"]) {
       drawNewTech(s, state, { advance: id, selected: 1 });
       writeFileSync(new URL(`./out/newtech-${id}.png`, import.meta.url), encodePng(s, 3));
     }

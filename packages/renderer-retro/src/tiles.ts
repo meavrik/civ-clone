@@ -1,4 +1,4 @@
-import { specialOf, Terrain, type Tile, type WorldMap } from "@civ/core";
+import { specialFor, Terrain, type GameState, type Tile, type WorldMap } from "@civ/core";
 import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, clearingPatch, BLEND_REACH, groundOwner, LAND, landOwner, riverShape, SHORE, strokeDistance, type CoastPatch, type Explored, type Lifting } from "@civ/renderer-api";
 import { FEATURE_SHEET, RESOURCE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
@@ -330,10 +330,11 @@ export function specialSprite(name: string): Surface | null {
   return spriteSurface(RESOURCE_SHEET, name.toLowerCase());
 }
 
-/** A square's special resource, drawn over its terrain. */
-export function drawSpecial(s: Surface, dx: number, dy: number, tile: Tile): void {
-  const name = specialOf(tile)?.name;
-  const icon = name ? specialSprite(name) : null;
+/** A square's special resource as `viewer` knows it (`specialFor`: none while a resource is still hidden from it), drawn over its terrain. */
+export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState, tile: Tile, viewer: number): void {
+  const name = specialFor(state, tile, viewer)?.name;
+  if (!name) return;
+  const icon = specialSprite(name);
   if (icon) { s.blit(icon, dx, dy, SPRITE_CLEAR); return; }
   s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!);
 }

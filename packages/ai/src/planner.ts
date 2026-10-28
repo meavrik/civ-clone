@@ -565,7 +565,7 @@ function findSites(state: GameState, me: number, continents: Set<number>, cities
       let ownNear = 99;
       for (const c of state.cities) if (c.owner === me) ownNear = Math.min(ownNear, dist(state, c.x, c.y, x, y));
       if (reach && !reach[i]) continue;
-      const s = siteScore(state, x, y);
+      const s = siteScore(state, x, y, undefined, me);
       if (s === null) continue;
       const compact = cities.length === 0 ? 0 : ownNear <= 6 ? 6 : ownNear <= 8 ? 2 : -4;
       out.push({ x, y, score: s + compact });
@@ -606,7 +606,7 @@ function findOverseasSites(state: GameState, me: number, reach: Uint8Array): Sit
       if (!roomForCity(state, me, x, y) || canFoundCity(state, x, y) !== null) continue;
       let rivals = 0;
       for (const c of state.cities) if (c.owner !== me && dist(state, c.x, c.y, x, y) <= 6) rivals++;
-      const s = siteScore(state, x, y);
+      const s = siteScore(state, x, y, undefined, me);
       if (s === null) continue;
       out.push({ x, y, score: s - 8 * rivals });
     }
@@ -2271,7 +2271,7 @@ function reservedSites(state: GameState, ctx: Ctx, except: Unit): [number, numbe
 function orderSettler(state: GameState, ctx: Ctx, u: Unit): void {
   const here = cityAt(state, u.x, u.y);
   const canFound = !here && canFoundCity(state, u.x, u.y) === null && (state.packedCities === true || roomForCity(state, ctx.me, u.x, u.y));
-  const hereScore = canFound ? siteScore(state, u.x, u.y) : null;
+  const hereScore = canFound ? siteScore(state, u.x, u.y, undefined, ctx.me) : null;
 
   // The first city goes down at once on any fit tile.
   if (ctx.cities.length === 0) {
