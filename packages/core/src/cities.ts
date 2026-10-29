@@ -26,7 +26,7 @@ import {
   type Tile,
   type Unit,
 } from "./types.js";
-import { borderRadius, claimant, cultureRate, landOwner, withinBorder } from "./territory.js";
+import { borderRadius, buildingCulture, claimant, cultureRate, landOwner, withinBorder } from "./territory.js";
 import { createUnit } from "./units.js";
 import { heldResources, missingResources, specialFor } from "./resources.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
@@ -482,6 +482,70 @@ export function whyNoSale(state: GameState, city: City, id: string): "wonder" | 
   return null;
 }
 
+/** What a civilization's cities bring its treasury in a turn: their taxes less their buildings' upkeep. */
+export function goldPerTurn(state: GameState, player: number): number {
+  let gold = 0;
+  for (const c of state.cities) {
+    if (c.owner !== player) continue;
+    const r = computeCity(state, c);
+    gold += r.tax - r.buildingUpkeep;
+  }
+  return gold;
+}
+
+/**
+ * A treasury that cannot meet the turn's upkeep (asked for 2026-10-29: "when run out of money - remove support
+ * upkeep from buildings until balance is returned"): as its owner's turn ends, before its cities pay, buildings
+ * across the empire stop being supported (`City.idle`, as the `support` command does), until the books balance:
+ * the cities' taxes meet their upkeep (and the treasury is left whole). The building that saves the most gold goes first (its upkeep less
+ * any tax it brings, a city falling into disorder without it counting its lost taxes), then the one adding less
+ * culture, then the cheaper; never the Palace or a wonder, and never one that saves nothing. Not before version 42
+ * (`sellWhenBroke`: the city sold its costliest building instead). Returns the "unsupported" events.
+ */
+export function balanceTreasury(state: GameState, player: number): CityTurnEvent[] {
+  const events: CityTurnEvent[] = [];
+  if (state.sellWhenBroke) return events;
+  const p = state.players[player]!;
+  const cities = state.cities.filter((c) => c.owner === player);
+  const net = (c: City): number => {
+    const r = computeCity(state, c);
+    return r.tax - r.buildingUpkeep;
+  };
+  const books = new Map(cities.map((c) => [c.id, net(c)]));
+  const total = (): number => [...books.values()].reduce((a, b) => a + b, 0);
+  if (p.gold + total() >= 0) return events;
+  let guard = 0;
+  while ((total() < 0 || p.gold + total() < 0) && guard++ < 1000) {
+    let best: { city: City; id: string; gain: number; culture: number; cost: number } | null = null;
+    for (const c of cities) {
+      const before = books.get(c.id)!;
+      for (const id of c.buildings) {
+        const b = building(id);
+        if (id === "palace" || b.upkeep <= 0) continue;
+        // What the city's books come to without it (computing changes nothing; the list is put back at once).
+        const held = c.buildings;
+        c.buildings = held.filter((x) => x !== id);
+        const gain = net(c) - before;
+        c.buildings = held;
+        if (gain <= 0) continue;
+        const culture = buildingCulture(state, id);
+        const cost = costFor(state, player, { kind: "building", id });
+        if (!best || gain > best.gain || (gain === best.gain && (culture < best.culture || (culture === best.culture && cost < best.cost))))
+          best = { city: c, id, gain, culture, cost };
+      }
+    }
+    if (!best) break;
+    const { city, id } = best;
+    city.buildings = city.buildings.filter((b) => b !== id);
+    (city.idle ??= []).push(id);
+    // Less culture may pull the border in: its workers leave the squares it no longer holds.
+    dropLostSquares(state, city);
+    books.set(city.id, net(city));
+    events.push({ city: city.id, kind: "unsupported", detail: building(id).name, building: id, upkeep: building(id).upkeep });
+  }
+  return events;
+}
+
 /**
  * Why a city may not stop supporting building `id` (`on` false) or support it again (`on` true), or null
  * when it may (asked for 2026-10-27, in place of selling: "stop supporting the building - reduce the
@@ -895,10 +959,13 @@ export function buyCost(state: GameState, city: City): number {
 
 export interface CityTurnEvent {
   city: number;
-  kind: "grew" | "shrank" | "built" | "wonder" | "outbuilt" | "disorder" | "celebration" | "starving" | "famine" | "sold" | "pollution" | "disbanded" | "borders" | "lacks";
+  kind: "grew" | "shrank" | "built" | "wonder" | "outbuilt" | "disorder" | "celebration" | "starving" | "famine" | "sold" | "unsupported" | "pollution" | "disbanded" | "borders" | "lacks";
   /** "lacks": the unit the box is full for (`detail` its name) and the strategic resources it waits on. */
   missing?: string[];
   detail?: string;
+  /** "unsupported": the building a dry treasury stopped supporting (`detail` its name) and the gold a turn its upkeep took. */
+  building?: string;
+  upkeep?: number;
   /** What was finished ("built", "wonder"), or the wonder another city finished first ("outbuilt"). */
   production?: Production;
   /**
@@ -941,9 +1008,10 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
   // Saves before version 14: culture mounted every turn.
   if (state.accruedCulture && !state.fixedBorders) city.culture += cultureRate(state, city);
 
-  // Treasury: tax in, building upkeep out. A bankrupt treasury sells the costliest improvement to keep.
+  // Treasury: tax in, building upkeep out. Before version 42 a bankrupt treasury sold the costliest
+  // improvement to keep; since, the empire's books are balanced before its cities' turns (`balanceTreasury`).
   player.gold += r.tax - r.buildingUpkeep;
-  if (player.gold < 0) {
+  if (state.sellWhenBroke && player.gold < 0) {
     const forSale = city.buildings.filter((b) => building(b).upkeep > 0 && b !== "palace").sort((a, b) => building(b).upkeep - building(a).upkeep);
     const sold = forSale[0];
     if (sold) {

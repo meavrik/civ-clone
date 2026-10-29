@@ -13,6 +13,7 @@ import {
   foundCity,
   inciteCost,
   processCityTurn,
+  balanceTreasury,
   routeBonus,
   sellPrice,
   whyNoSale,
@@ -1190,6 +1191,8 @@ export function endTurn(state: GameState): void {
 
   // Cities: squares lost from their land since, then growth, production, treasury, and the smoke they make.
   for (const c of state.cities) if (c.owner === player) dropLostSquares(state, c);
+  // A treasury that cannot meet the turn's upkeep stops supporting buildings first (since version 42).
+  lastTurnEvents.push(...balanceTreasury(state, player));
   for (const c of state.cities) if (c.owner === player) lastTurnEvents.push(...processCityTurn(state, c));
   // Riots that outlast the government's patience topple it (a Democracy's: two turns).
   const patience = government(state.players[player]!.government).revolutionAfter;

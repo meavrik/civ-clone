@@ -112,6 +112,8 @@ export interface NewGameOptions extends MapGenOptions {
   lastingUnits?: boolean;
   /** Every strategic resource seen from the start (see `GameState.visibleResources`). Old saves load with it. */
   visibleResources?: boolean;
+  /** A dry treasury sells a building (see `GameState.sellWhenBroke`). Old saves load with it. */
+  sellWhenBroke?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -298,6 +300,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.oldPlanner ? { oldPlanner: true } : {}),
     ...(opts.lastingUnits ? { lastingUnits: true } : {}),
     ...(opts.visibleResources ? { visibleResources: true } : {}),
+    ...(opts.sellWhenBroke ? { sellWhenBroke: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

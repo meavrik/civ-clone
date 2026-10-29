@@ -370,6 +370,12 @@ export interface GameState {
   /** Every civilization sees every strategic resource from the start (no `ResourceRule.revealedBy`), as before version 40. */
   visibleResources?: boolean;
   /**
+   * A treasury that runs dry as before version 42: a city whose upkeep it could not meet sold its costliest
+   * building for the building's cost. Since 42 (`balanceTreasury`) buildings across the empire stop being
+   * supported (`City.idle`), those saving the most gold first, until the books balance.
+   */
+  sellWhenBroke?: boolean;
+  /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.
    */

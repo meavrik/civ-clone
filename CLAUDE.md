@@ -385,7 +385,8 @@ Never ship the original's sprites, palette art, fonts or text.
   A conqueror finds them standing and supports them (`captureCity`). The line pointed at is lit and told of
   beside the citizens (`improvementNote`, `CityScreenView.hoverImprovement`). No save version: old logs hold
   no `support`; the core `sell` command (`sellPrice`, `whyNoSale`, `City.soldOn`) stays for the logs that
-  hold it, and a bankrupt treasury still sells the costliest building. Tidied 2026-10-24
+  hold it. A bankrupt treasury stops supporting buildings itself since save version 42 (see Treasury under
+  Known gaps 1); it sold the costliest building before. Tidied 2026-10-24
   (asked for: "a bit chaotic", a granary indication, citizens to click "like in the original civ"):
   the row of citizens (`citizenRow` in renderer-api: workers by mood, then specialists) is clickable
   (`cityCitizenAt`; the web app's `changeCitizen`): a worker leaves the square worth least to entertain
@@ -1262,6 +1263,27 @@ for; save version 40), told on the map as they appear.
    vs new: units a seat 49 vs 38 (military 38 vs 29), cities 12.3 vs 11.6, pop 47 vs 45, score 142 vs 125. `looseUpkeep`
    (saves before version 8, headless `--loose-upkeep`) keeps our first upkeep: 3 free units a city
    under Monarchy and Communism too, debts paid from the shield box.
+   Treasury (asked for 2026-10-29: "show a message/notification when going to run out of money -> when run out of
+   money - remove support upkeep from buildings until balance is returned - show a notification with all the upkeep
+   reduced", and "on the left pane menu - show the gold/money added/removed each turn"; save version 42): as a civ's
+   turn ends, before its cities pay, a treasury that cannot meet the turn's building upkeep (core `goldPerTurn`, the
+   cities' taxes less their upkeep) stops supporting buildings across the empire until the books balance (core
+   `balanceTreasury`, as the `support` command does: `City.idle`, the "unsupported" city event with `building` and
+   `upkeep`): the one saving the most gold first (its upkeep less the tax it brings, a city falling into disorder
+   without it counting its lost taxes), then the one adding less culture, then the cheaper; never one that saves
+   nothing, the Palace or a wonder. Nothing comes back by itself: a city's Improvements list supports it again (Use);
+   the planner takes them up again, one a turn, once its treasury holds its cushion and the books still gain after
+   the upkeep (`resupportBuildings`). Saves before 42 load with `sellWhenBroke` (headless `--sell-when-broke`): a
+   city whose upkeep the treasury could not meet sold its costliest building for its cost. Words in renderer-api
+   `treasury.ts`: `treasuryOutlook` (taxes, upkeep, net, `dryIn`: the turn's end at which the gold falls short at
+   this rate, 1 being this one), `treasuryWarning` (within `DRY_WARNING_TURNS`, 3) and `unsupportedNotice`. The web
+   app warns as our turn begins (`warnTreasury`: "Treasury Running Dry", Tax Rates or Continue; once for the turn the
+   gold runs out at, again on that turn, anew when it comes sooner; UI only), and the turn's news gathers the
+   buildings stopped into one window ("Buildings Unsupported": city by city, the upkeep cut, how the books stand
+   now). The status panel's treasury row shows the turn's gain or loss in brackets beside the gold, "120 (+5)", green,
+   red, or dim at nought (nothing before a city), the gold itself red while the warning stands; its tip says when the
+   gold runs out. Head to head (planner vs v2, 16 x 300, seeds 1-16): selling 10-6, score 208 vs 179, pop 74 vs 73;
+   stopping support 10-6, 212 vs 180, pop 75 vs 74, all replaying exactly (an AI civ runs dry a few times a game).
    Growth (asked for 2026-10-23: young cities grew too slowly and could not support settlers; two of four
    measured proposals picked; our departures): the city's own square is spared Despotism's and Anarchy's
    -1 (`tileYield`, an irrigated grassland centre gives 3 food), and, in versions 24 to 28, settlers cost

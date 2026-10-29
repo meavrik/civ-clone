@@ -34,6 +34,7 @@ import {
   cityDistance,
   coastal,
   computeCity,
+  goldPerTurn,
   defenseStrength,
   FINAL_TURN,
   findPath,
@@ -120,6 +121,7 @@ export function plannerTurn(state: GameState): void {
   manageCities(state, ctx);
   manageUpkeep(state, ctx);
   manageRates(state, ctx);
+  resupportBuildings(state, ctx);
   rebalanceGarrisons(state, ctx);
   assault(state, ctx);
 
@@ -720,6 +722,21 @@ function manageRates(state: GameState, ctx: Ctx): void {
   if (tax > max) { tax = max; lux = 10 - tax - sci; }
   if (lux > max) return;
   if (tax !== p.taxRate || lux !== p.luxRate || sci !== p.sciRate) applyCommand(state, { type: "setRates", tax, lux, sci });
+}
+
+/**
+ * Buildings a dry treasury stopped supporting (`balanceTreasury`, since version 42) are taken up again, one a
+ * turn, once the treasury holds its cushion and the books still gain after the building's upkeep.
+ */
+function resupportBuildings(state: GameState, ctx: Ctx): void {
+  if (state.sellWhenBroke || ctx.p.gold < 15 + 3 * ctx.cities.length) return;
+  const income = goldPerTurn(state, ctx.me);
+  for (const c of ctx.cities) {
+    const id = c.idle?.find((b) => income - building(b).upkeep >= 1);
+    if (id === undefined) continue;
+    applyCommand(state, { type: "support", city: c.id, building: id, on: true });
+    return;
+  }
 }
 
 /** A civilization's land army: the attack and defence of all its land units. */

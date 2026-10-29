@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyCommand,
   autoAssignWorkers,
+  balanceTreasury,
   buildOptions,
   buyCost,
   captureCity,
@@ -17,6 +18,7 @@ import {
   workOptions,
   createUnit,
   getTile,
+  goldPerTurn,
   lastTurnEvents,
   loadSave,
   makeSave,
@@ -770,8 +772,49 @@ describe("stopping a building's support", () => {
 });
 
 describe("bankruptcy", () => {
-  it("sells the costliest improvement when the treasury goes negative", () => {
+  function brokeCity(gold: number): { s: GameState; c: City } {
     const s = flatWorld();
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    c.buildings.push("temple", "city_walls", "granary");
+    const me = s.players[0]!;
+    me.gold = gold;
+    me.taxRate = 0;
+    me.sciRate = 6;
+    me.luxRate = 4;
+    return { s, c };
+  }
+
+  it("stops supporting buildings once the gold cannot meet the upkeep, the costliest to keep first, until the books balance", () => {
+    // 4 gold of upkeep against a gold of taxes (the trade's rounding): 2 in hand cannot pay it.
+    const { s, c } = brokeCity(2);
+    expect(goldPerTurn(s, 0)).toBe(-3);
+    applyCommand(s, { type: "endTurn" });
+    // The walls (2), then the granary (no culture) before the temple (2) on a tie: the books balance.
+    expect(c.idle).toEqual(["city_walls", "granary"]);
+    expect(c.buildings).toEqual(["palace", "temple"]);
+    expect(goldPerTurn(s, 0)).toBe(0);
+    expect(s.players[0]!.gold).toBe(2);
+    expect(lastTurnEvents.filter((e) => e.kind === "unsupported")).toEqual([
+      { city: c.id, kind: "unsupported", detail: "City Walls", building: "city_walls", upkeep: 2 },
+      { city: c.id, kind: "unsupported", detail: "Granary", building: "granary", upkeep: 1 },
+    ]);
+    expect(lastTurnEvents.some((e) => e.kind === "sold")).toBe(false);
+    // Balanced books stop nothing more.
+    expect(balanceTreasury(s, 0)).toEqual([]);
+  });
+
+  it("stops nothing while the gold still meets the turn's upkeep", () => {
+    const { s, c } = brokeCity(3);
+    applyCommand(s, { type: "endTurn" });
+    expect(c.idle).toBeUndefined();
+    expect(s.players[0]!.gold).toBe(0);
+    expect(lastTurnEvents.some((e) => e.kind === "unsupported")).toBe(false);
+  });
+
+  it("sells the costliest improvement when the treasury goes negative, in saves before version 42", () => {
+    const s = flatWorld();
+    s.sellWhenBroke = true;
     const u = createUnit(s, "settlers", 0, 10, 10);
     applyCommand(s, { type: "found", unit: u.id });
     const c = s.cities[0]!;

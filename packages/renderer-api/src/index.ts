@@ -31,6 +31,7 @@ export * from "./watch.js";
 export * from "./sites.js";
 export * from "./ranks.js";
 export * from "./panel.js";
+export * from "./treasury.js";
 export * from "./terrain-text.js";
 export * from "./places.js";
 import { squareTitle } from "./places.js";

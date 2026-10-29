@@ -30,7 +30,7 @@ import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
-import { BAD, DIM, drawButton, drawStone, drawSwatch, INK, NOTE } from "../widgets.js";
+import { BAD, DIM, drawButton, drawStone, drawSwatch, GOOD, INK, NOTE } from "../widgets.js";
 import { drawFireworks } from "../fireworks.js";
 import { drawSinking } from "../sinking.js";
 import { drawCity } from "./map-city.js";
@@ -95,7 +95,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, civNameSpots, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, territoryLabels, type MinimapButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, civNameSpots, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -670,6 +670,8 @@ interface PanelRow {
 /** Where the status panel lays out its parts: `drawStatusPanel` draws by it, `statusPartAt` and `statusPanelAt` hit-test it. */
 interface PanelLayout {
   rows: PanelRow[];
+  /** The treasury's row: the gold (red once it runs dry within `DRY_WARNING_TURNS`), then what it gains or loses a turn. */
+  treasury: { ink: number; delta: string; deltaX: number; deltaInk: number };
   /** Where tax, luxuries and science start: beside the treasury, or under it when they would not fit. */
   ratesX: number;
   ratesY: number;
@@ -697,7 +699,17 @@ function panelLayout(state: GameState, view?: MainScreenView): PanelLayout {
   add("population", 0, y, PANEL_W, 9);
   add("year", 0, y + 9, PANEL_W, 9);
   y += 18;
-  const beside = TEXT_X + iconLineWidth(`{purse}${me.gold}`) + 2;
+  // The treasury, then in brackets what it gains (green) or loses (red) a turn (asked for 2026-10-29); nothing beside it before a city.
+  const outlook = treasuryOutlook(state, me.id);
+  const delta = state.cities.some((c) => c.owner === me.id) ? `(${outlook.net > 0 ? "+" : ""}${outlook.net})` : "";
+  const deltaX = TEXT_X + iconLineWidth(`{purse}${me.gold}`) + 2;
+  const treasury = {
+    ink: outlook.dryIn !== null && outlook.dryIn <= DRY_WARNING_TURNS ? BAD : INK,
+    delta,
+    deltaX,
+    deltaInk: outlook.net > 0 ? GOOD : outlook.net < 0 ? BAD : DIM,
+  };
+  const beside = delta ? deltaX + textWidth(delta) + 3 : deltaX;
   const wrapRates = beside + iconLineWidth(ratesLine(state)) > PANEL_W - 2;
   add("gold", 0, y, wrapRates ? PANEL_W : beside, 9);
   const ratesX = wrapRates ? TEXT_X : beside;
@@ -749,7 +761,7 @@ function panelLayout(state: GameState, view?: MainScreenView): PanelLayout {
   war.splice(2);
   const bottom = war.length ? PANEL_BOTTOM - war.length * FONT_HEIGHT - 2 : PANEL_BOTTOM;
   if (war.length) add("war", 0, bottom + 1, PANEL_W, war.length * FONT_HEIGHT + 2);
-  return { rows, ratesX, ratesY, researchY, boxY, boxEnd, keys, war, bottom };
+  return { rows, treasury, ratesX, ratesY, researchY, boxY, boxEnd, keys, war, bottom };
 }
 
 /**
@@ -1063,7 +1075,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   const dim = DIM;
   drawIconLine(s, TEXT_X, row("population")!.y, `{people}${populationShort(empirePopulation(state, me.id))}`, ink);
   drawIconLine(s, TEXT_X, row("year")!.y, `{calendar} ${formatYear(turnToYear(state.turn))}`, ink);
-  drawIconLine(s, TEXT_X, row("gold")!.y, `{purse}${me.gold}`, ink);
+  drawIconLine(s, TEXT_X, row("gold")!.y, `{purse}${me.gold}`, L.treasury.ink);
+  if (L.treasury.delta) drawText(s, L.treasury.deltaX, row("gold")!.y, L.treasury.delta, L.treasury.deltaInk);
   drawIconLine(s, L.ratesX, L.ratesY, ratesLine(state), dim);
   drawIconLine(s, TEXT_X, row("government")!.y, `{crown}${GOVERNMENTS[me.government]?.name ?? me.government}`, dim);
   groove(s, drawResearch(s, state, L.researchY));

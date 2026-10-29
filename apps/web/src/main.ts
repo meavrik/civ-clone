@@ -208,6 +208,8 @@ import {
   stagedSight,
   wondersLost,
   wonderLostNotice,
+  treasuryWarning,
+  unsupportedNotice,
   type WonderLost,
   type Callout,
   type HoldFrame,
@@ -2689,6 +2691,7 @@ function eventMessage(ev: TurnEvent): string | null {
     case "starving": return `${name} is starving`;
     case "famine": return `Famine in ${name}: ${ev.detail} lost`;
     case "sold": return `${name} sells its ${ev.detail} to pay the bills`;
+    case "unsupported": return `${name} stops supporting its ${ev.detail}: the treasury is empty`;
     case "pollution": return `Pollution near ${name}!`;
     case "disbanded": return `${name} cannot support ${ev.detail}: disbanded`;
     case "borders": return `${name}'s culture spreads: its border grows`;
@@ -2752,6 +2755,17 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       const lines = lost.map((e) => `{shield} ${state.cities.find((c) => c.id === e.city)?.name ?? "A city"} can't support its ${e.detail}`);
       modal(lost.length > 1 ? "Units disbanded" : "Unit disbanded", [...lines, "Extra units cost a shield a turn."], ["OK"], () => next(), 0, next);
     }
+    else if (ev.kind === "unsupported") {
+      // Every building the empty treasury stopped supporting this turn, in one window, with the upkeep cut.
+      const stopped = [ev];
+      for (let i = 0; i < events.length; ) {
+        const e = events[i]!;
+        if (e.kind === "unsupported") { stopped.push(e); events.splice(i, 1); } else i++;
+      }
+      const notice = unsupportedNotice(state, stopped, 0);
+      sound.play("lament");
+      modal(notice.title, notice.lines, ["OK"], () => next(), 0, next);
+    }
     else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && builtNotice(state, ev.city, ev.production)) builtWindow(ev.city, ev.production, next, ev.change);
     else if (ev.kind === "contact") meet(ev.player, next);
     else if (ev.kind === "trespass" && ev.warnings === 0) { landNote(ev); next(); }
@@ -2808,6 +2822,26 @@ function endGame(end: NonNullable<ReturnType<typeof checkGameEnd>>): void {
     `Total score: ${me.total}`,
   ];
   screenState = { kind: "end", lines, rank: rankTitle(me.total) };
+}
+
+/**
+ * The turn the treasury was last said to run dry at, by game, and whether that turn itself was told: the warning
+ * (`treasuryWarning`) comes once as the gold's end draws near, again on its last turn, and anew when it nears sooner.
+ */
+let dryWarned: { seed: number; dryAt: number; last: boolean } | null = null;
+
+/**
+ * A word as our turn begins when the gold runs out within a few turns at this rate (asked for 2026-10-29: "show a
+ * message/notification when going to run out of money"), with the tax rates a button away.
+ */
+function warnTreasury(): void {
+  const w = treasuryWarning(state, 0);
+  if (!w) return;
+  const last = w.dryAt === state.turn;
+  if (dryWarned?.seed === state.seed && dryWarned.dryAt === w.dryAt && (dryWarned.last || !last)) return;
+  dryWarned = { seed: state.seed, dryAt: w.dryAt, last };
+  sound.play("deny");
+  modal(w.title, w.lines, ["Tax Rates", "Continue"], (i) => { if (i === 0) screenState = { kind: "rates" }; });
 }
 
 /** Events from another civilization's turn that the player should hear about. */
@@ -2882,6 +2916,7 @@ function passTurn(): void {
       announcePlaces();
       const end = checkGameEnd(state, FINAL_TURN);
       if (end) endGame(end);
+      else warnTreasury();
     }))));
   };
   if (wars.length) presentEvents(wars, watch); else watch();

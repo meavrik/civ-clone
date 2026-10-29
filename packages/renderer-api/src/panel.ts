@@ -30,6 +30,7 @@ import { tileIcons, type IconName } from "./icons.js";
 import { rankLine, rankProgress } from "./ranks.js";
 import { researchOutlook, sciencePerTurn } from "./research.js";
 import { TERRAIN_TEXT } from "./terrain-text.js";
+import { treasuryOutlook } from "./treasury.js";
 
 /**
  * Tips on the main screen's status panel (asked for 2026-10-26: "add tooltips for each relevant
@@ -165,9 +166,11 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
       return { title: `{calendar}${formatYear(now)}`, lines: [`Turn ${state.turn + 1}. A turn passes ${plural(step, "year")} now.`] };
     }
     case "gold": {
-      const t = treasury(state, me.id);
-      const lines = [`${signed(t.tax - t.upkeep)} gold a turn: ${t.tax} in taxes, ${t.upkeep} for the upkeep of buildings.`, "Gold buys what a city is building, and keeps its buildings."];
-      if (t.tax < t.upkeep) lines.push("When the gold runs out, a building is sold to pay.");
+      const t = treasuryOutlook(state, me.id);
+      const lines = [`${signed(t.net)} gold a turn: ${t.tax} in taxes, ${t.upkeep} for the upkeep of buildings.`, "Gold buys what a city is building, and keeps its buildings."];
+      const follows = state.sellWhenBroke ? "a city sells a building to pay" : "buildings stop being supported until the books balance";
+      if (t.dryIn !== null) lines.push(t.dryIn === 1 ? `This turn's upkeep empties it: ${follows}.` : `It runs out in ${plural(t.dryIn, "turn")}: then ${follows}.`);
+      else if (t.net < 0) lines.push(`When the gold runs out, ${follows}.`);
       return { title: `{purse}Treasury: ${me.gold} gold`, lines };
     }
     case "tax":
