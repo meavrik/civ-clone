@@ -20,7 +20,7 @@ function world(): GameState {
 }
 
 function deposit(s: GameState, x: number, y: number, id: string): void {
-  Object.assign(s.map.tiles[y * s.map.width + x]!, { special: true, deposit: id });
+  Object.assign(s.map.tiles[y * s.map.width + x]!, { special: true, deposit: id, road: true });
 }
 
 describe("planner and strategic resources", () => {

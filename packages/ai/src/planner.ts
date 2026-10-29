@@ -4,6 +4,9 @@ import {
   canExport,
   exportable,
   hasResource,
+  heldResources,
+  resourceSquares,
+  claimant,
   mayTrade,
   missingResources,
   resourceHoldings,
@@ -189,6 +192,8 @@ interface Ctx {
   science: number;
   /** Lazily computed candidate city sites on my continents. */
   sites: () => Site[];
+  /** Lazily computed squares of strategic resources on our land still wanting their road (`unroadedResources`). */
+  resourceRoads: () => ResourceRoad[];
   wantMoreCities: boolean;
   military: number;
   militaryCap: number;
@@ -391,6 +396,8 @@ function analyse(state: GameState, me: number): Ctx {
   const reach = () => (reachMap ??= landReach(state, me, cities));
   let cached: Site[] | null = null;
   const sites = () => (cached ??= findSites(state, me, continents, cities, cities.length > 0 ? reach() : null));
+  let roads: ResourceRoad[] | null = null;
+  const resourceRoads = () => (roads ??= unroadedResources(state, me));
   const atWarNow = atWarWith.length > 0;
   const tileWorker = new Map<number, number>();
   for (const c of state.cities) {
@@ -441,7 +448,7 @@ function analyse(state: GameState, me: number): Ctx {
     diplomats: units.filter((u) => unitType(u.type).flags?.includes("diplomat")).length,
     armyBuilding: cities.filter((c) => c.production.kind === "unit" && isAttacker({ type: c.production.id } as Unit)).length,
     caravans: units.filter((u) => unitType(u.type).flags?.includes("caravan")).length,
-    me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, staging, campaignReady, campaignFoot, camp, escorts, escortsWanted, income, science, sites,
+    me, p, turn: state.turn, cities, units, reports, enemies, atWarWith, continents, threat, wanted, warTarget, staging, campaignReady, campaignFoot, camp, escorts, escortsWanted, income, science, sites, resourceRoads,
     wantMoreCities: cities.length < 24,
     military: units.filter(isMilitary).length,
     militaryCap: Math.floor(cities.length * (atWarNow ? 4 : cities.every((c) => freeUnits(state, c) === 0) ? 1.5 : 2)) + 2,
@@ -2264,6 +2271,29 @@ function orderDiplomat(state: GameState, ctx: Ctx, u: Unit): void {
 
 interface Job { x: number; y: number; work: WorkKind; value: number }
 
+/** A square of a strategic resource on our land without its road, the city whose land holds it, and what a road there is worth. */
+interface ResourceRoad { x: number; y: number; city: number; value: number }
+
+/**
+ * Squares of strategic resources on our land that a road would bring into use (since save version 43 a square serves
+ * only with one, `resourceRoaded`): worth most where we lack the resource and want it, little where we hold it already.
+ */
+function unroadedResources(state: GameState, me: number): ResourceRoad[] {
+  if (state.roadlessResources || state.noResources) return [];
+  const p = state.players[me]!;
+  const held = heldResources(state, me);
+  const out: ResourceRoad[] = [];
+  for (const [id, squares] of resourceSquares(state, me, true)) {
+    for (const q of squares) {
+      const t = getTile(state.map, q.x, q.y)!;
+      if (t.road || t.railroad || TERRAIN_RULES[t.terrain].road.turns <= 0 || (t.river && !p.advances.includes("bridge_building"))) continue;
+      const city = claimant(state, q.x, q.y);
+      if (city) out.push({ x: q.x, y: q.y, city: city.id, value: held.has(id) ? 2 : wantsResource(state, me, id) ? 7 : 3 });
+    }
+  }
+  return out;
+}
+
 /** Jobs around a city, computed once per turn; a job vanishes from the list once a settler takes it. */
 function cityJobs(state: GameState, ctx: Ctx, c: City): Job[] {
   let jobs = ctx.jobs.get(c.id);
@@ -2310,6 +2340,12 @@ function terraformJobs(state: GameState, ctx: Ctx, c: City): Job[] {
       if (t.road && !t.railroad) jobs.push({ x, y, work: "railroad", value: 3 });
       else if (!t.road && !t.river && r.road.turns > 0) jobs.push({ x, y, work: "road", value: 2 });
     }
+  }
+  // A strategic resource on the city's land serves only with a road on it (since version 43).
+  for (const q of ctx.resourceRoads()) {
+    if (q.city !== c.id || ctx.units.some((o) => o.order.kind === "work" && o.x === q.x && o.y === q.y)) continue;
+    if (state.units.some((o) => o.owner !== ctx.me && o.x === q.x && o.y === q.y)) continue;
+    jobs.push({ x: q.x, y: q.y, work: "road", value: q.value });
   }
   // Pollution anywhere in the radius is worth clearing, worked or not.
   for (let s = 1; s < CITY_RADIUS.length; s++) {

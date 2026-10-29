@@ -100,6 +100,8 @@ export interface GameConfig {
   visibleResources?: boolean;
   /** A dry treasury sells a city's costliest building (`GameState.sellWhenBroke`). */
   sellWhenBroke?: boolean;
+  /** A strategic resource serves without a road on its square (`GameState.roadlessResources`). */
+  roadlessResources?: boolean;
 }
 
 export interface PlayerStats {
@@ -205,6 +207,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.lastingUnits ? { lastingUnits: true } : {}),
     ...(config.visibleResources ? { visibleResources: true } : {}),
     ...(config.sellWhenBroke ? { sellWhenBroke: true } : {}),
+    ...(config.roadlessResources ? { roadlessResources: true } : {}),
   };
 }
 

@@ -210,6 +210,8 @@ import {
   wonderLostNotice,
   treasuryWarning,
   unsupportedNotice,
+  resourcesWantingRoads,
+  roadNote,
   type WonderLost,
   type Callout,
   type HoldFrame,
@@ -1585,6 +1587,10 @@ function openProductionMenu(cityId: number, then?: () => void, title?: string, b
   const units = unitChoices(state, city).map((u): Production => ({ kind: "unit", id: u.id }));
   const opts = [...units, ...ready.filter((p) => p.kind !== "unit")];
   const missing = (p: Production) => (p.kind === "unit" ? lacking.get(p.id) : undefined);
+  // Resources we lack only for want of a road on their squares (since save version 43): said under the title.
+  const lacked = new Set([...lacking.values()].flat());
+  const roads = roadNote(resourcesWantingRoads(state, city.owner).filter((id) => lacked.has(id)));
+  if (roads) body = [...(body ?? []), roads];
   const surplus = computeCity(state, city).shieldSurplus;
   // The turns each choice takes from here, counting the shields the change would keep (all of the
   // box for its own kind of production, half for another, as the rules take); "never" while the

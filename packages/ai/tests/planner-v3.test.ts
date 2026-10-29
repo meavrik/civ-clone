@@ -358,7 +358,7 @@ describe("planner AI v3 treaties and influence", () => {
     expect(lastTurnEvents).toContainEqual(expect.objectContaining({ kind: "gift", player: 1, to: 0, gold: 40 }));
     // It learns Iron Working, lacks Iron, and we hold some.
     for (const t of s.map.tiles) delete t.deposit;
-    Object.assign(getTile(s.map, 11, 10)!, { special: true, deposit: "Iron" });
+    Object.assign(getTile(s.map, 11, 10)!, { special: true, deposit: "Iron", road: true });
     s.players[1]!.advances.push("bronze_working", "iron_working");
     s.gifts = {};
     let ask: unknown;

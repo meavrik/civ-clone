@@ -376,6 +376,11 @@ export interface GameState {
    */
   sellWhenBroke?: boolean;
   /**
+   * Strategic resources as before version 43: every square of one on a civilization's land served it. Since 43 a
+   * square serves only with a road on it (`resourceRoaded`).
+   */
+  roadlessResources?: boolean;
+  /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.
    */

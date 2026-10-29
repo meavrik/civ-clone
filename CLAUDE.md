@@ -119,6 +119,17 @@ Never ship the original's sprites, palette art, fonts or text.
   kind left to `showReveals`), even with place names off. Saves before version 40 load with `visibleResources`
   (headless `--visible-resources`). Head to head (planner vs v2, 16 x 300, seeds 1-16): hidden 10-6, score 208 vs
   179, pop 74 vs 73; visible 10-6, 213 vs 184, pop 77 vs 74; all replaying exactly.
+  Roads to resources (asked for 2026-10-29: "make roads for resources mandatory for them to be available"; save
+  version 43): a square of a strategic resource serves its civilization only with a road or railroad on it
+  (`resourceRoaded`; a city's own square has one), so held, traded and counted for builds only then
+  (`resourceSquares`, with `all` every square on the land; `ResourceHolding.unroaded`). A river square takes its
+  road only with Bridge Building, as any road. The planner's settlers build the road (`unroadedResources`, a job of
+  value 7 where it lacks and wants the resource, 3 where it lacks it, 2 where it holds it already). Told in the
+  square's window ("No use to anyone until a road is built on it"), Advisors > Resources ("no road near Rome", "2
+  near Rome, 1 no road"), the reveal note ("2 on our land (1 wanting a road)") and the build menu
+  (`resourcesWantingRoads`, `roadNote`: "Iron lies on our land without a road: build one on its square."). Saves
+  before 43 load with `roadlessResources` (headless `--roadless-resources`). Held at turn 150 (planner in every
+  seat, 6 seeds): Horses 79% of civs (92% without roads), Iron 67% (63%), Coal 46% (63%). AI_NUMBERS
   Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
   FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
   starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail

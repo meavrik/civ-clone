@@ -114,6 +114,8 @@ export interface NewGameOptions extends MapGenOptions {
   visibleResources?: boolean;
   /** A dry treasury sells a building (see `GameState.sellWhenBroke`). Old saves load with it. */
   sellWhenBroke?: boolean;
+  /** A strategic resource serves without a road (see `GameState.roadlessResources`). Old saves load with it. */
+  roadlessResources?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -301,6 +303,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.lastingUnits ? { lastingUnits: true } : {}),
     ...(opts.visibleResources ? { visibleResources: true } : {}),
     ...(opts.sellWhenBroke ? { sellWhenBroke: true } : {}),
+    ...(opts.roadlessResources ? { roadlessResources: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

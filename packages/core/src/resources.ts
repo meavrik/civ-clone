@@ -7,7 +7,7 @@ import { getTile, wrapX, type GameState, type ResourceTrade, type Tile } from ".
 
 /**
  * Who holds which strategic resource (rules/resources.ts): the squares of it on a civilization's land
- * (`claims`), less those it trades away, and those traded to it (`GameState.resourceTrades`). A unit
+ * (`claims`) with a road on them (`resourceRoaded`; since save version 43), less those it trades away, and those traded to it (`GameState.resourceTrades`). A unit
  * that needs a resource is built only while its civilization holds it; units already in the field
  * keep going without. A civilization trades away only a square it holds and has not traded already,
  * never what it was traded itself, so a trade can hand over its last one. Trades end with a war
@@ -78,11 +78,36 @@ export interface ResourceHolding {
   imported: number;
   /** It may build what needs it. */
   has: boolean;
+  /** Squares of it on its land without a road, of no use until one is built (`resourceRoaded`). */
+  unroaded: number;
 }
 
-/** The squares of each strategic resource on `player`'s land, by resource id (each square once, counted for the city whose border holds it). */
-export function resourceSquares(state: GameState, player: number): Map<string, { x: number; y: number }[]> {
+/**
+ * Whether a square of a strategic resource serves the civilization whose land it lies on (asked for 2026-10-29: "make
+ * roads for resources mandatory for them to be available"; save version 43): a road or railroad on it, as every
+ * city's own square has. A river square takes a road only with Bridge Building. In saves before 43
+ * (`roadlessResources`) every square on the land served.
+ */
+export function resourceRoaded(state: GameState, tile: Pick<Tile, "road" | "railroad">): boolean {
+  return state.roadlessResources === true || tile.road || tile.railroad;
+}
+
+/**
+ * The squares of each strategic resource on `player`'s land that serve it (`resourceRoaded`), by resource id (each
+ * square once, counted for the city whose border holds it); with `all`, those without a road too.
+ */
+export function resourceSquares(state: GameState, player: number, all = false): Map<string, { x: number; y: number }[]> {
   const out = new Map<string, { x: number; y: number }[]>();
+  for (const [id, list] of landResources(state, player)) {
+    const keep = all ? list : list.filter((q) => q.roaded);
+    if (keep.length) out.set(id, keep.map(({ x, y }) => ({ x, y })));
+  }
+  return out;
+}
+
+/** Every square of each strategic resource on `player`'s land, and whether it has its road. */
+function landResources(state: GameState, player: number): Map<string, { x: number; y: number; roaded: boolean }[]> {
+  const out = new Map<string, { x: number; y: number; roaded: boolean }[]>();
   const { map } = state;
   const seen = new Set<number>();
   for (const c of state.cities) {
@@ -102,9 +127,10 @@ export function resourceSquares(state: GameState, player: number): Map<string, {
         if (!id || !RESOURCE_BY_ID[id]) continue;
         seen.add(i);
         if (claimant(state, x, y)?.owner !== player) continue;
+        const square = { x, y, roaded: resourceRoaded(state, t) };
         const list = out.get(id);
-        if (list) list.push({ x, y });
-        else out.set(id, [{ x, y }]);
+        if (list) list.push(square);
+        else out.set(id, [square]);
       }
     }
   }
@@ -123,10 +149,11 @@ export function tradeSides(t: ResourceTrade, player: number): { gives: string | 
 
 /** How `player` stands with every strategic resource, in `RESOURCES` order. */
 export function resourceHoldings(state: GameState, player: number): ResourceHolding[] {
-  const squares = resourceSquares(state, player);
+  const squares = landResources(state, player);
   const trades = tradesOf(state, player);
   return RESOURCES.map((r) => {
-    const own = squares.get(r.id)?.length ?? 0;
+    const all = squares.get(r.id) ?? [];
+    const own = all.filter((q) => q.roaded).length;
     let exported = 0;
     let imported = 0;
     for (const t of trades) {
@@ -134,7 +161,7 @@ export function resourceHoldings(state: GameState, player: number): ResourceHold
       if (gives === r.id) exported++;
       if (gets === r.id) imported++;
     }
-    return { id: r.id, own, exported, imported, has: own - exported + imported > 0 };
+    return { id: r.id, own, exported, imported, has: own - exported + imported > 0, unroaded: all.length - own };
   });
 }
 

@@ -5,8 +5,10 @@ import {
   applyCommand,
   CLASSIC_ADVANCES,
   buildOptions,
+  canExport,
   createUnit,
   foundCity,
+  getTile,
   hasResource,
   heldResources,
   lastTurnEvents,
@@ -19,6 +21,7 @@ import {
   resourceHoldings,
   resourceKnown,
   RESOURCES,
+  resourceSquares,
   revealedBy,
   seesResource,
   setRelation,
@@ -47,11 +50,12 @@ function world(): GameState {
   return s;
 }
 
-/** Lay a deposit of `id` at (x, y). */
-function deposit(s: GameState, x: number, y: number, id: string): void {
+/** Lay a deposit of `id` at (x, y), with a road on it unless `road` is false (a square serves only with one). */
+function deposit(s: GameState, x: number, y: number, id: string, road = true): void {
   const t = s.map.tiles[y * s.map.width + x]!;
   t.special = true;
   t.deposit = id;
+  t.road = road;
 }
 
 const ids = (s: GameState, c: Parameters<typeof buildOptions>[1]) => buildOptions(s, c).map((p) => p.id);
@@ -92,7 +96,7 @@ describe("strategic resources", () => {
     deposit(s, 11, 11, "Iron");
     expect(hasResource(s, 0, "Iron")).toBe(true);
     expect(ids(s, rome)).toContain("legion");
-    expect(resourceHoldings(s, 0).find((h) => h.id === "Iron")).toEqual({ id: "Iron", own: 1, exported: 0, imported: 0, has: true });
+    expect(resourceHoldings(s, 0).find((h) => h.id === "Iron")).toEqual({ id: "Iron", own: 1, exported: 0, imported: 0, has: true, unroaded: 0 });
     // A rival's city nearer the square takes it, and the iron with it.
     foundCity(s, 1, 12, 11);
     expect(hasResource(s, 0, "Iron")).toBe(false);
@@ -103,6 +107,37 @@ describe("strategic resources", () => {
     s.map.tiles[11 * s.map.width + 11]!.special = false;
     expect(ids(s, rome)).toContain("chariot");
     expect(heldResources(s, 0).size).toBe(RESOURCES.length);
+  });
+
+  it("serves only with a road on its square, a city's own square having one; old saves need none", () => {
+    const s = world();
+    const rome = foundCity(s, 0, 10, 10);
+    deposit(s, 11, 11, "Iron", false);
+    expect(hasResource(s, 0, "Iron")).toBe(false);
+    expect(ids(s, rome)).not.toContain("legion");
+    expect(resourceHoldings(s, 0).find((h) => h.id === "Iron")).toEqual({ id: "Iron", own: 0, exported: 0, imported: 0, has: false, unroaded: 1 });
+    expect(resourceSquares(s, 0).get("Iron")).toBeUndefined();
+    expect(resourceSquares(s, 0, true).get("Iron")).toEqual([{ x: 11, y: 11 }]);
+    // None to trade away either.
+    expect(canExport(s, 0, "Iron")).toBe(false);
+    // Settlers build the road: the iron serves.
+    const u = createUnit(s, "settlers", 0, 11, 11);
+    expect(applyCommand(s, { type: "work", unit: u.id, work: "road" }).ok).toBe(true);
+    s.currentPlayer = 0;
+    for (let i = 0; i < 4 && !getTile(s.map, 11, 11)!.road; i++) { applyCommand(s, { type: "endTurn" }); s.currentPlayer = 0; }
+    expect(getTile(s.map, 11, 11)!.road).toBe(true);
+    expect(hasResource(s, 0, "Iron")).toBe(true);
+    expect(ids(s, rome)).toContain("legion");
+    // A city on the square brings its road.
+    const t = getTile(s.map, 11, 11)!;
+    t.road = false;
+    deposit(s, 20, 10, "Horses", false);
+    expect(hasResource(s, 0, "Horses")).toBe(false);
+    foundCity(s, 0, 20, 10);
+    expect(hasResource(s, 0, "Horses")).toBe(true);
+    // Saves before version 43: every square on the land serves.
+    s.roadlessResources = true;
+    expect(hasResource(s, 0, "Iron")).toBe(true);
   });
 
   it("holds a unit whose resource is gone, its shields kept, telling the city once", () => {

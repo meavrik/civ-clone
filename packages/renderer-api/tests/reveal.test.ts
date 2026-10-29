@@ -32,8 +32,15 @@ describe("resources revealed by an advance", () => {
     expect(newTechCard(s, "bronze_working").unlocks).toContainEqual({ icon: "gem", name: "Iron", kind: "now on the map", resource: "Iron" });
     expect(knownResourceSquares(s, 0).size).toBe(2);
     expect(terrainInfo(s, 21, 21).lines.join(" ")).toContain("Iron is needed for");
+    // No road on its square yet: of no use, and said so (since save version 43).
+    expect(terrainInfo(s, 21, 21).lines).toContain("{road} No use to anyone until a road is built on it");
     const [rv] = resourceReveals(s, 0, ["bronze_working"]);
-    expect(rv).toMatchObject({ id: "Iron", focus: { x: 21, y: 21 }, text: "Iron revealed: 1 on our land, 1 nearby" });
+    expect(rv).toMatchObject({ id: "Iron", focus: { x: 21, y: 21 }, text: "Iron revealed: 1 on our land (1 wanting a road), 1 nearby" });
+    expect(resourcesReport(s).lines.find((l) => l.text === "Iron")).toMatchObject({ right: "no road near Rome", dim: true });
+    getTile(s.map, 21, 21)!.road = true;
+    expect(resourceReveals(s, 0, ["bronze_working"])[0]!.text).toBe("Iron revealed: 1 on our land, 1 nearby");
+    expect(resourcesReport(s).lines.find((l) => l.text === "Iron")).toMatchObject({ right: "1 near Rome", dim: false });
+    expect(terrainInfo(s, 21, 21).lines.join(" ")).not.toContain("until a road");
     expect(rv!.squares).toHaveLength(2);
     expect(resourceReveals(s, 0, ["pottery"])).toEqual([]);
   });

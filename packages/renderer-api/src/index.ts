@@ -61,6 +61,7 @@ import {
   buildingCulture,
   CITY_RADIUS,
   resourceAt,
+  resourceRoaded,
   advance,
   attrition,
   attritionCure,
@@ -818,6 +819,7 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   // A strategic resource says which units want it (rules/resources.ts).
   const strategic = resourceAt(state, x, y, me.id);
   if (strategic) lines.push(resourceNote(strategic));
+  if (strategic && !resourceRoaded(state, t)) lines.push(`{road} No use to anyone until a road is built on it`);
   if (t.pollution) lines.push("{pollution} Polluted: output halved");
   if (t.hut) lines.push("{hut} A tribal village");
   if (roadOnly(state, t) && !t.road) lines.push("{road} Settlers only, until a road");

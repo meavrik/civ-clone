@@ -642,7 +642,7 @@ describe("a computer leader's demands and requests", () => {
     const s = court();
     for (const t of s.map.tiles) delete t.deposit;
     const ours = s.cities.find((c) => c.owner === 0)!;
-    Object.assign(getTile(s.map, ours.x + 1, ours.y)!, { special: true, deposit: "Iron" });
+    Object.assign(getTile(s.map, ours.x + 1, ours.y)!, { special: true, deposit: "Iron", road: true });
     s.currentPlayer = 1;
     expect(applyCommand(s, { type: "askResource", player: 0, want: "Horses", gold: 30 }).ok).toBe(false); // we have none
     expect(applyCommand(s, { type: "askResource", player: 0, want: "Iron", gold: 30 }).ok).toBe(true);

@@ -78,7 +78,7 @@ describe("a talk with a foreign leader", () => {
     expect(talkTopics(s, 0, 1, { said: [] }, false, true).propose).toEqual(["pact", "resources"]);
     expect(talkTopics(s, 0, 1, { said: [] }, false, false).propose).toEqual(["pact"]);
     expect(talkTopics(s, 0, 1, { said: [] }, false).gift).not.toContain("resource");
-    Object.assign(s.map.tiles[11 * s.map.width + 11]!, { special: true, deposit: "Iron" });
+    Object.assign(s.map.tiles[11 * s.map.width + 11]!, { special: true, deposit: "Iron", road: true });
     expect(talkTopics(s, 0, 1, { said: [] }, false).gift).toContain("resource");
     expect(applyCommand(s, { type: "tradeResources", player: 1, give: "Iron" }).ok).toBe(true);
     expect(talkTopics(s, 0, 1, { said: [] }, false).demand).toContain("endTrade");
