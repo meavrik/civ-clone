@@ -210,6 +210,8 @@ import {
   unsupportedNotice,
   endCard,
   type EndCard,
+  cityStateDemandCard,
+  cityStateTitle,
   resourcesWantingRoads,
   roadNote,
   type WonderLost,
@@ -811,6 +813,8 @@ function saveLabel(s: SaveGame): string {
 }
 
 function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0): void {
+  // Every new game has city-states (asked for 2026-10-29), but with ?citystates=off.
+  if (opts.cityStates === undefined) opts = { ...opts, cityStates: new URLSearchParams(location.search).get("citystates") !== "off" };
   options = opts;
   state = newGame(seed, opts);
   renderer.prepare?.(state);
@@ -2645,11 +2649,15 @@ function eventMessage(ev: TurnEvent): string | null {
   if (!("city" in ev)) {
     switch (ev.kind) {
       case "warDeclared": return `The ${state.players[ev.player]?.name} declare war!`;
-      case "cityLost": return ev.by === state.barbarians ? `Barbarians sack ${ev.name}!` : `${ev.name} has been destroyed!`;
+      case "cityLost": return ev.byCityState ? `${cityStateTitle(ev.byCityState)} sacks ${ev.name}!`.replace(/^t/, "T")
+        : ev.by === state.barbarians ? `Barbarians sack ${ev.name}!` : `${ev.name} has been destroyed!`;
       case "cityCaptured":
-        return ev.by === state.barbarians ? `Barbarians capture ${ev.name}!`
+        return ev.byCityState ? `${cityStateTitle(ev.byCityState)} takes ${ev.name}!`.replace(/^t/, "T")
+          : ev.by === state.barbarians ? `Barbarians capture ${ev.name}!`
+          : ev.cityState ? `${ev.name} falls: ${cityStateTitle(ev.cityState)} is no more!`
           : ev.player === state.barbarians ? `${ev.name} is freed from the barbarians!`
           : `${ev.name} captured!`;
+      case "cityStateTribute": return ev.paid ? `${ev.name} takes our ${ev.gold} gold and leaves us be.` : `We refuse ${ev.name}: its warriors march on.`;
       case "unitLost": return `${ev.unit} lost to the ${state.players[ev.by]?.name}`;
       case "barbarians": return ev.sea ? `Barbarian ships sighted off ${ev.near}!` : `Barbarians rise up near ${ev.near}!`;
       case "ransom": return `Barbarian leader captured! ${ev.amount} gold ransom.`;
@@ -2789,6 +2797,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
     else if (ev.kind === "peaceOffer" && ev.to === 0) peaceOfferAudience(ev.player, next);
     else if (ev.kind === "proposal" && ev.to === 0) proposalAudience(ev.player, ev.proposal, next);
     else if (ev.kind === "gift" && ev.to === 0) giftAudience(ev.player, ev.gold, next);
+    else if (ev.kind === "cityStateDemand" && ev.player === 0) cityStateDemand(ev, next);
     else if (ev.kind === "chooseResearch") askResearch(next);
     else if (ev.kind === "chooseGovernment") openGovernmentMenu({ kind: "map" }, next);
     else if (ev.kind === "disorder" && state.cities.find((c) => c.id === ev.city)?.owner === 0) {
@@ -2839,8 +2848,24 @@ function warnTreasury(): void {
   modal(w.title, w.lines, ["Tax Rates", "Continue"], (i) => { if (i === 0) screenState = { kind: "rates" }; });
 }
 
+/**
+ * A city-state's demand for tribute (asked for 2026-10-29: "player could only conquer them or pay tribute"): its
+ * price for leaving us be a while, or Refuse (the default, and the close box) and fight.
+ */
+function cityStateDemand(ev: Extract<TurnEvent, { kind: "cityStateDemand" }>, then: () => void): void {
+  const card = cityStateDemandCard(state, ev, 0);
+  sound.play("war");
+  const answer = (pay: boolean): void => {
+    dispatch({ type: "cityStateTribute", city: ev.from, pay });
+    say(pay ? `${ev.name} takes our ${ev.gold} gold and leaves us be.` : `We refuse ${ev.name}: its warriors march on.`, 4000);
+    then();
+  };
+  modal(card.title, card.lines, card.buttons, (i) => answer(card.canPay && i === 0), card.buttons.length - 1, () => answer(false));
+}
+
 /** Events from another civilization's turn that the player should hear about. */
 function concernsUs(ev: TurnEvent): boolean {
+  if (ev.kind === "cityStateDemand") return ev.player === 0;
   if (ev.kind === "cityLost" || ev.kind === "cityCaptured" || ev.kind === "barbarians") return ev.player === 0;
   if (ev.kind === "warDeclared") return ev.on === 0;
   if (ev.kind === "leaveDemand") return ev.to === 0;

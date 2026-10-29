@@ -57,6 +57,7 @@ import { discoverExplored } from "./map/geography.js";
 import { findPath, stepDir } from "./pathfind.js";
 import { landOwner } from "./territory.js";
 import { chronicleOf, notePeaks } from "./chronicle.js";
+import { boughtOff, demandOn, dropDemand, payTribute, settleCityStates, tributePrice, unitCityState, whyNoDemand } from "./city-states.js";
 import { addTrade, endTrades, missingResources, settleTrades, whyNoTrade } from "./resources.js";
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, researchCost } from "./rules/advances.js";
 import { building } from "./rules/buildings.js";
@@ -130,6 +131,8 @@ export type Command =
   | { type: "tradeResources"; player: number; give?: string; receive?: string } // we let `player` have `give`, it lets us have `receive`: a swap, a gift, or one bought (its gold given first)
   | { type: "endTrade"; player: number } // call off every resource trade with `player`
   | { type: "launch" } // the spaceship, once it can fly
+  | { type: "cityStateDemand"; city: number; player: number; target?: number } // a city-state (the barbarians' seat) demands tribute of `player`, its soldiers set out for `target`
+  | { type: "cityStateTribute"; city: number; pay: boolean } // the current player pays city-state `city` its demand (its peace for a while), or refuses
   | { type: "cheat"; cheat: Cheat } // the debug menu; logged like any order so saves still replay
   | { type: "endTurn" };
 
@@ -159,10 +162,12 @@ export type TurnEvent =
   | { kind: "peaceOffer"; player: number; to: number } // `player` offers `to` a peace treaty
   | { kind: "proposal"; player: number; to: number; proposal: Proposal } // `player` demands or asks something of `to`
   | { kind: "gift"; player: number; to: number; gold: number } // `player` gives `to` gold
+  | { kind: "cityStateDemand"; from: number; name: string; player: number; gold: number; target?: string } // city-state `name` demands tribute of `player`, marching on `target`
+  | { kind: "cityStateTribute"; from: number; name: string; player: number; gold: number; paid: boolean; until?: number } // `player` paid it (left be until `until`) or refused
   // `by` took `player`'s city: razed (`cityLost`) or held (`cityCaptured`, its id `cityId`), at (x, y), with
   // the gold carried off (`plunder`) and whether it was `player`'s capital, for the window that tells of it.
-  | { kind: "cityLost"; name: string; player: number; by: number; x: number; y: number; plunder: number; capital: boolean }
-  | { kind: "cityCaptured"; name: string; player: number; by: number; cityId: number; x: number; y: number; plunder: number; capital: boolean }
+  | { kind: "cityLost"; name: string; player: number; by: number; x: number; y: number; plunder: number; capital: boolean; cityState?: string; byCityState?: string }
+  | { kind: "cityCaptured"; name: string; player: number; by: number; cityId: number; x: number; y: number; plunder: number; capital: boolean; cityState?: string; byCityState?: string }
   | { kind: "unitLost"; unit: string; by: number }
   // `player`'s ship (`type`, a Trireme) left on deep water at its turn's end sank at (x, y), with `cargo` units aboard.
   | { kind: "lostAtSea"; player: number; type: string; x: number; y: number; cargo: number }
@@ -250,6 +255,32 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       p.spaceship.launched = state.turn;
       p.spaceship.arrives = state.turn + st.flightTurns;
       lastTurnEvents.push({ kind: "spaceLaunched", player: p.id });
+      return { ok: true };
+    }
+    case "cityStateDemand": {
+      if (state.currentPlayer !== state.barbarians) return { ok: false, reason: "not a city-state" };
+      const city = state.cities.find((c) => c.id === cmd.city);
+      const why = whyNoDemand(state, city, cmd.player);
+      if (why) return { ok: false, reason: why };
+      const target = cmd.target !== undefined ? state.cities.find((c) => c.id === cmd.target && c.owner === cmd.player) : undefined;
+      const gold = tributePrice(state, cmd.player);
+      (state.cityStateDemands ??= []).push({ city: cmd.city, player: cmd.player, gold, turn: state.turn, ...(target ? { target: target.id } : {}) });
+      lastTurnEvents.push({ kind: "cityStateDemand", from: cmd.city, name: city!.name, player: cmd.player, gold, ...(target ? { target: target.name } : {}) });
+      return { ok: true };
+    }
+    case "cityStateTribute": {
+      const me = state.players[state.currentPlayer]!;
+      const d = demandOn(state, cmd.city, me.id);
+      if (!d) return { ok: false, reason: "nothing asked" };
+      const name = state.cities.find((c) => c.id === cmd.city)?.name ?? "";
+      if (!cmd.pay) {
+        dropDemand(state, d);
+        lastTurnEvents.push({ kind: "cityStateTribute", from: cmd.city, name, player: me.id, gold: d.gold, paid: false });
+        return { ok: true };
+      }
+      if (me.gold < d.gold) return { ok: false, reason: "not enough gold" };
+      const until = payTribute(state, d);
+      lastTurnEvents.push({ kind: "cityStateTribute", from: cmd.city, name, player: me.id, gold: d.gold, paid: true, until });
       return { ok: true };
     }
     case "declareWar": {
@@ -615,11 +646,15 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
       return { ok: false, reason: "treaty" };
     }
     if (unitType(u.type).domain !== "land") return { ok: false, reason: "only land units take cities" };
+    if (boughtOff(state, u, city.owner)) return { ok: false, reason: "tribute paid" };
     const prevOwner = city.owner;
     const { name, id, x, y } = city;
     const capital = city.buildings.includes("palace");
+    // City-states on either side, for the words: the one taken, and the one whose soldiers took it.
+    const lostState = city.cityState;
+    const byState = unitCityState(state, u)?.cityState;
     const cap = captureCity(state, u, city);
-    const taken = { name, player: prevOwner, by: u.owner, x, y, plunder: cap.plunder, capital };
+    const taken = { name, player: prevOwner, by: u.owner, x, y, plunder: cap.plunder, capital, ...(lostState ? { cityState: lostState } : {}), ...(byState ? { byCityState: byState } : {}) };
     lastTurnEvents.push(cap.captured ? { kind: "cityCaptured", cityId: id, ...taken } : { kind: "cityLost", ...taken });
     if (cap.shipLost) lastTurnEvents.push({ kind: "spaceLost", player: prevOwner });
     for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
@@ -943,7 +978,7 @@ function clampRates(p: Player): void {
 
 function applyCityCommand(
   state: GameState,
-  cmd: Extract<Command, { city: number }>,
+  cmd: Exclude<Extract<Command, { city: number }>, { type: "cityStateDemand" | "cityStateTribute" }>,
 ): CommandResult {
   const city = cityById(state, cmd.city);
   if (!city) return { ok: false, reason: "no such city" };
@@ -1393,6 +1428,8 @@ export function startTurn(state: GameState, player: number): void {
   recomputeVisibility(state, player);
   for (const met of detectContacts(state, player)) lastTurnEvents.push({ kind: "contact", player: met });
   clearTrespass(state, player);
+  // The city-states' demands not answered lapse as their turn comes round, and peace that has run out ends.
+  if (player === state.barbarians) settleCityStates(state);
   // What this player asked of others and was not answered lapses as its turn comes round again.
   for (const k of Object.keys(state.proposals ?? {})) if (k.startsWith(`${player}>`)) delete state.proposals![k];
   // Resource trades whose giver has lost what it gave, or whose sides are at war, end now.

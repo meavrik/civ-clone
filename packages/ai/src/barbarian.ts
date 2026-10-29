@@ -2,6 +2,10 @@ import {
   applyCommand,
   attackOdds,
   barbarianUnits,
+  CITY_STATE,
+  cityStateUnit,
+  peaceUntil,
+  unitCityState,
   bestDefender,
   cargo,
   cityAt,
@@ -40,9 +44,11 @@ const LOOT_DISTANCE = 3;
 export function barbarianTurn(state: GameState): void {
   const me = state.currentPlayer;
   const mine = () => state.units.filter((u) => u.owner === me);
-  for (const c of state.cities) if (c.owner === me) produce(state, c);
+  for (const c of state.cities) if (c.owner === me) (c.cityState !== undefined ? cityStateProduce(state, c) : produce(state, c));
+  // The city-states first: their soldiers keep to their own ways (`cityStateTurn`).
+  for (const c of state.cities.filter((x) => x.owner === me && x.cityState !== undefined)) cityStateTurn(state, c);
   for (const boat of mine().filter((u) => unitType(u.type).domain === "sea")) sail(state, boat);
-  for (const u of mine().filter((u) => isSoldier(u) && u.aboard === null)) if (state.units.includes(u)) fight(state, u);
+  for (const u of mine().filter((u) => isSoldier(u) && u.aboard === null && !unitCityState(state, u))) if (state.units.includes(u)) fight(state, u);
   for (const u of mine().filter(isLeader)) if (state.units.includes(u)) lead(state, u);
   // A boat whose raiders are ashore, or that carries only their leader, sails off.
   for (const boat of mine().filter((u) => unitType(u.type).domain === "sea")) {
@@ -228,6 +234,63 @@ function march(state: GameState, u: Unit): City | null {
   const near = citiesByDistance(state, u.x, u.y).filter((c) => getTile(state.map, c.x, c.y)!.continent === here);
   for (const c of near.slice(0, 3)) if (findPath(state, u, c.x, c.y)) return c;
   return null;
+}
+
+// ---- city-states -------------------------------------------------------------------------
+
+/** A city-state raises defenders until its garrison stands, then attackers (`cityStateUnit`: a step behind the world). */
+function cityStateProduce(state: GameState, c: City): void {
+  const guards = state.units.filter((o) => o.homeCity === c.id && o.x === c.x && o.y === c.y && isSoldier(o)).length;
+  const best = cityStateUnit(state, guards < CITY_STATE.garrison ? "defense" : "attack");
+  if (c.production.kind !== "unit" || c.production.id !== best) applyCommand(state, { type: "setProduction", city: c.id, production: { kind: "unit", id: best } });
+}
+
+/**
+ * A city-state's soldiers (asked for 2026-10-29: "only produce war units to attack occasionally"): its best
+ * defenders hold the city, sallying only at good odds. The rest wait at home until there are `CITY_STATE.raid` of
+ * them (and the turn is past `grace`), then set out together for the nearest civilization's city within reach on
+ * their land whose owner has not paid them off, its owner first asked for tribute (`cityStateDemand`); on the way
+ * they strike what they meet. With no city to raid they go home.
+ */
+function cityStateTurn(state: GameState, c: City): void {
+  const units = state.units.filter((u) => u.homeCity === c.id && u.owner === c.owner && isSoldier(u) && u.aboard === null);
+  const home = units.filter((u) => u.x === c.x && u.y === c.y).sort((a, b) => unitType(b.type).defense - unitType(a.type).defense || a.id - b.id);
+  const garrison = new Set(home.slice(0, CITY_STATE.garrison).map((u) => u.id));
+  for (const g of home.filter((u) => garrison.has(u.id))) if (!strike(state, g, SALLY_ODDS, SALLY_ODDS) && g.order.kind !== "fortified") applyCommand(state, { type: "fortify", unit: g.id });
+  const spare = units.filter((u) => !garrison.has(u.id));
+  const out = spare.filter((u) => u.x !== c.x || u.y !== c.y);
+  const target = state.turn >= CITY_STATE.grace && spare.length && (out.length || spare.length >= CITY_STATE.raid) ? raidTarget(state, c, spare[0]!) : null;
+  if (!target) {
+    for (const u of spare) {
+      if (u.x === c.x && u.y === c.y) { if (u.order.kind !== "fortified") applyCommand(state, { type: "fortify", unit: u.id }); }
+      else applyCommand(state, { type: "goto", unit: u.id, x: c.x, y: c.y });
+    }
+    return;
+  }
+  // A raid setting out: its target's owner is asked for tribute first (refused when they cannot pay, or paid already).
+  if (!out.length) applyCommand(state, { type: "cityStateDemand", city: c.id, player: target.owner, target: target.id });
+  for (const u of spare) raid(state, u, target);
+}
+
+/** The nearest city of a civilization within `CITY_STATE.reach` on the city-state's land, not paid off, that `u` can walk to. */
+function raidTarget(state: GameState, c: City, u: Unit): City | null {
+  const land = getTile(state.map, c.x, c.y)!.continent;
+  const near = citiesByDistance(state, c.x, c.y).filter((t) =>
+    mapDistance(state.map, c.x, c.y, t.x, t.y) <= CITY_STATE.reach && getTile(state.map, t.x, t.y)!.continent === land && peaceUntil(state, c.id, t.owner) === undefined);
+  for (const t of near.slice(0, 3)) if (findPath(state, u, t.x, t.y)) return t;
+  return null;
+}
+
+/** A raider's turn: strike what it meets (a city at long odds), else march on the target. */
+function raid(state: GameState, u: Unit, target: City): void {
+  for (let guard = 0; guard < 4 && state.units.includes(u) && u.movesLeft > 0; guard++) {
+    if (strike(state, u, ATTACK_ODDS, STORM_ODDS)) continue;
+    const before = u.movesLeft;
+    if (!applyCommand(state, { type: "goto", unit: u.id, x: target.x, y: target.y }).ok || u.movesLeft === before) {
+      if (u.order.kind !== "fortified") applyCommand(state, { type: "fortify", unit: u.id });
+      return;
+    }
+  }
 }
 
 // ---- the leader --------------------------------------------------------------------------

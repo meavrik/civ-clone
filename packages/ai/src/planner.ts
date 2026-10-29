@@ -113,6 +113,7 @@ export function plannerTurn(state: GameState): void {
   if (me === state.barbarians) { baselineTurn(state); return; }
 
   const ctx = analyse(state, me);
+  answerCityStates(state, ctx);
   manageResearch(state, ctx);
   manageGovernment(state, ctx);
   manageDiplomacy(state, ctx);
@@ -288,8 +289,9 @@ function analyse(state: GameState, me: number): Ctx {
   const continents = new Set<number>();
   for (const c of cities) continents.add(getTile(state.map, c.x, c.y)!.continent);
   if (continents.size === 0) for (const u of units) continents.add(getTile(state.map, u.x, u.y)!.continent);
-  // A city the barbarians hold on our own land is a war to win back, like any other.
-  if (state.cities.some((c) => c.owner === state.barbarians && continents.has(getTile(state.map, c.x, c.y)!.continent))) atWarWith.push(state.barbarians);
+  // A city the barbarians hold on our own land is a war to win back, like any other; a city-state once we have
+  // `CITY_STATE_WAR` cities (before, our soldiers only meet its raids).
+  if (state.cities.some((c) => c.owner === state.barbarians && (c.cityState === undefined || cities.length >= CITY_STATE_WAR) && continents.has(getTile(state.map, c.x, c.y)!.continent))) atWarWith.push(state.barbarians);
 
   const hostile = state.units.filter((u) => enemies.has(u.owner) && isMilitary(u) && u.aboard === null);
   const threat = new Map<number, number>();
@@ -729,6 +731,21 @@ function manageRates(state: GameState, ctx: Ctx): void {
   if (tax > max) { tax = max; lux = 10 - tax - sci; }
   if (lux > max) return;
   if (tax !== p.taxRate || lux !== p.luxRate || sci !== p.sciRate) applyCommand(state, { type: "setRates", tax, lux, sci });
+}
+
+/** Cities we hold before a city-state on our land counts as a war to win back. */
+const CITY_STATE_WAR = 4;
+
+/**
+ * A city-state's demand for tribute (since save version 45): paid while the treasury keeps its cushion after it
+ * (the planner's tax floor), else refused, and its soldiers met in the field.
+ */
+function answerCityStates(state: GameState, ctx: Ctx): void {
+  for (const d of [...(state.cityStateDemands ?? [])]) {
+    if (d.player !== ctx.me) continue;
+    const pay = ctx.p.gold - d.gold >= 15 + 3 * ctx.cities.length;
+    applyCommand(state, { type: "cityStateTribute", city: d.city, pay });
+  }
 }
 
 /**

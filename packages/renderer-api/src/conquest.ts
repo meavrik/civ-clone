@@ -1,4 +1,5 @@
 import { civ, wonder, type GameState, type TurnEvent } from "@civ/core";
+import { cityStateTitle } from "./city-states.js";
 import { hash } from "./hash.js";
 import type { IconName } from "./icons.js";
 
@@ -91,8 +92,11 @@ export function conquestCard(state: GameState, view: ConquestView): ConquestCard
   const city = held ? state.cities.find((c) => c.id === ev.cityId) : undefined;
   const loser = people(state, ev.player);
   const winner = people(state, ev.by);
-  const fromBarbarians = ev.player === state.barbarians;
-  const byBarbarians = ev.by === state.barbarians;
+  // A city-state (held by the barbarians' seat) is told by its own name: the one taken, the one whose soldiers took it.
+  const fromState = ev.cityState !== undefined ? cityStateTitle(ev.cityState) : undefined;
+  const byState = ev.byCityState !== undefined ? cityStateTitle(ev.byCityState) : undefined;
+  const fromBarbarians = ev.player === state.barbarians && !fromState;
+  const byBarbarians = ev.by === state.barbarians && !byState;
   const facts: ConquestFact[] = [];
   const wonders = city?.wonders ?? [];
   // "Wonder lost: Pyramids", "Wonders won: Colossus, Oracle" (names alone: some are plural, some not).
@@ -110,7 +114,7 @@ export function conquestCard(state: GameState, view: ConquestView): ConquestCard
       won,
       title: held ? "City Conquered" : "City Razed",
       name: ev.name,
-      where: held && fromBarbarians ? "Freed from the Barbarians" : `Taken from the ${loser.name}`,
+      where: fromState ? `Taken from ${fromState}` : held && fromBarbarians ? "Freed from the Barbarians" : `Taken from the ${loser.name}`,
       words: !held ? "Victory! Its walls are thrown down." : fromBarbarians ? "Its people hail us as their liberators!" : pick(CHEER_TAKEN, ev),
       facts: facts.slice(0, CONQUEST_FACTS),
       buttons: held && city?.owner === view.viewer ? ["View City", "Continue"] : [],
@@ -127,7 +131,8 @@ export function conquestCard(state: GameState, view: ConquestView): ConquestCard
     won,
     title: held ? "City Lost" : "City Destroyed",
     name: ev.name,
-    where: held ? (byBarbarians ? "Seized by the Barbarians" : `Taken by the ${winner.name}`) : (byBarbarians ? "Burned by the Barbarians" : `Razed by the ${winner.name}`),
+    where: held ? (byState ? `Seized by ${byState}` : byBarbarians ? "Seized by the Barbarians" : `Taken by the ${winner.name}`)
+      : (byState ? `Burned by ${byState}` : byBarbarians ? "Burned by the Barbarians" : `Razed by the ${winner.name}`),
     words: pick(held ? MOURN_TAKEN : MOURN_RAZED, ev),
     facts: facts.slice(0, CONQUEST_FACTS),
     buttons: [],

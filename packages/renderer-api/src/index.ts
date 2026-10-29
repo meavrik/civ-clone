@@ -34,6 +34,7 @@ export * from "./ranks.js";
 export * from "./panel.js";
 export * from "./treasury.js";
 export * from "./chronicle.js";
+export * from "./city-states.js";
 export * from "./terrain-text.js";
 export * from "./places.js";
 import { squareTitle } from "./places.js";
@@ -64,6 +65,9 @@ import {
   CITY_RADIUS,
   resourceAt,
   resourceRoaded,
+  cityStateOf,
+  claimant,
+  unitCityState,
   advance,
   attrition,
   attritionCure,
@@ -836,7 +840,8 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     if (r.road.trade > 0) work.push(`{road} +${r.road.trade} {trade}`);
     if (work.length) lines.push(`Improvements:  ${work.join("  ")}`);
   }
-  if (city) lines.push(`{city} ${city.name} (${state.players[city.owner]!.name}), size ${city.size}`);
+  const cs = cityStateOf(city);
+  if (city) lines.push(`{city} ${city.name} (${cs ? `a city-state of the ${cs.people}` : state.players[city.owner]!.name}), size ${city.size}`);
   else {
     // Whose land it is, by the borders of the cities we know, and which city of ours works it.
     const owner = ownerAt(territory(state), x, y);
@@ -844,7 +849,8 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
       const [dx, dy] = CITY_RADIUS[slot]!;
       return wrapX(map, c.x + dx) === wrapX(map, x) && c.y + dy === y;
     }));
-    const land = owner >= 0 ? (owner === me.id ? "Our land" : `Land of the ${state.players[owner]?.name ?? "unknown"}`) : "";
+    const holder = owner === state.barbarians ? cityStateOf(claimant(state, x, y) ?? undefined) : undefined;
+    const land = owner >= 0 ? (owner === me.id ? "Our land" : holder ? `Land of ${holder.name}` : `Land of the ${state.players[owner]?.name ?? "unknown"}`) : "";
     const worked = worker ? `${land ? "worked" : "Worked"} by ${worker.name}` : "";
     if (land || worked) lines.push(`{crown} ${[land, worked].filter(Boolean).join(", ")}`);
     // A resource inside one of our cities' borders beyond the squares it works brings it trade (`influenceSpecials`).
@@ -866,7 +872,8 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
       const counts = new Map<string, number>();
       for (const u of units) counts.set(rankedName(u), (counts.get(rankedName(u)) ?? 0) + 1);
       const names = [...counts].map(([n, k]) => (k > 1 ? `${k} ${n}` : n)).join(", ");
-      lines.push(`{swords} ${names} (${owner.id === me.id ? "ours" : owner.name})`);
+      const serves = cityStateOf(unitCityState(state, units[0]!));
+      lines.push(`{swords} ${names} (${owner.id === me.id ? "ours" : serves ? serves.name : owner.name})`);
       // How far each of ours that has fought has come to its next rank: "{veteran} Legion 4/6 experience to Hardened".
       if (owner.id === me.id) {
         const ranks = units.filter((u) => u.xp > 0).map((u) => `${rankIcon(u.xp) ? `{${rankIcon(u.xp)}} ` : ""}${unitType(u.type).name} ${rankProgress(u.xp)}`);

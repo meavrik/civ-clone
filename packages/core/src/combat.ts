@@ -1,5 +1,6 @@
 import { cityAt, defaultProduction, hasWonder } from "./cities.js";
 import { chronicleOf } from "./chronicle.js";
+import { boughtOff, breakPeace, endCityState, unitCityState } from "./city-states.js";
 import { barbarianUnits } from "./barbarians.js";
 import { atWar } from "./diplomacy.js";
 import { BARBARIANS } from "./rules/barbarians.js";
@@ -94,6 +95,10 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
   const defender = bestDefender(state, tx, ty, u);
   if (!defender) return { error: "nothing to attack" };
   if (!atWar(state, u.owner, defender.owner)) return { error: "not at war" };
+  // A city-state paid off leaves the payer be; the payer striking it ends that peace.
+  if (boughtOff(state, u, defender.owner)) return { error: "tribute paid" };
+  const struck = unitCityState(state, defender) ?? (cityAt(state, tx, ty)?.cityState !== undefined ? cityAt(state, tx, ty) : undefined);
+  if (struck) breakPeace(state, struck.id, u.owner);
   const targetTile = getTile(state.map, tx, ty)!;
   if (type.domain === "land" && targetTile.terrain === 0 && !cityAt(state, tx, ty)) return { error: "land units cannot attack at sea" };
   if (type.domain === "sea" && targetTile.terrain !== 0 && !cityAt(state, tx, ty)) {
@@ -105,7 +110,10 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
   const p = a / (a + d);
   // The attacker's chance, as the fight begins: the winner learns more from one won against the odds.
   const odds = attackOdds(state, u, defender);
-  const side = (x: Unit): BattleSide => ({ unit: x.id, type: x.type, owner: x.owner, x: x.x, y: x.y, hp: x.hp, maxHp: maxHp(state, x.type), firepower: firepower(state, x.type), xp: x.xp });
+  const side = (x: Unit): BattleSide => {
+    const cs = unitCityState(state, x)?.cityState;
+    return { unit: x.id, type: x.type, owner: x.owner, x: x.x, y: x.y, hp: x.hp, maxHp: maxHp(state, x.type), firepower: firepower(state, x.type), xp: x.xp, ...(cs ? { cityState: cs } : {}) };
+  };
   const battle: UnitBattle = { kind: "battle", attacker: side(u), defender: side(defender), rounds: [], attackerWon: false, alsoLost: [] };
   const aFp = battle.attacker.firepower;
   const dFp = battle.defender.firepower;
@@ -165,6 +173,8 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
   const loserCities = state.cities.filter((c) => c.owner === city.owner).length;
   chronicleOf(winner).conquered++;
   chronicleOf(loser).lost++;
+  // A city-state taken is a city-state no more.
+  if (city.cityState !== undefined) endCityState(state, city);
   const plunder = Math.floor((loser.gold * city.size) / Math.max(1, loserCities * 3));
   loser.gold -= plunder;
   winner.gold += plunder;

@@ -1,4 +1,4 @@
-import { atWar, cityAt, civ, mapDistance, rankOf, RANKS, unitType, type GameState, type UnitAction, type UnitBattle, type UnitStep } from "@civ/core";
+import { atWar, cityAt, CITY_STATE_BY_ID, civ, mapDistance, rankOf, RANKS, unitType, type GameState, type UnitAction, type UnitBattle, type UnitStep } from "@civ/core";
 import { motionMs, type MotionTiming } from "./motion.js";
 import type { Callout } from "./refusal.js";
 
@@ -65,8 +65,10 @@ function legs(actions: readonly UnitAction[]): Leg[] {
 
 const article = (word: string): string => (/^[AEIOU]/i.test(word) ? "an" : "a");
 
-/** "Babylonian Legion": the owner's adjective and the unit's name. */
-export function unitTitle(state: GameState, owner: number, type: string): string {
+/** "Babylonian Legion": the owner's adjective and the unit's name; a city-state's, "Legion of Tyre" (`cityState`, its rule's id). */
+export function unitTitle(state: GameState, owner: number, type: string, cityState?: string): string {
+  const own = cityState !== undefined ? CITY_STATE_BY_ID[cityState] : undefined;
+  if (own) return `${unitType(type).name} of ${own.name}`;
   const p = state.players[owner];
   let adj = "";
   try { adj = p ? civ(p.civ).adjective : ""; } catch { /* a civilization since renamed */ }
@@ -76,7 +78,7 @@ export function unitTitle(state: GameState, owner: number, type: string): string
 /** The fight's announcement, beside the attacker. */
 export function attackNote(state: GameState, b: UnitBattle, viewer: number): string {
   const rank = rankOf(b.attacker.xp);
-  const title = b.attacker.owner === viewer ? unitType(b.attacker.type).name : unitTitle(state, b.attacker.owner, b.attacker.type);
+  const title = b.attacker.owner === viewer ? unitType(b.attacker.type).name : unitTitle(state, b.attacker.owner, b.attacker.type, b.attacker.cityState);
   return `${rank.id === "recruit" ? "" : `${rank.name} `}${title} attacks!`;
 }
 
@@ -127,7 +129,7 @@ export function fightReport(state: GameState, fights: readonly UnitBattle[], vie
     if (!defending && b.attacker.owner !== viewer) continue;
     const them = defending ? b.attacker : b.defender;
     const ours = defending ? b.defender : b.attacker;
-    const foe = unitTitle(state, them.owner, them.type);
+    const foe = unitTitle(state, them.owner, them.type, them.cityState);
     const mine = unitType(ours.type).name;
     const more = b.alsoLost.length ? ` and ${b.alsoLost.length} more` : "";
     const where = fightPlace(state, b, viewer);

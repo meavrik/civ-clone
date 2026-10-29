@@ -197,6 +197,19 @@ export interface City {
    * never built twice (`buildOptions`). Absent: none.
    */
   idle?: string[];
+  /** The city-state it is (`rules/city-states.ts`, `CityStateRule.id`), held by the barbarians' seat; absent for any other city. */
+  cityState?: string;
+}
+
+/** A city-state's standing demand for tribute (`cityStateDemand`): `player` pays `gold` or not, before the city-states' next turn. */
+export interface CityStateDemand {
+  /** The city-state's city. */
+  city: number;
+  player: number;
+  gold: number;
+  turn: number;
+  /** The city of `player`'s its soldiers set out for, if any. */
+  target?: number;
 }
 
 export interface Player {
@@ -405,6 +418,10 @@ export interface GameState {
    * square serves only with a road on it (`resourceRoaded`).
    */
   roadlessResources?: boolean;
+  /** Tribute paid to city-states (`city-states.ts`): "city:player" to the last turn that city-state leaves the payer be. Missing: none. */
+  cityStatePeace?: Record<string, number>;
+  /** City-states' demands for tribute waiting for an answer. Missing: none. */
+  cityStateDemands?: CityStateDemand[];
   /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.

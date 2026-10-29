@@ -8,6 +8,7 @@ import { difficultyRule } from "./rules/difficulty.js";
 import { newSpaceship } from "./rules/spaceship.js";
 import { MAP_WIDTH, Terrain, type GameState, type Player, type WorldMap } from "./types.js";
 import { createUnit } from "./units.js";
+import { placeCityStates } from "./city-states.js";
 import { recomputeVisibility } from "./visibility.js";
 import { siteScore } from "./sites.js";
 import { grassShieldAt } from "./rules/terrain.js";
@@ -116,6 +117,8 @@ export interface NewGameOptions extends MapGenOptions {
   sellWhenBroke?: boolean;
   /** A strategic resource serves without a road (see `GameState.roadlessResources`). Old saves load with it. */
   roadlessResources?: boolean;
+  /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
+  cityStates?: boolean;
 }
 
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
@@ -361,6 +364,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     recomputeVisibility(state, p.id);
     p.explored.set(p.visible);
   }
+  // City-states, so no civilization starts alone on its land.
+  if (opts.cityStates) placeCityStates(state, starts);
   selectNextUnit(state, null);
   return state;
 }

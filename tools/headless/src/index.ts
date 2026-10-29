@@ -102,6 +102,8 @@ export interface GameConfig {
   sellWhenBroke?: boolean;
   /** A strategic resource serves without a road on its square (`GameState.roadlessResources`). */
   roadlessResources?: boolean;
+  /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
+  cityStates?: boolean;
 }
 
 export interface PlayerStats {
@@ -208,6 +210,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.visibleResources ? { visibleResources: true } : {}),
     ...(config.sellWhenBroke ? { sellWhenBroke: true } : {}),
     ...(config.roadlessResources ? { roadlessResources: true } : {}),
+    ...(config.cityStates ? { cityStates: true } : {}),
   };
 }
 

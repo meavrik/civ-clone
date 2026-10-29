@@ -88,7 +88,8 @@ export function territoryLabels(state: GameState, t: Territory, viewer = state.c
   const best = new Map<number, TerritoryLabel>();
   for (let i = 0; i < width * height; i++) {
     const own = t.owner[i]!;
-    if (own < 0 || seen[i] || !explored[i]) continue;
+    // The barbarians' land (their cities, the city-states) bears no name: each city names itself.
+    if (own < 0 || own === state.barbarians || seen[i] || !explored[i]) continue;
     // The piece, with x unwrapped from where it was entered, so a piece across the seam keeps its shape.
     const piece: { i: number; x: number; y: number }[] = [];
     const queue = [{ i, x: i % width, y: Math.floor(i / width) }];
@@ -138,7 +139,7 @@ export function civNameSpots(state: GameState, t: Territory, viewer: number, x0:
   const { width, height } = t;
   const explored = state.players[viewer]?.explored;
   if (!explored) return [];
-  const own = (i: number) => (explored[i] ? t.owner[i]! : -1);
+  const own = (i: number) => (explored[i] && t.owner[i] !== state.barbarians ? t.owner[i]! : -1);
   // How deep each explored claimed square lies inside its owner's land: 1 on its edge (next to another's
   // land, no one's, the unexplored or the end of the world), more inward.
   const depth = new Uint8Array(width * height);

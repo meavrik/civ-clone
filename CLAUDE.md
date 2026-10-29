@@ -141,6 +141,36 @@ Never ship the original's sprites, palette art, fonts or text.
   (razing size 1) and build soldiers there; the `pillage` command wrecks one improvement a turn.
   Stepping off a ship ignores zones of control. Saves before version 4 load with `simpleBarbarians`
   (the old coastal parties that razed everything) and `zocAtSea`.
+  City-states (`city-states.ts`, numbers and the thirty in `rules/city-states.ts`; asked for 2026-10-29: "~30 single
+  city-states civs ... placed in the start of the game to encounter the real civs. no diplomacy or leader to talk to.
+  always aggressive - player could only conquer them or pay tribute ... only produce war units to attack
+  occasionally", "make sure on a start of a new game, no civs gets to be alone on a mass of land"; save version 45):
+  single cities of peoples of history not among the civilizations (Knossos, Tyre, Carthage, Axum, Angkor, Cuzco,
+  Venice...; none a civilization's city name), each a city of the barbarians' seat marked `City.cityState` (its rule's
+  id), so always at war, never met or talked to, out of scores and victory, and the planner's "barbarian city on our
+  land" a war to win back once it holds `CITY_STATE_WAR` (4) cities. `NewGameOptions.cityStates` places them
+  (`placeCityStates`, after the starts, drawn with the game's RNG): first one on the land of each civilization alone
+  on its landmass, 6-10 squares from its start (else 4-14), the best city site; then, to `cityStateCount` (8 on the
+  original's width, 12 medium, 16 large), at random among the better half of sites 8-16 squares from the nearest
+  start; 6 apart; size 2, no palace, two defenders fortified. The web app's `startGame` asks for them in every new
+  game (`?citystates=off` not); the headless harness too (`--no-city-states`); games before version 45 never had
+  them, so they replay as they were. They raise only soldiers (`cityStateUnits`: land soldiers whose advance half
+  the living civilizations know, needing no resource; defenders until the garrison of 2 stands, then attackers) and
+  the AI (`barbarian.ts`, `cityStateTurn`; the old barbarians' play untouched) keeps the garrison home and, from
+  turn 30 (`grace`), sends every 2 spare soldiers at the nearest civilization's city within 12 squares on its land,
+  first demanding tribute of its owner (the `cityStateDemand` command, `tributePrice`: 0.4 of the payer's `goldScale`,
+  at least 30, in tens; `state.cityStateDemands`, lapsing as the city-states' turn comes round, `settleCityStates`).
+  Paid (`cityStateTribute`), that city-state leaves the payer be for 20 turns (`state.cityStatePeace`,
+  `peaceUntil`/`boughtOff`: its units may not strike the payer's), until the payer strikes it (`breakPeace`). Taken,
+  it is a city-state no more (`endCityState`); its soldiers fight on as barbarians. The planner pays while its
+  treasury keeps its cushion after. Told by name: the web app's "Knossos Demands Tribute" window (Pay, or Refuse by
+  default; `cityStateDemandCard`), the news, the conquest window ("Taken from the city-state of Tyre", "Burned by
+  ..."), fights ("Legion of Tyre attacks!", `BattleSide.cityState`, `unitTitle`), the square's window ("Tyre (a
+  city-state of the Phoenicians)", "Land of Tyre"); the barbarians' land bears no civ name on the maps. Head to head
+  (planner vs v2, 16 x 300, seeds 1-16): without them 10-6, score 217 vs 183, cities 12.3 vs 11.6, pop 77 vs 72; with
+  them 8-8, 158 vs 124, cities 10.7 vs 6.8, pop 58 vs 38 (the planner takes 1.4 cities a seat, v2 never fights them),
+  all replaying exactly. At turn 200 (planner in every seat, 3 seeds) cities a civ 7.4 without, 4.9 with (5.8 with
+  raids off: two thirds of it the land they hold).
   Civilization traits (our departure, asked for: the original's civs were alike): each `CivRule.trait`
   in `rules/civs.ts` has a name, a few words for the tribe choice (`short`), a line of text, an
   advance it starts with (a root advance) and `TraitEffect`s (cheaper builds, faster settler jobs,

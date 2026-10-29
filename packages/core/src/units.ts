@@ -244,6 +244,8 @@ export interface BattleSide {
   firepower: number;
   /** Its experience as the fight began (the rank it fought at). */
   xp: number;
+  /** The city-state it served (`CityStateRule.id`), for the words; absent for any other unit. */
+  cityState?: string;
 }
 
 /** A fight, round by round, for the UI to animate. */
