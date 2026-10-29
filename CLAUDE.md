@@ -131,7 +131,9 @@ Never ship the original's sprites, palette art, fonts or text.
   near Rome, 1 no road"), the reveal note ("2 on our land (1 wanting a road)") and the build menu
   (`resourcesWantingRoads`, `roadNote`: "Iron lies on our land without a road: build one on its square."). Saves
   before 43 load with `roadlessResources` (headless `--roadless-resources`). Held at turn 150 (planner in every
-  seat, 6 seeds): Horses 79% of civs (92% without roads), Iron 67% (63%), Coal 46% (63%). AI_NUMBERS
+  seat, 6 seeds): Horses 79% of civs (92% without roads), Iron 67% (63%), Coal 46% (63%). Head to head (planner vs v2,
+  16 x 300, seeds 1-16): roads 10-6, score 217 vs 183, pop 77 vs 72; without 10-6, 212 vs 180, pop 75 vs 74; all
+  replaying exactly.
   Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
   FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
   starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail
