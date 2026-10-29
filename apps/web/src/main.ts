@@ -2223,12 +2223,6 @@ function audience(player: number, line: string, done: () => void = () => { scree
     // Back from a list or a question with nothing said: the topic may be raised again.
     const back = () => { memo.said = memo.said.filter((t) => t !== topic); talk(words); };
     switch (topic) {
-      case "peace":
-        if (!atWar(state, 0, player)) { proposePeace(player, answer); return; }
-        // A rival that is winning, with its armies at our gates, will not stop now.
-        if (!acceptsPeace(state, player, 0)) { answer("Not while our armies stand at your gates."); return; }
-        makePeaceWith(player);
-        answer("Peace, then. Let the dead rest.", "friendly");
       case "pact":
         // A pact binds both alike: any leader not hostile signs it, and asks nothing for it.
         if (!pactAnswer(state, player, 0)) { answer("A pact with you? We would sooner trust a wolf."); return; }
@@ -2236,6 +2230,12 @@ function audience(player: number, line: string, done: () => void = () => { scree
         answer(`Agreed. For ${PACTS.pactTurns} turns no army of ours will march against you, nor yours against us.`, "friendly");
         return;
       case "alliance": proposeAlliance(player, answer, back); return;
+      case "peace":
+        if (!atWar(state, 0, player)) { proposePeace(player, answer); return; }
+        // A rival that is winning, with its armies at our gates, will not stop now.
+        if (!acceptsPeace(state, player, 0)) { answer("Not while our armies stand at your gates."); return; }
+        makePeaceWith(player);
+        answer("Peace, then. Let the dead rest.", "friendly");
         return;
       case "openBorders": {
         const price = bordersPrice(state, player, 0);
@@ -2357,12 +2357,6 @@ function proposeDeal(player: number, reply: "yes" | "for gold" | "no", price: nu
   }, () => answer(words.declined));
 }
 
-/**
- * Pick one of their advances (the close box takes it back); they name the one of ours they want for
- * it, and one button makes the trade (the close box declines).
- */
-function tradeKnowledge(player: number, answer: (words: string, tone?: TalkTone) => void, back: () => void): void {
-  const me = state.players[0]!;
 /** Peace with `player`: a separate peace ends our alliances against it, and the status line says so. */
 function makePeaceWith(player: number): void {
   const allies = alliesAgainst(state, 0, player);
@@ -2411,6 +2405,12 @@ function proposeAlliance(player: number, answer: (words: string, tone?: TalkTone
   }, back);
 }
 
+/**
+ * Pick one of their advances (the close box takes it back); they name the one of ours they want for
+ * it, and one button makes the trade (the close box declines).
+ */
+function tradeKnowledge(player: number, answer: (words: string, tone?: TalkTone) => void, back: () => void): void {
+  const me = state.players[0]!;
   const theirs = state.players[player]!.advances.filter((a) => !me.advances.includes(a)).slice(-12);
   const give = tradeAsk(state, player, 0);
   if (!give || !theirs.length) { answer("We have nothing to trade with you."); return; }
@@ -2664,15 +2664,15 @@ function eventMessage(ev: TurnEvent): string | null {
           : "The village is deserted.";
       }
       case "overthrown": return ev.player === 0 ? "Riots have toppled the government: anarchy!" : `Riots topple the ${state.players[ev.player]?.name} government.`;
+      case "pactEnded": return `Our non-aggression pact with the ${state.players[ev.a === 0 ? ev.b : ev.a]?.name} has run out.`;
+      case "allianceEnded": return ev.by === 0 ? `Our alliance with the ${state.players[ev.b]?.name} is over: we made peace with the ${state.players[ev.against]?.name}.`
+        : `The ${state.players[ev.by]?.name} made peace with the ${state.players[ev.against]?.name}: our alliance is over.`;
       case "tradeEnded": {
         const other = state.players[ev.a === 0 ? ev.b : ev.a]?.name ?? "";
         const deal = ev.take ? `${ev.give} for ${ev.take}` : ev.give;
         if (ev.why === "war") return `War ends our trade with the ${other}.`;
         if (ev.why === "ended") return ev.by === 0 ? null : `The ${other} end our trade of ${deal}.`;
         return ev.by === 0 ? `We have lost the ${ev.a === 0 ? ev.give : ev.take} we traded: our trade with the ${other} ends.` : `The ${other} have lost what they traded us: our trade of ${deal} ends.`;
-      case "pactEnded": return `Our non-aggression pact with the ${state.players[ev.a === 0 ? ev.b : ev.a]?.name} has run out.`;
-      case "allianceEnded": return ev.by === 0 ? `Our alliance with the ${state.players[ev.b]?.name} is over: we made peace with the ${state.players[ev.against]?.name}.`
-        : `The ${state.players[ev.by]?.name} made peace with the ${state.players[ev.against]?.name}: our alliance is over.`;
       }
       default: return null;
     }
@@ -2819,13 +2819,13 @@ function concernsUs(ev: TurnEvent): boolean {
   if (ev.kind === "proposal" || ev.kind === "gift") return ev.to === 0;
   if (ev.kind === "trespass") return ev.intruder === 0; // our gotos, walked as our turn began
   if (ev.kind === "tradeEnded") return ev.a === 0 || ev.b === 0;
+  if (ev.kind === "pactEnded" || ev.kind === "allianceEnded") return ev.a === 0 || ev.b === 0;
   return ev.kind === "eliminated" || ev.kind === "globalWarming" || ev.kind === "nuked"
     || ev.kind === "spaceLaunched" || ev.kind === "spaceArrived" || ev.kind === "spaceLost";
 }
 
 function endTurn(): void {
   // Last turn's news has not been shown yet (slides still running): show it first.
-  if (ev.kind === "pactEnded" || ev.kind === "allianceEnded") return ev.a === 0 || ev.b === 0;
   if (afterSlides.length) { skipWatch(); return; }
   if (screenState.kind === "sinking") return;
   // Ships left on deep water go down before the turn passes, while we still see them.
