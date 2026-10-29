@@ -1,4 +1,5 @@
 import { cityAt, defaultProduction, hasWonder } from "./cities.js";
+import { chronicleOf } from "./chronicle.js";
 import { barbarianUnits } from "./barbarians.js";
 import { atWar } from "./diplomacy.js";
 import { BARBARIANS } from "./rules/barbarians.js";
@@ -122,6 +123,8 @@ export function resolveCombat(state: GameState, u: Unit, dx: number, dy: number)
     else for (const o of unitAt(state, tx, ty)) if (o.owner === defender.owner) destroyed.push(o.id);
   } else destroyed.push(u.id);
   const winner = attackerWon ? u : defender;
+  chronicleOf(state.players[winner.owner]!).won++;
+  chronicleOf(state.players[(attackerWon ? defender : u).owner]!).defeated++;
   const promoted = learn(state, winner, attackerWon ? odds : 1 - odds);
   if (promoted) battle.promoted = promoted.id;
   // Units aboard a sunk ship go down with it.
@@ -160,6 +163,8 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
   const loser = state.players[city.owner]!;
   const winner = state.players[u.owner]!;
   const loserCities = state.cities.filter((c) => c.owner === city.owner).length;
+  chronicleOf(winner).conquered++;
+  chronicleOf(loser).lost++;
   const plunder = Math.floor((loser.gold * city.size) / Math.max(1, loserCities * 3));
   loser.gold -= plunder;
   winner.gold += plunder;
@@ -201,6 +206,7 @@ export function checkElimination(state: GameState): number[] {
     const hasSettler = state.units.some((u) => u.owner === p.id && unitType(u.type).flags?.includes("settler"));
     if (!hasCity && !hasSettler) {
       p.alive = false;
+      chronicleOf(p).fell = state.turn;
       out.push(p.id);
     }
   }

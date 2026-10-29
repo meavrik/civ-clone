@@ -105,7 +105,7 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
     reignHit: (_view, px, py) => (reignShown && menuHit(ctx, reignShown, px, py) === 0 ? "begin" : null),
     // Set aside (not in the app): a plain modal with the save, how far it has come and the year reached.
     loading: (view) => drawMenu(ctx, { title: LOADING_TITLE, body: [view.label, `${Math.round(view.done * 100)}%  ${view.line}`], items: [], selected: 0 }),
-    end: (lines, rank) => drawEndScreen(ctx, lines, rank),
+    end: (card) => drawEndScreen(ctx, card),
     spaceship: (state) => drawSpaceshipScreen(ctx, state),
     menu: (menu) => drawMenu(ctx, menu),
     textInput: (input, cursorOn) => drawTextInput(ctx, input, cursorOn),

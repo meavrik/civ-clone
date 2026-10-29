@@ -1366,7 +1366,11 @@ describe("title, advisors, diplomacy, end", () => {
     writeFileSync(new URL("./out/advisor-foreign-treaty.png", import.meta.url), encodePng(s, 3));
     drawDiplomacyScreen(s, state, { player: 2, line: leaderLine(state, 2) });
     writeFileSync(new URL("./out/diplomacy-contact.png", import.meta.url), encodePng(s, 3));
-    drawEndScreen(s, ["You have conquered the world!", "", "Total score: 123"], "Great");
+    drawEndScreen(s, {
+      title: "Victory", headline: "You have conquered the world!", span: "The Romans, 3980 BC to 1650 AD",
+      rows: [{ icon: "city", label: "Cities founded", value: "12" }, { icon: "bulb", label: "Advances", value: "41" }],
+      wonders: "Wonders: Pyramids and Colossus", verdict: "Final score 123. Your rule was Modest.",
+    });
     writeFileSync(new URL("./out/end.png", import.meta.url), encodePng(s, 3));
     expect(s.data.some((c) => c !== 0)).toBe(true);
   });

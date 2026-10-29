@@ -3,6 +3,7 @@ import type { MovePlan } from "./plan.js";
 import type { Lifting } from "./fog.js";
 import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
+import type { EndCard } from "./chronicle.js";
 import type { MinimapButton, PanelSpot, PanelTip } from "./panel.js";
 import { setupQuestionCards, type SetupCards } from "./setup.js";
 import { treaty, type DiplomacyView, type StandingTone } from "./audience.js";
@@ -32,6 +33,7 @@ export * from "./sites.js";
 export * from "./ranks.js";
 export * from "./panel.js";
 export * from "./treasury.js";
+export * from "./chronicle.js";
 export * from "./terrain-text.js";
 export * from "./places.js";
 import { squareTitle } from "./places.js";
@@ -416,7 +418,8 @@ export interface Renderer {
   prepare?(state: GameState): void;
   /** The window over the screen while a saved game is replayed (`LoadingView`): the save, a bar of how far it has come. */
   loading(view: LoadingView): void;
-  end(lines: string[], rank: string): void;
+  /** The end of the game: how it ended and the civilization's whole history (`endCard`). */
+  end(card: EndCard): void;
   spaceship(state: GameState): void;
   /** Overlays drawn on top of whatever screen is underneath. */
   /** A window or dropdown over the current screen; `state`, when a game is on, draws its `square`. */

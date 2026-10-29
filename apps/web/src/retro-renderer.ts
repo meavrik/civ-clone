@@ -171,7 +171,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     reignHit: (view, px, py) => reignHit(view, px, py),
     prepare: (state) => preloadScenes(state),
     loading: (view) => drawLoading(screen, view),
-    end: (lines, rank) => drawEndScreen(screen, lines, rank),
+    end: (card) => drawEndScreen(screen, card),
     spaceship: (state) => drawSpaceshipScreen(screen, state),
     menu: (menu: MenuState, state) => drawMenu(screen, menu, squarePainter(menu, state)),
     textInput: (input: TextInputState, cursorOn) => drawTextInput(screen, input, cursorOn),

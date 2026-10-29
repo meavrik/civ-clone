@@ -1,5 +1,6 @@
-import { hash, INTRO_MS, introAt, type IntroFrame } from "@civ/renderer-api";
-import { drawText, drawTextCentered, FONT_HEIGHT, wrapText } from "../font.js";
+import { hash, INTRO_MS, introAt, type EndCard, type IntroFrame } from "@civ/renderer-api";
+import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
+import { drawIconLine } from "../icons.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { DIM, drawWindow, GOLD, INK } from "../widgets.js";
@@ -430,15 +431,30 @@ function drawName(s: Surface, name: number): void {
   }
 }
 
-/** End of game: score sheet and rank. */
-export function drawEndScreen(s: Surface, lines: string[], rank: string): void {
+/**
+ * End of game (`EndCard`; asked for 2026-10-29: a fallen civilization's screen showed only its ruin): how it ended
+ * and the years of the reign, the civilization's whole history in two columns under a rule (each row its icon, its
+ * name and its number at the column's end), the wonders it completed, then the verdict in gold.
+ */
+export function drawEndScreen(s: Surface, card: EndCard): void {
   s.fill(C.BLACK!);
-  drawWindow(s, 30, 24, SCREEN_W - 60, SCREEN_H - 48, "The End", { centred: true });
-  let y = 50;
-  for (const l of lines) {
-    drawText(s, 48, y, l, INK);
-    y += 10;
-  }
-  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 56, `Your rule was ${rank}.`, GOLD);
-  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 36, "Press any key for a new game", DIM);
+  const x0 = 12;
+  const w = SCREEN_W - 2 * x0;
+  drawWindow(s, x0, 8, w, SCREEN_H - 16, card.title, { centred: true });
+  drawTextCentered(s, SCREEN_W / 2, 26, card.headline, INK);
+  drawTextCentered(s, SCREEN_W / 2, 36, card.span, DIM);
+  s.rect(x0 + 10, 48, w - 20, 1, shade("panel", 2));
+  const half = Math.ceil(card.rows.length / 2);
+  const colW = (w - 36) / 2;
+  card.rows.forEach((row, i) => {
+    const left = x0 + 12 + (i < half ? 0 : colW + 12);
+    const y = 54 + (i % half) * 11;
+    drawIconLine(s, left, y, `{${row.icon}}${row.label}`, INK);
+    drawText(s, left + colW - textWidth(row.value), y, row.value, INK);
+  });
+  const below = 54 + half * 11 + 4;
+  s.rect(x0 + 10, below - 3, w - 20, 1, shade("panel", 2));
+  if (card.wonders) drawTextWrapped(s, x0 + 12, below + 2, w - 24, card.wonders, INK, 2);
+  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 40, card.verdict, GOLD);
+  drawTextCentered(s, SCREEN_W / 2, SCREEN_H - 24, "Press any key for a new game", DIM);
 }

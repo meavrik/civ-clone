@@ -28,7 +28,6 @@ import {
   CHEAT_GOLD,
   cityAt,
   civ,
-  computeScore,
   defaultCityName,
   esteem,
   FINAL_TURN,
@@ -53,7 +52,6 @@ import {
   slotInLand,
   pillageTarget,
   productionName,
-  rankTitle,
   relation,
   routeBonus,
   runAiPlayers,
@@ -210,6 +208,8 @@ import {
   wonderLostNotice,
   treasuryWarning,
   unsupportedNotice,
+  endCard,
+  type EndCard,
   resourcesWantingRoads,
   roadNote,
   type WonderLost,
@@ -339,7 +339,7 @@ type Screen =
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
   | { kind: "diplomacy"; player: number; line: string; talk?: Talk; card?: CardSection[] } // an audience, or (`card`) a civilization's card from the Diplomacy tab
   | { kind: "beat"; until: number; then: () => void } // the map, held a moment on something about to be talked of
-  | { kind: "end"; lines: string[]; rank: string }
+  | { kind: "end"; card: EndCard }
   | { kind: "spaceship" }
   | { kind: "input"; input: TextInputState; onSubmit: (text: string) => void; under: Screen }
   | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number; sub?: boolean }
@@ -2814,20 +2814,9 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
   next();
 }
 
+/** The game is over: its end and the civilization's whole history (`endCard`; asked for 2026-10-29). */
 function endGame(end: NonNullable<ReturnType<typeof checkGameEnd>>): void {
-  const me = computeScore(state, 0);
-  const lines = [
-    end.kind === "conquest" ? (end.winner === 0 ? "You have conquered the world!" : `The ${state.players[end.winner]!.name} rule the world.`)
-      : end.kind === "space" ? (end.winner === 0 ? "Your colonists have reached a new world!" : `The ${state.players[end.winner]!.name} have colonized the stars.`)
-      : end.kind === "defeat" ? "Your civilization has been destroyed." : `The year is ${formatYear(turnToYear(state.turn))}. Your reign ends.`,
-    "",
-    `Citizens: ${me.citizens}`,
-    `Wonders: ${me.wonders}`,
-    `Advances: ${me.techs}`,
-    `Peace: ${me.peace}`,
-    `Total score: ${me.total}`,
-  ];
-  screenState = { kind: "end", lines, rank: rankTitle(me.total) };
+  screenState = { kind: "end", card: endCard(state, end, 0) };
 }
 
 /**
@@ -3677,7 +3666,7 @@ function draw(sc: Screen): void {
       renderer.diplomacy(state, { ...diplomacyView(sc), enter: enterOf(audienceKey) });
       break;
     }
-    case "end": renderer.end(sc.lines, sc.rank); break;
+    case "end": renderer.end(sc.card); break;
     case "spaceship": renderer.spaceship(state); break;
     case "input":
       draw(sc.under);

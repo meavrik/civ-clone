@@ -56,6 +56,7 @@ import {
 import { discoverExplored } from "./map/geography.js";
 import { findPath, stepDir } from "./pathfind.js";
 import { landOwner } from "./territory.js";
+import { chronicleOf, notePeaks } from "./chronicle.js";
 import { addTrade, endTrades, missingResources, settleTrades, whyNoTrade } from "./resources.js";
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, researchCost } from "./rules/advances.js";
 import { building } from "./rules/buildings.js";
@@ -711,6 +712,8 @@ function spy(state: GameState, u: Unit, action: DiplomatAction, x: number, y: nu
       if (!Number.isFinite(cost)) return { ok: false, reason: "a capital cannot be bought" };
       if (me.gold < cost) return { ok: false, reason: `it would cost ${cost} gold` };
       me.gold -= cost;
+      chronicleOf(me).conquered++;
+      chronicleOf(victim).lost++;
       city.owner = me.id;
       city.disorder = false;
       city.unrest = 0;
@@ -1203,6 +1206,8 @@ export function endTurn(state: GameState): void {
   for (const c of state.cities) if (c.owner === player && pollute(state, c)) lastTurnEvents.push({ city: c.id, kind: "pollution" });
   for (const c of state.cities)
     if (c.owner === player && c.worked.length + c.specialists.length !== c.size) autoAssignWorkers(state, c);
+  // Its history: the most cities, citizens and score it has had (the end screen's chronicle).
+  notePeaks(state, player);
 
   // Wonder side effects and research.
   for (const ev of [...lastTurnEvents]) {

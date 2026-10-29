@@ -755,6 +755,17 @@ Never ship the original's sprites, palette art, fonts or text.
   line each with an icon (`reignCard`, `traitBonuses`/`bonusLine`: numbers from the `TraitEffect`s, then
   "Starts knowing ..."; classic civs say every people is alike); Begin (Enter, Space, Esc, the close box).
   `Renderer.reign`/`reignHit`; the web app's `reign` screen, the "lead the ... to glory" line after it.
+  End screen (`chronicle.ts` in renderer-api and core; asked for 2026-10-29: the screen of a fallen civilization
+  showed its ruin, its score sheet empty, "need to show all the achievements of the entire civ history"): core keeps
+  each civilization's history as it plays (`Player.chronicle`, `chronicleOf`; save version 44, bookkeeping no rule
+  or AI reads, so old logs replay and build it): cities founded (`foundCity`), taken and lost (`captureCity`, a
+  diplomat's incited revolt), fights won and lost (`resolveCombat`), units raised and wonders completed (the city's
+  turn), the most cities and citizens it held and its best score with its turn (`notePeaks`, as its turn ends), and
+  the turns of its first city and its fall (`checkElimination`). `endCard` lays out the end: the title (Victory,
+  Civilization Fallen, The End), how it ended, the years of the reign ("The Romans, 3980 BC to 1250 AD"), ten rows
+  of that history in two columns (icon, name, number), the wonders, and the verdict: the final score and rank, or
+  for a fallen civilization the rank at its height ("At its height, your rule was Great."). `Renderer.end(card)`;
+  retro `drawEndScreen` in `screens/title.ts`, modern a plain page.
   Tutorial (`tutorial.ts` in renderer-api; asked for 2026-10-27: "add a short tutorial for new players"):
   `TUTORIAL`, nine tips, one short sentence each (asked for the same day: "too many text. one sentence"; moving units, founding a city, your city, ending the turn, science, the map,
   villages, defence, neighbours), each `due` at the moment it helps (the first unit in play, settlers with no

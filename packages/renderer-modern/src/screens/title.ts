@@ -1,3 +1,4 @@
+import type { EndCard } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
 import { circle, page, text } from "../draw.js";
 import { H, UI, W } from "../theme.js";
@@ -74,13 +75,18 @@ export function drawTitleScreen(ctx: Context2D): void {
   ctx.restore();
 }
 
-/** End of game: score sheet and rank. */
-export function drawEndScreen(ctx: Context2D, lines: string[], rank: string): void {
-  const box = page(ctx, W, H, "The End", "Press any key for a new game");
-  let y = box.y + 8;
-  for (const l of lines) {
-    text(ctx, box.x + 24, y, l, { size: 17 });
-    y += 28;
-  }
-  text(ctx, W / 2, H - 100, `Your rule was ${rank}.`, { size: 22, weight: "600", color: UI.accent, align: "center" });
+/** End of game: how it ended, the civilization's whole history (`EndCard`) and the verdict. */
+export function drawEndScreen(ctx: Context2D, card: EndCard): void {
+  const box = page(ctx, W, H, card.title, "Press any key for a new game");
+  text(ctx, W / 2, box.y + 8, card.headline, { size: 19, weight: "600", align: "center" });
+  text(ctx, W / 2, box.y + 36, card.span, { size: 15, color: UI.dim, align: "center" });
+  const half = Math.ceil(card.rows.length / 2);
+  card.rows.forEach((row, i) => {
+    const x = box.x + 24 + (i < half ? 0 : (box.w - 48) / 2 + 24);
+    const y = box.y + 76 + (i % half) * 30;
+    text(ctx, x, y, row.label, { size: 16 });
+    text(ctx, x + (box.w - 48) / 2 - 24, y, row.value, { size: 16, weight: "600", align: "right" });
+  });
+  if (card.wonders) text(ctx, box.x + 24, box.y + 84 + half * 30, card.wonders, { size: 15 });
+  text(ctx, W / 2, H - 100, card.verdict, { size: 22, weight: "600", color: UI.accent, align: "center" });
 }

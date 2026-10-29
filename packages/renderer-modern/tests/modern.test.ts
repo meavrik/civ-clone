@@ -100,7 +100,7 @@ describe("modern renderer", () => {
     r.rates(state);
     for (const which of ["domestic", "military", "foreign", "score"] as const) r.advisor(state, which);
     r.diplomacy(state, { player: 1, line: "Greetings.", choices: ["Propose peace", "Farewell"] });
-    r.end(["Citizens: 3", "Total score: 12"], "Modest");
+    r.end({ title: "The End", headline: "Your reign ends.", span: "The Romans, 4000 BC to 1 AD", rows: [{ icon: "city", label: "Cities founded", value: "3" }], wonders: null, verdict: "Final score 12. Your rule was Pathetic." });
     r.spaceship(state);
     r.report({ title: "Wonders of the World", lines: [{ text: "Pyramids", right: "Rome (Romans)", slot: 0 }], hint: "1 of 21 built" });
     r.report(civilizationsReport(state));

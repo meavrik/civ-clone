@@ -28,6 +28,7 @@ import {
 } from "./types.js";
 import { borderRadius, buildingCulture, claimant, cultureRate, landOwner, withinBorder } from "./territory.js";
 import { createUnit } from "./units.js";
+import { chronicleOf } from "./chronicle.js";
 import { heldResources, missingResources, specialFor } from "./resources.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
@@ -916,6 +917,9 @@ export function defaultCityName(state: GameState, owner: number): string {
 
 export function foundCity(state: GameState, owner: number, x: number, y: number, name?: string): City {
   const first = !state.cities.some((c) => c.owner === owner);
+  const story = chronicleOf(state.players[owner]!);
+  story.founded++;
+  story.firstCity ??= state.turn;
   const city: City = {
     id: state.nextCityId++,
     name: name?.trim().slice(0, 14) || defaultCityName(state, owner),
@@ -1110,6 +1114,7 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
         autoAssignWorkers(state, city);
       }
       city.shields -= cost;
+      chronicleOf(player).units++;
       const ev: CityTurnEvent = { city: city.id, kind: "built", detail: unitType(p.id).name, production: { ...p } };
       if (was) {
         const now = computeCity(state, city);
@@ -1130,6 +1135,7 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
       }
       city.wonders.push(p.id);
       city.shields -= cost;
+      chronicleOf(player).wonders.push(p.id);
       events.push({ city: city.id, kind: "wonder", detail: wonder(p.id).name, production: { ...p } });
       city.production = defaultProduction(state, city);
     } else {

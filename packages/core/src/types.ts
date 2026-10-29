@@ -226,6 +226,31 @@ export interface Player {
   /** Chieftain 0 .. Emperor 4. */
   difficulty: number;
   spaceship: Spaceship;
+  /** What it has done over its whole history (`chronicleOf`; since save version 44): read by the end screen alone. */
+  chronicle?: Chronicle;
+}
+
+/** A civilization's history in numbers (`chronicle.ts`): kept as it plays, never read by a rule. */
+export interface Chronicle {
+  /** Cities it founded; took from others (by arms or a diplomat's gold); lost to others (taken, razed or bought away). */
+  founded: number;
+  conquered: number;
+  lost: number;
+  /** Fights its units won and lost, attacking or defending. */
+  won: number;
+  defeated: number;
+  /** Units its cities raised. */
+  units: number;
+  /** Wonders its cities completed, first first (ids), kept when the city is lost. */
+  wonders: string[];
+  /** The most cities and citizens it ever held, its best score and the turn it had it. */
+  peakCities: number;
+  peakCitizens: number;
+  peakScore: number;
+  peakScoreTurn: number;
+  /** The turn it founded its first city, and the turn it fell (absent while it stands). */
+  firstCity?: number;
+  fell?: number;
 }
 
 export interface GameState {
