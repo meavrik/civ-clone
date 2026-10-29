@@ -293,6 +293,11 @@ export class MotionPlayer {
     return { attacker, defender };
   }
 
+  /** True while this step or fight is queued or under way. */
+  playing(action: UnitAction, now: number): boolean {
+    return this.beats.some((b) => b.end > now && ((b.kind === "slide" && b.slides.some((s) => s.step === action)) || (b.kind === "battle" && b.battle === action)));
+  }
+
   /** True while any slide or fight has yet to finish. */
   busy(now: number): boolean {
     return (this.beats.at(-1)?.end ?? 0) > now;

@@ -99,8 +99,10 @@ import {
   type TurnEvent,
   type Proposal,
   type CombatReport,
+  type City,
   type UnitAction,
   type UnitBattle,
+  type UnitStep,
   type WorldSize,
   type Unit,
 } from "@civ/core";
@@ -196,6 +198,9 @@ import {
   wondersReport,
   fightReport,
   watchTurn,
+  cityChanges,
+  stagedCities,
+  stagedSight,
   type Callout,
   type HoldFrame,
   type SetupState,
@@ -387,9 +392,34 @@ function whenStill(fn: () => void): void {
   afterSlides.push(fn);
 }
 
+/**
+ * The cities as the map shows them while the other civilizations' turns play back (asked for 2026-10-29: the
+ * map showed a city taken, and its new borders, while the fight for it still played): as they stood when our
+ * turn ended (`before`), each changed by a step the playback shows changing as that step lands (`changes`, set
+ * as the playback is queued: `started`), the rest once it is over. `sawBefore` keeps the sight of a city of ours
+ * until it falls (`stagedSight`, `sight` its last answer by `key`).
+ */
+let staging: { before: City[]; sawBefore: Uint8Array; changes: Map<number, UnitStep>; started: boolean; key?: string; sight?: Uint8Array } | null = null;
+
+/** The state the map draws: the real one, or during the playback a copy with the cities (and our sight) `staging` shows. */
+function mapState(): GameState {
+  if (!staging) return state;
+  const cities = stagedCities(staging.before, state.cities, staging.changes, (a) => motion.playing(a, frameNow));
+  const staged: GameState = { ...state, cities };
+  const key = cities.map((c) => `${c.id}:${c.owner}`).join(",");
+  if (staging.key !== key || !staging.sight) {
+    staging.key = key;
+    staging.sight = stagedSight(staged, 0, state.players[0]!.visible, staging.sawBefore);
+  }
+  const visible = staging.sight;
+  staged.players = state.players.map((p, i) => (i === 0 ? { ...p, visible } : p));
+  return staged;
+}
+
 function resetMotion(): void {
   motion.clear();
   watching = false;
+  staging = null;
   afterSlides.length = 0;
   handoff = null;
   view.focus = undefined;
@@ -463,9 +493,11 @@ function watchOthers(actions: readonly UnitAction[], sawBefore: Uint8Array): voi
       if (y >= 0 && y < state.map.height) lost.add(y * w + wrapX(state.map, ours.x + dx));
     }
   }
+  // And what our land saw as it stood, so a city of ours is seen falling (`stagedSight`).
+  const land = staging ? stagedSight({ ...state, cities: staging.before }, 0, me.visible, sawBefore) : me.visible;
   const seen = (x: number, y: number) => {
     const i = y * w + x;
-    return me.explored[i] === 1 && (me.visible[i] === 1 || (sawBefore[i] === 1 && lost.has(i)));
+    return me.explored[i] === 1 && (land[i] === 1 || (sawBefore[i] === 1 && lost.has(i)));
   };
   const camera = {
     originX: ((Math.round(cam.animating ? cam.toX : cam.x) % w) + w) % w,
@@ -474,11 +506,17 @@ function watchOthers(actions: readonly UnitAction[], sawBefore: Uint8Array): voi
     tilesY: viewTiles().y,
   };
   const now = performance.now();
+  const played: UnitAction[] = [];
   for (const b of watchTurn(state, actions, { viewer: 0, camera, seen, glideMs: CAMERA_MS })) {
     if (b.kind === "hold") motion.hold(b.ms, now, b);
-    else motion.play(b.actions, now, b.timing);
+    else { motion.play(b.actions, now, b.timing); played.push(...b.actions); }
   }
   watching = motion.busy(now);
+  // The cities change as the steps that changed them land, the rest once the playback is over.
+  if (staging) {
+    staging.changes = cityChanges(staging.before, state.cities, played);
+    staging.started = true;
+  }
 }
 
 function skipWatch(): void {
@@ -2662,6 +2700,8 @@ function passTurn(): void {
   // What we can see now; a unit lost in the turns to come takes its sight with it.
   const sawBefore = state.players[0]!.visible.slice();
   dispatch({ type: "endTurn" });
+  // The map keeps the cities as they stand now until the playback shows them changing (`staging`).
+  staging = { before: structuredClone(state.cities), sawBefore, changes: new Map(), started: false };
   // Our own end of turn (contacts come from the relations; other civs' villages are theirs).
   // Ships lost at sea were shown going down before the turn passed.
   const events: TurnEvent[] = lastTurnEvents.filter((ev) => ev.kind !== "contact" && !(ev.kind === "hut" && ev.player !== 0) && ev.kind !== "lostAtSea");
@@ -3412,7 +3452,7 @@ function draw(sc: Screen): void {
       renderer.menu({ ...m, selected: setupSelection });
       break;
     }
-    case "map": case "beat": case "triumph": case "sinking": view.message = status; renderer.main(state, view); break;
+    case "map": case "beat": case "triumph": case "sinking": view.message = status; renderer.main(mapState(), view); break;
     case "report": renderer.report(sc.page); break;
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
@@ -3501,6 +3541,7 @@ function frame(t: number): void {
   view.lifting = lifting?.size ? lifting : undefined;
   const animating = motion.busy(t);
   if (!animating) watching = false;
+  if (staging?.started && !watching) staging = null;
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
   if (!animating && afterSlides.length && screenState.kind === "map") for (const fn of afterSlides.splice(0)) fn();

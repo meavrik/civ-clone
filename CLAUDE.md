@@ -647,6 +647,12 @@ Never ship the original's sprites, palette art, fonts or text.
   where the map already looks. A long turn is sped up to `WATCH_BUDGET_MS` (at most ~3x). Any key or
   click skips the rest. Then an "Under attack!" window lists the turn's fights with our units
   (`fightReport`), then the news; a war declared on us by a civ we already knew is told before the playback.
+  Until the playback is over the map draws the cities as they stood when our turn ended (asked for 2026-10-29:
+  a city taken, and its new borders, showed while the fight for it still played): renderer-api `staging.ts`,
+  the web app's `staging` and `mapState` (a copy of the state with `stagedCities`), so borders, flags and sizes
+  wait; a city taken, razed or founded by a step the playback shows changes as that step lands (`cityChanges`:
+  the conqueror's, raider's or settlers' last step onto its square; `MotionPlayer.playing`), and our sight
+  round a city of ours stays until it falls (`stagedSight`; the playback counts it seen, so the march in plays).
   Coasts: `coast.ts` gives both renderers one shoreline field (square depth 0 land / 1 water touching
   land / 2 open sea, interpolated between square centres plus noise that wraps with the map), so shores
   and the edge of deep water wander across square borders while every square's centre keeps its kind.
