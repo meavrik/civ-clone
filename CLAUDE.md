@@ -636,7 +636,13 @@ Never ship the original's sprites, palette art, fonts or text.
   2x" in the panel. `Renderer.viewTilesX`/`viewTilesY` stay the unzoomed count: the web app's camera
   (centring, following, edge scrolling at the same speed on screen, the other civs' playback) reads
   `viewTiles()`, the whole squares shown at the zoom, and the web adapter's `tileAt` and `squareRect` go
-  through the zoom (a square off the zoomed view has no rect).
+  through the zoom (a square off the zoomed view has no rect). A fight on the map zooms it one level closer
+  (asked for 2026-10-29: "when there is a battle zoom in to the battle - when finish zoom out to the previous
+  zoom"; the web app's `battleZoom`, `stepBattleZoom`): at once as the fight begins, centred on it (a later
+  fight glided to), held through the playback's notes beside it so a run of attacks stays close, and
+  `BATTLE_LINGER_MS` (700) after the last, then the player's zoom again about the view's middle; the turn's
+  news and the turn's end wait for that. Never kept per browser (`setZoom`'s `keep`); a zoom of the player's own
+  meanwhile stands; at 3x it only centres. Not on the phone, whose renderer keeps its own pinch zoom.
   Unit animation: core appends every step (`applyMove`) and fight (`resolveCombat`, round by round) to
   `lastActions` (a UI side channel like `lastTurnEvents`, emptied by `endTurn`, never read by replays or
   AI); `MotionPlayer` (`renderer-api/src/motion.ts`) times them into `view.moving` (slides) and

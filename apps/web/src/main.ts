@@ -206,6 +206,7 @@ import {
   type WonderLost,
   type Callout,
   type HoldFrame,
+  type MotionFrame,
   type SetupState,
   type TextInputState,
   WORK_NAME,
@@ -419,10 +420,23 @@ function mapState(): GameState {
   return staged;
 }
 
+/**
+ * A fight on the map draws it a zoom level closer, centred on the fight (asked for 2026-10-29: "when there is
+ * a battle zoom in to the battle - when finish zoom out to the previous zoom"), through the fight and the notes
+ * said beside it ("Babylonian Legion attacks!", "Phalanx destroyed"), so a run of attacks stays close, and
+ * `BATTLE_LINGER_MS` after the last; then the player's zoom comes back about the middle of the view. The fight's
+ * zoom is never kept per browser, and a zoom of the player's own meanwhile stands. Only with a mouse, as the
+ * zoom itself; at the closest zoom the map only centres on the fight.
+ */
+const BATTLE_LINGER_MS = 700;
+let battleZoom: { prev: number; fight: number; last: number } | null = null;
+
 function resetMotion(): void {
   motion.clear();
   watching = false;
   staging = null;
+  // A fight's zoom gives way to the player's own, with no camera to keep.
+  if (battleZoom) { view.zoom = battleZoom.prev > 1 ? battleZoom.prev : undefined; battleZoom = null; }
   afterSlides.length = 0;
   handoff = null;
   view.focus = undefined;
@@ -943,9 +957,10 @@ function stepCamera(now: number): void {
 
 /**
  * Zoom the map to `z`, the square under logical point `at` (else the middle of the view) staying under
- * it: the camera moves by what the zoom takes from, or gives to, the squares before that point.
+ * it: the camera moves by what the zoom takes from, or gives to, the squares before that point. `keep`
+ * remembers it per browser (not a fight's zoom, `battleZoom`).
  */
-function setZoom(z: number, at?: { x: number; y: number }): void {
+function setZoom(z: number, at?: { x: number; y: number }, keep = true): void {
   const area = renderer.mapView;
   const from = mapZoom();
   if (!area || !zoomable || z === from) return;
@@ -959,7 +974,7 @@ function setZoom(z: number, at?: { x: number; y: number }): void {
   cam.x = (((cam.x + (px / tile) * k) % w) + w) % w;
   cam.y = Math.max(0, Math.min(state.map.height - viewTiles().y, cam.y + (py / tile) * k));
   applyCamera();
-  try { localStorage.setItem(ZOOM_KEY, String(z)); } catch { /* private mode */ }
+  if (keep) try { localStorage.setItem(ZOOM_KEY, String(z)); } catch { /* private mode */ }
 }
 
 /** One zoom level in (`step` 1) or out (-1); with no point given, the unit in play stays on view. */
@@ -968,10 +983,48 @@ function zoomBy(step: number, at?: { x: number; y: number }): void {
   const i = Math.max(0, Math.min(ZOOMS.length - 1, (ZOOMS as readonly number[]).indexOf(mapZoom()) + step));
   const z = ZOOMS[i]!;
   if (z === mapZoom()) { say(step > 0 ? "Zoomed in all the way" : "Zoomed out all the way"); return; }
+  battleZoom = null; // the player's own zoom, kept when the fight is over
   setZoom(z, at);
   if (!at) followActive();
   sound.play("click");
   say(`Map zoom ${z}x`);
+}
+
+/** Each frame while a fight shows, and a moment after: the map zoomed in on it (`battleZoom`). */
+function stepBattleZoom(now: number, shown: MotionFrame): void {
+  if (!zoomable) return;
+  const b = shown.battle;
+  if (b && screenState.kind === "map") {
+    if (!battleZoom) {
+      const prev = mapZoom();
+      battleZoom = { prev, fight: -1, last: now };
+      const z = Math.min(ZOOMS[ZOOMS.length - 1]!, prev + 1);
+      if (z !== prev) setZoom(z, undefined, false);
+    }
+    // Each new fight in the middle of the view: at once as the map zooms in, gliding to the next.
+    if (battleZoom.fight !== b.start) {
+      const first = battleZoom.fight < 0;
+      battleZoom.fight = b.start;
+      const w = state.map.width;
+      const ax = Math.round(b.attacker.x);
+      let dx = (((ax - b.defender.x) % w) + w) % w;
+      if (dx > w / 2) dx -= w;
+      centerOn(b.defender.x + dx / 2, (Math.round(b.attacker.y) + b.defender.y) / 2, first);
+    }
+    battleZoom.last = now;
+    return;
+  }
+  if (!battleZoom) return;
+  if (shown.hold?.note && screenState.kind === "map") battleZoom.last = now;
+  else if (screenState.kind !== "map" || now - battleZoom.last >= BATTLE_LINGER_MS) endBattleZoom();
+}
+
+/** The fight is over: the player's zoom again, about the middle of the view. */
+function endBattleZoom(): void {
+  if (!battleZoom) return;
+  const { prev } = battleZoom;
+  battleZoom = null;
+  if (mapZoom() !== prev) setZoom(prev, undefined, false);
 }
 
 /** The wheel over the map: its turn gathered until it makes a notch (a pinch on a trackpad comes as the wheel with Ctrl), a level a notch, a pause after each. */
@@ -3561,6 +3614,7 @@ function frame(t: number): void {
   if (screenState.kind === "sinking") stepSinking(screenState, t);
   else view.sinking = undefined;
   const shown = motion.at(t);
+  stepBattleZoom(t, shown);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;
   battleSound(shown.battle);
@@ -3573,12 +3627,13 @@ function frame(t: number): void {
   if (staging?.started && !watching) staging = null;
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
-  if (!animating && afterSlides.length && screenState.kind === "map") for (const fn of afterSlides.splice(0)) fn();
+  // What waits for the slides waits for a fight's zoom to end too, so the news opens on the player's zoom.
+  if (!animating && afterSlides.length && screenState.kind === "map" && !battleZoom) for (const fn of afterSlides.splice(0)) fn();
   // The tutorial's next tip, once the map has been still a moment (it holds off the turn's end below).
   if ((state as GameState | undefined) && screenState.kind !== "title" && screenState.kind !== "setup" && screenState.kind !== "loading")
     tutorialStep(t, screenState.kind === "map" && state.players[0]!.alive && !animating && !afterSlides.length && !handoff && !watching);
   // The last unit ordered this turn: the turn ends by itself a moment later (see `actedThisTurn`).
-  const idle = screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length && !handoff;
+  const idle = screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length && !handoff && !battleZoom;
   if (actedThisTurn && idle) {
     autoEndAt ??= t + AUTO_END_MS;
     if (t >= autoEndAt) { autoEndAt = null; endTurn(); }
