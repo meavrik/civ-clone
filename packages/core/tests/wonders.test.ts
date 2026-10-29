@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, createUnit, governmentsAvailable, moveAllowance, newGame, Terrain, type GameState } from "../src/index.js";
+import { applyCommand, createUnit, foundCity, governmentsAvailable, lastTurnEvents, moveAllowance, newGame, productionCost, Terrain, type GameState } from "../src/index.js";
 
 function flatWorld(): GameState {
   const s = newGame(1, { opponents: 2 });
@@ -49,5 +49,19 @@ describe("wonders", () => {
     expect(governmentsAvailable(s, 0)).toContain("democracy");
     applyCommand(s, { type: "revolution" });
     expect(s.players[0]!.anarchyTurns).toBe(0);
+  });
+
+  it("a city whose wonder another city finished first turns to its default, keeps its shields and says so", () => {
+    const s = flatWorld();
+    const rome = foundCity(s, 0, 10, 10, "Rome");
+    const babylon = foundCity(s, 1, 30, 10, "Babylon");
+    rome.production = { kind: "wonder", id: "pyramids" };
+    babylon.wonders.push("pyramids");
+    const full = productionCost({ kind: "wonder", id: "pyramids" }) + 5;
+    rome.shields = full;
+    applyCommand(s, { type: "endTurn" });
+    expect(rome.production).toEqual({ kind: "unit", id: "militia" });
+    expect(rome.shields).toBeGreaterThanOrEqual(full);
+    expect(lastTurnEvents).toContainEqual({ city: rome.id, kind: "outbuilt", detail: "Pyramids", production: { kind: "wonder", id: "pyramids" } });
   });
 });

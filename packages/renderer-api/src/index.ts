@@ -47,6 +47,7 @@ export * from "./built.js";
 export * from "./conquest.js";
 export * from "./sinking.js";
 export * from "./staging.js";
+export * from "./outbuilt.js";
 export * from "./reign.js";
 export * from "./loading.js";
 import type { LoadingView } from "./loading.js";

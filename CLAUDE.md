@@ -434,6 +434,13 @@ Never ship the original's sprites, palette art, fonts or text.
   a group of Settlers", then Population 3 → 2 and each of food, shields and trade a turn that changed (core
   records them on the `built` event, `CityTurnEvent.change`; the font has a → for it), over its city screen;
   leaving the city goes on with the turn's news (the city `Screen`'s `then`).
+  A wonder finished first in another city (asked for 2026-10-29: the city "just halt and move to another without
+  a notice"): after the turn's news each city of ours still building one that stands elsewhere (`wondersLost` in
+  renderer-api `outbuilt.ts`) gets its build menu with the news above the list, "Wonder Built Elsewhere":
+  where, by whom, and the shields it keeps (`wonderLostNotice`, the build menu's `body`; the web app's
+  `askWondersLost`); Esc leaves it be, to be asked again next turn. The rules are unchanged: a city whose box
+  fills on such a wonder still turns to its default, shields kept, and now says so (core's `outbuilt` city
+  event, which opens the same menu).
   A city taken (`conquest.ts` in renderer-api and renderer-retro; asked for 2026-10-27: "a sad message (if lost) and
   celebration message + animation if player won"; core's `cityCaptured`/`cityLost` events carry the square, `plunder`,
   `capital` and the held city's `cityId`): one we take, once the unit has marched in (`tryMove`), glides the map to it

@@ -201,6 +201,9 @@ import {
   cityChanges,
   stagedCities,
   stagedSight,
+  wondersLost,
+  wonderLostNotice,
+  type WonderLost,
   type Callout,
   type HoldFrame,
   type SetupState,
@@ -1515,7 +1518,7 @@ function inputKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "input" }>): voi
  * What a city should build next; `then` runs once it is picked or the menu is left. Units waiting on a
  * strategic resource we lack stand among the units, faded, saying what they need (`unitChoices`).
  */
-function openProductionMenu(cityId: number, then?: () => void, title?: string): void {
+function openProductionMenu(cityId: number, then?: () => void, title?: string, body?: string[]): void {
   const city = state.cities.find((c) => c.id === cityId)!;
   const ready = buildOptions(state, city);
   const lacking = new Map(unitChoices(state, city).filter((u) => u.missing.length).map((u) => [u.id, u.missing]));
@@ -1538,6 +1541,7 @@ function openProductionMenu(cityId: number, then?: () => void, title?: string): 
     under: screenState,
     menu: {
       title: title ?? `${city.name}: build what?`,
+      ...(body ? { body } : {}),
       items: opts.map((p) => productionName(p)),
       right: opts.map((p) => {
         const t = p.kind === "unit" ? unitType(p.id) : null;
@@ -2562,6 +2566,7 @@ function eventMessage(ev: TurnEvent): string | null {
     case "shrank": return `${name} shrinks`;
     case "built": return `${name} builds ${ev.detail}`;
     case "wonder": return `${name} completes ${ev.detail}!`;
+    case "outbuilt": return `${ev.detail} was completed elsewhere: ${name} builds something else`;
     case "disorder": return `Civil disorder in ${name}!`;
     case "celebration": return `${name} holds a feast in your honour!`;
     case "starving": return `${name} is starving`;
@@ -2572,6 +2577,29 @@ function eventMessage(ev: TurnEvent): string | null {
     case "borders": return `${name}'s culture spreads: its border grows`;
     case "lacks": return `${name} needs ${ev.missing?.join(" and ") ?? "a resource"} to build ${ev.detail}`;
   }
+}
+
+/**
+ * A wonder our city was building, finished first in another city (asked for 2026-10-29: the city turned to
+ * something else without a word): the news over the city's build menu (`wonderLostNotice`), so the player
+ * picks what it builds next. Esc leaves it be, to be asked again next turn.
+ */
+function wonderLostMenu(lost: WonderLost, then: () => void): void {
+  const notice = wonderLostNotice(state, lost, 0);
+  if (!notice) { then(); return; }
+  sound.play("lament");
+  openProductionMenu(lost.city, then, notice.title, notice.lines);
+}
+
+/** Each city of ours still building a wonder that stands elsewhere now (`wondersLost`), one after another. */
+function askWondersLost(then: () => void): void {
+  const lost = wondersLost(state, 0);
+  const next = (): void => {
+    const l = lost.shift();
+    if (l) wonderLostMenu(l, next);
+    else then();
+  };
+  next();
 }
 
 /** Play the turn's events as a chain of screens, then land on the map. */
@@ -2632,6 +2660,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       openCity(ev.city, next);
       if (screenState.kind === "city") screenState.view.happy = true;
     }
+    else if (ev.kind === "outbuilt" && ev.production && state.cities.find((c) => c.id === ev.city)?.owner === 0) wonderLostMenu({ city: ev.city, wonder: ev.production.id }, next);
     else if (ev.kind === "lacks" && state.cities.find((c) => c.id === ev.city)?.owner === 0) {
       // A unit the city cannot finish for want of a resource: say so and ask what to build instead.
       say(eventMessage(ev) ?? "", 4000);
@@ -2730,12 +2759,12 @@ function passTurn(): void {
   // Their moves we could see, then our gotos (begun as our turn started), then the fights told, then the news.
   const watch = (): void => {
     watchOthers(actions, sawBefore);
-    whenStill(() => battleReport(fights, () => presentEvents(news, () => {
+    whenStill(() => battleReport(fights, () => presentEvents(news, () => askWondersLost(() => {
       // Places our gotos and growing borders found as our turn began.
       announcePlaces();
       const end = checkGameEnd(state, FINAL_TURN);
       if (end) endGame(end);
-    })));
+    }))));
   };
   if (wars.length) presentEvents(wars, watch); else watch();
 }

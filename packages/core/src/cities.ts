@@ -895,11 +895,11 @@ export function buyCost(state: GameState, city: City): number {
 
 export interface CityTurnEvent {
   city: number;
-  kind: "grew" | "shrank" | "built" | "wonder" | "disorder" | "celebration" | "starving" | "famine" | "sold" | "pollution" | "disbanded" | "borders" | "lacks";
+  kind: "grew" | "shrank" | "built" | "wonder" | "outbuilt" | "disorder" | "celebration" | "starving" | "famine" | "sold" | "pollution" | "disbanded" | "borders" | "lacks";
   /** "lacks": the unit the box is full for (`detail` its name) and the strategic resources it waits on. */
   missing?: string[];
   detail?: string;
-  /** What was finished ("built", "wonder"). */
+  /** What was finished ("built", "wonder"), or the wonder another city finished first ("outbuilt"). */
   production?: Production;
   /**
    * A unit that took a citizen (Settlers): the city's size and its surplus food, shields and trade a turn
@@ -1055,8 +1055,9 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
       city.production = defaultProduction(state, city);
     } else if (p.kind === "wonder") {
       if (wonderBuilt(state, p.id)) {
-        // Someone else finished it first: the shields stay for the next choice.
+        // Someone else finished it first: the shields stay for the next choice, and the owner hears of it.
         city.production = defaultProduction(state, city);
+        events.push({ city: city.id, kind: "outbuilt", detail: wonder(p.id).name, production: { ...p } });
         return events;
       }
       city.wonders.push(p.id);
