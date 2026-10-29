@@ -51,6 +51,9 @@ import {
   hasWaterNearby,
   peaceOffered,
   relation,
+  allied,
+  alliesAgainst,
+  warBarred,
   trespassers,
   trespassRecord,
   MAX_TRADE_ROUTES,
@@ -736,6 +739,8 @@ export function strength(state: GameState, owner: number): number {
  * stand near our cities: it means to finish the war.
  */
 export function acceptsPeace(state: GameState, them: number, me: number): boolean {
+  // An ally makes no separate peace with the enemy of its alliance (since save version 41).
+  if (alliesAgainst(state, them, me).length) return false;
   if (strength(state, them) < strength(state, me) * 1.4) return true;
   const myCities = state.cities.filter((c) => c.owner === me);
   return !state.units.some((u) => u.owner === them && isAttacker(u) && myCities.some((c) => dist(state, u.x, u.y, c.x, c.y) <= 8));
@@ -764,6 +769,7 @@ export function attitude(state: GameState, them: number, me: number): Attitude {
   if (grievance && grievance.warnings > 0) mood--;
   if (strength(state, them) > strength(state, me) * 1.5) mood--;
   if (goodwill(state, me, them)) mood++;
+  if (allied(state, them, me)) mood++;
   const refused = state.refusals?.[`${me}>${them}`];
   if (refused !== undefined && state.turn - refused < ENVOYS.grudgeTurns) mood--;
   return mood >= 0 ? "friendly" : mood === -1 ? "wary" : "hostile";
@@ -785,6 +791,8 @@ function dealAnswer(state: GameState, them: number, me: number): "yes" | "for go
 export const PRICES = {
   peace: 0.6,
   borders: 0.4,
+  /** To go to war beside us against a civilization it is not yet fighting. */
+  alliance: 0.8,
   /** For the first of our units on its land; each more adds half again, and a last warning half again. */
   stay: 0.3,
   resource: 0.5,
@@ -807,6 +815,11 @@ function powerFactor(state: GameState, a: number, b: number): number {
 /** What a wary `them` asks `me` to sign a peace treaty. */
 export function peacePrice(state: GameState, them: number, me: number): number {
   return priced(goldScale(state, them) * PRICES.peace * powerFactor(state, them, me) * PRICES.regard[esteem(state, them, me)]);
+}
+
+/** What a wary `them` asks `me` to join a war it is not yet fighting: more the stronger the enemy is against it. */
+export function alliancePrice(state: GameState, them: number, me: number, enemy: number): number {
+  return priced(goldScale(state, them) * PRICES.alliance * powerFactor(state, enemy, them) * PRICES.regard[esteem(state, them, me)]);
 }
 
 /** What a wary `them` asks `me` to open its borders. */
@@ -848,6 +861,39 @@ export function bordersAnswer(state: GameState, them: number, me: number): "yes"
  * answers: the fighting decides it.)
  */
 export function peaceAnswer(state: GameState, them: number, me: number): "yes" | "for gold" | "no" {
+  return dealAnswer(state, them, me);
+}
+
+/**
+ * Would `them` sign a non-aggression pact with `me` (since save version 41)? Not at war, and not while
+ * hostile; a pact binds both sides alike, so a wary leader signs as readily as a friendly one.
+ */
+export function pactAnswer(state: GameState, them: number, me: number): boolean {
+  return !atWar(state, them, me) && attitude(state, them, me) !== "hostile";
+}
+
+/**
+ * Why `them` will not ally with `me` against `enemy`, or null: it is hostile to `me`; it is bound to
+ * `enemy` (a pact or an alliance); it is at peace with `enemy` under a treaty and not friendly enough to
+ * break it; or it is not yet at war with `enemy` and the two of them together are no match for it.
+ */
+export function allianceRefusal(state: GameState, them: number, me: number, enemy: number): "hostile" | "bound" | "treaty" | "weak" | null {
+  const mood = attitude(state, them, me);
+  if (mood === "hostile") return "hostile";
+  if (warBarred(state, them, enemy)) return "bound";
+  if (atWar(state, them, enemy)) return null;
+  if (atPeace(state, them, enemy) && mood !== "friendly") return "treaty";
+  if (strength(state, them) + strength(state, me) < strength(state, enemy)) return "weak";
+  return null;
+}
+
+/**
+ * Would `them` ally with `me` against `enemy` (since save version 41)? Already at war with it: yes. Else
+ * friendly: yes; wary: for `alliancePrice` gold; and no for any `allianceRefusal`.
+ */
+export function allianceAnswer(state: GameState, them: number, me: number, enemy: number): "yes" | "for gold" | "no" {
+  if (allianceRefusal(state, them, me, enemy)) return "no";
+  if (atWar(state, them, enemy)) return "yes";
   return dealAnswer(state, them, me);
 }
 
@@ -976,6 +1022,8 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
       const reachable = state.cities.some((c) => c.owner === o.id && ctx.continents.has(getTile(state.map, c.x, c.y)!.continent));
       const pointless = !reachable && !state.units.some((u) => u.owner === o.id && ctx.continents.has(getTile(state.map, u.x, u.y)!.continent));
       const stalled = ctx.warTarget === null || ctx.warTarget.owner !== o.id;
+      // The enemy of an alliance of ours: no separate peace (no draw on the dice either, so games without alliances play as before).
+      if (alliesAgainst(state, me, o.id).length) continue;
       const wantPeace = ((mine < theirs * 0.7 || pointless) && nextInt(state.rng, 100) < 20) || (stalled && nextInt(state.rng, 100) < 8);
       if (!wantPeace) continue;
       // Peace takes two: another computer civilization agrees only when it is not clearly winning, the player
@@ -999,7 +1047,7 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
   let victim: Player | null = null;
   let ratio = 0;
   for (const o of state.players) {
-    if (o.id === me || o.id === state.barbarians || !o.alive || !hasContact(state, me, o.id)) continue;
+    if (o.id === me || o.id === state.barbarians || !o.alive || !hasContact(state, me, o.id) || warBarred(state, me, o.id)) continue;
     const theirCities = state.cities.filter((c) => c.owner === o.id);
     // A prize: a city of theirs near one of ours that our army could take, and walk to (wheels need roads on rough ground).
     const prize = theirCities.some((c) => {

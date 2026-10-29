@@ -1,7 +1,7 @@
-import { GOLD_WORTH, GOODWILL } from "./rules/diplomacy.js";
+import { GOLD_WORTH, GOODWILL, PACTS } from "./rules/diplomacy.js";
 import { unitType } from "./rules/units.js";
 import { landOwner } from "./territory.js";
-import { getTile, Terrain, type GameState, type Gift, type Relation, type Trespass, type Unit } from "./types.js";
+import { getTile, Terrain, type Alliance, type GameState, type Gift, type Relation, type Trespass, type Unit } from "./types.js";
 
 function key(a: number, b: number): string {
   return a < b ? `${a}:${b}` : `${b}:${a}`;
@@ -109,7 +109,7 @@ export function setBordersOpen(state: GameState, a: number, b: number, open: boo
 export function mindsTrespass(state: GameState, owner: number, intruder: number): boolean {
   if (state.noTrespass || owner < 0 || owner === intruder || owner === state.barbarians || intruder === state.barbarians) return false;
   const r = relation(state, owner, intruder);
-  return (r === "peace" || r === "contact") && !bordersOpen(state, owner, intruder);
+  return (r === "peace" || r === "contact") && !bordersOpen(state, owner, intruder) && !allied(state, owner, intruder);
 }
 
 /**
@@ -206,6 +206,73 @@ export function goodwill(state: GameState, from: number, to: number): boolean {
   let share = 0;
   for (const g of state.gifts?.[`${from}>${to}`] ?? []) if (state.turn - g.turn < GOODWILL.turns) share += g.share;
   return share >= GOODWILL.share;
+}
+
+// ---- pacts and alliances (since save version 41) ------------------------------------
+
+/** The turn `a` and `b`'s non-aggression pact runs out, while it stands. */
+export function pactUntil(state: GameState, a: number, b: number): number | undefined {
+  const until = state.pacts?.[key(a, b)];
+  return until !== undefined && state.turn < until ? until : undefined;
+}
+
+/** Have `a` and `b` a non-aggression pact standing? */
+export function hasPact(state: GameState, a: number, b: number): boolean {
+  return pactUntil(state, a, b) !== undefined;
+}
+
+/** `a` and `b` sign a non-aggression pact: neither may declare war on the other for `PACTS.pactTurns`. */
+export function signPact(state: GameState, a: number, b: number): void {
+  if (a === b) return;
+  (state.pacts ??= {})[key(a, b)] = state.turn + PACTS.pactTurns;
+}
+
+/** At a new turn: the pacts that run out now, gone (each pair once). */
+export function endPacts(state: GameState): [number, number][] {
+  const out: [number, number][] = [];
+  for (const [k, until] of Object.entries(state.pacts ?? {})) {
+    if (state.turn < until) continue;
+    delete state.pacts![k];
+    out.push(k.split(":").map(Number) as [number, number]);
+  }
+  return out;
+}
+
+/** `a` and `b`'s alliance, while its enemy still stands. */
+export function alliance(state: GameState, a: number, b: number): Alliance | undefined {
+  const al = state.alliances?.[key(a, b)];
+  return al && state.players[al.against]?.alive ? al : undefined;
+}
+
+/** Are `a` and `b` allies? */
+export function allied(state: GameState, a: number, b: number): boolean {
+  return a !== b && alliance(state, a, b) !== undefined;
+}
+
+/** The civilizations allied with `a` against `enemy`. */
+export function alliesAgainst(state: GameState, a: number, enemy: number): number[] {
+  return state.players.filter((p) => p.id !== a && alliance(state, a, p.id)?.against === enemy).map((p) => p.id);
+}
+
+/** May `a` not declare war on `b`: a pact stands between them, or they are allies? */
+export function warBarred(state: GameState, a: number, b: number): "pact" | "allied" | null {
+  return allied(state, a, b) ? "allied" : hasPact(state, a, b) ? "pact" : null;
+}
+
+/**
+ * `a` and `b` ally against `enemy`: a treaty between them if they had none, and the alliance; the caller
+ * declares the wars it needs. One alliance a pair: a new one replaces the old.
+ */
+export function makeAlliance(state: GameState, a: number, b: number, enemy: number): void {
+  if (relation(state, a, b) === "contact") setRelation(state, a, b, "peace");
+  (state.alliances ??= {})[key(a, b)] = { against: enemy, turn: state.turn };
+}
+
+/** `a` makes peace with `enemy`: its alliances against it are over. The allies it leaves. */
+export function leaveAlliances(state: GameState, a: number, enemy: number): number[] {
+  const left = alliesAgainst(state, a, enemy);
+  for (const b of left) delete state.alliances![key(a, b)];
+  return left;
 }
 
 // ---- peace offers -------------------------------------------------------------------

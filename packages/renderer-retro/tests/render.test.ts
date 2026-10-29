@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { DIMMED, mixColor } from "../src/palette.js";
 import { describe, expect, it } from "vitest";
-import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
+import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, foundCity, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { civCard, empireIncome, panelTip, settlerSites, standing, TERRAIN_TEXT, type PanelPart } from "@civ/renderer-api";
@@ -1076,14 +1076,16 @@ describe("advisor screens", () => {
     expect(black).toBe(0);
   });
 
-  it("lays a civilization's card out: the portrait's spot at the left, its lines beside it, the buttons under", () => {
+  it("lays a civilization's card out: the portrait's spot at the left, its sections beside it, the buttons under", () => {
     const state = newGame(2026, { opponents: 2 });
     const them = state.players[1]!;
+    state.cities = [];
+    foundCity(state, them.id, 30, 20, "Babylon").size = 4;
+    foundCity(state, them.id, 36, 20, "Ur").size = 2;
     const s = Surface.screen();
     const card = civCard(state, them.id, "wary");
-    expect(card.length).toBeGreaterThanOrEqual(5);
-    expect(card.some((l) => l.includes("wary toward us"))).toBe(true);
-    const view = { player: them.id, line: standing(state, them.id, true).text, card, choices: ["Talk", "Back"], selected: 0 };
+    expect(card.map((c) => c.title).slice(0, 2)).toEqual(["Realm", "Toward us"]);
+    const view = { player: them.id, line: standing(state, them.id, true).text, card, choices: ["Talk to Hammurabi", "Demand they leave"], selected: 0 };
     drawDiplomacyScreen(s, state, view);
     writeFileSync(new URL("./out/civ-card.png", import.meta.url), encodePng(s, 3));
     // The portrait's spot is a sky bed at the left; ink stands to its right.
@@ -1093,7 +1095,8 @@ describe("advisor screens", () => {
     let ink = 0;
     for (let y = p.y; y < p.y + 40; y++) for (let x = p.x + p.w + 10; x < 280; x++) if (s.get(x, y) === C.BLACK) ink++;
     expect(ink).toBeGreaterThan(50);
-    expect(diplomacyChoiceAt(view, 80, 165)).toBe(0); // the first of two buttons, on the one row
+    expect(diplomacyChoiceAt(view, 80, 180)).toBe(0); // the first of two buttons, on the one row, low on a card
+    expect(diplomacyChoiceAt(view, 80, 165)).toBe(-1);
   });
 });
 

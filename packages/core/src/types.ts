@@ -392,6 +392,10 @@ export interface GameState {
   refusals?: Record<string, number>;
   /** "offerer>to": the turn `offerer` last offered `to` peace. */
   peaceOffers?: Record<string, number>;
+  /** Non-aggression pacts (since save version 41), by pair ("a:b", the lower first): the turn each runs out. */
+  pacts?: Record<string, number>;
+  /** Alliances (since save version 41), by pair ("a:b", the lower first): the civilization they fight together. */
+  alliances?: Record<string, Alliance>;
 }
 
 /**
@@ -426,6 +430,12 @@ export interface Trespass {
 export type Proposal =
   | { kind: "tribute"; turn: number; gold: number }
   | { kind: "resource"; turn: number; want: string; give?: string; gold?: number };
+
+/** Two civilizations allied against a third (`ally`): whom they fight, and since when. */
+export interface Alliance {
+  against: number;
+  turn: number;
+}
 
 /** Gold one civilization gave another (`giveGold`): when, how much, and what it was worth to the receiver then (`goldScale`). */
 export interface Gift {

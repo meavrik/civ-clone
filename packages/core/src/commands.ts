@@ -45,6 +45,12 @@ import {
   noteTrespass,
   recordGift,
   warnTrespass,
+  endPacts,
+  hasPact,
+  leaveAlliances,
+  makeAlliance,
+  signPact,
+  warBarred,
 } from "./diplomacy.js";
 import { discoverExplored } from "./map/geography.js";
 import { findPath, stepDir } from "./pathfind.js";
@@ -103,6 +109,8 @@ export type Command =
   | { type: "tradeRoute"; unit: number } // caravan in a city far from its home
   | { type: "diplomat"; unit: number; action: DiplomatAction; x: number; y: number } // against the foreign city at (x, y) next door
   | { type: "declareWar"; player: number; reason?: "trespass" | "tribute" }
+  | { type: "makePact"; player: number } // a non-aggression pact: neither may declare war on the other for a while (the other side's answer is the caller's to ask)
+  | { type: "ally"; player: number; against: number } // an alliance against `against`: whichever of the two is not at war with it declares war
   | { type: "makePeace"; player: number } // a treaty, from war or from first contact (the other side's answer is the caller's to ask)
   | { type: "offerPeace"; player: number } // a computer leader proposes a treaty; `player` answers with makePeace or not at all
   | { type: "openBorders"; player: number } // both civilizations' units may cross each other's land
@@ -141,7 +149,9 @@ export type TurnEvent =
   | { kind: "chooseGovernment" }
   | { kind: "overthrown"; player: number } // riots went on too long under `player`'s Democracy: anarchy
   | { kind: "contact"; player: number }
-  | { kind: "warDeclared"; player: number; on: number; reason?: "trespass" | "tribute" } // `player` declares war on `on`
+  | { kind: "warDeclared"; player: number; on: number; reason?: "trespass" | "tribute" | "alliance" } // `player` declares war on `on`
+  | { kind: "pactEnded"; a: number; b: number } // `a` and `b`'s non-aggression pact has run out
+  | { kind: "allianceEnded"; a: number; b: number; against: number; by: number } // `by` made peace with `against`, leaving its ally
   | { kind: "trespass"; player: number; intruder: number; unit: number; x: number; y: number; warnings: number } // `intruder`'s unit stepped onto `player`'s land
   | { kind: "leaveDemand"; player: number; to: number; warnings: number } // `player` asks `to` to leave its land
   | { kind: "peaceOffer"; player: number; to: number } // `player` offers `to` a peace treaty
@@ -243,18 +253,40 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
     case "declareWar": {
       const me = state.currentPlayer;
       if (cmd.player === me || !state.players[cmd.player]) return { ok: false, reason: "no such player" };
-      const already = atWar(state, me, cmd.player);
-      setRelation(state, me, cmd.player, "war");
-      setBordersOpen(state, me, cmd.player, false);
-      forgiveTrespass(state, me, cmd.player);
-      forgiveTrespass(state, cmd.player, me);
-      if (!already) lastTurnEvents.push({ kind: "warDeclared", player: me, on: cmd.player, ...(cmd.reason ? { reason: cmd.reason } : {}) });
-      for (const t of endTrades(state, me, cmd.player)) lastTurnEvents.push({ kind: "tradeEnded", ...t, by: me, why: "war" });
+      // A pact or an alliance binds both sides (since save version 41).
+      const barred = warBarred(state, me, cmd.player);
+      if (barred) return { ok: false, reason: barred };
+      goToWar(state, me, cmd.player, cmd.reason);
       return { ok: true };
     }
     case "makePeace": {
-      if (!hasContact(state, state.currentPlayer, cmd.player)) return { ok: false, reason: "no contact" };
-      setRelation(state, state.currentPlayer, cmd.player, "peace");
+      const me = state.currentPlayer;
+      if (!hasContact(state, me, cmd.player)) return { ok: false, reason: "no contact" };
+      setRelation(state, me, cmd.player, "peace");
+      // A separate peace with the enemy ends the alliances against it.
+      for (const ally of leaveAlliances(state, me, cmd.player)) lastTurnEvents.push({ kind: "allianceEnded", a: me, b: ally, against: cmd.player, by: me });
+      return { ok: true };
+    }
+    case "makePact": {
+      const me = state.currentPlayer;
+      const them = state.players[cmd.player];
+      if (!them?.alive || them.id === me || them.id === state.barbarians || !hasContact(state, me, them.id)) return { ok: false, reason: "no contact" };
+      if (atWar(state, me, them.id)) return { ok: false, reason: "at war" };
+      if (hasPact(state, me, them.id)) return { ok: false, reason: "a pact stands" };
+      signPact(state, me, them.id);
+      return { ok: true };
+    }
+    case "ally": {
+      const me = state.currentPlayer;
+      const them = state.players[cmd.player];
+      const enemy = state.players[cmd.against];
+      if (!them?.alive || them.id === me || them.id === state.barbarians || !hasContact(state, me, them.id)) return { ok: false, reason: "no contact" };
+      if (atWar(state, me, them.id)) return { ok: false, reason: "at war" };
+      if (!enemy?.alive || enemy.id === me || enemy.id === them.id || enemy.id === state.barbarians) return { ok: false, reason: "no such enemy" };
+      if (!hasContact(state, me, enemy.id) || !hasContact(state, them.id, enemy.id)) return { ok: false, reason: "they have not met" };
+      if (warBarred(state, me, enemy.id) || warBarred(state, them.id, enemy.id)) return { ok: false, reason: "bound to peace" };
+      makeAlliance(state, me, them.id, enemy.id);
+      for (const side of [me, them.id]) if (!atWar(state, side, enemy.id)) goToWar(state, side, enemy.id, "alliance");
       return { ok: true };
     }
     case "offerPeace": {
@@ -1222,6 +1254,7 @@ export function endTurn(state: GameState): void {
   while (!takesTurn(next) && ++guard < state.players.length);
   if (next <= player) {
     state.turn++;
+    for (const [a, b] of endPacts(state)) lastTurnEvents.push({ kind: "pactEnded", a, b });
     for (const band of maybeSpawnBarbarians(state)) {
       const near = cityById(state, band.city)!;
       lastTurnEvents.push({ kind: "barbarians", x: band.x, y: band.y, sea: band.sea, near: near.name, player: band.victim });
@@ -1241,6 +1274,17 @@ export function endTurn(state: GameState): void {
   }
   state.currentPlayer = next;
   startTurn(state, next);
+}
+
+/** `a` declares war on `b`: borders shut, grievances dropped, trades between them ended. */
+function goToWar(state: GameState, a: number, b: number, reason?: "trespass" | "tribute" | "alliance"): void {
+  const already = atWar(state, a, b);
+  setRelation(state, a, b, "war");
+  setBordersOpen(state, a, b, false);
+  forgiveTrespass(state, a, b);
+  forgiveTrespass(state, b, a);
+  if (!already) lastTurnEvents.push({ kind: "warDeclared", player: a, on: b, ...(reason ? { reason } : {}) });
+  for (const t of endTrades(state, a, b)) lastTurnEvents.push({ kind: "tradeEnded", ...t, by: a, why: "war" });
 }
 
 /** Roll for pollution around a city; a fouled tile returns true. */

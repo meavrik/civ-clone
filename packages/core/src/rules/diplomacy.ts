@@ -23,3 +23,14 @@ export const GOODWILL = {
   turns: 20,
   share: 0.5,
 } as const;
+
+/**
+ * Pacts and alliances (asked for 2026-10-29: "add alliance against other civ option", "add a
+ * non-aggression pact option"; since save version 41). A non-aggression pact binds both sides for
+ * `pactTurns`: neither may declare war on the other until it runs out. An alliance binds its two
+ * members against a third civilization: both at war with it, neither at war with the other, neither
+ * minding the other's units on its land, until one makes peace with the enemy or the enemy falls.
+ */
+export const PACTS = {
+  pactTurns: 20,
+} as const;

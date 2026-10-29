@@ -198,7 +198,23 @@ Never ship the original's sprites, palette art, fonts or text.
   `state.asked` spaces them), which the player answers with `answer` (yes: the tribute paid, `tributePaid`, or the
   resource traded and their gold taken; no: a refused tribute is kept, `state.refusals`); an unanswered one lapses
   as the asker's next turn begins. `giveGold` says so (`gift` event). Saves before version 38 load with
-  `quietLeaders`. `warDeclared` says who declared on whom (`on`) and why (`reason`: trespass, tribute).
+  `quietLeaders`. `warDeclared` says who declared on whom (`on`) and why (`reason`: trespass, tribute, alliance).
+  Pacts and alliances (asked for 2026-10-29: "add alliance against other civ option", "add a non-aggression pact
+  option"; save version 41, `PACTS` in `rules/diplomacy.ts`): a non-aggression pact (`makePact`, `state.pacts`:
+  the turn it runs out, `pactUntil`/`hasPact`) bars war on either side for `PACTS.pactTurns` (20), then ends with
+  a `pactEnded` event as a turn begins (`endPacts`); an alliance (`ally`, `state.alliances`: `Alliance.against`)
+  makes a treaty between the two if they had none and takes whichever of them is not yet at war with the enemy
+  to war (`warDeclared` reason alliance); allies may not declare war on each other and do not mind each other's
+  units (`mindsTrespass`), and a separate peace with the enemy ends the alliance (`leaveAlliances`, the
+  `allianceEnded` event; the web app's `makePeaceWith` says so), as does the enemy's fall. `declareWar` is
+  refused while either binds (`warBarred`: "pact", "allied"). Only the player proposes them, in an audience's
+  proposals ("Non-aggression pact", "Alliance against..." then the enemy, from those both know and the player
+  may make war on: `allianceTargets`); the AI answers (`pactAnswer`: yes unless hostile or at war, for
+  nothing; `allianceAnswer`/`allianceRefusal`: no when hostile, bound to the enemy, at peace with it by treaty
+  and not friendly, or not yet at war with it while the two together are weaker; else yes if already at war
+  with it, friendly yes, wary for `alliancePrice` gold), keeps an alliance (no separate peace: `acceptsPeace`
+  and its own peace-making pass the enemy by), counts an ally a step warmer (`attitude`), and passes bound
+  civs by for wars of choice. Computer pairs never make either, so all-AI games are unchanged.
   Saves before version 10 load with `farContact` and `noTrespass` (meeting at two squares, no stop),
   saves before version 12 with `fixedBorders` (each city its 21 squares, the nearer then older winning).
   Sight (`visibility.ts`; asked for 2026-10-24: "an area of observability: one tile beyond the empire's
@@ -487,9 +503,13 @@ Never ship the original's sprites, palette art, fonts or text.
   leaves it open, Esc or Left goes back to the Game menu, and a click off it goes on to the Game menu (its
   rows, the bar, or off both to close). Diplomacy (added 2026-10-24, asked for) lists every civilization met with how we stand,
   and opens its card: the audience screen with the leader's portrait at the left (`CARD_PICTURE`) and
-  `civCard`'s lines beside it (`DiplomacyView.card`: leader and realm, trait, government, capital, size,
-  what they make of our influence, their mood toward us (the AI's `attitude`), their units on our land),
-  the standing as the line, and Talk (an audience, back to the card after), Demand they leave our land
+  `civCard`'s sections beside it (since 2026-10-29, asked for: "split to sections of civ stats etc. improve
+  content design"; `DiplomacyView.card`, `CardSection`: Realm (government, capital, cities, citizens, advances,
+  gold, in icon rows), Toward us (their mood, the AI's `attitude`, with our treaty, pact or alliance, `treaty`;
+  what they make of our influence; their units on our land), their trait, Resources; retro draws each a dim
+  heading ruled across over its rows, a line opening with an icon wrapping clear of it, the line and the one
+  row of buttons lower down), our envoy's word as the line (`envoyLine`), and Talk (an audience; since
+  2026-10-29 the talk over goes back to the map, asked for: "dont return again to the talk to x screen"), Demand they leave our land
   (when their units stand on it: the AI's `withdrawAnswer`, friendly yes, wary only to a neighbour at least
   as strong, hostile never; yes is the core `withdraw` command: each of their trespassers gets a goto to
   `exitSquare`, the nearest way off our land, walked at their turn's start, and their trespass is

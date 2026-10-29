@@ -5,7 +5,7 @@ import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
 import type { MinimapButton, PanelSpot, PanelTip } from "./panel.js";
 import { setupQuestionCards, type SetupCards } from "./setup.js";
-import type { DiplomacyView } from "./audience.js";
+import { treaty, type DiplomacyView, type StandingTone } from "./audience.js";
 import type { NewTechHit, NewTechView } from "./newtech.js";
 import type { BuiltHit, BuiltView } from "./built.js";
 import type { ConquestHit, ConquestView, Fireworks } from "./conquest.js";
@@ -638,19 +638,14 @@ export type RateRow = "tax" | "lux" | "sci";
 /** What a click on the rates window asks: a rate set to a block, stepped by a button, or the window closed. */
 export type RatesHit = { kind: "set"; row: RateRow; value: number } | { kind: "step"; row: RateRow; delta: number } | { kind: "done" };
 
-export type StandingTone = "war" | "contact" | "peace";
 
 /**
  * How the current player stands with civilization `player`: a word or two
- * for lists, or (`long`) a line for the audience, and a tone to colour it.
+ * for lists, or (`long`) a line for the audience, and a tone to colour it
+ * (`treaty`: war, no treaty, a pact, peace, open borders, an alliance).
  */
 export function standing(state: GameState, player: number, long = false): { text: string; tone: StandingTone } {
-  const me = state.currentPlayer;
-  const r = relation(state, me, player);
-  if (r === "war") return { text: long ? "We are at WAR" : "WAR", tone: "war" };
-  if (r !== "peace") return { text: long ? "No treaty between us" : "No treaty", tone: "contact" };
-  const open = bordersOpen(state, me, player);
-  return { text: long ? (open ? "At peace, our borders open" : "We are at peace") : open ? "Open borders" : "Peace", tone: "peace" };
+  return treaty(state, state.currentPlayer, player, long);
 }
 
 /** What civilization `player` makes of the current player's influence, in a few words; "" when nothing stands out. */

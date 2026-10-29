@@ -1,10 +1,12 @@
 import { GameSound } from "./sound.js";
-import { acceptsPeace, aiTurn, attitude, bordersAnswer, bordersPrice, peaceAnswer, peacePrice, resourceAsk, resourceOffers, resourcePrice, stayPrice, tradeAsk, tributeOffer, withdrawAnswer } from "@civ/ai";
+import { acceptsPeace, aiTurn, allianceAnswer, alliancePrice, allianceRefusal, attitude, bordersAnswer, bordersPrice, pactAnswer, peaceAnswer, peacePrice, resourceAsk, resourceOffers, resourcePrice, stayPrice, tradeAsk, tributeOffer, withdrawAnswer } from "@civ/ai";
 import {
   advance,
   applyCommand,
   atPeace,
   atWar,
+  PACTS,
+  alliesAgainst,
   bordersOpen,
   advancesFor,
   availableAdvances,
@@ -110,6 +112,9 @@ import {
   builtNotice,
   canResearch,
   civCard,
+  allianceTargets,
+  envoyLine,
+  type CardSection,
   resourcesReport,
   standing,
   citizenRole,
@@ -328,7 +333,7 @@ type Screen =
   | { kind: "science" }
   | { kind: "rates" }
   | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
-  | { kind: "diplomacy"; player: number; line: string; talk?: Talk; card?: string[] } // an audience, or (`card`) a civilization's card from the Diplomacy tab
+  | { kind: "diplomacy"; player: number; line: string; talk?: Talk; card?: CardSection[] } // an audience, or (`card`) a civilization's card from the Diplomacy tab
   | { kind: "beat"; until: number; then: () => void } // the map, held a moment on something about to be talked of
   | { kind: "end"; lines: string[]; rank: string }
   | { kind: "spaceship" }
@@ -2222,8 +2227,15 @@ function audience(player: number, line: string, done: () => void = () => { scree
         if (!atWar(state, 0, player)) { proposePeace(player, answer); return; }
         // A rival that is winning, with its armies at our gates, will not stop now.
         if (!acceptsPeace(state, player, 0)) { answer("Not while our armies stand at your gates."); return; }
-        dispatch({ type: "makePeace", player });
+        makePeaceWith(player);
         answer("Peace, then. Let the dead rest.", "friendly");
+      case "pact":
+        // A pact binds both alike: any leader not hostile signs it, and asks nothing for it.
+        if (!pactAnswer(state, player, 0)) { answer("A pact with you? We would sooner trust a wolf."); return; }
+        dispatch({ type: "makePact", player });
+        answer(`Agreed. For ${PACTS.pactTurns} turns no army of ours will march against you, nor yours against us.`, "friendly");
+        return;
+      case "alliance": proposeAlliance(player, answer, back); return;
         return;
       case "openBorders": {
         const price = bordersPrice(state, player, 0);
@@ -2351,6 +2363,54 @@ function proposeDeal(player: number, reply: "yes" | "for gold" | "no", price: nu
  */
 function tradeKnowledge(player: number, answer: (words: string, tone?: TalkTone) => void, back: () => void): void {
   const me = state.players[0]!;
+/** Peace with `player`: a separate peace ends our alliances against it, and the status line says so. */
+function makePeaceWith(player: number): void {
+  const allies = alliesAgainst(state, 0, player);
+  if (!dispatch({ type: "makePeace", player }) || !allies.length) return;
+  say(`Our alliance with the ${allies.map((a) => state.players[a]!.name).join(" and the ")} is over: we made peace with the ${state.players[player]!.name}.`, 5000);
+}
+
+/**
+ * An alliance against another civilization (asked for 2026-10-29; since save version 41): pick the enemy
+ * from those both of us know (`allianceTargets`; the close box takes it back), then the leader answers
+ * (the AI's `allianceAnswer`): no, with why (`allianceRefusal`); yes, or for `alliancePrice` gold from a wary
+ * one, a button saying it when the alliance takes us to war with the enemy too (the close box declines).
+ */
+function proposeAlliance(player: number, answer: (words: string, tone?: TalkTone) => void, back: () => void): void {
+  const targets = allianceTargets(state, 0, player);
+  screenState = { kind: "diplomacy", player, line: "Against whom would you have us march?" };
+  pagedChoices(targets.map((t) => state.players[t]!.name), (i) => {
+    const enemy = targets[i];
+    if (enemy === undefined) { back(); return; }
+    const name = state.players[enemy]!.name;
+    const refusal = allianceRefusal(state, player, 0, enemy);
+    if (refusal) {
+      answer(refusal === "hostile" ? "Fight beside you? We would sooner fight you."
+        : refusal === "bound" ? `We are bound to the ${name}. We will not march against them.`
+        : refusal === "treaty" ? `We are at peace with the ${name}, and we keep our word.`
+        : `The ${name} are too strong for the two of us. We will not throw our armies away.`);
+      return;
+    }
+    // Whether the alliance takes us to war with the enemy: then the button says so.
+    const war = !atWar(state, 0, enemy);
+    const sign = (): void => {
+      if (!dispatch({ type: "ally", player, against: enemy })) { answer("Then we keep our armies at home."); return; }
+      answer(`Then we march together against the ${name}.`, "friendly");
+    };
+    const declined = (): void => answer("Then we keep our armies at home.");
+    const price = alliancePrice(state, player, 0, enemy);
+    if (allianceAnswer(state, player, 0, enemy) === "for gold") {
+      if (state.players[0]!.gold < price) { answer(`For ${price} gold we might march with you. You have not so much.`); return; }
+      screenState = { kind: "diplomacy", player, line: `For ${price} gold our armies will march with yours against the ${name}.${war ? " It means war for you too." : ""}` };
+      talkMenu([`Pay ${price} gold`], () => { dispatch({ type: "giveGold", player, amount: price }); sign(); }, declined);
+      return;
+    }
+    if (!war) { sign(); return; }
+    screenState = { kind: "diplomacy", player, line: `Gladly. But it means war between you and the ${name}.` };
+    talkMenu([`Ally and declare war`], sign, declined);
+  }, back);
+}
+
   const theirs = state.players[player]!.advances.filter((a) => !me.advances.includes(a)).slice(-12);
   const give = tradeAsk(state, player, 0);
   if (!give || !theirs.length) { answer("We have nothing to trade with you."); return; }
@@ -2480,7 +2540,7 @@ function peaceOfferAudience(player: number, then: () => void): void {
   const refuse = () => { then(); say(`${civ(state.players[player]!.civ).leader}: "The offer will not stand forever."`, 3500); };
   talkMenu(["Sign the treaty", "Refuse"], (i) => {
     if (i !== 0) { refuse(); return; }
-    dispatch({ type: "makePeace", player });
+    makePeaceWith(player);
     audience(player, "It is done. May it last.", then, { tone: "friendly" });
   }, refuse);
 }
@@ -2522,7 +2582,7 @@ function giftAudience(player: number, gold: number, then: () => void): void {
 }
 
 /** A civilization declares war on us: its leader says so. */
-function warAudience(player: number, reason: "trespass" | "tribute" | undefined, then: () => void): void {
+function warAudience(player: number, reason: "trespass" | "tribute" | "alliance" | undefined, then: () => void): void {
   sound.play("war");
   screenState = {
     kind: "diplomacy",
@@ -2546,16 +2606,17 @@ function openForeignTalkMenu(): void {
 
 /**
  * A civilization's card (the menu bar's Diplomacy tab): the leader's portrait beside what we know of
- * them (`civCard`), how we stand with them as the line (or `words`, a leader's answer), and the
- * choices: talk (an audience, back to the card after), demand their units off our land, back.
+ * them in sections (`civCard`), our envoy's word as the line (`envoyLine`, or `words`, a leader's answer),
+ * and the choices: talk (an audience; the talk over, back to the map, asked for 2026-10-29: "when complete
+ * talk with a leader - dont return again to the talk to x screen"), demand their units off our land.
  */
 function openCivCard(player: number, words?: string): void {
   const them = state.players[player]!;
   if (!them.alive) { screenState = { kind: "map" }; return; }
   const leader = civ(them.civ).leader;
-  screenState = { kind: "diplomacy", player, line: words ?? standing(state, player, true).text, card: civCard(state, player, attitude(state, player, 0)) };
+  screenState = { kind: "diplomacy", player, line: words ?? envoyLine(state, player), card: civCard(state, player, attitude(state, player, 0)) };
   const back = () => { screenState = { kind: "map" }; };
-  const items: [string, () => void][] = [[`Talk to ${leader}`, () => audience(player, leaderLine(state, player), () => openCivCard(player))]];
+  const items: [string, () => void][] = [[`Talk to ${leader}`, () => audience(player, leaderLine(state, player))]];
   if (trespassers(state, 0, player).length) items.push(["Demand they leave our land", () => demandWithdraw(player, (answer) => openCivCard(player, answer))]);
   // The window's close box (or Esc) goes back to the map.
   talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), back);
@@ -2609,6 +2670,9 @@ function eventMessage(ev: TurnEvent): string | null {
         if (ev.why === "war") return `War ends our trade with the ${other}.`;
         if (ev.why === "ended") return ev.by === 0 ? null : `The ${other} end our trade of ${deal}.`;
         return ev.by === 0 ? `We have lost the ${ev.a === 0 ? ev.give : ev.take} we traded: our trade with the ${other} ends.` : `The ${other} have lost what they traded us: our trade of ${deal} ends.`;
+      case "pactEnded": return `Our non-aggression pact with the ${state.players[ev.a === 0 ? ev.b : ev.a]?.name} has run out.`;
+      case "allianceEnded": return ev.by === 0 ? `Our alliance with the ${state.players[ev.b]?.name} is over: we made peace with the ${state.players[ev.against]?.name}.`
+        : `The ${state.players[ev.by]?.name} made peace with the ${state.players[ev.against]?.name}: our alliance is over.`;
       }
       default: return null;
     }
@@ -2761,6 +2825,7 @@ function concernsUs(ev: TurnEvent): boolean {
 
 function endTurn(): void {
   // Last turn's news has not been shown yet (slides still running): show it first.
+  if (ev.kind === "pactEnded" || ev.kind === "allianceEnded") return ev.a === 0 || ev.b === 0;
   if (afterSlides.length) { skipWatch(); return; }
   if (screenState.kind === "sinking") return;
   // Ships left on deep water go down before the turn passes, while we still see them.

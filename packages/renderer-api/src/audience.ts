@@ -1,4 +1,4 @@
-import { atPeace, atWar, bordersOpen, civ, civInfluence, esteem, exportable, goldScale, GOVERNMENTS, hasResource, resourceHoldings, tradesOf, tradeSides, trespassers, type GameState } from "@civ/core";
+import { alliance, allied, atPeace, atWar, bordersOpen, civ, civInfluence, esteem, exportable, goldScale, GOVERNMENTS, hasContact, hasPact, hasResource, pactUntil, relation, resourceHoldings, tradesOf, tradeSides, trespassers, warBarred, type GameState } from "@civ/core";
 
 /**
  * The audience with a foreign leader (redone 2026-10-22, asked for, after the user's mock-up "Caesar
@@ -21,37 +21,79 @@ export interface DiplomacyView {
   choices?: string[];
   selected?: number;
   /**
-   * A civilization's card (the menu bar's Diplomacy tab): these lines beside the leader's portrait,
-   * in place of the palace; `line` is then how we stand with them.
+   * A civilization's card (the menu bar's Diplomacy tab): these sections beside the leader's portrait,
+   * in place of the palace; `line` is then our envoy's word, or a leader's answer.
    */
-  card?: string[];
+  card?: CardSection[];
   /** How far the window has grown on opening, 0..1 (`WINDOW_ENTER_MS`); absent or 1, it stands whole. */
   enter?: number | undefined;
 }
 
+/** A part of a civilization's card: a heading over its lines, which may carry `{icon}` tokens. */
+export interface CardSection {
+  title: string;
+  lines: string[];
+}
+
+/** How `me` stands with `them`, as the card's treaty line and the Foreign Minister's list say it. */
+export type StandingTone = "war" | "contact" | "peace";
+export function treaty(state: GameState, me: number, them: number, long = false): { text: string; tone: StandingTone } {
+  const r = relation(state, me, them);
+  if (r === "war") return { text: long ? "We are at WAR" : "WAR", tone: "war" };
+  const al = alliance(state, me, them);
+  if (al) return { text: long ? `Allies against the ${state.players[al.against]?.name ?? "enemy"}` : "Allied", tone: "peace" };
+  const until = pactUntil(state, me, them);
+  const pact = until === undefined ? "" : `${until - state.turn} turn${until - state.turn === 1 ? "" : "s"}`;
+  if (r !== "peace") {
+    if (pact) return { text: long ? `Non-aggression pact, ${pact} left` : "Pact", tone: "contact" };
+    return { text: long ? "No treaty between us" : "No treaty", tone: "contact" };
+  }
+  const open = bordersOpen(state, me, them);
+  const base = long ? (open ? "At peace, our borders open" : "We are at peace") : open ? "Open borders" : "Peace";
+  return { text: pact ? (long ? `${base}; a pact, ${pact} left` : `${base}, pact`) : base, tone: "peace" };
+}
+
+/** The face beside a leader's mood on the card. */
+const MOOD_ICON: Record<LeaderMood, string> = { friendly: "happy", wary: "people", hostile: "unhappy" };
+
 /**
- * What the Diplomacy tab's card says of civilization `player`: who leads them and their realm, their
- * trait, their government, capital and size, what they make of our influence, their mood toward us
- * (`mood`, the AI's `attitude`), and whether their units stand on our land.
+ * What the Diplomacy tab's card says of civilization `player`, in sections (asked for 2026-10-29: "split to
+ * sections of civ stats etc. improve content design"): their realm (government, capital, cities,
+ * citizens, advances, gold), how they stand toward us (their mood, the AI's `attitude`; our treaty, pact or
+ * alliance; what they make of our influence; their units on our land), their people's trait, and their
+ * strategic resources with our trades.
  */
-export function civCard(state: GameState, player: number, mood: "friendly" | "wary" | "hostile"): string[] {
+export function civCard(state: GameState, player: number, mood: LeaderMood): CardSection[] {
   const me = state.currentPlayer;
   const p = state.players[player]!;
   const c = civ(p.civ);
   const cities = state.cities.filter((x) => x.owner === player);
   const capital = cities.find((x) => x.buildings.includes("palace"));
+  const citizens = cities.reduce((n, x) => n + x.size, 0);
   const regard = esteem(state, player, me);
   const onOurLand = trespassers(state, me, player).length;
   const goods = state.noResources ? null : resourceHoldings(state, player).filter((h) => h.own > 0).map((h) => h.id);
   return [
-    `${c.leader} leads the ${c.name}: ${realmName(state, player)}.`,
-    ...(c.trait ? [`${c.trait.name}: ${c.trait.text}`] : []),
-    `${GOVERNMENTS[p.government]?.name ?? p.government}; capital ${capital?.name ?? "none"}. ${cities.length} ${cities.length === 1 ? "city" : "cities"}, ${p.advances.length} advances, ${p.gold} gold.`,
-    `Influence ${civInfluence(state, player)}: they ${regard === "admired" ? "admire ours" : regard === "scorned" ? "scorn ours" : "weigh ours little either way"}.`,
-    `They are ${mood} toward us.`,
-    onOurLand ? `${onOurLand} of their units stand on our land.` : "None of their units stand on our land.",
-    ...(goods ? [`Resources: ${goods.length ? goods.join(", ") : "none"}.${tradeWords(state, me, player)}`] : []),
+    { title: "Realm", lines: [
+      `{crown} ${GOVERNMENTS[p.government]?.name ?? p.government}  {city} ${capital ? capital.name : "No capital"}`,
+      `{house} ${plural(cities.length, "city", "cities")}  {people} ${plural(citizens, "citizen")}`,
+      `{bulb} ${plural(p.advances.length, "advance")}  {coin} ${p.gold} gold`,
+    ] },
+    { title: "Toward us", lines: [
+      `{${MOOD_ICON[mood]}} ${MOOD_WORDS[mood]}. ${treaty(state, me, player, true).text}.`,
+      `{culture} Influence ${civInfluence(state, player)}: they ${regard === "admired" ? "admire ours" : regard === "scorned" ? "scorn ours" : "weigh ours little"}`,
+      ...(onOurLand ? [`{boot} ${onOurLand} of their units on our land`] : []),
+    ] },
+    ...(c.trait ? [{ title: c.trait.name, lines: [c.trait.text] }] : []),
+    ...(goods ? [{ title: "Resources", lines: [`${goods.length ? goods.join(", ") : "None"}.${tradeWords(state, me, player)}`] }] : []),
   ];
+}
+
+const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+
+/** What our envoy says on the card while no leader has answered: whose court it stands at. */
+export function envoyLine(state: GameState, player: number): string {
+  return `Our envoy stands ready at the court of ${civ(state.players[player]!.civ).leader}.`;
 }
 
 /** Our trades of resources with `player`, in a few words: " We trade our Iron for their Horses." */
@@ -92,7 +134,7 @@ export function leaderTitle(state: GameState, player: number): string {
  * is gone (asked for 2026-10-27; core's `shareMaps` stays for the logs that hold it).
  */
 export type TalkSubject = "propose" | "gift" | "demand";
-export type TalkTopic = "peace" | "openBorders" | "knowledge" | "resources" | "gold" | "advance" | "resource" | "leave" | "tribute" | "closeBorders" | "endTrade" | "war";
+export type TalkTopic = "peace" | "pact" | "alliance" | "openBorders" | "knowledge" | "resources" | "gold" | "advance" | "resource" | "leave" | "tribute" | "closeBorders" | "endTrade" | "war";
 export type TalkTone = "friendly" | "hostile";
 
 /** What a talk remembers: what we have said, the turn it has taken, the subject last talked of. */
@@ -136,7 +178,7 @@ export function giftThanks(state: GameState, them: number, weight: GiftWeight): 
 }
 
 export const TALK_SUBJECT: Record<TalkTopic, TalkSubject> = {
-  peace: "propose", openBorders: "propose", knowledge: "propose", resources: "propose",
+  peace: "propose", pact: "propose", alliance: "propose", openBorders: "propose", knowledge: "propose", resources: "propose",
   gold: "gift", advance: "gift", resource: "gift",
   leave: "demand", tribute: "demand", closeBorders: "demand", endTrade: "demand", war: "demand",
 };
@@ -144,10 +186,21 @@ export const TALK_SUBJECT: Record<TalkTopic, TalkSubject> = {
 const SUBJECTS: readonly TalkSubject[] = ["propose", "gift", "demand"];
 
 /**
+ * Whom `me` may ask `them` to fight beside it (since save version 41): every civilization both have met,
+ * still standing, that `me` is free to make war on (no pact or alliance with it), barbarians aside.
+ */
+export function allianceTargets(state: GameState, me: number, them: number): number[] {
+  return state.players.filter((p) => p.id !== me && p.id !== them && p.alive && p.id !== state.barbarians
+    && hasContact(state, me, p.id) && hasContact(state, them, p.id) && !warBarred(state, me, p.id)).map((p) => p.id);
+}
+
+/**
  * What `me` may say to `them` now, by subject (`swap`: they would trade knowledge, the AI's `tradeAsk`;
  * `goods`: they would let us have a strategic resource, the AI's `resourceOffers`). Peace while there is
- * no treaty; open borders only at peace; no gift at war. With Currency, resources: a trade, a
- * gift of one they lack, and calling off the trades we have.
+ * no treaty; a non-aggression pact while none stands and an alliance against a civilization both know,
+ * out of war (since save version 41); open borders only at peace; no gift at war. With Currency,
+ * resources: a trade, a gift of one they lack, and calling off the trades we have. No war on an ally or
+ * a civilization we have a pact with.
  */
 export function talkTopics(state: GameState, me: number, them: number, memo: TalkMemo, swap: boolean, goods = false): Record<TalkSubject, TalkTopic[]> {
   const us = state.players[me]!;
@@ -161,6 +214,8 @@ export function talkTopics(state: GameState, me: number, them: number, memo: Tal
   return {
     propose: memo.tone === "hostile" ? [] : fresh([
       ["peace", !peace],
+      ["pact", !war && !hasPact(state, me, them) && !allied(state, me, them)],
+      ["alliance", !war && !allied(state, me, them) && allianceTargets(state, me, them).length > 0],
       ["openBorders", peace && knows("writing") && !open],
       ["knowledge", !war && knows("trade") && swap],
       ["resources", !war && coins && goods],
@@ -175,7 +230,7 @@ export function talkTopics(state: GameState, me: number, them: number, memo: Tal
       ["tribute", !war && knows("writing")],
       ["closeBorders", open],
       ["endTrade", tradesOf(state, me, them).length > 0],
-      ["war", !war],
+      ["war", !war && !warBarred(state, me, them)],
     ]),
   };
 }
@@ -204,6 +259,8 @@ export const SUBJECT_LABEL: Record<TalkSubject, string> = { propose: "Make a pro
 export function topicLabel(state: GameState, me: number, them: number, topic: TalkTopic): string {
   switch (topic) {
     case "peace": return "Propose peace";
+    case "pact": return "Non-aggression pact";
+    case "alliance": return "Alliance against...";
     case "openBorders": return "Open borders";
     case "knowledge": return "Trade knowledge";
     case "resources": return "Trade resources";
