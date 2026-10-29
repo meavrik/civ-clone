@@ -1232,6 +1232,18 @@ for; save version 40), told on the map as they appear.
    154 vs 139; both 6-10, 143 vs 156, and 8-8, 141 vs 154 (pop 48 vs 71) once the planner's citizens work
    for a shield first while their city has none (`governCity`). Both changes favour v2, which still packs
    its cities (13.9 vs 12.2): tuning the planner to the new land is open.
+   Settlers' jobs (checked 2026-10-29, asked for: "settler actions should take longer - check again the original civ1
+   settlers actions time frame"): the turns per terrain are the 1991 game's (roads 2, 4 or 6 by the ground's movement
+   cost, irrigation 5 or 10, mines 5 or 10, forest planted or cleared 5 to 15: FreeCiv's civ1 ruleset, CivOne's tile
+   data and the Civ1 wiki agree), counted from the order to the turn the settler is free (a 2-turn road ordered on
+   turn 10 stands as turn 12 begins), so they stand. Two things ran quicker than the original, fixed in save version
+   46: a settler that had spent its moves (walked onto the square that turn) could take up a job at once and have that
+   turn count, where the original takes no orders from a unit without moves and FreeCiv counts no work from one (now
+   one turn more, `workOptions`; the planner never did it, only giving orders to units awaiting them), and pollution
+   cleared in three turns where the manual says four (`CLEAN_TURNS`). Saves before 46 load with `quickWork` (headless
+   `--quick-work`). Head to head (planner vs v2, 16 x 300): identical both ways, 8-8, score 158 vs 124, all replaying
+   exactly. Still ours: the Romans' roads and the Germans' farms and mines in half the time (`fastWork` traits), and
+   railroads at twice a road (4, 8 or 12 turns; FreeCiv's civ1 ruleset has 3).
    Other deliberate departures: rivers give +1 trade (on grassland that is the original's River), Michelangelo's acts as a
    cathedral everywhere. The Colossus is the original's since save version 27 (asked for 2026-10-24: "built a
    Colossus, 0 effect": ours helped only the ocean squares its city worked, which Growth rarely picks): +1 trade on

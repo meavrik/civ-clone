@@ -1,6 +1,6 @@
 import { knows } from "./rules/advances.js";
 import { traitFastWork } from "./traits.js";
-import { CLEAN_TURNS, FORTRESS_TURNS, MOVE_FRAC, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
+import { CLEAN_TURNS, FORTRESS_TURNS, MOVE_FRAC, QUICK_CLEAN_TURNS, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
 import type { RankId } from "./rules/experience.js";
 import { CLASSIC_FIREPOWER, CLASSIC_HP, unitType, type UnitTypeRule } from "./rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Tile, type Unit, type WorkKind } from "./types.js";
@@ -309,9 +309,11 @@ export function workOptions(state: GameState, u: Unit): Partial<Record<WorkKind,
   if (t.road && !t.railroad && knows(known, "railroad")) out.railroad = Math.max(2, r.road.turns * RAILROAD_TURNS_FACTOR);
   if (!t.fortress && t.terrain !== Terrain.Ocean && knows(known, "construction") && !state.cities.some((c) => c.x === u.x && c.y === u.y))
     out.fortress = FORTRESS_TURNS;
-  if (t.pollution) out.clean = CLEAN_TURNS;
+  if (t.pollution) out.clean = state.quickWork ? QUICK_CLEAN_TURNS : CLEAN_TURNS;
   // A civilization quick at a job finishes it in half the turns.
   for (const work of Object.keys(out) as WorkKind[]) if (traitFastWork(state, u.owner, work)) out[work] = Math.max(1, Math.ceil(out[work]! / 2));
+  // A settler that has spent its moves (it walked here this turn) can do no work until the next: one turn more.
+  if (u.movesLeft <= 0 && !state.quickWork) for (const work of Object.keys(out) as WorkKind[]) out[work]! += 1;
   return out;
 }
 

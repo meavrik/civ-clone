@@ -105,7 +105,10 @@ describe("pollution", () => {
     expect(tileYield(s, t, false, "monarchy").food).toBe(Math.floor(clean.food / 2));
     const w = createUnit(s, "settlers", 0, 11, 10);
     expect(applyCommand(s, { type: "work", unit: w.id, work: "clean" }).ok).toBe(true);
+    // Four turns of work, as the 1991 manual has it.
     for (let i = 0; i < 3; i++) { applyCommand(s, { type: "endTurn" }); while (s.currentPlayer !== 0) applyCommand(s, { type: "endTurn" }); }
+    expect(t.pollution).toBe(true);
+    applyCommand(s, { type: "endTurn" });
     expect(t.pollution).toBe(false);
     void computeCity;
   });

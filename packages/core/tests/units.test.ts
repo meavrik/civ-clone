@@ -16,6 +16,7 @@ import {
   type GameState,
   siteScore,
   sinkingShips,
+  workOptions,
 } from "../src/index.js";
 
 /** Flat test world: all grassland except the poles, one unit placed by caller. */
@@ -89,6 +90,29 @@ describe("settler work and turns", () => {
     expect(getTile(s.map, 10, 10)!.road).toBe(true);
     expect(u.order.kind).toBe("none");
     expect(s.turn).toBe(2);
+  });
+
+  it("starts a job the next turn when the settler spent its moves getting there, as in the original", () => {
+    const s = flatWorld();
+    const u = createUnit(s, "settlers", 0, 9, 10);
+    s.activeUnit = u.id;
+    expect(applyCommand(s, { type: "move", unit: u.id, dx: 1, dy: 0 }).ok).toBe(true);
+    expect(u.movesLeft).toBe(0);
+    // Its road takes three turns from here: this one is spent.
+    expect(workOptions(s, u).road).toBe(3);
+    expect(applyCommand(s, { type: "work", unit: u.id, work: "road" }).ok).toBe(true);
+    applyCommand(s, { type: "endTurn" });
+    applyCommand(s, { type: "endTurn" });
+    expect(getTile(s.map, 10, 10)!.road).toBe(false);
+    applyCommand(s, { type: "endTurn" });
+    expect(getTile(s.map, 10, 10)!.road).toBe(true);
+    // Games saved before version 46 counted the turn it walked in.
+    const old = flatWorld();
+    old.quickWork = true;
+    const v = createUnit(old, "settlers", 0, 9, 10);
+    old.activeUnit = v.id;
+    applyCommand(old, { type: "move", unit: v.id, dx: 1, dy: 0 });
+    expect(workOptions(old, v).road).toBe(2);
   });
 
   it("irrigation needs water nearby", () => {

@@ -49,6 +49,7 @@ interface Options {
   visibleResources: boolean;
   sellWhenBroke: boolean;
   roadlessResources: boolean;
+  quickWork: boolean;
   cityStates: boolean;
 }
 
@@ -92,13 +93,14 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --visible-resources every civ sees Iron, Saltpeter and Oil from the start (saves before version 40)
   --sell-when-broke   a dry treasury sells a city's costliest building (saves before version 42)
   --roadless-resources a strategic resource serves without a road on its square (saves before version 43)
+  --quick-work        a settler's job counts the turn it walked onto the square; clean-ups take 3 turns (saves before version 46)
   --no-city-states    no city-states (every new game in the app has them; saves before version 45 had none)
   --verify        replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, cityStates: true };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, cityStates: true };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -151,6 +153,7 @@ function parseArgs(argv: string[]): Options {
       case "visible-resources": o.visibleResources = true; break;
       case "sell-when-broke": o.sellWhenBroke = true; break;
       case "roadless-resources": o.roadlessResources = true; break;
+      case "quick-work": o.quickWork = true; break;
       case "no-city-states": o.cityStates = false; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
@@ -288,6 +291,7 @@ function main(argv: string[]): number {
       ...(o.visibleResources ? { visibleResources: true } : {}),
       ...(o.sellWhenBroke ? { sellWhenBroke: true } : {}),
       ...(o.roadlessResources ? { roadlessResources: true } : {}),
+      ...(o.quickWork ? { quickWork: true } : {}),
       ...(o.cityStates ? { cityStates: true } : {}),
     });
     if (!o.quiet && o.every > 0) {

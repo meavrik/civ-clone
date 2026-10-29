@@ -418,6 +418,13 @@ export interface GameState {
    * square serves only with a road on it (`resourceRoaded`).
    */
   roadlessResources?: boolean;
+  /**
+   * Settlers' jobs as before version 46: a job taken up by a settler that had spent its moves (walked onto the square
+   * that turn) counted that turn as one of its turns, and pollution cleared in three. Since 46 such a job starts the
+   * next turn (one turn more, as the 1991 game, where a unit without moves takes no orders, and FreeCiv, which counts
+   * no work from a unit without moves), and a clean-up takes the manual's four.
+   */
+  quickWork?: boolean;
   /** Tribute paid to city-states (`city-states.ts`): "city:player" to the last turn that city-state leaves the payer be. Missing: none. */
   cityStatePeace?: Record<string, number>;
   /** City-states' demands for tribute waiting for an answer. Missing: none. */

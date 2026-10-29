@@ -102,6 +102,8 @@ export interface GameConfig {
   sellWhenBroke?: boolean;
   /** A strategic resource serves without a road on its square (`GameState.roadlessResources`). */
   roadlessResources?: boolean;
+  /** A settler's job counts the turn it walked onto the square; pollution clears in three turns (`GameState.quickWork`). */
+  quickWork?: boolean;
   /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
   cityStates?: boolean;
 }
@@ -210,6 +212,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.visibleResources ? { visibleResources: true } : {}),
     ...(config.sellWhenBroke ? { sellWhenBroke: true } : {}),
     ...(config.roadlessResources ? { roadlessResources: true } : {}),
+    ...(config.quickWork ? { quickWork: true } : {}),
     ...(config.cityStates ? { cityStates: true } : {}),
   };
 }

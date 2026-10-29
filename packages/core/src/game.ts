@@ -117,6 +117,8 @@ export interface NewGameOptions extends MapGenOptions {
   sellWhenBroke?: boolean;
   /** A strategic resource serves without a road (see `GameState.roadlessResources`). Old saves load with it. */
   roadlessResources?: boolean;
+  /** Settlers start a job the turn they walk onto its square, and clean up in three turns (see `GameState.quickWork`). Old saves load with it. */
+  quickWork?: boolean;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
@@ -307,6 +309,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.visibleResources ? { visibleResources: true } : {}),
     ...(opts.sellWhenBroke ? { sellWhenBroke: true } : {}),
     ...(opts.roadlessResources ? { roadlessResources: true } : {}),
+    ...(opts.quickWork ? { quickWork: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

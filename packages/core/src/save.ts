@@ -59,8 +59,9 @@ export interface SaveGame {
    * 42: saved while every square of a strategic resource on a civilization's land served it, road or none; roadless resources.
    * 43: saved before civilizations kept their chronicle (`Player.chronicle`); nothing to load with, as the log replays and builds it.
    * 44: saved before city-states (`City.cityState`); its games were started without `cityStates`, so they replay without them.
+   * 45: saved while a settler's job counted the turn it walked onto the square, and pollution cleared in three turns; quick work.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -83,7 +84,7 @@ export interface SaveGame {
   state?: GameState;
 }
 
-export const SAVE_VERSION = 45;
+export const SAVE_VERSION = 46;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -226,6 +227,7 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
   if (save.version < 40) options.visibleResources = true;
   if (save.version < 42) options.sellWhenBroke = true;
   if (save.version < 43) options.roadlessResources = true;
+  if (save.version < 46) options.quickWork = true;
   const state = newGame(save.seed, options);
   const from = state.turn;
   const progress = (): ReplayProgress => ({ turn: state.turn, from, to: Math.max(from, save.turn) });
