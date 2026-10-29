@@ -597,27 +597,27 @@ function knowPlaces(): void {
 }
 
 /**
- * The squares of strategic resources we have been told of (`knownResourceSquares`), and the resources we had
- * revealed then: a square new to us of a resource just revealed is told by `showReveals`, not as a find.
+ * The strategic resources of which we know a square (`knownResourceSquares`), and those we had revealed then: a
+ * resource is told the first time a square of it comes to light, never again (asked for 2026-10-29: "only once for
+ * each resource"), and one an advance has just revealed is told by `showReveals`, not as a find.
  */
-const toldResources = new Set<number>();
+let foundKinds = new Set<string>();
 let toldKinds = new Set<string>();
 function knowResources(): void {
-  toldResources.clear();
-  for (const i of knownResourceSquares(state, 0).keys()) toldResources.add(i);
+  foundKinds = new Set(knownResourceSquares(state, 0).values());
   toldKinds = new Set(RESOURCES.filter((r) => resourceKnown(state, 0, r.id)).map((r) => r.id));
 }
 
-/** Strategic resources we lack that our explorers have just come upon (asked for 2026-10-28), each named once a find. */
+/** Strategic resources we lack that our explorers or borders have come upon for the first time (asked for 2026-10-28), once a game each. */
 function resourceFinds(): string[] {
   const held = heldResources(state, 0);
-  const out = new Set<string>();
-  for (const [i, id] of knownResourceSquares(state, 0)) {
-    if (toldResources.has(i)) continue;
-    toldResources.add(i);
-    if (toldKinds.has(id) && !held.has(id)) out.add(id);
+  const out: string[] = [];
+  for (const id of new Set(knownResourceSquares(state, 0).values())) {
+    if (foundKinds.has(id)) continue;
+    foundKinds.add(id);
+    if (toldKinds.has(id) && !held.has(id)) out.push(id);
   }
-  return [...out];
+  return out;
 }
 
 /**

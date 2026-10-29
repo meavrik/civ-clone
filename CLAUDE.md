@@ -116,7 +116,9 @@ Never ship the original's sprites, palette art, fonts or text.
   on our land yet"; with none near, or over another screen, the status line. A strategic resource we lack that
   our explorers or a growing border come upon is named in their note before the places ("Discovered: Iron, Lake
   Capua", `discoveryNote`'s `resources`; the web app's `resourceFinds` over `knownResourceSquares`, a just-revealed
-  kind left to `showReveals`), even with place names off. Saves before version 40 load with `visibleResources`
+  kind left to `showReveals`), even with place names off; since 2026-10-29 once a game, for the first square of it
+  that comes to light (asked for: "no need to show each time a new resource has been found - only once for each
+  resource"; `foundKinds`, the kinds of which a square is known, so a loaded game tells none it knew). Saves before version 40 load with `visibleResources`
   (headless `--visible-resources`). Head to head (planner vs v2, 16 x 300, seeds 1-16): hidden 10-6, score 208 vs
   179, pop 74 vs 73; visible 10-6, 213 vs 184, pop 77 vs 74; all replaying exactly.
   Roads to resources (asked for 2026-10-29: "make roads for resources mandatory for them to be available"; save
