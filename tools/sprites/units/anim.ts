@@ -28,8 +28,13 @@ import { decodePng, encodePng } from "../src/png.js";
 
 const here = (p: string) => resolve(fileURLToPath(new URL(p, import.meta.url)));
 
-/** Each sheet: its rows of frames, top to bottom, left to right, by name; its cell's side when it is an even grid; `green` when drawn on a green screen. */
-const SHEETS: Record<string, { rows: string[][]; cell?: number; green?: boolean }> = {
+/**
+ * Each sheet: its rows of frames, top to bottom, left to right, by name; its cell's side when it is an even grid; `green`
+ * when drawn on a green screen; `align`, runs of frames (first, last) to put in register by the part of the figure that
+ * stays put in them (`register`), with the `home` frame (the one the unit stands in).
+ */
+type Align = [first: string, last: string, by: "legs" | "body"];
+const SHEETS: Record<string, { rows: string[][]; cell?: number; green?: boolean; align?: Align[]; home?: string }> = {
   militia: {
     rows: [
       ["ready", "anticipation", "wind-up", "strike", "follow-through", "recovery"],
@@ -63,6 +68,21 @@ const SHEETS: Record<string, { rows: string[][]; cell?: number; green?: boolean 
       ["unfurl", "fly", "cheer"],
     ],
   },
+  phalanx: {
+    cell: 256,
+    green: true,
+    rows: [
+      [1, 2, 3, 4, 5, 6].map((n) => `travel-${n}`),
+      ["ready", "anticipation", "wind-up", "strike", "follow-through", "recovery"],
+      [1, 2, 3, 4, 5, 6].map((n) => `won-${n}`),
+      ["sentry-1", "sentry-2", "sentry-3", "lowering", "kneeling", "shield-wall"],
+    ],
+    // Drawn out of register (the strike 38 pixels behind the ready stance to fit the spear in its cell, the
+    // follow-through 35 ahead, the walk drifting back 27 over its six steps): the walk by its body, the thrust, the
+    // cheer and the watch by the feet planted under them; the kneeling as drawn, behind the shield that stays put.
+    home: "sentry-1",
+    align: [["travel-1", "travel-6", "body"], ["ready", "recovery", "legs"], ["won-1", "won-6", "legs"], ["sentry-1", "sentry-3", "legs"]],
+  },
 };
 /** Alpha over which a pixel is the frame's own (under it: soft edges, kept with their frame). */
 const SOLID = 64;
@@ -77,11 +97,13 @@ const MARGIN = 2;
 const REACH = 4;
 /** The rows at the foot of a frame read for its ground contact. */
 const FOOT_ROWS = 4;
+/** In registering frames, the share of the home frame's height (from the ground) that is its legs; the body is above it. */
+const LEGS = 0.45;
 
 type Box = { x: number; y: number; w: number; h: number };
 const tuple = (b: Box) => `[${b.x}, ${b.y}, ${b.w}, ${b.h}]`;
 
-function cut(unit: string, rows: string[][], cell?: number, green?: boolean) {
+function cut(unit: string, rows: string[][], cell?: number, green?: boolean, align?: Align[], home?: string) {
   const sheet = decodePng(new Uint8Array(readFileSync(here(`./${unit}-anim.png`))));
   const { width: W, height: H, data } = sheet;
   // A green screen made clear behind the figures, their pixels as they are.
@@ -227,6 +249,58 @@ function cut(unit: string, rows: string[][], cell?: number, green?: boolean) {
     return { name: rows.flat()[n]!, ids: new Set(p.pieces.map((q) => q.id)), source, anchor, box: { x: p.x, y: p.y, w: p.w, h: p.h } };
   });
 
+  // Frames drawn out of register (a generated sheet sets its figure a little differently in each cell, so it would
+  // shuffle to and fro as it moves): each run named in `align` put in register by the part of the figure that stays put
+  // in it, its legs (a thrust, a cheer: the feet planted) or its body above them (a walk: the legs swing under a body
+  // going steadily on), each frame with the run's first and that with the home frame, by the shift across that lays
+  // most of their pixels in that part on each other's (the smaller shift on a tie). Only the anchors move.
+  if (align?.length) {
+    const names = rows.flat();
+    const at = (name: string) => {
+      const n = names.indexOf(name);
+      if (n < 0) throw new Error(`${unit}: no frame ${name} to register`);
+      return n;
+    };
+    const homeN = at(home ?? names[0]!);
+    // Each frame's own pixels round its anchor: 2R across, R up from the ground.
+    const R = cell ?? 256;
+    const masks = cuts.map((c) => {
+      const m = new Uint8Array(2 * R * R);
+      for (let y = c.source.y; y < c.source.y + c.source.h; y++)
+        for (let x = c.source.x; x < c.source.x + c.source.w; x++) {
+          const o = owner[y * W + x]!;
+          if (o < 0 || !c.ids.has(o)) continue;
+          const mx = x - c.anchor.x + R, my = y - c.anchor.y + R;
+          if (mx >= 0 && mx < 2 * R && my >= 0 && my < R) m[my * 2 * R + mx] = 1;
+        }
+      return m;
+    });
+    const tall = cuts[homeN]!.anchor.y - cuts[homeN]!.box.y;
+    const knee = R - Math.round(LEGS * tall);
+    // How far across frame b's figure stands from frame a's, by the part `by`.
+    const register = (a: number, b: number, by: Align[2]): number => {
+      const [y0, y1] = by === "legs" ? [knee, R] : [R - tall, knee];
+      let best = 0, most = -1;
+      for (let k = 0; k <= R / 2; k++) {
+        const s = k % 2 ? (k + 1) / 2 : -k / 2;
+        let sum = 0;
+        for (let y = Math.max(0, y0); y < y1; y++)
+          for (let x = Math.max(0, -s), row = y * 2 * R; x < Math.min(2 * R, 2 * R - s); x++) sum += masks[a]![row + x]! & masks[b]![row + x + s]!;
+        if (sum > most) { most = sum; best = s; }
+      }
+      return best;
+    };
+    const moves = align.map(([first, last, by]) => {
+      const f = at(first), l = at(last);
+      const lead = f === homeN ? 0 : register(homeN, f, by);
+      return { f, shifts: Array.from({ length: l - f + 1 }, (_, i) => lead + (i ? register(f, f + i, by) : 0)), first, last, by };
+    });
+    for (const { f, shifts, first, last, by } of moves) {
+      shifts.forEach((s, i) => { cuts[f + i]!.anchor.x += s; });
+      console.log(`  ${first}..${last} put in register by the ${by}: ${shifts.join(", ")}`);
+    }
+  }
+
   // One canvas for all: room round the anchor for the furthest reach of any frame each way.
   const left = Math.max(...cuts.map((c) => c.anchor.x - c.source.x));
   const right = Math.max(...cuts.map((c) => c.source.x + c.source.w - c.anchor.x));
@@ -261,7 +335,7 @@ function cut(unit: string, rows: string[][], cell?: number, green?: boolean) {
   return { unit, size: [cw, ch], anchor: [left, up], frames: placed };
 }
 
-const atlases = Object.entries(SHEETS).map(([unit, { rows, cell, green }]) => cut(unit, rows, cell, green));
+const atlases = Object.entries(SHEETS).map(([unit, { rows, cell, green, align, home }]) => cut(unit, rows, cell, green, align, home));
 writeFileSync(
   here("../../../packages/renderer-api/src/unit-atlas.ts"),
   `// Written by tools/sprites/units/anim.ts from the user's sheets of units' moves (tools/sprites/units/<unit>-anim.png):

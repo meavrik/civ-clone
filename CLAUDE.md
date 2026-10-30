@@ -1028,6 +1028,20 @@ Never ship the original's sprites, palette art, fonts or text.
   under the pictures, so the founders stand in front of the light; hashes and time, never the RNG. Other civilizations'
   cities appear as ever; the phone plays it too (the zoom is the effect's own, not the map's). Preview:
   `?unit=settlers-found`.
+  The hoplite (2026-10-30, asked for with the user's sheet: "implement hoplite sprite-sheet"), the first in the layout
+  the sheets' prompt asks of every unit: one sheet, 1536x1024, a 256-pixel grid, rows of 6: move, attack (ready,
+  anticipation, wind-up, strike, follow-through, recovery), victory, then sentry 3 and fortify 3 (ships and aircraft a
+  6-frame idle there). `tools/sprites/units/phalanx-anim.png` kept as supplied (on a green screen, keyed as the
+  militia's win); atlas `phalanx` (24 canvases of 385x258); its rule's moves are the rows (`travel`, `attack` striking on
+  the strike, `won`, `sentry`, `fortify`, idle sentry-1, fortified the shield wall), shown as drawn (`ownerColour`
+  false), scale 296 (between the still picture's shield and its crest-to-feet as that stands in its square; the still's
+  spear is drawn longer). Its still picture is no longer shown, as the militia's. A generated sheet sets its figure a
+  little differently in each cell (here the strike 38 pixels behind the ready stance to fit the spear, the
+  follow-through 35 ahead, the walk drifting back 27 over its steps), so the cutter puts runs of frames in register
+  (`align`, with the sheet's `home` frame): by the legs (planted in a thrust, a cheer, the watch) or by the body above
+  them (a walk), each frame with the run's first and that with the home frame, by the sideways shift that lays most of
+  their pixels in that part on each other's; only the anchors move, every pixel stays the sheet's. The kneel is left as
+  drawn, behind the shield that stays put. Preview: `?unit=phalanx`.
   Facing (2026-10-28, asked for: "flip units to face the direction they are moving or attacking towards"): renderer-api
   `UnitFacing` (a UI side channel run by the web app each frame; `view.facingLeft` by unit id) turns a unit the way it
   steps or is nudged across once the step is under way (`UnitMotion.heading`; one waiting its turn keeps its facing),

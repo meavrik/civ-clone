@@ -108,10 +108,10 @@ describe("the militia winning a fight", () => {
   it("celebrates as its foe falls, through to the end even once the fight is over, then back to its orders", () => {
     const { state, m, anim } = setup();
     anim.update(state, undefined, 0);
-    const fight = (dying: number): BattleFrame => ({ attacker: fighter(m.id, "militia"), defender: fighter(999, "phalanx", dying), start: 1000, heading: 1 });
+    const fight = (dying: number): BattleFrame => ({ attacker: fighter(m.id, "militia"), defender: fighter(999, "legion", dying), start: 1000, heading: 1 });
     anim.update(state, fight(0), 1000);
     expect(rule.attack!.frames).toContain(anim.update(state, fight(0), 1400).frames[m.id]);
-    // The phalanx begins to burst: the militia raises its club.
+    // The legion begins to burst: the militia raises its club.
     expect(anim.update(state, fight(0.1), 1500).frames[m.id]).toBe(20);
     const won = rule.won!.ms.reduce((a, b) => a + b, 0);
     const seen: number[] = [];
@@ -167,6 +167,65 @@ describe("the settlers' atlas", () => {
     const idle = settlers.frames[move.idle]!;
     expect(b.x + (idle.box[0] + idle.box[2] / 2) * k).toBeCloseTo(8, 6);
     expect((idle.box[3] * k) / 16).toBeCloseTo(189 / 240, 1);
+  });
+});
+
+describe("the phalanx's atlas", () => {
+  const hoplite = UNIT_ATLASES.phalanx!;
+  const move = UNIT_ANIMS.phalanx!;
+  const frame = (name: string) => hoplite.frames.findIndex((f) => f.name === name);
+
+  it("has the sheet's 24 frames in its rows, each translated whole onto its canvas, the feet on the ground", () => {
+    expect(hoplite.frames.map((f) => f.name)).toEqual([
+      ...[1, 2, 3, 4, 5, 6].map((n) => `travel-${n}`),
+      "ready", "anticipation", "wind-up", "strike", "follow-through", "recovery",
+      ...[1, 2, 3, 4, 5, 6].map((n) => `won-${n}`),
+      "sentry-1", "sentry-2", "sentry-3", "lowering", "kneeling", "shield-wall",
+    ]);
+    const [w, h] = hoplite.size;
+    hoplite.frames.forEach((f) => {
+      const [x, y, bw, bh] = f.box;
+      // Nothing clipped: the spear thrust out, raised and levelled, inside the canvas.
+      expect(x >= 0 && y >= 0 && x + bw <= w && y + bh <= h, f.name).toBe(true);
+      // Translated, never scaled.
+      expect([x - hoplite.anchor[0], y - hoplite.anchor[1]], f.name).toEqual([f.source[0] + 2 - f.anchor[0], f.source[1] + 2 - f.anchor[1]]);
+      // On its row's ground, within a few pixels (the row's lowest point may be a spear's butt or the shield's rim).
+      expect(hoplite.anchor[1] - (y + bh), f.name).toBeLessThanOrEqual(4);
+    });
+  });
+
+  it("is put in register where the sheet set it awry: the thrust keeps its feet, the walk its body", () => {
+    // On the sheet the strike stands 38 pixels behind the ready stance in its cell and the follow-through 35 ahead.
+    const cellMiddle = (n: number) => (n % 6) * 256 + 128;
+    const off = (name: string) => hoplite.frames[frame(name)]!.anchor[0] - cellMiddle(frame(name));
+    expect(off("strike") - off("ready")).toBe(-38);
+    expect(off("follow-through") - off("ready")).toBe(35);
+    // The walk drifted back over its steps: set straight.
+    expect(off("travel-1") - off("travel-6")).toBe(27);
+    // The kneel is drawn in register behind its shield: left as the sheet has it.
+    for (const name of ["lowering", "kneeling", "shield-wall"]) expect(off(name), name).toBe(0);
+  });
+
+  it("plays each row for its move, the sheet's colours as drawn", () => {
+    const row = (frames: number[]) => new Set(frames.map((f) => Math.floor(f / 6)));
+    expect(row(move.travel!.frames)).toEqual(new Set([0]));
+    expect(row(move.attack!.frames)).toEqual(new Set([1]));
+    expect(hoplite.frames[move.attack!.frames[move.attack!.impact]!]!.name).toBe("strike");
+    expect(row(move.won!.frames)).toEqual(new Set([2]));
+    expect(move.sentry!.frames.map((f) => hoplite.frames[f]!.name)).toEqual(["sentry-1", "sentry-2", "sentry-3"]);
+    expect(move.fortify!.frames.map((f) => hoplite.frames[f]!.name)).toEqual(["lowering", "kneeling", "shield-wall"]);
+    expect([hoplite.frames[move.idle]!.name, hoplite.frames[move.fortified!]!.name]).toEqual(["sentry-1", "shield-wall"]);
+    expect(move.ownerColour).toBe(false);
+    expect(travelMs("phalanx")).toBe(480);
+  });
+
+  it("stands the size of the phalanx's still picture in its square, centred in it", () => {
+    const b = unitArtPlace({ id: "phalanx", unit: true, x: 0, y: 0, w: 16, h: 16 })!;
+    const k = b.w / hoplite.size[0];
+    const idle = hoplite.frames[move.idle]!;
+    expect(b.x + (idle.box[0] + idle.box[2] / 2) * k).toBeCloseTo(8, 6);
+    // Crest to feet, 209 pixels here and 198 in the still picture, which is shrunk to fit its square (0.97 of its 277).
+    expect(209 / move.square).toBeCloseTo(198 / (277 / 0.97), 1);
   });
 });
 
@@ -274,7 +333,7 @@ describe("UnitAnimator", () => {
     const { state, m, anim } = setup();
     m.order = { kind: "sentry" };
     anim.update(state, undefined, 0);
-    const battle: BattleFrame = { attacker: fighter(m.id, "militia"), defender: fighter(999, "phalanx"), start: 1000, heading: 1 };
+    const battle: BattleFrame = { attacker: fighter(m.id, "militia"), defender: fighter(999, "legion"), start: 1000, heading: 1 };
     const impacts: number[] = [];
     const frames: number[] = [];
     // Drawn every 16 ms, and twice at some instants (a redraw): each strike still lands once. A fight of 1.6 s.
@@ -324,8 +383,8 @@ describe("UnitAnimator", () => {
     expect(motionMs(steps(3), timing)).toBe(3 * travelMs("militia"));
     expect(motionMs(steps(20), timing)).toBeLessThanOrEqual(WALK_CHAIN_MS);
     // A unit without a walk keeps the pace.
-    expect(motionMs(steps(1).map((s) => ({ ...s, type: "phalanx" })), timing)).toBe(120);
-    expect(travelMs("phalanx")).toBe(0);
+    expect(motionMs(steps(1).map((s) => ({ ...s, type: "legion" })), timing)).toBe(120);
+    expect(travelMs("legion")).toBe(0);
   });
 });
 
@@ -376,7 +435,7 @@ describe("UnitAnimator, the settlers", () => {
     anim.update(state, undefined, 0);
     expect(move.travel!.frames).toContain(anim.update(state, undefined, 100, [{ unit: s.id }]).frames[s.id]);
     expect(move.work!.mine!.frames).toContain(anim.update(state, undefined, 300).frames[s.id]);
-    const battle: BattleFrame = { attacker: fighter(s.id, "settlers"), defender: fighter(999, "phalanx"), start: 400, heading: 1 };
+    const battle: BattleFrame = { attacker: fighter(s.id, "settlers"), defender: fighter(999, "legion"), start: 400, heading: 1 };
     const poses = anim.update(state, battle, 400 + LUNGE_MS);
     expect(poses.impacts).toEqual([]);
     expect(move.work!.mine!.frames).toContain(poses.frames[s.id]);

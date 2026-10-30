@@ -125,6 +125,31 @@ export const UNIT_ANIMS: Record<string, UnitAnimRule> = {
     show: { frames: [0, 1, 2, 3, 4, 5], ms: [500, 450, 500, 550, 650, 900] },
     idle: 5,
   },
+  // The hoplite (2026-10-30, the user's sheet: "implement hoplite sprite-sheet"), the first in the layout every unit's
+  // sheet now takes (rows of 6 on a 256-pixel grid): walking, the thrust over the shield, the cheer with spear and
+  // shield raised, then the watch (3) and the kneel behind the shield (3), its spear levelled over the rim. The cutter
+  // puts the drawings in register (`align` in tools/sprites/units/anim.ts: the sheet set the strike back and the
+  // follow-through forward in their cells).
+  phalanx: {
+    // The size of the phalanx's picture on the units sheet as it stands in its square (shrunk to fit, 286 pixels a
+    // square): its shield (67x80 here, 71x76 there: 290) and its crest to its feet (209 here, 198 there: 302) between
+    // them. The still picture's spear is drawn longer, so the sheet's stands a little shorter in the square.
+    square: 296,
+    pixelated: true,
+    // Shown as drawn, the magenta left magenta, as the still pictures are (the militia's colour was asked for).
+    ownerColour: false,
+    // A whole cycle a square (`travelMs`), from the step after the one it stands in.
+    travel: { frames: [1, 2, 3, 4, 5, 0], ms: [80, 80, 80, 80, 80, 80] },
+    // Ready, anticipation, wind-up, strike, follow-through, recovery; the blow lands on the strike.
+    attack: { frames: [6, 7, 8, 9, 10, 11], ms: [120, 100, 100, 80, 100, 140], impact: 3 },
+    // Spear and shield raised as its foe falls, the shout held longest.
+    won: { frames: [12, 13, 14, 15, 16, 17], ms: [110, 120, 140, 170, 200, 500] },
+    sentry: { frames: [18, 19, 20], ms: [450, 400, 550] },
+    // Lowering, kneeling, the shield wall held while fortified.
+    fortify: { frames: [21, 22, 23], ms: [140, 160, 180] },
+    idle: 18,
+    fortified: 23,
+  },
 };
 
 /** The frame show `id` (an atlas with a `show`) is on `elapsed` into it, its last held once it is over. */
