@@ -1,10 +1,11 @@
 import { drawText, drawTextLarge, FONT_HEIGHT, textWidth, textWidthLarge } from "./font.js";
-import { drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
+import { drawIcon, drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
 import { drawShield, drawUnitFigure } from "./overlays.js";
 import { C, DIMMED, shade, slotColor } from "./palette.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { darker } from "./sprites/index.js";
 import { SCREEN_H, SCREEN_W, Surface } from "./surface.js";
+import { CITY_UNITS_BOX } from "./screens/city-layout.js";
 
 /**
  * Inks for text on the stone, every panel in the game: black, a dark grey for what matters
@@ -199,7 +200,7 @@ export function drawBox(s: Surface, x: number, y: number, w: number, h: number, 
     }
 }
 
-import { keepInView, menuButtons, MODAL_MAX_SHARE, unitArt, type MenuState, type TextInputState } from "@civ/renderer-api";
+import { buildingArt, keepInView, menuButtons, MODAL_MAX_SHARE, unitArt, type MenuPicture, type MenuState, type TextInputState } from "@civ/renderer-api";
 
 export const MENU_ROW = FONT_HEIGHT + 1;
 /** A titled window is at least this wide; its text wraps rather than widen it past MODAL_MAX_SHARE of the screen. */
@@ -245,6 +246,8 @@ interface MenuLayout {
   indents: number[];
   /** Rows on view, and the first of them; `rows` is short of the items when the list scrolls. */
   rows: number; top: number;
+  /** The part of the screen it stands clear of and leaves lit (`MenuState.keepClear`), when it does. */
+  keep: { x: number; y: number; w: number; h: number } | null;
 }
 
 /** A window's map square (`MenuState.square`): its picture's side in screen pixels (twice a map square), framed, and the gap after it. */
@@ -254,9 +257,17 @@ const SQUARE_SIDE = SQUARE_FRAME + 6;
 /** A window with a map square is at least this wide, so the lines beside the picture have room. */
 const SQUARE_WINDOW_W = 236;
 
-/** A row with a unit's sprite before it (`MenuState.units`): the sprite's side, and the row tall enough to hold it with a pixel either side. */
+/** A row with a picture before it (`MenuState.pictures`): the picture's side, and the row tall enough to hold it with a pixel either side. */
 const UNIT_PIC = 16;
 const UNIT_ROW = UNIT_PIC + 2;
+
+/** The part of the screen a window keeps clear of and leaves lit (`MenuState.keepClear`), or null. */
+function keptClear(m: MenuState): { x: number; y: number; w: number; h: number } | null {
+  return m.keepClear === "cityUnits" ? CITY_UNITS_BOX : null;
+}
+
+/** A window keeping clear of part of the screen shows at least this many rows (or all it has), else stands in the middle as usual. */
+const CLEAR_ROWS = 4;
 
 /** How far round the point a window keeps clear of (`MenuState.avoid`): a square of the map either way. */
 const AVOID = 16;
@@ -279,27 +290,36 @@ function clearOf(p: { x: number; y: number }, x: number, y: number, w: number, h
  * Where a menu goes on a screen `screenW` wide: centred, or at its anchor kept on the screen; its parts
  * `size` large, or its `fallback` size when it would run off the screen so.
  */
-function menuLayout(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): MenuLayout {
-  const l = layoutAt(m, screenW, size);
-  return size.fallback && (l.y + l.h > SCREEN_H || l.x + l.w > screenW) ? menuLayout(m, screenW, size.fallback) : l;
+function menuLayout(m: MenuState, screenW = SCREEN_W, size = DESK_MENU, clear = true): MenuLayout {
+  const l = layoutAt(m, screenW, size, clear);
+  // Too few rows in the room above what it keeps clear of: smaller (the phone's), else in the middle after all.
+  const cramped = !!l.keep && l.rows < Math.min(m.items.length, CLEAR_ROWS);
+  if (size.fallback && (l.y + l.h > SCREEN_H || l.x + l.w > screenW || cramped)) {
+    const small = menuLayout(m, screenW, size.fallback, clear);
+    return cramped && !small.keep ? menuLayout(m, screenW, size, false) : small;
+  }
+  return cramped ? menuLayout(m, screenW, size, false) : l;
 }
 
-function layoutAt(m: MenuState, screenW: number, size: MenuSize): MenuLayout {
+function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean): MenuLayout {
   const buttons = menuButtons(m);
   const t = size.text;
   const tw = (text: string) => (t === 2 ? textWidthLarge(text) : textWidth(text));
   const lineH = FONT_HEIGHT * t;
-  // Rows with a unit's sprite before them keep the sprite's height (or the row's, if taller) and never close up.
-  const pic = m.units ? UNIT_PIC + 4 : 0;
+  // Rows with a picture before them keep the picture's height (or the row's, if taller) and never close up.
+  const pic = m.pictures ? UNIT_PIC + 4 : 0;
   const unitRow = Math.max(UNIT_ROW, size.row);
-  const least = m.units ? unitRow : size.least;
+  const least = m.pictures ? unitRow : size.least;
+  // The window's room ends at the screen's foot, or above what it keeps clear of, its shadow too.
+  const keep = clear ? keptClear(m) : null;
+  const floor = keep ? keep.y - 2 : SCREEN_H;
   const itemW = Math.max(0, ...m.items.map((i, k) => pic + tw(i) + (m.right?.[k] ? tw(m.right[k]!) + 12 : 0)));
   const bw = buttons ? Math.max(size.buttonW, itemW + 16) : 0;
   const titleH = t === 2 ? TITLE_H_LARGE : TITLE_H;
   const head = m.title ? titleH + 5 : 3;
   const foot = m.title ? 6 : 3;
   // A list that will not fit even with its rows closed up scrolls at the usual row height, beside its bar.
-  const roomGuess = 200 - (m.anchor?.y ?? 0) - head - foot - (m.body?.length ? m.body.length * lineH + 5 : 0);
+  const roomGuess = floor - (m.anchor?.y ?? 0) - head - foot - (m.body?.length ? m.body.length * lineH + 5 : 0);
   const scrolls = !buttons && m.items.length * least > roomGuess;
   const need = Math.max(tw(m.title) + 16 + (m.close ? titleH : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? size.scroll + 4 : 0));
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l, t))) + 20 : 0;
@@ -315,17 +335,17 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize): MenuLayout {
   }
   const bodyH = lines.length || framed ? Math.max(lines.length * lineH, framed ? SQUARE_FRAME + 2 : 0) + 5 : 0;
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
-  const room = 200 - (m.anchor?.y ?? 0) - head - bodyH - foot;
+  const room = floor - (m.anchor?.y ?? 0) - head - bodyH - foot;
   const fits = m.items.length * least <= room;
-  const row = m.units ? unitRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, m.items.length)))) : size.row;
+  const row = m.pictures ? unitRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, m.items.length)))) : size.row;
   const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
   const itemsH = buttons ? m.items.length * (size.button + size.buttonGap) + 1 : rows * row;
   const h = head + bodyH + itemsH + foot;
   let x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
-  let y = m.anchor ? m.anchor.y : Math.max(0, Math.floor((200 - h) / 2));
+  let y = m.anchor ? m.anchor.y : keep ? Math.max(0, floor - h) : Math.max(0, Math.floor((SCREEN_H - h) / 2));
   if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
-  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top };
+  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep };
 }
 
 export function menuRect(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x: number; y: number; w: number; h: number } {
@@ -401,7 +421,7 @@ export function drawEntering(s: Surface, enter: number, rect: { x: number; y: nu
 
 export function drawMenu(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void, size = DESK_MENU): void {
   // A titled window (not a dropdown, not the title screen's plain list) darkens what it opens over.
-  if (m.title && !m.anchor) dimScreen(s);
+  if (m.title && !m.anchor) dimScreen(s, menuLayout(m, s.width, size).keep ?? undefined);
   // A window (not a dropdown) still opening grows into place.
   if (m.enter !== undefined && m.enter < 1 && !m.anchor) {
     drawEntering(s, m.enter, menuRect(m, s.width, size), (t) => drawMenuNow(t, m, square, size));
@@ -460,15 +480,27 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     const ry = itemsY + (i - top) * row;
     // A row that undoes something for good is red, lit in dark red.
     if (sel) s.rect(x + 4, ry - 1, rowW, row, danger ? shade("brick", 2) : shade("azure", 2));
-    // A unit's sprite before the row, the words (and the sprite) in the middle of the row's height.
-    const unit = m.units?.[i];
-    const ty = unit ? ry + Math.floor((row - lineH) / 2) - 1 : ry + Math.max(0, Math.floor((row - lineH - 1) / 2));
-    if (unit) drawUnitFigure(s, unit.type, x + 8, ry + Math.floor((row - UNIT_ROW) / 2), slotColor(unit.color));
-    write(x + 10 + (unit ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : danger ? BAD : C.BLACK!);
+    // A picture before the row, the words (and the picture) in the middle of the row's height.
+    const picture = m.pictures?.[i];
+    const ty = m.pictures ? ry + Math.floor((row - lineH) / 2) - 1 : ry + Math.max(0, Math.floor((row - lineH - 1) / 2));
+    if (picture) drawRowPicture(s, picture, x + 8, ry + Math.floor((row - UNIT_ROW) / 2), off);
+    write(x + 10 + (m.pictures ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : danger ? BAD : C.BLACK!);
     const r = m.right?.[i];
     if (r) write(x + 4 + rowW - 6 - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("brick", 6) : shade("azure", 7)) : danger ? BAD : DIM);
   });
   if (scrolls) drawScrollBar(s, m, l);
+}
+
+/**
+ * A row's picture, `UNIT_PIC` a side at (x, y): a unit's (the user's picture, else its sprite), or the user's picture
+ * of a building in the middle of the square, shape kept (a house where there is none); darkened on a row that cannot
+ * be picked.
+ */
+function drawRowPicture(s: Surface, p: MenuPicture, x: number, y: number, off: boolean): void {
+  const dim = off ? { dim: true } : {};
+  if ("unit" in p) drawUnitFigure(s, p.unit, x, y, slotColor(p.color), dim);
+  else if (buildingArt(p.building)) s.art.push({ id: p.building, x, y, w: UNIT_PIC, h: UNIT_PIC, middle: true, ...dim });
+  else drawIcon(s, "house", x, y);
 }
 
 /** The bar beside a scrolling menu. */

@@ -304,12 +304,22 @@ export interface MenuState {
   /** Rows that undo something for good (a unit's Disband): drawn in warning red, as a row or a button. Modern ignores it. */
   danger?: number[];
   /**
-   * A unit's sprite before each row (the stack chooser, asked for 2026-10-24: a click on a square
-   * holding several of our units lists them to pick from): its type and its owner's colour slot.
-   * Rows grow to hold the sprite; never buttons. Modern ignores it.
+   * A picture before each row (null: none): a unit's, its type and its owner's colour slot (the stack chooser,
+   * asked for 2026-10-24: a click on a square holding several of our units lists them to pick from), or a
+   * building's, wonder's or spaceship part's (the build menu, asked for 2026-10-30: "show unit/building image next
+   * to each item"). Rows grow to hold it; never buttons. Modern ignores it.
    */
-  units?: { type: string; color: number }[];
+  pictures?: (MenuPicture | null)[];
+  /**
+   * A part of the screen under the window it keeps clear of and leaves lit, standing above it, its rows
+   * scrolling in the room there: the city screen's units box under the build menu (asked for 2026-10-30:
+   * "place the menu above the units panel - so player could see all existing units"). Modern ignores it.
+   */
+  keepClear?: "cityUnits";
 }
+
+/** A row's picture in a list (`MenuState.pictures`): a unit's in its owner's colours, or a building's (a wonder's, a spaceship part's). */
+export type MenuPicture = { unit: string; color: number } | { building: string };
 
 /** How long a window takes to grow to its full size as it opens (asked for 2026-10-24: "animate window modals entrance"). */
 export const WINDOW_ENTER_MS = 160;
@@ -331,7 +341,7 @@ export const MODAL_MAX_SHARE = 0.55;
  * longer lists (what to build, every tribe) keep rows.
  */
 export function menuButtons(m: MenuState): boolean {
-  return m.title !== "" && !m.anchor && m.items.length <= 4 && !m.right?.some(Boolean) && !m.units;
+  return m.title !== "" && !m.anchor && m.items.length <= 4 && !m.right?.some(Boolean) && !m.pictures;
 }
 
 export interface TextInputState {

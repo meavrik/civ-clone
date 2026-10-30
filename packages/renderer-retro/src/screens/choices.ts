@@ -41,7 +41,7 @@ const PAD = 8;
  * it is not a plain list of choices (text, a map square, units' sprites) or cannot fit the screen.
  */
 function choicesLayout(m: MenuState, screenW: number, style: ChoiceStyle): ChoicesLayout | null {
-  if (!m.items.length || m.body?.length || m.square || m.unit || m.units) return null;
+  if (!m.items.length || m.body?.length || m.square || m.unit || m.pictures) return null;
   return layoutIn(m, screenW, style) ?? (style.fallback ? choicesLayout(m, screenW, style.fallback) : null);
 }
 

@@ -488,7 +488,15 @@ Never ship the original's sprites, palette art, fonts or text.
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. The build menu (`openProductionMenu` in the web app) shows beside
   each choice only the turns it takes from here, counting the shields a change would keep ("never"
-  without a surplus); no costs or shield counts (asked for). A change of production keeps the box for the kind it was
+  without a surplus); no costs or shield counts (asked for). Each choice has its picture before it (asked for
+  2026-10-30: "show unit/building image next to each item"; `MenuState.pictures`, a `MenuPicture`: the unit's, the
+  user's picture of the building, wonder or spaceship part in a 16-pixel square, retro `drawRowPicture`; darkened on
+  a row that cannot be picked), and over the city screen the window stands above the units box, which stays lit
+  (asked for the same day: "place the menu above the units panel - so player could see all existing units";
+  `MenuState.keepClear` "cityUnits", the box from renderer-retro `screens/city-layout.ts`, which holds the city
+  screen's boxes so widgets.ts can read them), its rows scrolling in the room there (5 on the desktop, 4 on the
+  phone); where that leaves fewer than 4 rows (a note above the list) the phone takes its smaller menu, else the
+  window stands in the middle as before (`CLEAR_ROWS`). A change of production keeps the box for the kind it was
   gathered for and half of it for another kind (`shieldsAfterChange`: reckoned from the box as the turn
   began, `City.turnShields`/`turnKind`, or as bought, so changing and changing back in a turn costs
   nothing; FreeCiv's model). Units are one kind and improvements, wonders and spaceship parts another,
@@ -654,7 +662,7 @@ Never ship the original's sprites, palette art, fonts or text.
   Map clicks (since 2026-10-27, asked for: "make same as civ1 movement: units move with right click. left
   click will center map or enter city view. when a stack of units is clicked open a units menu"; until then
   the left button did both, 2026-10-22): left-click opens our city, picks our unit (centred), and on a square
-  holding several of ours lists them in a window (`openStack` in the web app; `MenuState.units` puts
+  holding several of ours lists them in a window (`openStack` in the web app; `MenuState.pictures` puts
   each unit's sprite before its row, the row grown to hold it, with its standing at the right: Fortified,
   Sentry, Going, Mining 3, Ready, No moves; asked for 2026-10-24), the one picked waking and coming
   into play (one with no moves left keeps its orders); anywhere else it centres the map on the square

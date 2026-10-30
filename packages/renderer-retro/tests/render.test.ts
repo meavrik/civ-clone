@@ -2,9 +2,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { DIMMED, mixColor } from "../src/palette.js";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, foundCity, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, drawUnitFlash, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, drawUnitFlash, menuRect, menuRows, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { civCard, empireIncome, panelTip, settlerSites, standing, TERRAIN_TEXT, type PanelPart } from "@civ/renderer-api";
+import { civCard, empireIncome, panelTip, settlerSites, standing, TERRAIN_TEXT, type MenuState, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, drawDiplomacyScreen, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
@@ -731,14 +731,26 @@ describe("city screen", () => {
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/city-screen.png", import.meta.url), encodePng(s, 3));
     const opts = buildOptions(state, city);
-    drawMenu(s, {
+    const inUnitsBox = (a: { x: number; y: number }) => a.x >= 108 && a.x < 192 && a.y >= 116;
+    const units = s.art.filter((a) => a.unit && inUnitsBox(a)).length;
+    const menu: MenuState = {
       title: `${city.name}: build what?`,
       items: opts.map(productionName),
       right: opts.map((p) => String(productionCost(p))),
       selected: 2,
-    });
+      pictures: opts.map((p) => (p.kind === "unit" ? { unit: p.id, color: 0 } : { building: p.id })),
+      keepClear: "cityUnits",
+    };
+    drawMenu(s, menu);
     writeFileSync(new URL("./out/city-menu.png", import.meta.url), encodePng(s, 3));
-    expect(s.data.some((c) => c !== 0)).toBe(true);
+    // Above the units box (y 116 on), its shadow too, which stays lit with the units' pictures in it.
+    const r = menuRect(menu);
+    expect(r.y + r.h + 2).toBeLessThanOrEqual(116);
+    expect(units).toBeGreaterThan(0);
+    expect(s.art.filter((a) => a.unit && inUnitsBox(a) && !a.dim).length).toBe(units);
+    // A picture before each row: the units' and the buildings'.
+    const rows = s.art.filter((a) => a.y >= r.y && a.y < r.y + r.h && !a.dim);
+    expect(rows.map((a) => a.id)).toEqual(opts.slice(0, menuRows(menu)).map((p) => p.id));
   });
 
   it("finds each citizen in the row under a click, lights the one pointed at, and lines off what a Granary keeps", () => {

@@ -1188,7 +1188,7 @@ function openStack(x: number, y: number, units: Unit[]): void {
       title: `Our units here (${units.length})`,
       items: units.map(rankedName),
       right: units.map(unitStanding),
-      units: units.map((u) => ({ type: u.type, color: me.color })),
+      pictures: units.map((u) => ({ unit: u.type, color: me.color })),
       selected: Math.max(0, active >= 0 ? active : ready),
       close: true,
     },
@@ -1676,6 +1676,10 @@ function openProductionMenu(cityId: number, then?: () => void, title?: string, b
       }),
       selected: Math.max(0, opts.findIndex((p) => p.kind === city.production.kind && p.id === city.production.id && !missing(p))),
       disabled: opts.flatMap((p, i) => (missing(p) ? [i] : [])),
+      // Each choice's picture before it, and over the city screen the window above its units box, so the units
+      // the city has stay in sight (asked for 2026-10-30).
+      pictures: opts.map((p) => (p.kind === "unit" ? { unit: p.id, color: state.players[city.owner]!.color } : { building: p.id })),
+      ...(screenState.kind === "city" ? { keepClear: "cityUnits" as const } : {}),
     },
     onPick: (i) => {
       const p: Production | undefined = opts[i];

@@ -76,7 +76,7 @@ describe("menus", () => {
       title: "Our units here (3)",
       items: ["Settlers", "Militia", "Phalanx"],
       right: ["Ready", "Fortified", "No moves"],
-      units: [{ type: "settlers", color: 0 }, { type: "militia", color: 0 }, { type: "phalanx", color: 0 }],
+      pictures: [{ unit: "settlers", color: 0 }, { unit: "militia", color: 0 }, { unit: "phalanx", color: 0 }],
       selected: 1,
       close: true,
     };
