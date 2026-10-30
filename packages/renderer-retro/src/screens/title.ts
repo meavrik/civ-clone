@@ -8,7 +8,7 @@ import { DIM, drawWindow, GOLD, INK } from "../widgets.js";
 /**
  * The opening and title, after the original's (asked for 2026-10-22): stars, the world turning
  * in space as it forms (fire, crust, seas, clouds, green land, the lights of towns), a line of
- * story under it (`introAt`), then the name in chiselled gold over the finished planet. `at` is
+ * story under it (`introAt`), then the name in flat gold over the finished planet. `at` is
  * ms since the opening began; from `INTRO_MS` on the title stands complete, the planet still
  * turning. All of it drawn here in the palette, fine pixel by fine pixel; no outside imagery.
  */
@@ -386,26 +386,17 @@ function nameLevels(): { w: number; h: number; level: Int8Array } {
   }
   const on = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && ink[y * w + x] === 1;
   const level = new Int8Array(w * h).fill(-1);
-  const top = pad, bottom = pad + rows * NAME_CELL;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (!on(x, y)) {
-        // A one-pixel outline in the gold's darkest brown, two fine pixels wide (a screen pixel).
+        // A thin outline in the gold's darkest brown, one fine pixel wide.
         let near = false;
-        for (let dy = -2; dy <= 2 && !near; dy++) for (let dx = -2; dx <= 2 && !near; dx++) near = on(x + dx, y + dy);
+        for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1 && !near; dx++) near = on(x + dx, y + dy);
         if (near) level[y * w + x] = 0;
         continue;
       }
-      // Lit from above and the left, shaded below and right; the face a band of gold, bright at
-      // the top, deepest past the middle, catching light again at the foot.
-      const f = (y - top) / (bottom - top);
-      const dither = BAYER[(y & 3) * 4 + (x & 3)]! * 0.9;
-      let lv = f < 0.12 ? 8 : f < 0.3 ? 7 + (f < 0.21 ? dither : 0) : f < 0.48 ? 6 + (f < 0.39 ? dither : 0) : f < 0.66 ? 5 : f < 0.82 ? 4 + (f > 0.74 ? dither : 0) : 6;
-      if (!on(x, y - 1) || !on(x, y - 2)) lv = 9;
-      else if (!on(x - 1, y) || !on(x - 2, y)) lv = 8;
-      else if (!on(x, y + 1) || !on(x, y + 2)) lv = 2;
-      else if (!on(x + 1, y) || !on(x + 2, y)) lv = 3;
-      level[y * w + x] = Math.floor(lv);
+      // A flat gold face, a screen pixel of paler gold along each top edge: no bands, no shade.
+      level[y * w + x] = !on(x, y - 1) || !on(x, y - 2) ? 7 : 6;
     }
   }
   nameArt = { w, h, level };

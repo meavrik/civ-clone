@@ -628,7 +628,7 @@ Never ship the original's sprites, palette art, fonts or text.
   planet still turning. The web app starts it on the first frame; a key or click skips to the end, and
   the title menu (no header) opens by itself once it is over and whenever the title shows again. Retro
   draws it in `screens/title.ts`: the planet lit per fine pixel from hashed noise maps (made a few rows a
-  frame while only the stars show), the name in our own slab capitals in chiselled gold; modern keeps a
+  frame while only the stars show), the name in our own slab capitals in flat gold (since 2026-10-30, asked for: "less gradient and shadow effects": one gold, a screen pixel paler along each top edge, a fine dark outline; it was banded, dithered and bevelled); modern keeps a
   still title with the name.
   Setup cards (`setup.ts`; asked for 2026-10-22, then redone the same day: the first pictures, seats of
   power, town patches and landmarks, were not liked): `setupCards(setup)` gives difficulty and the tribe as
