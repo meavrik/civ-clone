@@ -419,6 +419,11 @@ export interface GameState {
    */
   roadlessResources?: boolean;
   /**
+   * Strategic resources as before version 48: a square of one on a river served only with a road built on it (which
+   * waits for Bridge Building). Since 48 the river serves as its road (`resourceRoaded`).
+   */
+  riverNeedsRoad?: boolean;
+  /**
    * Settlers' jobs as before version 46: a job taken up by a settler that had spent its moves (walked onto the square
    * that turn) counted that turn as one of its turns, and pollution cleared in three. Since 46 such a job starts the
    * next turn (one turn more, as the 1991 game, where a unit without moves takes no orders, and FreeCiv, which counts

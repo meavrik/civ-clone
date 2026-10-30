@@ -140,6 +140,18 @@ describe("strategic resources", () => {
     expect(hasResource(s, 0, "Iron")).toBe(true);
   });
 
+  it("serves through a river on its square as through a road; saves before version 48 want the road", () => {
+    const s = world();
+    foundCity(s, 0, 10, 10);
+    deposit(s, 11, 11, "Iron", false);
+    expect(hasResource(s, 0, "Iron")).toBe(false);
+    getTile(s.map, 11, 11)!.river = true;
+    expect(hasResource(s, 0, "Iron")).toBe(true);
+    expect(resourceHoldings(s, 0).find((h) => h.id === "Iron")).toMatchObject({ own: 1, unroaded: 0 });
+    s.riverNeedsRoad = true;
+    expect(hasResource(s, 0, "Iron")).toBe(false);
+  });
+
   it("holds a unit whose resource is gone, its shields kept, telling the city once", () => {
     const s = world();
     const rome = foundCity(s, 0, 10, 10);

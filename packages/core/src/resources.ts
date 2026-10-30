@@ -85,11 +85,13 @@ export interface ResourceHolding {
 /**
  * Whether a square of a strategic resource serves the civilization whose land it lies on (asked for 2026-10-29: "make
  * roads for resources mandatory for them to be available"; save version 43): a road or railroad on it, as every
- * city's own square has. A river square takes a road only with Bridge Building. In saves before 43
- * (`roadlessResources`) every square on the land served.
+ * city's own square has, or a river through it, which carries its goods as a road would (asked for 2026-10-30: "if
+ * resource have river on its tile - can be reached as a road"; save version 48). Before 48 (`riverNeedsRoad`) a river
+ * square wanted its road too, which waits for Bridge Building. In saves before 43 (`roadlessResources`) every square
+ * on the land served.
  */
-export function resourceRoaded(state: GameState, tile: Pick<Tile, "road" | "railroad">): boolean {
-  return state.roadlessResources === true || tile.road || tile.railroad;
+export function resourceRoaded(state: GameState, tile: Pick<Tile, "road" | "railroad" | "river">): boolean {
+  return state.roadlessResources === true || tile.road || tile.railroad || (tile.river && !state.riverNeedsRoad);
 }
 
 /**

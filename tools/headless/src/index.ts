@@ -106,6 +106,8 @@ export interface GameConfig {
   roadlessResources?: boolean;
   /** A settler's job counts the turn it walked onto the square; pollution clears in three turns (`GameState.quickWork`). */
   quickWork?: boolean;
+  /** A strategic resource on a river square wants a road built on it all the same (`GameState.riverNeedsRoad`). */
+  riverNeedsRoad?: boolean;
   /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
   cityStates?: boolean;
   /**
@@ -234,6 +236,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.sellWhenBroke ? { sellWhenBroke: true } : {}),
     ...(config.roadlessResources ? { roadlessResources: true } : {}),
     ...(config.quickWork ? { quickWork: true } : {}),
+    ...(config.riverNeedsRoad ? { riverNeedsRoad: true } : {}),
     ...(config.cityStates ? { cityStates: true } : {}),
     ...(config.evenDifficulty ? { evenDifficulty: true } : {}),
   };

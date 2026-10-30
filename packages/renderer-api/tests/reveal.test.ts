@@ -41,6 +41,11 @@ describe("resources revealed by an advance", () => {
     expect(resourceReveals(s, 0, ["bronze_working"])[0]!.text).toBe("Iron revealed: 1 on our land, 1 nearby");
     expect(resourcesReport(s).lines.find((l) => l.text === "Iron")).toMatchObject({ right: "1 near Rome", dim: false });
     expect(terrainInfo(s, 21, 21).lines.join(" ")).not.toContain("until a road");
+    // A river serves as its road (since save version 48), and the square's window says so.
+    Object.assign(getTile(s.map, 21, 21)!, { road: false, river: true });
+    expect(resourcesReport(s).lines.find((l) => l.text === "Iron")).toMatchObject({ right: "1 near Rome", dim: false });
+    expect(terrainInfo(s, 21, 21).lines).toContain("{river} The river carries it, as a road would");
+    expect(resourcesReport(s).hint).toContain("road or river");
     expect(rv!.squares).toHaveLength(2);
     expect(resourceReveals(s, 0, ["pottery"])).toEqual([]);
   });

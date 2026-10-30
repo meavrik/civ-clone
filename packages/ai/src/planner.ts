@@ -5,6 +5,7 @@ import {
   exportable,
   hasResource,
   heldResources,
+  resourceRoaded,
   resourceSquares,
   claimant,
   mayTrade,
@@ -2325,7 +2326,8 @@ interface ResourceRoad { x: number; y: number; city: number; value: number }
 
 /**
  * Squares of strategic resources on our land that a road would bring into use (since save version 43 a square serves
- * only with one, `resourceRoaded`): worth most where we lack the resource and want it, little where we hold it already.
+ * only with one, or since 48 a river, `resourceRoaded`): worth most where we lack the resource and want it, little where
+ * we hold it already.
  */
 function unroadedResources(state: GameState, me: number): ResourceRoad[] {
   if (state.roadlessResources || state.noResources) return [];
@@ -2335,7 +2337,7 @@ function unroadedResources(state: GameState, me: number): ResourceRoad[] {
   for (const [id, squares] of resourceSquares(state, me, true)) {
     for (const q of squares) {
       const t = getTile(state.map, q.x, q.y)!;
-      if (t.road || t.railroad || TERRAIN_RULES[t.terrain].road.turns <= 0 || (t.river && !p.advances.includes("bridge_building"))) continue;
+      if (resourceRoaded(state, t) || TERRAIN_RULES[t.terrain].road.turns <= 0 || (t.river && !p.advances.includes("bridge_building"))) continue;
       const city = claimant(state, q.x, q.y);
       if (city) out.push({ x: q.x, y: q.y, city: city.id, value: held.has(id) ? 2 : wantsResource(state, me, id) ? 7 : 3 });
     }

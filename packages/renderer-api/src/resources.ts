@@ -21,7 +21,7 @@ function andList(names: string[]): string {
   return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] ?? "";
 }
 
-/** The resources `player` lacks that lie on its land with no road on their squares (a square serves only with one, since save version 43). */
+/** The resources `player` lacks that lie on its land with no road on their squares (a square serves only with one, since save version 43, or a river, since 48). */
 export function resourcesWantingRoads(state: GameState, player: number): string[] {
   if (state.noResources) return [];
   return resourceHoldings(state, player).filter((h) => !h.has && h.unroaded > 0).map((h) => h.id);
@@ -68,7 +68,7 @@ export function resourcesReport(state: GameState): ReportPage {
     const deal = gives && gets ? `our ${gives} for their ${gets}` : gives ? `our ${gives}, a gift` : `their ${gets}`;
     lines.push({ text: `Trade: ${deal}`, right: `the ${name(other)}`, slot: state.players[other]!.color });
   }
-  const roads = state.roadlessResources ? "" : "A square serves with a road on it.  ";
+  const roads = state.roadlessResources ? "" : state.riverNeedsRoad ? "A square serves with a road on it.  " : "A square serves with a road or river on it.  ";
   return { title, lines, hint: `${roads}Trade in an audience, with Currency` };
 }
 

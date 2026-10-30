@@ -118,6 +118,8 @@ export interface NewGameOptions extends MapGenOptions {
   sellWhenBroke?: boolean;
   /** A strategic resource serves without a road (see `GameState.roadlessResources`). Old saves load with it. */
   roadlessResources?: boolean;
+  /** A strategic resource on a river square wants a road built on it all the same (see `GameState.riverNeedsRoad`). Old saves load with it. */
+  riverNeedsRoad?: boolean;
   /** Settlers start a job the turn they walk onto its square, and clean up in three turns (see `GameState.quickWork`). Old saves load with it. */
   quickWork?: boolean;
   /** The computer players under the human's rules of the level, as before version 47 (see `GameState.evenDifficulty`). Old saves load with it. */
@@ -312,6 +314,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.visibleResources ? { visibleResources: true } : {}),
     ...(opts.sellWhenBroke ? { sellWhenBroke: true } : {}),
     ...(opts.roadlessResources ? { roadlessResources: true } : {}),
+    ...(opts.riverNeedsRoad ? { riverNeedsRoad: true } : {}),
     ...(opts.quickWork ? { quickWork: true } : {}),
     ...(opts.evenDifficulty ? { evenDifficulty: true } : {}),
   };

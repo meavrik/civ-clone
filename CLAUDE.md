@@ -124,8 +124,12 @@ Never ship the original's sprites, palette art, fonts or text.
   Roads to resources (asked for 2026-10-29: "make roads for resources mandatory for them to be available"; save
   version 43): a square of a strategic resource serves its civilization only with a road or railroad on it
   (`resourceRoaded`; a city's own square has one), so held, traded and counted for builds only then
-  (`resourceSquares`, with `all` every square on the land; `ResourceHolding.unroaded`). A river square takes its
-  road only with Bridge Building, as any road. The planner's settlers build the road (`unroadedResources`, a job of
+  (`resourceSquares`, with `all` every square on the land; `ResourceHolding.unroaded`). A river through the square
+  serves as its road (asked for 2026-10-30: "if resource have river on its tile - can be reached as a road"; save
+  version 48), so a river square never waits for Bridge Building; the square's window says "The river carries it, as a
+  road would", and Advisors > Resources "A square serves with a road or river on it". Saves before 48 load with
+  `riverNeedsRoad` (headless `--river-needs-road`): a river square wanted its road, which waits for Bridge Building.
+  The planner's settlers build the road (`unroadedResources`, a job of
   value 7 where it lacks and wants the resource, 3 where it lacks it, 2 where it holds it already). Told in the
   square's window ("No use to anyone until a road is built on it"), Advisors > Resources ("no road near Rome", "2
   near Rome, 1 no road"), the reveal note ("2 on our land (1 wanting a road)") and the build menu
@@ -133,7 +137,8 @@ Never ship the original's sprites, palette art, fonts or text.
   before 43 load with `roadlessResources` (headless `--roadless-resources`). Held at turn 150 (planner in every
   seat, 6 seeds): Horses 79% of civs (92% without roads), Iron 67% (63%), Coal 46% (63%). Head to head (planner vs v2,
   16 x 300, seeds 1-16): roads 10-6, score 217 vs 183, pop 77 vs 72; without 10-6, 212 vs 180, pop 75 vs 74; all
-  replaying exactly.
+  replaying exactly. Rivers as roads (at Prince with city-states, 16 x 300): 8-8, score 160 vs 122, pop 59 vs 37,
+  cities 10.9 vs 6.7; river squares wanting roads as before 8-8, 158 vs 124, pop 58 vs 38; all replaying exactly.
   Barbarians (`barbarians.ts`, numbers in `rules/barbarians.ts`, roles per unit in `rules/units.ts`) follow
   FreeCiv's summons: from turn 150 a few random squares a round; one 5-8 squares from the nearest city
   starts an uprising (explored land on that city's continent, never tundra or arctic) or a raid (a Sail
