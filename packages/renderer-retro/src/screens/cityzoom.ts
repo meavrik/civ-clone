@@ -1,3 +1,4 @@
+import { moveArt } from "@civ/renderer-api";
 import { C, DIMMED } from "../palette.js";
 import { SCREEN_H, type Surface } from "../surface.js";
 import { drawCloseBox } from "../widgets.js";
@@ -77,8 +78,8 @@ export function drawCityZoom(dst: Surface, src: Surface, z: CityZoom, dx: number
   const covers = (a: { x: number; y: number; w: number; h: number }) => a.x < z.x + z.w + 3 && a.x + a.w > z.x - 1 && a.y < z.y + z.h + 3 && a.y + a.h > z.y - 1;
   dst.art = src.art.flatMap((a) => {
     const inside = a.x >= box.x && a.y >= box.y && a.x + a.w <= box.x + box.w && a.y + a.h <= box.y + box.h;
-    if (inside) return [{ ...a, x: z.x + (a.x - box.x) * scale, y: z.y + (a.y - box.y) * scale, w: a.w * scale, h: a.h * scale }];
-    const moved = { ...a, x: a.x + dx, dim: true };
+    if (inside) return [moveArt(a, box.x, box.y, z.x, z.y, scale)];
+    const moved = { ...moveArt(a, 0, 0, dx, 0), dim: true };
     return covers(moved) ? [] : [moved];
   });
 }

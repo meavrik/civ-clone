@@ -1,5 +1,5 @@
 import { Terrain, unitType, type Unit, type WorldMap } from "@civ/core";
-import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, rankIcon, roadWays, WORK_ICON, type Explored, type RoadWays } from "@civ/renderer-api";
+import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, rankIcon, roadWays, unitArt, WORK_ICON, type ArtBox, type ArtSpot, type Explored, type RoadWays } from "@civ/renderer-api";
 import { drawIcon, drawIconFine, iconInk } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, PLAYER_COLORS, shade } from "./palette.js";
@@ -357,7 +357,7 @@ export function deviceOf(fill: number): number {
 
 /** Where the shield sits, and where the second shield of a stack peeks out from behind it. */
 export const SHIELD_AT = 1;
-const STACK_SHIFT = 2;
+export const STACK_SHIFT = 2;
 
 /** A rectangle on the square at screen (dx, dy), placed in the square's 32x32 grid of fine pixels. */
 export function gridRect(s: Surface, dx: number, dy: number, x: number, y: number, w: number, h: number, c: number): void {
@@ -387,8 +387,77 @@ export function drawRankMark(s: Surface, dx: number, dy: number, xp: number): vo
   drawIconFine(s, icon, dx * s.k + Math.round((TILE * DETAIL - 1 - ink.x - ink.w) * f), dy * s.k + Math.round((1 - ink.y) * f));
 }
 
-export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean): void {
-  s.blit(unitSprite(u.type, color), dx, dy, SPRITE_CLEAR);
+/** Where `drawRankMark` puts a rank's chevrons on the square at (dx, dy), in screen pixels; null for a recruit. */
+function rankMarkBox(dx: number, dy: number, xp: number): ArtBox | null {
+  const icon = rankIcon(xp);
+  if (!icon) return null;
+  const ink = iconInk(icon);
+  return { x: dx + (TILE * DETAIL - 1 - ink.w) / DETAIL, y: dy + 1 / DETAIL, w: ink.w / DETAIL, h: ink.h / DETAIL };
+}
+
+/** The shield's rows at (x, y) of the square at (dx, dy), in its fine grid, as boxes in screen pixels (each run of rows alike one box). */
+function shieldBoxes(dx: number, dy: number, x: number, y: number): ArtBox[] {
+  const out: ArtBox[] = [];
+  SHIELD.forEach((row, j) => {
+    const i0 = row.search(/[^.]/), i1 = row.length - row.split("").reverse().join("").search(/[^.]/);
+    const last = out[out.length - 1];
+    const box = { x: dx + (x + i0) / DETAIL, y: dy + (y + j) / DETAIL, w: (i1 - i0) / DETAIL, h: 1 / DETAIL };
+    if (last && last.x === box.x && last.w === box.w) last.h += box.h;
+    else out.push(box);
+  });
+  return out;
+}
+
+/** Where the owner's shield lies on the square at (dx, dy), and the one behind it for a stack, in screen pixels. */
+export function shieldHoles(dx: number, dy: number, stacked: boolean): ArtBox[] {
+  return [...shieldBoxes(dx, dy, SHIELD_AT, SHIELD_AT), ...(stacked ? shieldBoxes(dx, dy, SHIELD_AT + STACK_SHIFT, SHIELD_AT + STACK_SHIFT) : [])];
+}
+
+/** Where a wounded unit's hit points (`drawHpBar`) lie over the square at (dx, dy), in screen pixels. */
+export function hpBarBox(dx: number, dy: number): ArtBox {
+  return { x: dx + SHIELD_AT / DETAIL, y: dy + SHIELD_AT / DETAIL, w: SHIELD[0]!.length / DETAIL, h: 4 / DETAIL };
+}
+
+/**
+ * Where a unit's marks lie on its square at (dx, dy), in screen pixels: the shield (two for a stack), the
+ * rank, and what it is doing (fortified, on sentry, at work or camped). A picture laid over the square
+ * leaves them showing (`ArtSpot.holes`).
+ */
+function markBoxes(u: Pick<Unit, "order"> & { xp?: number }, dx: number, dy: number, stacked: boolean): ArtBox[] {
+  const out = shieldHoles(dx, dy, stacked);
+  if (u.order.kind === "fortified") out.push({ x: dx, y: dy, w: TILE, h: 1 }, { x: dx, y: dy + TILE - 1, w: TILE, h: 1 }, { x: dx, y: dy, w: 1, h: TILE }, { x: dx + TILE - 1, y: dy, w: 1, h: TILE });
+  else if (u.order.kind === "sentry") out.push({ x: dx + 4, y: dy + 15, w: 8, h: 1 });
+  else if (u.order.kind === "work" || u.order.kind === "camp") out.push({ x: dx + 7, y: dy, w: 9, h: 9 });
+  const rank = u.order.kind !== "work" && u.order.kind !== "camp" && u.xp ? rankMarkBox(dx, dy, u.xp) : null;
+  if (rank) out.push(rank);
+  return out;
+}
+
+/**
+ * A unit's figure on a square at (x, y) where a screen shows it: the user's picture (`unitArt`) as a spot
+ * the apps lay over the canvas as it is (`Surface.art`), else its sprite. `spot` adds to the spot (holes
+ * for the marks drawn there, the room it shows in, dimmed, lit).
+ */
+export function drawUnitFigure(s: Surface, type: string, x: number, y: number, color: number, spot: Partial<ArtSpot> = {}): void {
+  if (unitArt(type)) s.art.push({ id: type, unit: true, x, y, w: TILE, h: TILE, owner: color, ...spot });
+  else s.blit(unitSprite(type, color), x, y, SPRITE_CLEAR);
+}
+
+/** Where a unit's rank shows through its picture on a square at (x, y) (the city screen's units): its chevrons' box, none for a recruit. */
+export function rankHoles(x: number, y: number, xp: number): ArtBox[] {
+  const box = rankMarkBox(x, y, xp);
+  return box ? [box] : [];
+}
+
+/**
+ * A unit on its square. Given `picture` (the room pictures may show in: the map's view), a unit the user
+ * drew a picture of (`unitArt`) leaves a spot for it (`Surface.art`; the apps lay it there as it is, over
+ * the canvas) in place of its sprite, `lit` ringed in light (a blow landing on it), `frame` its pose (an animated
+ * unit's, `UnitAnimator`), `flip` facing left (`UnitFacing`), its marks drawn on the canvas showing through it (a wounded unit's hit points lie on its shield).
+ */
+export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean, picture?: { room: ArtBox; lit?: boolean; frame?: number | undefined; flip?: boolean | undefined }): void {
+  if (picture && unitArt(u.type)) drawUnitFigure(s, u.type, dx, dy, color, { clip: picture.room, holes: markBoxes(u, dx, dy, stacked), ...(picture.lit ? { lit: true } : {}), ...(picture.frame !== undefined ? { frame: picture.frame } : {}), ...(picture.flip ? { flip: true } : {}) });
+  else s.blit(unitSprite(u.type, color), dx, dy, SPRITE_CLEAR);
   // Whose it is: the owner's shield, a second one peeking out from behind for a stack.
   if (stacked) drawShield(s, dx, dy, SHIELD_AT + STACK_SHIFT, SHIELD_AT + STACK_SHIFT, darker(color), darker(color), -1);
   drawShield(s, dx, dy, SHIELD_AT, SHIELD_AT, color, darker(color));

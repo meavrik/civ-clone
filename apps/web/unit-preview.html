@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unit moves preview</title>
+    <style>
+      body { margin: 0; padding: 12px 16px; background: #1c1f1a; color: #ddd; font: 13px/1.4 system-ui, sans-serif; }
+      h1 { font-size: 16px; margin: 0 0 8px; }
+      h2 { font-size: 13px; margin: 18px 0 6px; color: #aab; font-weight: 600; }
+      .bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 8px; }
+      .bar label { display: inline-flex; gap: 4px; align-items: center; }
+      button { font: inherit; padding: 3px 10px; }
+      input[type="number"] { width: 64px; }
+      #stats { font-variant-numeric: tabular-nums; color: #cfc; }
+      #stats.bad { color: #f99; }
+      canvas { display: block; max-width: 100%; image-rendering: pixelated; }
+      .note { color: #999; max-width: 980px; }
+    </style>
+  </head>
+  <body>
+    <h1 id="heading">Unit moves preview</h1>
+    <p class="note"><a href="?unit=militia">Militia</a> · <a href="?unit=settlers">Settlers</a> · <a href="?unit=settlers-found">Settlers founding a city</a></p>
+    <div class="bar">
+      <button id="play">Pause</button>
+      <button id="step">Step</button>
+      <label>Speed <select id="speed"><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option></select></label>
+      <label>Square (atlas px) <input id="square" type="number" min="100" max="800" step="10" /></label>
+      <label>Tile (screen px) <input id="tile" type="number" min="32" max="256" step="16" value="128" /></label>
+      <label><input id="cross" type="checkbox" checked /> Anchor and bounds</label>
+      <label><input id="onion" type="checkbox" /> Onion skin</label>
+      <label><input id="smooth" type="checkbox" /> Smoothing</label>
+      <span id="stats"></span>
+    </div>
+    <p class="note">Driven by the game's own <code>UnitAnimator</code> on a 2.5 s cycle: a fight starts each cycle and lasts 1.6 s, the attack going round and round (its first strike timed to land with the first blow, 150 ms in), the sentry loops, the fortifier is ordered to fortify, then stands again; the traveller walks for 1.6 s, then stands; each job loops. Placement is the game's <code>unitArtPlace</code>: the cyan cross is the tile anchor, the grey box the frame canvas, the yellow box the drawing.</p>
+    <h2>Each move on grass, sand, forest and ocean, in two owners' colours and as drawn</h2>
+    <canvas id="tiles"></canvas>
+    <h2>Every frame: its canvas (grey), drawing (yellow), anchor (cyan) and source rectangle on the sheet</h2>
+    <canvas id="frames"></canvas>
+    <h2>The sheet as supplied, with each frame's source rectangle</h2>
+    <canvas id="sheet"></canvas>
+    <script type="module" src="/src/unit-preview.ts"></script>
+  </body>
+</html>

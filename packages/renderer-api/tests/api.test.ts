@@ -164,14 +164,11 @@ describe("finished builds", () => {
     applyCommand(s, { type: "found", unit: s.units[0]!.id });
     const c = s.cities[0]!;
     expect(builtNotice(s, c.id, { kind: "unit", id: "militia" })).toBeNull();
-    // Settlers cost the city a citizen, so it asks what to build next, and says in numbers what the city gave.
-    expect(builtNotice(s, c.id, { kind: "unit", id: "settlers" })).toEqual({ title: `${c.name} generates a group of Settlers`, lines: [`{people} Population ${c.size}`] });
-    const change = { size: [3, 2] as [number, number], food: [3, 0] as [number, number], shields: [2, 2] as [number, number], trade: [2, 1] as [number, number] };
-    expect(builtNotice(s, c.id, { kind: "unit", id: "settlers" }, change)!.lines).toEqual([
-      "{people} Population 3 → 2",
-      "{food} Food +3 → 0 a turn",
-      "{trade} Trade +2 → +1 a turn",
-    ]);
+    // Settlers cost the city a citizen, so it asks what to build next, in a sentence on what they can do.
+    expect(builtNotice(s, c.id, { kind: "unit", id: "settlers" })).toEqual({
+      title: `New Settlers in ${c.name}`,
+      lines: [`A family of ${c.name} sets out, ready to found a new city or to build roads, farms and mines.`],
+    });
     expect(builtNotice(s, 9999, { kind: "building", id: "granary" })).toBeNull();
     expect(builtNotice(s, c.id, { kind: "building", id: "granary" })).toEqual({
       title: `${c.name} builds Granary`,
@@ -249,7 +246,8 @@ describe("unit motion", () => {
   it("slides one square at a time, each step after the one before", () => {
     const m = new MotionPlayer();
     m.play([step(1, 10, 10, 11, 10), step(1, 11, 10, 12, 11)], 0, pace);
-    expect(m.at(0).moving).toEqual([{ unit: 1, type: "militia", owner: 0, x: 10, y: 10 }]);
+    // Under way eastward: it faces east (`heading`).
+    expect(m.at(0).moving).toEqual([{ unit: 1, type: "militia", owner: 0, x: 10, y: 10, heading: 1 }]);
     expect(m.at(50).moving[0]).toMatchObject({ x: 10.5, y: 10 });
     expect(m.at(150).moving[0]).toMatchObject({ x: 11.5, y: 10.5 });
     expect(m.busy(150)).toBe(true);
@@ -287,7 +285,9 @@ describe("unit motion", () => {
     const m = new MotionPlayer();
     m.play([step(1, 10, 10, 11, 10)], 0, pace);
     m.nudge({ id: 1, type: "militia", owner: 0, x: 11, y: 10 }, 0, -1, 0);
-    expect(m.at(50).moving).toEqual([{ unit: 1, type: "militia", owner: 0, x: 10.5, y: 10 }]);
+    expect(m.at(50).moving).toEqual([{ unit: 1, type: "militia", owner: 0, x: 10.5, y: 10, heading: 1 }]);
+    // A nudge straight north turns nobody.
+    expect(m.at(100 + NUDGE_MS * 0.275).moving[0]!.heading).toBeUndefined();
     // At the height of the lean it stands well out toward the square, then it springs back.
     const lean = m.at(100 + NUDGE_MS * 0.275).moving[0]!;
     expect(lean.x).toBe(11);

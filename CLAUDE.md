@@ -521,10 +521,11 @@ Never ship the original's sprites, palette art, fonts or text.
   (`leaveBuilt`); the rule's `text` is the modern renderer's body only. Leaving the city, the
   turn's news goes on (`then`).
   `Renderer.built`/`builtHit`. Finished units say nothing (the city goes on building them), except Settlers: they cost a
-  citizen, so their window asks what to build next, short and in numbers (asked for 2026-10-24): "Rome generates
-  a group of Settlers", then Population 3 → 2 and each of food, shields and trade a turn that changed (core
-  records them on the `built` event, `CityTurnEvent.change`; the font has a → for it), over its city screen;
-  leaving the city goes on with the turn's news (the city `Screen`'s `then`).
+  citizen, so their window asks what to build next (Build next...) over its city screen: "New Settlers in Rome",
+  the user's picture of them on a slate in the square's window's frame (`MenuState.unit`, twice the map's size)
+  beside one sentence on them and what they can do (asked for 2026-10-29: "add settler image. less technical";
+  from 2026-10-24 it gave the city's size and yields before and after in numbers, which core still records on
+  the `built` event, `CityTurnEvent.change`); leaving the city goes on with the turn's news (the city `Screen`'s `then`).
   A wonder finished first in another city (asked for 2026-10-29: the city "just halt and move to another without
   a notice"): after the turn's news each city of ours still building one that stands elsewhere (`wondersLost` in
   renderer-api `outbuilt.ts`) gets its build menu with the news above the list, "Wonder Built Elsewhere":
@@ -907,6 +908,141 @@ Never ship the original's sprites, palette art, fonts or text.
   plots of crops in rows either side of an east-west canal (`fieldLayout`), running on into
   irrigated neighbours (`fieldSides`) with a strip of terrain elsewhere; water and the knolls of
   hills stay above them. Mines are a rock mound with a timber-framed shaft, drawn over the roads.
+  Unit pictures (2026-10-28, asked for, twice in capitals: "implement new units sprite-sheet. USE AS IS - DO NOT
+  regenerate"; a first try converted three of them into the palette with an outline and was rejected): the user's
+  sheet of all 29 units (`tools/sprites/units/units.png`, 1774x887, magenta where the owner's colour goes) is cut by
+  `tools/sprites/units/cut.ts` into `apps/web/src/units/<id>.png`, each unit by its own outline (the sheet is no even
+  grid), every pixel the sheet's, and the cuts' sizes into renderer-api `unit-art.ts`. They are shown as they are,
+  laid over the canvas like the buildings' pictures, the magenta left magenta (the shield tells whose a unit is):
+  `drawUnitFigure` (retro `overlays.ts`) leaves a unit spot (`ArtSpot.unit`) where a sprite stood, on the map, the
+  unit box, the city screen, the stack list, the square's window, the research card, New Technology and the military
+  advisor; `unitArtPlace` stands it in its square at one scale (`UNIT_SQUARE`, 240 of the sheet's pixels a square;
+  one that would not fit shrinks), centred on the square's foot, fighters and bombers in the middle. The marks drawn
+  on the canvas show through it (`ArtSpot.holes`: the shield or two, hit points, rank, fortified frame, sentry line,
+  job badge; the web app clips the picture round them, `clipPath`), the map's view clips it (`clip`), a window over
+  it cuts a hole (`hideArtUnder`), a blow landing rings it in light (`lit`), and a ship going down tips and sinks
+  under its waterline (`turn`, `water`; `sinkPicture`). `preloadUnits` fetches all 29 as a game starts. The sprites
+  (`units.art.ts`) stay for anything without a picture.
+  Unit moves (2026-10-28, asked for with the user's militia sheet, `tools/sprites/units/militia-anim.png` kept as
+  supplied: 14 generated frames, attack 6, sentry 4, fortify 4, on a transparent background, no even grid):
+  `tools/sprites/units/anim.ts` finds each frame by its own outline, anchors it on its front foot on the ground (the
+  foot planted in all three moves) and lays the frames unscaled on canvases of one size (324x320, anchor 174,318) in
+  `apps/web/src/units/militia-anim.png`, every pixel the sheet's (tools/sprites test); `unit-atlas.ts` (generated)
+  holds each frame's source rectangle, anchor and drawing box. renderer-api `unit-anim.ts` is the one place to tune
+  (`UNIT_ANIMS`: frames and ms per sequence, idle = the first sentry frame, fortified = the last fortify frame, the
+  strike frame, `square` 340 atlas pixels to a map square, `pixelated`). `UnitAnimator` (a UI side channel run by
+  the web app each frame, like `MotionPlayer`; `view.unitFrames` by unit id) picks frames by elapsed time: sentry
+  loops, an order to fortify plays the fortify frames once then holds (one first seen fortified, or `fortifying`
+  turning `fortified`, just holds), and a fight plays the attack round and round while it is shown (since
+  2026-10-30, asked for: "when fight in combat - show militia fight animation as a cycle - not just once"; it had
+  played once), on both sides (`BattleFrame.start` keys it, `fightStep`): the attacker's first time through has the
+  frames before the strike share the fight's `LUNGE_MS` so the strike lands with the first blow, then its own pace
+  (640 ms a time); the defender answers from the lunge at its own pace; each strike is reported as it lands
+  (`UnitPoses.impacts`), and the fight no longer shown, back to its orders. Combat itself is untouched. `unitArtPlace` stands every frame's canvas in the same box (the idle
+  drawing centred, its foot a fine pixel up), so feet stay put. The magenta clothes take the owner's colour
+  (`recolourOwner`, `OWNER_MAGENTA`: hue 288-336, saturation from 0.5, shading kept against the lit 0.85), made
+  per frame and colour by the web app's `unit-frames.ts` and drawn pixelated at whole pixels. The static militia
+  picture is no longer shown; the other 28 units stay magenta as drawn. `apps/web/unit-preview.html` (dev server
+  only) shows every frame with its rectangle, anchor and bounds, the moves on four terrains in two colours, play,
+  step, speed and a strike count. Asset limits: the back foot's distance from the front one varies between frames
+  (up to 15 sheet pixels in the attack, 14 in the sentry loop), so the back foot shuffles a little; the art is drawn
+  far finer than the map (an art pixel is about 2/3 of a screen pixel), so nearest-neighbour downscaling drops pixels.
+  The militia's walk (2026-10-30, asked for with the user's sheet: "implement militia travel animation";
+  `tools/sprites/units/militia-travel-anim.png` kept as supplied, 1536x1024, rows of 3 on a 512-pixel grid, six steps
+  of a walk): cut as a grid into its own atlas, `militia-travel` (6 canvases of 394x433, anchor 150,431), since it is
+  drawn larger than the first sheet (1.74 times as tall upright, the head 1.58 times) and an atlas has one scale. Every
+  atlas has a rule in `UNIT_ANIMS` named as it is (its `square`, `ownerColour`, and `idle`: the frame it stands centred
+  on), and a unit's rule may take frames from further atlases (`sheets`), numbered on after its own: the militia's
+  frames 14-19 are the walk's 0-5 (`animSheet(type, frame)` says which atlas and frame, `animFrameCount`), each placed
+  at its own atlas's scale with that atlas's home frame centred in the square (`unitArtPlace`), cut from its own image
+  (`unitFrameUrl`, `units/<atlas>-anim.png`) and recoloured as the unit (the militia's clothes take the owner's colour);
+  a further sheet's atlas is not prepared on its own. Scale 560, between the two ratios: his head level with the
+  standing man's, he looks the same size walking as standing (592 matched heights and looked smaller, side on and
+  slimmer). The militia's `travel` plays the walk while it is shown stepping, from the second step, as the settlers'
+  does; facing left it is mirrored as the rest. A step of a unit that walks takes a whole cycle of its walk (asked for
+  the same day: "cant see the walk - not enough time for a full cycle"; a step had taken 120 ms, the walk 600):
+  `MotionTiming.walkMs` (the web app's own moves and the other civs' playback pass `travelMs`), 80 ms a frame, 480 ms a
+  square, ending on the frame it stands in; a chain of walked steps is sped up to fit `WALK_CHAIN_MS` (2.4 s: five
+  squares at the full pace, a railroad goto quicker).
+  The militia winning (2026-10-30, asked for with the user's two sheets: "implement militia lost and won combat", then
+  the same day "remove the lost animation - only win. the lost unit would vanish with effect": a losing militia
+  flickers out in the burst as any unit; its fall, its sheet and the longer fight it needed are gone).
+  `tools/sprites/units/militia-won-anim.png` kept as supplied, 1536x1024, rows of 3 on a 512-pixel grid: the club
+  raised, the fists up, the proud stance. It came on a green screen, not clear: the cutter's `green` sheets are keyed
+  first (`keyGreen`, tools/sprites `src/chroma.ts`: a pixel as green as its green exceeds its red and blue, nothing in
+  the art being green; up to 30 kept as it is, from 160 clear, between part clear with its green brought down to its
+  red or blue), every other pixel the sheet's (the tools test keys the sheet the same way). Atlas `militia-won`
+  (373x483), its own scale (440: drawn at a size of its own, his head 66 pixels to the first sheet's 60, standing 352 to
+  244, between head and height as the walk's), numbered on after the walk: the militia's `won` is frames 20-25. As the
+  loser begins to burst (`BattleFighter.dying`), the animator turns the winner from its attack to its `won`, played
+  through to its end even once the fight is over (1.24 s, the proud stance held longest), then back to its orders. Preview: `?unit=militia` (its walk among the moves).
+  Settlers' moves (2026-10-29, asked for with the user's sheet: "implement settler - states sprite-sheet for actions -
+  mine, irrigation, travel and road building"; `tools/sprites/units/settlers-anim.png` kept as supplied, 1536x1024,
+  an even grid of 256-pixel cells, rows of 6: travel, road, irrigate, mine; each frame the man, the woman and the child,
+  with the dirt and stones, on a transparent background with a faint glow round the figures): `anim.ts` takes a
+  sheet's `cell`, so a frame is every piece whose middle lies in its cell and its anchor the cell's middle on its row's
+  ground (the lowest foot in the row: the sheet keeps the frames in register, and the walking feet move as drawn); a
+  faint pixel edging no figure (the glow) is left out. 24 canvases of 265x254 (anchor 124,252) in
+  `apps/web/src/units/settlers-anim.png`. `UnitAnimRule`'s moves are each optional, a unit playing only those it has,
+  and two kinds are new: `travel`, looped while the unit is being shown stepping (`UnitAnimator.update`'s `moving`, the
+  web app's `shown.moving`: slides and nudges), from the second walking frame so even one step shows it under way, then
+  back to its orders; and `work` by `WorkKind`, looped as long as the job lasts (road, railroad and fortress: the
+  mallet; irrigate and clean: the spade; mine: the pick). Idle is the first walking frame; sentry and fortify have no
+  frames, so they stand. `square` 246 (the walking family as tall as the still picture). `ownerColour` (false for the
+  settlers: their magenta is shown as drawn, as the still pictures' is; the militia's colour was asked for) also
+  makes `unit-frames.ts` make their frames once, whatever the owners. The preview page takes `?unit=settlers`.
+  The founding (2026-10-29: first "add the build new settlement", a hut going up, then the same day "replace with the
+  attached sprite-sheet, for new settlement epic effect - add zoom and some effect and delay to let the player see the
+  new settlement establishment"): `tools/sprites/units/settlers-found-anim.png`, kept as supplied, 1536x1024, rows of 3
+  on a 512-pixel grid: lift, raise, plant (the flag), unfurl, fly, cheer. `anim.ts` cuts it as a grid (`cell` 512); a
+  piece lying across a cell's edge with a tenth of itself or more on each side is split at its thinnest column within an
+  eighth of a cell of the edge (the hut sheet's posts and logs touched; none do now). Its atlas is a show of its own,
+  `settlers-found` (6 canvases of 533x491, anchor 274,489), in `UNIT_ANIMS` as a rule with a `show` (`showFrame`) at
+  scale 398 (the sheet draws the family 1.6 times the walking one's size: the woman 257 pixels for 159), so they stand
+  as tall as they walked in; the settlers' rule names it (`found`). renderer-api `founding.ts` is the moment's timeline
+  and the one place to tune it (`FOUNDING`, `foundingMoment(id, ms)`, `foundingShow(type)`: about 6 s): the view
+  glides in over 0.9 s (eased) as dusk falls, the show starts 0.5 s in (lift 500 ms .. cheer 900), the light rises over
+  0.6 s from the unfurling and the name from the cheer, and the cheer holds 2 s more; a key or click after 0.6 s cuts
+  it short. Founding a city in the web app (`foundWithName`) glides the map to it and plays it (the `founding` screen,
+  `MainScreenView.founding`: the moment plus the city's name), then opens the city as before; the turn does not end by
+  itself meanwhile. Retro (`founding.ts`, after the map is drawn and zoomed, before the panel): the view blown up about
+  the city to 4x the map at 1x (`FOUNDING.zoom`; never less than the player's zoom), the city gliding to the middle a
+  little below half way, the pictures moved and grown with it (`moveArt`) and the city and its name left out; dusk
+  through the Bayer dither round a pool of light on the founders, twice as deep further out, the pictures out in it
+  dimmed; from the unfurling, fourteen rays of gold turning slowly behind the flag with a glow at their heart (worked
+  out a screen pixel at a time: the moment costs about 4 ms a frame over the map's 13) and sparks drifting up; from
+  the cheer, the name in large gold capitals under them, letter by letter, then "A NEW CITY" spaced under it. All
+  under the pictures, so the founders stand in front of the light; hashes and time, never the RNG. Other civilizations'
+  cities appear as ever; the phone plays it too (the zoom is the effect's own, not the map's). Preview:
+  `?unit=settlers-found`.
+  Facing (2026-10-28, asked for: "flip units to face the direction they are moving or attacking towards"): renderer-api
+  `UnitFacing` (a UI side channel run by the web app each frame; `view.facingLeft` by unit id) turns a unit the way it
+  steps or is nudged across once the step is under way (`UnitMotion.heading`; one waiting its turn keeps its facing),
+  or strikes (`BattleFrame.heading`; the defender turns to face its attacker), and it keeps that way; a step straight
+  up or down keeps it, and a unit moved with nothing shown turns the short way round the seam. The pictures are drawn
+  facing right and mirrored when facing left (`ArtSpot.flip`, CSS `scaleX(-1)`; the clip round the marks mirrored to
+  match, so the shield stays top left): an animated unit's about the anchor its feet stand on, its idle drawing still
+  centred in the square, any other's about its middle; a ship going down mirrored too. The map, the unit box and the
+  fights show it; lists, the city screen and the square's window show units facing right. Sprites are never mirrored.
+  City pictures (2026-10-29, asked for with the user's sheet: "implement attached assets for civ cities - USE AS IS!!! DO
+  NOT regenerate"): `tools/sprites/cities/cities.png` (kept byte for byte as supplied: three ages in rows, ancient,
+  medieval, industrial, by village, town, city, capital, each flying a blue flag, on a clear background) is cut by
+  `tools/sprites/cities/cut.ts` into `apps/web/src/cities/<era>-<tier>.png`, each city by its own outline (the ancient
+  capital reaches out of its 362-pixel cell), every pixel the sheet's, and the cuts' sizes into renderer-api `city-art.ts`
+  (`CITY_ART`). `cityLook` picks one as before; `drawCity` (retro `map-city.ts`), given `picture` (the room it shows in),
+  leaves a spot (`ArtSpot.city`) in place of the drawn icon on the map, the city screen's map and the square's window
+  (also the conquest window's), and returns it; `cityArtPlace` stands it at one scale for all, the sheet's cell to a square
+  (`CITY_SQUARE` 362), so villages stand smaller than capitals, centred on the square's foot, as units stand. The walls'
+  back half is drawn under it, their front half and the garrison's shield through it (`spriteHoles`, `shieldHoles`); what
+  the screen draws over the square later (a unit in play there and its marks, a fight's burst, a route's dot, the goto
+  frame, the city screen's yields) shows through as it would over a drawn icon: retro `art-holes.ts` copies the square's
+  fine pixels as the picture is laid (`fineCopy`) and holes it where they changed (`drawnOver`; a pixel only darkened by
+  fireworks' dusk is not a change, and the pictures darken with the dusk). Out of sight a city's picture is shaded whole
+  (`ArtSpot.unseen`, CSS brightness 62%, as `UNSEEN`); windows cut holes in it as in units (`hideArtUnder`), and
+  `dimScreen`'s `keep` leaves a picture inside it lit (the Building Completed and conquest windows' city). The web
+  adapters fetch all twelve as a game starts (`preloadCities`). The flags stay the sheet's blue (no owner colour), the
+  shield, the label's plate and the borders telling whose a city is. The drawn icons (`cities.art.ts`) stay for anything
+  without a picture (tests, the sprite sheets).
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`.
   Fine art (merged from branch terrain-tiles-test, 2026-10-21, asked for): the screen keeps its 320x200
@@ -1081,8 +1217,8 @@ Never ship the original's sprites, palette art, fonts or text.
   and the advances' pictures (`techs/<advance>.webp`, 1254 square, WebP quality 92; `techPicture`: all but
   the 1991 tree's Future Tech., which shows the frame's bed; each adapter's `main` fetches the picture
   of the research under way, `preloadTech`) and the buildings' (`buildings/<id>.webp`, 1254 square, WebP quality
-  92; laid at the screen's `Surface.art` spots; `preloadBuildings` fetches what our cities are building), the only
-  things the retro look does not draw through the palette. The phone app caches each picture when first shown,
+  92; laid at the screen's `Surface.art` spots; `preloadBuildings` fetches what our cities are building), and the
+  units' (`units/<id>.png`, see Unit pictures below), the only things the retro look does not draw through the palette. The phone app caches each picture when first shown,
   not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
   into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
   whether they admire or scorn us (`regardWords`); Enter there opens a civilization's card. Stepping onto land that minds us puts a
@@ -1472,7 +1608,7 @@ for; save version 40), told on the map as they appear.
   the terrain, unit and resource sheets were supplied by the user as reference images and copied in
   pixel for pixel. The user's portraits (2026-10-22: the five difficulty rulers, the twenty leaders, the
   twenty audience scenes; 2026-10-23: the 74 advances; 2026-10-24: all 50 improvements, wonders and spaceship
-  parts) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
+  parts; 2026-10-28: the unit sheet, see Unit pictures) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
   (asked for, twice, emphatically: conversions into the palette looked "bad and distorted", and new
   images must not be generated); see the setup cards and the audience screen above; new art drawn here follows their manner (see `packages/renderer-retro` above) and
   the user's pixel-art rules: even chunky strokes, one-pixel outlines in dark shades of the thing's own

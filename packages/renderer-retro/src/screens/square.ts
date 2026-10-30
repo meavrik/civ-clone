@@ -1,5 +1,5 @@
 import { cityAt, Terrain, unitAt, type GameState } from "@civ/core";
-import { cityLook, fieldSides, type MenuState } from "@civ/renderer-api";
+import { cityLook, fieldSides, moveArt, type MenuState } from "@civ/renderer-api";
 import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit } from "../overlays.js";
 import { C } from "../palette.js";
 import { Surface } from "../surface.js";
@@ -38,12 +38,15 @@ export function drawSquarePicture(s: Surface, state: GameState, mx: number, my: 
   if (tile.fortress) drawFortress(one, 0, 0);
   if (tile.pollution) drawPollution(one, 0, 0);
   const city = cityAt(state, wx, my);
-  if (city) drawCity(one, 0, 0, city, cityLook(state, city), playerColor(state, city.owner));
+  const room = { room: { x: 0, y: 0, w: TILE, h: TILE } };
+  if (city) drawCity(one, 0, 0, city, cityLook(state, city), playerColor(state, city.owner), false, room);
   else if (me.visible[idx]) {
     const units = unitAt(state, wx, my);
     const top = units.find((u) => u.id === state.activeUnit) ?? units[0];
-    if (top) drawUnit(one, top, 0, 0, playerColor(state, top.owner), units.length > 1);
+    if (top) drawUnit(one, top, 0, 0, playerColor(state, top.owner), units.length > 1, room);
   }
+  // The city's or the unit's picture grows with the square.
+  s.art.push(...one.art.map((a) => moveArt(a, 0, 0, x, y, scale)));
   // Each fine pixel of the square as a block of scale x scale.
   const k = s.k;
   for (let j = 0; j < one.fh; j++)

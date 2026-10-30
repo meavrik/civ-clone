@@ -41,8 +41,8 @@ describe("the city screen's improvements", () => {
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/city-improvements.png", import.meta.url), encodePng(s, 3));
     // Wonders first, then the buildings as built; only the lines on view.
-    expect(s.art.map((a) => a.id)).toEqual(["pyramids", "palace", "barracks", "granary", "temple"]);
-    for (const a of s.art) {
+    expect(s.art.filter((a) => !a.unit && !a.city).map((a) => a.id)).toEqual(["pyramids", "palace", "barracks", "granary", "temple"]);
+    for (const a of s.art.filter((a) => !a.unit && !a.city)) {
       expect(a.x).toBeGreaterThanOrEqual(BOX.x);
       expect(a.x + a.w).toBeLessThanOrEqual(BOX.x + BOX.w);
       expect(a.y).toBeGreaterThanOrEqual(BOX.y);
@@ -54,7 +54,7 @@ describe("the city screen's improvements", () => {
     const t = Surface.screen();
     drawCityScreen(t, state, view);
     writeFileSync(new URL("./out/city-improvements-scrolled.png", import.meta.url), encodePng(t, 3));
-    expect(t.art.map((a) => a.id)).toEqual(["temple", "marketplace", "library", "courthouse", "city_walls"]);
+    expect(t.art.filter((a) => !a.unit && !a.city).map((a) => a.id)).toEqual(["temple", "marketplace", "library", "courthouse", "city_walls"]);
     expect(scrollImprovements(city, view.top, -1, rows)).toBe(3);
     expect(scrollImprovements(city, 0, -1, rows)).toBe(0);
   });
@@ -88,7 +88,7 @@ describe("the city screen's improvements", () => {
     drawCityScreen(t, state, { city: city.id, hoverImprovement: { id: "temple", toggle: true } });
     writeFileSync(new URL("./out/city-improvements-idle.png", import.meta.url), encodePng(t, 3));
     // The stopped temple comes last, its picture darkened; its line still answers, on its Use button too.
-    expect(t.art.map((a) => [a.id, a.dim === true])).toEqual([["pyramids", false], ["palace", false], ["granary", false], ["temple", true]]);
+    expect(t.art.filter((a) => !a.unit && !a.city).map((a) => [a.id, a.dim === true])).toEqual([["pyramids", false], ["palace", false], ["granary", false], ["temple", true]]);
     const found = hits(state, { city: city.id });
     expect(found.has("temple:toggle")).toBe(true);
     // A window over the screen hides the pictures under it and darkens the rest.

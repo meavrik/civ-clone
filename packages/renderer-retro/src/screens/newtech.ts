@@ -2,7 +2,7 @@ import type { GameState } from "@civ/core";
 import { NEW_TECH_BUTTONS, newTechCard, unlocksLine, type IconName, type NewTechHit, type NewTechView, type Unlock } from "@civ/renderer-api";
 import { drawSpaced, drawText, drawTextLarge, drawTextWrapped, FONT_HEIGHT, spacedWidth, textWidth, wrapText } from "../font.js";
 import { drawIcon, ICON } from "../icons.js";
-import { unitSprite } from "../overlays.js";
+import { drawUnitFigure } from "../overlays.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
@@ -103,7 +103,7 @@ function itemBox(s: Surface, x: number, y: number, size: number, icon: Unlock["i
   s.frame(x, y, size, size, BROWN_DIM());
   s.rect(x + 1, y + 1, size - 2, size - 2, shade("earth", 7));
   const picture = resource ? specialSprite(resource) : null;
-  if (unit) s.blit(unitSprite(unit, owner), x, y, SPRITE_CLEAR);
+  if (unit) drawUnitFigure(s, unit, x, y, owner);
   else if (picture) s.blit(picture, x + Math.floor((size - TILE) / 2), y + Math.floor((size - TILE) / 2), SPRITE_CLEAR);
   else drawIcon(s, icon, x + Math.floor((size - ICON) / 2), y + Math.floor((size - ICON) / 2));
 }

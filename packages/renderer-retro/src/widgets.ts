@@ -1,6 +1,6 @@
 import { drawText, drawTextLarge, FONT_HEIGHT, textWidth, textWidthLarge } from "./font.js";
 import { drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
-import { drawShield, unitSprite } from "./overlays.js";
+import { drawShield, drawUnitFigure } from "./overlays.js";
 import { C, DIMMED, shade, slotColor } from "./palette.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { darker } from "./sprites/index.js";
@@ -134,16 +134,22 @@ export function dimScreen(s: Surface, keep?: { x: number; y: number; w: number; 
     const lit = y >= y0 && y < y1;
     for (let x = 0; x < s.fw; x++, i++) if (!lit || x < x0 || x >= x1) d[i] = DIMMED[d[i]!]!;
   }
-  // The user's pictures on what was drawn darken with it (the apps lay them over the canvas).
-  for (const a of s.art) a.dim = true;
+  // The user's pictures on what was drawn darken with it (the apps lay them over the canvas), but those standing in what is kept lit.
+  const lit = (a: { x: number; y: number; w: number; h: number }) => !!keep && a.x >= keep.x && a.y >= keep.y && a.x + a.w <= keep.x + keep.w && a.y + a.h <= keep.y + keep.h;
+  for (const a of s.art) if (!lit(a)) a.dim = true;
 }
 
 /**
  * Drop the pictures the screen under a window left spots for where the window stands: the apps lay
  * them over the canvas, so one under the window would cover it. The rest stay, darkened (`dimScreen`).
+ * A unit's or a city's picture is only cut round the window (a hole where it stands), so the map's units
+ * and cities at its edge keep what shows of them; a ship going down under its waterline goes.
  */
 export function hideArtUnder(s: Surface, r: { x: number; y: number; w: number; h: number }): void {
-  s.art = s.art.filter((a) => !(a.x < r.x + r.w && a.x + a.w > r.x && a.y < r.y + r.h && a.y + a.h > r.y));
+  s.art = s.art.flatMap((a) => {
+    if (!(a.x < r.x + r.w && a.x + a.w > r.x && a.y < r.y + r.h && a.y + a.h > r.y)) return [a];
+    return (a.unit || a.city) && a.water === undefined ? [{ ...a, holes: [...(a.holes ?? []), { x: r.x, y: r.y, w: r.w, h: r.h }] }] : [];
+  });
 }
 
 /**
@@ -193,7 +199,7 @@ export function drawBox(s: Surface, x: number, y: number, w: number, h: number, 
     }
 }
 
-import { keepInView, menuButtons, MODAL_MAX_SHARE, type MenuState, type TextInputState } from "@civ/renderer-api";
+import { keepInView, menuButtons, MODAL_MAX_SHARE, unitArt, type MenuState, type TextInputState } from "@civ/renderer-api";
 
 export const MENU_ROW = FONT_HEIGHT + 1;
 /** A titled window is at least this wide; its text wraps rather than widen it past MODAL_MAX_SHARE of the screen. */
@@ -297,15 +303,17 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize): MenuLayout {
   const scrolls = !buttons && m.items.length * least > roomGuess;
   const need = Math.max(tw(m.title) + 16 + (m.close ? titleH : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? size.scroll + 4 : 0));
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l, t))) + 20 : 0;
-  const w = Math.min(size.maxW, screenW - 8, Math.max(need, Math.min(bodyW + (m.square ? SQUARE_SIDE : 0), Math.round(SCREEN_W * size.share)), m.title ? size.minW : 0, m.square ? SQUARE_WINDOW_W : 0));
-  // The paragraphs that begin beside a map square's picture wrap to the room left of it.
+  // A map square or a unit's picture heads the window, in the same frame.
+  const framed = !!(m.square || m.unit);
+  const w = Math.min(size.maxW, screenW - 8, Math.max(need, Math.min(bodyW + (framed ? SQUARE_SIDE : 0), Math.round(SCREEN_W * size.share)), m.title ? size.minW : 0, m.square ? SQUARE_WINDOW_W : 0));
+  // The paragraphs that begin beside the picture wrap to the room left of it.
   const lines: string[] = [];
   const indents: number[] = [];
   for (const l of m.body ?? []) {
-    const indent = m.square && lines.length * lineH < SQUARE_FRAME ? SQUARE_SIDE : 0;
+    const indent = framed && lines.length * lineH < SQUARE_FRAME ? SQUARE_SIDE : 0;
     for (const piece of wrapIcons(l, Math.floor((w - 20 - indent) / t))) { lines.push(piece); indents.push(indent); }
   }
-  const bodyH = lines.length || m.square ? Math.max(lines.length * lineH, m.square ? SQUARE_FRAME + 2 : 0) + 5 : 0;
+  const bodyH = lines.length || framed ? Math.max(lines.length * lineH, framed ? SQUARE_FRAME + 2 : 0) + 5 : 0;
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
   const room = 200 - (m.anchor?.y ?? 0) - head - bodyH - foot;
   const fits = m.items.length * least <= room;
@@ -411,11 +419,12 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
   const write = (tx: number, ty: number, text: string, ink: number) => (t === 2 ? drawTextLarge(s, tx, ty, text, ink) : drawText(s, tx, ty, text, ink));
   const titleH = t === 2 ? TITLE_H_LARGE : TITLE_H;
   const scrolls = rows < m.items.length;
-  if (m.title) hideArtUnder(s, { x, y, w, h });
+  // A window or a dropdown covers the pictures under it (the map's units).
+  hideArtUnder(s, { x, y, w, h });
   drawWindow(s, x, y, w, h, m.title, t === 2 ? { scale: 2 } : {});
   if (m.close && m.title) drawCloseBox(s, x + w - 3 - (titleH - 2), y + 3, titleH - 2);
   const bodyY = y + (m.title ? titleH + 6 : 4);
-  if (m.square) {
+  if (m.square || m.unit) {
     // The square in a dark frame, sunk into the stone: shade along the top and left, light along the foot and right.
     const fx = x + 10;
     const fy = bodyY + 1;
@@ -423,7 +432,14 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     s.hline(fx, fy + SQUARE_FRAME, SQUARE_FRAME + 1, shade("panel", 7));
     s.rect(fx + SQUARE_FRAME, fy, 1, SQUARE_FRAME + 1, shade("panel", 7));
     s.frame(fx + 1, fy + 1, SQUARE_FRAME - 2, SQUARE_FRAME - 2, C.BLACK!);
-    if (square) square(s, fx + 2, fy + 2);
+    if (m.unit) {
+      // The unit on the Building Completed window's slate, twice its size on the map: the user's picture
+      // laid over it, else its sprite in the middle.
+      speckle(s, fx + 2, fy + 2, SQUARE_PIC, SQUARE_PIC, shade("steel", 3), shade("steel", 4), shade("steel", 4));
+      const art = unitArt(m.unit.type);
+      const at = art ? 0 : (SQUARE_PIC - UNIT_PIC) >> 1;
+      drawUnitFigure(s, m.unit.type, fx + 2 + at, fy + 2 + at, slotColor(m.unit.color), art ? { w: SQUARE_PIC, h: SQUARE_PIC } : {});
+    } else if (square) square(s, fx + 2, fy + 2);
     else s.rect(fx + 2, fy + 2, SQUARE_PIC, SQUARE_PIC, C.BLACK!);
   }
   lines.forEach((line, i) => drawIconLine(s, x + 10 + (indents[i] ?? 0), bodyY + i * lineH, line, C.BLACK!, t));
@@ -447,7 +463,7 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     // A unit's sprite before the row, the words (and the sprite) in the middle of the row's height.
     const unit = m.units?.[i];
     const ty = unit ? ry + Math.floor((row - lineH) / 2) - 1 : ry + Math.max(0, Math.floor((row - lineH - 1) / 2));
-    if (unit) s.blit(unitSprite(unit.type, slotColor(unit.color)), x + 8, ry + Math.floor((row - UNIT_ROW) / 2), SPRITE_CLEAR);
+    if (unit) drawUnitFigure(s, unit.type, x + 8, ry + Math.floor((row - UNIT_ROW) / 2), slotColor(unit.color));
     write(x + 10 + (unit ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : danger ? BAD : C.BLACK!);
     const r = m.right?.[i];
     if (r) write(x + 4 + rowW - 6 - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("brick", 6) : shade("azure", 7)) : danger ? BAD : DIM);
@@ -514,6 +530,7 @@ export function drawTextInput(s: Surface, input: TextInputState, cursorOn: boole
   const x = Math.floor((s.width - w) / 2);
   const y = Math.floor((200 - h) / 2);
   dimScreen(s);
+  hideArtUnder(s, { x, y, w, h });
   drawWindow(s, x, y, w, h, input.title);
   s.rect(x + 8, y + 17, w - 16, 12, C.BLACK!);
   s.frame(x + 8, y + 17, w - 16, 12, shade("panel", 2));
@@ -524,6 +541,7 @@ export function drawTextInput(s: Surface, input: TextInputState, cursorOn: boole
 
 /** Small one-line message box at the bottom of the screen. */
 export function drawStatusLine(s: Surface, text: string): void {
+  hideArtUnder(s, { x: 80, y: 188, w: s.width - 80, h: 12 });
   s.frame(80, 188, s.width - 80, 12, C.BLACK!);
   drawStone(s, 81, 189, s.width - 82, 11);
   drawText(s, 84, 191, text, NOTE);

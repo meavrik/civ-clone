@@ -86,7 +86,6 @@ import {
   unitChoices,
   type Cheat,
   type CityFocus,
-  type CityTurnEvent,
   type Command,
   type DiplomatAction,
   type GameState,
@@ -150,6 +149,8 @@ import {
   FogLifter,
   INTRO_MS,
   MotionPlayer,
+  UnitAnimator,
+  UnitFacing,
   moveRefusal,
   workRefusal,
   discoveryNote,
@@ -184,6 +185,10 @@ import {
   type BuiltView,
   conquestCard,
   sinkingWords,
+  foundingShow,
+  foundingMoment,
+  FOUNDING,
+  travelMs,
   type Sinking,
   type ConquestEvent,
   type ConquestView,
@@ -334,6 +339,7 @@ type Screen =
   | { kind: "triumph"; event: ConquestEvent; start: number; cheer: string; then: () => void } // the map, fireworks bursting over a city we just took
   | { kind: "conquest"; view: ConquestView; then: () => void } // a city taken by us or from us: its window over the map
   | { kind: "sinking"; sinking: Omit<Sinking, "t">; start: number; then: () => void } // the map, a ship of ours going down as the turn ends
+  | { kind: "founding"; founding: Pick<NonNullable<MainScreenView["founding"]>, "x" | "y" | "id" | "owner" | "city">; start: number; then: () => void } // the map, a city of ours founded, made a moment
   | { kind: "reign"; view: ReignView } // a new game's opening window over the map: our leader, the people, what the tribe brings
   | { kind: "loading"; view: LoadingView; label: string; replay: Generator<ReplayProgress, LoadedGame, void>; under: Screen } // a save replayed a slice a frame, its window over `under`
   | { kind: "science" }
@@ -397,6 +403,10 @@ function viewTiles(): { x: number; y: number } {
 const motion = new MotionPlayer();
 /** Fog lifting off squares as they are explored. */
 const lifter = new FogLifter();
+/** The animated units' poses (the militia's and the settlers' moves): from their orders, the steps and the fight being shown, by elapsed time. */
+const animator = new UnitAnimator();
+/** Which way each unit faces: the way it last stepped or struck across (`UnitFacing`). */
+const facing = new UnitFacing();
 const OWN_PACE = { stepMs: 120, maxMs: 1000, battleMs: 1600, battleTotalMs: 1600 };
 /** True while the other civilizations' turns play back; any key or click skips the rest. */
 let watching = false;
@@ -496,7 +506,8 @@ function stepHandoff(now: number, animating: boolean): void {
 function slideOwn(actions: readonly UnitAction[]): void {
   if (!actions.length) return;
   skipWatch();
-  motion.play(actions, performance.now(), { ...OWN_PACE, width: state.map.width });
+  // An animated unit takes a whole step of its walk a square (asked for 2026-10-30: "cant see the walk").
+  motion.play(actions, performance.now(), { ...OWN_PACE, width: state.map.width, walkMs: travelMs });
 }
 
 /**
@@ -1251,12 +1262,12 @@ function activateFromCity(sc: Extract<Screen, { kind: "city" }>, unit: number): 
  * A city finished an improvement, a wonder or a spaceship part: the Building Completed window (asked
  * for 2026-10-24, after the user's template), then the city's builders ask what comes next over the
  * city screen (since 2026-10-27, asked for: "enter the city view to select the next building"; the
- * map's Continue is gone). Settlers get a window over the city saying what they cost it. Either way
+ * map's Continue is gone). Settlers get a window over the city with their picture and what they can do. Either way
  * the turn's news goes on once the city is left.
  */
-function builtWindow(cityId: number, p: Production, then: () => void, change?: CityTurnEvent["change"]): void {
+function builtWindow(cityId: number, p: Production, then: () => void): void {
   const city = state.cities.find((c) => c.id === cityId);
-  const notice = builtNotice(state, cityId, p, change);
+  const notice = builtNotice(state, cityId, p);
   if (!city || city.owner !== 0 || !notice) { then(); return; }
   sound.play(p.kind === "wonder" ? "wonder" : "built");
   if (p.kind === "wonder") {
@@ -1279,6 +1290,8 @@ function builtWindow(cityId: number, p: Production, then: () => void, change?: C
   }
   openCity(cityId, then);
   modal(notice.title, notice.lines, ["Build next..."], () => openProductionMenu(cityId));
+  // The new settlers' picture beside the sentence (asked for 2026-10-29).
+  if (screenState.kind === "menu") screenState.menu.unit = { type: p.id, color: state.players[0]!.color };
 }
 
 type BuiltScreen = Extract<Screen, { kind: "built" }>;
@@ -1383,6 +1396,46 @@ function stepSinking(sc: SinkingScreen, t: number): void {
 /** A key or click ends the sinking once it has had its first moment. */
 function skipSinking(sc: SinkingScreen): void {
   if (performance.now() - sc.start >= SINK_SKIP_AFTER_MS) sc.then();
+}
+
+/**
+ * A city we found, made a moment (asked for 2026-10-29 with the user's sheets: "add the build new settlement", then
+ * "for new settlement epic effect - add zoom and some effect and delay to let the player see the new settlement
+ * establishment"): the map comes to it, then the view glides in on it as dusk falls round it, its founders raise their
+ * flag on its square (`foundingShow`), light breaks behind it and its name stands under them a while, before the city
+ * stands there and opens (renderer-api's `foundingMoment` is the timeline, `FOUNDING` its numbers); a key or click
+ * after the first moment cuts it short. Founders without a show found at once.
+ */
+type FoundingScreen = Extract<Screen, { kind: "founding" }>;
+
+function showFounding(type: string, city: City, then: () => void): void {
+  const show = foundingShow(type);
+  if (!show) { then(); return; }
+  view.callout = undefined;
+  view.plan = undefined;
+  centerOn(city.x, city.y);
+  const founding = { x: city.x, y: city.y, id: show.id, owner: city.owner, city: city.name };
+  view.founding = { ...founding, ms: 0, ...foundingMoment(show.id, 0) };
+  screenState = {
+    kind: "founding",
+    founding,
+    // Once the map has come to it.
+    start: performance.now() + (cam.animating ? CAMERA_MS : 0),
+    then: () => { screenState = { kind: "map" }; view.founding = undefined; then(); },
+  };
+}
+
+/** Each frame of the founding: where the moment stands; over, the city stands and the game goes on. */
+function stepFounding(sc: FoundingScreen, t: number): void {
+  const ms = Math.max(0, t - sc.start);
+  const moment = foundingMoment(sc.founding.id, ms);
+  if (moment.done) { sc.then(); return; }
+  view.founding = { ...sc.founding, ms, ...moment };
+}
+
+/** A key or click ends the founding once it has had its first moment. */
+function skipFounding(sc: FoundingScreen): void {
+  if (performance.now() - sc.start >= FOUNDING.skipAfterMs) sc.then();
 }
 
 /** Leave the window: into the city we took (`toCity`, when it offers that), else back to the map; the news goes on after. */
@@ -1567,8 +1620,11 @@ function foundWithName(unit: number): void {
   }
   if (why) { say(why); return; }
   askText("Name the new city", defaultCityName(state, 0), (name) => {
-    if (dispatch({ type: "found", unit, name })) { const c = cityAt(state, u.x, u.y); if (c) openCity(c.id); }
-    followActive(true);
+    const type = u.type;
+    const c = dispatch({ type: "found", unit, name }) ? cityAt(state, u.x, u.y) : undefined;
+    // The settlement goes up first (`showFounding`), then the city opens.
+    if (c) showFounding(type, c, () => { openCity(c.id); followActive(true); });
+    else followActive(true);
   });
 }
 
@@ -2780,7 +2836,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       sound.play("lament");
       modal(notice.title, notice.lines, ["OK"], () => next(), 0, next);
     }
-    else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && builtNotice(state, ev.city, ev.production)) builtWindow(ev.city, ev.production, next, ev.change);
+    else if ((ev.kind === "built" || ev.kind === "wonder") && ev.production && builtNotice(state, ev.city, ev.production)) builtWindow(ev.city, ev.production, next);
     else if (ev.kind === "contact") meet(ev.player, next);
     else if (ev.kind === "trespass" && ev.warnings === 0) { landNote(ev); next(); }
     else if (ev.kind === "trespass" || ev.kind === "leaveDemand") {
@@ -2881,7 +2937,7 @@ function concernsUs(ev: TurnEvent): boolean {
 function endTurn(): void {
   // Last turn's news has not been shown yet (slides still running): show it first.
   if (afterSlides.length) { skipWatch(); return; }
-  if (screenState.kind === "sinking") return;
+  if (screenState.kind === "sinking" || screenState.kind === "founding") return;
   // Ships left on deep water go down before the turn passes, while we still see them.
   const doomed = sinkingShips(state, 0);
   if (doomed.length) { autoEndAt = null; showSinkings(doomed, passTurn); return; }
@@ -3268,6 +3324,7 @@ addEventListener("keydown", (e) => {
     case "wonderShow": e.preventDefault(); skipWonderShow(sc); break;
     case "triumph": e.preventDefault(); skipTriumph(sc); break;
     case "sinking": e.preventDefault(); skipSinking(sc); break;
+    case "founding": e.preventDefault(); skipFounding(sc); break;
     case "conquest": conquestKey(e, sc); break;
     case "rates": ratesKey(e); break;
     case "science":
@@ -3477,6 +3534,7 @@ function mouseDown(e: MouseEvent): void {
     case "wonderShow": skipWonderShow(sc); return;
     case "triumph": skipTriumph(sc); return;
     case "sinking": skipSinking(sc); return;
+    case "founding": skipFounding(sc); return;
     case "conquest": {
       // Its buttons, the close box or the city it points at; a window with nothing to choose goes on at a click anywhere.
       if (e.button !== 0 || !settled(sc.view)) return;
@@ -3654,7 +3712,7 @@ function draw(sc: Screen): void {
       renderer.menu({ ...m, selected: setupSelection });
       break;
     }
-    case "map": case "beat": case "triumph": case "sinking": view.message = status; renderer.main(mapState(), view); break;
+    case "map": case "beat": case "triumph": case "sinking": case "founding": view.message = status; renderer.main(mapState(), view); break;
     case "report": renderer.report(sc.page); break;
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
@@ -3733,10 +3791,15 @@ function frame(t: number): void {
   else view.fireworks = undefined;
   if (screenState.kind === "sinking") stepSinking(screenState, t);
   else view.sinking = undefined;
+  if (screenState.kind === "founding") stepFounding(screenState, t);
+  else view.founding = undefined;
   const shown = motion.at(t);
   stepBattleZoom(t, shown);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;
+  // Its strike lands with the fight's first blow, which the fight already shows (`UnitPoses.impacts`).
+  view.unitFrames = (state as GameState | undefined) ? animator.update(state, shown.battle, t, shown.moving).frames : undefined;
+  view.facingLeft = (state as GameState | undefined) ? facing.update(state, shown) : undefined;
   battleSound(shown.battle);
   showHold(shown.hold);
   // No game yet on the title screen and its menus.

@@ -73,6 +73,8 @@ export function drawFireworks(s: Surface, sx: number, sy: number, t: number, col
         if (BAYER[(y & 3) * 4 + (x & 3)]! < dusk) s.data[row + x] = DIMMED[s.data[row + x]!]!;
       }
     }
+    // The pictures laid over the view (its cities and units) darken with it once it is half fallen, those on the city's square kept lit.
+    if (dusk >= 0.5) for (const a of s.art) if (a.x >= left && a.y >= top && (a.x !== sx || a.y !== sy)) a.dim = true;
   }
   // The square's middle, in fine pixels.
   const cx = (sx + 8) * k;

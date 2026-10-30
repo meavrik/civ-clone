@@ -41,7 +41,7 @@ const PAD = 8;
  * it is not a plain list of choices (text, a map square, units' sprites) or cannot fit the screen.
  */
 function choicesLayout(m: MenuState, screenW: number, style: ChoiceStyle): ChoicesLayout | null {
-  if (!m.items.length || m.body?.length || m.square || m.units) return null;
+  if (!m.items.length || m.body?.length || m.square || m.unit || m.units) return null;
   return layoutIn(m, screenW, style) ?? (style.fallback ? choicesLayout(m, screenW, style.fallback) : null);
 }
 
@@ -103,7 +103,8 @@ export function drawChoices(s: Surface, m: MenuState, style: ChoiceStyle): void 
   const l = choicesLayout(m, s.width, style);
   if (!l) return;
   if (m.title && !m.anchor) dimScreen(s);
-  if (m.title) hideArtUnder(s, l);
+  // A window or a grid of buttons covers the pictures under it (the map's units).
+  hideArtUnder(s, l);
   const scale = l.style.scale;
   const titleH = scale === 2 ? TITLE_H_LARGE : TITLE_H;
   const draw = (t: Surface) => {

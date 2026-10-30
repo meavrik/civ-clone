@@ -18,9 +18,9 @@ import {
 } from "@civ/renderer-api";
 import { drawText, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
-import { unitSprite } from "../overlays.js";
+import { drawUnitFigure } from "../overlays.js";
 import { drawBuilding } from "../pictures.js";
-import { SPRITE_CLEAR } from "../sprites/sheet.js";
+import { TILE } from "../tiles.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { DIM, dimScreen, hideArtUnder, drawBox, drawButton, drawCloseBox, drawStone, drawTitleStrip, FADED, GOLD, GOOD, INK, NOTE, TITLE_H } from "../widgets.js";
@@ -263,8 +263,7 @@ function showcase(s: Surface, state: GameState, id: string, top: number, bottom:
     items.push({ w, h, draw: (x, ground) => drawBuilding(s, b.id, pic, x, ground, w, h, slotColor(owner)) });
   }
   for (const u of UNIT_TYPES.filter((t) => t.requires === id)) {
-    const sprite = unitSprite(u.id, slotColor(owner));
-    items.push({ w: sprite.width, h: sprite.height, draw: (x, ground) => s.blit(sprite, x, ground - sprite.height, SPRITE_CLEAR) });
+    items.push({ w: TILE, h: TILE, draw: (x, ground) => drawUnitFigure(s, u.id, x, ground - TILE, slotColor(owner)) });
   }
   const gap = 8;
   const room = L.card.w - 16;

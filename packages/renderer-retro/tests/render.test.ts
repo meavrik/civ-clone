@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { DIMMED, mixColor } from "../src/palette.js";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, foundCity, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, drawUnitFlash, menuRect, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { civCard, empireIncome, panelTip, settlerSites, standing, TERRAIN_TEXT, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, drawDiplomacyScreen, ratesAt, ratesHit, ratesRect } from "../src/index.js";
@@ -193,8 +193,10 @@ describe("retro renderer", () => {
     drawMainScreen(expected, { ...state, units: others }, view);
     const px = 80 + (u.x - view.originX) * 16;
     const py = 9 + (u.y - view.originY) * 16;
-    drawUnit(expected, u, px - 8, py, playerColor(state, 0), false);
+    drawUnit(expected, u, px - 8, py, playerColor(state, 0), false, { room: { x: 80, y: 9, w: 240, h: 191 } });
     for (let y = 9; y < 200; y++) for (let x = 80; x < 320; x++) expect(s.get(x, y), `pixel ${x},${y}`).toBe(expected.get(x, y));
+    // The settlers are the user's picture, left a spot where they slide (the apps lay it there), none on their square.
+    expect(s.art.filter((a) => a.unit).map((a) => [a.id, a.x, a.y])).toEqual([["settlers", px - 8, py]]);
   });
 
   it("draws a fight: hit point bars, the flash of a blow, the burst of the loser, and wounds afterwards", () => {
@@ -216,11 +218,16 @@ describe("retro renderer", () => {
     const fighter = (unit: number, type: string, owner: number, x: number, hp: number, extra: Partial<{ hit: number; dying: number }> = {}) =>
       ({ unit, type, owner, x, y: u.y, hp, maxHp: 10, stacked: false, hit: 0, dying: 0, ...extra });
     const s = Surface.screen();
-    // A blow lands on our settlers: they flash white, both bars show.
+    // A blow lands on our settlers: their picture is ringed in light, both bars show.
     drawMainScreen(s, state, { ...view, battle: { attacker: fighter(enemy.id, "legion", 1, u.x + 1 - 0.3, 6), defender: fighter(u.id, "settlers", 0, u.x, 4, { hit: 1 }) } });
     writeFileSync(new URL("./out/battle-blow.png", import.meta.url), encodePng(s, 3));
-    expect(count(s, px, [C.WHITE!])).toBeGreaterThan(60);
+    expect(s.art.find((a) => a.id === "settlers")).toMatchObject({ unit: true, lit: true, x: px, y: py });
+    expect(s.art.find((a) => a.id === "legion")?.lit).toBeUndefined();
     expect(count(s, px, [C.YELLOW!])).toBeGreaterThan(0); // the defender's bar, at 4 of 10
+    // A unit without a picture flashes white.
+    const flash = Surface.screen();
+    drawUnitFlash(flash, "no_such_unit", C.LBLUE!, px, py);
+    expect(count(flash, px, [C.WHITE!])).toBeGreaterThan(60);
     // The settlers lose: a burst where they stood.
     drawMainScreen(s, state, { ...view, battle: { attacker: fighter(enemy.id, "legion", 1, u.x + 1 - 0.15, 6), defender: fighter(u.id, "settlers", 0, u.x, 0, { dying: 0.4 }) } });
     writeFileSync(new URL("./out/battle-burst.png", import.meta.url), encodePng(s, 3));
@@ -273,6 +280,64 @@ describe("retro renderer", () => {
     drawSquarePicture(pic, state, worker.x, worker.y, 0, 0);
     // The picture's middle in the window is the picture's middle.
     expect(s.fget((r.x + 12 + 16) * s.k, (r.y + 18 + 2 + 16) * s.k)).toBe(pic.fget(16 * pic.k, 16 * pic.k));
+  });
+
+  it("heads the new settlers' window with their picture, twice the map's size, beside the sentence", async () => {
+    const { builtNotice } = await import("@civ/renderer-api");
+    const state = newGame(2026);
+    applyCommand(state, { type: "found", unit: state.units[0]!.id });
+    const city = state.cities[0]!;
+    const notice = builtNotice(state, city.id, { kind: "unit", id: "settlers" })!;
+    const s = Surface.screen();
+    drawCityScreen(s, state, { city: city.id });
+    const window = { title: notice.title, body: notice.lines, items: ["Build next..."], selected: 0, unit: { type: "settlers", color: state.players[0]!.color } };
+    drawMenu(s, window);
+    writeFileSync(new URL("./out/settlers-window.png", import.meta.url), encodePng(s, 3));
+    const r = menuRect(window);
+    // The user's picture lies in the frame (the apps lay it over the canvas), on the slate.
+    const spot = s.art.find((a) => a.id === "settlers" && a.unit);
+    expect(spot).toMatchObject({ x: r.x + 12, y: r.y + 18 + 2, w: 32, h: 32 });
+    const slate = s.fget((r.x + 13) * s.k, (r.y + 21) * s.k);
+    expect([shade("steel", 3), shade("steel", 4)]).toContain(slate);
+    // The sentence wraps beside it, short of the button.
+    expect(r.h).toBeLessThan(100);
+  });
+
+  it("draws a city being founded as its founders' moment, glided in on, the city itself once that is over", async () => {
+    const { foundingMoment, FOUNDING } = await import("@civ/renderer-api");
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    revealAround(state, 0, u.x, u.y, 6);
+    applyCommand(state, { type: "found", unit: u.id });
+    const city = state.cities[0]!;
+    const view: MainScreenView = { originX: city.x - 7, originY: Math.max(0, city.y - 6), blink: true };
+    const at = { x: 80 + (city.x - view.originX) * 16, y: 9 + (city.y - view.originY) * 16 };
+    const founding = (ms: number) => ({ x: city.x, y: city.y, id: "settlers-found", owner: city.owner, city: city.name, ms, ...foundingMoment("settlers-found", ms) });
+    // At its start: the founders' first frame on the square, no city there, nothing moved yet.
+    const s = Surface.screen();
+    drawMainScreen(s, state, { ...view, founding: founding(0) });
+    expect(s.art.filter((a) => a.city)).toEqual([]);
+    expect(s.art.find((a) => a.id === "settlers-found")).toMatchObject({ unit: true, frame: 0, x: at.x, y: at.y, w: 16, h: 16 });
+    // Glided in: the square four times as large in the middle of the view, the land round it in dusk, gold behind the flag.
+    for (const ms of [FOUNDING.zoomMs, 3200, 4600]) {
+      const z = Surface.screen();
+      drawMainScreen(z, state, { ...view, founding: founding(ms) });
+      writeFileSync(new URL(`./out/founding-${ms}.png`, import.meta.url), encodePng(z, 3));
+      const spot = z.art.find((a) => a.id === "settlers-found")!;
+      expect(spot.w).toBeCloseTo(64, 6);
+      expect(spot.x + spot.w / 2).toBeCloseTo(80 + 240 / 2, 6);
+    }
+    const lit = Surface.screen();
+    drawMainScreen(lit, state, { ...view, founding: founding(4600) });
+    const gold = new Set([shade("wheat", 5), shade("wheat", 6), shade("wheat", 7)]);
+    let golden = 0;
+    for (let i = 0; i < lit.data.length; i++) if (gold.has(lit.data[i]!)) golden++;
+    expect(golden).toBeGreaterThan(500);
+    // Over: the city stands on its square as ever.
+    const after = Surface.screen();
+    drawMainScreen(after, state, view);
+    expect(after.art.some((a) => a.city && a.x === at.x && a.y === at.y)).toBe(true);
+    expect(after.art.some((a) => a.id === "settlers-found")).toBe(false);
   });
 
   it("draws the menu bar above the map, with dropdowns under their titles", async () => {
@@ -817,15 +882,9 @@ describe("city screen", () => {
     // The cost under a sprite picks its unit too.
     expect(cityUnitAt(state, view, cityUnitSlot(0).x + 4, cityUnitSlot(0).y + 20)).toBe(here.id);
     expect(cityUnitAt(state, view, 4, 4)).toBeNull();
-    // The militia away shows about half the pixels of the one in the city.
-    const sprite = (i: number) => {
-      const { x, y } = cityUnitSlot(i);
-      let painted = 0;
-      for (let dy = 0; dy < 16; dy++) for (let dx = 0; dx < 16; dx++) if (!isStone(s.get(x + dx, y + dy))) painted++;
-      return painted;
-    };
-    expect(sprite(2)).toBeLessThan(sprite(0) * 0.7);
-    expect(sprite(2)).toBeGreaterThan(sprite(0) * 0.3);
+    // Each stands as the user's picture in its slot, the militia away darkened.
+    const units = s.art.filter((a) => a.unit && a.y === cityUnitSlot(0).y);
+    expect(units.map((a) => [a.id, a.x, a.dim === true])).toEqual([0, 1, 2].map((i) => [i === 1 ? "phalanx" : "militia", cityUnitSlot(i).x, i === 2]));
   });
 });
 

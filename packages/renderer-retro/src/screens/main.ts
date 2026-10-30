@@ -24,16 +24,18 @@ import {
   specialFor,
 } from "@civ/core";
 import { drawSmallCaps, drawSpacedRinged, drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, SMALL_CAPS_HEIGHT, smallCapsWidth, spacedWidth, textPlateWidth, textWidth, wrapText } from "../font.js";
-import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawShield, drawUnit, drawUnitFlash, unitSprite } from "../overlays.js";
+import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawShield, drawUnit, drawUnitFigure, drawUnitFlash, hpBarBox } from "../overlays.js";
 import { C, DIMMED, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
-import { BAD, DIM, drawButton, drawStone, drawSwatch, GOOD, INK, NOTE } from "../widgets.js";
+import { BAD, DIM, drawButton, drawStone, drawSwatch, GOOD, hideArtUnder, INK, NOTE } from "../widgets.js";
 import { drawFireworks } from "../fireworks.js";
 import { drawSinking } from "../sinking.js";
+import { drawFounding } from "../founding.js";
 import { drawCity } from "./map-city.js";
+import { drawnOver, fineCopy } from "../art-holes.js";
 import { techLabel } from "./research.js";
 
 /**
@@ -95,7 +97,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, civNameSpots, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, shownActive, territory, tileIcons, WORK_ICON, type MainScreenView, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, civNameSpots, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -198,7 +200,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       }
   // Cities on explored tiles. Foreign cities and units wait for fog lifting off their square to thin.
   const fogged = (idx: number, owner: number) => owner !== state.currentPlayer && (view.lifting?.get(idx) ?? 0) >= 0.5;
-  const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner));
+  // A city being founded is its settlement going up until the show is over.
+  const founding = view.founding;
+  const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner) && !(founding && c.x === founding.x && c.y === founding.y));
   const citySquares = new Set(shownCities.map((c) => c.y * map.width + c.x));
   for (const [mask, dx, dy, idx] of unseen) if (!citySquares.has(idx)) shadeUnseen(s, dx, dy, mask);
   for (const [fog, dx, dy] of fogs) s.blit(fog, dx, dy, SPRITE_CLEAR);
@@ -208,14 +212,29 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   if (view.placeNames !== false) drawPlaceNames(s, state, view, across, room);
   if (terr && view.civNames !== false) drawCivNames(s, state, view, across, terr, room);
 
+  // The user's pictures of cities and units show inside the view only.
+  const picture = { room: { x: VIEW_X, y: VIEW_Y, w: s.width - VIEW_X, h: VIEW_H } };
   // A city with units inside shows a shield: always on our own, on others' while we see the square.
   const held = new Set(state.units.map((u) => u.y * map.width + u.x));
+  const cityPictures = new Map<number, ArtSpot>();
   for (const c of shownCities) {
     const idx = c.y * map.width + c.x;
     const pos = toScreen(c.x, c.y);
-    if (pos) drawCity(s, pos[0], pos[1], c, cityLook(state, c), playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1));
+    const spot = pos ? drawCity(s, pos[0], pos[1], c, cityLook(state, c), playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1), picture) : null;
+    if (spot) cityPictures.set(idx, spot);
   }
-  for (const [mask, dx, dy, idx] of unseen) if (citySquares.has(idx)) shadeUnseen(s, dx, dy, mask);
+  // The settlement going up, the settlers' own picture (their show's frame) where the city will stand.
+  const foundAt = founding ? toScreen(founding.x, founding.y) : null;
+  if (founding && foundAt) drawUnitFigure(s, founding.id, foundAt[0], foundAt[1], playerColor(state, founding.owner), { clip: picture.room, frame: founding.frame });
+  for (const [mask, dx, dy, idx] of unseen)
+    if (citySquares.has(idx)) {
+      shadeUnseen(s, dx, dy, mask);
+      // A city's picture out of sight is shaded whole.
+      const spot = cityPictures.get(idx);
+      if (spot) spot.unseen = true;
+    }
+  // What is drawn over a city's square from here on (a unit's shield, a burst, a route's dot) shows over its picture.
+  const underCities = [...cityPictures.values()].map((spot) => ({ spot, copy: fineCopy(s, spot.x, spot.y, TILE, TILE) }));
   // Their names under them, as the original showed them; drawn before the units so no unit is hidden by a name.
   for (const c of shownCities) {
     const pos = toScreen(c.x, c.y);
@@ -267,7 +286,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     // Units inside a city are hidden behind it unless active, like the original.
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
     if (isActive && !view.blink) continue;
-    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1);
+    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id] });
     const max = maxHp(state, top.type);
     if (top.hp < max) drawHpBar(s, pos[0], pos[1], top.hp, max);
   }
@@ -275,7 +294,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     if (m.aboard !== undefined) continue;
     const pos = toScreen(m.x, m.y);
     if (!pos) continue;
-    drawUnit(s, { type: m.type, order: { kind: "none" }, xp: state.units.find((u) => u.id === m.unit)?.xp ?? 0 }, pos[0], pos[1], playerColor(state, m.owner), m.stacked === true || moving.some((o) => o.aboard === m.unit));
+    drawUnit(s, { type: m.type, order: { kind: "none" }, xp: state.units.find((u) => u.id === m.unit)?.xp ?? 0 }, pos[0], pos[1], playerColor(state, m.owner), m.stacked === true || moving.some((o) => o.aboard === m.unit), { ...picture, frame: view.unitFrames?.[m.unit], flip: view.facingLeft?.[m.unit] });
     const hp = m.hp ?? state.units.find((u) => u.id === m.unit)?.hp;
     const max = m.maxHp ?? maxHp(state, m.type);
     if (hp !== undefined && hp < max) drawHpBar(s, pos[0], pos[1], hp, max);
@@ -288,8 +307,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       const color = playerColor(state, f.owner);
       const gone = f.dying > 0.35 || (f.dying > 0 && Math.floor(f.dying * 24) % 2 === 1);
       if (!gone) {
-        if (f.hit > 0.45) drawUnitFlash(s, f.type, color, pos[0], pos[1]);
-        else drawUnit(s, { type: f.type, order: { kind: "none" }, xp: f.xp }, pos[0], pos[1], color, f.stacked);
+        // A blow landing flashes the sprite white, a picture ringed in light.
+        if (f.hit > 0.45 && !unitArt(f.type)) drawUnitFlash(s, f.type, color, pos[0], pos[1]);
+        else drawUnit(s, { type: f.type, order: { kind: "none" }, xp: f.xp }, pos[0], pos[1], color, f.stacked, { ...picture, lit: f.hit > 0.45, frame: view.unitFrames?.[f.unit], flip: view.facingLeft?.[f.unit] });
         drawHpBar(s, pos[0], pos[1], f.hp, f.maxHp);
       }
       if (f.dying > 0) drawBurst(s, pos[0] + 8, pos[1] + 8, f.dying);
@@ -297,7 +317,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
 
   // The ship going down, under the words above it.
   const sinkAt = sinking ? toScreen(sinking.x, sinking.y) : null;
-  if (sinking && sinkAt) drawSinking(s, sinkAt[0], sinkAt[1], sinking.type, playerColor(state, sinking.owner), sinking.stacked, sinking.t, VIEW_X, VIEW_Y);
+  if (sinking && sinkAt) drawSinking(s, sinkAt[0], sinkAt[1], sinking.type, playerColor(state, sinking.owner), sinking.stacked, sinking.t, VIEW_X, VIEW_Y, view.facingLeft?.[sinking.unit] === true);
 
   // Goto destination of the active unit.
   const act = activeId !== null ? state.units.find((u) => u.id === activeId) : undefined;
@@ -319,6 +339,11 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   if (fw && fwAt) {
     const color = playerColor(state, fw.owner);
     drawFireworks(s, fwAt[0], fwAt[1], fw.t, color, darker(color), fw.cheer, VIEW_X, VIEW_Y);
+  }
+
+  for (const { spot, copy } of underCities) {
+    const marks = drawnOver(s, copy);
+    if (marks.length) spot.holes = [...(spot.holes ?? []), ...marks];
   }
 
   if (sinking) drawCallout(s, state, view, { x: sinking.x, y: sinking.y, text: sinking.text });
@@ -508,6 +533,7 @@ function drawCallout(s: Surface, state: GameState, view: MainScreenView, c: Call
   const x = Math.max(VIEW_X + 1, Math.min(s.width - 1 - w, cx - (w >> 1)));
   const above = pos[1] - 5 - h >= VIEW_Y + 1;
   const y = above ? pos[1] - 5 - h : pos[1] + TILE + 5;
+  hideArtUnder(s, { x, y, w, h });
   s.frame(x, y, w, h, C.BLACK!);
   drawStone(s, x + 1, y + 1, w - 2, h - 2);
   lines.forEach((l, i) => drawText(s, x + 5, y + 3 + i * FONT_HEIGHT, l, INK));
@@ -1087,8 +1113,9 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   const active = shown !== null ? unitById(state, shown) : undefined;
   if (active) {
     const type = unitType(active.type);
-    s.blit(unitSprite(active.type, playerColor(state, active.owner)), 4, y, SPRITE_CLEAR);
     const max = maxHp(state, active.type);
+    const frame = view.unitFrames?.[active.id];
+    drawUnitFigure(s, active.type, 4, y, playerColor(state, active.owner), { ...(active.hp < max ? { holes: [hpBarBox(4, y)] } : {}), ...(frame !== undefined ? { frame } : {}), ...(view.facingLeft?.[active.id] ? { flip: true } : {}) });
     if (active.hp < max) drawHpBar(s, 4, y, active.hp, max);
     drawTextWrapped(s, 24, y, PANEL_W - 26, type.name, ink, 1);
     drawMovePips(s, 24, y + 9, active.movesLeft, moveAllowance(state, active));
@@ -1150,6 +1177,7 @@ function drawPanelTip(s: Surface, tip: PanelTip): void {
   const x = PANEL_W + 4;
   const mid = tip.y + (tip.h >> 1);
   const y = Math.max(VIEW_Y + 2, Math.min(SCREEN_H - 2 - h, mid - (h >> 1)));
+  hideArtUnder(s, { x, y, w, h });
   s.frame(x, y, w, h, C.BLACK!);
   drawStone(s, x + 1, y + 1, w - 2, h - 2);
   drawIconLine(s, x + 5, y + 3, tip.title, NOTE);
@@ -1170,6 +1198,8 @@ export function drawMainScreen(s: Surface, state: GameState, view: MainScreenVie
   s.fill(C.BLACK!);
   drawMapViewport(s, state, view);
   magnifyViewport(s, viewZoom(view));
+  // A city we have just founded: the view glides in on it, dusk, light and its name (`founding.ts`).
+  if (view.founding) drawFounding(s, view.founding, { x: VIEW_X, y: VIEW_Y, w: s.width - VIEW_X, h: VIEW_H }, viewZoom(view));
   drawStatusPanel(s, state, view);
   if (view.tip) drawPanelTip(s, view.tip);
   drawMenuBar(s, view.menuOpen);
@@ -1198,6 +1228,8 @@ export function unzoomPoint(view: MainScreenView, px: number, py: number): [numb
  */
 function magnifyViewport(s: Surface, zoom: number): void {
   if (zoom <= 1) return;
+  // The pictures the view left spots for (its units) grow with it.
+  s.art = s.art.map((a) => ({ ...moveArt(a, VIEW_X, VIEW_Y, VIEW_X, VIEW_Y, zoom), ...(a.clip ? { clip: a.clip } : {}) }));
   const x0 = VIEW_X * s.k;
   const y0 = VIEW_Y * s.k;
   for (let y = VIEW_H * s.k - 1; y >= 0; y--) {

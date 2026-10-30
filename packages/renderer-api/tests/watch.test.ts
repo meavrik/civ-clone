@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { foundCity, newGame, type GameState, type UnitAction, type UnitBattle, type UnitStep } from "@civ/core";
-import { ANNOUNCE_MS, fightReport, MotionPlayer, OUTCOME_MS, SETTLE_MS, WATCH_BUDGET_MS, WATCH_PACE, watchMs, watchTurn, type WatchOptions } from "../src/index.js";
+import { ANNOUNCE_MS, fightReport, MotionPlayer, OUTCOME_MS, SETTLE_MS, travelMs, WATCH_BUDGET_MS, WATCH_PACE, watchMs, watchTurn, type WatchOptions } from "../src/index.js";
 
 const step = (unit: number, owner: number, fromX: number, fromY: number, toX: number, toY: number): UnitStep =>
   ({ kind: "step", unit, type: "legion", owner, fromX, fromY, toX, toY });
@@ -45,7 +45,7 @@ describe("watching the other civilizations' turns", () => {
     const lost = fight(s, true, [5, 5]);
     expect(watchTurn(s, [lost], o)).toEqual([
       { kind: "hold", ms: ANNOUNCE_MS, note: { x: 4, y: 5, text: "Barbarian Legion attacks!" } },
-      { kind: "play", actions: [lost], timing: { ...WATCH_PACE.threat, width: s.map.width } },
+      { kind: "play", actions: [lost], timing: { ...WATCH_PACE.threat, width: s.map.width, walkMs: travelMs } },
       { kind: "hold", ms: OUTCOME_MS, note: { x: 5, y: 5, text: "Phalanx destroyed" } },
     ]);
     // Far off: the camera glides there while the announcement stands.

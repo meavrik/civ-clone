@@ -28,7 +28,7 @@ import {
 } from "@civ/core";
 import { buildingArt, citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityImprovements, cityLook, cityUnits, fieldSides, FOCUS_CORNERS, improvementNote, improvementsTop, isWorker, MOOD_STAGE_ICONS, type CitizenMood, type IconName, type ImprovementHit, type ImprovementLine } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
-import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRankMark, drawRoad, unitSprite } from "../overlays.js";
+import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRankMark, drawRoad, drawUnitFigure, rankHoles } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
@@ -36,6 +36,7 @@ import { BAD, DIM, drawButton, drawCloseBox, drawScrollTrack, drawStone, drawTit
 import { CITIZEN_H, CITIZEN_PITCH, CITIZEN_W, drawCitizen } from "../citizens.js";
 import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk, iconLineWidth } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
+import { drawnOver, fineCopy } from "../art-holes.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
 
@@ -511,8 +512,14 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       const worked = slot === 0 || city.worked.includes(slot);
       if (worked) {
         const y = cityTileYield(state, city, slot) ?? tileYield(state, tile, slot === 0, cityYieldGovernment(state, city), city.owner);
-        if (slot === 0) drawCity(s, px, py - 1, city, cityLook(state, city), playerColor(state, city.owner));
+        // The city's picture inside the map's box, its yields drawn over it showing through.
+        const spot = slot === 0 ? drawCity(s, px, py - 1, city, cityLook(state, city), playerColor(state, city.owner), false, { room: { x: CITY_MAP_X, y: CITY_MAP_Y, w: 5 * TILE, h: 5 * TILE } }) : null;
+        const under = spot ? fineCopy(s, spot.x, spot.y, TILE, TILE) : null;
         yieldIcons(s, px, py, y.food, y.shields, y.trade);
+        if (spot && under) {
+          const marks = drawnOver(s, under);
+          if (marks.length) spot.holes = [...(spot.holes ?? []), ...marks];
+        }
       } else if (!slotInLand(state, city, slot)) {
         // Beyond the city's border (or on a rival's land): shaded, it cannot be worked.
         for (let yy = 0; yy < TILE; yy++) for (let xx = (yy & 1); xx < TILE; xx += 2) s.set(px + xx, py + yy, C.BLACK!);
@@ -572,7 +579,8 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawBox(s, MID.x, ROW2.y, MID.w, ROW2.h, "Units", String(units.length));
   units.slice(0, UNIT_SLOTS).forEach(({ unit, here, shields, food }, i) => {
     const { x: ux, y: uy } = cityUnitSlot(i);
-    s.blit(unitSprite(unit.type, playerColor(state, unit.owner)), ux, uy, SPRITE_CLEAR);
+    // A picture of the user's: its rank showing through, one supported elsewhere darkened.
+    drawUnitFigure(s, unit.type, ux, uy, playerColor(state, unit.owner), { holes: rankHoles(ux, uy, unit.xp), ...(here ? {} : { dim: true }) });
     drawRankMark(s, ux, uy, unit.xp);
     if (!here) ghost(s, ux, uy);
     let ix = ux;
@@ -596,7 +604,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const top = change.y + change.h;
   let region = storeRegion(RIGHT, top, by - 1);
   if (p.kind === "unit") {
-    s.blit(unitSprite(p.id, playerColorOf(state, city.owner)), RIGHT.x + 4, top + Math.floor((by - 1 - top - TILE) / 2), SPRITE_CLEAR);
+    drawUnitFigure(s, p.id, RIGHT.x + 4, top + Math.floor((by - 1 - top - TILE) / 2), playerColorOf(state, city.owner));
     region = { ...region, x: region.x + 18, w: region.w - 18 };
   }
   drawStore(s, region, "shield", city.shields, r.productionCost);

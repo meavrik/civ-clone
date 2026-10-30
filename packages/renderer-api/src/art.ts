@@ -1,3 +1,8 @@
+import { CITY_ART } from "./city-art.js";
+import { UNIT_ART } from "./unit-art.js";
+import { animSheet, unitAnim } from "./unit-anim.js";
+import type { UnitAtlas } from "./unit-atlas.js";
+
 /**
  * The user's pictures of the improvements, wonders and spaceship parts (2026-10-24, asked for: "use the
  * attached images for game buildings"), shown as they are, never drawn into the palette: the apps lay each
@@ -71,12 +76,115 @@ export interface ArtBox { x: number; y: number; w: number; h: number }
  */
 export interface ArtSpot extends ArtBox {
   id: string;
+  /** A unit's picture (`unitArt`), not a building's: the box is its square, where it stands (`unitArtPlace`). */
+  unit?: boolean;
+  /** A city's picture on its square (`cityArt`, the id its age and size, "ancient-village"), standing as `cityArtPlace` puts it. */
+  city?: boolean;
+  /** Out of sight: shaded as the map shades the squares it does not see now (`UNSEEN`, each colour at 62%). */
+  unseen?: boolean;
+  /** Only what lies inside shows: the map's view, for a unit at its edge. */
+  clip?: ArtBox;
+  /** Where the marks drawn on the canvas under the picture show through it (a unit's shield, rank, orders). */
+  holes?: ArtBox[];
+  /** A ship going down: tipped this many degrees (clockwise; negative lifts the bow) about the foot of its picture... */
+  turn?: number;
+  /** ...and nothing of it showing below this line (screen pixels down), its waterline. */
+  water?: number;
+  /** An animated unit's frame of its atlas (`UNIT_ATLASES`; its idle one when absent)... */
+  frame?: number;
+  /** ...and the colour its clothes take (its owner's, a palette index). */
+  owner?: number;
+  /** Facing left: the picture mirrored (an animated unit's about the anchor its feet stand on, any other's about its middle). */
+  flip?: boolean;
   middle?: boolean;
   lit?: boolean;
   /** How much of the picture stands, from the ground up, 0..1: a wonder rising in the city view (absent: whole). */
   reveal?: number;
   /** Darkened with the screen it stands on, under a window (`dimScreen`). */
   dim?: boolean;
+}
+
+/**
+ * The user's pictures of the units (2026-10-28, their sheet of all 29: "USE AS IS - DO NOT regenerate"), shown as
+ * they are wherever a unit stands (`apps/web/src/units/<id>.png`, cut from the sheet pixel for pixel by
+ * tools/sprites/units/cut.ts). One scale for all, `UNIT_SQUARE` of the sheet's pixels to a map square, so they keep
+ * the sizes the sheet gives them; one that would not fit its square (the carrier, the tank, the phalanx's spear)
+ * shrinks to fit. Each stands centred across on the square's foot, a fine pixel up, the aircraft (`ALOFT`) in
+ * the middle, in flight. The sprites stay for anything without a picture.
+ */
+export const UNIT_SQUARE = 240;
+/** The share of its square a picture may fill, either way. */
+const UNIT_FIT = 0.97;
+/** The gap under a unit's feet, as a share of its square (a fine pixel). */
+const UNIT_FOOT = 1 / 32;
+const ALOFT = new Set(["fighter", "bomber"]);
+
+/** Whether unit type `id` has a picture of the user's (or its moves, `unitAnim`). */
+export function unitArt(id: string): boolean {
+  return id in UNIT_ART || unitAnim(id) !== null;
+}
+
+/**
+ * Where unit `spot.id`'s picture goes in its square (the spot's box). An animated unit's frame: its atlas's canvas
+ * (`animSheet`: the unit's own, or one of its rule's `sheets`) at that atlas's scale, the anchor every frame there
+ * stands on (the militia's front foot, the middle of a grid sheet's cell on its ground) placed where that atlas's
+ * home frame (the unit's idle one, a further sheet's first) stands centred in the square on its foot, as any unit's
+ * picture; the same box for every frame of an atlas, so only the drawing moves.
+ */
+export function unitArtPlace(spot: ArtSpot): ArtBox | null {
+  const anim = unitAnim(spot.id);
+  const sheet = anim ? animSheet(spot.id, spot.frame ?? anim.rule.idle) : null;
+  if (sheet) return animPlace(spot, sheet.square, sheet.atlas, sheet.home);
+  const size = UNIT_ART[spot.id];
+  if (!size) return null;
+  const [w, h] = size;
+  const k = Math.min(1 / UNIT_SQUARE, UNIT_FIT / w, UNIT_FIT / h);
+  const fw = w * k, fh = h * k;
+  const top = ALOFT.has(spot.id) ? (1 - fh) / 2 : 1 - UNIT_FOOT - fh;
+  return { x: spot.x + ((1 - fw) / 2) * spot.w, y: spot.y + top * spot.h, w: fw * spot.w, h: fh * spot.h };
+}
+
+function animPlace(spot: ArtSpot, square: number, atlas: UnitAtlas, home: number): ArtBox {
+  const k = spot.w / square;
+  const idle = atlas.frames[home]!;
+  // The feet's place mirrors with the picture, so a unit turning round stands where its idle drawing was centred.
+  const off = (atlas.anchor[0] - (idle.box[0] + idle.box[2] / 2)) * k;
+  const footX = spot.x + spot.w / 2 + (spot.flip ? -off : off);
+  const footY = spot.y + spot.h * (1 - UNIT_FOOT);
+  // Mirrored about the feet: the canvas's room right of the anchor now lies left of it.
+  const left = (spot.flip ? atlas.size[0] - atlas.anchor[0] : atlas.anchor[0]) * k;
+  return { x: footX - left, y: footY - atlas.anchor[1] * k, w: atlas.size[0] * k, h: atlas.size[1] * k };
+}
+
+/**
+ * The user's pictures of the cities (2026-10-29, their sheet of twelve, three ages by four sizes: "USE AS IS!!! DO NOT
+ * regenerate"), shown as they are wherever a city stands (`apps/web/src/cities/<era>-<tier>.png`, cut from the sheet
+ * pixel for pixel by tools/sprites/cities/cut.ts), by `cityLook`. One scale for all, the sheet's cell to a map square
+ * (`CITY_SQUARE` of its pixels), so a village stands smaller than a capital as the sheet draws them; each centred across
+ * on the square's foot, a fine pixel up, as a unit stands. The drawn icons stay for anything without a picture.
+ */
+export const CITY_SQUARE = 362;
+export { CITY_ART };
+
+/** Whether the city look `id` ("ancient-village") has a picture of the user's. */
+export function cityArt(id: string): boolean {
+  return id in CITY_ART;
+}
+
+/** Where city picture `spot.id` goes on its square (the spot's box). */
+export function cityArtPlace(spot: ArtSpot): ArtBox | null {
+  const size = CITY_ART[spot.id];
+  if (!size) return null;
+  const [w, h] = size;
+  const k = Math.min(1 / CITY_SQUARE, UNIT_FIT / w, UNIT_FIT / h);
+  const fw = w * k, fh = h * k;
+  return { x: spot.x + ((1 - fw) / 2) * spot.w, y: spot.y + (1 - UNIT_FOOT - fh) * spot.h, w: fw * spot.w, h: fh * spot.h };
+}
+
+/** A spot as it lands where a screen copies its part at (`fromX`, `fromY`) to (`toX`, `toY`), `scale` times larger. */
+export function moveArt(a: ArtSpot, fromX: number, fromY: number, toX: number, toY: number, scale = 1): ArtSpot {
+  const at = (b: ArtBox): ArtBox => ({ x: toX + (b.x - fromX) * scale, y: toY + (b.y - fromY) * scale, w: b.w * scale, h: b.h * scale });
+  return { ...a, ...at(a), ...(a.clip ? { clip: at(a.clip) } : {}), ...(a.holes ? { holes: a.holes.map(at) } : {}) };
 }
 
 /** The box the drawing of building `id`'s picture fills within its square, or null when it has no picture. */
@@ -105,6 +213,8 @@ export function artLot(id: string, pic: { w: number; h: number }): { w: number; 
  * spot's box as large as it fits, shape kept: centred across, on the box's foot (or its middle).
  */
 export function artPlace(spot: ArtSpot): ArtBox | null {
+  if (spot.unit) return unitArtPlace(spot);
+  if (spot.city) return cityArtPlace(spot);
   const art = buildingArt(spot.id);
   if (!art) return null;
   const k = Math.min(spot.w / art.w, spot.h / art.h);

@@ -123,9 +123,10 @@ describe("Building Completed window", () => {
     // The point reaches from the window's foot to the ring round the square, over the square's middle.
     expect(place.win.y + place.win.h + 6).toBe(y - 2);
     expect(place.tip).toEqual({ x: x + 8, y: y - 3 });
-    expect(s.art).toEqual([{ id: "temple", ...builtPicture(state, view), middle: true }]);
-    // The city stays lit under the darkened map; a click on it is View City, as the button is.
+    expect(s.art.filter((a) => !a.city)).toEqual([{ id: "temple", ...builtPicture(state, view), middle: true }]);
+    // The city stays lit under the darkened map, its picture too; a click on it is View City, as the button is.
     expect(s.fget(x * 2 + 9, y * 2 + 9)).toBe(lit);
+    expect(s.art.filter((a) => a.city).map((a) => [a.x, a.y, a.dim === true])).toEqual([[x, y, false]]);
     expect(builtHit(state, view, x + 8, y + 8)).toBe("city");
     expect(builtHit(state, view, x + 8, y + 20)).toBeNull();
     const o = place.win;

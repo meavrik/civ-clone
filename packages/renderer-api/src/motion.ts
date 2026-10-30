@@ -16,6 +16,8 @@ export interface UnitMotion {
   /** Hit points to show, when they differ from the unit's current ones (before a fight still to come). */
   hp?: number;
   maxHp?: number;
+  /** Which way across it is going, once under way (a slide or a nudge): the way it faces. */
+  heading?: -1 | 1;
 }
 
 /** One side of the fight being shown. */
@@ -39,6 +41,10 @@ export interface BattleFighter {
 export interface BattleFrame {
   attacker: BattleFighter;
   defender: BattleFighter;
+  /** When the fight began (the lunge; the first blow lands `LUNGE_MS` later): tells one fight from the next. */
+  start: number;
+  /** Which way across the attacker strikes (0 straight up or down): it faces that way, the defender the other. */
+  heading: -1 | 0 | 1;
 }
 
 /** The map held a moment between moves (`MotionPlayer.hold`): where the camera should go, and a note beside a square. */
@@ -67,7 +73,16 @@ export interface MotionTiming {
   battleTotalMs?: number;
   /** Longest a round of a fight takes (110 ms unless given). */
   roundMaxMs?: number;
+  /**
+   * The least a step of a unit of this type takes: an animated unit's walk (`travelMs`), so each step shows it whole
+   * (asked for 2026-10-30: "cant see the walk - not enough time for a full cycle"); a chain of such steps longer than
+   * `WALK_CHAIN_MS` is sped up to fit it.
+   */
+  walkMs?: (type: string) => number;
 }
+
+/** A chain of walked steps (a goto along a road) takes at most this long, however many steps it has. */
+export const WALK_CHAIN_MS = 2400;
 
 /** Parts of a fight: the attacker closes in, the rounds, the loser's end. */
 export const LUNGE_MS = 150;
@@ -147,7 +162,9 @@ function paced(actions: readonly UnitAction[], timing: MotionTiming): Paced[] {
   const fightMs = Math.min(timing.battleMs ?? 1600, Math.max(LUNGE_MS + DEATH_MS + ROUND_MS.min, (timing.battleTotalMs ?? 6000) / Math.max(1, fights)));
   const roundMax = timing.roundMaxMs ?? ROUND_MS.max;
   return groups.map((g): Paced => {
-    if (g.kind === "slide") return { kind: "slide", slides: g.slides, ms: stepMs };
+    // A unit that walks takes a whole step of its walk to cross a square (its cargo goes with it).
+    const walk = (type: string) => Math.min(timing.walkMs?.(type) ?? 0, WALK_CHAIN_MS / slides);
+    if (g.kind === "slide") return { kind: "slide", slides: g.slides, ms: Math.max(stepMs, walk(g.slides[0]!.step.type)) };
     const n = Math.max(1, g.battle.rounds.length);
     const roundMs = Math.max(ROUND_MS.min, Math.min(roundMax, (fightMs - LUNGE_MS - DEATH_MS) / n));
     return { kind: "battle", battle: g.battle, roundMs, ms: LUNGE_MS + n * roundMs + DEATH_MS };
@@ -217,7 +234,9 @@ export class MotionPlayer {
         const { unit } = beat;
         if (seen.has(unit.id)) continue;
         const reach = now <= beat.start ? 0 : nudgeReach((now - beat.start) / (beat.end - beat.start));
-        seen.set(unit.id, { unit: unit.id, type: unit.type, owner: unit.owner, x: unit.x + beat.dx * reach, y: unit.y + beat.dy * reach });
+        const m: UnitMotion = { unit: unit.id, type: unit.type, owner: unit.owner, x: unit.x + beat.dx * reach, y: unit.y + beat.dy * reach };
+        if (now >= beat.start && beat.dx) m.heading = beat.dx < 0 ? -1 : 1;
+        seen.set(unit.id, m);
         continue;
       }
       if (beat.kind === "slide") {
@@ -226,6 +245,8 @@ export class MotionPlayer {
           if (seen.has(step.unit)) continue;
           const m: UnitMotion = { unit: step.unit, type: step.type, owner: step.owner, x: step.fromX + dx * f, y: step.fromY + dy * f };
           if (step.aboard !== undefined) m.aboard = step.aboard;
+          // Turned the way it goes once its step begins; one still waiting its turn keeps its facing.
+          if (now >= beat.start && dx) m.heading = dx < 0 ? -1 : 1;
           seen.set(step.unit, m);
         }
         continue;
@@ -290,7 +311,7 @@ export class MotionPlayer {
       hp: dhp, maxHp: b.defender.maxHp, xp: b.defender.xp, stacked: b.attackerWon && loserStacked,
       hit: defenderHit, dying: b.attackerWon ? dying : 0,
     };
-    return { attacker, defender };
+    return { attacker, defender, start: beat.start, heading: beat.dx < 0 ? -1 : beat.dx > 0 ? 1 : 0 };
   }
 
   /** True while this step or fight is queued or under way. */

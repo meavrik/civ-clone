@@ -96,7 +96,7 @@ import {
 } from "@civ/renderer-retro";
 import type * as WebRenderer from "../../web/src/retro-renderer.js";
 import { screenW } from "./display.js";
-import { buildingPlaces, portraitPlace, preloadBuildings, preloadScenes, preloadTech, scenePlace, showPictures, techPlace, type PicturePlace } from "../../web/src/pictures.js";
+import { buildingPlaces, portraitPlace, preloadBuildings, preloadCities, preloadScenes, preloadTech, preloadUnits, scenePlace, showPictures, techPlace, type PicturePlace } from "../../web/src/pictures.js";
 import { MapPan } from "./pan.js";
 
 /**
@@ -476,7 +476,11 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if ((view.enter ?? 1) >= 1) pictures.push(portraitPlace(reignCard(state).portrait, wideFrame ? { ...box, logicalW: screenW(), logicalH: SCREEN_H } : onScreen(box)));
     },
     reignHit: (view, px, py) => (shown.wide ? reignHit(view, px, py, screenW()) : reignHit(view, px - inset(), py)),
-    prepare: (state) => preloadScenes(state),
+    prepare: (state) => {
+      preloadScenes(state);
+      preloadUnits(state);
+      preloadCities();
+    },
     // Over whatever is drawn under it (the title's 320x200 screen, or the wide map), centred on it.
     loading: (view) => drawLoading(surface(), view),
     end: screen(drawEndScreen),

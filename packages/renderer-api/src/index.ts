@@ -11,6 +11,7 @@ import type { NewTechHit, NewTechView } from "./newtech.js";
 import type { BuiltHit, BuiltView } from "./built.js";
 import type { ConquestHit, ConquestView, Fireworks } from "./conquest.js";
 import type { Sinking } from "./sinking.js";
+import type { FoundingMoment } from "./founding.js";
 import type { ReignHit, ReignView } from "./reign.js";
 import type { ImprovementHit } from "./improvements.js";
 export * from "./motion.js";
@@ -47,9 +48,14 @@ export * from "./setup.js";
 export * from "./audience.js";
 export * from "./newtech.js";
 export * from "./art.js";
+export * from "./unit-atlas.js";
+export * from "./unit-anim.js";
+export * from "./owner-colour.js";
+export * from "./facing.js";
 export * from "./built.js";
 export * from "./conquest.js";
 export * from "./sinking.js";
+export * from "./founding.js";
 export * from "./staging.js";
 export * from "./outbuilt.js";
 export * from "./reign.js";
@@ -101,7 +107,6 @@ import {
   WORLD_SIZES,
   wrapX,
   type BuildingRule,
-  type CityTurnEvent,
   type City,
   type CityFocus,
   type GameState,
@@ -156,10 +161,21 @@ export interface MainScreenView {
   moving?: UnitMotion[] | undefined;
   /** The fight being shown: both fighters are drawn from here, with hit points, blows and the loser's end. */
   battle?: BattleFrame | undefined;
+  /** Each animated unit's frame of its atlas this frame (`UnitAnimator`, by unit id); a unit without one stands idle. */
+  unitFrames?: Record<number, number> | undefined;
+  /** The units facing left (`UnitFacing`, by unit id): their pictures are drawn mirrored; the rest face right. */
+  facingLeft?: Record<number, true> | undefined;
   /** Fireworks bursting over a city the viewer has just taken (`Fireworks`). */
   fireworks?: Fireworks | undefined;
   /** A ship of the viewer's going down on deep water as the turn ends, the words above it (`Sinking`). */
   sinking?: Sinking | undefined;
+  /**
+   * A city the viewer has just founded, made a moment (asked for 2026-10-29 with the user's sheets, "add the build new
+   * settlement", then "for new settlement epic effect - add zoom and some effect and delay"; `founding.ts`): where it
+   * stands `ms` in (`FoundingMoment`), the founders' show (atlas `id`) on the city's square in place of the city, which
+   * shows once it is over, the view glided in on it, dusk round it, light behind the flag and the city's name (`city`).
+   */
+  founding?: ({ x: number; y: number; id: string; owner: number; city: string; ms: number } & FoundingMoment) | undefined;
   /**
    * Squares of a strategic resource an advance has just revealed (`resourceReveals`), ringed in gold while the map
    * holds on them; `at` runs 0..1 over that moment, the rings pulsing twice.
@@ -275,6 +291,12 @@ export interface MenuState {
    * Modern ignores it.
    */
   square?: { x: number; y: number };
+  /**
+   * A unit's picture at the head of the window beside its first lines, in the square's frame and twice the
+   * map's size (the new settlers' window, asked for 2026-10-29): its type and its owner's colour slot.
+   * Modern ignores it.
+   */
+  unit?: { type: string; color: number };
   /** How far a window has grown on opening, 0..1 (`WINDOW_ENTER_MS`); absent or 1, it stands whole. Dropdowns ignore it. */
   enter?: number | undefined;
   /** Rows that cannot be picked now (Revolution! with no government to turn to): drawn faded, never hit. */
@@ -737,7 +759,7 @@ function buildingIcon(b: BuildingRule): IconName {
  * building them. Settlers cost the city a citizen, so it asks before
  * shrinking again.
  */
-export function builtNotice(state: GameState, cityId: number, p: Production, change?: CityTurnEvent["change"]): { title: string; lines: string[] } | null {
+export function builtNotice(state: GameState, cityId: number, p: Production): { title: string; lines: string[] } | null {
   const city = state.cities.find((c) => c.id === cityId);
   if (!city) return null;
   // Culture is what a city holds; old saves gathered it every turn.
@@ -746,17 +768,9 @@ export function builtNotice(state: GameState, cityId: number, p: Production, cha
     case "unit": {
       const u = unitType(p.id);
       if (!u.flags?.includes("settler")) return null;
-      // Short and in numbers (asked for 2026-10-24): what the city has before and after, each a line.
-      const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
-      const lines = change
-        ? [
-            `{people} Population ${change.size[0]} → ${change.size[1]}`,
-            ...([["food", "Food", change.food], ["shield", "Shields", change.shields], ["trade", "Trade", change.trade]] as const)
-              .filter(([, , [a, b]]) => a !== b)
-              .map(([icon, name, [a, b]]) => `{${icon}} ${name} ${signed(a)} → ${signed(b)} a turn`),
-          ]
-        : [`{people} Population ${city.size}`];
-      return { title: `${city.name} generates a group of ${u.name}`, lines };
+      // A sentence on the new settlers and what they can do (asked for 2026-10-29: "less technical"; the
+      // city's size and yields before and after were the lines from 2026-10-24). The window shows them too.
+      return { title: `New ${u.name} in ${city.name}`, lines: [`A family of ${city.name} sets out, ready to found a new city or to build roads, farms and mines.`] };
     }
     case "building": {
       const b = building(p.id);

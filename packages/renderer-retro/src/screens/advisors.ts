@@ -13,14 +13,13 @@ import {
   type GameState,
 } from "@civ/core";
 import { drawText, drawTextCentered, textWidth } from "../font.js";
-import { unitSprite } from "../overlays.js";
+import { drawUnitFigure } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { BAD, DIM, drawPage, drawSwatch, GOOD, INK } from "../widgets.js";
 import { drawIconLine } from "../icons.js";
 import { regardWords, standing } from "@civ/renderer-api";
 import { PLAYER_COLORS } from "./main.js";
-import { SPRITE_CLEAR } from "../sprites/sheet.js";
 
 function frame(s: Surface, title: string): void {
   drawPage(s, title, "F1 Cities F2 Army F3 Foreign F4 Science F5 Score F6 Ship");
@@ -63,7 +62,7 @@ export function drawMilitaryAdvisor(s: Surface, state: GameState): void {
   let x = 12;
   const ink = INK;
   for (const [type, n] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
-    s.blit(unitSprite(type, PLAYER_COLORS[state.players[me]!.color % PLAYER_COLORS.length]!), x, y, SPRITE_CLEAR);
+    drawUnitFigure(s, type, x, y, PLAYER_COLORS[state.players[me]!.color % PLAYER_COLORS.length]!);
     const t = unitType(type);
     drawText(s, x + 20, y, `${n} ${t.name}`, ink);
     drawText(s, x + 20, y + 8, `${t.attack}/${t.defense}/${t.moves}`, DIM);
