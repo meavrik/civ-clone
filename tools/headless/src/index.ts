@@ -1,11 +1,13 @@
-import { aiTurn, baselineTurn, plannerTurn, plannerV2Turn } from "@civ/ai";
+import { acceptsPeace, aiTurn, baselineTurn, plannerTurn, plannerV2Turn, playTurn, tributeOffer } from "@civ/ai";
 import {
+  applyCommand,
   computeScore,
   getTile,
   lastTurnEvents,
   loadSave,
   makeSave,
   newGame,
+  relation,
   runAiPlayers,
   unitType,
   type GameState,
@@ -106,6 +108,14 @@ export interface GameConfig {
   quickWork?: boolean;
   /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
   cityStates?: boolean;
+  /**
+   * Seat 0 is a human player's (the level's human rules; the computer leaders treat it as a human), played by the
+   * planner as a stand-in, to see how the level's computer players fare against a player. Its moves are not logged,
+   * so such a game cannot be replayed (`--verify`).
+   */
+  human?: boolean;
+  /** Computer players under the human's rules of the level, alike toward a human at every level (`GameState.evenDifficulty`). */
+  evenDifficulty?: boolean;
 }
 
 export interface PlayerStats {
@@ -131,10 +141,16 @@ export interface PlayerStats {
   /** Cities this civ captured or razed so far, and cities it lost. */
   captured: number;
   lost: number;
+  /** Wars declared on this civ so far, and demands for tribute made of it. */
+  warredOn: number;
+  demands: number;
 }
 
-/** Running tallies a game keeps per civ: conquests come from the turn events, which every end of turn clears. */
-export interface Tallies { captured: number[]; lost: number[] }
+/**
+ * Running tallies a game keeps per civ, from the turn events, which every end of turn clears: conquests, wars
+ * declared on it and tribute demanded of it (a computer leader demands only of a human seat, `--human`).
+ */
+export interface Tallies { captured: number[]; lost: number[]; warredOn: number[]; demands: number[] }
 
 export interface Sample {
   turn: number;
@@ -161,6 +177,11 @@ export function defaultConfig(seed: number, over: Partial<GameConfig> = {}): Gam
   return { seed, civs: 4, difficulty: 2, turns: 200, ais: ["planner"], every: 0, ...over };
 }
 
+/** What a seat is called in the stats: its AI's name, or "human" for a stand-in human seat. */
+export function seatLabel(config: GameConfig, id: number): string {
+  return config.human && id === 0 ? "human" : seatAis(config)[id] ?? "baseline";
+}
+
 /** AI name seated at each civ slot (barbarians excluded). */
 export function seatAis(config: GameConfig): string[] {
   const out: string[] = [];
@@ -180,7 +201,7 @@ export function makeRouter(config: GameConfig): AiFn {
 
 export function gameOptions(config: GameConfig): NewGameOptions {
   return {
-    allAi: true,
+    allAi: !config.human,
     opponents: Math.max(1, Math.min(7, config.civs - 1)),
     difficulty: config.difficulty,
     ...(config.world ? { world: config.world, historical: config.historical === true } : {}),
@@ -214,6 +235,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.roadlessResources ? { roadlessResources: true } : {}),
     ...(config.quickWork ? { quickWork: true } : {}),
     ...(config.cityStates ? { cityStates: true } : {}),
+    ...(config.evenDifficulty ? { evenDifficulty: true } : {}),
   };
 }
 
@@ -260,13 +282,14 @@ export function playerStats(state: GameState, id: number, ai: string, tallies?: 
     overseas,
     captured: tallies?.captured[id] ?? 0,
     lost: tallies?.lost[id] ?? 0,
+    warredOn: tallies?.warredOn[id] ?? 0,
+    demands: tallies?.demands[id] ?? 0,
   };
 }
 
 export function sample(state: GameState, config: GameConfig, tallies?: Tallies): Sample {
-  const seats = seatAis(config);
   const players: PlayerStats[] = [];
-  for (const p of state.players) if (p.id !== state.barbarians) players.push(playerStats(state, p.id, seats[p.id] ?? "baseline", tallies));
+  for (const p of state.players) if (p.id !== state.barbarians) players.push(playerStats(state, p.id, seatLabel(config, p.id), tallies));
   return { turn: state.turn, players };
 }
 
@@ -309,21 +332,49 @@ export function runGame(config: GameConfig, onSample?: (s: Sample) => void): Gam
   const route = makeRouter(config);
   const state = newGame(config.seed, options);
   // Count conquests as they happen: each AI's own captures are in the events of its turn.
-  const tallies: Tallies = { captured: state.players.map(() => 0), lost: state.players.map(() => 0) };
-  const router: AiFn = (s) => {
+  const zeros = () => state.players.map(() => 0);
+  const tallies: Tallies = { captured: zeros(), lost: zeros(), warredOn: zeros(), demands: zeros() };
+  const bump = (list: number[], id: number) => { list[id] = (list[id] ?? 0) + 1; };
+  /**
+   * A stand-in human seat's turn: first it answers what the computer leaders put to it since its last turn, as the
+   * planner would in its place (tribute paid only when far the weaker, `tributeOffer`; a resource asked for left to
+   * lapse; peace offered signed unless it is winning a war, `acceptsPeace`), then the planner plays it.
+   */
+  const standIn: AiFn = (s) => {
+    const me = s.currentPlayer;
+    for (const [k, p] of Object.entries(s.proposals ?? {})) {
+      const [asker, asked] = k.split(">").map(Number) as [number, number];
+      if (asked !== me || p.kind !== "tribute") continue;
+      applyCommand(s, { type: "answer", player: asker, accept: tributeOffer(s, me, asker) > 0 && s.players[me]!.gold >= p.gold });
+    }
+    for (const [k, turn] of Object.entries(s.peaceOffers ?? {})) {
+      const [from, to] = k.split(">").map(Number) as [number, number];
+      if (to !== me || turn < s.turn - 1 || relation(s, me, from) === "peace") continue;
+      if (relation(s, me, from) !== "war" || acceptsPeace(s, me, from)) applyCommand(s, { type: "makePeace", player: from });
+    }
+    playTurn(s);
+  };
+  /** Plays `turn` for the current player and counts what its turn's events tell. */
+  const counted = (s: GameState, turn: AiFn) => {
     const me = s.currentPlayer;
     const from = lastTurnEvents.length;
-    route(s);
+    turn(s);
     for (const ev of lastTurnEvents.slice(from)) {
-      if (ev.kind !== "cityCaptured" && ev.kind !== "cityLost") continue;
-      tallies.captured[me] = (tallies.captured[me] ?? 0) + 1;
-      tallies.lost[ev.player] = (tallies.lost[ev.player] ?? 0) + 1;
+      if (ev.kind === "cityCaptured" || ev.kind === "cityLost") { bump(tallies.captured, me); bump(tallies.lost, ev.player); }
+      else if (ev.kind === "warDeclared") bump(tallies.warredOn, ev.on);
+      else if (ev.kind === "proposal" && ev.proposal.kind === "tribute") bump(tallies.demands, ev.to);
     }
   };
+  const router: AiFn = (s) => counted(s, route);
   const samples: Sample[] = [];
   const t0 = performance.now();
   let end: GameResult["end"] = "turns";
   while (state.turn < config.turns) {
+    // A stand-in human seat: the planner plays it, then it ends its turn as a player does.
+    if (!state.players[state.currentPlayer]!.isAi) {
+      counted(state, standIn);
+      applyCommand(state, { type: "endTurn" });
+    }
     runAiPlayers(state, router);
     if (config.every > 0 && state.turn % config.every === 0 && state.turn < config.turns) {
       const s = sample(state, config, tallies);

@@ -24,6 +24,17 @@ describe("setup cards", () => {
     for (const p of spots) expect(p.x >= 0 && p.y >= 0 && p.x + p.w <= 320 && p.y + p.h <= 200, p.portrait).toBe(true);
   });
 
+  it("tells on each level's card what the rival civilizations pay and how they treat you", () => {
+    const rivals = setupCards(setup("difficulty"))!.cards.map((c) => c.lines.at(-1));
+    expect(rivals).toEqual([
+      "{swords} Rivals pay 133% to build and grow, never start wars",
+      "{swords} Rivals pay 117% to build and grow, slow to anger",
+      "{swords} Rivals pay the usual cost to build and grow",
+      "{swords} Rivals pay 83% to build and grow, quick to war",
+      "{swords} Rivals pay 67% to build and grow, ruthless",
+    ]);
+  });
+
   it("draws difficulty and the tribes as cards, each answering to a click; the count stays a list", () => {
     const s = Surface.screen();
     for (const [st, file, sel] of [[setup("difficulty"), "setup-difficulty", 0], [setup("civ"), "setup-tribes", 0], [setup("civ", { world: "europe", historical: true }), "setup-tribes-europe", 3]] as const) {

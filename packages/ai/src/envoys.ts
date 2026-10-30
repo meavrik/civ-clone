@@ -1,4 +1,4 @@
-import { applyCommand, atWar, canExport, hasContact, hasResource, mayTrade, nextInt, RESOURCES, whyNoTrade, type GameState, type Player } from "@civ/core";
+import { applyCommand, atWar, canExport, hasContact, hasResource, mayTrade, nextInt, RESOURCES, temperToward, whyNoTrade, type GameState, type Player } from "@civ/core";
 import { attitude, resourcePrice, spareResources, strength, wantsResource } from "./planner.js";
 
 /**
@@ -7,19 +7,20 @@ import { attitude, resourcePrice, spareResources, strength, wantsResource } from
  * spare sends a gift, and one that lacks a strategic resource the player can spare asks for it, for one of
  * its own or for gold. The player answers in an audience (core's `answer`); a refused demand is a grievance
  * (`attitude`) and may bring war from the asker. Toward human players only, so all-AI games are unchanged;
- * never in saves before version 38 (`quietLeaders`).
+ * never in saves before version 38 (`quietLeaders`). How strong a leader must be to demand, how often it does,
+ * how much and how often a refusal means war go by the player's level (`TemperRule`, since save version 47;
+ * Prince's are the numbers before: three times the strength, 10% a turn, a quarter to half, war half the time).
  */
 export const ENVOYS = {
-  /** A demand for tribute: from a leader at least this many times the player's strength, not friendly, with an army of at least `tributeArmy`... */
-  tributeStrength: 3,
+  /** A demand for tribute: from a leader at least `TemperRule.tributeRatio` times the player's strength, not friendly, with an army of at least `tributeArmy`... */
   tributeArmy: 8,
-  /** ...when the player holds this much gold, at most every `tributeGap` turns, `tributeChance` percent a turn. */
+  /** ...when the player holds this much gold, at most every `tributeGap` turns, `TemperRule.tributeChance` percent a turn. */
   tributeFloor: 30,
   tributeGap: 20,
-  tributeChance: 10,
-  /** A refused demand is a grievance this many turns; the asker, still that much the stronger, goes to war `warChance` percent of the time. */
+  /** The most of the player's treasury a demand asks, whatever the level. */
+  tributeMost: 0.75,
+  /** A refused demand is a grievance this many turns; the asker, still that much the stronger, goes to war `TemperRule.refusalWar` percent of the time. */
   grudgeTurns: 20,
-  warChance: 50,
   /** A gift: from a friendly leader holding `giftFloor` gold and 10 more a city, a tenth of it (at least 20), every `giftGap` turns at most, `giftChance` percent a turn. */
   giftFloor: 150,
   giftShare: 0.1,
@@ -36,8 +37,9 @@ export function courtPlayers(state: GameState, me: number): void {
   for (const o of state.players) {
     if (o.isAi || !o.alive || o.id === me || o.id === state.barbarians || !hasContact(state, me, o.id) || atWar(state, me, o.id)) continue;
     // A demand refused this very round: a leader still far the stronger may take it by force.
-    if (state.refusals?.[`${o.id}>${me}`] === state.turn && strength(state, me) >= strength(state, o.id) * ENVOYS.tributeStrength) {
-      if (nextInt(state.rng, 100) < ENVOYS.warChance) applyCommand(state, { type: "declareWar", player: o.id, reason: "tribute" });
+    const temper = temperToward(state, o.id);
+    if (state.refusals?.[`${o.id}>${me}`] === state.turn && temper.tributeRatio !== null && strength(state, me) >= strength(state, o.id) * temper.tributeRatio) {
+      if (nextInt(state.rng, 100) < temper.refusalWar) applyCommand(state, { type: "declareWar", player: o.id, reason: "tribute" });
       continue;
     }
     if (spokenTo(state, o.id)) continue;
@@ -61,15 +63,20 @@ function askedWithin(state: GameState, me: number, player: number, kind: "tribut
   return last !== undefined && state.turn - last < gap;
 }
 
-/** A leader far the stronger, and not friendly, demands a share of the player's treasury: a quarter at three times their strength, half at six. */
+/**
+ * A leader far the stronger, and not friendly, demands a share of the player's treasury: at Prince a quarter at
+ * three times their strength, half at six; the level moves both the strength it takes and the share (`TemperRule`).
+ */
 function demandTribute(state: GameState, me: number, o: Player): boolean {
+  const temper = temperToward(state, o.id);
+  if (temper.tributeRatio === null) return false;
   const mine = strength(state, me);
   const theirs = strength(state, o.id);
-  if (mine < ENVOYS.tributeArmy || mine < theirs * ENVOYS.tributeStrength || o.gold < ENVOYS.tributeFloor || attitude(state, me, o.id) === "friendly") return false;
+  if (mine < ENVOYS.tributeArmy || mine < theirs * temper.tributeRatio || o.gold < ENVOYS.tributeFloor || attitude(state, me, o.id) === "friendly") return false;
   const paid = state.tributePaid?.[`${o.id}>${me}`];
   if (askedWithin(state, me, o.id, "tribute", ENVOYS.tributeGap) || (paid !== undefined && state.turn - paid < ENVOYS.tributeGap)) return false;
-  if (nextInt(state.rng, 100) >= ENVOYS.tributeChance) return false;
-  const share = Math.max(0.25, Math.min(0.5, 0.25 + (mine / Math.max(1, theirs) - ENVOYS.tributeStrength) / 12));
+  if (nextInt(state.rng, 100) >= temper.tributeChance) return false;
+  const share = Math.min(ENVOYS.tributeMost, temper.tributeShare * Math.max(0.25, Math.min(0.5, 0.25 + (mine / Math.max(1, theirs) - temper.tributeRatio) / 12)));
   const amount = Math.max(10, Math.floor((o.gold * share) / 10) * 10);
   return applyCommand(state, { type: "demandTribute", player: o.id, amount }).ok;
 }

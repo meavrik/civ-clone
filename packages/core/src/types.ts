@@ -425,6 +425,12 @@ export interface GameState {
    * no work from a unit without moves), and a clean-up takes the manual's four.
    */
   quickWork?: boolean;
+  /**
+   * The computer players as before version 47: they played under the human's rules of the level (its content citizens,
+   * advance costs and starting gold), paid the rules' costs, filled the usual food box, and treated a human player alike
+   * at every level (Prince's temper). Since 47 the level sets their economy and temper (`computerRule`).
+   */
+  evenDifficulty?: boolean;
   /** Tribute paid to city-states (`city-states.ts`): "city:player" to the last turn that city-state leaves the payer be. Missing: none. */
   cityStatePeace?: Record<string, number>;
   /** City-states' demands for tribute waiting for an answer. Missing: none. */

@@ -24,7 +24,7 @@ interface SetupLayout {
 
 const TOP = 13;
 /** Difficulty's cards and the panel under them. */
-const ROW = { w: 60, h: 80, gap: 4, panel: 56 };
+const ROW = { w: 60, h: 80, gap: 4, panel: 65 };
 /** The tribes' grid, beside the panel. */
 const GRID = { cols: TRIBE_COLUMNS, w: 52, h: 35, gap: 1 };
 

@@ -28,6 +28,7 @@ export * from "./pathfind.js";
 export * from "./combat.js";
 export * from "./barbarians.js";
 export * from "./traits.js";
+export * from "./levels.js";
 export * from "./map/generate.js";
 export * from "./map/premade.js";
 export * from "./map/geography.js";

@@ -59,7 +59,8 @@ import { landOwner } from "./territory.js";
 import { chronicleOf, notePeaks } from "./chronicle.js";
 import { boughtOff, demandOn, dropDemand, payTribute, settleCityStates, tributePrice, unitCityState, whyNoDemand } from "./city-states.js";
 import { addTrade, endTrades, missingResources, settleTrades, whyNoTrade } from "./resources.js";
-import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, researchCost } from "./rules/advances.js";
+import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances } from "./rules/advances.js";
+import { researchCostFor } from "./levels.js";
 import { building } from "./rules/buildings.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
 import { WONDERS } from "./rules/wonders.js";
@@ -1273,7 +1274,7 @@ export function endTurn(state: GameState): void {
   }
   if (p.researching === null && p.science > 0 && availableAdvances(p.advances, advancesFor(state)).length > 0) lastTurnEvents.push({ kind: "chooseResearch" });
   else if (p.researching !== null) {
-    const cost = researchCost(p.advances.length, p.difficulty);
+    const cost = researchCostFor(state, player);
     if (p.science >= cost) {
       p.science -= cost;
       discover(state, player, p.researching);

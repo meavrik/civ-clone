@@ -58,6 +58,7 @@ import {
   allied,
   alliesAgainst,
   warBarred,
+  temperToward,
   trespassers,
   trespassRecord,
   MAX_TRADE_ROUTES,
@@ -107,9 +108,17 @@ import { courtPlayers, ENVOYS } from "./envoys.js";
  * randomness comes from `state.rng`, so games replay exactly.
  */
 export function plannerTurn(state: GameState): void {
+  if (!state.players[state.currentPlayer]!.isAi) return;
+  playTurn(state);
+}
+
+/**
+ * The planner's turn for whoever's turn it is, a human seat too: the headless harness's stand-in for a human
+ * player (`--human`), who plays by the human's rules of the level and is treated as a human by the others.
+ */
+export function playTurn(state: GameState): void {
   const me = state.currentPlayer;
   const p = state.players[me]!;
-  if (!p.isAi) return;
   if (me === state.barbarians) { baselineTurn(state); return; }
 
   const ctx = analyse(state, me);
@@ -776,13 +785,15 @@ export function strength(state: GameState, owner: number): number {
 
 /**
  * Would computer civilization `them` accept peace from `me` (another AI or
- * the human player)? Not while it is clearly stronger and its attackers
- * stand near our cities: it means to finish the war.
+ * the human player)? Not while it is clearly stronger (1.4 times; toward a
+ * human as the level says, `TemperRule.holdsWar`: at Chieftain it always
+ * does) and its attackers stand near our cities: it means to finish the war.
  */
 export function acceptsPeace(state: GameState, them: number, me: number): boolean {
   // An ally makes no separate peace with the enemy of its alliance (since save version 41).
   if (alliesAgainst(state, them, me).length) return false;
-  if (strength(state, them) < strength(state, me) * 1.4) return true;
+  const holds = state.players[me]!.isAi ? 1.4 : temperToward(state, me).holdsWar;
+  if (holds === null || strength(state, them) < strength(state, me) * holds) return true;
   const myCities = state.cities.filter((c) => c.owner === me);
   return !state.units.some((u) => u.owner === them && isAttacker(u) && myCities.some((c) => dist(state, u.x, u.y, c.x, c.y) <= 8));
 }
@@ -1036,8 +1047,9 @@ function manageResources(state: GameState, ctx: Ctx): void {
  * borders: once they have had a turn to leave (core notes them as they step
  * in or as our turn begins; in saves before version 37 stepping in was the
  * first request), ask them to leave, ask once more, then go to war, unless we
- * are far the weaker, when we only complain now and then. Computer
- * civilizations do not mind each other.
+ * are far the weaker (under 0.6 times their strength at Prince, by the level's
+ * `TemperRule.trespassRatio`; at Chieftain never), when we only complain now
+ * and then. Computer civilizations do not mind each other.
  */
 function guardBorders(state: GameState, ctx: Ctx): void {
   if (state.noTrespass) return;
@@ -1046,8 +1058,9 @@ function guardBorders(state: GameState, ctx: Ctx): void {
     if (o.isAi || !o.alive || !trespassers(state, me, o.id).length) continue;
     const rec = trespassRecord(state, me, o.id);
     if (rec && rec.turn === state.turn) continue; // asked this very turn
+    const ratio = temperToward(state, o.id).trespassRatio;
     if (!rec || rec.warnings < 2) applyCommand(state, { type: "demandLeave", player: o.id });
-    else if (strength(state, me) >= strength(state, o.id) * 0.6) applyCommand(state, { type: "declareWar", player: o.id, reason: "trespass" });
+    else if (ratio !== null && strength(state, me) >= strength(state, o.id) * ratio) applyCommand(state, { type: "declareWar", player: o.id, reason: "trespass" });
     else if (state.turn - rec.turn >= 5) applyCommand(state, { type: "demandLeave", player: o.id });
   }
 }
@@ -1065,7 +1078,9 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
       const stalled = ctx.warTarget === null || ctx.warTarget.owner !== o.id;
       // The enemy of an alliance of ours: no separate peace (no draw on the dice either, so games without alliances play as before).
       if (alliesAgainst(state, me, o.id).length) continue;
-      const wantPeace = ((mine < theirs * 0.7 || pointless) && nextInt(state.rng, 100) < 20) || (stalled && nextInt(state.rng, 100) < 8);
+      // Toward a human the level moves the chances (`TemperRule.peaceWill`): the Chieftain's leaders always seek peace.
+      const will = o.isAi ? 1 : temperToward(state, o.id).peaceWill;
+      const wantPeace = ((mine < theirs * 0.7 || pointless) && nextInt(state.rng, 100) < Math.min(100, 20 * will)) || (stalled && nextInt(state.rng, 100) < Math.min(100, 8 * will));
       if (!wantPeace) continue;
       // Peace takes two: another computer civilization agrees only when it is not clearly winning, the player
       // when it answers our envoy (saves before version 15 made peace with the player at once).
@@ -1081,7 +1096,14 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
   }
   // A war of choice against the weakest neighbour we can reach over land: only once the army could
   // already take one of its cities, and only against a clearly weaker civ (wars cost both sides dearly).
-  if (ctx.atWarWith.length > 0 || ctx.turn < 80 || ctx.cities.length < 3 || army < Math.max(3, ctx.armyWanted)) return;
+  // From turn 80, or against a human from the level's `TemperRule.warFrom`; never while at war with a
+  // civilization, nor while fighting the barbarians but against a human whose level says so (`twoFronts`).
+  const humans = state.players.filter((o) => !o.isAi && o.alive && o.id !== me);
+  const earliest = Math.min(WAR_FROM, ...humans.map((o) => temperToward(state, o.id).warFrom));
+  const barbarianWar = ctx.atWarWith.includes(state.barbarians);
+  const fronts = (o: Player) => !barbarianWar || (!o.isAi && !state.peaceOnContact && temperToward(state, o.id).twoFronts);
+  if (ctx.atWarWith.some((id) => id !== state.barbarians) || ctx.turn < earliest || ctx.cities.length < 3 || army < Math.max(3, ctx.armyWanted)) return;
+  if (barbarianWar && !humans.some(fronts)) return;
   const attackers = ctx.units.filter((u) => isAttacker(u) && unitType(u.type).domain === "land");
   const champion = attackers.reduce<Unit | null>((a, b) => (!a || attackStrength(b) > attackStrength(a) ? b : a), null);
   if (!champion) return;
@@ -1089,6 +1111,7 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
   let ratio = 0;
   for (const o of state.players) {
     if (o.id === me || o.id === state.barbarians || !o.alive || !hasContact(state, me, o.id) || warBarred(state, me, o.id)) continue;
+    if (!fronts(o) || ctx.turn < (o.isAi ? WAR_FROM : temperToward(state, o.id).warFrom)) continue;
     const theirCities = state.cities.filter((c) => c.owner === o.id);
     // A prize: a city of theirs near one of ours that our army could take, and walk to (wheels need roads on rough ground).
     const prize = theirCities.some((c) => {
@@ -1106,10 +1129,15 @@ function manageDiplomacy(state: GameState, ctx: Ctx): void {
     victim = o;
   }
   if (!victim) return;
-  // A player we scorn (or bear a grudge against besides) is attacked twice as readily.
+  // A player we scorn (or bear a grudge against besides) is attacked twice as readily; a human as often as the level says.
   const scorn = !victim.isAi && !state.peaceOnContact && attitude(state, me, victim.id) === "hostile" ? 2 : 1;
-  if (nextInt(state.rng, 100) < (ratio >= 3 ? 10 : 5) * scorn) applyCommand(state, { type: "declareWar", player: victim.id });
+  const chance = victim.isAi || state.peaceOnContact ? WAR_CHANCE : temperToward(state, victim.id).warChance;
+  if (nextInt(state.rng, 100) < (ratio >= 3 ? 2 * chance : chance) * scorn) applyCommand(state, { type: "declareWar", player: victim.id });
 }
+
+/** A war of choice between computer civilizations: not before this turn, then this percent a turn with the odds (twice at three times the strength). */
+const WAR_FROM = 80;
+const WAR_CHANCE = 5;
 
 /** May our envoy offer `to` peace now? Not within `PEACE_OFFER_GAP` turns of the last offer, nor in saves before version 15. */
 function offerDue(state: GameState, me: number, to: number): boolean {
@@ -1128,12 +1156,16 @@ function envoyThisTurn(state: GameState, to: number): boolean {
  * How much stronger than `o` we must be to start a war of choice: twice. A
  * player gets more say (not in saves before version 15): one we regard as
  * friendly (far the weaker, so only one whose influence we admire) is spared,
- * and breaking a peace treaty with one wants three times its strength.
+ * and breaking a peace treaty with one wants three times its strength. Since
+ * save version 47 the player's level sets those (`TemperRule`): at Chieftain
+ * no war of choice, at Emperor 1.25 times, 1.5 to break a treaty, and no
+ * friend spared.
  */
 function warOdds(state: GameState, me: number, o: Player): number | null {
   if (o.isAi || state.peaceOnContact) return 2;
-  if (attitude(state, me, o.id) === "friendly") return null;
-  return atPeace(state, me, o.id) ? 3 : 2;
+  const temper = temperToward(state, o.id);
+  if (temper.sparesFriends && attitude(state, me, o.id) === "friendly") return null;
+  return atPeace(state, me, o.id) ? temper.treatyRatio : temper.warRatio;
 }
 
 /** How much an advance is worth to us: earlier on our goal list is better; anything off it comes last. */

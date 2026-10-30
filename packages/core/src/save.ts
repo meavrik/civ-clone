@@ -60,8 +60,10 @@ export interface SaveGame {
    * 43: saved before civilizations kept their chronicle (`Player.chronicle`); nothing to load with, as the log replays and builds it.
    * 44: saved before city-states (`City.cityState`); its games were started without `cityStates`, so they replay without them.
    * 45: saved while a settler's job counted the turn it walked onto the square, and pollution cleared in three turns; quick work.
+   * 46: saved while the computer players played under the human's rules of the level and treated a human alike at every
+   *     level; even difficulty.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -84,7 +86,7 @@ export interface SaveGame {
   state?: GameState;
 }
 
-export const SAVE_VERSION = 46;
+export const SAVE_VERSION = 47;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -163,7 +165,7 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): Lo
  * the computer players' turns after it), and returns the game.
  */
 export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void): Generator<ReplayProgress, LoadedGame, void> {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, SAVE_VERSION].includes(save.version)) throw new Error(`unsupported save version ${save.version}`);
   // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
@@ -228,6 +230,7 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
   if (save.version < 42) options.sellWhenBroke = true;
   if (save.version < 43) options.roadlessResources = true;
   if (save.version < 46) options.quickWork = true;
+  if (save.version < 47) options.evenDifficulty = true;
   const state = newGame(save.seed, options);
   const from = state.turn;
   const progress = (): ReplayProgress => ({ turn: state.turn, from, to: Math.max(from, save.turn) });

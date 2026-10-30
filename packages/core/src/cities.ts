@@ -6,7 +6,7 @@ import { building, BUILDINGS } from "./rules/buildings.js";
 import { wonder, WONDERS, type WonderRule } from "./rules/wonders.js";
 import { CELEBRATION_SIZE, EMPIRE_SIZE_STEP, government } from "./rules/governments.js";
 import { civ } from "./rules/civs.js";
-import { difficultyRule } from "./rules/difficulty.js";
+import { levelContent, levelPct } from "./levels.js";
 import { BALANCED_WEIGHTS, combinedFocus, focusRule, type FocusRule } from "./rules/focus.js";
 import { nextCityName } from "./rules/names.js";
 import { TERRAIN_RULES, type SpecialRule } from "./rules/terrain.js";
@@ -420,10 +420,12 @@ export function foodBox(city: City): number {
   return (city.size + 1) * 10;
 }
 
-/** The food a city must store to grow, after its owner's trait. */
+/** The food a city must store to grow, after its owner's trait and, for a computer player, its level (`levelPct`). */
 export function cityFoodBox(state: GameState, city: City): number {
   const pct = traitFoodBoxPct(state, city.owner);
-  return pct === 0 ? foodBox(city) : Math.max(1, Math.round((foodBox(city) * (100 + pct)) / 100));
+  const box = pct === 0 ? foodBox(city) : Math.max(1, Math.round((foodBox(city) * (100 + pct)) / 100));
+  const level = levelPct(state, city.owner, "food");
+  return level === 100 ? box : Math.max(1, Math.round((box * level) / 100));
 }
 
 /** The food a growing city keeps in store: half its box with a Granary, or its owner's trait's share, whichever is more. */
@@ -454,7 +456,7 @@ export function shieldsAfterChange(state: GameState, city: City, p: Production):
   return family(p.kind) === family(kind) ? base : Math.floor(base / 2);
 }
 
-/** What a production costs `owner`: the rules' cost, less any discount of its civilization's trait. */
+/** What a production costs `owner`: the rules' cost, less any discount of its civilization's trait, and for a computer player as its level charges (`levelPct`). */
 export function costFor(state: GameState, owner: number, p: Production): number {
   let pct = 0;
   for (const e of traitEffects(state, owner)) {
@@ -463,7 +465,9 @@ export function costFor(state: GameState, owner: number, p: Production): number 
     if ((p.kind === "wonder" && e.wonders) || (p.kind === "building" && e.buildings?.includes(p.id)) || (p.kind === "unit" && e.units?.includes(p.id)) || (soldier && e.soldiers)) pct += e.pct;
   }
   const base = productionCost(p);
-  return pct === 0 ? base : Math.max(1, Math.round((base * (100 + pct)) / 100));
+  const cost = pct === 0 ? base : Math.max(1, Math.round((base * (100 + pct)) / 100));
+  const level = levelPct(state, owner, "cost");
+  return level === 100 ? cost : Math.max(1, Math.round((cost * level) / 100));
 }
 
 /** The gold a city gets for selling improvement `id`: what it would pay to build it (FreeCiv's `impr_sell_gold`, a gold a shield). */
@@ -661,7 +665,7 @@ export function canHelpWonder(state: GameState, u: Unit, city: City): string | n
  */
 export function contentBase(state: GameState, owner: number): number {
   const p = state.players[owner]!;
-  const base = difficultyRule(p.difficulty).content;
+  const base = levelContent(state, owner);
   const cities = state.cities.filter((c) => c.owner === owner).length;
   if (state.simpleMoods) return Math.max(0, base - Math.floor(Math.max(0, cities - 8) / 4));
   const limit = government(p.government).empireSize;

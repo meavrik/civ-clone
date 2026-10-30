@@ -5,6 +5,7 @@ import { createRng, nextInt } from "./rng.js";
 import { advancesFor } from "./rules/advances.js";
 import { civ, CIVS, colorSlot } from "./rules/civs.js";
 import { difficultyRule } from "./rules/difficulty.js";
+import { computerRule } from "./levels.js";
 import { newSpaceship } from "./rules/spaceship.js";
 import { MAP_WIDTH, Terrain, type GameState, type Player, type WorldMap } from "./types.js";
 import { createUnit } from "./units.js";
@@ -119,6 +120,8 @@ export interface NewGameOptions extends MapGenOptions {
   roadlessResources?: boolean;
   /** Settlers start a job the turn they walk onto its square, and clean up in three turns (see `GameState.quickWork`). Old saves load with it. */
   quickWork?: boolean;
+  /** The computer players under the human's rules of the level, as before version 47 (see `GameState.evenDifficulty`). Old saves load with it. */
+  evenDifficulty?: boolean;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
@@ -310,11 +313,12 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.sellWhenBroke ? { sellWhenBroke: true } : {}),
     ...(opts.roadlessResources ? { roadlessResources: true } : {}),
     ...(opts.quickWork ? { quickWork: true } : {}),
+    ...(opts.evenDifficulty ? { evenDifficulty: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {
     p.difficulty = difficulty;
-    p.gold = difficultyRule(difficulty).gold;
+    p.gold = computerRule(state, p.id)?.gold ?? difficultyRule(difficulty).gold;
     // Each civilization begins with the advance of its trait, and whatever it needs (Horseback Riding: Animal Husbandry).
     const start = civ(p.civ).trait?.start;
     if (start && !state.classicCivs) {
@@ -373,15 +377,4 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   return state;
 }
 
-/** Original calendar: 4000 BC start, 20 years/turn until 1 AD, then slower. */
-export function turnToYear(turn: number): number {
-  if (turn < 200) return -4000 + turn * 20;
-  if (turn < 250) return (turn - 200) * 10 + 1;
-  if (turn < 300) return 500 + (turn - 250) * 5;
-  if (turn < 350) return 750 + (turn - 300) * 2;
-  return 850 + (turn - 350);
-}
-
-export function formatYear(year: number): string {
-  return year < 0 ? `${-year} BC` : `${year} AD`;
-}
+export { turnToYear, formatYear } from "./calendar.js";

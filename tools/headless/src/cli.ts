@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { PREMADE_WORLDS, WORLD_SIZES, type WorldSize } from "@civ/core";
-import { AIS, defaultConfig, replayMatches, runGame, seatAis, type GameConfig, type GameResult, type PlayerStats, type Sample } from "./index.js";
+import { AIS, defaultConfig, replayMatches, runGame, seatAis, seatLabel, type GameConfig, type GameResult, type PlayerStats, type Sample } from "./index.js";
 
 /**
  * CLI: run N seeded AI-vs-AI games and print per-game and aggregate stats.
@@ -51,6 +51,8 @@ interface Options {
   roadlessResources: boolean;
   quickWork: boolean;
   cityStates: boolean;
+  human: boolean;
+  evenDifficulty: boolean;
 }
 
 const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
@@ -95,12 +97,16 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --roadless-resources a strategic resource serves without a road on its square (saves before version 43)
   --quick-work        a settler's job counts the turn it walked onto the square; clean-ups take 3 turns (saves before version 46)
   --no-city-states    no city-states (every new game in the app has them; saves before version 45 had none)
+  --human             seat 0 is a human player's (the level's human rules, treated as a human by the computer
+                      leaders), played by the planner as a stand-in (no --verify: its moves are not logged)
+  --even-difficulty   computer players under the human's rules of the level, alike toward a human at every
+                      level (saves before version 47)
   --verify        replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, cityStates: true };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, cityStates: true, human: false, evenDifficulty: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -155,6 +161,8 @@ function parseArgs(argv: string[]): Options {
       case "roadless-resources": o.roadlessResources = true; break;
       case "quick-work": o.quickWork = true; break;
       case "no-city-states": o.cityStates = false; break;
+      case "human": o.human = true; break;
+      case "even-difficulty": o.evenDifficulty = true; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
       default: throw new Error(`unknown option --${key}\n\n${HELP}`);
@@ -162,6 +170,7 @@ function parseArgs(argv: string[]): Options {
   }
   if (o.civs < 2 || o.civs > 8) throw new Error("--civs must be 2..8");
   if (o.difficulty < 0 || o.difficulty > 4) throw new Error("--difficulty must be 0..4");
+  if (o.human && o.verify) throw new Error("--human games cannot be verified: the stand-in's moves are not logged");
   if (o.world && !PREMADE_WORLDS.some((w) => w.id === o.world)) throw new Error(`unknown world "${o.world}"`);
   if (o.size && !WORLD_SIZES.some((s) => s.id === o.size)) throw new Error(`unknown size "${o.size}" (known: ${WORLD_SIZES.map((s) => s.id).join(", ")})`);
   for (const a of o.ais) if (!AIS[a]) throw new Error(`unknown AI "${a}" (known: ${Object.keys(AIS).join(", ")})`);
@@ -211,13 +220,13 @@ function printGame(index: number, r: GameResult, verified: boolean | null): void
   for (const p of r.players) console.log("  " + row(p));
 }
 
-interface Agg { games: number; wins: number; cities: number; pop: number; techs: number; score: number; alive: number; overseas: number; captured: number; lost: number }
+interface Agg { games: number; wins: number; cities: number; pop: number; techs: number; score: number; alive: number; overseas: number; captured: number; lost: number; warredOn: number; demands: number }
 
 function printSummary(results: GameResult[]): void {
   const byAi = new Map<string, Agg>();
   const bump = (ai: string): Agg => {
     let a = byAi.get(ai);
-    if (!a) { a = { games: 0, wins: 0, cities: 0, pop: 0, techs: 0, score: 0, alive: 0, overseas: 0, captured: 0, lost: 0 }; byAi.set(ai, a); }
+    if (!a) { a = { games: 0, wins: 0, cities: 0, pop: 0, techs: 0, score: 0, alive: 0, overseas: 0, captured: 0, lost: 0, warredOn: 0, demands: 0 }; byAi.set(ai, a); }
     return a;
   };
   let mismatches = 0;
@@ -232,6 +241,8 @@ function printSummary(results: GameResult[]): void {
       a.overseas += p.overseas;
       a.captured += p.captured;
       a.lost += p.lost;
+      a.warredOn += p.warredOn;
+      a.demands += p.demands;
       if (p.alive) a.alive++;
       if (p.id === r.winner) a.wins++;
     }
@@ -240,10 +251,10 @@ function printSummary(results: GameResult[]): void {
   const conquests = results.filter((r) => r.end === "conquest").length;
   const landings = results.filter((r) => r.end === "space").length;
   console.log(`\nsummary: ${results.length} game(s), ${conquests} by conquest, ${landings} by spaceship, ${(totalMs / 1000).toFixed(1)}s total`);
-  console.log("  ai            seats  wins  alive  cities    pop  techs  score  ovsea   took   lost   (means per seat)");
+  console.log("  ai            seats  wins  alive  cities    pop  techs  score  ovsea   took   lost  warred  tribute  (means per seat)");
   for (const [ai, a] of byAi) {
     const m = (v: number) => (v / a.games).toFixed(1).padStart(6);
-    console.log(`  ${ai.padEnd(13)} ${String(a.games).padStart(5)} ${String(a.wins).padStart(5)} ${String(a.alive).padStart(6)} ${m(a.cities)}  ${m(a.pop)} ${m(a.techs)} ${m(a.score)} ${m(a.overseas)} ${m(a.captured)} ${m(a.lost)}`);
+    console.log(`  ${ai.padEnd(13)} ${String(a.games).padStart(5)} ${String(a.wins).padStart(5)} ${String(a.alive).padStart(6)} ${m(a.cities)}  ${m(a.pop)} ${m(a.techs)} ${m(a.score)} ${m(a.overseas)} ${m(a.captured)} ${m(a.lost)}  ${m(a.warredOn)}   ${m(a.demands)}`);
   }
   void mismatches;
 }
@@ -293,9 +304,11 @@ function main(argv: string[]): number {
       ...(o.roadlessResources ? { roadlessResources: true } : {}),
       ...(o.quickWork ? { quickWork: true } : {}),
       ...(o.cityStates ? { cityStates: true } : {}),
+      ...(o.human ? { human: true } : {}),
+      ...(o.evenDifficulty ? { evenDifficulty: true } : {}),
     });
     if (!o.quiet && o.every > 0) {
-      console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).join(", ")}`);
+      console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).map((a, i) => seatLabel(config, i) === "human" ? "human" : a).join(", ")}`);
       console.log(header(true));
     }
     const r = runGame(config, !o.quiet && o.every > 0 ? printSample : undefined);

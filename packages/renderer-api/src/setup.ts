@@ -42,6 +42,8 @@ const LEVEL_WORDS = [
   "For seasoned rulers.",
   "The hardest test: restless cities from the start.",
 ];
+/** How the rival leaders treat you at each level (`TemperRule`), after what their cities pay. */
+const RIVAL_WORDS = ["never start wars", "slow to anger", "", "quick to war", "ruthless"];
 
 /** The tribes' grid is this many cards across. */
 export const TRIBE_COLUMNS = 4;
@@ -64,6 +66,7 @@ export function setupQuestionCards(step: string, civs: string[]): SetupCards | n
         columns: DIFFICULTY_RULES.length,
         cards: DIFFICULTY_RULES.map((d, i) => {
           const pct = Math.round((d.techCost / DIFFICULTY_RULES[2]!.techCost) * 100);
+          const rivals = d.computer.cost === 100 ? "the usual cost" : `${d.computer.cost}%`;
           return {
             label: d.name,
             note: LEVEL_NOTES[i]!,
@@ -75,6 +78,7 @@ export function setupQuestionCards(step: string, civs: string[]): SetupCards | n
               `{heart} ${d.content} content citizens in every city`,
               `{coin} ${d.gold} gold and {people} ${d.settlers} settler${d.settlers > 1 ? "s" : ""} to begin`,
               pct === 100 ? "{bulb} Advances at the usual cost" : `{bulb} Advances at ${pct}% of the usual cost`,
+              `{swords} Rivals pay ${rivals} to build and grow${RIVAL_WORDS[i] ? `, ${RIVAL_WORDS[i]}` : ""}`,
             ],
           };
         }),
