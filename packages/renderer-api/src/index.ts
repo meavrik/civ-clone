@@ -117,6 +117,7 @@ import {
   type WorldSize,
   influenceSpecials,
   specialFor,
+  yieldingSpecial,
 } from "@civ/core";
 
 /**
@@ -883,7 +884,8 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   // Grassland's first special counts only in games before version 26 (`tileYield`).
   const sp = !state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial && !t.deposit ? undefined : specialFor(state, t, me.id);
   const features = [
-    sp && `{star} ${sp.name} ${specialGain(sp)}`,
+    // As it yields: a strategic resource adds no shields since save version 52 (core `yieldingSpecial`).
+    sp && `{star} ${sp.name} ${specialGain(yieldingSpecial(state, sp))}`.trimEnd(),
     t.grassShield && t.terrain === Terrain.Grassland && "{shield} Shield grassland +1 {shield}",
     t.river && `{river} River +1 {trade}${state.freecivYields ? "" : ", no road trade"}`,
     t.railroad ? "{railroad} Railroad" : t.road && "{road} Road",

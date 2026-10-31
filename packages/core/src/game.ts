@@ -132,6 +132,8 @@ export interface NewGameOptions extends MapGenOptions {
   eagerCityStates?: boolean;
   /** Only gifts of gold sway a leader, as before version 51 (see `GameState.plainGifts`). Old saves load with it. */
   plainGifts?: boolean;
+  /** Strategic resources' squares add the shields of their specials, as before version 52 (see `GameState.resourceShields`). Old saves load with it. */
+  resourceShields?: boolean;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
@@ -329,6 +331,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.evenDifficulty ? { evenDifficulty: true } : {}),
     ...(opts.eagerCityStates ? { eagerCityStates: true } : {}),
     ...(opts.plainGifts ? { plainGifts: true } : {}),
+    ...(opts.resourceShields ? { resourceShields: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

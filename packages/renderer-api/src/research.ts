@@ -1,4 +1,5 @@
 import {
+  yieldingSpecial,
   advance,
   advancesFor,
   attritionCure,
@@ -155,7 +156,8 @@ export function techDetails(state: GameState, id: string): TechDetails {
   add(id === "railroad" ? "railroad" : "fortress", "Settlers", SETTLER_WORK[id] ? [SETTLER_WORK[id]!] : []);
   // What it does to the land: what it adds to specials (pastures, whalers, refineries), wear it ends.
   const terrains = Object.entries(TERRAIN_RULES).map(([t, r]) => ({ name: TERRAIN_NAMES[Number(t) as Terrain], r }));
-  const boosted = terrains.flatMap(({ r }) => [r.special, secondKind(r, state.resources)]).filter((sp) => sp?.learned?.advance === id);
+  // As they yield: a strategic resource gains no shields since save version 52 (core `yieldingSpecial`).
+  const boosted = terrains.flatMap(({ r }) => [r.special, secondKind(r, state.resources)]).map((sp) => sp && yieldingSpecial(state, sp)).filter((sp) => sp?.learned?.advance === id);
   const gains = (kind: "food" | "shields" | "trade") => [...new Set(boosted.filter((sp) => sp!.learned![kind]).map((sp) => `${sp!.name} +${sp!.learned![kind]}`))];
   add("food", "Food", gains("food"));
   add("shield", "Shields", gains("shields"));

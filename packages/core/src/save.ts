@@ -69,8 +69,9 @@ export interface SaveGame {
    *     too, and again every turn its band stayed home; eager city-states.
    * 50: saved while only gold given swayed a leader, not an advance or a resource, and before exchanges (`exchange`) and
    *     resource trades paid for each turn (`ResourceTrade.pay`); plain gifts.
+   * 51: saved while a strategic resource's square added the shields of its special; resource shields.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -93,7 +94,7 @@ export interface SaveGame {
   state?: GameState;
 }
 
-export const SAVE_VERSION = 51;
+export const SAVE_VERSION = 52;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -245,6 +246,7 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
   }
   if (save.version < 50) options.eagerCityStates = true;
   if (save.version < 51) options.plainGifts = true;
+  if (save.version < 52) options.resourceShields = true;
   const state = newGame(save.seed, options);
   const from = state.turn;
   const progress = (): ReplayProgress => ({ turn: state.turn, from, to: Math.max(from, save.turn) });

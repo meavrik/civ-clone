@@ -29,7 +29,7 @@ import {
 import { borderRadius, buildingCulture, claimant, cultureRate, landOwner, withinBorder } from "./territory.js";
 import { createUnit } from "./units.js";
 import { chronicleOf } from "./chronicle.js";
-import { heldResources, missingResources, specialFor } from "./resources.js";
+import { heldResources, missingResources, specialFor, yieldingSpecial } from "./resources.js";
 import { recomputeVisibility, revealAround } from "./visibility.js";
 
 export interface Yield {
@@ -50,7 +50,9 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
   let shields = r.shields;
   let trade = r.trade;
   // Grassland's first special counts only in games before version 26; since then its shields lie on the original's bands.
-  const sp = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial && !tile.deposit ? undefined : specialFor(state, tile, owner);
+  const found = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial && !tile.deposit ? undefined : specialFor(state, tile, owner);
+  // A strategic resource adds no shields since save version 52 (`yieldingSpecial`).
+  const sp = found && yieldingSpecial(state, found);
   if (sp) {
     food += sp.food ?? 0;
     shields += sp.shields ?? 0;

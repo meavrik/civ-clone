@@ -124,6 +124,8 @@ export interface GameConfig {
   evenDifficulty?: boolean;
   /** City-states ask for tribute as each raid sets out, of anyone (`GameState.eagerCityStates`). */
   eagerCityStates?: boolean;
+  /** A strategic resource's square adds its special's shields (`GameState.resourceShields`). */
+  resourceShields?: boolean;
 }
 
 export interface PlayerStats {
@@ -248,6 +250,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.cityStates ? { cityStates: true } : {}),
     ...(config.evenDifficulty ? { evenDifficulty: true } : {}),
     ...(config.eagerCityStates ? { eagerCityStates: true } : {}),
+    ...(config.resourceShields ? { resourceShields: true } : {}),
   };
 }
 

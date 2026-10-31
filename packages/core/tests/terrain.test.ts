@@ -122,6 +122,8 @@ describe("pollution", () => {
     c.buildings.push("factory", "power_plant", "temple", "colosseum");
     s.players[0]!.difficulty = 0;
     s.players[0]!.government = "monarchy";
+    // The coal's shields of saves before version 52 (a strategic resource adds none since).
+    s.resourceShields = true;
     // Four coal hills with mines and four irrigated fields keep a size-8 city fed and smoky.
     for (const [x, y] of [[8, 10], [12, 10], [10, 8], [10, 12]]) {
       const t = getTile(s.map, x, y)!;

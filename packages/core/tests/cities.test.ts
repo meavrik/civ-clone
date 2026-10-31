@@ -164,6 +164,26 @@ describe("the original's yields", () => {
 });
 
 describe("tile yields", () => {
+  it("gives a strategic resource no shields since save version 52, its other yields kept (Horses' pasture food)", () => {
+    const s = flatWorld();
+    const t = getTile(s.map, 10, 10)!;
+    t.terrain = Terrain.Plains;
+    t.special = true;
+    expect(specialOf(t)?.name).toBe("Horses");
+    const plains = { ...t, special: false };
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual(tileYield(s, plains, false, "monarchy", 0));
+    s.players[0]!.advances.push("animal_husbandry");
+    const pasture = tileYield(s, t, false, "monarchy", 0);
+    expect(pasture.food).toBe(tileYield(s, plains, false, "monarchy", 0).food + 1);
+    expect(pasture.shields).toBe(tileYield(s, plains, false, "monarchy", 0).shields);
+    // Coal on hills, the 1991 game's +2: none now, and in older saves (`resourceShields`) the two.
+    t.terrain = Terrain.Hills;
+    expect(specialOf(t)?.name).toBe("Coal");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(0);
+    s.resourceShields = true;
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
+  });
+
   it("applies the despotism penalty and improvements", () => {
     const s = flatWorld();
     // (10, 11) lies off the bands of shield grassland; (10, 10) on them, a shield more.
@@ -220,15 +240,22 @@ describe("tile yields", () => {
     expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 2, shields: 1, trade: 2 });
     s.players[0]!.advances.push("navigation");
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
-    // Oil is little use until Refining, and hidden until then (plain desert) since version 40; seen before it.
+    // Oil, a strategic resource, adds no shields since version 52 (asked for 2026-10-31), Refining or not.
     t.terrain = Terrain.Desert;
     expect(specialOf(t)?.name).toBe("Oil");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(1);
+    s.players[0]!.advances.push("refining");
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(1);
+    // Before 52 it was little use until Refining, and hidden until then (plain desert) since version 40; seen before it.
+    s.resourceShields = true;
+    s.players[0]!.advances = s.players[0]!.advances.filter((a) => a !== "refining");
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(1);
     s.visibleResources = true;
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
     delete s.visibleResources;
     s.players[0]!.advances.push("refining");
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(5);
+    delete s.resourceShields;
     // Hills' wine came with version 18; whales a version before.
     t.terrain = Terrain.Hills;
     expect(specialOf(t)?.name).toBe("Wine");

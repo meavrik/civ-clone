@@ -463,6 +463,12 @@ export interface GameState {
    * given counts too, at what it is worth to the receiver (`advanceWorth`, `resourceWorth`).
    */
   plainGifts?: boolean;
+  /**
+   * Strategic resources as before version 52: a square of one added the shields of the special it is (Horses 2, Iron 3,
+   * Coal 2, Oil 1, Saltpeter 1, and more with Iron Working, Refining and Gunpowder). Since 52 they add none
+   * (`yieldingSpecial`).
+   */
+  resourceShields?: boolean;
   /** "city:player" to the turn that city-state last demanded tribute of that player (`askedLately`), kept `CITY_STATE.askEvery` turns. Missing: none. */
   cityStateAsked?: Record<string, number>;
   /**

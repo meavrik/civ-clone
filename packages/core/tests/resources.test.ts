@@ -259,7 +259,11 @@ describe("strategic resources", () => {
     // Bronze Working reveals it.
     s.players[0]!.advances.push("bronze_working");
     expect(specialFor(s, t, 0)?.name).toBe("Iron");
+    // Held now, yet its square yields as plain mountains: a strategic resource adds no shields since version 52.
+    expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(tileYield(s, plain, false, "monarchy", 0).shields);
+    s.resourceShields = true;
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(tileYield(s, plain, false, "monarchy", 0).shields + 3);
+    delete s.resourceShields;
     expect(hasResource(s, 0, "Iron")).toBe(true);
     expect(siteScore(s, 12, 12, undefined, 0)).toBe(siteScore(s, 12, 12, undefined, 1));
     // Each revealing advance is in both trees, and every unit that needs a resource reveals it too: Chivalry's

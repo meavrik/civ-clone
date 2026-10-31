@@ -83,7 +83,11 @@ describe("terrain info", () => {
     // terrain, then the features with what each adds.
     expect(info.lines[0]).toMatch(/^\{food\} \d+  \{shield\} \d+  \{trade\} \d+  \{boot\} 1  \{tower\} \+50%$/);
     expect(info.lines[1]).toBe("Open land for fields and herds, with a little timber.");
-    expect(info.lines).toContain("{star} Horses +2 {shield}  {river} River +1 {trade}, no road trade  {road} Road");
+    // Horses, a strategic resource, add no shields since save version 52 (asked for 2026-10-31); before, their two.
+    expect(info.lines).toContain("{star} Horses  {river} River +1 {trade}, no road trade  {road} Road");
+    s.resourceShields = true;
+    expect(terrainInfo(s, u.x + 1, u.y).lines).toContain("{star} Horses +2 {shield}  {river} River +1 {trade}, no road trade  {road} Road");
+    delete s.resourceShields;
     expect(info.lines.some((l) => l.startsWith("Improvements:  {irrigate} +1 {food}"))).toBe(true);
     expect(info.lines).toContain("{swords} 2 Militia, Settlers (ours)");
     expect(info.lines).toContain("{road} Building a road, 2 turns");

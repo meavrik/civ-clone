@@ -59,7 +59,8 @@ Never ship the original's sprites, palette art, fonts or text.
   land terrain and the sea has a second kind (our departure, asked for 2026-10-21, after Civilization II:
   Whales, Cotton, Wheat, Silk, Wine, Iron, Oil, Furs, Ivory, Spices, Fruit; tundra's Game is forest's),
   on about half their lattice squares (`Tile.secondSpecial`, a hash of the square, no RNG, so seeds keep
-  their worlds); `learned` may add food, shields or trade with an advance (Navigation, Weaving, Pottery,
+  their worlds); `learned` may add food, shields or trade with an advance (a strategic resource no shields since
+  save version 52, see Strategic resources below; Navigation, Weaving, Pottery,
   Iron Working, Refining). Each carries `since` (the save version that brought it); old saves load with
   `resources` (their version), so their worlds have only the kinds they knew (`secondKind`). A kind may
   have a reach (`within`/`beyond` squares from land): Fish within 2, Whales beyond 2 (deep water), from
@@ -79,7 +80,14 @@ Never ship the original's sprites, palette art, fonts or text.
   The lattice's specials were far too rare to hang units on (1 civ in 24 held any Iron at turn 220), so worlds
   since save version 33 hold deposits (`Tile.deposit`, `scatterDeposits`: on land without a special, off the
   polar rows, a hash of the square and the seed picks a resource its terrain lists in `ResourceRule.deposits`;
-  no RNG), each that resource's special (`specialOf`), drawn and yielding as one. At turn 150 about 86% of civs
+  no RNG), each that resource's special (`specialOf`), drawn and yielding as one. Since save version 52 (asked for
+  2026-10-31: "resources on tiles, like horses, should not give extra shields to the city") a strategic resource's
+  square adds no shields, neither its own (Horses 2, Iron 3, Coal 2, Oil 1, Saltpeter 1) nor an advance's (Iron
+  Working, Gunpowder, Refining): core `yieldingSpecial`, read by `tileYield`, the square's window and the research
+  card's gains; Horses keep Animal Husbandry's food; the other specials keep their shields (Whales, Peat, Cotton).
+  Saves before 52 load with `resourceShields` (headless `--resource-shields`). Head to head (planner vs v2, 16 x 300,
+  seeds 1-16): with shields 10-6, score 174 vs 114, pop 58 vs 39; without 9-7, 135 vs 114, cities 9.8 vs 6.4, pop 54
+  vs 37; all replaying exactly. At turn 150 about 86% of civs
   hold Horses and Iron, 58% Saltpeter, 67% Coal; Oil 50% by turn 220. Trades (`tradeResources`: we give
   `give`, they give `receive`, either alone a gift or a purchase; `endTrade` calls every trade with a civ off):
   a civ trades away only a square it holds and does not trade already, never what it was traded, so a trade can

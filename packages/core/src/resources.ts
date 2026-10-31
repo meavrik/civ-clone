@@ -256,6 +256,21 @@ export function settleTrades(state: GameState): { trade: ResourceTrade; by: numb
   return ended;
 }
 
+/**
+ * A special as it yields in this game (asked for 2026-10-31: "resources on tiles, like horses, should not give extra
+ * shields to the city"; since save version 52): a strategic resource adds no shields, neither its own nor what an
+ * advance adds to it (Iron Working's Iron, Gunpowder's Saltpeter, Refining's Oil); its worth is the units it lets a
+ * civilization build. What else it adds stays (Animal Husbandry's food from Horses). Saves before 52 load with
+ * `resourceShields`: their squares yielded the shields of the specials they are.
+ */
+export function yieldingSpecial(state: Pick<GameState, "resourceShields">, sp: SpecialRule): SpecialRule {
+  if (state.resourceShields || !RESOURCE_BY_ID[sp.name]) return sp;
+  const { shields: _shields, learned, ...rest } = sp;
+  if (!learned) return rest;
+  const { shields: _more, ...kept } = learned;
+  return kept.food || kept.trade ? { ...rest, learned: kept } : rest;
+}
+
 /** A tile's strategic resource, if its special is one (and `viewer`, when given, has revealed it). */
 export function resourceAt(state: GameState, x: number, y: number, viewer?: number): string | null {
   const t = getTile(state.map, x, y);

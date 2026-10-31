@@ -32,6 +32,9 @@ describe("research panel: where each advance stands", () => {
     expect(techStatus(state, "currency")).toBe("available");
     expect(techStatus(state, "philosophy")).toBe("locked");
 
+    // Refining makes no strategic resource yield more since save version 52: no Oil +3 among its gains.
+    expect(techDetails(state, "refining").rows.find((r) => r.label === "Shields")).toBeUndefined();
+    expect(techDetails({ ...state, resourceShields: true }, "refining").rows.find((r) => r.label === "Shields")?.items).toEqual(["Oil +3"]);
     const bronze = techDetails(state, "bronze_working");
     expect(bronze.standing).toBe("Discovered");
     expect(bronze.rows.find((r) => r.label === "Wonders")?.items).toContain("Colossus");
