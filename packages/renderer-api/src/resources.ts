@@ -73,6 +73,115 @@ export function resourcesReport(state: GameState): ReportPage {
   return { title, lines, hint: `${roads}Trade in an audience, with Currency` };
 }
 
+/** How the player stands with a strategic resource, as the Resources window's badge says it. */
+export type ResourceStatus = "held" | "imported" | "road" | "away" | "none" | "unseen";
+
+/** One resource in the Resources window (`resourcesView`). */
+export interface ResourceEntry {
+  id: string;
+  status: ResourceStatus;
+  /** The badge's word: "Held", "Traded in", "Wants road", "Traded away", "None", "Unseen". */
+  badge: string;
+  /** Where it lies, whom it comes from, or what is missing: "2 squares near Memphis, Giza; 1 to the Babylonians". */
+  detail: string;
+  /** The unit types that need it, in the rules' order (`UnitTypeRule.needs`). */
+  units: string[];
+  /** Units of those we could build now but for it (we know their advance). */
+  buildable: string[];
+}
+
+/** A trade in the Resources window: the other civilization, what goes each way, and gold a turn either way. */
+export interface ResourceTradeEntry {
+  player: number;
+  slot: number;
+  text: string;
+  /** Gold a turn it brings us (above nought) or costs us (below); 0 for none. */
+  gold: number;
+}
+
+export interface ResourcesView {
+  entries: ResourceEntry[];
+  trades: ResourceTradeEntry[];
+  /** Gold a turn our trades bring in, all told (or cost, below nought). */
+  income: number;
+  /** A word under it all: how a square serves, and where to trade. */
+  hint: string;
+  /** In a game without strategic resources, all the window says. */
+  none?: string;
+}
+
+export const RESOURCE_BADGES: Record<ResourceStatus, string> = {
+  held: "Held", imported: "Traded in", road: "Wants road", away: "Traded away", none: "None", unseen: "Unseen",
+};
+
+/**
+ * The Resources window (Advisors > Resources; redone 2026-10-31, asked for: "improve the resources main window"): for each
+ * strategic resource whether we hold it and where, whom it comes from, which squares still want a road, or that we lack
+ * it or have yet to see it (`revealedBy`), with the units that need it; then our trades, with the gold a turn each brings
+ * or costs (`ResourceTrade.pay`, since save version 51).
+ */
+export function resourcesView(state: GameState, me = state.currentPlayer): ResourcesView {
+  const roads = state.roadlessResources ? "" : state.riverNeedsRoad ? "A square serves with a road on it." : "A square serves with a road or river on it.";
+  if (state.noResources) return { entries: [], trades: [], income: 0, hint: "", none: "In this game no unit needs a resource." };
+  const squares = resourceSquares(state, me, true);
+  const holdings = resourceHoldings(state, me);
+  const trades = tradesOf(state, me);
+  const known = state.players[me]!.advances;
+  const people = (p: number) => `the ${state.players[p]?.name ?? "?"}`;
+  const near = (roaded: boolean, id: string): string[] => [...new Set((squares.get(id) ?? []).flatMap((sq) => {
+    const c = resourceRoaded(state, getTile(state.map, sq.x, sq.y)!) === roaded ? claimant(state, sq.x, sq.y) : null;
+    return c ? [c.name] : [];
+  }))];
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  const entries = RESOURCES.map((r): ResourceEntry => {
+    const h = holdings.find((x) => x.id === r.id)!;
+    const needs = UNIT_TYPES.filter((t) => t.needs?.includes(r.id));
+    const units = needs.map((t) => t.id);
+    const buildable = needs.filter((t) => !t.requires || known.includes(t.requires)).map((t) => t.id);
+    const to = trades.filter((t) => tradeSides(t, me).gives === r.id).map((t) => people(t.a === me ? t.b : t.a));
+    const from = trades.filter((t) => tradeSides(t, me).gets === r.id).map((t) => people(t.a === me ? t.b : t.a));
+    // `own` counts the squares serving us (a road or river on them), `unroaded` the rest.
+    const kept = h.own - h.exported;
+    const roadless = h.unroaded ? `${plural(h.unroaded, "square")} near ${shortList(near(false, r.id), 2)} ${h.unroaded === 1 ? "wants" : "want"} a road` : "";
+    const away = to.length ? `to ${shortList(to, 2)}` : "";
+    let status: ResourceStatus;
+    let detail: string;
+    // Unseen until its advance, unless it comes to us by trade already.
+    if (!h.has && !resourceKnown(state, me, r.id) && r.revealedBy) {
+      status = "unseen";
+      detail = `Shows on the map with ${advance(r.revealedBy).name}`;
+    } else if (h.has && kept > 0) {
+      status = "held";
+      detail = [`${plural(kept, "square")} near ${shortList(near(true, r.id), 2)}`, roadless && `${h.unroaded} more ${h.unroaded === 1 ? "wants" : "want"} a road`, away && `${h.exported} ${away}`].filter(Boolean).join("; ");
+    } else if (h.has) {
+      status = "imported";
+      detail = [`From ${shortList(from, 2)}`, roadless].filter(Boolean).join("; ");
+    } else if (h.unroaded) {
+      status = "road";
+      detail = `${roadless}: build one to use it`;
+    } else if (h.own) {
+      status = "away";
+      detail = `All traded ${away}`;
+    } else {
+      status = "none";
+      detail = "None on our land: trade for it, or settle where it lies";
+    }
+    return { id: r.id, status, badge: RESOURCE_BADGES[status], detail, units, buildable };
+  });
+  let income = 0;
+  const tradeEntries = trades.map((t): ResourceTradeEntry => {
+    const other = t.a === me ? t.b : t.a;
+    const { gives, gets } = tradeSides(t, me);
+    const them = people(other);
+    const text = gives && gets ? `Our ${gives} for ${them}' ${gets}` : gives ? `Our ${gives} to ${them}` : `${gets} from ${them}`;
+    // Gold a turn: paid by the receiver (`b`) to the giver (`a`).
+    const gold = t.pay ? (t.a === me ? t.pay : -t.pay) : 0;
+    income += gold;
+    return { player: other, slot: state.players[other]!.color, text: gold || gives && gets ? text : gives ? `${text}, a gift` : text, gold };
+  });
+  return { entries, trades: tradeEntries, income, hint: [roads, "Trade in an audience, with Currency."].filter(Boolean).join("  ") };
+}
+
 /**
  * The strategic resources `viewer` sees on the map: each square it has explored holding one it has revealed
  * (`resourceKnown`), as a map index to the resource's id. The web app tells of squares new to it (`resourceFinds`).

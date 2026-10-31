@@ -113,7 +113,6 @@ import {
   allianceTargets,
   envoyLine,
   type CardSection,
-  resourcesReport,
   standing,
   citizenRole,
   citizenRow,
@@ -186,6 +185,7 @@ import {
   type ResearchView,
   type CityScreenView,
   type CityViewState,
+  type AdvisorKind,
   type DiplomacyView,
   type NewTechView,
   type BuiltView,
@@ -354,7 +354,7 @@ type Screen =
   | { kind: "loading"; view: LoadingView; label: string; replay: Generator<ReplayProgress, LoadedGame, void>; under: Screen } // a save replayed a slice a frame, its window over `under`
   | { kind: "science" }
   | { kind: "rates" }
-  | { kind: "advisor"; which: "domestic" | "military" | "foreign" | "score" }
+  | { kind: "advisor"; which: AdvisorKind }
   | { kind: "diplomacy"; player: number; line: string; talk?: Talk; card?: CardSection[] } // an audience, or (`card`) a civilization's card from the Diplomacy tab
   | { kind: "beat"; until: number; then: () => void } // the map, held a moment on something about to be talked of
   | { kind: "end"; card: EndCard }
@@ -2013,7 +2013,7 @@ function barEntries(index: number): MenuEntry[] {
         ["Foreign Minister", "F3", () => { screenState = { kind: "advisor", which: "foreign" }; }],
         ["Science Advisor", "F4", () => { screenState = { kind: "science" }; }],
         ["Research", "", () => openTree({ choosing: true, closable: true })],
-        ["Resources", "", () => { screenState = { kind: "report", page: resourcesReport(state) }; }],
+        ["Resources", "", () => { screenState = { kind: "advisor", which: "resources" }; }],
       ];
     case "World":
       return [

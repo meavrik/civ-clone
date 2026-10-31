@@ -1,11 +1,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { DIMMED, mixColor } from "../src/palette.js";
 import { describe, expect, it } from "vitest";
-import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, computeCity, createUnit, foundCity, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
+import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, computeCity, createUnit, foundCity, getTile, newGame, setRelation, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, drawUnitFlash, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
-import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, ratesAt, ratesHit, ratesRect } from "../src/index.js";
+import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
 import { CITY_BOXES } from "../src/index.js";
@@ -1215,6 +1215,33 @@ describe("advisor screens", () => {
     for (let x = 8; x < 60; x++) for (let y = rowY(1); y < rowY(1) + 8; y++) { const c = s.get(x, y); if (c === shade("panel", 2)) faded++; if (c === C.BLACK) black++; }
     expect(faded).toBeGreaterThan(10);
     expect(black).toBe(0);
+  });
+
+  it("draws the strategic resources: a picture, a badge and a line each, the units needing them, our trades", () => {
+    const state = newGame(2026, { opponents: 1 });
+    for (const t of state.map.tiles) { Object.assign(t, { terrain: Terrain.Grassland, special: false, river: false, road: false }); delete t.deposit; }
+    state.cities = [];
+    const rome = foundCity(state, 0, 10, 10, "Rome");
+    foundCity(state, 1, 30, 10, "Babylon");
+    Object.assign(state.map.tiles[11 * state.map.width + 11]!, { special: true, deposit: "Horses", road: true });
+    Object.assign(state.map.tiles[9 * state.map.width + 10]!, { special: true, deposit: "Iron", road: false });
+    state.players[0]!.advances.push("horseback_riding", "the_wheel", "bronze_working", "iron_working", "currency");
+    setRelation(state, 0, 1, "peace");
+    state.resourceTrades = [{ a: 1, b: 0, give: "Coal", turn: state.turn, pay: 2 }];
+    state.currentPlayer = 0;
+    const s = Surface.screen();
+    drawResourcesAdvisor(s, state);
+    writeFileSync(new URL("./out/resources.png", import.meta.url), encodePng(s, 3));
+    const count = (color: number, y0: number, y1: number) => { let n = 0; for (let y = y0; y < y1; y++) for (let x = 30; x < 200; x++) if (s.get(x, y) === color) n++; return n; };
+    // Horses held (a green badge), Iron wanting its road (amber), Coal traded in (blue): each band its badge's colour.
+    expect(count(shade("leaf", 2), 20, 45)).toBeGreaterThan(40);
+    expect(count(C.BROWN!, 45, 70)).toBeGreaterThan(40);
+    expect(count(shade("azure", 2), 95, 120)).toBeGreaterThan(40);
+    // The units needing each stand as their pictures (the user's, laid by the app), Horses' riders lit.
+    const riders = s.art.filter((a) => a.unit && a.y >= 20 && a.y < 45);
+    expect(riders.map((a) => a.id)).toEqual(["cavalry", "chariot", "knights"]);
+    expect(riders.find((a) => a.id === "chariot")?.dim).toBeUndefined();
+    void rome;
   });
 
   it("lays a civilization's card out: the portrait's spot at the left, its sections beside it, the buttons under", () => {

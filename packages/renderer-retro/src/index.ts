@@ -30,3 +30,4 @@ export * from "./screens/reign.js";
 export * from "./screens/loading.js";
 export * from "./screens/spaceship.js";
 export * from "./screens/report.js";
+export * from "./screens/resources.js";

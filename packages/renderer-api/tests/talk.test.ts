@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, foundCity, goldScale, newGame, setBordersOpen, setRelation, Terrain, type GameState, type Relation } from "@civ/core";
-import { allianceTargets, AUDIENCE_CHOICES, civCard, dealCard, dealEmpty, dealHas, dealItemLabel, dealItems, giftAmounts, perTurnAmounts, standing, giftThanks, giftWeight, resourcesReport, talkButtons, talkLabel, talkTopics, TALK_SUBJECT, toggleDeal, type DealItem, type TalkMemo, type TalkTone, type TalkTopic } from "../src/index.js";
+import { allianceTargets, AUDIENCE_CHOICES, civCard, dealCard, dealEmpty, dealHas, dealItemLabel, dealItems, giftAmounts, perTurnAmounts, standing, giftThanks, giftWeight, resourcesReport, resourcesView, talkButtons, talkLabel, talkTopics, TALK_SUBJECT, toggleDeal, type DealItem, type TalkMemo, type TalkTone, type TalkTopic } from "../src/index.js";
 
 /** Us (0) and civilization 1, standing as `relation`, knowing `advances`, with 100 gold. */
 function talkGame(relation: Relation, advances: string[] = []): GameState {
@@ -97,6 +97,22 @@ describe("a talk with a foreign leader", () => {
     expect(report.lines[0]).toMatchObject({ text: "Horses", right: "none", dim: true });
     expect(report.lines[2]).toMatchObject({ text: "Iron", right: "all traded away", dim: true });
     expect(report.lines.at(-1)).toMatchObject({ text: "Trade: our Iron, a gift" });
+    // The Resources window (redone 2026-10-31): a badge for each, where it stands, the units needing it, our trades.
+    const view = resourcesView(s, 0);
+    expect(view.entries.map((e) => [e.id, e.status])).toEqual([["Horses", "none"], ["Iron", "away"], ["Saltpeter", "unseen"], ["Coal", "none"], ["Oil", "unseen"]]);
+    expect(view.entries[1]).toMatchObject({ badge: "Traded away", detail: `All traded to the ${s.players[1]!.name}` });
+    expect(view.entries[1]!.units).toContain("legion");
+    expect(view.entries[2]!.detail).toBe("Shows on the map with Gunpowder");
+    expect(view.trades).toEqual([expect.objectContaining({ player: 1, text: `Our Iron to the ${s.players[1]!.name}, a gift`, gold: 0 })]);
+    // Paid for by the turn, it says so, and counts toward the trades' gold a turn.
+    s.resourceTrades![0]!.pay = 3;
+    expect(resourcesView(s, 0)).toMatchObject({ income: 3, trades: [{ text: `Our Iron to the ${s.players[1]!.name}`, gold: 3 }] });
+    expect(resourcesView(s, 1).income).toBe(-3);
+    // Our own square of it, held: Iron back on our land with a road, the trade off.
+    s.resourceTrades = [];
+    expect(resourcesView(s, 0).entries[1]).toMatchObject({ status: "held", badge: "Held", detail: "1 square near " + s.cities[0]!.name });
+    s.map.tiles[11 * s.map.width + 11]!.road = false;
+    expect(resourcesView(s, 0).entries[1]).toMatchObject({ status: "road", badge: "Wants road" });
     // At war, none of it.
     setRelation(s, 0, 1, "war");
     expect(talkTopics(s, 0, 1, { said: [] }, true).propose).toEqual(["peace"]);

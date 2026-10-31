@@ -38,6 +38,7 @@ import {
   drawRatesScreen,
   drawScienceScreen,
   drawScoreScreen,
+  drawResourcesAdvisor,
   drawSpaceshipScreen,
   drawStatusLine,
   drawResearch,
@@ -139,6 +140,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if (which === "domestic") drawDomesticAdvisor(screen, state);
       else if (which === "military") drawMilitaryAdvisor(screen, state);
       else if (which === "foreign") drawForeignAdvisor(screen, state);
+      else if (which === "resources") drawResourcesAdvisor(screen, state);
       else drawScoreScreen(screen, state);
     },
     diplomacy: (state, view) => {

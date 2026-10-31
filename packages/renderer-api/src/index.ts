@@ -394,7 +394,8 @@ export interface TextInputState {
 
 export const TEXT_INPUT_MAX = 14;
 
-export type AdvisorKind = "domestic" | "military" | "foreign" | "score";
+/** The advisors' pages: F1 to F3 and F5, and the strategic resources (Advisors > Resources). */
+export type AdvisorKind = "domestic" | "military" | "foreign" | "score" | "resources";
 
 /** The menu bar across the top of the map screen, as in the original. */
 export const MENU_BAR = ["Game", "Orders", "Advisors", "Diplomacy", "World", "Debug"] as const;

@@ -91,7 +91,14 @@ Never ship the original's sprites, palette art, fonts or text.
   square, or one it has no use for yet, `spareResources`, `wantsResource`) and calls off a trade that gave away
   what it now needs. Shown in the build menu (faded, "needs Iron"), the production box ("Needs Iron", Buy
   faded), the square's window ("Iron is needed for Legion, ..."), the civ card's Resources line and Advisors >
-  Resources (`resourcesReport`). Saltpeter's sprite is the user's, as every resource's (`resources.art.ts`). Saves before version 33 load
+  Resources (since 2026-10-31, asked for: "improve the resources main window", its own page, the advisor kind
+  `resources`: renderer-api `resourcesView`, retro `drawResourcesAdvisor`; before, the report page's grey rows of
+  `resourcesReport`, which the set-aside modern renderer still shows): a band for each resource, its picture on a sunken
+  tile (a question mark while unseen), its name, a badge in its colour (`RESOURCE_BADGES`: Held green, Traded in blue,
+  Wants road amber, Traded away and None grey, Unseen dark), a line of where it lies, whom it comes from or what is
+  missing, and the units that need it as their pictures (those we could build but for it lit, the rest faded, past
+  five a count); then our trades, each with the other people's shield and its gold a turn, and the gold a turn all
+  told. Saltpeter's sprite is the user's, as every resource's (`resources.art.ts`). Saves before version 33 load
   with `noResources` (headless `--no-resources`, `?resources=off`). Head to head (planner vs v2, 16 x 300, twice:
   seeds 1-16 and 17-32): without resources 1-15 both times, score 125 vs 228 and 135 vs 226; with them 0-16,
   121 vs 246 and 133 vs 261, all replaying exactly. The planner holds its level (pop 45 vs 51 a seat); v2, packing
@@ -105,7 +112,7 @@ Never ship the original's sprites, palette art, fonts or text.
   `specialOf` stays the square as it lies): not drawn (retro `drawSpecial` takes the viewer), no yield from it
   (`tileYield`'s `owner`, `influenceSpecials`), not held or tradeable (`resourceSquares`), not counted in a site's
   worth (`siteScore`'s `player`, the planner's and the settler pins'), absent from the square's window, the panel
-  and `resourceAt(..., viewer)`. Advisors > Resources says "unseen until Bronze Working". What an advance reveals
+  and `resourceAt(..., viewer)`. Advisors > Resources says "Shows on the map with Bronze Working". What an advance reveals
   (core `revealedBy(state, player, found)`: seen with it, unseen without) is a "Reveals" row on the research card
   and an unlock in the New Technology window (`Unlock.resource`, the resource's picture in the box; merged with the
   advance's gain on it, Refining's Oil +3; in a line "Phalanx, Colossus. Reveals Iron", `unlocksLine`). After those
@@ -131,8 +138,8 @@ Never ship the original's sprites, palette art, fonts or text.
   `riverNeedsRoad` (headless `--river-needs-road`): a river square wanted its road, which waits for Bridge Building.
   The planner's settlers build the road (`unroadedResources`, a job of
   value 7 where it lacks and wants the resource, 3 where it lacks it, 2 where it holds it already). Told in the
-  square's window ("No use to anyone until a road is built on it"), Advisors > Resources ("no road near Rome", "2
-  near Rome, 1 no road"), the reveal note ("2 on our land (1 wanting a road)") and the build menu
+  square's window ("No use to anyone until a road is built on it"), Advisors > Resources ("Wants road: 1 square near Rome
+  wants a road: build one to use it", "2 squares near Rome; 1 more wants a road"), the reveal note ("2 on our land (1 wanting a road)") and the build menu
   (`resourcesWantingRoads`, `roadNote`, one line however many, asked for 2026-10-31: "keep in one text line", then
   "too short now": "Our Iron lies unused: build a road on its square", "Our Iron and Horses lie unused: build roads on
   them", past two "Our Iron, Horses and 2 more lie unused: build roads on them"; the menu's `oneLine` widens the

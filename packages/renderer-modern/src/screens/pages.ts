@@ -16,7 +16,7 @@ import {
   unitType,
   type GameState,
 } from "@civ/core";
-import { regardWords, standing, type AdvisorKind, type ReportPage, type StandingTone } from "@civ/renderer-api";
+import { regardWords, resourcesReport, standing, type AdvisorKind, type ReportPage, type StandingTone } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
 import { bar, circle, fillRound, page, panel, paragraph, text } from "../draw.js";
 import { paintBadge, playerColor } from "../markers.js";
@@ -66,6 +66,8 @@ export function drawAdvisor(ctx: Context2D, state: GameState, which: AdvisorKind
   if (which === "domestic") return drawDomestic(ctx, state);
   if (which === "military") return drawMilitary(ctx, state);
   if (which === "foreign") return drawForeign(ctx, state);
+  // The modern renderer (set aside) shows the strategic resources as the report page they were.
+  if (which === "resources") return drawReport(ctx, resourcesReport(state));
   return drawScore(ctx, state);
 }
 

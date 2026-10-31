@@ -49,6 +49,7 @@ import {
   drawResearch,
   drawScienceScreen,
   drawScoreScreen,
+  drawResourcesAdvisor,
   drawSpaceshipScreen,
   drawStatusLine,
   drawTextInput,
@@ -457,6 +458,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if (which === "domestic") drawDomesticAdvisor(s, state);
       else if (which === "military") drawMilitaryAdvisor(s, state);
       else if (which === "foreign") drawForeignAdvisor(s, state);
+      else if (which === "resources") drawResourcesAdvisor(s, state);
       else drawScoreScreen(s, state);
     }),
     // The audience window opens over whatever is drawn under it (the wide map, or a 320x200 screen), centred on it.
