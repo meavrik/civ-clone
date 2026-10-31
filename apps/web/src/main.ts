@@ -748,6 +748,10 @@ function newContacts(): TurnEvent[] {
 
 /** Civilizations that have asked us off their land this turn: a unit stepping onto it again only gets a note. */
 const askedLeave = new Set<number>();
+/** Our cities whose build menu opened this turn: those still waiting (`City.choosing`) are asked again only next turn. */
+const askedChoice = new Set<number>();
+/** What each of our cities finished as the turn passed, for the menu asking what comes next. */
+const finishedNow = new Map<number, string>();
 
 /** A note beside our unit on another's land: whose it is, and, before they have asked anything, that they will ask at their next turn. */
 function landNote(ev: Extract<TurnEvent, { kind: "trespass" }>): void {
@@ -1483,6 +1487,7 @@ function builtKey(e: KeyboardEvent, sc: BuiltScreen): void {
 function askBuy(cityId: number): void {
   const city = state.cities.find((c) => c.id === cityId);
   if (!city) return;
+  if (city.choosing) { say("Choose what to build first"); return; }
   const cost = buyCost(state, city);
   const gold = state.players[city.owner]!.gold;
   const name = productionName(city.production);
@@ -1627,8 +1632,8 @@ function foundWithName(unit: number): void {
   askText("Name the new city", defaultCityName(state, 0), (name) => {
     const type = u.type;
     const c = dispatch({ type: "found", unit, name }) ? cityAt(state, u.x, u.y) : undefined;
-    // The settlement goes up first (`showFounding`), then the city opens.
-    if (c) showFounding(type, c, () => { openCity(c.id); followActive(true); });
+    // The settlement goes up first (`showFounding`), then the city opens asking what it builds first (`City.choosing`).
+    if (c) showFounding(type, c, () => { openCity(c.id); followActive(true); if (c.choosing) openProductionMenu(c.id, undefined, `${c.name}: build what first?`); });
     else followActive(true);
   });
 }
@@ -1666,13 +1671,20 @@ function openProductionMenu(cityId: number, then?: () => void, title?: string, b
     const n = Math.ceil(left / surplus);
     return `${n} turn${n === 1 ? "" : "s"}`;
   };
-  const building = (p: Production) => p.kind === city.production.kind && p.id === city.production.id;
-  // Two tabs (asked for 2026-10-31): Buildings, wonders and spaceship parts with them, and Units, opening on the one
-  // the city is building from, each choice with its picture before it (2026-10-30); a tab with nothing to build is left out.
-  const groups = [{ label: "Buildings", list: ready.filter((p) => p.kind !== "unit") }, { label: "Units", list: units }].filter((g) => g.list.length);
+  // What it builds, none while it waits for a choice (`City.choosing`).
+  const building = (p: Production) => !city.choosing && p.kind === city.production.kind && p.id === city.production.id;
+  // Three tabs (asked for 2026-10-31, in this order): Units, Buildings (spaceship parts with them) and Wonders, each
+  // choice with its picture before it (2026-10-30), a tab with nothing to build faded. It opens on the tab of what the
+  // city builds (or last built, waiting for a choice), on that row (or the first that can be picked).
+  const groups = [
+    { label: "Units", list: units },
+    { label: "Buildings", list: ready.filter((p) => p.kind === "building" || p.kind === "spaceship") },
+    { label: "Wonders", list: ready.filter((p) => p.kind === "wonder") },
+  ];
   const tabs = groups.map(({ label, list }): MenuTab => {
     const pick = list.findIndex((p) => building(p) && !missing(p));
     return {
+      ...(list.length ? {} : { off: true }),
       label,
       items: list.map((p) => productionName(p)),
       right: list.map((p) => {
@@ -1688,14 +1700,17 @@ function openProductionMenu(cityId: number, then?: () => void, title?: string, b
   const menu: MenuState = {
     title: title ?? `${city.name}: build what?`,
     ...(body ? { body } : {}),
+    // The road note alone stays one line, the window widening for it (asked for 2026-10-31).
+    ...(roads && body?.length === 1 ? { oneLine: true } : {}),
     items: [],
     selected: 0,
     tabs,
     // Over the city screen the window stands above its units box, so the units the city has stay in sight (2026-10-30).
     ...(screenState.kind === "city" ? { keepClear: "cityUnits" as const } : {}),
   };
-  showTab(menu, Math.max(0, groups.findIndex((g) => g.list.some(building))));
-  if (tabs.length < 2) { delete menu.tabs; delete menu.tab; }
+  const home = city.production.kind === "unit" ? 0 : city.production.kind === "wonder" ? 2 : 1;
+  showTab(menu, tabs[home]!.off ? tabs.findIndex((t) => !t.off) : home);
+  askedChoice.add(cityId);
   screenState = {
     kind: "menu",
     under: screenState,
@@ -2815,6 +2830,25 @@ function askWondersLost(then: () => void): void {
   next();
 }
 
+/**
+ * Each city of ours waiting for its next production (`City.choosing`; asked for 2026-10-31: "always let the player
+ * select the next production") and not asked yet this turn, one after another: its city screen with the build menu
+ * up, saying what it finished. Left without a pick, the city waits, its shields gathering, and is asked next turn.
+ */
+function askChoices(then: () => void): void {
+  const waiting = state.cities.filter((c) => c.owner === 0 && c.choosing && !askedChoice.has(c.id)).map((c) => c.id);
+  const next = (): void => {
+    const id = waiting.shift();
+    const city = state.cities.find((c) => c.id === id);
+    if (id === undefined) { screenState = { kind: "map" }; followActive(true); then(); return; }
+    if (!city?.choosing) { next(); return; }
+    const done = finishedNow.get(id);
+    openCity(id, next);
+    openProductionMenu(id, undefined, done ? `${done} completed: build what next?` : `${city.name}: build what?`);
+  };
+  next();
+}
+
 /** Play the turn's events as a chain of screens, then land on the map. */
 function presentEvents(events: TurnEvent[], done?: () => void): void {
   const next = (): void => {
@@ -2977,6 +3011,7 @@ function passTurn(): void {
   autoEndAt = null;
   const actions: UnitAction[] = [];
   askedLeave.clear();
+  askedChoice.clear();
   // What we can see now; a unit lost in the turns to come takes its sight with it.
   const sawBefore = state.players[0]!.visible.slice();
   dispatch({ type: "endTurn" });
@@ -2985,6 +3020,8 @@ function passTurn(): void {
   // Our own end of turn (contacts come from the relations; other civs' villages are theirs).
   // Ships lost at sea were shown going down before the turn passed.
   const events: TurnEvent[] = lastTurnEvents.filter((ev) => ev.kind !== "contact" && !(ev.kind === "hut" && ev.player !== 0) && ev.kind !== "lostAtSea");
+  finishedNow.clear();
+  for (const ev of events) if ((ev.kind === "built" || ev.kind === "wonder") && ev.detail) finishedNow.set(ev.city, ev.detail);
   // Other civilizations move now. Each one's moves are read before its own end of turn clears them.
   let seen = lastTurnEvents.length;
   let guard = 0;
@@ -3010,13 +3047,13 @@ function passTurn(): void {
   // Their moves we could see, then our gotos (begun as our turn started), then the fights told, then the news.
   const watch = (): void => {
     watchOthers(actions, sawBefore);
-    whenStill(() => battleReport(fights, () => presentEvents(news, () => askWondersLost(() => {
+    whenStill(() => battleReport(fights, () => presentEvents(news, () => askWondersLost(() => askChoices(() => {
       // Places our gotos and growing borders found as our turn began.
       announcePlaces();
       const end = checkGameEnd(state, FINAL_TURN);
       if (end) endGame(end);
       else warnTreasury();
-    }))));
+    })))));
   };
   if (wars.length) presentEvents(wars, watch); else watch();
 }
@@ -3230,11 +3267,17 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     else if (e.code === "Escape") { screenState = sc.under; sc.onCancel?.(); }
     return;
   }
-  // A tabbed list (the build menu's Buildings and Units): Left and Right, or Tab, show the tab beside.
+  // A tabbed list (the build menu's Units, Buildings and Wonders): Left and Right, or Tab, show the next tab with something in it.
   if (m.tabs && (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.code === "Numpad4" || e.code === "Numpad6" || e.code === "Tab")) {
     e.preventDefault();
     const back = e.code === "ArrowLeft" || e.code === "Numpad4" || (e.code === "Tab" && e.shiftKey);
-    showTab(m, ((m.tab ?? 0) + (back ? -1 : 1) + m.tabs.length) % m.tabs.length);
+    const n = m.tabs.length;
+    let to = m.tab ?? 0;
+    for (let k = 0; k < n; k++) {
+      to = (to + (back ? -1 : 1) + n) % n;
+      if (!m.tabs[to]!.off) break;
+    }
+    showTab(m, to);
     m.top = keepInView(m, renderer.menuRows(m));
     sound.play("click");
     return;

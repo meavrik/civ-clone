@@ -447,6 +447,8 @@ export function productionCost(p: Production): number {
  * every change of kind.
  */
 export function shieldsAfterChange(state: GameState, city: City, p: Production): number {
+  // A box gathered with nothing chosen (`City.choosing`) goes whole to what is picked.
+  if (city.choosing) return city.shields;
   if (state.compoundingPenalty) return p.kind === city.production.kind ? city.shields : Math.floor(city.shields / 2);
   const base = city.turnShields ?? city.shields;
   const kind = city.turnKind ?? city.production.kind;
@@ -946,6 +948,7 @@ export function foundCity(state: GameState, owner: number, x: number, y: number,
     routes: [],
   };
   city.production = defaultProduction(state, city);
+  if (choosesNext(state, owner)) city.choosing = true;
   state.cities.push(city);
   // Founding the city builds its road.
   getTile(state.map, city.x, city.y)!.road = true;
@@ -956,6 +959,7 @@ export function foundCity(state: GameState, owner: number, x: number, y: number,
 
 /** Gold to complete current production, the original's escalating price. */
 export function buyCost(state: GameState, city: City): number {
+  if (city.choosing) return 0;
   const cost = costFor(state, city.owner, city.production);
   const remaining = Math.max(0, cost - city.shields);
   if (remaining === 0) return 0;
@@ -1089,8 +1093,15 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
     }
     city.shields += Math.max(0, surplus);
   }
+  // Nothing chosen yet (`City.choosing`): the shields gather in the box for whatever its owner picks.
+  if (city.choosing) return events;
   // A unit its civilization has retired since it was set (an advance traded or granted) gives way to the default.
-  if (city.production.kind === "unit" && unitRetired(state, city.owner, city.production.id)) city.production = defaultProduction(state, city);
+  if (city.production.kind === "unit" && unitRetired(state, city.owner, city.production.id)) {
+    chooseAgain(state, city);
+    if (city.choosing) return events;
+  }
+  // What is finished takes the whole box (since save version 49; its leftover went on to the next before, `leftoverShields`).
+  const spend = (cost: number) => { city.shields = state.leftoverShields ? city.shields - cost : 0; };
   const cost = costFor(state, city.owner, city.production);
   if (city.shields >= cost) {
     const p = city.production;
@@ -1117,7 +1128,9 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
         }
         autoAssignWorkers(state, city);
       }
-      city.shields -= cost;
+      spend(cost);
+      // A human player picks again; a computer player's city goes on with the unit.
+      if (choosesNext(state, city.owner)) city.choosing = true;
       chronicleOf(player).units++;
       const ev: CityTurnEvent = { city: city.id, kind: "built", detail: unitType(p.id).name, production: { ...p } };
       if (was) {
@@ -1127,27 +1140,27 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
       events.push(ev);
     } else if (p.kind === "spaceship") {
       addPart(player.spaceship, p.id);
-      city.shields -= cost;
+      spend(cost);
       events.push({ city: city.id, kind: "built", detail: spacePart(p.id).name, production: { ...p } });
-      city.production = defaultProduction(state, city);
+      chooseAgain(state, city);
     } else if (p.kind === "wonder") {
       if (wonderBuilt(state, p.id)) {
         // Someone else finished it first: the shields stay for the next choice, and the owner hears of it.
-        city.production = defaultProduction(state, city);
+        chooseAgain(state, city);
         events.push({ city: city.id, kind: "outbuilt", detail: wonder(p.id).name, production: { ...p } });
         return events;
       }
       city.wonders.push(p.id);
-      city.shields -= cost;
+      spend(cost);
       chronicleOf(player).wonders.push(p.id);
       events.push({ city: city.id, kind: "wonder", detail: wonder(p.id).name, production: { ...p } });
-      city.production = defaultProduction(state, city);
+      chooseAgain(state, city);
     } else {
       if (!city.buildings.includes(p.id)) city.buildings.push(p.id);
-      city.shields -= cost;
+      spend(cost);
       events.push({ city: city.id, kind: "built", detail: building(p.id).name, production: { ...p } });
       // Move on to something sensible rather than rebuilding.
-      city.production = defaultProduction(state, city);
+      chooseAgain(state, city);
     }
   }
   return events;
@@ -1176,10 +1189,26 @@ export function defaultProduction(state: GameState, city: City): Production {
   return { kind: "unit", id: best?.id ?? "militia" };
 }
 
-/** `player`'s cities building a unit it has just retired turn to their default (`defaultProduction`). */
+/** `player`'s cities building a unit it has just retired turn to their default (`defaultProduction`), or wait for its choice. */
 export function retireProduction(state: GameState, player: number): void {
   for (const c of state.cities)
-    if (c.owner === player && c.production.kind === "unit" && unitRetired(state, player, c.production.id)) c.production = defaultProduction(state, c);
+    if (c.owner === player && c.production.kind === "unit" && unitRetired(state, player, c.production.id)) chooseAgain(state, c);
+}
+
+/**
+ * Whether `owner` chooses what its cities build next itself, a city waiting until it does (`City.choosing`; asked for
+ * 2026-10-31: "do not select automatically the militia or any other default unit - always let the player select the
+ * next production"): a human player, since save version 49 (`defaultBuilds` before). Computer players' cities turn to
+ * their default or go on with a finished unit, as ever.
+ */
+export function choosesNext(state: GameState, owner: number): boolean {
+  return !state.defaultBuilds && state.players[owner]?.isAi === false;
+}
+
+/** A city whose production is done with (finished, or given way): its owner chooses again (`choosesNext`), or it turns to its default. */
+function chooseAgain(state: GameState, city: City): void {
+  if (choosesNext(state, city.owner)) city.choosing = true;
+  else city.production = defaultProduction(state, city);
 }
 
 /**

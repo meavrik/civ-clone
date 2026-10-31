@@ -44,7 +44,7 @@ describe("spaceship", () => {
     c.shields = 80;
     round(s);
     expect(p.spaceship.structurals).toBe(1);
-    expect(c.production).toEqual({ kind: "unit", id: "militia" });
+    expect(c.choosing).toBe(true);
   });
 
   it("needs a habitat, an engine and structurals to launch; flies and lands", () => {

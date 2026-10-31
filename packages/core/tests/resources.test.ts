@@ -157,6 +157,7 @@ describe("strategic resources", () => {
     const rome = foundCity(s, 0, 10, 10);
     deposit(s, 11, 11, "Iron");
     rome.production = { kind: "unit", id: "legion" };
+    delete rome.choosing; // picked by the player
     s.map.tiles[11 * s.map.width + 11]!.special = false; // the iron is lost
     rome.shields = 30;
     rome.turnShields = 15;

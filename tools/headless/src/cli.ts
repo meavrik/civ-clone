@@ -51,6 +51,8 @@ interface Options {
   roadlessResources: boolean;
   quickWork: boolean;
   riverNeedsRoad: boolean;
+  leftoverShields: boolean;
+  defaultBuilds: boolean;
   cityStates: boolean;
   human: boolean;
   evenDifficulty: boolean;
@@ -98,6 +100,8 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --roadless-resources a strategic resource serves without a road on its square (saves before version 43)
   --quick-work        a settler's job counts the turn it walked onto the square; clean-ups take 3 turns (saves before version 46)
   --river-needs-road  a strategic resource on a river wants a road built on its square too (saves before version 48)
+  --leftover-shields  a finished production's leftover shields go on to the next (saves before version 49)
+  --default-builds    a human seat's city turns to its default production by itself (saves before version 49)
   --no-city-states    no city-states (every new game in the app has them; saves before version 45 had none)
   --human             seat 0 is a human player's (the level's human rules, treated as a human by the computer
                       leaders), played by the planner as a stand-in (no --verify: its moves are not logged)
@@ -108,7 +112,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, cityStates: true, human: false, evenDifficulty: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, cityStates: true, human: false, evenDifficulty: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -163,6 +167,8 @@ function parseArgs(argv: string[]): Options {
       case "roadless-resources": o.roadlessResources = true; break;
       case "quick-work": o.quickWork = true; break;
       case "river-needs-road": o.riverNeedsRoad = true; break;
+      case "leftover-shields": o.leftoverShields = true; break;
+      case "default-builds": o.defaultBuilds = true; break;
       case "no-city-states": o.cityStates = false; break;
       case "human": o.human = true; break;
       case "even-difficulty": o.evenDifficulty = true; break;
@@ -307,6 +313,8 @@ function main(argv: string[]): number {
       ...(o.roadlessResources ? { roadlessResources: true } : {}),
       ...(o.quickWork ? { quickWork: true } : {}),
       ...(o.riverNeedsRoad ? { riverNeedsRoad: true } : {}),
+      ...(o.leftoverShields ? { leftoverShields: true } : {}),
+      ...(o.defaultBuilds ? { defaultBuilds: true } : {}),
       ...(o.cityStates ? { cityStates: true } : {}),
       ...(o.human ? { human: true } : {}),
       ...(o.evenDifficulty ? { evenDifficulty: true } : {}),

@@ -129,11 +129,13 @@ describe("combat experience", () => {
     const s = world();
     const city = foundCity(s, 0, 10, 10);
     city.production = { kind: "unit", id: "phalanx" };
+    delete city.choosing; // picked by the player
     city.shields = 40;
     processCityTurn(s, city);
     expect(s.units.find((u) => u.type === "phalanx")!.xp).toBe(0);
     s.units = [];
     city.buildings.push(building("barracks").id);
+    delete city.choosing; // another, picked again
     city.shields = 40;
     processCityTurn(s, city);
     expect(rankOf(s.units.find((u) => u.type === "phalanx")!.xp).name).toBe("Veteran");

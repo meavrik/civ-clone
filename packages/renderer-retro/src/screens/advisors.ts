@@ -16,7 +16,7 @@ import { drawText, drawTextCentered, textWidth } from "../font.js";
 import { drawUnitFigure } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { BAD, DIM, drawPage, drawSwatch, GOOD, INK } from "../widgets.js";
+import { BAD, DIM, drawPage, drawSwatch, GOOD, INK, NOTE } from "../widgets.js";
 import { drawIconLine } from "../icons.js";
 import { regardWords, standing } from "@civ/renderer-api";
 import { PLAYER_COLORS } from "./main.js";
@@ -45,7 +45,7 @@ export function drawDomesticAdvisor(s: Surface, state: GameState): void {
     drawText(s, 120, y, `${r.foodSurplus >= 0 ? "+" : ""}${r.foodSurplus}`, r.foodSurplus < 0 ? BAD : ink);
     drawText(s, 150, y, String(r.shieldSurplus), ink);
     drawText(s, 180, y, String(r.trade), ink);
-    drawText(s, 212, y, productionName(c.production), ink);
+    drawText(s, 212, y, c.choosing ? "Nothing chosen" : productionName(c.production), c.choosing ? NOTE : ink);
     y += 9;
     if (y > SCREEN_H - 26) break;
   }

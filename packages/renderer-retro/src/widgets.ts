@@ -252,6 +252,8 @@ interface MenuLayout {
   tabsY: number; tabH: number;
   /** The rows of its longest list (every tab's), and how many of them it has room for. */
   count: number; room: number;
+  /** A body line that must stay whole (`MenuState.oneLine`) broke all the same: the window is too narrow at this size. */
+  wrapped: boolean;
 }
 
 /** The gap between a tabbed list's tabs, and under them before the rows. */
@@ -302,9 +304,10 @@ function menuLayout(m: MenuState, screenW = SCREEN_W, size = DESK_MENU, clear = 
   const l = layoutAt(m, screenW, size, clear);
   // Too few rows in the room above what it keeps clear of: smaller (the phone's), else in the middle after all.
   const cramped = !!l.keep && l.room < Math.min(l.count, CLEAR_ROWS);
-  if (size.fallback && (l.y + l.h > SCREEN_H || l.x + l.w > screenW || cramped)) {
+  const bad = l.y + l.h > SCREEN_H || l.x + l.w > screenW || l.wrapped;
+  if (size.fallback && (bad || cramped)) {
     const small = menuLayout(m, screenW, size.fallback, clear);
-    return cramped && !small.keep ? menuLayout(m, screenW, size, false) : small;
+    return cramped && !bad && !small.keep ? menuLayout(m, screenW, size, false) : small;
   }
   return cramped ? menuLayout(m, screenW, size, false) : l;
 }
@@ -342,7 +345,9 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean)
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l) * t)) + 20 : 0;
   // A map square or a unit's picture heads the window, in the same frame.
   const framed = !!(m.square || m.unit);
-  const w = Math.min(size.maxW, screenW - 8, Math.max(need, Math.min(bodyW + (framed ? SQUARE_SIDE : 0), Math.round(SCREEN_W * size.share)), m.title ? size.minW : 0, m.square ? SQUARE_WINDOW_W : 0));
+  // Lines that must stay whole (`oneLine`) widen the window as far as the screen lets them.
+  const bodyRoom = m.oneLine ? bodyW + (framed ? SQUARE_SIDE : 0) : Math.min(bodyW + (framed ? SQUARE_SIDE : 0), Math.round(SCREEN_W * size.share));
+  const w = Math.min(size.maxW, screenW - 8, Math.max(need, bodyRoom, m.title ? size.minW : 0, m.square ? SQUARE_WINDOW_W : 0));
   // The paragraphs that begin beside the picture wrap to the room left of it.
   const lines: string[] = [];
   const indents: number[] = [];
@@ -362,7 +367,7 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean)
   let y = m.anchor ? m.anchor.y : keep ? Math.max(0, floor - h) : Math.max(0, Math.floor((SCREEN_H - h) / 2));
   if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
-  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + tabsH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH, tabH, count, room: fits ? count : rows };
+  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + tabsH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH, tabH, count, room: fits ? count : rows, wrapped: !!m.oneLine && lines.length > (m.body?.length ?? 0) };
 }
 
 export function menuRect(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x: number; y: number; w: number; h: number } {
@@ -384,7 +389,7 @@ export function menuTabAt(m: MenuState, px: number, py: number, screenW = SCREEN
     const r = tabRect(l, m.tabs!.length, k);
     return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
   });
-  return i >= 0 ? i : null;
+  return i >= 0 && !m.tabs[i]!.off ? i : null;
 }
 
 /** How many of a menu's rows show at once. */
@@ -501,10 +506,10 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     s.hline(x + 4, l.tabsY - 4, w - 8, shade("panel", 2));
     s.hline(x + 4, l.tabsY - 3, w - 8, shade("panel", 7));
   }
-  // The tabs, the one shown lit.
+  // The tabs, the one shown lit, one with nothing in it faded.
   m.tabs?.forEach((tab, i) => {
     const r = tabRect(l, m.tabs!.length, i);
-    drawButton(s, r.x, r.y, r.w, r.h, tab.label, true, i === (m.tab ?? 0), t);
+    drawButton(s, r.x, r.y, r.w, r.h, tab.label, !tab.off, i === (m.tab ?? 0), t);
   });
   const rowW = w - 8 - (scrolls ? size.scroll + 2 : 0);
   m.items.forEach((item, i) => {

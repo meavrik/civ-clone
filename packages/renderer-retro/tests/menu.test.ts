@@ -73,17 +73,23 @@ describe("menus", () => {
 
   it("keep the build menu's road note on one line however many resources want roads, on the desktop and the phone", () => {
     const ids = ["Saltpeter", "Horses", "Iron", "Coal", "Oil"];
-    expect(roadNote(ids.slice(0, 1))).toBe("{road} Our Saltpeter needs a road");
-    expect(roadNote(ids.slice(0, 2))).toBe("{road} Our Saltpeter and Horses need roads");
-    expect(roadNote(ids)).toBe("{road} Our Saltpeter, Horses and 3 more need roads");
+    expect(roadNote(ids.slice(0, 1))).toBe("{road} Our Saltpeter lies unused: build a road on its square");
+    expect(roadNote(ids.slice(0, 2))).toBe("{road} Our Saltpeter and Horses lie unused: build roads on them");
+    expect(roadNote(ids)).toBe("{road} Our Saltpeter, Horses and 3 more lie unused: build roads on them");
     expect(roadNote([])).toBeNull();
     const items = ["Settlers", "Phalanx", "Legion"];
     const plain: MenuState = { title: "Rome: build what?", items, right: items.map(() => "1/2/1 20 turns"), selected: 0 };
     for (let n = 1; n <= ids.length; n++) {
-      const body = [roadNote(ids.slice(0, n))!];
-      // One line of words more than the window without it, and the gap under it.
-      for (const [size, lineH] of [[DESK_MENU, 8], [TOUCH_MENU, 16]] as const) expect(menuRect({ ...plain, body }, 320, size).h - menuRect(plain, 320, size).h).toBe(lineH + 5);
+      const m: MenuState = { ...plain, body: [roadNote(ids.slice(0, n))!], oneLine: true };
+      // One line of words more than the window without it, and the gap under it, at the size the window took: the
+      // phone's large words where the line fits across the screen, else the font's own.
+      for (const size of [DESK_MENU, TOUCH_MENU]) {
+        const at = size.fallback && JSON.stringify(menuRect(m, 320, size)) === JSON.stringify(menuRect(m, 320, size.fallback)) ? size.fallback : size;
+        expect(menuRect(m, 320, size).h - menuRect(plain, 320, at).h).toBe(8 * at.text + 5);
+      }
     }
+    // Without the flag the longest wraps on the desktop.
+    expect(menuRect({ ...plain, body: [roadNote(ids)!] }).h - menuRect(plain).h).toBe(2 * 8 + 5);
   });
 
   it("list a stack of units with their sprites on rows tall enough to hold them, never as buttons", () => {

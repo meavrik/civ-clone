@@ -23,15 +23,16 @@ export function resourcesWantingRoads(state: GameState, player: number): string[
 }
 
 /**
- * What the build menu says of resources a road would bring into use, short enough for one line of its window (asked for
- * 2026-10-31: "keep in one text line - do not break. if needed shorten the text"): "Our Iron needs a road", "Our Iron
- * and Horses need roads", past two "Our Iron, Horses and 2 more need roads".
+ * What the build menu says of resources a road would bring into use, one line of its window (asked for 2026-10-31: "keep
+ * in one text line - do not break", then "too short now"; the menu's `oneLine`): "Our Iron lies unused: build a road on
+ * its square", "Our Iron and Horses lie unused: build roads on them", past two "Our Iron, Horses and 2 more lie unused:
+ * build roads on them".
  */
 export function roadNote(ids: string[]): string | null {
   if (!ids.length) return null;
-  if (ids.length === 1) return `{road} Our ${ids[0]} needs a road`;
+  if (ids.length === 1) return `{road} Our ${ids[0]} lies unused: build a road on its square`;
   const names = ids.length === 2 ? `${ids[0]} and ${ids[1]}` : `${ids[0]}, ${ids[1]} and ${ids.length - 2} more`;
-  return `{road} Our ${names} need roads`;
+  return `{road} Our ${names} lie unused: build roads on them`;
 }
 
 /**

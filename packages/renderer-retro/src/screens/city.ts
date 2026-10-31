@@ -558,6 +558,20 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   });
   if (units.length > UNIT_SLOTS) say(s, MID.x + MID.w - 4 - textWidth(`+${units.length - UNIT_SLOTS}`), ROW2.y + ROW2.h - 10, `+${units.length - UNIT_SLOTS}`, LABEL);
 
+  // Nothing chosen yet (`City.choosing`; asked for 2026-10-31: "always let the player select the next production"):
+  // the box asks, Choose lit in place of Change, Buy waiting; the shields gathered meanwhile go whole to the pick.
+  if (city.choosing) {
+    drawBox(s, RIGHT.x, ROW2.y, RIGHT.w, ROW2.h, "Build what?", city.shields ? `${city.shields} kept` : "");
+    const change = CITY_BUTTONS.change!;
+    const buy = CITY_BUTTONS.buy!;
+    drawButton(s, change.x, change.y, change.w, change.h, "Choose", true, true);
+    drawButton(s, buy.x, buy.y, buy.w, buy.h, "Buy", false);
+    const mid = change.y + change.h + Math.floor((ROW2.y + ROW2.h - change.y - change.h - FONT_HEIGHT) / 2);
+    drawTextCentered(s, RIGHT.x + RIGHT.w / 2, mid - 5, "Nothing chosen yet:", NOTE);
+    drawTextCentered(s, RIGHT.x + RIGHT.w / 2, mid + 5, "pick what to build next", LABEL);
+    return;
+  }
+
   // Production: what is being built, its shields as icons, how long, and the price to buy it now.
   const p = city.production;
   drawBox(s, RIGHT.x, ROW2.y, RIGHT.w, ROW2.h, productionName(p), `${city.shields}/${r.productionCost}`);

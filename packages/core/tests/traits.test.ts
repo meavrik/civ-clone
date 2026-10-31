@@ -92,6 +92,7 @@ describe("civilization traits", () => {
     const babylon = world("babylonians");
     const c = foundCity(babylon, 0, 10, 10);
     c.production = { kind: "building", id: "library" };
+    delete c.choosing; // picked by the player
     const [buy, full] = withAndWithout(babylon, () => buyCost(babylon, c));
     expect(buy).toBeLessThan(full);
     c.shields = costFor(babylon, 0, c.production);
@@ -163,6 +164,7 @@ describe("civilization traits", () => {
     const zulus = world("zulus");
     const k = foundCity(zulus, 0, 10, 10);
     k.production = { kind: "unit", id: "militia" };
+    delete k.choosing; // picked by the player
     k.shields = 10;
     processCityTurn(zulus, k);
     expect(zulus.units.find((u) => u.type === "militia")!.xp).toBe(VETERAN_XP);

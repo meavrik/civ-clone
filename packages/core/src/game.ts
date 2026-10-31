@@ -120,6 +120,10 @@ export interface NewGameOptions extends MapGenOptions {
   roadlessResources?: boolean;
   /** A strategic resource on a river square wants a road built on it all the same (see `GameState.riverNeedsRoad`). Old saves load with it. */
   riverNeedsRoad?: boolean;
+  /** A finished production's leftover shields kept for the next (see `GameState.leftoverShields`). Old saves load with it. */
+  leftoverShields?: boolean;
+  /** A human player's city turns to its default production by itself (see `GameState.defaultBuilds`). Old saves load with it. */
+  defaultBuilds?: boolean;
   /** Settlers start a job the turn they walk onto its square, and clean up in three turns (see `GameState.quickWork`). Old saves load with it. */
   quickWork?: boolean;
   /** The computer players under the human's rules of the level, as before version 47 (see `GameState.evenDifficulty`). Old saves load with it. */
@@ -315,6 +319,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.sellWhenBroke ? { sellWhenBroke: true } : {}),
     ...(opts.roadlessResources ? { roadlessResources: true } : {}),
     ...(opts.riverNeedsRoad ? { riverNeedsRoad: true } : {}),
+    ...(opts.leftoverShields ? { leftoverShields: true } : {}),
+    ...(opts.defaultBuilds ? { defaultBuilds: true } : {}),
     ...(opts.quickWork ? { quickWork: true } : {}),
     ...(opts.evenDifficulty ? { evenDifficulty: true } : {}),
   };

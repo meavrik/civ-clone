@@ -1528,8 +1528,9 @@ function manageCities(state: GameState, ctx: Ctx): void {
     const r = computeCity(state, c);
     ctx.reports.set(c.id, r);
     const current = c.production;
-    // A wonder finished elsewhere, or a unit whose strategic resource is gone, is changed at once.
-    const stale = (current.kind === "wonder" && wonderBuilt(state, current.id)) || (current.kind === "unit" && missingResources(state, ctx.me, current.id).length > 0);
+    // A wonder finished elsewhere, a unit whose strategic resource is gone, or nothing chosen (a human seat's city,
+    // `City.choosing`: the headless stand-in), is changed at once.
+    const stale = c.choosing === true || (current.kind === "wonder" && wonderBuilt(state, current.id)) || (current.kind === "unit" && missingResources(state, ctx.me, current.id).length > 0);
     const want = chooseProduction(state, ctx, c, r, settlersPlanned, army, military, c === wonderCity || current.kind === "wonder");
     if (want && (stale || !sameProduction(want, current))) {
       const urgent = want.kind === "unit" && garrison(state, ctx, c).length < (ctx.wanted.get(c.id) ?? 1) && (ctx.threat.get(c.id) ?? 0) > 0;

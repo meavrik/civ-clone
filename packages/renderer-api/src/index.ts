@@ -325,6 +325,12 @@ export interface MenuState {
    */
   tabs?: MenuTab[];
   tab?: number;
+  /**
+   * Its body's lines never break (the build menu's road note, asked for 2026-10-31: "keep in one text line - do not
+   * break"): the window widens to hold them, and where the screen is too narrow takes its smaller size (the phone's).
+   * Modern ignores it.
+   */
+  oneLine?: boolean;
 }
 
 /** A row's picture in a list (`MenuState.pictures`): a unit's in its owner's colours, or a building's (a wonder's, a spaceship part's). */
@@ -339,12 +345,14 @@ export interface MenuTab {
   disabled?: number[];
   /** The row picked while it is shown, kept for when it is shown again. */
   selected: number;
+  /** Nothing in it to pick now (the build menu's Wonders with none to build): drawn faded, never shown. */
+  off?: boolean;
 }
 
 /** Show tab `i` of a tabbed list (`MenuState.tabs`), the tab shown before keeping the row it had picked; scrolled to the top. */
 export function showTab(m: MenuState, i: number): void {
   const t = m.tabs?.[i];
-  if (!t) return;
+  if (!t || t.off) return;
   const was = m.tabs![m.tab ?? 0];
   if (was) was.selected = m.selected;
   m.tab = i;

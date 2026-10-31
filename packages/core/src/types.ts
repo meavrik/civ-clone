@@ -166,6 +166,13 @@ export interface City {
    */
   turnShields?: number;
   turnKind?: Production["kind"];
+  /**
+   * Its owner, a human player, has yet to choose what it builds (since save version 49, `choosesNext`): set as it is
+   * founded or taken, finishes something, or what it was building gives way (a wonder finished elsewhere, a unit
+   * retired). `production` is then only a placeholder (what it last built, or the default), shown as nothing chosen;
+   * its shields gather in the box, nothing is finished or bought, until `setProduction`.
+   */
+  choosing?: boolean;
   /** True once a disorder turn has been reported, for the renderer. */
   disorder: boolean;
   /** Turns in disorder in a row at the last turn's end; past the government's `revolutionAfter` a Democracy falls. */
@@ -423,6 +430,17 @@ export interface GameState {
    * waits for Bridge Building). Since 48 the river serves as its road (`resourceRoaded`).
    */
   riverNeedsRoad?: boolean;
+  /**
+   * Production as before version 49: a finished unit's, improvement's, wonder's or spaceship part's leftover shields
+   * stayed in the box for what came next. Since 49 the box empties as anything is finished.
+   */
+  leftoverShields?: boolean;
+  /**
+   * Production as before version 49: a human player's city turned to its default (Militia, or the stoutest defender)
+   * as it was founded or taken or finished an improvement, wonder or part, and went on with a finished unit. Since 49 it
+   * waits for its owner's choice (`City.choosing`).
+   */
+  defaultBuilds?: boolean;
   /**
    * Settlers' jobs as before version 46: a job taken up by a settler that had spent its moves (walked onto the square
    * that turn) counted that turn as one of its turns, and pollution cleared in three. Since 46 such a job starts the

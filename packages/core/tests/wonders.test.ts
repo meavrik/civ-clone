@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, createUnit, foundCity, governmentsAvailable, lastTurnEvents, moveAllowance, newGame, productionCost, Terrain, type GameState } from "../src/index.js";
+import { applyCommand, createUnit, foundCity, governmentsAvailable, lastTurnEvents, moveAllowance, newGame, processCityTurn, productionCost, Terrain, type GameState } from "../src/index.js";
 
 function flatWorld(): GameState {
   const s = newGame(1, { opponents: 2 });
@@ -51,17 +51,24 @@ describe("wonders", () => {
     expect(s.players[0]!.anarchyTurns).toBe(0);
   });
 
-  it("a city whose wonder another city finished first turns to its default, keeps its shields and says so", () => {
+  it("a city whose wonder another city finished first waits for its owner's choice (a computer's turns to its default), keeps its shields and says so", () => {
     const s = flatWorld();
     const rome = foundCity(s, 0, 10, 10, "Rome");
     const babylon = foundCity(s, 1, 30, 10, "Babylon");
     rome.production = { kind: "wonder", id: "pyramids" };
+    delete rome.choosing; // picked by the player
     babylon.wonders.push("pyramids");
     const full = productionCost({ kind: "wonder", id: "pyramids" }) + 5;
     rome.shields = full;
     applyCommand(s, { type: "endTurn" });
-    expect(rome.production).toEqual({ kind: "unit", id: "militia" });
+    expect(rome.choosing).toBe(true);
     expect(rome.shields).toBeGreaterThanOrEqual(full);
     expect(lastTurnEvents).toContainEqual({ city: rome.id, kind: "outbuilt", detail: "Pyramids", production: { kind: "wonder", id: "pyramids" } });
+    const ur = foundCity(s, 1, 50, 10, "Ur");
+    ur.production = { kind: "wonder", id: "pyramids" };
+    ur.shields = full;
+    processCityTurn(s, ur);
+    expect(ur.production).toEqual({ kind: "unit", id: "militia" });
+    expect(ur.choosing).toBeUndefined();
   });
 });

@@ -733,17 +733,18 @@ describe("city screen", () => {
     const opts = buildOptions(state, city);
     const inUnitsBox = (a: { x: number; y: number }) => a.x >= 108 && a.x < 192 && a.y >= 116;
     const units = s.art.filter((a) => a.unit && inUnitsBox(a)).length;
-    // Two tabs, Buildings and Units, each choice with its picture.
-    const lists = [opts.filter((p) => p.kind !== "unit"), opts.filter((p) => p.kind === "unit")];
-    const tabs = ["Buildings", "Units"].map((label, k): MenuTab => ({
+    // Three tabs, Units, Buildings and Wonders (none to build here: faded), each choice with its picture.
+    const lists = [opts.filter((p) => p.kind === "unit"), opts.filter((p) => p.kind === "building"), []];
+    const tabs = ["Units", "Buildings", "Wonders"].map((label, k): MenuTab => ({
       label,
       items: lists[k]!.map(productionName),
       right: lists[k]!.map((p) => String(productionCost(p))),
       pictures: lists[k]!.map((p) => (p.kind === "unit" ? { unit: p.id, color: 0 } : { building: p.id })),
       selected: 0,
+      ...(lists[k]!.length ? {} : { off: true }),
     }));
     const menu: MenuState = { title: `${city.name}: build what?`, items: [], selected: 0, tabs, keepClear: "cityUnits" };
-    showTab(menu, 1);
+    showTab(menu, 0);
     menu.selected = 1;
     drawMenu(s, menu);
     writeFileSync(new URL("./out/city-menu.png", import.meta.url), encodePng(s, 3));
@@ -754,15 +755,17 @@ describe("city screen", () => {
     expect(s.art.filter((a) => a.unit && inUnitsBox(a) && !a.dim).length).toBe(units);
     // A picture before each row of the tab shown.
     const rows = s.art.filter((a) => a.y >= r.y && a.y < r.y + r.h && !a.dim);
-    expect(rows.map((a) => a.id)).toEqual(lists[1]!.slice(0, menuRows(menu)).map((p) => p.id));
-    // A click on the tabs finds each; the other tab keeps the window's size and comes back as it was left.
+    expect(rows.map((a) => a.id)).toEqual(lists[0]!.slice(0, menuRows(menu)).map((p) => p.id));
+    // A click on the tabs finds each but the faded one; the other tab keeps the window's size and comes back as it was left.
     const tabY = r.y + 20;
-    expect([r.x + 20, r.x + r.w - 20].map((x) => menuTabAt(menu, x, tabY))).toEqual([0, 1]);
+    expect([r.x + 20, r.x + r.w / 2, r.x + r.w - 20].map((x) => menuTabAt(menu, x, tabY))).toEqual([0, 1, null]);
     expect(menuTabAt(menu, r.x + 20, r.y + r.h - 8)).toBeNull();
-    showTab(menu, 0);
-    expect(menu.items).toEqual(lists[0]!.map(productionName));
-    expect(menuRect(menu)).toEqual(r);
+    showTab(menu, 2);
+    expect(menu.tab).toBe(0);
     showTab(menu, 1);
+    expect(menu.items).toEqual(lists[1]!.map(productionName));
+    expect(menuRect(menu)).toEqual(r);
+    showTab(menu, 0);
     expect(menu.selected).toBe(1);
   });
 

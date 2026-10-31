@@ -108,6 +108,10 @@ export interface GameConfig {
   quickWork?: boolean;
   /** A strategic resource on a river square wants a road built on it all the same (`GameState.riverNeedsRoad`). */
   riverNeedsRoad?: boolean;
+  /** A finished production's leftover shields go on to the next (`GameState.leftoverShields`). */
+  leftoverShields?: boolean;
+  /** A human seat's city turns to its default production by itself (`GameState.defaultBuilds`). */
+  defaultBuilds?: boolean;
   /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
   cityStates?: boolean;
   /**
@@ -237,6 +241,8 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.roadlessResources ? { roadlessResources: true } : {}),
     ...(config.quickWork ? { quickWork: true } : {}),
     ...(config.riverNeedsRoad ? { riverNeedsRoad: true } : {}),
+    ...(config.leftoverShields ? { leftoverShields: true } : {}),
+    ...(config.defaultBuilds ? { defaultBuilds: true } : {}),
     ...(config.cityStates ? { cityStates: true } : {}),
     ...(config.evenDifficulty ? { evenDifficulty: true } : {}),
   };

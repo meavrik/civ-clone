@@ -26,13 +26,14 @@ describe("a civilization's chronicle", () => {
     // A unit raised and a wonder completed as the turn ends; its heights read then.
     rome.size = 3;
     autoAssignWorkers(s, rome);
-    rome.production = { kind: "unit", id: "militia" };
+    applyCommand(s, { type: "setProduction", city: rome.id, production: { kind: "unit", id: "militia" } });
     rome.shields = 100;
     applyCommand(s, { type: "endTurn" });
     expect(me.chronicle).toMatchObject({ units: 1, peakCities: 1, peakCitizens: rome.size });
     expect(me.chronicle!.peakScore).toBeGreaterThan(0);
     s.currentPlayer = 0;
     rome.production = { kind: "wonder", id: "colossus" };
+    delete rome.choosing; // picked by the player
     rome.shields = 1000;
     applyCommand(s, { type: "endTurn" });
     expect(me.chronicle!.wonders).toEqual(["colossus"]);

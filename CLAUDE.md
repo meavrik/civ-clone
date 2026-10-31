@@ -133,9 +133,11 @@ Never ship the original's sprites, palette art, fonts or text.
   value 7 where it lacks and wants the resource, 3 where it lacks it, 2 where it holds it already). Told in the
   square's window ("No use to anyone until a road is built on it"), Advisors > Resources ("no road near Rome", "2
   near Rome, 1 no road"), the reveal note ("2 on our land (1 wanting a road)") and the build menu
-  (`resourcesWantingRoads`, `roadNote`, one line however many, asked for 2026-10-31: "Our Iron needs a road", "Our
-  Iron and Horses need roads", "Our Iron, Horses and 2 more need roads"; a window sizes itself by its lines' widths as
-  they wrap, so a line that sets its width never breaks on the phone's large words either). Saves
+  (`resourcesWantingRoads`, `roadNote`, one line however many, asked for 2026-10-31: "keep in one text line", then
+  "too short now": "Our Iron lies unused: build a road on its square", "Our Iron and Horses lie unused: build roads on
+  them", past two "Our Iron, Horses and 2 more lie unused: build roads on them"; the menu's `oneLine` widens the
+  window for it, and the phone takes its smaller words where the large ones would break it; a window sizes itself by
+  its lines' widths as they wrap, so a line that sets its width never breaks by a rounded pixel either). Saves
   before 43 load with `roadlessResources` (headless `--roadless-resources`). Held at turn 150 (planner in every
   seat, 6 seeds): Horses 79% of civs (92% without roads), Iron 67% (63%), Coal 46% (63%). Head to head (planner vs v2,
   16 x 300, seeds 1-16): roads 10-6, score 217 vs 183, pop 77 vs 72; without 10-6, 212 vs 180, pop 75 vs 74; all
@@ -490,13 +492,14 @@ Never ship the original's sprites, palette art, fonts or text.
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. The build menu (`openProductionMenu` in the web app) shows beside
   each choice only the turns it takes from here, counting the shields a change would keep ("never"
-  without a surplus); no costs or shield counts (asked for). Its choices stand under two tabs, Buildings (wonders and
-  spaceship parts with them) and Units (asked for 2026-10-31: "split into 2 tabs - buildings and units";
-  `MenuState.tabs`/`tab`, a `MenuTab` each, shown by renderer-api `showTab`, which keeps each tab's pick for when it
-  comes back): it opens on the tab of what the city is building, a tab with nothing to build is left out (one left,
-  no tabs), a click on a tab (`Renderer.menuTabAt`, retro `menuTabAt`), Left/Right or Tab switch, and the window is
-  sized for both tabs' rows so it keeps its size; retro draws the tabs as stone buttons sharing the window's width
-  under the title, the one shown lit. Each choice has its picture before it (asked for
+  without a surplus); no costs or shield counts (asked for). Its choices stand under three tabs, in this order, Units,
+  Buildings (spaceship parts with them) and Wonders (asked for 2026-10-31: "split into 2 tabs - buildings and units",
+  then "add wonders tab - if no wonder to build disabled", and the order; `MenuState.tabs`/`tab`, a `MenuTab` each,
+  shown by renderer-api `showTab`, which keeps each tab's pick for when it comes back): it opens on the tab of what the
+  city builds (or last built, waiting for a choice), a tab with nothing to build stands faded and never shows
+  (`MenuTab.off`), a click on a tab (`Renderer.menuTabAt`, retro `menuTabAt`, none on a faded one), Left/Right or Tab
+  switch (passing a faded one), and the window is sized for every tab's rows so it keeps its size; retro draws the
+  tabs as stone buttons sharing the window's width under the title, the one shown lit. Each choice has its picture before it (asked for
   2026-10-30: "show unit/building image next to each item"; `MenuState.pictures`, a `MenuPicture`: the unit's, the
   user's picture of the building, wonder or spaceship part in a 16-pixel square, retro `drawRowPicture`; darkened on
   a row that cannot be picked), and over the city screen the window stands above the units box, which stays lit
@@ -511,7 +514,21 @@ Never ship the original's sprites, palette art, fonts or text.
   as the original had it, and a finished improvement's leftover keeps its kind whatever the city turned
   to meanwhile (Militia; since save version 28, asked for 2026-10-24: "building starting already with
   production already processed": the Militia made the leftover a unit's box, halved for the next
-  improvement; saves before 28 load with `halvedCarryOver`, headless `--halved-carry-over`). Saves
+  improvement; saves before 28 load with `halvedCarryOver`, headless `--halved-carry-over`). Since save version 49
+  nothing is left over (asked for 2026-10-31: "when a unit/building production is complete - next production start
+  from 0"): whatever is finished, for every player, takes the whole box (saves before load with `leftoverShields`,
+  headless `--leftover-shields`). And a human player's city never turns to a default by itself (asked for the same day:
+  "do not select automatically the militia or any other default unit - always let the player select the next
+  production"; core `choosesNext`, `City.choosing`, saves before load with `defaultBuilds`, headless
+  `--default-builds`): founded, taken, having finished anything (a unit too), or its wonder built elsewhere or its unit
+  retired, it waits for its owner's pick, its shields gathering whole for it, nothing finished or bought meanwhile
+  (`buy` refused, "nothing chosen"); `production` stays a placeholder. Computer players' cities turn to their default
+  and go on with a finished unit as ever (the planner, seated for a human by headless `--human`, picks at once). The
+  production box says "Build what?", Choose lit, "Nothing chosen yet" (the domestic advisor "Nothing chosen"); founding
+  opens the city with "Rome: build what first?", and after the turn's news each city still waiting and not asked that
+  turn opens with its build menu, "Militia completed: build what next?" (the web app's `askChoices`); left without a
+  pick, it is asked again next turn. Head to head (planner vs v2, 16 x 300, Prince, city-states): 12-4, score 172 vs
+  106, cities 10.0 vs 6.4, pop 56 vs 34; with the leftovers as before 8-8, 160 vs 122; all replaying exactly. Saves
   before version 21 load with `compoundingPenalty`: every change of kind halved the box again. Its units (`cityUnits`: those in the city from any home, then those it
   supports elsewhere, faded, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
   sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
@@ -541,8 +558,8 @@ Never ship the original's sprites, palette art, fonts or text.
   it, Enter, V, Esc, the close box and a click on the city all open the city screen with its build menu up
   (`leaveBuilt`); the rule's `text` is the modern renderer's body only. Leaving the city, the
   turn's news goes on (`then`).
-  `Renderer.built`/`builtHit`. Finished units say nothing (the city goes on building them), except Settlers: they cost a
-  citizen, so their window asks what to build next (Build next...) over its city screen: "New Settlers in Rome",
+  `Renderer.built`/`builtHit`. Finished units have no window of their own (the city then waits for a choice, asked after
+  the news, see above), except Settlers: they cost a citizen, so their window asks what to build next (Build next...) over its city screen: "New Settlers in Rome",
   the user's picture of them on a slate in the square's window's frame (`MenuState.unit`, twice the map's size)
   beside one sentence on them and what they can do (asked for 2026-10-29: "add settler image. less technical";
   from 2026-10-24 it gave the city's size and yields before and after in numbers, which core still records on
@@ -551,9 +568,9 @@ Never ship the original's sprites, palette art, fonts or text.
   a notice"): after the turn's news each city of ours still building one that stands elsewhere (`wondersLost` in
   renderer-api `outbuilt.ts`) gets its build menu with the news above the list, "Wonder Built Elsewhere":
   where, by whom, and the shields it keeps (`wonderLostNotice`, the build menu's `body`; the web app's
-  `askWondersLost`); Esc leaves it be, to be asked again next turn. The rules are unchanged: a city whose box
-  fills on such a wonder still turns to its default, shields kept, and now says so (core's `outbuilt` city
-  event, which opens the same menu).
+  `askWondersLost`; a city's own finished wonder, its placeholder while it waits, is never one); Esc leaves it be, to be
+  asked again next turn. A city whose box fills on such a wonder keeps its shields and says so (core's `outbuilt`
+  city event, which opens the same menu): a computer's turns to its default, a human's waits (since save version 49).
   A city taken (`conquest.ts` in renderer-api and renderer-retro; asked for 2026-10-27: "a sad message (if lost) and
   celebration message + animation if player won"; core's `cityCaptured`/`cityLost` events carry the square, `plunder`,
   `capital` and the held city's `cityId`): one we take, once the unit has marched in (`tryMove`), glides the map to it
@@ -1547,7 +1564,8 @@ for; save version 40), told on the map as they appear.
    them as the advance comes (`discover`, a trade, the Debug grant; else at its turn) turns to its default
    (`defaultProduction`: Militia, or once they are retired the stoutest land defender it can build now, the
    cheaper on a tie; also what a new or taken city starts on and a city turns to after an improvement or
-   wonder); Militia in the field stay. Saves before version 39 load with `lastingUnits` (headless
+   wonder), a human player's waiting for its pick instead since save version 49 (`City.choosing`); Militia in the
+   field stay. Saves before version 39 load with `lastingUnits` (headless
    `--lasting-units`).
    Unit upkeep (`unitSupport`, `freeUnits` in `cities.ts`, `freeUnits` per government in
    `rules/governments.ts`; since save version 29, asked for 2026-10-24: "units should take resources

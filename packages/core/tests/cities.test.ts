@@ -10,6 +10,8 @@ import {
   bestFreeSlot,
   CITY_RADIUS,
   cityYieldGovernment,
+  foundCity,
+  processCityTurn,
   cityTileYield,
   computeCity,
   contentBase,
@@ -85,7 +87,7 @@ describe("settlers built", () => {
     const c = s.cities[0]!;
     c.size = 3;
     autoAssignWorkers(s, c);
-    c.production = { kind: "unit", id: "settlers" };
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id: "settlers" } });
     c.shields = 60;
     const before = computeCity(s, c);
     applyCommand(s, { type: "endTurn" });
@@ -349,6 +351,7 @@ describe("cities", () => {
     const u = createUnit(s, "settlers", 0, 10, 10);
     applyCommand(s, { type: "found", unit: u.id });
     const c = s.cities[0]!;
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id: "militia" } });
     // Size 1 box is 20; surplus 3/turn -> grows on the 7th turn.
     for (let i = 0; i < 7; i++) applyCommand(s, { type: "endTurn" });
     expect(c.size).toBe(2);
@@ -365,6 +368,7 @@ describe("cities", () => {
     applyCommand(s, { type: "found", unit: u.id });
     const c = s.cities[0]!;
     c.shields = 8;
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id: "militia" } });
     s.players[0]!.advances.push("pottery");
     expect(shieldsAfterChange(s, c, { kind: "building", id: "granary" })).toBe(4);
     applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
@@ -391,9 +395,9 @@ describe("cities", () => {
     expect(s.players[0]!.gold).toBe(1000 - cost);
     applyCommand(s, { type: "endTurn" });
     expect(c.buildings).toContain("granary");
-    // The event names what was finished, for the window that asks what comes next.
+    // The event names what was finished, for the window that asks what comes next; the city waits for that choice.
     expect(lastTurnEvents).toContainEqual({ city: c.id, kind: "built", detail: "Granary", production: { kind: "building", id: "granary" } });
-    expect(c.production).toEqual({ kind: "unit", id: "militia" });
+    expect(c.choosing).toBe(true);
   });
 
   it("halves the box on every change of kind for old saves, and counts a bought box as the turn's", () => {
@@ -403,6 +407,7 @@ describe("cities", () => {
     applyCommand(s, { type: "found", unit: u.id });
     const c = s.cities[0]!;
     c.shields = 8;
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id: "militia" } });
     s.players[0]!.advances.push("pottery");
     applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
     applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id: "militia" } });
@@ -416,6 +421,7 @@ describe("cities", () => {
     applyCommand(t, { type: "found", unit: v.id });
     const d = t.cities[0]!;
     t.players[0]!.gold = 1000;
+    applyCommand(t, { type: "setProduction", city: d.id, production: { kind: "unit", id: "militia" } });
     applyCommand(t, { type: "buy", city: d.id });
     expect(d.shields).toBe(10);
     t.players[0]!.advances.push("pottery");
@@ -425,9 +431,67 @@ describe("cities", () => {
     expect(d.shields).toBe(10);
   });
 
-  it("keeps a finished improvement's leftover shields for the next improvement or wonder, halving them only for a unit", () => {
+  it("starts the box afresh as anything is finished, and lets a human player choose every next production (save version 49)", () => {
+    const s = flatWorld();
+    s.players[0]!.advances.push("pottery", "bronze_working");
+    // A human player's new city waits for its choice: its shields gather, nothing is finished or bought.
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    expect(c.choosing).toBe(true);
+    c.shields = 30;
+    processCityTurn(s, c);
+    expect(s.units.some((u) => u.homeCity === c.id)).toBe(false);
+    expect(c.shields).toBeGreaterThan(30);
+    expect(applyCommand(s, { type: "buy", city: c.id })).toEqual({ ok: false, reason: "nothing chosen" });
+    // The pick takes the whole box, whatever its kind, and a change after it counts from the pick.
+    const box = c.shields;
+    expect(shieldsAfterChange(s, c, { kind: "building", id: "granary" })).toBe(box);
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
+    expect(c.choosing).toBeUndefined();
+    expect(c.shields).toBe(box);
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "temple" } });
+    expect(c.shields).toBe(box);
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id: "phalanx" } });
+    expect(c.shields).toBe(Math.floor(box / 2));
+    // Finished, the unit leaves an empty box and the city waits again.
+    c.shields = 25;
+    processCityTurn(s, c);
+    expect(s.units.filter((u) => u.type === "phalanx")).toHaveLength(1);
+    expect(c.shields).toBe(0);
+    expect(c.choosing).toBe(true);
+    // A computer player's city empties its box too, and goes on with the unit; after a building, its default.
+    const ur = foundCity(s, 1, 30, 10, "Ur");
+    expect(ur.choosing).toBeUndefined();
+    ur.production = { kind: "unit", id: "militia" };
+    ur.shields = 25;
+    processCityTurn(s, ur);
+    expect(ur.shields).toBe(0);
+    expect(ur.production).toEqual({ kind: "unit", id: "militia" });
+    ur.production = { kind: "building", id: "barracks" };
+    ur.shields = 70;
+    processCityTurn(s, ur);
+    expect(ur.buildings).toContain("barracks");
+    expect([ur.shields, ur.production.id]).toEqual([0, "militia"]);
+    // Taken, a city waits for a human conqueror's choice and stops waiting for a computer's (the barbarians' here).
+    c.size = 3;
+    captureCity(s, createUnit(s, "legion", 1, 11, 10), c);
+    expect(c.choosing).toBeUndefined();
+    c.size = 3;
+    captureCity(s, createUnit(s, "legion", 0, 11, 10), c);
+    expect(c.choosing).toBe(true);
+    // Saves before version 49 kept the leftover and turned a human player's city to its default.
+    const opts = { opponents: 1 as const };
+    const old = loadSave({ ...makeSave(newGame(3, opts), opts, []), version: 48 as const }, () => {}).state;
+    expect([old.leftoverShields, old.defaultBuilds]).toEqual([true, true]);
+    const now = loadSave(makeSave(newGame(3, opts), opts, []), () => {}).state;
+    expect([now.leftoverShields, now.defaultBuilds]).toEqual([undefined, undefined]);
+  });
+
+  it("kept a finished improvement's leftover shields for the next improvement or wonder, halving them only for a unit (saves before version 49)", () => {
     const finish = (old: boolean) => {
       const s = flatWorld();
+      s.leftoverShields = true;
+      s.defaultBuilds = true;
       if (old) s.halvedCarryOver = true;
       applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
       const c = s.cities[0]!;

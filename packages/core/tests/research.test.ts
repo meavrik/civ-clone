@@ -135,6 +135,8 @@ describe("research", () => {
 
   it("retires Militia with Gunpowder: off the list, a city building them turns to its stoutest defender; old saves keep them", () => {
     const s = flatWorld();
+    // As a computer player's city does (a human player's waits for its choice, `City.choosing`, since save version 49).
+    s.defaultBuilds = true;
     const p = s.players[0]!;
     p.advances.push("bronze_working");
     applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });

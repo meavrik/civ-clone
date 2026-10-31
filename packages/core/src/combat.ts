@@ -1,4 +1,4 @@
-import { cityAt, defaultProduction, hasWonder } from "./cities.js";
+import { choosesNext, cityAt, defaultProduction, hasWonder } from "./cities.js";
 import { chronicleOf } from "./chronicle.js";
 import { boughtOff, breakPeace, endCityState, unitCityState } from "./city-states.js";
 import { barbarianUnits } from "./barbarians.js";
@@ -200,6 +200,9 @@ export function captureCity(state: GameState, u: Unit, city: City): { captured: 
   city.food = 0;
   city.shields = 0;
   city.production = u.owner === state.barbarians ? { kind: "unit", id: barbarianUnits(state, "build")[0] ?? "militia" } : defaultProduction(state, city);
+  // A human conqueror chooses what it builds (`choosesNext`); a computer player's builds the default.
+  delete city.choosing;
+  if (choosesNext(state, u.owner)) city.choosing = true;
   // Its moods start afresh with its new master: no riots on the record, no festival.
   city.disorder = false;
   city.unrest = 0;

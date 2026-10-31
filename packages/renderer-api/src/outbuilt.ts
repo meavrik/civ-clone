@@ -16,7 +16,8 @@ export interface WonderLost {
 export function wondersLost(state: GameState, viewer: number): WonderLost[] {
   const out: WonderLost[] = [];
   for (const c of state.cities)
-    if (c.owner === viewer && c.production.kind === "wonder" && wonderBuilt(state, c.production.id)) out.push({ city: c.id, wonder: c.production.id });
+    // Not one the city finished itself, which stays its production while it waits for the next choice (`City.choosing`).
+    if (c.owner === viewer && c.production.kind === "wonder" && wonderBuilt(state, c.production.id) && !c.wonders.includes(c.production.id)) out.push({ city: c.id, wonder: c.production.id });
   return out;
 }
 

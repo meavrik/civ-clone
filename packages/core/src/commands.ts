@@ -25,6 +25,7 @@ import {
   type CityTurnEvent,
   shieldsAfterChange,
   retireProduction,
+  choosesNext,
 } from "./cities.js";
 import { maybeSpawnBarbarians } from "./barbarians.js";
 import { captureCity, checkElimination, resolveCombat } from "./combat.js";
@@ -754,6 +755,9 @@ function spy(state: GameState, u: Unit, action: DiplomatAction, x: number, y: nu
       city.disorder = false;
       city.unrest = 0;
       city.celebrating = false;
+      // Its new owner chooses what it builds (`choosesNext`), or it goes on as it was.
+      delete city.choosing;
+      if (choosesNext(state, me.id)) city.choosing = true;
       for (const o of state.units) if (o.owner === victim.id && o.x === city.x && o.y === city.y) o.owner = me.id;
       for (const dead of checkElimination(state)) lastTurnEvents.push({ kind: "eliminated", player: dead });
       detail = city.name;
@@ -990,9 +994,11 @@ function applyCityCommand(
       if (!allowed) return { ok: false, reason: "cannot build that here" };
       // Switching between unit and improvement loses half the box, like the original (see `shieldsAfterChange`).
       // A box not yet recorded for this turn (a city founded this turn) counts as it stands.
-      if (city.turnShields === undefined || city.turnKind === undefined) {
+      if (city.turnShields === undefined || city.turnKind === undefined || city.choosing) {
+        // A box gathered with nothing chosen (`City.choosing`) is the picked production's whole, so a change after counts from it.
         city.turnShields = city.shields;
-        city.turnKind = city.production.kind;
+        city.turnKind = city.choosing ? cmd.production.kind : city.production.kind;
+        delete city.choosing;
       }
       city.shields = shieldsAfterChange(state, city, cmd.production);
       city.production = cmd.production;
@@ -1050,6 +1056,7 @@ function applyCityCommand(
     }
     case "buy": {
       const p = state.players[city.owner]!;
+      if (city.choosing) return { ok: false, reason: "nothing chosen" };
       const cost = buyCost(state, city);
       if (cost === 0) return { ok: false, reason: "already complete" };
       if (city.production.kind === "unit") {
