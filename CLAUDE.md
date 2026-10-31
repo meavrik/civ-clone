@@ -1330,7 +1330,11 @@ Never ship the original's sprites, palette art, fonts or text.
   exports as they are (each stand-in `satisfies` its web counterpart's type). It reads `window.civ`
   (`screen`, `state`, `log`, `menu`) from web main.ts: keep that hook. Sideways only (asked for): the manifest
   asks for landscape, `touch.ts` locks it where the browser lets a page, and held upright index.html shows
-  "Turn your phone sideways" over the game.
+  "Turn your phone sideways" over the game (only where the pointer is coarse).
+  The deployed site (Netlify) is this app, so a desktop browser plays it too, with a mouse: there (the device's main
+  pointer fine, `fingers()` in its renderer, `matchMedia("(pointer: coarse)")` read live) every menu keeps the web
+  game's `DESK_MENU` rows, with no large setup buttons and no Choose button on the setup cards (asked for 2026-10-31:
+  "on prod web - show huge menus like its mobile"). Everything below about finger-sized menus holds where fingers play.
   Menus are sized for a finger (asked for 2026-10-25: "some menus are too small and hard to click",
   the web game unchanged): its renderer hands `TOUCH_MENU` (widgets.ts `MenuSize`) to `drawMenu`,
   `menuHit`, `menuRows`, `menuScrollAt` and `menuRect`, whose default is the original's `DESK_MENU`
