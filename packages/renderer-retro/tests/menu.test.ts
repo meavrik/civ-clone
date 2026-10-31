@@ -122,7 +122,7 @@ describe("menus", () => {
       const row = menuRowRect(game, 2, 320, size)!;
       expect(menuHit(game, row.x + row.w / 2, row.y + row.h / 2, 320, size)).toBe(2);
       expect(row.x + row.w).toBe(menuRect(game, 320, size).x + menuRect(game, 320, size).w);
-      const options: MenuState = { title: "", items: ["Borders", "Place Names", "Tutorial"], right: ["On", "On", "Off"], selected: 0, anchor: { x: row.x + row.w - 2, y: row.y - 2 } };
+      const options: MenuState = { title: "", items: ["Borders", "Place Names", "Civ Names"], right: ["On", "On", "Off"], selected: 0, anchor: { x: row.x + row.w - 2, y: row.y - 2 } };
       expect(menuRowRect(options, 0, 320, size)!.y).toBe(row.y);
       expect(menuHit(options, row.x + row.w + 10, row.y + row.h / 2, 320, size)).toBe(0);
     }

@@ -168,9 +168,6 @@ import {
   setupChoose,
   planMove,
   type MovePlan,
-  nextTip,
-  tipLine,
-  type Tip,
   setupMenu,
   setupOptions,
   terrainInfo,
@@ -681,51 +678,6 @@ function toggleMinimap(which: MinimapButton): void {
   try { localStorage.setItem(which === "names" ? "epochs.minimapNames" : "epochs.minimapBorders", on ? "on" : "off"); } catch { /* private mode */ }
   sound.play("click");
   say(`Minimap ${which} ${on ? "shown" : "hidden"}`);
-}
-
-/**
- * The tutorial (asked for 2026-10-27): renderer-api's tips, each shown once per browser in a small
- * window over the map when the map has been still a moment (`TIP_WAIT_MS`), until the player ends it
- * (a tip's End tutorial, or Game > Options > Tutorial, which also starts it over).
- */
-const tutorial = (() => {
-  try {
-    const t = JSON.parse(localStorage.getItem("epochs.tutorial") ?? "{}") as { on?: boolean; seen?: unknown };
-    return { on: t.on !== false, seen: new Set<string>(Array.isArray(t.seen) ? t.seen.filter((x): x is string => typeof x === "string") : []) };
-  } catch { return { on: true, seen: new Set<string>() }; }
-})();
-function saveTutorial(): void {
-  try { localStorage.setItem("epochs.tutorial", JSON.stringify({ on: tutorial.on, seen: [...tutorial.seen] })); } catch { /* private mode */ }
-}
-function setTutorial(on: boolean): void {
-  tutorial.on = on;
-  if (on) tutorial.seen.clear();
-  saveTutorial();
-}
-const TIP_WAIT_MS = 700;
-let stillSince: number | null = null;
-/** The phone app's renderer has no `mapView` (fingers drag its map), so its tips speak of taps. */
-const touchScreen = !renderer.mapView;
-
-/** A tip's window, standing clear of what it speaks of (else the unit in play); it is seen once shown. */
-function showTip(tip: Tip): void {
-  tutorial.seen.add(tip.id);
-  saveTutorial();
-  modal(`Tutorial: ${tip.title}`, [tipLine(tip, touchScreen)], ["Continue", "End tutorial"], (i) => {
-    if (i === 1) { setTutorial(false); say("Tutorial ended. Game > Options turns it on again.", 4000); }
-  }, 0, () => {});
-  const at = tip.focus ? tip.focus(state, 0) : state.activeUnit !== null ? unitById(state, state.activeUnit) : undefined;
-  const sq = at && renderer.squareRect?.(state, view, at.x, at.y);
-  if (sq && screenState.kind === "menu") screenState.menu.avoid = { x: sq.x + (sq.w >> 1), y: sq.y + (sq.h >> 1) };
-}
-
-/** Once the map has been still a moment, the next tip that is due (none while a unit slides, a window is up or the turn is handed on). */
-function tutorialStep(t: number, still: boolean): void {
-  if (!tutorial.on || !still) { stillSince = null; return; }
-  stillSince ??= t;
-  if (t - stillSince < TIP_WAIT_MS) return;
-  const tip = nextTip(state, 0, tutorial.seen);
-  if (tip) { stillSince = null; showTip(tip); }
 }
 
 /**
@@ -2124,7 +2076,6 @@ function switches(): [label: string, on: boolean, flip: () => void][] {
     ["Borders", borders, () => { setBorders(!borders); say(`Borders ${borders ? "on" : "off"}`); }],
     ["Civ Names", civNames, () => { setCivNames(!civNames); say(civNames ? (borders ? "Civilization names on" : "Civilization names on, shown with the borders") : "Civilization names off"); }],
     ["Place Names", placeNames, () => { setPlaceNames(!placeNames); say(`Place names ${placeNames ? "on" : "off"}`); }],
-    ["Tutorial", tutorial.on, () => { setTutorial(!tutorial.on); say(tutorial.on ? "Tutorial on: its tips start again" : "Tutorial off"); }],
   ];
 }
 
@@ -3908,9 +3859,6 @@ function frame(t: number): void {
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
   // What waits for the slides waits for a fight's zoom to end too, so the news opens on the player's zoom.
   if (!animating && afterSlides.length && screenState.kind === "map" && !battleZoom) for (const fn of afterSlides.splice(0)) fn();
-  // The tutorial's next tip, once the map has been still a moment (it holds off the turn's end below).
-  if ((state as GameState | undefined) && screenState.kind !== "title" && screenState.kind !== "setup" && screenState.kind !== "loading")
-    tutorialStep(t, screenState.kind === "map" && state.players[0]!.alive && !animating && !afterSlides.length && !handoff && !watching);
   // The last unit ordered this turn: the turn ends by itself a moment later (see `actedThisTurn`).
   const idle = screenState.kind === "map" && state.activeUnit === null && state.players[0]!.alive && !animating && !afterSlides.length && !handoff && !battleZoom;
   if (actedThisTurn && idle) {

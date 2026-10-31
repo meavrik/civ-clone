@@ -617,7 +617,7 @@ Never ship the original's sprites, palette art, fonts or text.
   Diplomacy, World, Debug) above map and panel; a `MenuState` with an `anchor` and an empty title is a bar
   dropdown; rows in its `disabled` list are drawn faded and never hit (the web app's `MenuEntry` fourth
   element; Game > Revolution! while `governmentsAvailable` offers one government only, asked for
-  2026-10-24). The game's switches (Borders, Place Names, Tutorial, each On or Off) are a submenu, Game >
+  2026-10-24). The game's switches (Sound, Music, Borders, Civ Names, Place Names, each On or Off) are a submenu, Game >
   Options ▸ (asked for 2026-10-27: "move all Game menu switch options to be sub menu under options"; the web
   app's `openOptions`, a menu `Screen` with `sub`): a dropdown opened beside the Options row
   (`Renderer.menuRowRect`), over the Game dropdown, which stays drawn under it; a pick flips the switch and
@@ -877,17 +877,8 @@ Never ship the original's sprites, palette art, fonts or text.
   of that history in two columns (icon, name, number), the wonders, and the verdict: the final score and rank, or
   for a fallen civilization the rank at its height ("At its height, your rule was Great."). `Renderer.end(card)`;
   retro `drawEndScreen` in `screens/title.ts`, modern a plain page.
-  Tutorial (`tutorial.ts` in renderer-api; asked for 2026-10-27: "add a short tutorial for new players"):
-  `TUTORIAL`, nine tips, one short sentence each (asked for the same day: "too many text. one sentence"; moving units, founding a city, your city, ending the turn, science, the map,
-  villages, defence, neighbours), each `due` at the moment it helps (the first unit in play, settlers with no
-  city, the first city, nothing left to order with a city, research from turn 2, the map from turn 4, a hut
-  in sight from turn 1, an unguarded city from turn 8, a civ met); `nextTip` gives the first due one not yet
-  seen; `touch` words for the phone (`tipLine`; the web app reads a renderer without `mapView` as the phone).
-  The web app shows it (`tutorialStep`) once the map has been still `TIP_WAIT_MS` (700 ms; before the turn
-  ends by itself) in a modal titled "Tutorial: ..." with Continue and End tutorial, standing clear of the
-  tip's `focus` square (its city, hut, unguarded city; else the unit in play). Each tip shows once per
-  browser (`epochs.tutorial` in localStorage: on, seen); End tutorial turns it off, Game > Options > Tutorial turns it
-  on again and starts it over. UI only: nothing in the rules, the log or the saves.
+  No tutorial: the one added 2026-10-27 (nine one-sentence tips in a window as each came due) was removed
+  2026-10-31, asked for: "tutorial is bad - remove completly".
   New Technology window (`newtech.ts`; asked for 2026-10-23 with the user's template and a picture for
   each advance): every advance found (end of turn, village, diplomat, treaty, Debug) gets one, in turn
   (`announce` in the web app), before the research panel; a small window over the game since 2026-10-24
