@@ -60,6 +60,7 @@ import { landOwner } from "./territory.js";
 import { chronicleOf, notePeaks } from "./chronicle.js";
 import { boughtOff, demandOn, dropDemand, noteDemand, payTribute, settleCityStates, tributePrice, unitCityState, whyNoDemand } from "./city-states.js";
 import { addTrade, endTrades, missingResources, settleTrades, whyNoTrade } from "./resources.js";
+import { advanceWorth, applyExchange, payTrades, resourceWorth, whyNoExchange } from "./exchange.js";
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances } from "./rules/advances.js";
 import { researchCostFor } from "./levels.js";
 import { building } from "./rules/buildings.js";
@@ -69,7 +70,7 @@ import { newSpaceship, shipStats } from "./rules/spaceship.js";
 import { MOVE_FRAC, TERRAIN_RULES, WARMING_LIMIT, WARMING_THRESHOLD } from "./rules/terrain.js";
 import { HEALING, unitType } from "./rules/units.js";
 import { nextInt } from "./rng.js";
-import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type CityFocus, type GameState, type Player, type Production, type Proposal, type Specialist, type Unit, type WorkKind } from "./types.js";
+import { CITY_RADIUS, getTile, NEIGHBOURS, Terrain, wrapX, type City, type CityFocus, type GameState, type DealSide, type Player, type Production, type Proposal, type Specialist, type Unit, type WorkKind } from "./types.js";
 import { FOCI } from "./rules/focus.js";
 import { applyMove, attrition, cargo, checkMove, createUnit, deepWater, fullMoves, hugsCoast, lastActions, maxHp, sinkingShips, unitById, whyNoWork, workOptions } from "./units.js";
 import { traitAnarchyCap, traitFriendlyVillages, traitMoves } from "./traits.js";
@@ -131,6 +132,7 @@ export type Command =
   | { type: "giveAdvance"; player: number; advance: string }
   | { type: "exchangeAdvances"; player: number; give: string; receive: string }
   | { type: "tradeResources"; player: number; give?: string; receive?: string } // we let `player` have `give`, it lets us have `receive`: a swap, a gift, or one bought (its gold given first)
+  | { type: "exchange"; player: number; give: DealSide; take: DealSide } // we hand `player` `give`, it hands us `take`, all at once (since save version 51)
   | { type: "endTrade"; player: number } // call off every resource trade with `player`
   | { type: "launch" } // the spaceship, once it can fly
   | { type: "cityStateDemand"; city: number; player: number; target?: number } // a city-state (the barbarians' seat) demands tribute of `player`, its soldiers set out for `target`
@@ -185,7 +187,7 @@ export type TurnEvent =
   | { kind: "spy"; action: DiplomatAction; detail: string; target: string }
   | { kind: "nuked"; x: number; y: number; by: number; stopped: boolean }
   // A trade of resources ended: `by` could no longer give its side, went to war, or called it off.
-  | { kind: "tradeEnded"; a: number; b: number; give: string; take?: string; by: number; why: "lost" | "war" | "ended" };
+  | { kind: "tradeEnded"; a: number; b: number; give: string; take?: string; pay?: number; by: number; why: "lost" | "war" | "ended" | "unpaid" };
 
 export type HutResult =
   | { kind: "gold"; amount: number }
@@ -453,8 +455,24 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       const them = state.players[cmd.player];
       if (!them || !hasContact(state, me.id, them.id)) return { ok: false, reason: "no contact" };
       if (!me.advances.includes(cmd.advance)) return { ok: false, reason: "we don't know that" };
-      if (!them.advances.includes(cmd.advance)) them.advances.push(cmd.advance);
+      // A gift of knowledge sways its receiver as gold would, at what it is worth to them (since save version 51).
+      if (!them.advances.includes(cmd.advance)) {
+        if (!state.plainGifts) recordGift(state, me.id, them.id, advanceWorth(state, them.id));
+        them.advances.push(cmd.advance);
+      }
       retireProduction(state, them.id);
+      return { ok: true };
+    }
+    case "exchange": {
+      const me = state.currentPlayer;
+      const why = whyNoExchange(state, me, cmd.player, cmd.give, cmd.take);
+      if (why) return { ok: false, reason: why };
+      // Advances: ours found as any (`discover`); theirs learned out of their turn, as `exchangeAdvances` has it.
+      applyExchange(state, me, cmd.player, cmd.give, cmd.take, (to, a) => {
+        if (to === me) { discover(state, me, a); return; }
+        state.players[to]!.advances.push(a);
+        retireProduction(state, to);
+      });
       return { ok: true };
     }
     case "exchangeAdvances": {
@@ -473,6 +491,8 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       if (why) return { ok: false, reason: why };
       if (cmd.give) addTrade(state, me, cmd.player, cmd.give, cmd.receive);
       else addTrade(state, cmd.player, me, cmd.receive!);
+      // A resource given for nothing is a gift, and sways its receiver as gold would (since save version 51).
+      if (cmd.give && !cmd.receive && !state.plainGifts) recordGift(state, me, cmd.player, resourceWorth(state, cmd.player));
       return { ok: true };
     }
     case "endTrade": {
@@ -1443,6 +1463,8 @@ export function startTurn(state: GameState, player: number): void {
   for (const k of Object.keys(state.proposals ?? {})) if (k.startsWith(`${player}>`)) delete state.proposals![k];
   // Resource trades whose giver has lost what it gave, or whose sides are at war, end now.
   for (const { trade, by, why } of settleTrades(state)) lastTurnEvents.push({ kind: "tradeEnded", ...trade, by, why });
+  // It pays for the resources it takes by the turn; one it cannot pay for ends (since save version 51).
+  for (const trade of payTrades(state, player)) lastTurnEvents.push({ kind: "tradeEnded", ...trade, by: player, why: "unpaid" });
   selectNextUnit(state, null);
 }
 

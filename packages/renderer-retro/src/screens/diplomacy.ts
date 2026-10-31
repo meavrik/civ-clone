@@ -4,7 +4,7 @@ import { drawSpaced, drawText, FONT_HEIGHT, spacedWidth, textWidth, wrapText } f
 import { drawIconLine, iconLineWidth, wrapIcons } from "../icons.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { dimScreen, hideArtUnder, drawCloseBox, drawEntering, drawStone, DIM, INK, litStone, TITLE_H } from "../widgets.js";
+import { dimScreen, hideArtUnder, drawCloseBox, drawEntering, drawStone, DIM, enteringBox, INK, litStone, TITLE_H } from "../widgets.js";
 
 /**
  * The audience with a foreign leader, after the user's mock-up (2026-10-22), as a window over the map
@@ -12,7 +12,8 @@ import { dimScreen, hideArtUnder, drawCloseBox, drawEntering, drawStone, DIM, IN
  * screen", the encounter and diplomacy window named): the game darkened behind it, the realm's name in
  * gold on a navy title strip with a close box (Esc: back a screen, or farewell), room on the stone for
  * the user's picture of the leader in their palace (`audiencePicture`: the apps lay the picture itself
- * over the canvas there, as it is, since the palette cannot hold it; beneath, a dusk sky), then a navy
+ * over the canvas there, as it is, since the palette cannot hold it, growing with the window as it opens:
+ * `diplomacyPicture`; beneath, the darkest stone), then a navy
  * panel with the leader's name and their words, and our choices as up to four of the game's stone
  * buttons. A civilization's card (`DiplomacyView.card`) shows the leader's portrait at the left
  * (`cardPicture`) with the card's sections beside it (since 2026-10-29, asked for: "split to sections of
@@ -47,8 +48,9 @@ function layout(o: Rect, low = false) {
     /** The leader's portrait on a civilization's card, at the left; the card's lines beside it. */
     portrait: at(o, 8, 15, 94, 118),
     cardText: at(o, 110, 15, o.w - 116, panelY - 17),
-    panel: at(o, 2, panelY, o.w - 4, 27),
-    rows: low ? [o.y + 169, o.y + 169] : [o.y + 154, o.y + 169],
+    // The leader's name and two lines of words, clear of the frame's bevel (2026-10-31: a second line sat on it).
+    panel: at(o, 2, panelY, o.w - 4, 29),
+    rows: low ? [o.y + 171, o.y + 171] : [o.y + 156, o.y + 170],
   };
 }
 
@@ -63,6 +65,16 @@ export function audiencePicture(screenW = SCREEN_W): Rect {
 /** Where the leader's portrait goes on a civilization's card, on a screen `screenW` wide. */
 export function cardPicture(screenW = SCREEN_W): Rect {
   return layout(audienceRect(screenW)).portrait;
+}
+
+/**
+ * Where the leader's picture stands as `view` is drawn (the palace, or on a card the portrait), on a screen `screenW`
+ * wide, growing with the window as it opens (asked for 2026-10-31: the room for the picture showed "a bluish color"
+ * a few moments as the window grew, the picture laid only once it stood whole).
+ */
+export function diplomacyPicture(view: DiplomacyView, screenW = SCREEN_W): Rect {
+  const box = view.card ? cardPicture(screenW) : audiencePicture(screenW);
+  return enteringBox(view.enter ?? 1, audienceRect(screenW), box);
 }
 
 const NAVY = () => shade("azure", 0);
@@ -163,14 +175,14 @@ function drawNow(s: Surface, state: GameState, view: DiplomacyView): void {
 }
 
 /**
- * A civilization's card: a sunken frame (in the mood's colour) for the leader's portrait (a dusk sky
- * beneath, seen until it loads), its sections beside it, each a heading ruled across in dim ink over its
+ * A civilization's card: a sunken frame (in the mood's colour) for the leader's portrait (standing on a dusk
+ * sky, as on the setup cards), its sections beside it, each a heading ruled across in dim ink over its
  * rows, as many as fit.
  */
 function drawCard(s: Surface, l: ReturnType<typeof layout>, sections: CardSection[], frame: number): void {
   const p = l.portrait;
   framed(s, { x: p.x - 2, y: p.y - 2, w: p.w + 4, h: p.h + 4 }, frame);
-  sky(s, p);
+  duskSky(s, p);
   const { x, w } = l.cardText;
   const bottom = l.cardText.y + l.cardText.h;
   let y = l.cardText.y;
@@ -200,15 +212,23 @@ function cardRows(line: string, w: number): { text: string; indent: number }[] {
   return wrapText(lead[2]!, w - indent).map((text, i) => (i ? { text, indent } : { text: lead[1]! + text, indent: 0 }));
 }
 
-/** The leader's picture's place: a frame two pixels thick in the mood's colour round a dusk sky (seen only until the picture has loaded). */
+/** The leader's picture's place: a frame two pixels thick in the mood's colour round the darkest stone (seen only until the picture has loaded). */
 function drawScene(s: Surface, b: Rect, frame: number): void {
   s.frame(b.x - 2, b.y - 2, b.w + 4, b.h + 4, frame);
   s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, frame);
   sky(s, b);
 }
 
-/** A dusk sky, dithered from navy to blue down the box. */
+/**
+ * The bed under the leader's palace picture, seen only until it has loaded: the darkest stone, not the dusk sky it was
+ * (asked for 2026-10-31: "we see for a few moments a bluish color were the leader image should be - not good").
+ */
 function sky(s: Surface, b: Rect): void {
+  s.rect(b.x, b.y, b.w, b.h, shade("panel", 0));
+}
+
+/** A dusk sky, dithered from navy to blue down the box: the backdrop a card's portrait (a figure cut out) stands on, as on the setup cards. */
+function duskSky(s: Surface, b: Rect): void {
   const k = s.k;
   for (let fy = 0; fy < b.h * k; fy++) {
     const f = (fy / (b.h * k)) * 3;

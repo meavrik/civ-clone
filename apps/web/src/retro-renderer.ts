@@ -14,8 +14,7 @@ import {
   diplomacyChoiceAt,
   diplomacyCloseAt,
   drawDiplomacyScreen,
-  audiencePicture,
-  cardPicture,
+  diplomacyPicture,
   LEADER_PORTRAITS,
   ratesHit,
   drawNewTech,
@@ -144,11 +143,9 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     diplomacy: (state, view) => {
       drawDiplomacyScreen(screen, state, view);
-      // The leader's picture as it is, over the room the window leaves for it once it stands whole: the palace, or on a civilization's card the portrait.
-      if ((view.enter ?? 1) < 1) return;
-      const scene = view.card
-        ? portraitPlace(LEADER_PORTRAITS[civ(state.players[view.player]!.civ).id] ?? "king", { ...cardPicture(), ...screenBox })
-        : scenePlace(state, view.player, { ...audiencePicture(), ...screenBox });
+      // The leader's picture as it is, over the room the window leaves for it, growing with the window as it opens: the palace, or on a civilization's card the portrait.
+      const box = { ...diplomacyPicture(view), ...screenBox };
+      const scene = view.card ? portraitPlace(LEADER_PORTRAITS[civ(state.players[view.player]!.civ).id] ?? "king", box) : scenePlace(state, view.player, box);
       if (scene) pictures.push(scene);
     },
     diplomacyChoiceAt: (view, px, py) => diplomacyChoiceAt(view, px, py),

@@ -433,6 +433,19 @@ export function menuScrollAt(m: MenuState, px: number, py: number, screenW = SCR
  * stays put: the city a window points at), each fine pixel from the nearest of the whole. At 1 it is
  * drawn in place.
  */
+/**
+ * Where a box of a window stands while the window is on its way open (`enter` 0..1, as `drawEntering` grows it about
+ * its centre), in screen pixels: so a picture laid over the canvas grows with the window it sits in.
+ */
+export function enteringBox(enter: number, rect: { x: number; y: number; w: number; h: number }, box: { x: number; y: number; w: number; h: number }): { x: number; y: number; w: number; h: number } {
+  if (enter >= 1) return box;
+  const f = 0.4 + 0.6 * Math.max(0, enter);
+  // As `drawEntering` has it: the window and its shadow (two pixels more each way) grown about their middle.
+  const cx = rect.x + (rect.w + 2) / 2;
+  const cy = rect.y + (rect.h + 2) / 2;
+  return { x: cx + (box.x - cx) * f, y: cy + (box.y - cy) * f, w: box.w * f, h: box.h * f };
+}
+
 export function drawEntering(s: Surface, enter: number, rect: { x: number; y: number; w: number; h: number }, draw: (s: Surface) => void, from?: { x: number; y: number }): void {
   if (enter >= 1) { draw(s); return; }
   const scratch = new Surface(s.width, s.height, undefined, s.k);

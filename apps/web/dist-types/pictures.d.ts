@@ -60,7 +60,10 @@ export declare function preloadTech(id: string | null | undefined): void;
 export declare function preloadUnits(state: GameState): void;
 /** Fetch and decode the pictures of the cities as a game starts or loads (twelve: three ages by four sizes). */
 export declare function preloadCities(): void;
-/** Fetch and decode the audience pictures of a game's leaders as it starts, so an audience never waits for one. */
+/**
+ * Fetch and decode the audience pictures of a game's leaders as it starts, and their portraits (a civilization's card,
+ * an exchange's table), so an audience never waits for one.
+ */
 export declare function preloadScenes(state: GameState): void;
 /** Show these pictures over `canvas` and no others. Call once a frame; it changes the page only where something moved. */
 export declare function showPictures(canvas: HTMLCanvasElement, places: PicturePlace[]): void;

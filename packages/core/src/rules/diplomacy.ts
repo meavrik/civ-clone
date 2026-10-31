@@ -15,6 +15,17 @@ export const GOLD_WORTH = {
 } as const;
 
 /**
+ * What a gift other than gold is worth to its receiver, in gold (since save version 51, asked for 2026-10-31: "offer a
+ * gift (to improve relationship) with also other options"): an advance as many gold as the beakers of the receiver's
+ * next advance (`researchCostFor`), a strategic resource this share of what gold is worth to the receiver (the computer
+ * leaders' price for one, the AI's `resourcePrice`). Weighed for goodwill as gold is, and by the leaders in an exchange.
+ */
+export const GIFT_WORTH = {
+  perBeaker: 1,
+  resource: 0.5,
+} as const;
+
+/**
  * Goodwill: gold given within `turns` turns, worth `share` of what gold is worth to the receiver all
  * told, leaves its leader a step warmer toward the giver (the AI's `attitude`). Not in saves before
  * version 37 (`noGoodwill`).

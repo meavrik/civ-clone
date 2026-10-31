@@ -122,11 +122,16 @@ export function preloadCities(): void {
   for (const id of Object.keys(CITY_ART)) imageFor(cityUrl(id));
 }
 
-/** Fetch and decode the audience pictures of a game's leaders as it starts, so an audience never waits for one. */
+/**
+ * Fetch and decode the audience pictures of a game's leaders as it starts, and their portraits (a civilization's card,
+ * an exchange's table), so an audience never waits for one.
+ */
 export function preloadScenes(state: GameState): void {
   for (const p of state.players) {
     const name = LEADER_PORTRAITS[civ(p.civ).id];
-    if (name) imageFor(sceneUrl(name));
+    if (!name) continue;
+    imageFor(sceneUrl(name));
+    imageFor(portraitUrl(name));
   }
 }
 

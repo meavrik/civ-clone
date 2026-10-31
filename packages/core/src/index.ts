@@ -24,6 +24,7 @@ export * from "./sites.js";
 export * from "./diplomacy.js";
 export * from "./territory.js";
 export * from "./resources.js";
+export * from "./exchange.js";
 export * from "./pathfind.js";
 export * from "./combat.js";
 export * from "./barbarians.js";

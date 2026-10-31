@@ -1,6 +1,12 @@
 import {
   advance,
+  advanceWorth,
   applyCommand,
+  emptySide,
+  resourceWorth,
+  tradeIncome,
+  whyNoExchange,
+  type DealSide,
   canExport,
   exportable,
   hasResource,
@@ -1016,6 +1022,46 @@ export function resourceAsk(state: GameState, them: number, me: number): string 
   return theirs.find((id) => wantsResource(state, them, id)) ?? theirs[0] ?? null;
 }
 
+/**
+ * How a leader weighs an exchange the player puts to it (asked for 2026-10-31; since save version 51): gold a turn as
+ * this many turns of it, an advance it gives away at this share of its worth (it keeps the knowledge, and loses only its
+ * lead), a resource it wants at its worth and one it has no use for at `unwanted` of it, a spare one it gives at `spare`
+ * of it; a wary leader asks `wary` times what it gives.
+ */
+export const DEAL = {
+  turns: 12,
+  keep: 0.5,
+  unwanted: 0.25,
+  spare: 0.5,
+  wary: 1.25,
+} as const;
+
+/** Why a leader turns an exchange down: hostile, asked for what it cannot spare, a payment it cannot keep up, or too little for it. */
+export type ExchangeRefusal = "hostile" | "needs" | "afford" | "value";
+
+/**
+ * Does `them` take `me`'s exchange (`give`: from `me`; `take`: from `them`)? Not while hostile, nor for a resource
+ * it cannot spare (`spareResources`) or gold a turn past what its cities bring in; else when what it gets is worth
+ * what it gives (`DEAL`; `advanceWorth` and `resourceWorth` weigh the goods). `short`: the gold that would make it
+ * agree on value.
+ */
+export function exchangeAnswer(state: GameState, them: number, me: number, give: DealSide, take: DealSide): { accept: boolean; short: number; why?: ExchangeRefusal } {
+  if (whyNoExchange(state, me, them, give, take)) return { accept: false, short: 0, why: "value" };
+  const mood = attitude(state, them, me);
+  if (mood === "hostile") return { accept: false, short: 0, why: "hostile" };
+  const spare = spareResources(state, them);
+  if ((take.resources ?? []).some((r) => !spare.includes(r))) return { accept: false, short: 0, why: "needs" };
+  if ((take.perTurn ?? 0) > Math.max(0, goldPerTurn(state, them) + tradeIncome(state, them))) return { accept: false, short: 0, why: "afford" };
+  const adv = advanceWorth(state, them);
+  const res = resourceWorth(state, them);
+  const gain = (give.gold ?? 0) + (give.perTurn ?? 0) * DEAL.turns + (give.advances?.length ?? 0) * adv
+    + (give.resources ?? []).reduce((n, r) => n + (wantsResource(state, them, r) ? res : res * DEAL.unwanted), 0);
+  const cost = (take.gold ?? 0) + (take.perTurn ?? 0) * DEAL.turns + (take.advances?.length ?? 0) * adv * DEAL.keep
+    + (take.resources?.length ?? 0) * res * DEAL.spare;
+  const need = cost * (mood === "wary" ? DEAL.wary : 1);
+  if (gain >= need && !(emptySide(give) && emptySide(take))) return { accept: true, short: 0 };
+  return { accept: false, short: Math.max(10, Math.ceil((need - gain) / 10) * 10), why: "value" };
+}
 
 /**
  * Resources with other computer civilizations not at war with us: one for one, each side's spare for

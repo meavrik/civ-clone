@@ -1,4 +1,4 @@
-import { alliance, allied, atPeace, atWar, bordersOpen, civ, civInfluence, esteem, exportable, goldScale, GOVERNMENTS, hasContact, hasPact, hasResource, pactUntil, relation, resourceHoldings, tradesOf, tradeSides, trespassers, warBarred, type GameState } from "@civ/core";
+import { advance, alliance, allied, atPeace, atWar, bordersOpen, civ, civInfluence, emptySide, esteem, exportable, goldScale, GOVERNMENTS, hasContact, hasPact, hasResource, MAX_PER_TURN, pactUntil, relation, resourceHoldings, resourceWorth, tradesOf, tradeSides, trespassers, warBarred, type DealSide, type GameState } from "@civ/core";
 
 /**
  * The audience with a foreign leader (redone 2026-10-22, asked for, after the user's mock-up "Caesar
@@ -58,26 +58,23 @@ const MOOD_ICON: Record<LeaderMood, string> = { friendly: "happy", wary: "people
 
 /**
  * What the Diplomacy tab's card says of civilization `player`, in sections (asked for 2026-10-29: "split to
- * sections of civ stats etc. improve content design"): their realm (government, capital, cities,
- * citizens, advances, gold), how they stand toward us (their mood, the AI's `attitude`; our treaty, pact or
- * alliance; what they make of our influence; their units on our land), their people's trait, and their
+ * sections of civ stats etc. improve content design"): their realm (government and capital: since 2026-10-31 no
+ * more, asked for: "remove stats that you should not know in this stage like how many cities, advances and gold a
+ * civ have", so neither their citizens), how they stand toward us (their mood, the AI's `attitude`; our treaty, pact
+ * or alliance; what they make of our influence; their units on our land), their people's trait, and their
  * strategic resources with our trades.
  */
 export function civCard(state: GameState, player: number, mood: LeaderMood): CardSection[] {
   const me = state.currentPlayer;
   const p = state.players[player]!;
   const c = civ(p.civ);
-  const cities = state.cities.filter((x) => x.owner === player);
-  const capital = cities.find((x) => x.buildings.includes("palace"));
-  const citizens = cities.reduce((n, x) => n + x.size, 0);
+  const capital = state.cities.find((x) => x.owner === player && x.buildings.includes("palace"));
   const regard = esteem(state, player, me);
   const onOurLand = trespassers(state, me, player).length;
   const goods = state.noResources ? null : resourceHoldings(state, player).filter((h) => h.own > 0).map((h) => h.id);
   return [
     { title: "Realm", lines: [
       `{crown} ${GOVERNMENTS[p.government]?.name ?? p.government}  {city} ${capital ? capital.name : "No capital"}`,
-      `{house} ${plural(cities.length, "city", "cities")}  {people} ${plural(citizens, "citizen")}`,
-      `{bulb} ${plural(p.advances.length, "advance")}  {coin} ${p.gold} gold`,
     ] },
     { title: "Toward us", lines: [
       `{${MOOD_ICON[mood]}} ${MOOD_WORDS[mood]}. ${treaty(state, me, player, true).text}.`,
@@ -88,8 +85,6 @@ export function civCard(state: GameState, player: number, mood: LeaderMood): Car
     ...(goods ? [{ title: "Resources", lines: [`${goods.length ? goods.join(", ") : "None"}.${tradeWords(state, me, player)}`] }] : []),
   ];
 }
-
-const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 /** What our envoy says on the card while no leader has answered: whose court it stands at. */
 export function envoyLine(state: GameState, player: number): string {
@@ -128,13 +123,16 @@ export function leaderTitle(state: GameState, player: number): string {
  * civs"). Each button is something we say; the leader's answer becomes their words and the buttons
  * after it follow from it: nothing already said, no demand or war once the talk has turned friendly
  * (a treaty, a deal, a gift), no proposal or gift once it has turned hostile (a demand), nothing that
- * needs a treaty before there is one. What we may say falls under three subjects: proposals (peace;
- * with Writing open borders, at peace; with Trade knowledge), gifts (gold; with Trade an advance) and
- * demands (their units off our land, tribute with Writing, closing borders, war). The exchange of maps
- * is gone (asked for 2026-10-27; core's `shareMaps` stays for the logs that hold it).
+ * needs a treaty before there is one. What we may say falls under three subjects: proposals (peace, a pact,
+ * an alliance; with Writing open borders, at peace; an exchange), gifts (gold, an advance, with Currency a
+ * resource) and demands (their units off our land, tribute with Writing, closing borders, war). The exchange
+ * of maps is gone (asked for 2026-10-27; core's `shareMaps` stays for the logs that hold it). Since 2026-10-31
+ * (asked for: "give gold - why? - replace with offer a gift (to improve relationship) with also other options",
+ * "add exchange as a inner new section") the gifts are always one button, Offer a gift, opening what to give, and
+ * the trades of knowledge and of resources are one exchange of gold, advances and resources (`dealCard`).
  */
 export type TalkSubject = "propose" | "gift" | "demand";
-export type TalkTopic = "peace" | "pact" | "alliance" | "openBorders" | "knowledge" | "resources" | "gold" | "advance" | "resource" | "leave" | "tribute" | "closeBorders" | "endTrade" | "war";
+export type TalkTopic = "peace" | "pact" | "alliance" | "openBorders" | "exchange" | "gold" | "advance" | "resource" | "leave" | "tribute" | "closeBorders" | "endTrade" | "war";
 export type TalkTone = "friendly" | "hostile";
 
 /** What a talk remembers: what we have said, the turn it has taken, the subject last talked of. */
@@ -178,7 +176,7 @@ export function giftThanks(state: GameState, them: number, weight: GiftWeight): 
 }
 
 export const TALK_SUBJECT: Record<TalkTopic, TalkSubject> = {
-  peace: "propose", pact: "propose", alliance: "propose", openBorders: "propose", knowledge: "propose", resources: "propose",
+  peace: "propose", pact: "propose", alliance: "propose", openBorders: "propose", exchange: "propose",
   gold: "gift", advance: "gift", resource: "gift",
   leave: "demand", tribute: "demand", closeBorders: "demand", endTrade: "demand", war: "demand",
 };
@@ -195,14 +193,13 @@ export function allianceTargets(state: GameState, me: number, them: number): num
 }
 
 /**
- * What `me` may say to `them` now, by subject (`swap`: they would trade knowledge, the AI's `tradeAsk`;
- * `goods`: they would let us have a strategic resource, the AI's `resourceOffers`). Peace while there is
- * no treaty; a non-aggression pact while none stands and an alliance against a civilization both know,
- * out of war (since save version 41); open borders only at peace; no gift at war. With Currency,
- * resources: a trade, a gift of one they lack, and calling off the trades we have. No war on an ally or
- * a civilization we have a pact with.
+ * What `me` may say to `them` now, by subject (`exchange`: there is something an exchange could hand either way,
+ * `exchangeGoods`). Peace while there is no treaty; a non-aggression pact while none stands and an alliance against a
+ * civilization both know, out of war (since save version 41); open borders only at peace; no gift or exchange at war.
+ * Gifts: gold, an advance they lack, with Currency a resource they lack. With Currency, calling off the trades of
+ * resources we have. No war on an ally or a civilization we have a pact with.
  */
-export function talkTopics(state: GameState, me: number, them: number, memo: TalkMemo, swap: boolean, goods = false): Record<TalkSubject, TalkTopic[]> {
+export function talkTopics(state: GameState, me: number, them: number, memo: TalkMemo, exchange = false): Record<TalkSubject, TalkTopic[]> {
   const us = state.players[me]!;
   const they = state.players[them]!;
   const knows = (id: string) => us.advances.includes(id);
@@ -217,12 +214,11 @@ export function talkTopics(state: GameState, me: number, them: number, memo: Tal
       ["pact", !war && !hasPact(state, me, them) && !allied(state, me, them)],
       ["alliance", !war && !allied(state, me, them) && allianceTargets(state, me, them).length > 0],
       ["openBorders", peace && knows("writing") && !open],
-      ["knowledge", !war && knows("trade") && swap],
-      ["resources", !war && coins && goods],
+      ["exchange", !war && exchange],
     ]),
     gift: memo.tone === "hostile" || war ? [] : fresh([
       ["gold", giftAmounts(us.gold).length > 0],
-      ["advance", knows("trade") && us.advances.some((a) => !they.advances.includes(a))],
+      ["advance", us.advances.some((a) => !they.advances.includes(a))],
       ["resource", coins && exportable(state, me).some((id) => !hasResource(state, them, id))],
     ]),
     demand: memo.tone === "friendly" ? [] : fresh([
@@ -238,15 +234,16 @@ export function talkTopics(state: GameState, me: number, them: number, memo: Tal
 /**
  * The talk's buttons, never more than `AUDIENCE_CHOICES`, the farewell last: each subject's topics
  * spread out where they fit, else the subject as one button. The subject just talked of spreads first,
- * so the talk follows its thread; then proposals, gifts, demands.
+ * so the talk follows its thread; then proposals, gifts, demands. Gifts never spread: Offer a gift opens
+ * what to give (asked for 2026-10-31: a lone "Give gold" said nothing of why).
  */
 export function talkButtons(topics: Record<TalkSubject, TalkTopic[]>, memo: TalkMemo): TalkButton[] {
   const live = SUBJECTS.filter((s) => topics[s].length);
-  const spread = new Set(live.filter((s) => topics[s].length === 1));
+  const spread = new Set(live.filter((s) => topics[s].length === 1 && s !== "gift"));
   let count = live.length + 1;
   const thread = memo.subject && live.includes(memo.subject) ? [memo.subject, ...live.filter((s) => s !== memo.subject)] : live;
   for (const s of thread) {
-    if (spread.has(s) || count + topics[s].length - 1 > AUDIENCE_CHOICES) continue;
+    if (spread.has(s) || s === "gift" || count + topics[s].length - 1 > AUDIENCE_CHOICES) continue;
     spread.add(s);
     count += topics[s].length - 1;
   }
@@ -262,12 +259,11 @@ export function topicLabel(state: GameState, me: number, them: number, topic: Ta
     case "pact": return "Non-aggression pact";
     case "alliance": return "Alliance against...";
     case "openBorders": return "Open borders";
-    case "knowledge": return "Trade knowledge";
-    case "resources": return "Trade resources";
-    case "resource": return "Give a resource";
+    case "exchange": return "Make an exchange";
+    case "resource": return "A resource";
     case "endTrade": return "End our trade";
-    case "gold": return "Give gold";
-    case "advance": return "Give an advance";
+    case "gold": return "Gold";
+    case "advance": return "An advance";
     case "leave": return "Demand they leave our land";
     case "tribute": return "Demand tribute";
     case "closeBorders": return "Close borders";
@@ -288,6 +284,102 @@ export const SUBJECT_WORDS: Record<TalkSubject, Record<LeaderMood, string>> = {
   gift: { friendly: "A gift between friends? Show us.", wary: "A gift? Let us see it.", hostile: "Gifts will not buy our favour. But show us." },
   demand: { friendly: "Demands? We had thought you a friend.", wary: "Demands? Speak them, then.", hostile: "You dare make demands of us?" },
 };
+
+// ---- exchanges (since save version 51) ----------------------------------------------------
+
+/** Something one side of an exchange may put on the table. */
+export type DealItem = { kind: "gold"; gold: number } | { kind: "perTurn"; gold: number } | { kind: "advance"; id: string } | { kind: "resource"; id: string };
+
+/**
+ * What `from` may put on its side of an exchange with `to` (`side`; `other` is the other side): gold (a tenth, a
+ * quarter or half its treasury), gold a turn for the resources the other side gives (`perTurnAmounts`), with Trade the
+ * advances `to` lacks, with Currency the resources it may trade that `to` lacks (`resources`, when given: those it
+ * would part with, the AI's `resourceOffers`). Trade and Currency are `me`'s, who makes the exchange. What is on the
+ * table already comes too, to be taken back.
+ */
+export function dealItems(state: GameState, me: number, from: number, to: number, side: DealSide, other: DealSide, resources?: string[]): DealItem[] {
+  const knows = (id: string) => state.players[me]!.advances.includes(id);
+  const giver = state.players[from]!;
+  const taker = state.players[to]!;
+  const out: DealItem[] = giftAmounts(giver.gold).map((gold) => ({ kind: "gold", gold }));
+  if (side.gold && !out.some((i) => i.kind === "gold" && i.gold === side.gold)) out.push({ kind: "gold", gold: side.gold });
+  if (other.resources?.length) out.push(...perTurnAmounts(state, from === me ? to : from).map((gold): DealItem => ({ kind: "perTurn", gold })));
+  if (knows("trade")) out.push(...giver.advances.filter((a) => !taker.advances.includes(a)).slice(-12).reverse().map((id): DealItem => ({ kind: "advance", id })));
+  if (!state.noResources && knows("currency"))
+    out.push(...(resources ?? exportable(state, from)).filter((id) => !hasResource(state, to, id)).map((id): DealItem => ({ kind: "resource", id })));
+  return out;
+}
+
+/** Gold a turn to ask or offer for resources, by what one is worth to the computer leader `them` (`resourceWorth`): a 24th, a 12th and an 8th of it. */
+export function perTurnAmounts(state: GameState, them: number): number[] {
+  const worth = resourceWorth(state, them);
+  const out: number[] = [];
+  for (const share of [1 / 24, 1 / 12, 1 / 8]) {
+    const g = Math.min(MAX_PER_TURN, Math.max(1, Math.round(worth * share)));
+    if (!out.includes(g)) out.push(g);
+  }
+  return out;
+}
+
+/** Whether an item is on a side of the table. */
+export function dealHas(side: DealSide, item: DealItem): boolean {
+  switch (item.kind) {
+    case "gold": return side.gold === item.gold;
+    case "perTurn": return side.perTurn === item.gold;
+    case "advance": return side.advances?.includes(item.id) ?? false;
+    case "resource": return side.resources?.includes(item.id) ?? false;
+  }
+}
+
+/** A side with an item put on the table, or taken back if it is there already (one sum of gold, one of gold a turn). */
+export function toggleDeal(side: DealSide, item: DealItem): DealSide {
+  const on = dealHas(side, item);
+  const out: DealSide = { ...side };
+  const list = (xs: string[] | undefined, id: string) => (on ? (xs ?? []).filter((x) => x !== id) : [...(xs ?? []), id]);
+  switch (item.kind) {
+    case "gold": if (on) delete out.gold; else out.gold = item.gold; break;
+    case "perTurn": if (on) delete out.perTurn; else out.perTurn = item.gold; break;
+    case "advance": out.advances = list(side.advances, item.id); break;
+    case "resource": out.resources = list(side.resources, item.id); break;
+  }
+  if (out.advances && !out.advances.length) delete out.advances;
+  if (out.resources && !out.resources.length) delete out.resources;
+  return out;
+}
+
+/** An item's words in a list: what it is, or, on the table already, taking it back. */
+export function dealItemLabel(item: DealItem, on: boolean): string {
+  const what = item.kind === "gold" ? `${item.gold} gold` : item.kind === "perTurn" ? `${item.gold} gold a turn` : item.kind === "advance" ? advance(item.id).name : item.id;
+  return on ? `Take back ${what}` : what;
+}
+
+/** A side of the table as card lines, with icons. */
+function sideLines(side: DealSide): string[] {
+  const lines = [
+    ...(side.gold ? [`{coin} ${side.gold} gold`] : []),
+    ...(side.perTurn ? [`{purse} ${side.perTurn} gold a turn`] : []),
+    ...(side.advances ?? []).map((a) => `{bulb} ${advance(a).name}`),
+    ...(side.resources ?? []).map((r) => `{trade} ${r}`),
+  ];
+  return lines.length ? lines : ["Nothing yet"];
+}
+
+/**
+ * The exchange's table, as card sections beside the leader's portrait (`DiplomacyView.card`): what we offer and what
+ * they give. Gold a turn lasts as long as the resources it pays for are traded.
+ */
+export function dealCard(give: DealSide, take: DealSide): CardSection[] {
+  return [
+    { title: "We offer", lines: sideLines(give) },
+    { title: "They give", lines: sideLines(take) },
+    ...(give.perTurn || take.perTurn ? [{ title: "Each turn", lines: ["Paid for as long as the resources are traded."] }] : []),
+  ];
+}
+
+/** Whether an exchange's table is bare. */
+export function dealEmpty(give: DealSide, take: DealSide): boolean {
+  return emptySide(give) && emptySide(take);
+}
 
 /** The leader's words when we speak of war (a treaty broken, or war declared), before we say it. */
 export function warWarning(treaty: boolean, mood: LeaderMood): string {

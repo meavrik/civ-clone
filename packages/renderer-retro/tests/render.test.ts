@@ -5,7 +5,7 @@ import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, comp
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, drawUnitFlash, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
-import { cardPicture, diplomacyChoiceAt, drawDiplomacyScreen, ratesAt, ratesHit, ratesRect } from "../src/index.js";
+import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
 import { CITY_BOXES } from "../src/index.js";
@@ -1229,10 +1229,20 @@ describe("advisor screens", () => {
     const view = { player: them.id, line: standing(state, them.id, true).text, card, choices: ["Talk to Hammurabi", "Demand they leave"], selected: 0 };
     drawDiplomacyScreen(s, state, view);
     writeFileSync(new URL("./out/civ-card.png", import.meta.url), encodePng(s, 3));
-    // The portrait's spot is a sky bed at the left; ink stands to its right.
+    // The portrait's spot is a sky backdrop at the left (the figure is cut out); ink stands to its right.
     const p = cardPicture();
     expect(s.get(p.x + 10, p.y + 10)).toBeGreaterThanOrEqual(shade("azure", 0));
     expect(s.get(p.x + 10, p.y + 10)).toBeLessThanOrEqual(shade("azure", 7));
+    // The palace picture's room, seen only until the picture loads, is dark stone, never blue (asked for 2026-10-31).
+    const t = Surface.screen();
+    drawDiplomacyScreen(t, state, { player: them.id, line: "Hail." });
+    const scene = diplomacyPicture({ player: them.id, line: "" });
+    expect(t.get(scene.x + 10, scene.y + 10)).toBe(shade("panel", 0));
+    expect(diplomacyPicture(view)).toEqual(p);
+    // Opening, the picture's room grows with the window about its middle.
+    const half = diplomacyPicture({ ...view, enter: 0 });
+    expect(half.w).toBeCloseTo(p.w * 0.4, 6);
+    expect(half.x).toBeGreaterThan(p.x);
     let ink = 0;
     for (let y = p.y; y < p.y + 40; y++) for (let x = p.x + p.w + 10; x < 280; x++) if (s.get(x, y) === C.BLACK) ink++;
     expect(ink).toBeGreaterThan(50);

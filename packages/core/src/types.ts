@@ -458,6 +458,11 @@ export interface GameState {
   cityStatePeace?: Record<string, number>;
   /** City-states' demands for tribute waiting for an answer. Missing: none. */
   cityStateDemands?: CityStateDemand[];
+  /**
+   * Gifts as before version 51: only gold given swayed a leader (`recordGift`); since 51 an advance or a strategic resource
+   * given counts too, at what it is worth to the receiver (`advanceWorth`, `resourceWorth`).
+   */
+  plainGifts?: boolean;
   /** "city:player" to the turn that city-state last demanded tribute of that player (`askedLately`), kept `CITY_STATE.askEvery` turns. Missing: none. */
   cityStateAsked?: Record<string, number>;
   /**
@@ -508,6 +513,22 @@ export interface ResourceTrade {
   take?: string;
   /** The turn it was agreed. */
   turn: number;
+  /**
+   * Gold a turn `b` pays `a` for `give`, as `b`'s turn begins, for as long as the trade stands (agreed in an exchange,
+   * `exchange`; since save version 51); a turn it cannot pay ends the trade.
+   */
+  pay?: number;
+}
+
+/**
+ * One side of an exchange (`exchange`; since save version 51): what it hands the other at once (gold, advances, strategic
+ * resources, each resource a lasting trade) and gold a turn for the resources the other side gives it (`ResourceTrade.pay`).
+ */
+export interface DealSide {
+  gold?: number;
+  perTurn?: number;
+  advances?: string[];
+  resources?: string[];
 }
 
 export interface Trespass {

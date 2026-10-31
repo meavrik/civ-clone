@@ -84,9 +84,9 @@ Never ship the original's sprites, palette art, fonts or text.
   `give`, they give `receive`, either alone a gift or a purchase; `endTrade` calls every trade with a civ off):
   a civ trades away only a square it holds and does not trade already, never what it was traded, so a trade can
   take its last; war ends trades (`declareWar`), and as every turn begins so does a giver's loss of what it
-  gives (`settleTrades`; the `tradeEnded` event). In an audience, with Currency and not at war: Trade resources
-  (they offer their spares we lack, the AI's `resourceOffers`, and ask one of ours they lack, `resourceAsk`, the
-  one they want first, else `RESOURCE_PRICE` 80 gold), Give a resource (a gift), End our trade (a demand). The
+  gives (`settleTrades`; the `tradeEnded` event). In an audience, with Currency and not at war: resources in an
+  exchange (see Diplomacy in apps/web: their spares we lack, the AI's `resourceOffers`, ours they lack, each a lasting
+  trade, paid for each turn if agreed so, `ResourceTrade.pay`), a resource as a gift, End our trade (a demand). The
   planner swaps spares with other computer civs every third turn per pair (`manageResources`; spare: a second
   square, or one it has no use for yet, `spareResources`, `wantsResource`) and calls off a trade that gave away
   what it now needs. Shown in the build menu (faded, "needs Iron"), the production box ("Needs Iron", Buy
@@ -628,8 +628,9 @@ Never ship the original's sprites, palette art, fonts or text.
   rows, the bar, or off both to close). Diplomacy (added 2026-10-24, asked for) lists every civilization met with how we stand,
   and opens its card: the audience screen with the leader's portrait at the left (`CARD_PICTURE`) and
   `civCard`'s sections beside it (since 2026-10-29, asked for: "split to sections of civ stats etc. improve
-  content design"; `DiplomacyView.card`, `CardSection`: Realm (government, capital, cities, citizens, advances,
-  gold, in icon rows), Toward us (their mood, the AI's `attitude`, with our treaty, pact or alliance, `treaty`;
+  content design"; `DiplomacyView.card`, `CardSection`: Realm (government and capital in icon rows; their cities,
+  citizens, advances and gold were taken off 2026-10-31, asked for: "remove stats that you should not know in this
+  stage"), Toward us (their mood, the AI's `attitude`, with our treaty, pact or alliance, `treaty`;
   what they make of our influence; their units on our land), their trait, Resources; retro draws each a dim
   heading ruled across over its rows, a line opening with an icon wrapping clear of it, the line and the one
   row of buttons lower down), our envoy's word as the line (`envoyLine`), and Talk (an audience; since
@@ -652,8 +653,10 @@ Never ship the original's sprites, palette art, fonts or text.
   indices); dropdowns and the title screen's untitled list do not. A message with nothing to choose but
   to close it (the web app's `modal` with "OK") has no button: an X in its title strip (`MenuState.close`,
   zero items), Enter, Esc or a click off it go on. The research panel's Close button is a close box in
-  its title strip (`researchHit` "close"); the audience's Back and "Never mind" are gone, its X (or Esc)
-  steps back or takes leave. `drawButton` is the speckled stone with a light top-left and dark
+  its title strip (`researchHit` "close"); the audience's X (or Esc) steps back or takes leave, and since
+  2026-10-31 every screen of a talk also says so in a button (asked for: "sometimes there is one option, with no back
+  or cancel option"): a list's Back (Done in an exchange's lists), a price's No, war's Keep the peace, Farewell after
+  the last words (the web app's `talkMenu` `exit`). `drawButton` is the speckled stone with a light top-left and dark
   bottom-right bevel; the lit one (under the pointer, the modals' default choice, Research) is the same
   stone warmed to parchment gold, grain and bevel kept, no ring (`litStone`; asked for 2026-10-25: the
   whitened speckled face ringed in gold was "not good"), and so are the audience's lit choices; on the
@@ -1274,19 +1277,40 @@ Never ship the original's sprites, palette art, fonts or text.
   `TalkMemo`): nothing said already; nothing needing a treaty before one (maps, open borders); once the
   talk turns friendly (a treaty, a deal, a gift) no demand or war, once it turns hostile (a demand) no
   proposal or gift, so a refused demand leaves war or farewell; at war only peace and farewell. What we
-  may say falls under three subjects: proposals (peace, `proposePeace`: yes, for `peacePrice` or no; with
-  Writing open borders, `bordersAnswer`; with Trade trade knowledge: pick theirs, they name ours), gifts (Give
-  gold: a tenth, a quarter or half our treasury, `giftAmounts`, thanked by its weight to them, `giftWeight`
-  modest, generous from half their `goldScale`, lavish from 1.5, `giftThanks`; with Trade an advance) and demands (their units off our
+  may say falls under three subjects: proposals (peace, `proposePeace`: yes, for `peacePrice` or no; a pact; an
+  alliance; with Writing open borders, `bordersAnswer`; an exchange), gifts and demands (their units off our
   land, tribute with Writing, close borders, declare war or break the treaty). Writing and Trade stand for
   the knowledge that brings more to say (asked for 2026-10-24, "when get diplomacy tech add more diplomacy
   options, when get trade tech add trade options"; the tree has no Diplomacy, so Writing, the Diplomat's).
+  Gifts (asked for 2026-10-31: "give gold - why? - replace with offer a gift (to improve relationship) with also
+  other options") are always one button, Offer a gift (never spread), opening Gold (a tenth, a quarter or half our
+  treasury, `giftAmounts`, thanked by its weight to them, `giftWeight` modest, generous from half their `goldScale`,
+  lavish from 1.5, `giftThanks`), An advance (any of ours they lack) and with Currency A resource; with only gold to
+  give it opens on the sums. Since save version 51 an advance or a resource given sways a leader as gold does
+  (`recordGift` at `advanceWorth`: the beakers of their next advance; `resourceWorth`: half their `goldScale`;
+  `GIFT_WORTH`), and a gift that leaves them a step warmer says so ("Our peoples draw closer."); saves before 51 load
+  with `plainGifts` (only gold counts). An exchange (asked for the same day: "add exchange as a inner new section.
+  were you can exchange several things with one another - gold, techs and resources. resources given could provide
+  a steady income (+sum each turn) for a civ"; Make an exchange, among the proposals when there is something to
+  trade, `exchangeGoods`): a table beside the leader's portrait (the card layout, `dealCard`: We offer, They give),
+  the buttons We offer..., We ask for..., Propose, Back; each side's list by kind (Gold: sums and, for resources the
+  other side gives, gold a turn, `perTurnAmounts`; Advances with Trade; Resources with Currency, theirs only the
+  spares they would part with), picking one on the table taking it back (`dealItems`, `toggleDeal`). The leader
+  answers by the AI's `exchangeAnswer` (`DEAL`: gold a turn as 12 turns of it, an advance it gives at half its worth,
+  a resource it wants at its worth and one it has no use for at a quarter, a spare one it gives at half; wary asks a
+  quarter more; never while hostile, never a resource it needs, never more gold a turn than its cities bring), and a
+  deal too thin for it names the gold that would settle it, a button of its own ("Add 20 gold"). Agreed, the core
+  `exchange` command hands everything over at once (`whyNoExchange`, `applyExchange` in core `exchange.ts`; our
+  advances found as any, `discover`); each resource is a lasting trade, and gold a turn is paid by its receiver to
+  its giver as the receiver's turn begins for as long as the trade stands (`ResourceTrade.pay`, `payTrades`, shared
+  among the resources it pays for), a turn it cannot pay ending it (`tradeEnded` "unpaid"; `tradeIncome`). The old
+  trades of knowledge and of resources are gone from the talk (core's `exchangeAdvances` stays for old logs).
   Up to four buttons, farewell last: a subject's topics stand as buttons where they fit, else the subject
   is one button ("Make a proposal", "Offer a gift", "Make demands") opening its list with the leader's
-  question (`SUBJECT_WORDS`, by mood); the subject just talked of spreads first, so the talk keeps its
-  thread. A question that wants our yes (their price, their ask in a knowledge trade, war: `warWarning`)
-  has one button saying it ("Pay 50 gold", "Make the trade", "Declare war!"); the close box or Esc is no,
-  or takes back a list opened with nothing said. A declaration of war ends the talk on the leader's words.
+  question (`SUBJECT_WORDS`, by mood) and Back; the subject just talked of spreads first, so the talk keeps its
+  thread. A question that wants our yes (their price, war: `warWarning`) has a button saying it ("Pay 50 gold",
+  "Declare war!") and one saying no ("No", "Keep the peace"); the close box or Esc is no too. A declaration of war
+  ends the talk on the leader's words and Farewell.
   Greetings name admiration or scorn; after the envoy's treaty the talk starts friendly. The audience screen (redone
   2026-10-22 after the user's mock-up "Caesar Welcomes You to Rome", asked for; a window over the
   darkened map since 2026-10-24, "not 100% of the screen": `audienceRect` 264x186 centred, growing into
@@ -1310,7 +1334,10 @@ Never ship the original's sprites, palette art, fonts or text.
   decoded by the preloads and shown only once decoded: a reused element given a new `src` kept painting
   the last leader met for a moment, 2026-10-23) in the room the screen leaves for
   them (`audiencePicture(screenW)` in renderer-retro, 192x108 in the window, `cardPicture` for a card's
-  portrait; a dusk sky beneath, seen until the picture loads; laid only once the window stands whole);
+  portrait; laid from the window's first frame, growing with it, `diplomacyPicture`, renderer-retro `enteringBox`;
+  asked for 2026-10-31: the room showed "a bluish color" while the window grew, the picture laid only once it stood
+  whole; beneath the palace the darkest stone, seen only until it loads, a card's portrait standing on a dusk sky;
+  the leaders' portraits preloaded with their palaces, `preloadScenes`);
   `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits
   and the advances' pictures (`techs/<advance>.webp`, 1254 square, WebP quality 92; `techPicture`: all but
   the 1991 tree's Future Tech., which shows the frame's bed; each adapter's `main` fetches the picture

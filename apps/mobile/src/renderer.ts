@@ -13,7 +13,6 @@ import {
   cityZoomPoint,
   drawCityZoom,
   type CityZoom,
-  cardPicture,
   LEADER_PORTRAITS,
   ratesHit,
   cityExitHit,
@@ -25,7 +24,7 @@ import {
   drawCityView,
   diplomacyChoiceAt,
   drawDiplomacyScreen,
-  audiencePicture,
+  diplomacyPicture,
   diplomacyCloseAt,
   drawNewTech,
   newTechPicture,
@@ -464,9 +463,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     diplomacy: (state: GameState, view: DiplomacyView) => {
       const s = surface();
       drawDiplomacyScreen(s, state, view);
-      // The leader's picture as it is, over the room the window leaves for it once it stands whole: the palace, or on a card the portrait.
-      if ((view.enter ?? 1) < 1) return;
-      const box = view.card ? cardPicture(s.width) : audiencePicture(s.width);
+      // The leader's picture as it is, over the room the window leaves for it, growing with the window as it opens: the palace, or on a card the portrait.
+      const box = diplomacyPicture(view, s.width);
       const place = wideFrame ? { ...box, logicalW: screenW(), logicalH: SCREEN_H } : onScreen(box);
       const scene = view.card
         ? portraitPlace(LEADER_PORTRAITS[civ(state.players[view.player]!.civ).id] ?? "king", place)
