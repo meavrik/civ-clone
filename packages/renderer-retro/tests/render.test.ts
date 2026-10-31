@@ -1,13 +1,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { DIMMED, mixColor } from "../src/palette.js";
 import { describe, expect, it } from "vitest";
-import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, createUnit, foundCity, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
+import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, computeCity, createUnit, foundCity, getTile, newGame, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, drawUnitFlash, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, drawDiplomacyScreen, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
+import { CITY_BOXES } from "../src/index.js";
 
 describe("retro renderer", () => {
   it("palette has 256 entries, EGA first", () => {
@@ -692,6 +693,59 @@ describe("terrain works", () => {
 });
 
 describe("city screen", () => {
+  it("lays warnings across the food and shields when the city cannot grow or build", () => {
+    const state = newGame(2026);
+    applyCommand(state, { type: "found", unit: state.units[0]!.id });
+    const city = state.cities[0]!;
+    city.buildings = city.buildings.filter((b) => b === "palace");
+    delete city.choosing;
+    city.production = { kind: "unit", id: "militia" };
+    const box = (id: string) => CITY_BOXES.find((b) => b.id === id)!;
+    /** Pixels of a colour in a box, below its title strip. */
+    const count = (sf: Surface, id: string, color: number) => {
+      const b = box(id);
+      let n = 0;
+      for (let y = b.y + 12; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (sf.get(x, y) === color) n++;
+      return n;
+    };
+    const draw = (name?: string) => {
+      const sf = Surface.screen();
+      drawCityScreen(sf, state, { city: city.id });
+      if (name) writeFileSync(new URL(`./out/${name}.png`, import.meta.url), encodePng(sf, 3));
+      return sf;
+    };
+    const STRIP = 300; // a strip across the slots: far more of its colour than the box holds otherwise
+    // Working its squares, it grows and builds: no warning.
+    city.size = 1;
+    autoAssignWorkers(state, city);
+    let r = computeCity(state, city);
+    expect(r.foodSurplus).toBeGreaterThan(0);
+    expect(r.shieldSurplus).toBeGreaterThan(0);
+    let sf = draw();
+    const quiet = { food: count(sf, "food", C.BROWN!), shields: count(sf, "production", C.BROWN!) };
+    expect(quiet.food + quiet.shields).toBeLessThan(STRIP);
+    // Nobody working the land and a settler to feed: nothing to spare for either (amber).
+    city.worked = [];
+    city.specialists = ["entertainer"];
+    createUnit(state, "settlers", 0, city.x, city.y, city.id);
+    r = computeCity(state, city);
+    expect([r.foodSurplus, r.shieldSurplus]).toEqual([0, 0]);
+    sf = draw("city-warnings");
+    expect(count(sf, "food", C.BROWN!) - quiet.food).toBeGreaterThan(STRIP);
+    expect(count(sf, "production", C.BROWN!) - quiet.shields).toBeGreaterThan(STRIP);
+    // Two citizens idle and soldiers to pay: it starves and its shields fall short (red).
+    city.size = 2;
+    city.specialists = ["entertainer", "entertainer"];
+    for (let i = 0; i < 3; i++) createUnit(state, "militia", 0, city.x, city.y, city.id);
+    r = computeCity(state, city);
+    expect(r.foodSurplus).toBeLessThan(0);
+    expect(r.shieldSurplus).toBeLessThan(0);
+    sf = draw("city-warnings-red");
+    expect(count(sf, "food", C.RED!)).toBeGreaterThan(STRIP);
+    expect(count(sf, "production", C.RED!)).toBeGreaterThan(STRIP);
+    expect(count(sf, "food", C.BROWN!)).toBeLessThan(STRIP);
+  });
+
   it("shades the squares beyond a new city's border and rings its land", () => {
     const state = newGame(2026);
     const u = state.units[0]!;

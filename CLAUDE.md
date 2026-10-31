@@ -356,7 +356,10 @@ Never ship the original's sprites, palette art, fonts or text.
   then a happy one for two steps; Women's Suffrage excuses one a city), wonders (Hanging Gardens, Cure for
   Cancer, Bach's, then Shakespeare's). Disorder when the unhappy outnumber the happy: no shields (the units'
   upkeep still owed), tax or science; food and luxuries go on (the city screen's production box lays a red
-  PRODUCTION HALTED strip across its shields, "Halted by disorder" at its foot; asked for 2026-10-27). `City.unrest` counts the turns in a row, and a
+  PRODUCTION HALTED strip across its shields, "Halted by disorder" at its foot; asked for 2026-10-27; since
+  2026-10-31, asked for: "warning banners for when: 0 city production or no extra food for grows", the city screen's
+  `warnAcross` also lays NO PRODUCTION across the shields with no shield to spare and NO GROWTH across the food with
+  no food to spare, in amber, red where the city loses: STARVING, or its units' upkeep past its shields). `City.unrest` counts the turns in a row, and a
   Democracy falls into anarchy once a city passes `revolutionAfter` (2): the `overthrown` event. Celebration
   (the original's festival, in our words): from size `CELEBRATION_SIZE` (3) with nobody unhappy and half the
   people happy at the turn's end (`CityReport.celebration` becomes `City.celebrating`, a `celebration` city

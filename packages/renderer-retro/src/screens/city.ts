@@ -535,7 +535,10 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const kept = foodKept(state, city, r.foodBox);
   const keptBy = city.buildings.some((b) => building(b).granary) ? "Granary" : "Kept";
   const footY = ROW2.y + ROW2.h - 10;
-  drawStore(s, storeRegion(LEFT, ROW2.y + BOX_HEAD + 1, footY - 1), "food", city.food, r.foodBox, kept);
+  const foodRegion = storeRegion(LEFT, ROW2.y + BOX_HEAD + 1, footY - 1);
+  drawStore(s, foodRegion, "food", city.food, r.foodBox, kept);
+  // No food to spare: the city cannot grow (amber), or eats its store (red).
+  if (r.foodSurplus <= 0) warnAcross(s, foodRegion, LEFT.x + LEFT.w - 3, r.foodSurplus < 0 ? "STARVING" : "NO GROWTH", r.foodSurplus < 0 ? C.RED! : C.BROWN!);
   const grow = r.foodSurplus > 0 ? Math.ceil(Math.max(0, r.foodBox - city.food) / r.foodSurplus) : null;
   const growX = say(s, LEFT.x + 4, footY, r.foodSurplus < 0 ? "Starving!" : grow === null ? "Not growing" : `Grows in ${grow} turn${grow === 1 ? "" : "s"}`, r.foodSurplus < 0 ? BAD : LABEL);
   // The gold-edged slots are what the Granary keeps (or a trait's share): named in gold, room allowing.
@@ -593,7 +596,9 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawStore(s, region, "shield", city.shields, r.productionCost);
   // Civil disorder stops the shields (asked for 2026-10-27: "show production is halted"): a red strip, as
   // the title's, across the slots, and the foot says why.
-  if (r.disorder) drawTitleStrip(s, region.x - 1, region.y + ((region.h - TITLE_H) >> 1), buy.x + buy.w - region.x + 1, "PRODUCTION HALTED", { centred: true, color: C.RED! });
+  if (r.disorder) warnAcross(s, region, buy.x + buy.w, "PRODUCTION HALTED", C.RED!);
+  // No shields to spare: nothing gets built (amber), or its units' upkeep runs past what it makes (red).
+  else if (r.shieldSurplus <= 0) warnAcross(s, region, buy.x + buy.w, "NO PRODUCTION", r.shieldSurplus < 0 ? C.RED! : C.BROWN!);
   const turns = r.shieldSurplus > 0 ? Math.ceil(Math.max(0, r.productionCost - city.shields) / r.shieldSurplus) : null;
   if (lacks.length) { say(s, RIGHT.x + 4, by, `Needs ${lacks.join(", ")}`, BAD); return; }
   if (r.disorder) say(s, RIGHT.x + 4, by, "Halted by disorder", BAD);
@@ -601,6 +606,16 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const price = cost ? `Buy ${cost}$` : "Complete";
   say(s, RIGHT.x + RIGHT.w - 4 - textWidth(price), by, price, cost && player.gold >= cost ? GOLD : LABEL);
 
+}
+
+/**
+ * A warning strip laid across a store's slots, from their left to `right` (the box's inner edge), as the title strips
+ * are drawn: civil disorder's PRODUCTION HALTED (asked for 2026-10-27), and since 2026-10-31 (asked for: "warning
+ * banners for when: 0 city production or no extra food for grows") NO PRODUCTION and NO GROWTH in amber, red where the
+ * city loses (STARVING, upkeep past its shields).
+ */
+function warnAcross(s: Surface, region: Rect, right: number, text: string, color: number): void {
+  drawTitleStrip(s, region.x - 1, region.y + ((region.h - TITLE_H) >> 1), right - region.x + 1, text, { centred: true, color });
 }
 
 /**
