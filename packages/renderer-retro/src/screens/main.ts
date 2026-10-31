@@ -33,6 +33,7 @@ import { darker } from "../sprites/index.js";
 import { BAD, DIM, drawButton, drawStone, drawSwatch, GOOD, hideArtUnder, INK, NOTE } from "../widgets.js";
 import { drawFireworks } from "../fireworks.js";
 import { drawSinking } from "../sinking.js";
+import { drawShot } from "../shot.js";
 import { drawFounding } from "../founding.js";
 import { drawCity } from "./map-city.js";
 import { drawnOver, fineCopy } from "../art-holes.js";
@@ -314,6 +315,11 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       }
       if (f.dying > 0) drawBurst(s, pos[0] + 8, pos[1] + 8, f.dying);
     }
+  // What the attacker looses (a catapult's stone), in flight to its foe, then its dust.
+  const shot = battle?.shot;
+  const shotAt = shot ? toScreen(shot.x, shot.y) : null;
+  const shotGround = shot ? toScreen(shot.x, shot.ground) : null;
+  if (shot && shotAt && shotGround) drawShot(s, shot, shotAt[0], shotAt[1], shotGround[0], shotGround[1]);
 
   // The ship going down, under the words above it.
   const sinkAt = sinking ? toScreen(sinking.x, sinking.y) : null;

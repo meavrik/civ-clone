@@ -50,6 +50,7 @@ export * from "./newtech.js";
 export * from "./art.js";
 export * from "./unit-atlas.js";
 export * from "./unit-anim.js";
+export * from "./shot.js";
 export * from "./owner-colour.js";
 export * from "./facing.js";
 export * from "./built.js";

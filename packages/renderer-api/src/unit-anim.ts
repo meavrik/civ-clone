@@ -2,6 +2,19 @@ import type { GameState, Unit, WorkKind } from "@civ/core";
 import { LUNGE_MS, type BattleFrame, type UnitMotion } from "./motion.js";
 import { UNIT_ATLASES, type UnitAtlas } from "./unit-atlas.js";
 
+/**
+ * What a unit looses from where it stands (a catapult's stone): its picture draws it leaving on the `impact` frame, and
+ * from that frame's end the map carries it on to its foe (`shotOf`, `MotionTiming.shot`), the first blow landing with it.
+ */
+export interface UnitShot {
+  /** Where the impact frame draws it: atlas pixels from that frame's anchor (its foot). */
+  from: readonly [x: number, y: number];
+  /** How long it flies, from the impact frame's end to its landing. */
+  flightMs: number;
+  /** How high its arc rises above the straight way, in squares. */
+  arc: number;
+}
+
 /** Frames of an atlas (indices) played in turn, and how long each shows. */
 export interface UnitAnimSequence {
   frames: number[];
@@ -25,8 +38,11 @@ export interface UnitAnimRule {
   pixelated: boolean;
   /** Its magenta clothes in its owner's colour (`recolourOwner`); else shown as drawn, as the still pictures are. */
   ownerColour: boolean;
-  /** Played over and over while a fight it is in lasts, attacking or defending (`fightStep`); the blow lands on frame `impact` of it. */
-  attack?: UnitAnimSequence & { impact: number };
+  /**
+   * Played over and over while a fight it is in lasts, attacking or defending (`fightStep`); the blow lands on frame
+   * `impact` of it. With a `shot`, played once as it attacks (never as it defends), what it looses flying on.
+   */
+  attack?: UnitAnimSequence & { impact: number; shot?: UnitShot };
   /** Looped while it keeps watch. */
   sentry?: UnitAnimSequence;
   /** Played once when ordered to fortify, then `fortified` held. */
@@ -137,11 +153,15 @@ export const UNIT_ANIMS: Record<string, UnitAnimRule> = {
   // the arm drawn down, swung up to loose the stone (the stone and its trail on the strike), empty after; a flag run up
   // as it wins; still on watch; fortifying, its wheels chocked and props braced out. Drawn lower and longer than the
   // catapult's picture on the units sheet (221x157 here, 192x197 there at 240 a square), so between as wide as that
-  // (276) and as much of the square (230). Its shot eases in and out (asked for the same day: "too fast. should be
-  // with ease in-out. slow prepare to fire - than throw stone"): the loaded arm held and drawn taut slowly, the throw
-  // quick, the stone in flight a moment, the empty arm settling slowly; the fight waits the wind-up for its first blow
-  // (`strikeMs`).
-  catapult: oneSheet(252, { attack: { frames: [6, 7, 8, 9, 10, 11], ms: [340, 420, 110, 260, 200, 380], impact: 3 } }),
+  // (276) and as much of the square (230). Its shot (asked for the same day: "too fast. should be with ease in-out.
+  // slow prepare to fire - than throw stone", then "still very bad": it lunged onto its foe, jiggled with every blow and
+  // its stone went nowhere): it stands its ground and shoots once a fight, holding the loaded arm, drawing it up
+  // slowly, then quick as the stone leaves (the sheet's frame of it; its second loaded frame is the first again, left
+  // out), the spent arm settling slowly; the stone flies on from where the sheet draws it (41 pixels across, its middle
+  // 100 right of the frame's foot and 183 above) to its foe's feet, and the first blow lands with it (`strikeMs`).
+  catapult: oneSheet(252, {
+    attack: { frames: [6, 8, 9, 10, 11], ms: [320, 460, 110, 240, 420], impact: 2, shot: { from: [100, -183], flightMs: 440, arc: 0.6 } },
+  }),
 };
 
 /**
@@ -207,7 +227,10 @@ export function animFrameCount(type: string): number {
 /** How long an attacker of `type` takes to its first strike, its attack's frames before it (`MotionTiming.strikeMs`); 0 for one with no attack. */
 export function strikeMs(type: string): number {
   const attack = UNIT_ANIMS[type]?.attack;
-  return attack ? attack.ms.slice(0, attack.impact).reduce((a, b) => a + b, 0) : 0;
+  if (!attack) return 0;
+  // A shot lands once its frame has shown it leaving and it has flown.
+  const lead = attack.ms.slice(0, attack.shot ? attack.impact + 1 : attack.impact).reduce((a, b) => a + b, 0);
+  return lead + (attack.shot?.flightMs ?? 0);
 }
 
 /** How long a step of a unit of `type` takes to show its walk whole (`MotionTiming.walkMs`); 0 for one that does not walk. */
@@ -241,10 +264,12 @@ export function sequenceStep(ms: readonly number[], elapsed: number, loop: boole
  */
 export function attackStep(rule: UnitAnimRule, elapsed: number, strikeAt?: number): { step: number; done: boolean } {
   if (!rule.attack) return { step: 0, done: true };
-  const { ms, impact } = rule.attack;
+  const { ms, impact, shot } = rule.attack;
   if (strikeAt === undefined) return sequenceStep(ms, elapsed, false);
   const before = ms.slice(0, impact).reduce((a, b) => a + b, 0);
-  const k = before > 0 ? strikeAt / before : 1;
+  // A shot's frame and flight come before its blow as well.
+  const lead = shot ? strikeAt - ms[impact]! - shot.flightMs : strikeAt;
+  const k = before > 0 ? Math.max(0, lead) / before : 1;
   return sequenceStep(ms.map((m, i) => (i < impact ? m * k : m)), elapsed, false);
 }
 
@@ -274,6 +299,8 @@ export function fightStep(rule: UnitAnimRule, elapsed: number, strikeAt?: number
   if (!rule.attack) return { step: 0, round: 0 };
   const first = attackStep(rule, elapsed, strikeAt);
   if (!first.done) return { step: first.step, round: 0 };
+  // One that shoots looses once a fight, then stands spent.
+  if (rule.attack.shot) return { step: rule.attack.ms.length - 1, round: 0 };
   const { ms, impact } = rule.attack;
   const total = ms.reduce((a, b) => a + b, 0);
   const firstMs = strikeAt === undefined ? total : strikeAt + ms.slice(impact).reduce((a, b) => a + b, 0);
@@ -386,7 +413,8 @@ export class UnitAnimator {
     const { rule } = unitAnim(type)!;
     const p = this.units.get(id)!;
     const side = battle ? (battle.attacker.unit === id ? "attacker" : battle.defender.unit === id ? "defender" : null) : null;
-    if (battle && side && rule.attack && p.fight !== battle.start) {
+    // One that shoots does so only as it attacks; attacked, it stands as it was.
+    if (battle && side && rule.attack && p.fight !== battle.start && !(side === "defender" && rule.attack.shot)) {
       // The attacker from the fight's start, its first strike with the first blow; the defender answers from that blow.
       const attacking = side === "attacker";
       Object.assign(p, { action: "attack", since: attacking ? battle.start : battle.start + (battle.strikeMs ?? LUNGE_MS), fight: battle.start, attacking, struck: -1 });

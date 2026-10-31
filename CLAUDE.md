@@ -1059,10 +1059,21 @@ Never ship the original's sprites, palette art, fonts or text.
   catapult (2026-10-31, asked for with the user's sheet: "implement attached catapult states"; drawn in register):
   rolling on turning wheels, the arm drawn down then swung up to loose its stone, a flag run up as it wins, still on
   watch, its wheels chocked and props braced out to fortify; drawn lower and longer than its still picture, so scale
-  252, between as wide as that (276) and as much of the square (230). Its shot eases in and out (asked for the same day:
-  "too fast. should be with ease in-out"): the loaded arm held and drawn taut slowly (340, 420 ms), the throw quick
-  (110), the stone in flight a moment (260), the empty arm settling slowly (200, 380); `oneSheet`'s second argument
-  overrides a move's frames or timings. On a green-screen sheet a speck (under
+  252, between as wide as that (276) and as much of the square (230). Its shot (asked for the same day: "too fast.
+  should be with ease in-out. slow prepare to fire - than throw stone", then "still very bad": it lunged onto its foe
+  like a soldier, jiggled with each blow, and its stone only appeared at its own corner): it stands its ground and
+  shoots once a fight (`UnitShot` on its attack: `from`, where the release frame draws the stone, atlas pixels from that
+  frame's foot; `flightMs` 440; `arc` 0.6 of a square), holding the loaded arm (320 ms), drawing it up slowly (460),
+  quick as the stone leaves on the sheet's frame of it (110; the sheet's second loaded frame, the first again, left
+  out), the spent arm settling (240, 420) and held so till its flag goes up. The map carries the stone on from that
+  frame's end (renderer-api `shotOf`, `MotionTiming.shot` from both pacings, `ShotPace`; `BattleFrame.shot`: where it is,
+  the ground under it, `landed`): an arc to the ground before its foe's feet (`SHOT_LANDS`), mirrored when it shoots
+  leftward, the first blow landing with it (`strikeMs` counts the release frame and the flight: 1330 ms), the attacker
+  never closing in (no lunge, no jiggle); then the dust settles (`LANDED_MS` 380). Retro `shot.ts`: a light grey ball
+  five fine pixels across (the picture's stone at the map's scale) edged in its darkest, its shadow on the ground under
+  it, then dust puffs dithered thinner as they spread and rise, clods falling back, a flash at the strike; on the map
+  under the pictures. Attacked, a unit that shoots stands as it was. `oneSheet`'s second argument overrides a move's
+  frames or timings. On a green-screen sheet a speck (under
   `GRID_SPECK`, 20 pixels) is part of the drawing, kept with its cell's frame (the dots trailing the stone); on a
   clear sheet it is the glow, left out.
   Facing (2026-10-28, asked for: "flip units to face the direction they are moving or attacking towards"): renderer-api

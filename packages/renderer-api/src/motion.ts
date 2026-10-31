@@ -45,6 +45,11 @@ export interface BattleFrame {
   start: number;
   /** How long after `start` the first blow lands: `LUNGE_MS`, or the attacker's wind-up (`MotionTiming.strikeMs`). */
   strikeMs?: number;
+  /**
+   * What the attacker looses (`MotionTiming.shot`: a catapult's stone), in map squares as the fighters' places are:
+   * where it is in its flight, the ground under it, and once it is down, how far its dust has settled (0 in flight).
+   */
+  shot?: { x: number; y: number; ground: number; landed: number };
   /** Which way across the attacker strikes (0 straight up or down): it faces that way, the defender the other. */
   heading: -1 | 0 | 1;
 }
@@ -88,6 +93,22 @@ export interface MotionTiming {
    * rounds after keep their pace, so the fight is that much longer.
    */
   strikeMs?: (type: string) => number;
+  /**
+   * What an attacker of this type looses from where it stands (`shotOf`: a catapult's stone; asked for 2026-10-31,
+   * "catapult combat and animation still very bad": it lunged onto its foe like a soldier and its stone went nowhere):
+   * it closes in for no lunge, and its shot flies from its picture to its foe's feet, the first blow landing with it.
+   */
+  shot?: (type: string) => ShotPace | null;
+}
+
+/** How a unit's shot flies (`MotionTiming.shot`). */
+export interface ShotPace {
+  /** When it leaves the frame that looses it (that frame's end), from the fight's start; it lands at the first blow. */
+  releaseMs: number;
+  /** How high its arc rises above the straight way, in squares. */
+  arc: number;
+  /** Where its picture leaves it: squares from the top left of the attacker's square, the attacker facing right. */
+  from: { x: number; y: number };
 }
 
 /** A chain of walked steps (a goto along a road) takes at most this long, however many steps it has. */
@@ -96,6 +117,10 @@ export const WALK_CHAIN_MS = 2400;
 /** Parts of a fight: the attacker closes in, the rounds, the loser's end. */
 export const LUNGE_MS = 150;
 export const DEATH_MS = 450;
+/** How long a shot's dust takes to settle once it is down. */
+export const LANDED_MS = 380;
+/** Where a shot comes down: before its foe's feet, this far toward the attacker from the square's middle, this far down it. */
+const SHOT_LANDS = { toward: 0.3, down: 0.9 };
 const ROUND_MS = { min: 30, max: 110 };
 /** How far toward the defender the attacker closes, in squares. */
 const LUNGE = 0.3;
@@ -129,7 +154,7 @@ type Beat =
   | { kind: "slide"; slides: Slide[]; start: number; end: number }
   | { kind: "hold"; hold: HoldFrame; start: number; end: number }
   | { kind: "nudge"; unit: NudgedUnit; dx: number; dy: number; start: number; end: number }
-  | { kind: "battle"; battle: UnitBattle; dx: number; dy: number; roundMs: number; lungeMs: number; start: number; end: number };
+  | { kind: "battle"; battle: UnitBattle; dx: number; dy: number; roundMs: number; lungeMs: number; shot: ShotPace | null; start: number; end: number };
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
 
@@ -152,7 +177,7 @@ function hpAfter(b: UnitBattle, n: number): [number, number] {
 
 type Paced =
   | { kind: "slide"; slides: Slide[]; ms: number }
-  | { kind: "battle"; battle: UnitBattle; roundMs: number; lungeMs: number; ms: number };
+  | { kind: "battle"; battle: UnitBattle; roundMs: number; lungeMs: number; shot: ShotPace | null; ms: number };
 
 /** Actions as the beats they play in (a ship's cargo travels in the ship's beat), each with its length. */
 function paced(actions: readonly UnitAction[], timing: MotionTiming): Paced[] {
@@ -178,7 +203,8 @@ function paced(actions: readonly UnitAction[], timing: MotionTiming): Paced[] {
     const roundMs = Math.max(ROUND_MS.min, Math.min(roundMax, (fightMs - LUNGE_MS - DEATH_MS) / n));
     // The first blow waits for the attacker's wind-up.
     const lungeMs = Math.max(LUNGE_MS, timing.strikeMs?.(g.battle.attacker.type) ?? 0);
-    return { kind: "battle", battle: g.battle, roundMs, lungeMs, ms: lungeMs + n * roundMs + DEATH_MS };
+    const shot = timing.shot?.(g.battle.attacker.type) ?? null;
+    return { kind: "battle", battle: g.battle, roundMs, lungeMs, shot, ms: lungeMs + n * roundMs + DEATH_MS };
   });
 }
 
@@ -205,7 +231,7 @@ export class MotionPlayer {
       if (p.kind === "slide") this.beats.push({ kind: "slide", slides: p.slides, start: t, end: t + p.ms });
       else {
         const b = p.battle;
-        this.beats.push({ kind: "battle", battle: b, dx: seamDx(b.defender.x - b.attacker.x, timing.width), dy: b.defender.y - b.attacker.y, roundMs: p.roundMs, lungeMs: p.lungeMs, start: t, end: t + p.ms });
+        this.beats.push({ kind: "battle", battle: b, dx: seamDx(b.defender.x - b.attacker.x, timing.width), dy: b.defender.y - b.attacker.y, roundMs: p.roundMs, lungeMs: p.lungeMs, shot: p.shot, start: t, end: t + p.ms });
       }
       t += p.ms;
     }
@@ -311,6 +337,8 @@ export class MotionPlayer {
       // The winning attacker steps back to its square while the loser goes up in smoke.
       if (b.attackerWon) reach = LUNGE * (1 - ease(dying));
     }
+    // One that shoots stands its ground throughout.
+    if (beat.shot) reach = 0;
     const [ahp, dhp] = hpAfter(b, rounds);
     const attacker: BattleFighter = {
       unit: b.attacker.unit, type: b.attacker.type, owner: b.attacker.owner,
@@ -324,7 +352,26 @@ export class MotionPlayer {
       hp: dhp, maxHp: b.defender.maxHp, xp: b.defender.xp, stacked: b.attackerWon && loserStacked,
       hit: defenderHit, dying: b.attackerWon ? dying : 0,
     };
-    return { attacker, defender, start: beat.start, ...(lunge !== LUNGE_MS ? { strikeMs: lunge } : {}), heading: beat.dx < 0 ? -1 : beat.dx > 0 ? 1 : 0 };
+    const shot = beat.shot ? this.shot(beat, beat.shot, e) : undefined;
+    return { attacker, defender, start: beat.start, ...(lunge !== LUNGE_MS ? { strikeMs: lunge } : {}), ...(shot ? { shot } : {}), heading: beat.dx < 0 ? -1 : beat.dx > 0 ? 1 : 0 };
+  }
+
+  /**
+   * A shot `e` into its fight: from where its picture leaves it (mirrored with an attacker facing left) in an arc to
+   * the ground before its foe, its shadow running along the ground under it, down with the first blow; then its dust.
+   */
+  private shot(beat: Extract<Beat, { kind: "battle" }>, shot: ShotPace, e: number): BattleFrame["shot"] {
+    const end = beat.lungeMs;
+    if (e < shot.releaseMs || e >= end + LANDED_MS) return undefined;
+    const b = beat.battle;
+    const left = beat.dx < 0;
+    const fx = b.attacker.x + (left ? 1 - shot.from.x : shot.from.x), fy = b.attacker.y + shot.from.y;
+    const toward = left ? 1 : -1;
+    const tx = b.attacker.x + beat.dx + 0.5 + toward * SHOT_LANDS.toward, ty = b.attacker.y + beat.dy + SHOT_LANDS.down;
+    if (e >= end) return { x: tx, y: ty, ground: ty, landed: Math.max(0.001, (e - end) / LANDED_MS) };
+    const t = Math.min(1, (e - shot.releaseMs) / Math.max(1, end - shot.releaseMs));
+    const ground = b.attacker.y + SHOT_LANDS.down + (ty - b.attacker.y - SHOT_LANDS.down) * t;
+    return { x: fx + (tx - fx) * t, y: fy + (ty - fy) * t - shot.arc * 4 * t * (1 - t), ground, landed: 0 };
   }
 
   /** True while this step or fight is queued or under way. */

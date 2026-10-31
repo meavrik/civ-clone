@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createUnit, newGame, type UnitAction, type UnitBattle } from "@civ/core";
 import {
-  animFrameCount, animSheet, attackStep, FOUNDING, foundingMoment, foundingShow, isOwnerMagenta, motionMs, MotionPlayer, strikeMs, travelMs, WALK_CHAIN_MS, LUNGE_MS, recolourOwner, sequenceStep, showFrame, UNIT_ANIMS, UNIT_ATLASES, unitArtPlace, UnitAnimator,
+  animFrameCount, animSheet, attackStep, FOUNDING, foundingMoment, foundingShow, isOwnerMagenta, motionMs, MotionPlayer, shotOf, strikeMs, travelMs, WALK_CHAIN_MS, LUNGE_MS, recolourOwner, sequenceStep, showFrame, UNIT_ANIMS, UNIT_ATLASES, unitArtPlace, UnitAnimator,
   type BattleFighter, type BattleFrame,
 } from "../src/index.js";
 
@@ -253,7 +253,7 @@ describe("the catapult's atlas", () => {
   });
 
   it("plays the one sheet's moves, between as wide and as much of its square as the catapult's picture stood", () => {
-    expect(move).toMatchObject({ idle: 18, fortified: 23, ownerColour: false, attack: { impact: 3 } });
+    expect(move).toMatchObject({ idle: 18, fortified: 23, ownerColour: false, attack: { impact: 2 } });
     expect(move.travel!.frames).toEqual(UNIT_ANIMS.phalanx!.travel!.frames);
     const b = unitArtPlace({ id: "catapult", unit: true, x: 0, y: 0, w: 16, h: 16 })!;
     const k = b.w / catapult.size[0];
@@ -424,47 +424,98 @@ describe("UnitAnimator", () => {
     expect(travelMs("legion")).toBe(0);
   });
 
-  it("winds up whole before its first blow: the fight waits for it, standing its ground, the rounds at their pace", () => {
-    const battle = (type: string): UnitBattle => ({
-      kind: "battle",
-      attacker: { unit: 1, type, owner: 0, x: 10, y: 10, hp: 10, maxHp: 10, firepower: 1 },
-      defender: { unit: 2, type: "legion", owner: 1, x: 11, y: 10, hp: 3, maxHp: 10, firepower: 1 },
-      rounds: [true, true, true],
-      attackerWon: true,
-      alsoLost: [],
-    });
-    const timing = { stepMs: 120, maxMs: 1000, width: 80, battleMs: 2000, battleTotalMs: 2000, strikeMs };
-    const wind = strikeMs("catapult");
-    expect(wind).toBe(UNIT_ANIMS.catapult!.attack!.ms.slice(0, 3).reduce((a, b) => a + b, 0));
-    // A unit without moves keeps the lunge; the catapult's fight is longer by its wind-up past it.
+  const fight = (type: string, defender = "legion"): UnitBattle => ({
+    kind: "battle",
+    attacker: { unit: 1, type, owner: 0, x: 10, y: 10, hp: 10, maxHp: 10, firepower: 1 },
+    defender: { unit: 2, type: defender, owner: 1, x: 11, y: 10, hp: 3, maxHp: 10, firepower: 1 },
+    rounds: [true, true, true],
+    attackerWon: true,
+    alsoLost: [],
+  });
+  const pace = { stepMs: 120, maxMs: 1000, width: 80, battleMs: 2000, battleTotalMs: 2000, strikeMs, shot: shotOf };
+
+  it("winds up whole before its first blow: the fight waits for it, standing its ground till it lunges, the rounds at their pace", () => {
+    const wind = strikeMs("militia");
+    expect(wind).toBe(rule.attack!.ms.slice(0, rule.attack!.impact).reduce((a, b) => a + b, 0));
+    // A unit without moves keeps the lunge; the militia's fight is longer by its wind-up past it.
     expect(strikeMs("legion")).toBe(0);
-    expect(motionMs([battle("catapult")], timing) - motionMs([battle("legion")], timing)).toBe(wind - LUNGE_MS);
+    expect(motionMs([fight("militia")], pace) - motionMs([fight("legion")], pace)).toBe(wind - LUNGE_MS);
     const m = new MotionPlayer();
-    m.play([battle("catapult")], 0, timing);
-    // It stands its ground while it winds up, closes in only for the last of it, and the first blow lands with the throw.
+    m.play([fight("militia")], 0, pace);
     expect(m.at(wind - LUNGE_MS - 1).battle).toMatchObject({ strikeMs: wind, attacker: { x: 10 }, defender: { hp: 3 } });
     expect(m.at(wind - 1).battle!.attacker.x).toBeGreaterThan(10);
     expect(m.at(wind + 1).battle!.defender.hp).toBe(2);
-    // The animator plays it at its own pace: the throw on the frame that strikes, as the blow lands.
+    expect(m.at(wind + 1).battle!.shot).toBeUndefined();
+  });
+
+  it("shoots the catapult's stone from where it stands: it never closes in, the stone flies from its picture to its foe's feet", () => {
+    const land = strikeMs("catapult");
+    const attack = UNIT_ANIMS.catapult!.attack!;
+    const shot = shotOf("catapult")!;
+    // The stone leaves as the frame that draws it ends, and lands after its flight with the first blow.
+    expect(shot.releaseMs).toBe(attack.ms.slice(0, attack.impact + 1).reduce((a, b) => a + b, 0));
+    expect(land).toBe(shot.releaseMs + attack.shot!.flightMs);
+    // Where the frame draws it: up and right of the catapult, inside its square.
+    expect(shot.from.x).toBeGreaterThan(0.5);
+    expect(shot.from.y).toBeLessThan(0.5);
+    const still = new MotionPlayer();
+    still.play([fight("catapult")], 0, pace);
+    const seen: number[] = [];
+    for (let t = 0; t < land + 1200; t += 10) {
+      const b = still.at(t).battle;
+      if (b) seen.push(b.attacker.x);
+    }
+    expect(new Set(seen)).toEqual(new Set([10]));
+    const m = new MotionPlayer();
+    m.play([fight("catapult")], 0, pace);
+    expect(m.at(shot.releaseMs - 1).battle!.shot).toBeUndefined();
+    const leaving = m.at(shot.releaseMs).battle!.shot!;
+    expect([leaving.x, leaving.y]).toEqual([10 + shot.from.x, 10 + shot.from.y]);
+    // It rises above the straight way, its shadow on the ground under it, and comes down before the foe's feet.
+    const mid = m.at((shot.releaseMs + land) / 2).battle!.shot!;
+    expect(mid.y).toBeCloseTo((leaving.y + 10.9) / 2 - UNIT_ANIMS.catapult!.attack!.shot!.arc, 6);
+    expect(mid.y).toBeLessThan(leaving.y - 0.2);
+    expect(mid.ground).toBeGreaterThan(mid.y);
+    const down = m.at(land + 1).battle!;
+    expect(down.shot).toMatchObject({ x: 11.2, y: 10.9 });
+    expect(down.shot!.landed).toBeGreaterThan(0);
+    expect(down.defender.hp).toBe(2);
+    // Attacking leftward it shoots from the picture mirrored.
+    const back = new MotionPlayer();
+    back.play([{ ...fight("catapult"), defender: { ...fight("catapult").defender, x: 9 } }], 0, pace);
+    expect(back.at(shot.releaseMs).battle!.shot!.x).toBeCloseTo(11 - shot.from.x, 6);
+  });
+
+  it("plays the catapult's shot once a fight at its own pace, standing spent after; attacked, it stands as it was", () => {
+    const attack = UNIT_ANIMS.catapult!.attack!;
+    const land = strikeMs("catapult");
     const state = newGame(2026);
     const u = state.units[0]!;
     const c = createUnit(state, "catapult", 0, u.x, u.y, null);
     const anim = new UnitAnimator();
     anim.update(state, undefined, 0);
-    const frame: BattleFrame = { ...m.at(10).battle!, attacker: { ...m.at(10).battle!.attacker, unit: c.id } };
-    const at = (t: number) => anim.update(state, { ...frame, start: 0 }, t);
-    const attack = UNIT_ANIMS.catapult!.attack!;
-    expect(at(10).frames[c.id]).toBe(attack.frames[0]);
-    expect(at(attack.ms[0]! + 10).frames[c.id]).toBe(attack.frames[1]);
-    expect(at(wind + 10).frames[c.id]).toBe(attack.frames[attack.impact]);
+    const m = new MotionPlayer();
+    m.play([fight("catapult")], 0, pace);
+    const at = (t: number) => anim.update(state, { ...m.at(t).battle!, attacker: { ...m.at(t).battle!.attacker, unit: c.id } }, t).frames[c.id];
+    const frames: number[] = [];
+    for (let t = 0; t < land + 250; t += 10) frames.push(at(t)!);
+    // Each frame in turn, once, the stone leaving on the release frame; then spent.
+    expect(frames.filter((f, i) => f !== frames[i - 1])).toEqual(attack.frames);
+    const releaseAt = attack.ms.slice(0, attack.impact).reduce((a, b) => a + b, 0);
+    expect(frames[Math.floor((releaseAt + 10) / 10)]).toBe(attack.frames[attack.impact]);
+    // Attacked, it keeps its standing frame.
+    const anim2 = new UnitAnimator();
+    anim2.update(state, undefined, 0);
+    const d = new MotionPlayer();
+    d.play([{ ...fight("legion", "catapult"), defender: { ...fight("legion", "catapult").defender, unit: c.id } }], 0, pace);
+    for (let t = 0; t < 1200; t += 50) expect(anim2.update(state, d.at(t).battle, t).frames[c.id]).toBe(UNIT_ANIMS.catapult!.idle);
   });
 
-  it("eases the catapult's shot in and out: a slow wind-up, a quick throw, the stone seen in flight, a slow settle", () => {
-    const [ready, taut, throwing, loosed, follow, settle] = UNIT_ANIMS.catapult!.attack!.ms as [number, number, number, number, number, number];
-    expect(throwing).toBeLessThan(Math.min(ready, taut, loosed, follow, settle));
-    expect(ready + taut).toBeGreaterThan(600);
-    expect(settle).toBeGreaterThan(follow);
-    expect(loosed).toBeGreaterThan(throwing);
+  it("eases the catapult's shot in and out: held, drawn up slowly, quick as the stone leaves, settling slowly", () => {
+    const [ready, drawn, loosed, recoil, spent] = UNIT_ANIMS.catapult!.attack!.ms as [number, number, number, number, number];
+    expect(loosed).toBeLessThan(Math.min(ready, drawn, recoil, spent));
+    expect(ready + drawn).toBeGreaterThan(600);
+    expect(spent).toBeGreaterThan(recoil);
   });
 });
 
