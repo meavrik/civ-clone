@@ -33,7 +33,7 @@ const here = (p: string) => resolve(fileURLToPath(new URL(p, import.meta.url)));
  * when drawn on a green screen; `align`, runs of frames (first, last) to put in register by the part of the figure that
  * stays put in them (`register`), with the `home` frame (the one the unit stands in).
  */
-type Align = [first: string, last: string, by: "legs" | "body"];
+type Align = [first: string, last: string, by: "legs" | "body" | "wheels"];
 type Sheet = { rows: string[][]; cell?: number; green?: boolean; align?: Align[]; home?: string };
 
 /**
@@ -100,7 +100,9 @@ const SHEETS: Record<string, Sheet> = {
   // follow-through 35 ahead, the walk drifting back 27 over its six steps): the walk by its body, the thrust, the
   // cheer and the watch by the feet planted under them; the kneeling as drawn, behind the shield that stays put.
   phalanx: oneSheet({ travel: "body", attack: "legs", won: "legs" }, ["lowering", "kneeling", "shield-wall"]),
-  catapult: oneSheet({ travel: "legs", attack: "legs", won: "legs" }),
+  // Its crewman crouches, steps away and stumbles back about the cart, so every run by the wheels (the cart drawn up
+  // to 14 pixels off from frame to frame; its loosed stone lies across the next cell's edge, kept with its trail).
+  catapult: oneSheet({ travel: "wheels", attack: "wheels", won: "wheels", fortify: "wheels" }),
 };
 /** Alpha over which a pixel is the frame's own (under it: soft edges, kept with their frame). */
 const SOLID = 64;
@@ -109,6 +111,8 @@ const SPECK = 500;
 const GRID_SPECK = 20;
 /** On a grid, a piece with at least this share of itself on each side of a cell's edge is two frames' drawings touching. */
 const STRADDLE = 0.1;
+/** ... and is split there only at a column this many times thinner than its thickest. */
+const THIN = 3;
 /** Pixels kept round each frame's bounds, and round the drawings on the canvas. */
 const MARGIN = 2;
 /** How far a soft pixel looks for the frame it belongs to. */
@@ -117,6 +121,8 @@ const REACH = 4;
 const FOOT_ROWS = 4;
 /** In registering frames, the share of the home frame's height (from the ground) that is its legs; the body is above it. */
 const LEGS = 0.45;
+/** ... and that is its wheels. */
+const WHEELS = 0.25;
 
 type Box = { x: number; y: number; w: number; h: number };
 const tuple = (b: Box) => `[${b.x}, ${b.y}, ${b.w}, ${b.h}]`;
@@ -167,7 +173,9 @@ function cut(unit: string, rows: string[][], cell?: number, green?: boolean, ali
   };
   if (cell) {
     // Drawings of two frames that touch across a cell's edge: split at the piece's thinnest column within an
-    // eighth of a cell of the edge.
+    // eighth of a cell of the edge, where it is thin (a third of its thickest column or less) and leaves a share of
+    // it each side. One with no such column is one thing lying across the edge (the catapult's stone flying off).
+    const astride = new Set<number>();
     for (const p of pieces.slice()) {
       for (let edge = (Math.floor(p.x / cell) + 1) * cell; edge <= p.x1; edge += cell) {
         const across = new Map<number, number>();
@@ -176,8 +184,13 @@ function cut(unit: string, rows: string[][], cell?: number, green?: boolean, ali
           for (let x = p.x; x <= p.x1; x++)
             if (owner[y * W + x] === p.id) { across.set(x, (across.get(x) ?? 0) + 1); if (x < edge) left++; }
         if (left < p.n * STRADDLE || p.n - left < p.n * STRADDLE) continue;
-        let seam = edge;
-        for (let x = edge - cell / 8; x <= edge + cell / 8; x++) if ((across.get(x) ?? 0) < (across.get(seam) ?? 0)) seam = x;
+        const thickest = Math.max(...across.values());
+        let seam = -1, before = 0;
+        for (let x = p.x; x <= Math.min(p.x1, edge + cell / 8); before += across.get(x) ?? 0, x++) {
+          if (x < edge - cell / 8 || before < p.n * STRADDLE || p.n - before < p.n * STRADDLE) continue;
+          if (seam < 0 || (across.get(x) ?? 0) < (across.get(seam) ?? 0)) seam = x;
+        }
+        if (seam < 0 || (across.get(seam) ?? 0) > thickest / THIN) { astride.add(p.id); continue; }
         const q = { id: pieces.length, x: W, y: H, x1: -1, y1: -1, w: 0, h: 0, n: 0 };
         const kept = { x: W, y: H, x1: -1, y1: -1, n: 0 };
         for (let y = p.y; y <= p.y1; y++)
@@ -202,10 +215,34 @@ function cut(unit: string, rows: string[][], cell?: number, green?: boolean, ali
       m[0] += i % W; m[1] += Math.floor(i / W);
       middle.set(o, m);
     }
+    // A piece lying across an edge goes with the piece nearest it (the stone with its trail), whose middle says where.
+    const nearest = (p: Piece): number => {
+      const seen = new Uint8Array(W * H);
+      let front: number[] = [];
+      for (let y = p.y; y <= p.y1; y++) for (let x = p.x; x <= p.x1; x++) if (owner[y * W + x] === p.id) { seen[y * W + x] = 1; front.push(y * W + x); }
+      for (let step = 0; step < cell / 4 && front.length; step++) {
+        const next: number[] = [];
+        for (const i of front)
+          for (let dy = -1; dy <= 1; dy++)
+            for (let dx = -1; dx <= 1; dx++) {
+              const x = (i % W) + dx, y = Math.floor(i / W) + dy, j = y * W + x;
+              if (x < 0 || y < 0 || x >= W || y >= H || seen[j]) continue;
+              seen[j] = 1;
+              const o = owner[j]!;
+              if (o >= 0 && !astride.has(o)) return o;
+              next.push(j);
+            }
+        front = next;
+      }
+      throw new Error(`${unit}: a piece at ${p.x},${p.y} lies across a cell's edge with nothing near it`);
+    };
     const cells: Piece[][] = rows.flatMap((r) => r.map(() => []));
     const specks: Piece[][] = rows.flatMap((r) => r.map(() => []));
     for (const p of pieces) {
-      const [sx, sy] = middle.get(p.id)!;
+      const by = astride.has(p.id) ? pieces[nearest(p)]! : p;
+      if (by !== p) console.log(`  a piece across a cell's edge at ${p.x}-${p.x1},${p.y}-${p.y1} goes with the one at ${by.x}-${by.x1},${by.y}-${by.y1}`);
+      const [mx, my] = middle.get(by.id)!;
+      const [sx, sy] = [(mx / by.n) * p.n, (my / by.n) * p.n];
       const col = Math.floor(sx / p.n / cell), row = Math.floor(sy / p.n / cell);
       const named = row < rows.length && col < rows[row]!.length;
       const n = named ? rows.slice(0, row).reduce((a, r) => a + r.length, 0) + col : -1;
@@ -277,9 +314,11 @@ function cut(unit: string, rows: string[][], cell?: number, green?: boolean, ali
 
   // Frames drawn out of register (a generated sheet sets its figure a little differently in each cell, so it would
   // shuffle to and fro as it moves): each run named in `align` put in register by the part of the figure that stays put
-  // in it, its legs (a thrust, a cheer: the feet planted) or its body above them (a walk: the legs swing under a body
-  // going steadily on), each frame with the run's first and that with the home frame, by the shift across that lays
-  // most of their pixels in that part on each other's (the smaller shift on a tie). Only the anchors move.
+  // in it, its legs (a thrust, a cheer: the feet planted), its body above them (a walk: the legs swing under a body
+  // going steadily on) or its wheels, the lowest quarter of it (an engine's, which outweigh its crew's feet there as
+  // they crouch and stumble behind it; its cart rocking up off its front wheel as it shoots kicks back), each frame
+  // with the run's first and that with the home frame, by the shift across that lays most of their pixels in that part
+  // on each other's (the smaller shift on a tie). Only the anchors move.
   if (align?.length) {
     const names = rows.flat();
     const at = (name: string) => {
@@ -305,7 +344,7 @@ function cut(unit: string, rows: string[][], cell?: number, green?: boolean, ali
     const knee = R - Math.round(LEGS * tall);
     // How far across frame b's figure stands from frame a's, by the part `by`.
     const register = (a: number, b: number, by: Align[2]): number => {
-      const [y0, y1] = by === "legs" ? [knee, R] : [R - tall, knee];
+      const [y0, y1] = by === "body" ? [R - tall, knee] : by === "legs" ? [knee, R] : [R - Math.round(WHEELS * tall), R];
       let best = 0, most = -1;
       for (let k = 0; k <= R / 2; k++) {
         const s = k % 2 ? (k + 1) / 2 : -k / 2;

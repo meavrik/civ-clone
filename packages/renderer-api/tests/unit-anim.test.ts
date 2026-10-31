@@ -234,7 +234,7 @@ describe("the catapult's atlas", () => {
   const move = UNIT_ANIMS.catapult!;
   const frame = (name: string) => catapult.frames.find((f) => f.name === name)!;
 
-  it("has the sheet's 24 frames in the one sheet's rows, drawn in register: each its cell's middle on its row's ground", () => {
+  it("has the sheet's 24 frames in the one sheet's rows, put in register by the wheels: each near its cell's middle on its row's ground", () => {
     expect(catapult.frames.map((f) => f.name)).toEqual([
       ...[1, 2, 3, 4, 5, 6].map((n) => `travel-${n}`),
       "ready", "anticipation", "wind-up", "strike", "follow-through", "recovery",
@@ -245,15 +245,20 @@ describe("the catapult's atlas", () => {
     catapult.frames.forEach((f, n) => {
       const [x, y, bw, bh] = f.box;
       expect(x >= 0 && y >= 0 && x + bw <= w && y + bh <= h, f.name).toBe(true);
-      expect(f.anchor[0], f.name).toBe((n % 6) * 256 + 128);
+      // The cart drawn a little off from cell to cell, its wheels laid on the standing frame's (the cutter's `align`).
+      expect(Math.abs(f.anchor[0] - ((n % 6) * 256 + 128)), f.name).toBeLessThanOrEqual(16);
+      expect(f.anchor[1], f.name).toBe(catapult.frames[n - (n % 6)]!.anchor[1]);
     });
-    // The stone loosed on the strike flies off with its trail, the dots at its tail too, above the arm drawn down.
-    expect(frame("strike").box[1]).toBeLessThan(frame("ready").box[1]);
-    expect(frame("strike").source[0]).toBeLessThanOrEqual(917);
+    // The stone loosed on the release flies off with its trail, lying across the next cell's edge: kept with the
+    // release (its source reaching past the edge and up to the stone), not the frame after it.
+    const [rx, ry, rw] = frame("follow-through").source;
+    expect(rx + rw).toBeGreaterThan(1280 + 16);
+    expect(ry).toBeLessThanOrEqual(276);
+    expect(frame("recovery").source[1]).toBeGreaterThan(305);
   });
 
   it("plays the one sheet's moves, between as wide and as much of its square as the catapult's picture stood", () => {
-    expect(move).toMatchObject({ idle: 18, fortified: 23, ownerColour: false, attack: { impact: 2 } });
+    expect(move).toMatchObject({ idle: 18, fortified: 23, ownerColour: false, attack: { frames: [6, 7, 8, 9, 10, 11], impact: 4 } });
     expect(move.travel!.frames).toEqual(UNIT_ANIMS.phalanx!.travel!.frames);
     const b = unitArtPlace({ id: "catapult", unit: true, x: 0, y: 0, w: 16, h: 16 })!;
     const k = b.w / catapult.size[0];
@@ -471,10 +476,10 @@ describe("UnitAnimator", () => {
     expect(m.at(shot.releaseMs - 1).battle!.shot).toBeUndefined();
     const leaving = m.at(shot.releaseMs).battle!.shot!;
     expect([leaving.x, leaving.y]).toEqual([10 + shot.from.x, 10 + shot.from.y]);
-    // It rises above the straight way, its shadow on the ground under it, and comes down before the foe's feet.
+    // It arcs above the straight way, its shadow on the ground under it, and comes down before the foe's feet.
     const mid = m.at((shot.releaseMs + land) / 2).battle!.shot!;
     expect(mid.y).toBeCloseTo((leaving.y + 10.9) / 2 - UNIT_ANIMS.catapult!.attack!.shot!.arc, 6);
-    expect(mid.y).toBeLessThan(leaving.y - 0.2);
+    expect(mid.y).toBeLessThan((leaving.y + 10.9) / 2 - 0.2);
     expect(mid.ground).toBeGreaterThan(mid.y);
     const down = m.at(land + 1).battle!;
     expect(down.shot).toMatchObject({ x: 11.2, y: 10.9 });
@@ -511,11 +516,13 @@ describe("UnitAnimator", () => {
     for (let t = 0; t < 1200; t += 50) expect(anim2.update(state, d.at(t).battle, t).frames[c.id]).toBe(UNIT_ANIMS.catapult!.idle);
   });
 
-  it("eases the catapult's shot in and out: held, drawn up slowly, quick as the stone leaves, settling slowly", () => {
-    const [ready, drawn, loosed, recoil, spent] = UNIT_ANIMS.catapult!.attack!.ms as [number, number, number, number, number];
-    expect(loosed).toBeLessThan(Math.min(ready, drawn, recoil, spent));
-    expect(ready + drawn).toBeGreaterThan(600);
-    expect(spent).toBeGreaterThan(recoil);
+  it("eases the catapult's shot in and out: raised and winched down slowly, held longest, quick as the stone leaves, settling slowly", () => {
+    const [raised, drawn, cocked, held, loosed, spent] = UNIT_ANIMS.catapult!.attack!.ms as [number, number, number, number, number, number];
+    expect(loosed).toBeLessThan(Math.min(raised, drawn, cocked, held, spent));
+    expect(raised + drawn + cocked + held).toBeGreaterThan(900);
+    expect(held).toBeGreaterThan(Math.max(raised, drawn, cocked));
+    expect(Math.min(raised, cocked)).toBeGreaterThan(drawn);
+    expect(spent).toBeGreaterThan(held);
   });
 });
 

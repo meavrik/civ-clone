@@ -961,7 +961,7 @@ Never ship the original's sprites, palette art, fonts or text.
   fast ... slow prepare to fire - than throw stone"; `strikeMs`, `MotionTiming.strikeMs` from the web app's own moves
   and the other civs' playback, `BattleFrame.strikeMs`; never sooner than `LUNGE_MS`, 150, the attacker standing its
   ground until the last of it, the rounds after at their pace, so the fight is that much longer: the militia's and the
-  hoplite's 320 ms, the catapult's 870; until then the wind-up was squeezed into the 150), so the strike lands with the
+  hoplite's 320 ms, the catapult's 1490 with its stone's flight; until then the wind-up was squeezed into the 150), so the strike lands with the
   first blow; the defender answers from that blow at its own pace; each strike is reported as it lands
   (`UnitPoses.impacts`), and the fight no longer shown, back to its orders. Combat itself is untouched. `unitArtPlace` stands every frame's canvas in the same box (the idle
   drawing centred, its foot a fine pixel up), so feet stay put. The magenta clothes take the owner's colour
@@ -1056,19 +1056,26 @@ Never ship the original's sprites, palette art, fonts or text.
   drawn, behind the shield that stays put. Preview: `?unit=phalanx`.
   Every sheet in that layout is one entry in the cutter (`oneSheet` in anim.ts: its rows' names and what each run is
   registered by) and one in `UNIT_ANIMS` (`oneSheet(square)` in unit-anim.ts: the rows' moves and timings). The
-  catapult (2026-10-31, asked for with the user's sheet: "implement attached catapult states"; drawn in register):
-  rolling on turning wheels, the arm drawn down then swung up to loose its stone, a flag run up as it wins, still on
-  watch, its wheels chocked and props braced out to fortify; drawn lower and longer than its still picture, so scale
-  252, between as wide as that (276) and as much of the square (230). Its shot (asked for the same day: "too fast.
-  should be with ease in-out. slow prepare to fire - than throw stone", then "still very bad": it lunged onto its foe
-  like a soldier, jiggled with each blow, and its stone only appeared at its own corner): it stands its ground and
-  shoots once a fight (`UnitShot` on its attack: `from`, where the release frame draws the stone, atlas pixels from that
-  frame's foot; `flightMs` 440; `arc` 0.6 of a square), holding the loaded arm (320 ms), drawing it up slowly (460),
-  quick as the stone leaves on the sheet's frame of it (110; the sheet's second loaded frame, the first again, left
-  out), the spent arm settling (240, 420) and held so till its flag goes up. The map carries the stone on from that
-  frame's end (renderer-api `shotOf`, `MotionTiming.shot` from both pacings, `ShotPace`; `BattleFrame.shot`: where it is,
-  the ground under it, `landed`): an arc to the ground before its foe's feet (`SHOT_LANDS`), mirrored when it shoots
-  leftward, the first blow landing with it (`strikeMs` counts the release frame and the flight: 1330 ms), the attacker
+  catapult (2026-10-31, asked for with the user's sheet: "implement attached catapult states", redrawn the same day with
+  its crewman: "implement attached updated catapult sprite-sheet"): he pushes it on its turning wheels; raises the
+  loaded arm upright, winches it back and down to cocked, holds it, lets go (the arm slams up, the stone flies off with
+  its trail, the cart bucks, he stumbles back), and it rests empty; he steps away and cheers, arms up; he stands watch
+  beside it with his staff (the sheet's fortify frames are the watch again). As wide as the first sheet's catapult alone
+  (the cart drawn smaller beside him), so scale 252 still, between as wide as the still picture (295) and as much of
+  the square (249). He crouches, steps and stumbles about the cart, so the cutter registers every run by the wheels
+  (`align` "wheels": the lowest quarter of the picture, where they outweigh his feet; the cart is drawn up to 14 pixels
+  off from cell to cell, and kicks back 12 as it shoots). The loosed stone lies across the edge of the next cell: a
+  piece astride an edge is split only at a thin column (a third of its thickest or less), else it goes with the piece
+  nearest it (the stone with its trail). Its shot (asked for the same day: "too fast. should be with ease in-out. slow
+  prepare to fire - than throw stone", then "still very bad": it lunged onto its foe like a soldier, jiggled with each
+  blow, and its stone only appeared at its own corner): it stands its ground and shoots once a fight (`UnitShot` on its
+  attack: `from`, where the release frame draws the stone, atlas pixels from that frame's foot; `flightMs` 340; `arc`
+  0.25 of a square), eased in and out: raised (260 ms), winched down (220, 260), held longest (300), quick as the stone
+  leaves on the sheet's frame of it (110), the spent arm settling (480) and held so till he cheers. The map carries the
+  stone on from that frame's end (renderer-api `shotOf`, `MotionTiming.shot` from both pacings, `ShotPace`;
+  `BattleFrame.shot`: where it is, the ground under it, `landed`): the sheet draws it near the top of its square, over
+  its foe's, so it comes down in a short drop to the ground before its foe's feet (`SHOT_LANDS`), mirrored when it shoots
+  leftward, the first blow landing with it (`strikeMs` counts the release frame and the flight: 1490 ms), the attacker
   never closing in (no lunge, no jiggle); then the dust settles (`LANDED_MS` 380). Retro `shot.ts`: a light grey ball
   five fine pixels across (the picture's stone at the map's scale) edged in its darkest, its shadow on the ground under
   it, then dust puffs dithered thinner as they spread and rise, clods falling back, a flash at the strike; on the map

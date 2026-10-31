@@ -149,18 +149,21 @@ export const UNIT_ANIMS: Record<string, UnitAnimRule> = {
   // a square): its shield (67x80 here, 71x76 there: 290) and its crest to its feet (209 here, 198 there: 302) between
   // them. The still picture's spear is drawn longer, so the sheet's stands a little shorter in the square.
   phalanx: oneSheet(296),
-  // The catapult (2026-10-31, the user's sheet: "implement attached catapult states"): rolling on its turning wheels;
-  // the arm drawn down, swung up to loose the stone (the stone and its trail on the strike), empty after; a flag run up
-  // as it wins; still on watch; fortifying, its wheels chocked and props braced out. Drawn lower and longer than the
-  // catapult's picture on the units sheet (221x157 here, 192x197 there at 240 a square), so between as wide as that
-  // (276) and as much of the square (230). Its shot (asked for the same day: "too fast. should be with ease in-out.
-  // slow prepare to fire - than throw stone", then "still very bad": it lunged onto its foe, jiggled with every blow and
-  // its stone went nowhere): it stands its ground and shoots once a fight, holding the loaded arm, drawing it up
-  // slowly, then quick as the stone leaves (the sheet's frame of it; its second loaded frame is the first again, left
-  // out), the spent arm settling slowly; the stone flies on from where the sheet draws it (41 pixels across, its middle
-  // 100 right of the frame's foot and 183 above) to its foe's feet, and the first blow lands with it (`strikeMs`).
+  // The catapult (2026-10-31, the user's sheet: "implement attached catapult states", redrawn the same day with its
+  // crewman: "implement attached updated catapult sprite-sheet"): he pushes it on its turning wheels; raises the loaded
+  // arm upright, winches it back and down to cocked, holds it, and lets go: the arm slams up, the stone flies off with
+  // its trail, the cart bucks and he stumbles back; then it rests empty; he steps away from it and cheers, arms up; he
+  // stands watch beside it with his staff. As wide as the first sheet's catapult alone (236x172 standing, the cart
+  // smaller beside him), so at its scale: between as wide as the picture on the units sheet (192x197 there at 240 a
+  // square: 295) and as much of the square (249). Its shot (asked for the same day: "too fast. should be with ease
+  // in-out. slow prepare to fire - than throw stone", then "still very bad": it lunged onto its foe, jiggled with every
+  // blow and its stone went nowhere): it stands its ground and shoots once a fight, eased in and out: the arm raised and
+  // winched down slowly, held longest, then quick as the stone leaves (the sheet's frame of it), the spent arm settling
+  // slowly; the stone flies on from where the sheet draws it (34 pixels across, its middle 127 right of the frame's foot
+  // and 194 above: near the top of its square, over its foe's), comes down on its foe's feet in a short drop, and the
+  // first blow lands with it (`strikeMs`).
   catapult: oneSheet(252, {
-    attack: { frames: [6, 8, 9, 10, 11], ms: [320, 460, 110, 240, 420], impact: 2, shot: { from: [100, -183], flightMs: 440, arc: 0.6 } },
+    attack: { frames: [6, 7, 8, 9, 10, 11], ms: [260, 220, 260, 300, 110, 480], impact: 4, shot: { from: [127, -194], flightMs: 340, arc: 0.25 } },
   }),
 };
 
