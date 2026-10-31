@@ -488,15 +488,21 @@ Never ship the original's sprites, palette art, fonts or text.
   on nothing that answers (not a button, unit or city square) leaves it; Buy (button or B) shows the
   price against the treasury first. The build menu (`openProductionMenu` in the web app) shows beside
   each choice only the turns it takes from here, counting the shields a change would keep ("never"
-  without a surplus); no costs or shield counts (asked for). Each choice has its picture before it (asked for
+  without a surplus); no costs or shield counts (asked for). Its choices stand under two tabs, Buildings (wonders and
+  spaceship parts with them) and Units (asked for 2026-10-31: "split into 2 tabs - buildings and units";
+  `MenuState.tabs`/`tab`, a `MenuTab` each, shown by renderer-api `showTab`, which keeps each tab's pick for when it
+  comes back): it opens on the tab of what the city is building, a tab with nothing to build is left out (one left,
+  no tabs), a click on a tab (`Renderer.menuTabAt`, retro `menuTabAt`), Left/Right or Tab switch, and the window is
+  sized for both tabs' rows so it keeps its size; retro draws the tabs as stone buttons sharing the window's width
+  under the title, the one shown lit. Each choice has its picture before it (asked for
   2026-10-30: "show unit/building image next to each item"; `MenuState.pictures`, a `MenuPicture`: the unit's, the
   user's picture of the building, wonder or spaceship part in a 16-pixel square, retro `drawRowPicture`; darkened on
   a row that cannot be picked), and over the city screen the window stands above the units box, which stays lit
   (asked for the same day: "place the menu above the units panel - so player could see all existing units";
   `MenuState.keepClear` "cityUnits", the box from renderer-retro `screens/city-layout.ts`, which holds the city
-  screen's boxes so widgets.ts can read them), its rows scrolling in the room there (5 on the desktop, 4 on the
-  phone); where that leaves fewer than 4 rows (a note above the list) the phone takes its smaller menu, else the
-  window stands in the middle as before (`CLEAR_ROWS`). A change of production keeps the box for the kind it was
+  screen's boxes so widgets.ts can read them), its rows scrolling in the room there (4 on the desktop, 3 on the
+  phone, with the tabs); where that leaves fewer than 3 rows (a note above the list, on the phone) the phone takes
+  its smaller menu, else the window stands in the middle as before (`CLEAR_ROWS`). A change of production keeps the box for the kind it was
   gathered for and half of it for another kind (`shieldsAfterChange`: reckoned from the box as the turn
   began, `City.turnShields`/`turnKind`, or as bought, so changing and changing back in a turn costs
   nothing; FreeCiv's model). Units are one kind and improvements, wonders and spaceship parts another,

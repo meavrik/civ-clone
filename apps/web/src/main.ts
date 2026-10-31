@@ -197,9 +197,11 @@ import {
   type LoadingView,
   type MainScreenView,
   type MenuState,
+  type MenuTab,
   type Renderer,
   type ReportPage,
   keepInView,
+  showTab,
   MENU_BAR,
   topCitiesReport,
   civilizationsReport,
@@ -1645,7 +1647,6 @@ function openProductionMenu(cityId: number, then?: () => void, title?: string, b
   const ready = buildOptions(state, city);
   const lacking = new Map(unitChoices(state, city).filter((u) => u.missing.length).map((u) => [u.id, u.missing]));
   const units = unitChoices(state, city).map((u): Production => ({ kind: "unit", id: u.id }));
-  const opts = [...units, ...ready.filter((p) => p.kind !== "unit")];
   const missing = (p: Production) => (p.kind === "unit" ? lacking.get(p.id) : undefined);
   // Resources we lack only for want of a road on their squares (since save version 43): said under the title.
   const lacked = new Set([...lacking.values()].flat());
@@ -1662,27 +1663,42 @@ function openProductionMenu(cityId: number, then?: () => void, title?: string, b
     const n = Math.ceil(left / surplus);
     return `${n} turn${n === 1 ? "" : "s"}`;
   };
-  screenState = {
-    kind: "menu",
-    under: screenState,
-    menu: {
-      title: title ?? `${city.name}: build what?`,
-      ...(body ? { body } : {}),
-      items: opts.map((p) => productionName(p)),
-      right: opts.map((p) => {
+  const building = (p: Production) => p.kind === city.production.kind && p.id === city.production.id;
+  // Two tabs (asked for 2026-10-31): Buildings, wonders and spaceship parts with them, and Units, opening on the one
+  // the city is building from, each choice with its picture before it (2026-10-30); a tab with nothing to build is left out.
+  const groups = [{ label: "Buildings", list: ready.filter((p) => p.kind !== "unit") }, { label: "Units", list: units }].filter((g) => g.list.length);
+  const tabs = groups.map(({ label, list }): MenuTab => {
+    const pick = list.findIndex((p) => building(p) && !missing(p));
+    return {
+      label,
+      items: list.map((p) => productionName(p)),
+      right: list.map((p) => {
         const t = p.kind === "unit" ? unitType(p.id) : null;
         const lacks = missing(p);
         return `${t ? `${t.attack}/${t.defense}/${t.moves + traitMoves(state, city.owner, p.id)} ` : ""}${lacks ? `needs ${lacks.join(", ")}` : turns(p)}`;
       }),
-      selected: Math.max(0, opts.findIndex((p) => p.kind === city.production.kind && p.id === city.production.id && !missing(p))),
-      disabled: opts.flatMap((p, i) => (missing(p) ? [i] : [])),
-      // Each choice's picture before it, and over the city screen the window above its units box, so the units
-      // the city has stay in sight (asked for 2026-10-30).
-      pictures: opts.map((p) => (p.kind === "unit" ? { unit: p.id, color: state.players[city.owner]!.color } : { building: p.id })),
-      ...(screenState.kind === "city" ? { keepClear: "cityUnits" as const } : {}),
-    },
+      pictures: list.map((p) => (p.kind === "unit" ? { unit: p.id, color: state.players[city.owner]!.color } : { building: p.id })),
+      disabled: list.flatMap((p, i) => (missing(p) ? [i] : [])),
+      selected: pick >= 0 ? pick : Math.max(0, list.findIndex((p) => !missing(p))),
+    };
+  });
+  const menu: MenuState = {
+    title: title ?? `${city.name}: build what?`,
+    ...(body ? { body } : {}),
+    items: [],
+    selected: 0,
+    tabs,
+    // Over the city screen the window stands above its units box, so the units the city has stay in sight (2026-10-30).
+    ...(screenState.kind === "city" ? { keepClear: "cityUnits" as const } : {}),
+  };
+  showTab(menu, Math.max(0, groups.findIndex((g) => g.list.some(building))));
+  if (tabs.length < 2) { delete menu.tabs; delete menu.tab; }
+  screenState = {
+    kind: "menu",
+    under: screenState,
+    menu,
     onPick: (i) => {
-      const p: Production | undefined = opts[i];
+      const p: Production | undefined = groups[menu.tab ?? 0]?.list[i];
       if (p && !missing(p)) dispatch({ type: "setProduction", city: cityId, production: p });
       then?.();
     },
@@ -3211,6 +3227,15 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     else if (e.code === "Escape") { screenState = sc.under; sc.onCancel?.(); }
     return;
   }
+  // A tabbed list (the build menu's Buildings and Units): Left and Right, or Tab, show the tab beside.
+  if (m.tabs && (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.code === "Numpad4" || e.code === "Numpad6" || e.code === "Tab")) {
+    e.preventDefault();
+    const back = e.code === "ArrowLeft" || e.code === "Numpad4" || (e.code === "Tab" && e.shiftKey);
+    showTab(m, ((m.tab ?? 0) + (back ? -1 : 1) + m.tabs.length) % m.tabs.length);
+    m.top = keepInView(m, renderer.menuRows(m));
+    sound.play("click");
+    return;
+  }
   switch (e.code) {
     case "ArrowUp": case "Numpad8": stepSelection(m, -1); break;
     case "ArrowDown": case "Numpad2": stepSelection(m, 1); break;
@@ -3505,6 +3530,12 @@ function mouseDown(e: MouseEvent): void {
       if (way !== null) { if (way) moveSelection(sc.menu, way * Math.max(1, renderer.menuRows(sc.menu) - 1)); return; }
       // A window still opening answers no click (a double click through the playback would close it).
       if (sc.bar === undefined && !sc.sub && !settled(sc.menu)) return;
+      // A tab of a tabbed list shows its rows.
+      const tab = renderer.menuTabAt?.(sc.menu, px, py) ?? null;
+      if (tab !== null) {
+        if (tab !== (sc.menu.tab ?? 0)) { sound.play("click"); showTab(sc.menu, tab); }
+        return;
+      }
       const i = renderer.menuHit(sc.menu, px, py);
       screenState = sc.under;
       if (i >= 0) { sound.play("click"); sc.onPick(i); } else sc.onCancel?.();

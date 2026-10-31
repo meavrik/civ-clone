@@ -248,7 +248,15 @@ interface MenuLayout {
   rows: number; top: number;
   /** The part of the screen it stands clear of and leaves lit (`MenuState.keepClear`), when it does. */
   keep: { x: number; y: number; w: number; h: number } | null;
+  /** The top of its tabs (`MenuState.tabs`; the rows' top when it has none) and their height. */
+  tabsY: number; tabH: number;
+  /** The rows of its longest list (every tab's), and how many of them it has room for. */
+  count: number; room: number;
 }
+
+/** The gap between a tabbed list's tabs, and under them before the rows. */
+const TAB_GAP = 2;
+const TAB_FOOT = 4;
 
 /** A window's map square (`MenuState.square`): its picture's side in screen pixels (twice a map square), framed, and the gap after it. */
 export const SQUARE_PIC = 32;
@@ -267,7 +275,7 @@ function keptClear(m: MenuState): { x: number; y: number; w: number; h: number }
 }
 
 /** A window keeping clear of part of the screen shows at least this many rows (or all it has), else stands in the middle as usual. */
-const CLEAR_ROWS = 4;
+const CLEAR_ROWS = 3;
 
 /** How far round the point a window keeps clear of (`MenuState.avoid`): a square of the map either way. */
 const AVOID = 16;
@@ -293,7 +301,7 @@ function clearOf(p: { x: number; y: number }, x: number, y: number, w: number, h
 function menuLayout(m: MenuState, screenW = SCREEN_W, size = DESK_MENU, clear = true): MenuLayout {
   const l = layoutAt(m, screenW, size, clear);
   // Too few rows in the room above what it keeps clear of: smaller (the phone's), else in the middle after all.
-  const cramped = !!l.keep && l.rows < Math.min(m.items.length, CLEAR_ROWS);
+  const cramped = !!l.keep && l.room < Math.min(l.count, CLEAR_ROWS);
   if (size.fallback && (l.y + l.h > SCREEN_H || l.x + l.w > screenW || cramped)) {
     const small = menuLayout(m, screenW, size.fallback, clear);
     return cramped && !small.keep ? menuLayout(m, screenW, size, false) : small;
@@ -306,22 +314,30 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean)
   const t = size.text;
   const tw = (text: string) => (t === 2 ? textWidthLarge(text) : textWidth(text));
   const lineH = FONT_HEIGHT * t;
+  // A tabbed list is sized for every tab's rows (`MenuState.tabs`), so it keeps its size as they change.
+  const lists: Pick<MenuState, "items" | "right" | "pictures">[] = m.tabs ?? [m];
+  const count = Math.max(0, ...lists.map((l) => l.items.length));
   // Rows with a picture before them keep the picture's height (or the row's, if taller) and never close up.
-  const pic = m.pictures ? UNIT_PIC + 4 : 0;
+  const pictured = lists.some((l) => l.pictures);
+  const pic = pictured ? UNIT_PIC + 4 : 0;
   const unitRow = Math.max(UNIT_ROW, size.row);
-  const least = m.pictures ? unitRow : size.least;
+  const least = pictured ? unitRow : size.least;
+  // Its tabs: a row of buttons as tall as a window's buttons across the top of the list, each as wide as the longest label needs.
+  const tabH = m.tabs ? size.button : 0;
+  const tabsH = m.tabs ? tabH + TAB_FOOT : 0;
+  const tabsW = m.tabs ? m.tabs.length * (Math.max(...m.tabs.map((tab) => tw(tab.label))) + 16 + TAB_GAP) + 8 - TAB_GAP : 0;
   // The window's room ends at the screen's foot, or above what it keeps clear of, its shadow too.
   const keep = clear ? keptClear(m) : null;
   const floor = keep ? keep.y - 2 : SCREEN_H;
-  const itemW = Math.max(0, ...m.items.map((i, k) => pic + tw(i) + (m.right?.[k] ? tw(m.right[k]!) + 12 : 0)));
+  const itemW = Math.max(0, ...lists.flatMap((l) => l.items.map((i, k) => pic + tw(i) + (l.right?.[k] ? tw(l.right[k]!) + 12 : 0))));
   const bw = buttons ? Math.max(size.buttonW, itemW + 16) : 0;
   const titleH = t === 2 ? TITLE_H_LARGE : TITLE_H;
   const head = m.title ? titleH + 5 : 3;
   const foot = m.title ? 6 : 3;
   // A list that will not fit even with its rows closed up scrolls at the usual row height, beside its bar.
-  const roomGuess = floor - (m.anchor?.y ?? 0) - head - foot - (m.body?.length ? m.body.length * lineH + 5 : 0);
-  const scrolls = !buttons && m.items.length * least > roomGuess;
-  const need = Math.max(tw(m.title) + 16 + (m.close ? titleH : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? size.scroll + 4 : 0));
+  const roomGuess = floor - (m.anchor?.y ?? 0) - head - foot - tabsH - (m.body?.length ? m.body.length * lineH + 5 : 0);
+  const scrolls = !buttons && count * least > roomGuess;
+  const need = Math.max(tw(m.title) + 16 + (m.close ? titleH : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? size.scroll + 4 : 0), tabsW);
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l, t))) + 20 : 0;
   // A map square or a unit's picture heads the window, in the same frame.
   const framed = !!(m.square || m.unit);
@@ -335,22 +351,39 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean)
   }
   const bodyH = lines.length || framed ? Math.max(lines.length * lineH, framed ? SQUARE_FRAME + 2 : 0) + 5 : 0;
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
-  const room = floor - (m.anchor?.y ?? 0) - head - bodyH - foot;
-  const fits = m.items.length * least <= room;
-  const row = m.pictures ? unitRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, m.items.length)))) : size.row;
+  const room = floor - (m.anchor?.y ?? 0) - head - bodyH - tabsH - foot;
+  const fits = count * least <= room;
+  const row = pictured ? unitRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, count)))) : size.row;
   const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
-  const itemsH = buttons ? m.items.length * (size.button + size.buttonGap) + 1 : rows * row;
-  const h = head + bodyH + itemsH + foot;
+  const itemsH = buttons ? m.items.length * (size.button + size.buttonGap) + 1 : (fits ? count : rows) * row;
+  const h = head + bodyH + tabsH + itemsH + foot;
   let x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
   let y = m.anchor ? m.anchor.y : keep ? Math.max(0, floor - h) : Math.max(0, Math.floor((SCREEN_H - h) / 2));
   if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
-  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep };
+  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + tabsH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH, tabH, count, room: fits ? count : rows };
 }
 
 export function menuRect(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x: number; y: number; w: number; h: number } {
   const { x, y, w, h } = menuLayout(m, screenW, size);
   return { x, y, w, h };
+}
+
+/** Where tab `i` of a tabbed menu stands: the tabs share the window's width, `TAB_GAP` apart. */
+function tabRect(l: MenuLayout, n: number, i: number): { x: number; y: number; w: number; h: number } {
+  const tw = Math.floor((l.w - 8 - TAB_GAP * (n - 1)) / n);
+  return { x: l.x + 4 + i * (tw + TAB_GAP), y: l.tabsY, w: tw, h: l.tabH };
+}
+
+/** The tab of a tabbed menu (`MenuState.tabs`) under a screen point, or null. */
+export function menuTabAt(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): number | null {
+  if (!m.tabs) return null;
+  const l = menuLayout(m, screenW, size);
+  const i = m.tabs.findIndex((_, k) => {
+    const r = tabRect(l, m.tabs!.length, k);
+    return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+  });
+  return i >= 0 ? i : null;
 }
 
 /** How many of a menu's rows show at once. */
@@ -463,10 +496,15 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     else s.rect(fx + 2, fy + 2, SQUARE_PIC, SQUARE_PIC, C.BLACK!);
   }
   lines.forEach((line, i) => drawIconLine(s, x + 10 + (indents[i] ?? 0), bodyY + i * lineH, line, C.BLACK!, t));
-  if (lines.length && m.items.length) {
-    s.hline(x + 4, itemsY - 4, w - 8, shade("panel", 2));
-    s.hline(x + 4, itemsY - 3, w - 8, shade("panel", 7));
+  if (lines.length && (m.items.length || m.tabs)) {
+    s.hline(x + 4, l.tabsY - 4, w - 8, shade("panel", 2));
+    s.hline(x + 4, l.tabsY - 3, w - 8, shade("panel", 7));
   }
+  // The tabs, the one shown lit.
+  m.tabs?.forEach((tab, i) => {
+    const r = tabRect(l, m.tabs!.length, i);
+    drawButton(s, r.x, r.y, r.w, r.h, tab.label, true, i === (m.tab ?? 0), t);
+  });
   const rowW = w - 8 - (scrolls ? size.scroll + 2 : 0);
   m.items.forEach((item, i) => {
     const off = m.disabled?.includes(i) === true;

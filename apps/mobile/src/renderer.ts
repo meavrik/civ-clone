@@ -65,6 +65,7 @@ import {
   menuRows,
   menuScrollAt,
   menuRowRect,
+  menuTabAt,
   TOUCH_MENU,
   choiceAt,
   choicesFit,
@@ -514,6 +515,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     menuScrollAt: (m, px, py) => {
       const sh = shapeOf(m);
       return sh.style ? null : menuScrollAt(sh.menu, px - sh.dx, py, sh.screenW, TOUCH_MENU);
+    },
+    menuTabAt: (m, px, py) => {
+      const sh = shapeOf(m);
+      return sh.style ? null : menuTabAt(sh.menu, px - sh.dx, py, sh.screenW, TOUCH_MENU);
     },
     // The city screen's points, through the enlarged box when one is shown.
     citySlotAt: (px, py) => citySlotAt(...cityPoint(px, py)),

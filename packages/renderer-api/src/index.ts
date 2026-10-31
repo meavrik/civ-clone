@@ -316,10 +316,44 @@ export interface MenuState {
    * "place the menu above the units panel - so player could see all existing units"). Modern ignores it.
    */
   keepClear?: "cityUnits";
+  /**
+   * Tabs above the rows, `tab` the one shown, its rows being `items`, `right`, `pictures` and `disabled` (`showTab`):
+   * the build menu's Buildings and Units (asked for 2026-10-31: "split into 2 tabs - buildings and units"). The window
+   * is sized for every tab's rows, so it keeps its size as they change. Never buttons. Modern ignores them (it shows
+   * the tab shown).
+   */
+  tabs?: MenuTab[];
+  tab?: number;
 }
 
 /** A row's picture in a list (`MenuState.pictures`): a unit's in its owner's colours, or a building's (a wonder's, a spaceship part's). */
 export type MenuPicture = { unit: string; color: number } | { building: string };
+
+/** A tab of a list (`MenuState.tabs`): its label and its rows, as the menu's own fields hold them while it is shown. */
+export interface MenuTab {
+  label: string;
+  items: string[];
+  right?: string[];
+  pictures?: (MenuPicture | null)[];
+  disabled?: number[];
+  /** The row picked while it is shown, kept for when it is shown again. */
+  selected: number;
+}
+
+/** Show tab `i` of a tabbed list (`MenuState.tabs`), the tab shown before keeping the row it had picked; scrolled to the top. */
+export function showTab(m: MenuState, i: number): void {
+  const t = m.tabs?.[i];
+  if (!t) return;
+  const was = m.tabs![m.tab ?? 0];
+  if (was) was.selected = m.selected;
+  m.tab = i;
+  m.items = t.items;
+  m.selected = t.selected;
+  m.top = 0;
+  if (t.right) m.right = t.right; else delete m.right;
+  if (t.pictures) m.pictures = t.pictures; else delete m.pictures;
+  if (t.disabled) m.disabled = t.disabled; else delete m.disabled;
+}
 
 /** How long a window takes to grow to its full size as it opens (asked for 2026-10-24: "animate window modals entrance"). */
 export const WINDOW_ENTER_MS = 160;
@@ -341,7 +375,7 @@ export const MODAL_MAX_SHARE = 0.55;
  * longer lists (what to build, every tribe) keep rows.
  */
 export function menuButtons(m: MenuState): boolean {
-  return m.title !== "" && !m.anchor && m.items.length <= 4 && !m.right?.some(Boolean) && !m.pictures;
+  return m.title !== "" && !m.anchor && m.items.length <= 4 && !m.right?.some(Boolean) && !m.pictures && !m.tabs;
 }
 
 export interface TextInputState {
@@ -471,6 +505,8 @@ export interface Renderer {
   menuScrollAt(menu: MenuState, px: number, py: number): number | null;
   /** Where a row of a menu lies as drawn, across the menu's width (a submenu opens beside it); null for buttons or a row off view. */
   menuRowRect?(menu: MenuState, row: number): { x: number; y: number; w: number; h: number } | null;
+  /** The tab under a point of a tabbed menu (`MenuState.tabs`), or null. */
+  menuTabAt?(menu: MenuState, px: number, py: number): number | null;
   /** Radius slot under a point on the city screen's resource map, or null. */
   citySlotAt(px: number, py: number): number | null;
   /** True when the point is on the city screen's exit bar. */
