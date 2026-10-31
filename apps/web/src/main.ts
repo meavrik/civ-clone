@@ -3104,6 +3104,7 @@ function markDeepWaterWarned(): void {
 function tryMove(unit: number, dx: number, dy: number): void {
   const before = state.activeUnit;
   const mark = lastActions.length;
+  const wasAboard = unitById(state, unit)?.aboard ?? null;
   const r = applyCommand(state, { type: "move", unit, dx, dy });
   if (r.ok) {
     log.push({ type: "move", unit, dx, dy });
@@ -3119,6 +3120,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
       whenStill(() => conquestNews(ev, () => { if (after.length) presentEvents(after); else followActive(true); }));
     } else if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
     else warnDeepWater(unit);
+    wakeShip(unit, wasAboard);
   } else if (r.reason === "treaty") {
     const u = unitById(state, unit)!;
     const target = unitAt(state, u.x + dx, u.y + dy)[0] ?? cityAt(state, u.x + dx, u.y + dy);
@@ -3133,6 +3135,19 @@ function tryMove(unit: number, dx: number, dy: number): void {
   blinkOn = true;
   lastBlink = performance.now();
   afterUnitOrder(before, mark);
+}
+
+/**
+ * A unit just gone aboard a ship (asked for 2026-10-31: "when unit go into the transport unit - activate it from
+ * sleep, ready to move"): the ship wakes (sentry or camp dropped, the `activate` order, logged as any) and, with moves
+ * left, comes into play to sail. A ship on its way somewhere (a goto) keeps its course.
+ */
+function wakeShip(unit: number, wasAboard: number | null): void {
+  const aboard = unitById(state, unit)?.aboard ?? null;
+  if (aboard === null || aboard === wasAboard) return;
+  const ship = unitById(state, aboard);
+  if (!ship || ship.order.kind === "goto" || (ship.order.kind === "none" && ship.movesLeft <= 0)) return;
+  dispatch({ type: "activate", unit: ship.id });
 }
 
 function mapKey(e: KeyboardEvent): void {

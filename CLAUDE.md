@@ -749,6 +749,10 @@ Never ship the original's sprites, palette art, fonts or text.
   part with no action (4 s); retro's `panelLayout` places the panel's rows for drawing and hit tests alike
   (`statusPartAt`, `Renderer.statusPartAt`). A click on tax, luxuries or science opens the rates. Disbanding
   (Shift+D, Orders > Disband) asks "Are you sure?" first, No by default (`confirmDisband`).
+  A unit of ours stepping aboard a ship wakes the ship (asked for 2026-10-31: "when unit go into the transport unit -
+  activate it from sleep, ready to move"; the web app's `wakeShip` after `tryMove`): sentry or camp dropped by the
+  `activate` order, logged as any, and with moves left the ship comes into play to sail; a ship on a goto keeps it.
+  The rules are untouched (the unit aboard still sentries), so the AI and old logs are unchanged.
   A unit's orders (`unitOrders` in the web app; asked for 2026-10-27) end with Disband, in red (`MenuState.danger`:
   a red row, lit dark red, or a red-lettered button on the phone), then Pillage last; settlers have no Fortify,
   and Found city stands faded ("Found city: too close", `MenuState.disabled`) within `CITY_MIN_DISTANCE` of a
