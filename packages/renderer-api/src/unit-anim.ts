@@ -137,8 +137,11 @@ export const UNIT_ANIMS: Record<string, UnitAnimRule> = {
   // the arm drawn down, swung up to loose the stone (the stone and its trail on the strike), empty after; a flag run up
   // as it wins; still on watch; fortifying, its wheels chocked and props braced out. Drawn lower and longer than the
   // catapult's picture on the units sheet (221x157 here, 192x197 there at 240 a square), so between as wide as that
-  // (276) and as much of the square (230).
-  catapult: oneSheet(252),
+  // (276) and as much of the square (230). Its shot eases in and out (asked for the same day: "too fast. should be
+  // with ease in-out. slow prepare to fire - than throw stone"): the loaded arm held and drawn taut slowly, the throw
+  // quick, the stone in flight a moment, the empty arm settling slowly; the fight waits the wind-up for its first blow
+  // (`strikeMs`).
+  catapult: oneSheet(252, { attack: { frames: [6, 7, 8, 9, 10, 11], ms: [340, 420, 110, 260, 200, 380], impact: 3 } }),
 };
 
 /**
@@ -147,7 +150,7 @@ export const UNIT_ANIMS: Record<string, UnitAnimRule> = {
  * standing in the first watch frame. `square` is its scale; shown as drawn, the magenta left magenta, as the still
  * pictures are (the militia's colour was asked for).
  */
-function oneSheet(square: number): UnitAnimRule {
+function oneSheet(square: number, more: Partial<UnitAnimRule> = {}): UnitAnimRule {
   return {
     square,
     pixelated: true,
@@ -163,6 +166,7 @@ function oneSheet(square: number): UnitAnimRule {
     fortify: { frames: [21, 22, 23], ms: [140, 160, 180] },
     idle: 18,
     fortified: 23,
+    ...more,
   };
 }
 
@@ -198,6 +202,12 @@ export function animFrameCount(type: string): number {
   const rule = UNIT_ANIMS[type];
   if (!rule) return 0;
   return [type, ...(rule.sheets ?? [])].reduce((n, id) => n + (UNIT_ATLASES[id]?.frames.length ?? 0), 0);
+}
+
+/** How long an attacker of `type` takes to its first strike, its attack's frames before it (`MotionTiming.strikeMs`); 0 for one with no attack. */
+export function strikeMs(type: string): number {
+  const attack = UNIT_ANIMS[type]?.attack;
+  return attack ? attack.ms.slice(0, attack.impact).reduce((a, b) => a + b, 0) : 0;
 }
 
 /** How long a step of a unit of `type` takes to show its walk whole (`MotionTiming.walkMs`); 0 for one that does not walk. */
@@ -377,9 +387,9 @@ export class UnitAnimator {
     const p = this.units.get(id)!;
     const side = battle ? (battle.attacker.unit === id ? "attacker" : battle.defender.unit === id ? "defender" : null) : null;
     if (battle && side && rule.attack && p.fight !== battle.start) {
-      // The attacker from the fight's start, its first strike with the first blow; the defender answers from the lunge.
+      // The attacker from the fight's start, its first strike with the first blow; the defender answers from that blow.
       const attacking = side === "attacker";
-      Object.assign(p, { action: "attack", since: attacking ? battle.start : battle.start + LUNGE_MS, fight: battle.start, attacking, struck: -1 });
+      Object.assign(p, { action: "attack", since: attacking ? battle.start : battle.start + (battle.strikeMs ?? LUNGE_MS), fight: battle.start, attacking, struck: -1 });
     }
     // The fight decided, as the loser begins to burst: the winner celebrates.
     if (battle && side && p.fight === battle.start) {
@@ -388,9 +398,10 @@ export class UnitAnimator {
     }
     // The fight over (or another one shown, not ours): back to its orders; a win plays on to its end.
     if (p.action === "attack" && (!side || battle!.start !== p.fight)) Object.assign(p, { action: steadyAction(rule, order), since: now });
-    let shown = actionFrame(rule, p.action, now - p.since, p.action === "attack" && p.attacking ? LUNGE_MS : undefined);
+    const strikeAt = battle?.strikeMs ?? LUNGE_MS;
+    let shown = actionFrame(rule, p.action, now - p.since, p.action === "attack" && p.attacking ? strikeAt : undefined);
     if (p.action === "attack" && rule.attack) {
-      const { round, step } = fightStep(rule, Math.max(0, now - p.since), p.attacking ? LUNGE_MS : undefined);
+      const { round, step } = fightStep(rule, Math.max(0, now - p.since), p.attacking ? strikeAt : undefined);
       const landed = step >= rule.attack.impact ? round : round - 1;
       if (now >= p.since && landed > (p.struck ?? -1)) {
         p.struck = landed;

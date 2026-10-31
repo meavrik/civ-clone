@@ -188,6 +188,7 @@ import {
   foundingShow,
   foundingMoment,
   FOUNDING,
+  strikeMs,
   travelMs,
   type Sinking,
   type ConquestEvent,
@@ -508,8 +509,9 @@ function stepHandoff(now: number, animating: boolean): void {
 function slideOwn(actions: readonly UnitAction[]): void {
   if (!actions.length) return;
   skipWatch();
-  // An animated unit takes a whole step of its walk a square (asked for 2026-10-30: "cant see the walk").
-  motion.play(actions, performance.now(), { ...OWN_PACE, width: state.map.width, walkMs: travelMs });
+  // An animated unit takes a whole step of its walk a square (asked for 2026-10-30: "cant see the walk"), and its whole
+  // wind-up before its first blow (2026-10-31: the catapult's shot).
+  motion.play(actions, performance.now(), { ...OWN_PACE, width: state.map.width, walkMs: travelMs, strikeMs });
 }
 
 /**

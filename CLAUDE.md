@@ -956,9 +956,13 @@ Never ship the original's sprites, palette art, fonts or text.
   loops, an order to fortify plays the fortify frames once then holds (one first seen fortified, or `fortifying`
   turning `fortified`, just holds), and a fight plays the attack round and round while it is shown (since
   2026-10-30, asked for: "when fight in combat - show militia fight animation as a cycle - not just once"; it had
-  played once), on both sides (`BattleFrame.start` keys it, `fightStep`): the attacker's first time through has the
-  frames before the strike share the fight's `LUNGE_MS` so the strike lands with the first blow, then its own pace
-  (640 ms a time); the defender answers from the lunge at its own pace; each strike is reported as it lands
+  played once), on both sides (`BattleFrame.start` keys it, `fightStep`), at its own pace: the fight's first blow waits
+  for the attacker's wind-up, its attack's frames before the strike (since 2026-10-31, asked for of the catapult: "too
+  fast ... slow prepare to fire - than throw stone"; `strikeMs`, `MotionTiming.strikeMs` from the web app's own moves
+  and the other civs' playback, `BattleFrame.strikeMs`; never sooner than `LUNGE_MS`, 150, the attacker standing its
+  ground until the last of it, the rounds after at their pace, so the fight is that much longer: the militia's and the
+  hoplite's 320 ms, the catapult's 870; until then the wind-up was squeezed into the 150), so the strike lands with the
+  first blow; the defender answers from that blow at its own pace; each strike is reported as it lands
   (`UnitPoses.impacts`), and the fight no longer shown, back to its orders. Combat itself is untouched. `unitArtPlace` stands every frame's canvas in the same box (the idle
   drawing centred, its foot a fine pixel up), so feet stay put. The magenta clothes take the owner's colour
   (`recolourOwner`, `OWNER_MAGENTA`: hue 288-336, saturation from 0.5, shading kept against the lit 0.85), made
@@ -1055,7 +1059,10 @@ Never ship the original's sprites, palette art, fonts or text.
   catapult (2026-10-31, asked for with the user's sheet: "implement attached catapult states"; drawn in register):
   rolling on turning wheels, the arm drawn down then swung up to loose its stone, a flag run up as it wins, still on
   watch, its wheels chocked and props braced out to fortify; drawn lower and longer than its still picture, so scale
-  252, between as wide as that (276) and as much of the square (230). On a green-screen sheet a speck (under
+  252, between as wide as that (276) and as much of the square (230). Its shot eases in and out (asked for the same day:
+  "too fast. should be with ease in-out"): the loaded arm held and drawn taut slowly (340, 420 ms), the throw quick
+  (110), the stone in flight a moment (260), the empty arm settling slowly (200, 380); `oneSheet`'s second argument
+  overrides a move's frames or timings. On a green-screen sheet a speck (under
   `GRID_SPECK`, 20 pixels) is part of the drawing, kept with its cell's frame (the dots trailing the stone); on a
   clear sheet it is the glow, left out.
   Facing (2026-10-28, asked for: "flip units to face the direction they are moving or attacking towards"): renderer-api

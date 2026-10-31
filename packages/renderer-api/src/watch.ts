@@ -1,6 +1,6 @@
 import { atWar, cityAt, CITY_STATE_BY_ID, civ, mapDistance, rankOf, RANKS, unitType, type GameState, type UnitAction, type UnitBattle, type UnitStep } from "@civ/core";
 import { motionMs, type MotionTiming } from "./motion.js";
-import { travelMs } from "./unit-anim.js";
+import { strikeMs, travelMs } from "./unit-anim.js";
 import type { Callout } from "./refusal.js";
 
 /**
@@ -184,8 +184,8 @@ export function watchTurn(state: GameState, actions: readonly UnitAction[], o: W
   };
 
   const beats: WatchBeat[] = [];
-  // An animated unit walks a whole step of its walk a square (`travelMs`).
-  const play = (acts: UnitAction[], kind: Kind) => beats.push({ kind: "play", actions: acts, timing: { ...WATCH_PACE[kind], width: w, walkMs: travelMs } });
+  // An animated unit walks a whole step of its walk a square (`travelMs`), and winds up whole before its first blow (`strikeMs`).
+  const play = (acts: UnitAction[], kind: Kind) => beats.push({ kind: "play", actions: acts, timing: { ...WATCH_PACE[kind], width: w, walkMs: travelMs, strikeMs } });
   for (const leg of legs(actions)) {
     if (leg.kind === "fight") {
       const b = leg.battle;

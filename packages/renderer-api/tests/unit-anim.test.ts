@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createUnit, newGame, type UnitAction } from "@civ/core";
+import { createUnit, newGame, type UnitAction, type UnitBattle } from "@civ/core";
 import {
-  animFrameCount, animSheet, attackStep, FOUNDING, foundingMoment, foundingShow, isOwnerMagenta, motionMs, travelMs, WALK_CHAIN_MS, LUNGE_MS, recolourOwner, sequenceStep, showFrame, UNIT_ANIMS, UNIT_ATLASES, unitArtPlace, UnitAnimator,
+  animFrameCount, animSheet, attackStep, FOUNDING, foundingMoment, foundingShow, isOwnerMagenta, motionMs, MotionPlayer, strikeMs, travelMs, WALK_CHAIN_MS, LUNGE_MS, recolourOwner, sequenceStep, showFrame, UNIT_ANIMS, UNIT_ATLASES, unitArtPlace, UnitAnimator,
   type BattleFighter, type BattleFrame,
 } from "../src/index.js";
 
@@ -422,6 +422,49 @@ describe("UnitAnimator", () => {
     // A unit without a walk keeps the pace.
     expect(motionMs(steps(1).map((s) => ({ ...s, type: "legion" })), timing)).toBe(120);
     expect(travelMs("legion")).toBe(0);
+  });
+
+  it("winds up whole before its first blow: the fight waits for it, standing its ground, the rounds at their pace", () => {
+    const battle = (type: string): UnitBattle => ({
+      kind: "battle",
+      attacker: { unit: 1, type, owner: 0, x: 10, y: 10, hp: 10, maxHp: 10, firepower: 1 },
+      defender: { unit: 2, type: "legion", owner: 1, x: 11, y: 10, hp: 3, maxHp: 10, firepower: 1 },
+      rounds: [true, true, true],
+      attackerWon: true,
+      alsoLost: [],
+    });
+    const timing = { stepMs: 120, maxMs: 1000, width: 80, battleMs: 2000, battleTotalMs: 2000, strikeMs };
+    const wind = strikeMs("catapult");
+    expect(wind).toBe(UNIT_ANIMS.catapult!.attack!.ms.slice(0, 3).reduce((a, b) => a + b, 0));
+    // A unit without moves keeps the lunge; the catapult's fight is longer by its wind-up past it.
+    expect(strikeMs("legion")).toBe(0);
+    expect(motionMs([battle("catapult")], timing) - motionMs([battle("legion")], timing)).toBe(wind - LUNGE_MS);
+    const m = new MotionPlayer();
+    m.play([battle("catapult")], 0, timing);
+    // It stands its ground while it winds up, closes in only for the last of it, and the first blow lands with the throw.
+    expect(m.at(wind - LUNGE_MS - 1).battle).toMatchObject({ strikeMs: wind, attacker: { x: 10 }, defender: { hp: 3 } });
+    expect(m.at(wind - 1).battle!.attacker.x).toBeGreaterThan(10);
+    expect(m.at(wind + 1).battle!.defender.hp).toBe(2);
+    // The animator plays it at its own pace: the throw on the frame that strikes, as the blow lands.
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    const c = createUnit(state, "catapult", 0, u.x, u.y, null);
+    const anim = new UnitAnimator();
+    anim.update(state, undefined, 0);
+    const frame: BattleFrame = { ...m.at(10).battle!, attacker: { ...m.at(10).battle!.attacker, unit: c.id } };
+    const at = (t: number) => anim.update(state, { ...frame, start: 0 }, t);
+    const attack = UNIT_ANIMS.catapult!.attack!;
+    expect(at(10).frames[c.id]).toBe(attack.frames[0]);
+    expect(at(attack.ms[0]! + 10).frames[c.id]).toBe(attack.frames[1]);
+    expect(at(wind + 10).frames[c.id]).toBe(attack.frames[attack.impact]);
+  });
+
+  it("eases the catapult's shot in and out: a slow wind-up, a quick throw, the stone seen in flight, a slow settle", () => {
+    const [ready, taut, throwing, loosed, follow, settle] = UNIT_ANIMS.catapult!.attack!.ms as [number, number, number, number, number, number];
+    expect(throwing).toBeLessThan(Math.min(ready, taut, loosed, follow, settle));
+    expect(ready + taut).toBeGreaterThan(600);
+    expect(settle).toBeGreaterThan(follow);
+    expect(loosed).toBeGreaterThan(throwing);
   });
 });
 

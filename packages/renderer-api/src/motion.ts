@@ -41,8 +41,10 @@ export interface BattleFighter {
 export interface BattleFrame {
   attacker: BattleFighter;
   defender: BattleFighter;
-  /** When the fight began (the lunge; the first blow lands `LUNGE_MS` later): tells one fight from the next. */
+  /** When the fight began: tells one fight from the next. */
   start: number;
+  /** How long after `start` the first blow lands: `LUNGE_MS`, or the attacker's wind-up (`MotionTiming.strikeMs`). */
+  strikeMs?: number;
   /** Which way across the attacker strikes (0 straight up or down): it faces that way, the defender the other. */
   heading: -1 | 0 | 1;
 }
@@ -79,6 +81,13 @@ export interface MotionTiming {
    * `WALK_CHAIN_MS` is sped up to fit it.
    */
   walkMs?: (type: string) => number;
+  /**
+   * How long an attacker of this type takes to its first strike: an animated unit's attack frames before it
+   * (`strikeMs` in unit-anim), so a slow wind-up shows whole (asked for 2026-10-31: the catapult "too fast ... slow
+   * prepare to fire - than throw stone"). The fight's first blow waits for it, never sooner than `LUNGE_MS`; the
+   * rounds after keep their pace, so the fight is that much longer.
+   */
+  strikeMs?: (type: string) => number;
 }
 
 /** A chain of walked steps (a goto along a road) takes at most this long, however many steps it has. */
@@ -120,7 +129,7 @@ type Beat =
   | { kind: "slide"; slides: Slide[]; start: number; end: number }
   | { kind: "hold"; hold: HoldFrame; start: number; end: number }
   | { kind: "nudge"; unit: NudgedUnit; dx: number; dy: number; start: number; end: number }
-  | { kind: "battle"; battle: UnitBattle; dx: number; dy: number; roundMs: number; start: number; end: number };
+  | { kind: "battle"; battle: UnitBattle; dx: number; dy: number; roundMs: number; lungeMs: number; start: number; end: number };
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
 
@@ -143,7 +152,7 @@ function hpAfter(b: UnitBattle, n: number): [number, number] {
 
 type Paced =
   | { kind: "slide"; slides: Slide[]; ms: number }
-  | { kind: "battle"; battle: UnitBattle; roundMs: number; ms: number };
+  | { kind: "battle"; battle: UnitBattle; roundMs: number; lungeMs: number; ms: number };
 
 /** Actions as the beats they play in (a ship's cargo travels in the ship's beat), each with its length. */
 function paced(actions: readonly UnitAction[], timing: MotionTiming): Paced[] {
@@ -167,7 +176,9 @@ function paced(actions: readonly UnitAction[], timing: MotionTiming): Paced[] {
     if (g.kind === "slide") return { kind: "slide", slides: g.slides, ms: Math.max(stepMs, walk(g.slides[0]!.step.type)) };
     const n = Math.max(1, g.battle.rounds.length);
     const roundMs = Math.max(ROUND_MS.min, Math.min(roundMax, (fightMs - LUNGE_MS - DEATH_MS) / n));
-    return { kind: "battle", battle: g.battle, roundMs, ms: LUNGE_MS + n * roundMs + DEATH_MS };
+    // The first blow waits for the attacker's wind-up.
+    const lungeMs = Math.max(LUNGE_MS, timing.strikeMs?.(g.battle.attacker.type) ?? 0);
+    return { kind: "battle", battle: g.battle, roundMs, lungeMs, ms: lungeMs + n * roundMs + DEATH_MS };
   });
 }
 
@@ -194,7 +205,7 @@ export class MotionPlayer {
       if (p.kind === "slide") this.beats.push({ kind: "slide", slides: p.slides, start: t, end: t + p.ms });
       else {
         const b = p.battle;
-        this.beats.push({ kind: "battle", battle: b, dx: seamDx(b.defender.x - b.attacker.x, timing.width), dy: b.defender.y - b.attacker.y, roundMs: p.roundMs, start: t, end: t + p.ms });
+        this.beats.push({ kind: "battle", battle: b, dx: seamDx(b.defender.x - b.attacker.x, timing.width), dy: b.defender.y - b.attacker.y, roundMs: p.roundMs, lungeMs: p.lungeMs, start: t, end: t + p.ms });
       }
       t += p.ms;
     }
@@ -279,16 +290,18 @@ export class MotionPlayer {
     const b = beat.battle;
     const e = now - beat.start;
     const n = b.rounds.length;
-    const roundsEnd = LUNGE_MS + n * beat.roundMs;
+    const lunge = beat.lungeMs;
+    const roundsEnd = lunge + n * beat.roundMs;
     let reach = LUNGE;
     let rounds = 0;
     let attackerHit = 0;
     let defenderHit = 0;
     let dying = 0;
-    if (e < LUNGE_MS) reach = LUNGE * ease(e / LUNGE_MS);
+    // A longer wind-up stands its ground until the last `LUNGE_MS` before the blow, then closes in.
+    if (e < lunge) reach = LUNGE * ease(Math.max(0, e - (lunge - LUNGE_MS)) / LUNGE_MS);
     else if (e < roundsEnd) {
-      const i = Math.min(n - 1, Math.floor((e - LUNGE_MS) / beat.roundMs));
-      const f = (e - LUNGE_MS) / beat.roundMs - i;
+      const i = Math.min(n - 1, Math.floor((e - lunge) / beat.roundMs));
+      const f = (e - lunge) / beat.roundMs - i;
       rounds = i + 1; // each round's blow lands as it begins
       if (b.rounds[i]) { defenderHit = 1 - f; reach = LUNGE + 0.12 * (1 - f); }
       else { attackerHit = 1 - f; reach = LUNGE - 0.08 * (1 - f); }
@@ -311,7 +324,7 @@ export class MotionPlayer {
       hp: dhp, maxHp: b.defender.maxHp, xp: b.defender.xp, stacked: b.attackerWon && loserStacked,
       hit: defenderHit, dying: b.attackerWon ? dying : 0,
     };
-    return { attacker, defender, start: beat.start, heading: beat.dx < 0 ? -1 : beat.dx > 0 ? 1 : 0 };
+    return { attacker, defender, start: beat.start, ...(lunge !== LUNGE_MS ? { strikeMs: lunge } : {}), heading: beat.dx < 0 ? -1 : beat.dx > 0 ? 1 : 0 };
   }
 
   /** True while this step or fight is queued or under way. */
