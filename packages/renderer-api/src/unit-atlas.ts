@@ -91,6 +91,18 @@ export const UNIT_ATLASES: Record<string, UnitAtlas> = {
       { name: "mine-6", source: [1297, 818, 234, 181], anchor: [1408, 997], box: [15, 75, 230, 177] },
     ],
   },
+  "settlers-travel": {
+    size: [485, 345],
+    anchor: [217, 343],
+    frames: [
+      { name: "travel-1", source: [39, 113, 471, 344], anchor: [256, 456], box: [2, 2, 467, 340] },
+      { name: "travel-2", source: [546, 113, 466, 345], anchor: [763, 456], box: [2, 2, 462, 341] },
+      { name: "travel-3", source: [1051, 113, 445, 345], anchor: [1258, 456], box: [12, 2, 441, 341] },
+      { name: "travel-4", source: [40, 583, 485, 344], anchor: [257, 925], box: [2, 3, 481, 340] },
+      { name: "travel-5", source: [553, 583, 471, 344], anchor: [764, 925], box: [8, 3, 467, 340] },
+      { name: "travel-6", source: [1055, 583, 449, 344], anchor: [1258, 925], box: [16, 3, 445, 340] },
+    ],
+  },
   "settlers-found": {
     size: [533, 491],
     anchor: [274, 489],

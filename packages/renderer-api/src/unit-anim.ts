@@ -24,7 +24,7 @@ export interface UnitAnimSequence {
 /**
  * Units that move as the user drew them, laid out by tools/sprites/units/anim.ts into `UNIT_ATLASES`: the
  * militia's sheet of 14 frames (2026-10-28) and its walk of 6 (2026-10-30), the settlers' of 24 and their founding's
- * of 6 (2026-10-29). Each atlas has a rule here, named as it is: its display scale, whether the clothes take the
+ * of 6 (2026-10-29) and their walk of 6 (2026-10-31). Each atlas has a rule here, named as it is: its display scale, whether the clothes take the
  * owner's colour, and the frame it stands centred on; a unit's rule (named after the unit) has its moves, and may
  * take frames from further atlases (`sheets`: the militia's walk is drawn larger than its first sheet), numbered on
  * after its own (`animSheet`). Everything to tune is here: each sequence's frames and how long each shows, the frame
@@ -124,10 +124,23 @@ export const UNIT_ANIMS: Record<string, UnitAnimRule> = {
     pixelated: true,
     // Shown as drawn, the magenta left magenta, as the still pictures are (the militia's colour was asked for).
     ownerColour: false,
-    // The walk, from the step after the one they stand in, a whole cycle a square (`travelMs`), ending as they stand.
-    travel: { frames: [1, 2, 3, 4, 5, 0], ms: [80, 80, 80, 80, 80, 80] },
+    // Walking (2026-10-31, the user's sheet: "impl. settlers travel (move from tile to tile) animation"), from its own
+    // atlas: frames 24-29 here, in place of the first sheet's travel row (whose first frame they still stand in); from
+    // the step after the one they stand in, a whole cycle a square (`travelMs`), ending as they stand.
+    sheets: ["settlers-travel"],
+    travel: { frames: [25, 26, 27, 28, 29, 24], ms: [80, 80, 80, 80, 80, 80] },
     work: { road: RAM, railroad: RAM, fortress: RAM, irrigate: DIG, clean: DIG, mine: PICK },
     found: "settlers-found",
+    idle: 0,
+  },
+  // The settlers' walk: the family of the first sheet's travel row drawn larger, its frames put in register by their
+  // bodies (the passing steps were drawn 22 pixels ahead in their cells). 1.76 times as tall (340 pixels to 193, the
+  // spade raised), the people themselves 1.8 to 1.84 times (the woman 272 to 152, the man 312 to 170), and twice as wide
+  // (a longer stride), so scaled by the people: they walk as tall as they stand, a little wider.
+  "settlers-travel": {
+    square: 443,
+    pixelated: true,
+    ownerColour: false,
     idle: 0,
   },
   // The settlers founding their city (2026-10-29, the user's sheet, in place of the hut going up the same day: "for new

@@ -5,7 +5,8 @@
 // clear first: `keyGreen`), settlers-anim.png
 // (2026-10-29: the settlers in 24 frames, rows of 6 for travel, road building, irrigation and mining) and
 // settlers-found-anim.png (the same day: the settlers founding their city in 6 frames, rows of 3, the flag lifted,
-// raised and planted, then unfurled, flying, and the family cheering under it), all on a clear background. Run from
+// raised and planted, then unfurled, flying, and the family cheering under it), all on a clear background, and
+// settlers-travel-anim.png (2026-10-31: the family walking, 6 frames, rows of 3, drawn larger, on a green screen). Run from
 // the repo root:
 //   npx vite-node --script tools/sprites/units/anim.ts
 // The militia's sheet is generated art, not an even grid: each frame is found as its own piece of opaque pixels
@@ -88,6 +89,17 @@ const SHEETS: Record<string, Sheet> = {
   settlers: {
     cell: 256,
     rows: ["travel", "road", "irrigate", "mine"].map((move) => [1, 2, 3, 4, 5, 6].map((n) => `${move}-${n}`)),
+  },
+  // The settlers walking (2026-10-31, the user's sheet: "impl. settlers travel (move from tile to tile) animation"): the
+  // family of the first sheet's walk drawn larger, six steps on a green screen, in place of that row.
+  "settlers-travel": {
+    cell: 512,
+    green: true,
+    rows: [
+      ["travel-1", "travel-2", "travel-3"],
+      ["travel-4", "travel-5", "travel-6"],
+    ],
+    align: [["travel-1", "travel-6", "body"]],
   },
   "settlers-found": {
     cell: 512,

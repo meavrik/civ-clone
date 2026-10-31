@@ -147,12 +147,11 @@ describe("the settlers' atlas", () => {
       expect(f.anchor[0], f.name).toBe((n % 6) * 256 + 128);
       expect(settlers.anchor[1] - (y + bh), f.name).toBeLessThanOrEqual(1);
     });
-    for (const n of [...move.travel!.frames, ...Object.values(move.work!).flatMap((s) => s.frames), move.idle]) expect(settlers.frames[n]).toBeDefined();
+    for (const n of [...Object.values(move.work!).flatMap((s) => s.frames), move.idle]) expect(settlers.frames[n]).toBeDefined();
   });
 
   it("plays each row for its job, the sheet's colours as drawn", () => {
     const rows = (seq: { frames: number[] }) => seq.frames.map((f) => settlers.frames[f]!.name.split("-")[0]);
-    expect(new Set(rows(move.travel!))).toEqual(new Set(["travel"]));
     const work = move.work!;
     for (const job of ["road", "railroad", "fortress"] as const) expect(new Set(rows(work[job]!)), job).toEqual(new Set(["road"]));
     for (const job of ["irrigate", "clean"] as const) expect(new Set(rows(work[job]!)), job).toEqual(new Set(["irrigate"]));
@@ -167,6 +166,58 @@ describe("the settlers' atlas", () => {
     const idle = settlers.frames[move.idle]!;
     expect(b.x + (idle.box[0] + idle.box[2] / 2) * k).toBeCloseTo(8, 6);
     expect((idle.box[3] * k) / 16).toBeCloseTo(189 / 240, 1);
+  });
+});
+
+describe("the settlers' walk", () => {
+  const settlers = UNIT_ATLASES.settlers!;
+  const walk = UNIT_ATLASES["settlers-travel"]!;
+  const move = UNIT_ANIMS.settlers!;
+
+  it("numbers its six frames on after the settlers' own 24, each translated whole, the bodies in register", () => {
+    expect(walk.frames.map((f) => f.name)).toEqual([1, 2, 3, 4, 5, 6].map((n) => `travel-${n}`));
+    expect(animFrameCount("settlers")).toBe(30);
+    expect(animSheet("settlers", 23)).toMatchObject({ id: "settlers", frame: 23 });
+    expect(animSheet("settlers", 24)).toMatchObject({ id: "settlers-travel", frame: 0, square: UNIT_ANIMS["settlers-travel"]!.square, home: 0 });
+    expect(animSheet("settlers", 29)).toMatchObject({ id: "settlers-travel", frame: 5 });
+    expect(animSheet("settlers", 30)).toBeNull();
+    expect([...move.travel!.frames].sort((a, b) => a - b)).toEqual([24, 25, 26, 27, 28, 29]);
+    expect(move.travel!.frames.at(-1)).toBe(24);
+    const [w, h] = walk.size;
+    walk.frames.forEach((f, n) => {
+      const [x, y, bw, bh] = f.box;
+      expect(x >= 0 && y >= 0 && x + bw <= w && y + bh <= h, f.name).toBe(true);
+      expect([x - walk.anchor[0], y - walk.anchor[1]], f.name).toEqual([f.source[0] + 2 - f.anchor[0], f.source[1] + 2 - f.anchor[1]]);
+      expect(walk.anchor[1] - (y + bh), f.name).toBeLessThanOrEqual(2);
+      // Within a few dozen pixels of its 512-pixel cell's middle: the passing steps drawn ahead in theirs, set back.
+      expect(Math.abs(f.anchor[0] - ((n % 3) * 512 + 256)), f.name).toBeLessThanOrEqual(30);
+    });
+  });
+
+  it("walks the size the family stands, the first step centred in its square", () => {
+    // Drawn larger: the people 1.8 to 1.84 times as tall as on the first sheet, the whole 1.76 times; scaled by the people.
+    const larger = UNIT_ANIMS["settlers-travel"]!.square / move.square;
+    expect(larger).toBeGreaterThan(walk.frames[0]!.box[3] / settlers.frames[0]!.box[3]);
+    expect(larger).toBeLessThanOrEqual(1.84);
+    const at = (frame: number) => unitArtPlace({ id: "settlers", unit: true, x: 100, y: 50, w: 16, h: 16, frame })!;
+    const b = at(24);
+    const k = b.w / walk.size[0];
+    const first = walk.frames[0]!;
+    expect(b.x + (first.box[0] + first.box[2] / 2) * k).toBeCloseTo(108, 6);
+    // Every step in the same box; the settlers' own frames in theirs.
+    for (const f of [25, 26, 27, 28, 29]) expect(at(f)).toEqual(b);
+    expect(at(0)).not.toEqual(b);
+  });
+
+  it("is played while the settlers step across the map, then they stand again", () => {
+    const state = newGame(2026);
+    const s = state.units.find((u) => u.type === "settlers")!;
+    const anim = new UnitAnimator();
+    expect(anim.update(state, undefined, 0).frames[s.id]).toBe(move.idle);
+    const seen = new Set<number>();
+    for (let t = 100; t < 1000; t += 20) seen.add(anim.update(state, undefined, t, [{ unit: s.id }]).frames[s.id]!);
+    expect([...seen].sort((a, b) => a - b)).toEqual([24, 25, 26, 27, 28, 29]);
+    expect(anim.update(state, undefined, 1100).frames[s.id]).toBe(move.idle);
   });
 });
 

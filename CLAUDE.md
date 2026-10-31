@@ -1038,6 +1038,14 @@ Never ship the original's sprites, palette art, fonts or text.
   frames, so they stand. `square` 246 (the walking family as tall as the still picture). `ownerColour` (false for the
   settlers: their magenta is shown as drawn, as the still pictures' is; the militia's colour was asked for) also
   makes `unit-frames.ts` make their frames once, whatever the owners. The preview page takes `?unit=settlers`.
+  The settlers' walk (2026-10-31, asked for with the user's sheet: "impl. settlers travel (move from tile to tile)
+  animation"; `tools/sprites/units/settlers-travel-anim.png` kept as supplied, 1536x1024, rows of 3 on a 512-pixel grid,
+  the same family as the first sheet's travel row drawn larger, on a green screen keyed as the militia's win; a second
+  copy on a dark glow was left aside): its own atlas, `settlers-travel` (6 canvases of 485x345), the frames put in
+  register by their bodies (the passing steps drawn 22 pixels ahead in their cells), scale 443 (the people 1.8 to 1.84
+  times the first sheet's, the whole 1.76 with the spade, twice as wide in their stride: scaled by the people, so they
+  walk as tall as they stand). The settlers' `travel` is its frames 24-29 (`sheets`), from the second step, a whole cycle
+  a square; they still stand in the first sheet's first travel frame, whose other five are no longer played.
   The founding (2026-10-29: first "add the build new settlement", a hut going up, then the same day "replace with the
   attached sprite-sheet, for new settlement epic effect - add zoom and some effect and delay to let the player see the
   new settlement establishment"): `tools/sprites/units/settlers-found-anim.png`, kept as supplied, 1536x1024, rows of 3
