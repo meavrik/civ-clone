@@ -1050,6 +1050,14 @@ Never ship the original's sprites, palette art, fonts or text.
   them (a walk), each frame with the run's first and that with the home frame, by the sideways shift that lays most of
   their pixels in that part on each other's; only the anchors move, every pixel stays the sheet's. The kneel is left as
   drawn, behind the shield that stays put. Preview: `?unit=phalanx`.
+  Every sheet in that layout is one entry in the cutter (`oneSheet` in anim.ts: its rows' names and what each run is
+  registered by) and one in `UNIT_ANIMS` (`oneSheet(square)` in unit-anim.ts: the rows' moves and timings). The
+  catapult (2026-10-31, asked for with the user's sheet: "implement attached catapult states"; drawn in register):
+  rolling on turning wheels, the arm drawn down then swung up to loose its stone, a flag run up as it wins, still on
+  watch, its wheels chocked and props braced out to fortify; drawn lower and longer than its still picture, so scale
+  252, between as wide as that (276) and as much of the square (230). On a green-screen sheet a speck (under
+  `GRID_SPECK`, 20 pixels) is part of the drawing, kept with its cell's frame (the dots trailing the stone); on a
+  clear sheet it is the glow, left out.
   Facing (2026-10-28, asked for: "flip units to face the direction they are moving or attacking towards"): renderer-api
   `UnitFacing` (a UI side channel run by the web app each frame; `view.facingLeft` by unit id) turns a unit the way it
   steps or is nudged across once the step is under way (`UnitMotion.heading`; one waiting its turn keeps its facing),

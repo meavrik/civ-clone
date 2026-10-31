@@ -126,31 +126,45 @@ export const UNIT_ANIMS: Record<string, UnitAnimRule> = {
     idle: 5,
   },
   // The hoplite (2026-10-30, the user's sheet: "implement hoplite sprite-sheet"), the first in the layout every unit's
-  // sheet now takes (rows of 6 on a 256-pixel grid): walking, the thrust over the shield, the cheer with spear and
-  // shield raised, then the watch (3) and the kneel behind the shield (3), its spear levelled over the rim. The cutter
-  // puts the drawings in register (`align` in tools/sprites/units/anim.ts: the sheet set the strike back and the
-  // follow-through forward in their cells).
-  phalanx: {
-    // The size of the phalanx's picture on the units sheet as it stands in its square (shrunk to fit, 286 pixels a
-    // square): its shield (67x80 here, 71x76 there: 290) and its crest to its feet (209 here, 198 there: 302) between
-    // them. The still picture's spear is drawn longer, so the sheet's stands a little shorter in the square.
-    square: 296,
+  // sheet now takes (`oneSheet`): walking, the thrust over the shield, the cheer with spear and shield raised, then the
+  // watch and the kneel behind the shield, its spear levelled over the rim. The cutter puts the drawings in register
+  // (`align` in tools/sprites/units/anim.ts: the sheet set the strike back and the follow-through forward in their
+  // cells). The size of the phalanx's picture on the units sheet as it stands in its square (shrunk to fit, 286 pixels
+  // a square): its shield (67x80 here, 71x76 there: 290) and its crest to its feet (209 here, 198 there: 302) between
+  // them. The still picture's spear is drawn longer, so the sheet's stands a little shorter in the square.
+  phalanx: oneSheet(296),
+  // The catapult (2026-10-31, the user's sheet: "implement attached catapult states"): rolling on its turning wheels;
+  // the arm drawn down, swung up to loose the stone (the stone and its trail on the strike), empty after; a flag run up
+  // as it wins; still on watch; fortifying, its wheels chocked and props braced out. Drawn lower and longer than the
+  // catapult's picture on the units sheet (221x157 here, 192x197 there at 240 a square), so between as wide as that
+  // (276) and as much of the square (230).
+  catapult: oneSheet(252),
+};
+
+/**
+ * The moves of a unit drawn in the one sheet every unit's now takes (since the hoplite, 2026-10-30): rows of 6 frames,
+ * moving, the attack (striking on its fourth frame), the victory, then the watch (3) and fortifying (3), the unit
+ * standing in the first watch frame. `square` is its scale; shown as drawn, the magenta left magenta, as the still
+ * pictures are (the militia's colour was asked for).
+ */
+function oneSheet(square: number): UnitAnimRule {
+  return {
+    square,
     pixelated: true,
-    // Shown as drawn, the magenta left magenta, as the still pictures are (the militia's colour was asked for).
     ownerColour: false,
     // A whole cycle a square (`travelMs`), from the step after the one it stands in.
     travel: { frames: [1, 2, 3, 4, 5, 0], ms: [80, 80, 80, 80, 80, 80] },
     // Ready, anticipation, wind-up, strike, follow-through, recovery; the blow lands on the strike.
     attack: { frames: [6, 7, 8, 9, 10, 11], ms: [120, 100, 100, 80, 100, 140], impact: 3 },
-    // Spear and shield raised as its foe falls, the shout held longest.
+    // From the moment its foe falls, the last pose held longest.
     won: { frames: [12, 13, 14, 15, 16, 17], ms: [110, 120, 140, 170, 200, 500] },
     sentry: { frames: [18, 19, 20], ms: [450, 400, 550] },
-    // Lowering, kneeling, the shield wall held while fortified.
+    // Played once, the last held while fortified.
     fortify: { frames: [21, 22, 23], ms: [140, 160, 180] },
     idle: 18,
     fortified: 23,
-  },
-};
+  };
+}
 
 /** The frame show `id` (an atlas with a `show`) is on `elapsed` into it, its last held once it is over. */
 export function showFrame(id: string, elapsed: number): number {

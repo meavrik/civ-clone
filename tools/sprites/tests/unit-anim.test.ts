@@ -20,10 +20,10 @@ describe("a green screen", () => {
 });
 
 describe("the units' atlases", () => {
-  it.each(["militia", "militia-travel", "militia-won", "settlers", "settlers-found", "phalanx"])("hold every pixel of each of the %s' frames as the user's sheet has it, and nothing else", (unit) => {
+  it.each(["militia", "militia-travel", "militia-won", "settlers", "settlers-found", "phalanx", "catapult"])("hold every pixel of each of the %s' frames as the user's sheet has it, and nothing else", (unit) => {
     const sheet = read(`../units/${unit}-anim.png`);
     // Sheets drawn on a green screen are keyed clear behind the figures first, as the cutter does.
-    if (unit === "militia-won" || unit === "phalanx") keyGreen(sheet.data);
+    if (["militia-won", "phalanx", "catapult"].includes(unit)) keyGreen(sheet.data);
     const img = read(`../../../apps/web/src/units/${unit}-anim.png`);
     const atlas = UNIT_ATLASES[unit]!;
     const [w, h] = atlas.size;

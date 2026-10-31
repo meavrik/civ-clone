@@ -34,7 +34,35 @@ const here = (p: string) => resolve(fileURLToPath(new URL(p, import.meta.url)));
  * stays put in them (`register`), with the `home` frame (the one the unit stands in).
  */
 type Align = [first: string, last: string, by: "legs" | "body"];
-const SHEETS: Record<string, { rows: string[][]; cell?: number; green?: boolean; align?: Align[]; home?: string }> = {
+type Sheet = { rows: string[][]; cell?: number; green?: boolean; align?: Align[]; home?: string };
+
+/**
+ * The layout every unit's sheet takes since the hoplite (2026-10-30, the sheets' prompt): one sheet of 1536x1024 on a
+ * green screen, a 256-pixel grid of rows of 6: moving, the attack (striking on its fourth frame), the victory, then the
+ * watch (3) and the fortifying (3), the unit standing in the first watch frame. Each run put in register with that one
+ * by the part named (`align`), the fortifying left as drawn unless `fortify` names a part.
+ */
+function oneSheet(by: { travel: Align[2]; attack: Align[2]; won: Align[2]; fortify?: Align[2] }, fortify = ["fortify-1", "fortify-2", "fortify-3"]): Sheet {
+  return {
+    cell: 256,
+    green: true,
+    rows: [
+      [1, 2, 3, 4, 5, 6].map((n) => `travel-${n}`),
+      ["ready", "anticipation", "wind-up", "strike", "follow-through", "recovery"],
+      [1, 2, 3, 4, 5, 6].map((n) => `won-${n}`),
+      ["sentry-1", "sentry-2", "sentry-3", ...fortify],
+    ],
+    home: "sentry-1",
+    align: [
+      ["travel-1", "travel-6", by.travel],
+      ["ready", "recovery", by.attack],
+      ["won-1", "won-6", by.won],
+      ...(by.fortify ? [["sentry-1", fortify[2]!, by.fortify] as Align] : [["sentry-1", "sentry-3", "legs"] as Align]),
+    ],
+  };
+}
+
+const SHEETS: Record<string, Sheet> = {
   militia: {
     rows: [
       ["ready", "anticipation", "wind-up", "strike", "follow-through", "recovery"],
@@ -68,21 +96,11 @@ const SHEETS: Record<string, { rows: string[][]; cell?: number; green?: boolean;
       ["unfurl", "fly", "cheer"],
     ],
   },
-  phalanx: {
-    cell: 256,
-    green: true,
-    rows: [
-      [1, 2, 3, 4, 5, 6].map((n) => `travel-${n}`),
-      ["ready", "anticipation", "wind-up", "strike", "follow-through", "recovery"],
-      [1, 2, 3, 4, 5, 6].map((n) => `won-${n}`),
-      ["sentry-1", "sentry-2", "sentry-3", "lowering", "kneeling", "shield-wall"],
-    ],
-    // Drawn out of register (the strike 38 pixels behind the ready stance to fit the spear in its cell, the
-    // follow-through 35 ahead, the walk drifting back 27 over its six steps): the walk by its body, the thrust, the
-    // cheer and the watch by the feet planted under them; the kneeling as drawn, behind the shield that stays put.
-    home: "sentry-1",
-    align: [["travel-1", "travel-6", "body"], ["ready", "recovery", "legs"], ["won-1", "won-6", "legs"], ["sentry-1", "sentry-3", "legs"]],
-  },
+  // Drawn out of register (the strike 38 pixels behind the ready stance to fit the spear in its cell, the
+  // follow-through 35 ahead, the walk drifting back 27 over its six steps): the walk by its body, the thrust, the
+  // cheer and the watch by the feet planted under them; the kneeling as drawn, behind the shield that stays put.
+  phalanx: oneSheet({ travel: "body", attack: "legs", won: "legs" }, ["lowering", "kneeling", "shield-wall"]),
+  catapult: oneSheet({ travel: "legs", attack: "legs", won: "legs" }),
 };
 /** Alpha over which a pixel is the frame's own (under it: soft edges, kept with their frame). */
 const SOLID = 64;
@@ -142,7 +160,7 @@ function cut(unit: string, rows: string[][], cell?: number, green?: boolean, ali
   const count = rows.flat().length;
   // Each frame: its pieces (one on a sheet without a grid, every piece whose middle lies in its cell on a grid).
   type Piece = (typeof pieces)[number];
-  let ordered: { pieces: Piece[]; x: number; y: number; x1: number; y1: number; w: number; h: number }[];
+  let ordered: { pieces: Piece[]; specks?: Piece[]; x: number; y: number; x1: number; y1: number; w: number; h: number }[];
   const bounds = (ps: Piece[]) => {
     const b = { pieces: ps, x: Math.min(...ps.map((p) => p.x)), y: Math.min(...ps.map((p) => p.y)), x1: Math.max(...ps.map((p) => p.x1)), y1: Math.max(...ps.map((p) => p.y1)), w: 0, h: 0 };
     return { ...b, w: b.x1 - b.x + 1, h: b.y1 - b.y + 1 };
@@ -185,15 +203,23 @@ function cut(unit: string, rows: string[][], cell?: number, green?: boolean, ali
       middle.set(o, m);
     }
     const cells: Piece[][] = rows.flatMap((r) => r.map(() => []));
+    const specks: Piece[][] = rows.flatMap((r) => r.map(() => []));
     for (const p of pieces) {
-      if (p.n < GRID_SPECK) continue;
       const [sx, sy] = middle.get(p.id)!;
       const col = Math.floor(sx / p.n / cell), row = Math.floor(sy / p.n / cell);
-      if (row >= rows.length || col >= rows[row]!.length) throw new Error(`${unit}: a piece at ${p.x},${p.y} lies in no named cell`);
-      cells[rows.slice(0, row).reduce((a, r) => a + r.length, 0) + col]!.push(p);
+      const named = row < rows.length && col < rows[row]!.length;
+      const n = named ? rows.slice(0, row).reduce((a, r) => a + r.length, 0) + col : -1;
+      // A speck: on a green screen, part of the drawing (the dots trailing a catapult's stone), kept with its cell's
+      // frame within the bounds of the rest; on a clear sheet, the glow round the figures, left out.
+      if (p.n < GRID_SPECK) {
+        if (green && named) specks[n]!.push(p);
+        continue;
+      }
+      if (!named) throw new Error(`${unit}: a piece at ${p.x},${p.y} lies in no named cell`);
+      cells[n]!.push(p);
     }
     cells.forEach((c, n) => { if (!c.length) throw new Error(`${unit}: frame ${rows.flat()[n]} is empty`); });
-    ordered = cells.map(bounds);
+    ordered = cells.map((c, n) => ({ ...bounds(c), specks: specks[n]! }));
   } else {
     const frames = pieces.filter((p) => p.n >= SPECK);
     if (frames.length !== count) throw new Error(`${unit}: the sheet has ${frames.length} frames, the rows name ${count}`);
@@ -246,7 +272,7 @@ function cut(unit: string, rows: string[][], cell?: number, green?: boolean, ali
       }
       anchor = { x: Math.round((front[0] + front[1] + 1) / 2), y: p.y1 + 1 };
     }
-    return { name: rows.flat()[n]!, ids: new Set(p.pieces.map((q) => q.id)), source, anchor, box: { x: p.x, y: p.y, w: p.w, h: p.h } };
+    return { name: rows.flat()[n]!, ids: new Set([...p.pieces, ...(p.specks ?? [])].map((q) => q.id)), source, anchor, box: { x: p.x, y: p.y, w: p.w, h: p.h } };
   });
 
   // Frames drawn out of register (a generated sheet sets its figure a little differently in each cell, so it would

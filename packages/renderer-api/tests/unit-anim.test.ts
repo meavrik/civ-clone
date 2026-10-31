@@ -229,6 +229,43 @@ describe("the phalanx's atlas", () => {
   });
 });
 
+describe("the catapult's atlas", () => {
+  const catapult = UNIT_ATLASES.catapult!;
+  const move = UNIT_ANIMS.catapult!;
+  const frame = (name: string) => catapult.frames.find((f) => f.name === name)!;
+
+  it("has the sheet's 24 frames in the one sheet's rows, drawn in register: each its cell's middle on its row's ground", () => {
+    expect(catapult.frames.map((f) => f.name)).toEqual([
+      ...[1, 2, 3, 4, 5, 6].map((n) => `travel-${n}`),
+      "ready", "anticipation", "wind-up", "strike", "follow-through", "recovery",
+      ...[1, 2, 3, 4, 5, 6].map((n) => `won-${n}`),
+      "sentry-1", "sentry-2", "sentry-3", "fortify-1", "fortify-2", "fortify-3",
+    ]);
+    const [w, h] = catapult.size;
+    catapult.frames.forEach((f, n) => {
+      const [x, y, bw, bh] = f.box;
+      expect(x >= 0 && y >= 0 && x + bw <= w && y + bh <= h, f.name).toBe(true);
+      expect(f.anchor[0], f.name).toBe((n % 6) * 256 + 128);
+    });
+    // The stone loosed on the strike flies off with its trail, the dots at its tail too, above the arm drawn down.
+    expect(frame("strike").box[1]).toBeLessThan(frame("ready").box[1]);
+    expect(frame("strike").source[0]).toBeLessThanOrEqual(917);
+  });
+
+  it("plays the one sheet's moves, between as wide and as much of its square as the catapult's picture stood", () => {
+    expect(move).toMatchObject({ idle: 18, fortified: 23, ownerColour: false, attack: { impact: 3 } });
+    expect(move.travel!.frames).toEqual(UNIT_ANIMS.phalanx!.travel!.frames);
+    const b = unitArtPlace({ id: "catapult", unit: true, x: 0, y: 0, w: 16, h: 16 })!;
+    const k = b.w / catapult.size[0];
+    const idle = catapult.frames[move.idle]!;
+    expect(b.x + (idle.box[0] + idle.box[2] / 2) * k).toBeCloseTo(8, 6);
+    // The still picture: 192x197 of 240 a square; the sheet's lower and longer.
+    const across = (idle.box[2] * k) / 16, area = (idle.box[2] * idle.box[3] * k * k) / 256;
+    expect(across).toBeGreaterThan(192 / 240);
+    expect(area).toBeLessThan((192 * 197) / 240 / 240);
+  });
+});
+
 describe("the settlers founding a city", () => {
   const found = UNIT_ATLASES["settlers-found"]!;
 
