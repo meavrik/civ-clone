@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { CITY_STATE, createUnit, foundCity, labelContinents, lastTurnEvents, loadSave, makeSave, newGame, peaceUntil, runAiPlayers, startTurn, Terrain, type City, type GameState } from "@civ/core";
+import { CITY_STATE, createUnit, foundCity, labelContinents, lastTurnEvents, loadSave, makeSave, newGame, peaceUntil, recomputeVisibility, runAiPlayers, startTurn, Terrain, type City, type GameState } from "@civ/core";
 import { aiTurn, barbarianTurn, plannerTurn } from "../src/index.js";
 
-/** Grassland everywhere, a computer civ's Rome at (10, 10) and city-state Tyre at (18, 10) with its garrison; the turn past the grace. */
+/** Grassland everywhere, a computer civ's Rome at (10, 10) and city-state Tyre at (18, 10) with its garrison, which Rome has come upon; the turn past the grace. */
 function world(): { s: GameState; tyre: City; rome: City } {
   const s = newGame(3, { opponents: 1, allAi: true });
   for (const t of s.map.tiles) Object.assign(t, { terrain: Terrain.Grassland, river: false, special: false, hut: false, road: false, irrigation: false, mine: false, railroad: false, fortress: false });
@@ -16,12 +16,19 @@ function world(): { s: GameState; tyre: City; rome: City } {
   tyre.buildings = [];
   for (let i = 0; i < CITY_STATE.garrison; i++) createUnit(s, "militia", s.barbarians, 18, 10, tyre.id).order = { kind: "fortified" };
   s.players[0]!.gold = 300;
+  s.players[0]!.explored.fill(0);
+  recomputeVisibility(s, 0);
+  s.players[0]!.explored[10 * s.map.width + 18] = 1;
   s.turn = CITY_STATE.grace;
   return { s, tyre, rome };
 }
 
+/** The city-states' demands of player 0 made this turn. */
+const demands = () => lastTurnEvents.filter((e) => e.kind === "cityStateDemand" && e.player === 0).length;
+
 /** One turn of the city-states (the barbarians' seat), moves restored first. */
 function turn(s: GameState): void {
+  lastTurnEvents.length = 0;
   s.currentPlayer = s.barbarians;
   startTurn(s, s.barbarians);
   barbarianTurn(s);
@@ -55,6 +62,46 @@ describe("city-states", () => {
     expect(at(s, tyre)).toHaveLength(CITY_STATE.garrison);
     const band = s.units.filter((u) => u.homeCity === tyre.id && u.type === "legion");
     expect(band.every((u) => u.x < 18)).toBe(true);
+  });
+
+  it("ask a civilization that has not come upon them only once their soldiers come into its sight", () => {
+    const { s, tyre } = world();
+    s.players[0]!.explored[10 * s.map.width + 18] = 0;
+    for (let i = 0; i < 2; i++) createUnit(s, "legion", s.barbarians, 18, 10, tyre.id);
+    const band = () => s.units.filter((u) => u.homeCity === tyre.id && u.type === "legion");
+    const seen = () => band().some((u) => s.players[0]!.visible[u.y * s.map.width + u.x]);
+    let asked = -1;
+    for (let t = 0; t < 8 && asked < 0; t++) {
+      turn(s);
+      if (demands()) asked = t;
+      else expect(seen()).toBe(false);
+      s.turn++;
+    }
+    // The band set out unannounced, and asked as it came into sight.
+    expect(asked).toBeGreaterThan(0);
+    expect(seen()).toBe(true);
+  });
+
+  it("ask once in their turns between, though the band is held at home", () => {
+    for (const eager of [false, true]) {
+      const { s, tyre } = world();
+      if (eager) s.eagerCityStates = true;
+      for (let i = 0; i < 2; i++) createUnit(s, "legion", s.barbarians, 18, 10, tyre.id);
+      let asked = 0;
+      for (let t = 0; t <= CITY_STATE.askEvery; t++) {
+        // Whatever stopped them, the band stands at home again as their turn comes round, and the demand is refused.
+        lastTurnEvents.length = 0;
+        s.currentPlayer = s.barbarians;
+        startTurn(s, s.barbarians);
+        for (const u of s.units) if (u.homeCity === tyre.id) { u.x = 18; u.y = 10; u.order = { kind: "none" }; }
+        barbarianTurn(s);
+        asked += demands();
+        delete s.cityStateDemands;
+        s.turn++;
+      }
+      // Before version 50 it asked every turn.
+      expect(asked).toBe(eager ? CITY_STATE.askEvery + 1 : 2);
+    }
   });
 
   it("raid nobody before the grace, nor a civilization that paid them off", () => {

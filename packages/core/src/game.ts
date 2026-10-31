@@ -128,6 +128,8 @@ export interface NewGameOptions extends MapGenOptions {
   quickWork?: boolean;
   /** The computer players under the human's rules of the level, as before version 47 (see `GameState.evenDifficulty`). Old saves load with it. */
   evenDifficulty?: boolean;
+  /** City-states ask for tribute as each raid sets out, of anyone, as before version 50 (see `GameState.eagerCityStates`). Old saves load with it. */
+  eagerCityStates?: boolean;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
@@ -323,6 +325,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.defaultBuilds ? { defaultBuilds: true } : {}),
     ...(opts.quickWork ? { quickWork: true } : {}),
     ...(opts.evenDifficulty ? { evenDifficulty: true } : {}),
+    ...(opts.eagerCityStates ? { eagerCityStates: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

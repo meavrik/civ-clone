@@ -12,8 +12,9 @@ import { createUnit } from "./units.js";
  * barbarians' seat, so always at war with every civilization, never met, never talked to. They raise only soldiers
  * and now and then send a few against the nearest civilization's city (the AI's `barbarian.ts`), first demanding
  * tribute of its owner (`cityStateDemand`); paid, that city-state leaves the payer be for `CITY_STATE.peaceTurns`
- * (`cityStatePeace`), until the payer strikes it. Otherwise they are conquered like any city, and stop being
- * city-states. Games placed them since save version 45, when started with `NewGameOptions.cityStates`.
+ * (`cityStatePeace`), until the payer strikes it. Since save version 50 they ask only a civilization that has come
+ * upon them, and the same one once in `CITY_STATE.askEvery` turns at most. Otherwise they are conquered like any city,
+ * and stop being city-states. Games placed them since save version 45, when started with `NewGameOptions.cityStates`.
  */
 
 /** The city-state a city is, or undefined for any other city. */
@@ -171,15 +172,43 @@ export function demandOn(state: GameState, city: number, player: number): CitySt
   return state.cityStateDemands?.find((d) => d.city === city && d.player === player);
 }
 
-/** Why city-state `city` may not demand tribute of `player` now, or null when it may. */
+/**
+ * Whether `player` has come upon city-state `city` (asked for 2026-10-31: "show city-state threat only when encounter
+ * the city-state unit or city"): it has explored the city's square, or sees one of its soldiers now.
+ */
+export function cameUpon(state: GameState, city: City, player: number): boolean {
+  const p = state.players[player];
+  if (!p) return false;
+  const w = state.map.width;
+  if (p.explored[city.y * w + city.x]) return true;
+  return state.units.some((u) => u.homeCity === city.id && u.owner === city.owner && p.visible[u.y * w + u.x]);
+}
+
+/** Whether city-state `city` asked `player` for tribute within the last `CITY_STATE.askEvery` turns. */
+export function askedLately(state: GameState, city: number, player: number): boolean {
+  const at = state.cityStateAsked?.[peaceKey(city, player)];
+  return at !== undefined && state.turn - at < CITY_STATE.askEvery;
+}
+
+/**
+ * Why city-state `city` may not demand tribute of `player` now, or null when it may. Since save version 50 (not
+ * `eagerCityStates`) only of a civilization that has come upon it (`cameUpon`), and once in `CITY_STATE.askEvery` turns.
+ */
 export function whyNoDemand(state: GameState, city: City | undefined, player: number): string | null {
   if (!city || city.cityState === undefined || city.owner !== state.barbarians) return "not a city-state";
   const p = state.players[player];
   if (!p || !p.alive || player === state.barbarians) return "no one to ask";
   if (peaceUntil(state, city.id, player) !== undefined) return "paid already";
   if (demandOn(state, city.id, player)) return "already asked";
+  if (!state.eagerCityStates && askedLately(state, city.id, player)) return "asked lately";
+  if (!state.eagerCityStates && !cameUpon(state, city, player)) return "not come upon";
   if (p.gold < tributePrice(state, player)) return "they cannot pay";
   return null;
+}
+
+/** City-state `city` demands tribute of `player` now: remembered for `askedLately` (not in `eagerCityStates` games). */
+export function noteDemand(state: GameState, city: number, player: number): void {
+  if (!state.eagerCityStates) (state.cityStateAsked ??= {})[peaceKey(city, player)] = state.turn;
 }
 
 /** Pay a standing demand: the gold goes, and the city-state leaves the payer be for `CITY_STATE.peaceTurns`. */
@@ -206,6 +235,10 @@ export function settleCityStates(state: GameState): void {
     for (const [k, until] of Object.entries(state.cityStatePeace)) if (until < state.turn) delete state.cityStatePeace[k];
     if (!Object.keys(state.cityStatePeace).length) delete state.cityStatePeace;
   }
+  if (state.cityStateAsked) {
+    for (const [k, at] of Object.entries(state.cityStateAsked)) if (state.turn - at >= CITY_STATE.askEvery) delete state.cityStateAsked[k];
+    if (!Object.keys(state.cityStateAsked).length) delete state.cityStateAsked;
+  }
 }
 
 /** A city-state taken (or razed): it is a city-state no more, and its demands and peace go with it. */
@@ -218,5 +251,9 @@ export function endCityState(state: GameState, city: City): void {
   if (state.cityStatePeace) {
     for (const k of Object.keys(state.cityStatePeace)) if (k.startsWith(`${city.id}:`)) delete state.cityStatePeace[k];
     if (!Object.keys(state.cityStatePeace).length) delete state.cityStatePeace;
+  }
+  if (state.cityStateAsked) {
+    for (const k of Object.keys(state.cityStateAsked)) if (k.startsWith(`${city.id}:`)) delete state.cityStateAsked[k];
+    if (!Object.keys(state.cityStateAsked).length) delete state.cityStateAsked;
   }
 }

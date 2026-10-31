@@ -80,6 +80,11 @@ export const CITY_STATE = {
   reach: 12,
   /** Turns of peace tribute buys from one city-state. */
   peaceTurns: 20,
+  /**
+   * A city-state asks the same civilization for tribute once in this many turns at most, paid, refused or let lapse
+   * (since save version 50; asked for 2026-10-31: raiders held home asked again every turn).
+   */
+  askEvery: 10,
   /** Tribute's price: this share of what gold is worth to the payer (`goldScale`), in tens, at least `minPrice`. */
   price: 0.4,
   minPrice: 30,

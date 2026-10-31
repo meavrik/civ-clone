@@ -122,6 +122,8 @@ export interface GameConfig {
   human?: boolean;
   /** Computer players under the human's rules of the level, alike toward a human at every level (`GameState.evenDifficulty`). */
   evenDifficulty?: boolean;
+  /** City-states ask for tribute as each raid sets out, of anyone (`GameState.eagerCityStates`). */
+  eagerCityStates?: boolean;
 }
 
 export interface PlayerStats {
@@ -245,6 +247,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.defaultBuilds ? { defaultBuilds: true } : {}),
     ...(config.cityStates ? { cityStates: true } : {}),
     ...(config.evenDifficulty ? { evenDifficulty: true } : {}),
+    ...(config.eagerCityStates ? { eagerCityStates: true } : {}),
   };
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyCommand,
+  cameUpon,
   CITY_STATE,
   CITY_STATES,
   cityStateCount,
@@ -29,7 +30,7 @@ function starts(s: GameState): [number, number][] {
   });
 }
 
-/** Grassland everywhere, two civilizations, nothing on the map, and city-state Tyre at (20, 10) with its garrison. */
+/** Grassland everywhere, two civilizations, nothing on the map, and city-state Tyre at (20, 10) with its garrison, which we have come upon. */
 function world(): { s: GameState; tyre: City } {
   const s = newGame(1, { opponents: 1, classicCivs: true });
   for (const t of s.map.tiles) {
@@ -44,6 +45,7 @@ function world(): { s: GameState; tyre: City } {
   tyre.buildings = [];
   createUnit(s, "militia", s.barbarians, 20, 10, tyre.id);
   createUnit(s, "militia", s.barbarians, 20, 10, tyre.id);
+  s.players[0]!.explored[10 * s.map.width + 20] = 1;
   return { s, tyre };
 }
 
@@ -151,12 +153,56 @@ describe("city-states", () => {
     expect(applyCommand(s, { type: "cityStateTribute", city: tyre.id, pay: false }).ok).toBe(true);
     expect(lastTurnEvents.find((e) => e.kind === "cityStateTribute")).toMatchObject({ paid: false, name: "Tyre" });
     expect(s.players[0]!.gold).toBe(500);
+    // Refused, it asks again only after its turns between (asked for 2026-10-31: it asked every turn).
     s.currentPlayer = s.barbarians;
-    applyCommand(s, { type: "cityStateDemand", city: tyre.id, player: 0 });
+    expect(applyCommand(s, { type: "cityStateDemand", city: tyre.id, player: 0 })).toEqual({ ok: false, reason: "asked lately" });
+    s.turn += CITY_STATE.askEvery - 1;
+    expect(applyCommand(s, { type: "cityStateDemand", city: tyre.id, player: 0 }).ok).toBe(true);
     s.turn++;
     s.currentPlayer = 0;
     applyCommand(s, { type: "endTurn" });
     expect(s.cityStateDemands).toBeUndefined();
+  });
+
+  it("demand tribute only of a civilization that has come upon their city or their soldiers", () => {
+    const { s, tyre } = world();
+    s.players[0]!.gold = 500;
+    foundCity(s, 0, 26, 10, "Rome");
+    const w = s.map.width;
+    s.players[0]!.explored[10 * w + 20] = 0;
+    s.players[0]!.visible.fill(0);
+    s.currentPlayer = s.barbarians;
+    expect(applyCommand(s, { type: "cityStateDemand", city: tyre.id, player: 0 })).toEqual({ ok: false, reason: "not come upon" });
+    // One of its soldiers in our sight is enough...
+    const raider = createUnit(s, "legion", s.barbarians, 24, 10, tyre.id);
+    s.players[0]!.visible[10 * w + 24] = 1;
+    expect(cameUpon(s, tyre, 0)).toBe(true);
+    // ...but not a barbarian's, nor one out of sight.
+    raider.homeCity = null;
+    expect(cameUpon(s, tyre, 0)).toBe(false);
+    raider.homeCity = tyre.id;
+    s.players[0]!.visible.fill(0);
+    expect(cameUpon(s, tyre, 0)).toBe(false);
+    // Its city explored is enough too.
+    s.players[0]!.explored[10 * w + 20] = 1;
+    expect(applyCommand(s, { type: "cityStateDemand", city: tyre.id, player: 0 }).ok).toBe(true);
+  });
+
+  it("demand of anyone, as often as asked, in saves before version 50", () => {
+    const { s, tyre } = world();
+    s.eagerCityStates = true;
+    s.players[0]!.gold = 500;
+    s.players[0]!.explored.fill(0);
+    s.players[0]!.visible.fill(0);
+    foundCity(s, 0, 26, 10, "Rome");
+    s.players[0]!.explored.fill(0);
+    s.currentPlayer = s.barbarians;
+    expect(applyCommand(s, { type: "cityStateDemand", city: tyre.id, player: 0 }).ok).toBe(true);
+    expect(s.cityStateAsked).toBeUndefined();
+    s.currentPlayer = 0;
+    applyCommand(s, { type: "cityStateTribute", city: tyre.id, pay: false });
+    s.currentPlayer = s.barbarians;
+    expect(applyCommand(s, { type: "cityStateDemand", city: tyre.id, player: 0 }).ok).toBe(true);
   });
 
   it("taken, a city-state is one no more, and the news names it", () => {

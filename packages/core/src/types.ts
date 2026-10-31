@@ -458,6 +458,15 @@ export interface GameState {
   cityStatePeace?: Record<string, number>;
   /** City-states' demands for tribute waiting for an answer. Missing: none. */
   cityStateDemands?: CityStateDemand[];
+  /** "city:player" to the turn that city-state last demanded tribute of that player (`askedLately`), kept `CITY_STATE.askEvery` turns. Missing: none. */
+  cityStateAsked?: Record<string, number>;
+  /**
+   * City-states as before version 50: one asked for tribute each time a raid set out, of a civilization that had never
+   * come upon it too, and asked again whenever its raiders set out anew, so a band held at home asked every turn.
+   * Since 50 it asks only a civilization that has come upon it (`cameUpon`), as its raid sets out or comes into sight,
+   * and the same one once in `CITY_STATE.askEvery` turns at most.
+   */
+  eagerCityStates?: boolean;
   /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.

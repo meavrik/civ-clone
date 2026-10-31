@@ -171,6 +171,13 @@ Never ship the original's sprites, palette art, fonts or text.
   turn 30 (`grace`), sends every 2 spare soldiers at the nearest civilization's city within 12 squares on its land,
   first demanding tribute of its owner (the `cityStateDemand` command, `tributePrice`: 0.4 of the payer's `goldScale`,
   at least 30, in tens; `state.cityStateDemands`, lapsing as the city-states' turn comes round, `settleCityStates`).
+  Since save version 50 (asked for 2026-10-31: "city-state bump each turn a threat message", "show city-state threat
+  only when encounter the city-state unit or city") it asks only a civilization that has come upon it (`cameUpon`:
+  the city's square explored, or one of its soldiers in sight now), as the raid sets out or, unannounced, once its
+  band comes into sight, and the same civilization once in `CITY_STATE.askEvery` (10) turns at most, paid, refused or
+  lapsed (`state.cityStateAsked`, `askedLately`, `noteDemand`): a band held at home had asked again every turn. Saves
+  before 50 load with `eagerCityStates` (headless `--eager-city-states`). Head to head (planner vs v2, 16 x 300, seeds
+  1-16): eager 12-4, score 172 vs 106, pop 56 vs 34; now 10-6, 174 vs 114, pop 58 vs 39; all replaying exactly.
   Paid (`cityStateTribute`), that city-state leaves the payer be for 20 turns (`state.cityStatePeace`,
   `peaceUntil`/`boughtOff`: its units may not strike the payer's), until the payer strikes it (`breakPeace`). Taken,
   it is a city-state no more (`endCityState`); its soldiers fight on as barbarians. The planner pays while its

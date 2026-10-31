@@ -58,7 +58,7 @@ import { discoverExplored } from "./map/geography.js";
 import { findPath, stepDir } from "./pathfind.js";
 import { landOwner } from "./territory.js";
 import { chronicleOf, notePeaks } from "./chronicle.js";
-import { boughtOff, demandOn, dropDemand, payTribute, settleCityStates, tributePrice, unitCityState, whyNoDemand } from "./city-states.js";
+import { boughtOff, demandOn, dropDemand, noteDemand, payTribute, settleCityStates, tributePrice, unitCityState, whyNoDemand } from "./city-states.js";
 import { addTrade, endTrades, missingResources, settleTrades, whyNoTrade } from "./resources.js";
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances } from "./rules/advances.js";
 import { researchCostFor } from "./levels.js";
@@ -267,6 +267,7 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       const target = cmd.target !== undefined ? state.cities.find((c) => c.id === cmd.target && c.owner === cmd.player) : undefined;
       const gold = tributePrice(state, cmd.player);
       (state.cityStateDemands ??= []).push({ city: cmd.city, player: cmd.player, gold, turn: state.turn, ...(target ? { target: target.id } : {}) });
+      noteDemand(state, cmd.city, cmd.player);
       lastTurnEvents.push({ kind: "cityStateDemand", from: cmd.city, name: city!.name, player: cmd.player, gold, ...(target ? { target: target.name } : {}) });
       return { ok: true };
     }

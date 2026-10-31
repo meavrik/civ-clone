@@ -268,8 +268,14 @@ function cityStateTurn(state: GameState, c: City): void {
     return;
   }
   // A raid setting out: its target's owner is asked for tribute first (refused when they cannot pay, or paid already).
-  if (!out.length) applyCommand(state, { type: "cityStateDemand", city: c.id, player: target.owner, target: target.id });
+  // Since save version 50 a raid under way asks too, once its target's owner has come upon the city-state (its city, or
+  // its soldiers in sight, so after they march as well), and the core asks the same civilization once in
+  // `CITY_STATE.askEvery` turns at most: a band held at home asked every turn before.
+  const victim = target.owner;
+  const demand = () => applyCommand(state, { type: "cityStateDemand", city: c.id, player: victim, target: target.id });
+  if (!state.eagerCityStates || !out.length) demand();
   for (const u of spare) raid(state, u, target);
+  if (!state.eagerCityStates && target.owner === victim && spare.some((u) => state.units.includes(u))) demand();
 }
 
 /** The nearest city of a civilization within `CITY_STATE.reach` on the city-state's land, not paid off, that `u` can walk to. */
