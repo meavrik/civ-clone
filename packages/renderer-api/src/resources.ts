@@ -16,22 +16,22 @@ export function resourceNote(id: string): string {
   return `{star} ${id} is needed for ${shortList(resourceUnits(id), 4)}`;
 }
 
-/** Names in a sentence: "Iron", "Iron and Horses", "Iron, Coal and Horses". */
-function andList(names: string[]): string {
-  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] ?? "";
-}
-
 /** The resources `player` lacks that lie on its land with no road on their squares (a square serves only with one, since save version 43, or a river, since 48). */
 export function resourcesWantingRoads(state: GameState, player: number): string[] {
   if (state.noResources) return [];
   return resourceHoldings(state, player).filter((h) => !h.has && h.unroaded > 0).map((h) => h.id);
 }
 
-/** What the build menu says of resources a road would bring into use: "Iron lies on our land without a road: build one on its square." */
+/**
+ * What the build menu says of resources a road would bring into use, short enough for one line of its window (asked for
+ * 2026-10-31: "keep in one text line - do not break. if needed shorten the text"): "Our Iron needs a road", "Our Iron
+ * and Horses need roads", past two "Our Iron, Horses and 2 more need roads".
+ */
 export function roadNote(ids: string[]): string | null {
   if (!ids.length) return null;
-  const many = ids.length > 1;
-  return `{road} ${andList(ids)} ${many ? "lie" : "lies"} on our land without a road: build one on ${many ? "their squares" : "its square"}.`;
+  if (ids.length === 1) return `{road} Our ${ids[0]} needs a road`;
+  const names = ids.length === 2 ? `${ids[0]} and ${ids[1]}` : `${ids[0]}, ${ids[1]} and ${ids.length - 2} more`;
+  return `{road} Our ${names} need roads`;
 }
 
 /**

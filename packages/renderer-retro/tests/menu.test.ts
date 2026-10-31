@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { keepInView, type MenuState } from "@civ/renderer-api";
+import { keepInView, roadNote, type MenuState } from "@civ/renderer-api";
 import { C, DESK_MENU, drawMenu, menuHit, menuRect, menuRowRect, menuRows, menuScrollAt, Surface, TOUCH_MENU, TOUCH_MENU_SMALL } from "../src/index.js";
 import { encodePng } from "./png.js";
 
@@ -69,6 +69,21 @@ describe("menus", () => {
     m.top = 99;
     m.selected = 39;
     expect(keepInView(m, 10)).toBe(30);
+  });
+
+  it("keep the build menu's road note on one line however many resources want roads, on the desktop and the phone", () => {
+    const ids = ["Saltpeter", "Horses", "Iron", "Coal", "Oil"];
+    expect(roadNote(ids.slice(0, 1))).toBe("{road} Our Saltpeter needs a road");
+    expect(roadNote(ids.slice(0, 2))).toBe("{road} Our Saltpeter and Horses need roads");
+    expect(roadNote(ids)).toBe("{road} Our Saltpeter, Horses and 3 more need roads");
+    expect(roadNote([])).toBeNull();
+    const items = ["Settlers", "Phalanx", "Legion"];
+    const plain: MenuState = { title: "Rome: build what?", items, right: items.map(() => "1/2/1 20 turns"), selected: 0 };
+    for (let n = 1; n <= ids.length; n++) {
+      const body = [roadNote(ids.slice(0, n))!];
+      // One line of words more than the window without it, and the gap under it.
+      for (const [size, lineH] of [[DESK_MENU, 8], [TOUCH_MENU, 16]] as const) expect(menuRect({ ...plain, body }, 320, size).h - menuRect(plain, 320, size).h).toBe(lineH + 5);
+    }
   });
 
   it("list a stack of units with their sprites on rows tall enough to hold them, never as buttons", () => {
@@ -159,7 +174,7 @@ describe("menus with large words (the phone app)", () => {
     drawMenu(s, modal, undefined, TOUCH_MENU);
     writeFileSync(new URL("./out/menu-large.png", import.meta.url), encodePng(s, 3));
     // A window of many lines would run off the screen at that size: it keeps the font's own.
-    const tall: MenuState = { title: "Grassland", body: Array.from({ length: 9 }, (_, i) => `Line ${i} of what the square holds`), items: [], selected: 0, close: true };
+    const tall: MenuState = { title: "Grassland", body: Array.from({ length: 12 }, (_, i) => `Line ${i} of what the square holds`), items: [], selected: 0, close: true };
     expect(menuRect(tall, 320, TOUCH_MENU)).toEqual(menuRect(tall, 320, TOUCH_MENU_SMALL));
     expect(menuRect(tall, 320, TOUCH_MENU).h).toBeLessThanOrEqual(200);
     // A dropdown's rows hold the large words; a long list still scrolls on the screen.

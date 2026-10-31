@@ -133,7 +133,9 @@ Never ship the original's sprites, palette art, fonts or text.
   value 7 where it lacks and wants the resource, 3 where it lacks it, 2 where it holds it already). Told in the
   square's window ("No use to anyone until a road is built on it"), Advisors > Resources ("no road near Rome", "2
   near Rome, 1 no road"), the reveal note ("2 on our land (1 wanting a road)") and the build menu
-  (`resourcesWantingRoads`, `roadNote`: "Iron lies on our land without a road: build one on its square."). Saves
+  (`resourcesWantingRoads`, `roadNote`, one line however many, asked for 2026-10-31: "Our Iron needs a road", "Our
+  Iron and Horses need roads", "Our Iron, Horses and 2 more need roads"; a window sizes itself by its lines' widths as
+  they wrap, so a line that sets its width never breaks on the phone's large words either). Saves
   before 43 load with `roadlessResources` (headless `--roadless-resources`). Held at turn 150 (planner in every
   seat, 6 seeds): Horses 79% of civs (92% without roads), Iron 67% (63%), Coal 46% (63%). Head to head (planner vs v2,
   16 x 300, seeds 1-16): roads 10-6, score 217 vs 183, pop 77 vs 72; without 10-6, 212 vs 180, pop 75 vs 74; all

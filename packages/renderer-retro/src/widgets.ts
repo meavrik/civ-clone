@@ -338,7 +338,8 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean)
   const roomGuess = floor - (m.anchor?.y ?? 0) - head - foot - tabsH - (m.body?.length ? m.body.length * lineH + 5 : 0);
   const scrolls = !buttons && count * least > roomGuess;
   const need = Math.max(tw(m.title) + 16 + (m.close ? titleH : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? size.scroll + 4 : 0), tabsW);
-  const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l, t))) + 20 : 0;
+  // Measured as the lines wrap (the font's widths, `t` times), so a line that sets the window's width keeps to one line.
+  const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l) * t)) + 20 : 0;
   // A map square or a unit's picture heads the window, in the same frame.
   const framed = !!(m.square || m.unit);
   const w = Math.min(size.maxW, screenW - 8, Math.max(need, Math.min(bodyW + (framed ? SQUARE_SIDE : 0), Math.round(SCREEN_W * size.share)), m.title ? size.minW : 0, m.square ? SQUARE_WINDOW_W : 0));
