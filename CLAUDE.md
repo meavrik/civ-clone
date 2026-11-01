@@ -452,8 +452,8 @@ Never ship the original's sprites, palette art, fonts or text.
   reaches Seafaring late, most of the game on its war goals against the city-states). Pictures: the four units' are the
   user's (see Unit pictures; `UNIT_PICTURES_WANTED` is empty, retro `UNIT_ABBR`'s letters stand in only where no
   picture is laid); the rest wait for theirs (renderer-api `BUILDING_PICTURES_WANTED`, `TECH_PICTURES_WANTED`): the Harbour its
-  drawn city-view picture (`PICTURES.harbour`), Archery and Seafaring the New Technology frame's bed, Elephants Ivory's
-  tusks (retro `SPECIAL_STAND_INS`); a fishery is drawn in code (retro `fishery.ts`: two stakes, a sagging net, red and
+  drawn city-view picture (`PICTURES.harbour`), Archery and Seafaring the New Technology frame's bed (Elephants
+  have the user's icon since their resource sheet of the same day); a fishery is drawn in code (retro `fishery.ts`: two stakes, a sagging net, red and
   white floats). The Resources advisor's bands close up to fit six (`TRADES_ROOM`). The loader took versions 1-48 and
   the current one only, so saves of 49 to 51 had been refused since; it now takes every version up to `SAVE_VERSION`.
   Oil at sea and oil rigs (asked for 2026-11-01: "add oil for water and also all the tile improvements that would be
@@ -469,7 +469,8 @@ Never ship the original's sprites, palette art, fonts or text.
   "Wants rig", "1 square near Rome wants an oil rig: a Fishing Boat builds one", `ResourceHolding.unrigged`), the build
   menu (`rigNote`: "Our Oil lies unused at sea: a Fishing Boat builds a rig") and the reveal note. Drawn in code until
   the user's pictures come (retro `rig.ts`: a steel deck on four legs in foam, a derrick and a flare; the oil's icon
-  steps aside under it), the oil at sea with the land's derrick (`SPECIAL_STAND_INS` "Offshore Oil"). The planner's
+  steps aside under it), the oil at sea an icon of its own, a slick with bubbles (`offshore_oil` in the user's resource sheet of the same day;
+  retro `drawSpecial` picks it on the sea, `specialSprite` joining a name's words). The planner's
   fishing boats build the rig on oil their civilization lacks (`rigSpots`), and its cities build a boat for one;
   rarely seen: no planner civ knew Refining by turn 300 in 6 all-planner games, and given it at turn 150 one rig went
   up by 250 (8 of 24 civs knew Seafaring, 8 squares of sea oil lay in anyone's waters). Saves before 55 load with
@@ -1288,8 +1289,11 @@ Never ship the original's sprites, palette art, fonts or text.
   (the viewer's own cities) as a pennant before the plate, another civ's city its owner's shield there
   (`drawCityLabel`, `drawMoodPennant` in
   `screens/main.ts`; asked for 2026-10-21/22 after overlays on the town hid it) and resources (`resources.art.ts`, named after the special: the user's sheet of 22 icons of
-  2026-10-27, "replace ... resources on terrain tiles", converted by `tools/sprites/draw/resources.ts` from
-  `resources.png`: the glow behind each cleared, a 256-pixel cell the map's square (three of the art's pixels to
+  2026-10-27, "replace ... resources on terrain tiles", redrawn 2026-11-01 with 24 ("implement attached updated resources
+  sprite-sheet": Elephants and Oil at sea added, `offshore_oil`), converted by `tools/sprites/draw/resources.ts` from
+  `resources.png`: each icon its solid pixels (alpha over 128; the glow behind them fainter, left out), each piece going
+  to the cell its middle lies in so an icon reaching over its cell's edge comes whole (the stag's hooves; a flood of the
+  glow's colours from the cell's edge did it before, and cut them off), a 256-pixel cell the map's square (three of the art's pixels to
   two of ours; two to one was muddy), each icon in the five ramps nearest its colours, the silhouette's edge
   the block's darkest colour so the outline stays one pixel in the icon's own dark shades) are all 32x32 sheets with `k = 2`; icons are 16x16
   fine; citizens 32x32. Land borders blend: renderer-api `groundOwner` warps each fine pixel by world

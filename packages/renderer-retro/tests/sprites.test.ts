@@ -41,8 +41,11 @@ describe("sprite sheets", () => {
     for (const t of UNIT_TYPES)
       expect(UNIT_SHEET.byName.has(t.id) || ((unitArt(t.id) || UNIT_PICTURES_WANTED.includes(t.id)) && UNIT_ABBR[t.id] !== undefined), t.id).toBe(true);
     for (const id of ["archers", "elephants", "explorer", "fishing_boat"]) expect(unitArt(id), id).toBe(true);
-    // Elephants (since save version 53) show Ivory's tusks until their icon comes.
-    expect(specialSprite("Elephants")).toBe(specialSprite("Ivory"));
+    // Elephants (since save version 53) and Oil at sea (since 55) have icons of their own (the user's sheet of 2026-11-01).
+    expect(specialSprite("Elephants")).not.toBeNull();
+    expect(specialSprite("Elephants")).not.toBe(specialSprite("Ivory"));
+    expect(specialSprite("Offshore Oil")).not.toBeNull();
+    expect(specialSprite("Offshore Oil")).not.toBe(specialSprite("Oil"));
     for (const name of ["ocean", "grassland", "plains", "forest", "hills", "mountains", "desert", "tundra", "arctic", "swamp", "jungle"])
       expect(TERRAIN_SHEET.byName.has(name), name).toBe(true);
     for (const rule of Object.values(TERRAIN_RULES))
