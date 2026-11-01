@@ -6,6 +6,8 @@
 // it): the units are not on an even grid (the carrier is wider than a cell, the phalanx's spear taller), so
 // each is cut by its own bounds, a few pixels out, not by cells. Every pixel of the cut is the sheet's,
 // unchanged, but those nearer another unit, cleared where two units' bounds overlap.
+// Units added since come as pictures of their own (`SINGLES`, tools/sprites/units/<id>.png, kept as supplied), each
+// cut the same way by its bounds, drawn at a size of its own, so with its own scale.
 // Writes apps/web/src/units/<id>.png and the cuts' sizes to packages/renderer-api/src/unit-art.ts, from
 // which `unitArtPlace` stands each picture in its square.
 import { readFileSync, writeFileSync } from "node:fs";
@@ -27,6 +29,14 @@ const SPECK = 500;
 const MARGIN = 2;
 /** How far a soft pixel looks for the unit it belongs to. */
 const REACH = 4;
+/**
+ * The units of their own pictures, and each one's scale: its pixels to a map square, where the sheet's are
+ * `UNIT_SQUARE` (240). The archer (2026-11-01, "implement archer image": 1254 square, the man 973 pixels from his
+ * helmet to his feet, the bow above him) at 1400, so he stands as tall as the sheet's militia (166 of 240).
+ */
+const SINGLES: Record<string, number> = { archers: 1400 };
+/** The units the sheet drew, in its order: those of the first rules, before any came with a save version. */
+const SHEET_UNITS = UNIT_TYPES.filter((t) => t.since === undefined);
 
 const solid = (i: number) => data[i * 4 + 3]! > SOLID;
 const owner = new Int32Array(W * H).fill(-1);
@@ -53,7 +63,7 @@ for (let s = 0; s < W * H; s++) {
   }
 }
 const units = pieces.map((p, id) => ({ ...p, id })).filter((p) => p.n >= SPECK);
-if (units.length !== UNIT_TYPES.length) throw new Error(`the sheet has ${units.length} units, the rules ${UNIT_TYPES.length}`);
+if (units.length !== SHEET_UNITS.length) throw new Error(`the sheet has ${units.length} units, the rules ${SHEET_UNITS.length}`);
 // Rows top to bottom (a unit's middle), then left to right.
 const byRow = units.slice().sort((a, b) => a.y0 + a.y1 - (b.y0 + b.y1));
 const ordered: typeof units = [];
@@ -77,9 +87,9 @@ function nearest(x: number, y: number): number {
   return best;
 }
 
-const sizes: Record<string, [number, number]> = {};
+const sizes: Record<string, [w: number, h: number, square?: number]> = {};
 ordered.forEach((u, n) => {
-  const type = UNIT_TYPES[n]!;
+  const type = SHEET_UNITS[n]!;
   const x0 = Math.max(0, u.x0 - MARGIN), y0 = Math.max(0, u.y0 - MARGIN);
   const x1 = Math.min(W - 1, u.x1 + MARGIN), y1 = Math.min(H - 1, u.y1 + MARGIN);
   const w = x1 - x0 + 1, h = y1 - y0 + 1;
@@ -98,13 +108,32 @@ ordered.forEach((u, n) => {
   console.log(`${type.id.padEnd(17)} ${w}x${h} from ${x0},${y0}${cleared ? `, ${cleared} pixels of its neighbours left out` : ""}`);
 });
 
+// A picture of its own: its one piece and the faint pixels about it, within its bounds a few pixels out, as they are.
+for (const [id, square] of Object.entries(SINGLES)) {
+  if (!UNIT_TYPES.some((t) => t.id === id)) throw new Error(`${id}: no such unit`);
+  const pic = decodePng(new Uint8Array(readFileSync(here(`./${id}.png`))));
+  let x0 = pic.width, y0 = pic.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < pic.height; y++)
+    for (let x = 0; x < pic.width; x++)
+      if (pic.data[(y * pic.width + x) * 4 + 3]! > SOLID) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  x0 = Math.max(0, x0 - MARGIN); y0 = Math.max(0, y0 - MARGIN);
+  x1 = Math.min(pic.width - 1, x1 + MARGIN); y1 = Math.min(pic.height - 1, y1 + MARGIN);
+  const w = x1 - x0 + 1, h = y1 - y0 + 1;
+  const out = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) out.set(pic.data.subarray(((y0 + y) * pic.width + x0) * 4, ((y0 + y) * pic.width + x1 + 1) * 4), y * w * 4);
+  writeFileSync(here(`../../../apps/web/src/units/${id}.png`), encodePng({ width: w, height: h, data: out }));
+  sizes[id] = [w, h, square];
+  console.log(`${id.padEnd(17)} ${w}x${h} from ${x0},${y0} of its own picture, ${square} pixels a square`);
+}
+
 writeFileSync(
   here("../../../packages/renderer-api/src/unit-art.ts"),
-  `// Written by tools/sprites/units/cut.ts from the user's unit sheet (tools/sprites/units/units.png): each
-// unit's picture (apps/web/src/units/<id>.png), its width and height in the sheet's pixels.
-export const UNIT_ART: Record<string, readonly [w: number, h: number]> = {
-${Object.entries(sizes).map(([id, [w, h]]) => `  ${id}: [${w}, ${h}],`).join("\n")}
+  `// Written by tools/sprites/units/cut.ts from the user's unit sheet (tools/sprites/units/units.png) and the units'
+// pictures of their own (tools/sprites/units/<id>.png): each unit's picture (apps/web/src/units/<id>.png), its width
+// and height in its pixels and, for a picture of its own, its pixels to a map square (else the sheet's, UNIT_SQUARE).
+export const UNIT_ART: Record<string, readonly [w: number, h: number, square?: number]> = {
+${Object.entries(sizes).map(([id, [w, h, square]]) => `  ${id}: [${w}, ${h}${square ? `, ${square}` : ""}],`).join("\n")}
 };
 `,
 );
-console.log(`wrote ${ordered.length} pictures and unit-art.ts`);
+console.log(`wrote ${Object.keys(sizes).length} pictures and unit-art.ts`);

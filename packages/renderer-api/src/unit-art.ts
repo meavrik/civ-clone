@@ -1,6 +1,7 @@
-// Written by tools/sprites/units/cut.ts from the user's unit sheet (tools/sprites/units/units.png): each
-// unit's picture (apps/web/src/units/<id>.png), its width and height in the sheet's pixels.
-export const UNIT_ART: Record<string, readonly [w: number, h: number]> = {
+// Written by tools/sprites/units/cut.ts from the user's unit sheet (tools/sprites/units/units.png) and the units'
+// pictures of their own (tools/sprites/units/<id>.png): each unit's picture (apps/web/src/units/<id>.png), its width
+// and height in its pixels and, for a picture of its own, its pixels to a map square (else the sheet's, UNIT_SQUARE).
+export const UNIT_ART: Record<string, readonly [w: number, h: number, square?: number]> = {
   settlers: [230, 189],
   militia: [185, 170],
   phalanx: [155, 277],
@@ -30,4 +31,5 @@ export const UNIT_ART: Record<string, readonly [w: number, h: number]> = {
   fighter: [164, 116],
   bomber: [217, 114],
   nuclear: [70, 141],
+  archers: [997, 1130, 1400],
 };

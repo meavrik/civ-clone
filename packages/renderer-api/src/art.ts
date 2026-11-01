@@ -16,9 +16,9 @@ export const ART_SIZE = 1254;
 
 /**
  * Units still waiting for the user's pictures (added 2026-11-01, save version 53): the map shows each as its letters
- * on its owner's box (renderer-retro `UNIT_ABBR`) until they come.
+ * on its owner's box (renderer-retro `UNIT_ABBR`) until they come. The archer's came the same day.
  */
-export const UNIT_PICTURES_WANTED: readonly string[] = ["archers", "elephants", "explorer", "fishing_boat"];
+export const UNIT_PICTURES_WANTED: readonly string[] = ["elephants", "explorer", "fishing_boat"];
 
 /** Improvements still waiting for the user's picture (added 2026-11-01, save version 53): their drawn one (`PICTURES`) stands in. */
 export const BUILDING_PICTURES_WANTED: readonly string[] = ["harbour"];
@@ -122,8 +122,9 @@ export interface ArtSpot extends ArtBox {
  * they are wherever a unit stands (`apps/web/src/units/<id>.png`, cut from the sheet pixel for pixel by
  * tools/sprites/units/cut.ts). One scale for all, `UNIT_SQUARE` of the sheet's pixels to a map square, so they keep
  * the sizes the sheet gives them; one that would not fit its square (the carrier, the tank, the phalanx's spear)
- * shrinks to fit. Each stands centred across on the square's foot, a fine pixel up, the aircraft (`ALOFT`) in
- * the middle, in flight. The sprites stay for anything without a picture.
+ * shrinks to fit. A unit added since comes as a picture of its own, drawn at a size of its own, so with its own scale
+ * (`UNIT_ART`'s third number: the archer's 1400). Each stands centred across on the square's foot, a fine pixel up,
+ * the aircraft (`ALOFT`) in the middle, in flight. The sprites stay for anything without a picture.
  */
 export const UNIT_SQUARE = 240;
 /** The share of its square a picture may fill, either way. */
@@ -150,8 +151,8 @@ export function unitArtPlace(spot: ArtSpot): ArtBox | null {
   if (sheet) return animPlace(spot, sheet.square, sheet.atlas, sheet.home);
   const size = UNIT_ART[spot.id];
   if (!size) return null;
-  const [w, h] = size;
-  const k = Math.min(1 / UNIT_SQUARE, UNIT_FIT / w, UNIT_FIT / h);
+  const [w, h, square = UNIT_SQUARE] = size;
+  const k = Math.min(1 / square, UNIT_FIT / w, UNIT_FIT / h);
   const fw = w * k, fh = h * k;
   const top = ALOFT.has(spot.id) ? (1 - fh) / 2 : 1 - UNIT_FOOT - fh;
   return { x: spot.x + ((1 - fw) / 2) * spot.w, y: spot.y + top * spot.h, w: fw * spot.w, h: fh * spot.h };
