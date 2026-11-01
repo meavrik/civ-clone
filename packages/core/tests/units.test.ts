@@ -84,12 +84,39 @@ describe("settler work and turns", () => {
     const u = createUnit(s, "settlers", 0, 10, 10);
     s.activeUnit = u.id;
     expect(applyCommand(s, { type: "work", unit: u.id, work: "road" }).ok).toBe(true);
-    applyCommand(s, { type: "endTurn" });
+    for (let i = 0; i < 3; i++) applyCommand(s, { type: "endTurn" });
     expect(getTile(s.map, 10, 10)!.road).toBe(false);
     applyCommand(s, { type: "endTurn" });
     expect(getTile(s.map, 10, 10)!.road).toBe(true);
     expect(u.order.kind).toBe("none");
-    expect(s.turn).toBe(2);
+    expect(s.turn).toBe(4);
+  });
+
+  it("takes twice the original's turns for roads, irrigation and mines, and the original's to change the land", () => {
+    const s = flatWorld();
+    getTile(s.map, 10, 9)!.terrain = Terrain.Ocean;
+    const u = createUnit(s, "settlers", 0, 10, 10);
+    // Grassland: a road 4 (the original's 2), irrigation 10 (5); planting forest 10, as ever.
+    expect(workOptions(s, u)).toMatchObject({ road: 4, irrigate: 10, mine: 10 });
+    getTile(s.map, 10, 10)!.terrain = Terrain.Hills;
+    expect(workOptions(s, u)).toMatchObject({ road: 8, irrigate: 20, mine: 20 });
+    getTile(s.map, 10, 10)!.terrain = Terrain.Mountains;
+    expect(workOptions(s, u)).toMatchObject({ road: 12, mine: 20 });
+    getTile(s.map, 10, 10)!.terrain = Terrain.Forest;
+    expect(workOptions(s, u)).toMatchObject({ road: 8, irrigate: 5 });
+    getTile(s.map, 10, 10)!.terrain = Terrain.Swamp;
+    expect(workOptions(s, u)).toMatchObject({ road: 8, irrigate: 15, mine: 15 });
+    // Railroads keep twice the original's road.
+    getTile(s.map, 10, 10)!.terrain = Terrain.Grassland;
+    getTile(s.map, 10, 10)!.road = true;
+    s.players[0]!.advances.push("railroad");
+    expect(workOptions(s, u).railroad).toBe(4);
+    // Games saved before version 56 keep the original's turns.
+    s.quickImprovements = true;
+    getTile(s.map, 10, 10)!.road = false;
+    expect(workOptions(s, u)).toMatchObject({ road: 2, irrigate: 5, mine: 10 });
+    getTile(s.map, 10, 10)!.terrain = Terrain.Hills;
+    expect(workOptions(s, u)).toMatchObject({ road: 4, irrigate: 10, mine: 10 });
   });
 
   it("starts a job the next turn when the settler spent its moves getting there, as in the original", () => {
@@ -98,17 +125,17 @@ describe("settler work and turns", () => {
     s.activeUnit = u.id;
     expect(applyCommand(s, { type: "move", unit: u.id, dx: 1, dy: 0 }).ok).toBe(true);
     expect(u.movesLeft).toBe(0);
-    // Its road takes three turns from here: this one is spent.
-    expect(workOptions(s, u).road).toBe(3);
+    // Its road takes five turns from here: this one is spent.
+    expect(workOptions(s, u).road).toBe(5);
     expect(applyCommand(s, { type: "work", unit: u.id, work: "road" }).ok).toBe(true);
-    applyCommand(s, { type: "endTurn" });
-    applyCommand(s, { type: "endTurn" });
+    for (let i = 0; i < 4; i++) applyCommand(s, { type: "endTurn" });
     expect(getTile(s.map, 10, 10)!.road).toBe(false);
     applyCommand(s, { type: "endTurn" });
     expect(getTile(s.map, 10, 10)!.road).toBe(true);
-    // Games saved before version 46 counted the turn it walked in.
+    // Games saved before version 46 counted the turn it walked in (and built roads in the original's turns).
     const old = flatWorld();
     old.quickWork = true;
+    old.quickImprovements = true;
     const v = createUnit(old, "settlers", 0, 9, 10);
     old.activeUnit = v.id;
     applyCommand(old, { type: "move", unit: v.id, dx: 1, dy: 0 });

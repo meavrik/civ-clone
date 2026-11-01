@@ -351,6 +351,11 @@ export interface GameState {
   catalogue?: number;
   /** Fish feed a city whether or not a fishery was laid on them (`specialLocked`), as before version 54. */
   freeFish?: boolean;
+  /**
+   * Roads, irrigation and mines take the 1991 game's turns (`TERRAIN_RULES`), as before version 56; since, twice them
+   * (`IMPROVEMENT_WORK_FACTOR`).
+   */
+  quickImprovements?: boolean;
   /** Every change of production kind halves the box again, even a change back. Set for saves before version 21. */
   compoundingPenalty?: boolean;
   /**

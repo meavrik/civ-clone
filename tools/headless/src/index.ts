@@ -130,6 +130,8 @@ export interface GameConfig {
   catalogue?: number;
   /** Fish feed a city without a fishery (`GameState.freeFish`). */
   freeFish?: boolean;
+  /** Roads, irrigation and mines in the original's turns (`GameState.quickImprovements`). */
+  quickImprovements?: boolean;
 }
 
 export interface PlayerStats {
@@ -257,6 +259,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.resourceShields ? { resourceShields: true } : {}),
     ...(config.catalogue !== undefined ? { catalogue: config.catalogue } : {}),
     ...(config.freeFish ? { freeFish: true } : {}),
+    ...(config.quickImprovements ? { quickImprovements: true } : {}),
   };
 }
 

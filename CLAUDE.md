@@ -1635,7 +1635,8 @@ audience and between computer civs. Iron, Saltpeter and Oil hidden from a civ un
 for; save version 40), told on the map as they appear. Seafaring (Harbour, Explorer, Fishing Boat), Archery
 (Archers) and War Elephants on the Elephants resource done (2026-11-01, asked for; save version 53), the units' pictures
 the user's. Oil at sea and the Fishing Boat's oil rigs done (2026-11-01, asked for; save version 55), drawn in code until
-the user's pictures come.
+the user's pictures come. Roads, irrigation and mines take twice the original's turns (2026-11-01, asked for; save
+version 56).
 
 ## Known gaps / next steps
 
@@ -1665,8 +1666,15 @@ the user's pictures come.
    one turn more, `workOptions`; the planner never did it, only giving orders to units awaiting them), and pollution
    cleared in three turns where the manual says four (`CLEAN_TURNS`). Saves before 46 load with `quickWork` (headless
    `--quick-work`). Head to head (planner vs v2, 16 x 300): identical both ways, 8-8, score 158 vs 124, all replaying
-   exactly. Still ours: the Romans' roads and the Germans' farms and mines in half the time (`fastWork` traits), and
-   railroads at twice a road (4, 8 or 12 turns; FreeCiv's civ1 ruleset has 3).
+   exactly. Since save version 56 (asked for 2026-11-01: "road, irrigation and mine should take longer to build"; our
+   departure) roads, irrigation and mines take twice those turns (`IMPROVEMENT_WORK_FACTOR` in `rules/terrain.ts`, applied
+   in `workOptions`): a road 4, 8 or 12, irrigation and mines 10 or 20 (a hill's mine 20). A job that turns the land into
+   another (clearing forest 5, planting forest 10 or 15, draining swamp or jungle 15) keeps the original's turns, and
+   railroads theirs (4, 8 or 12, now as long as a road; FreeCiv's civ1 ruleset has 3). The orders menu shows the turns
+   ("Road (4 turns)"). Saves before 56 load with `quickImprovements` (headless `--quick-improvements`). Head to head
+   (planner vs v2, 16 x 300, seeds 1-16): doubled 11-5, score 108 vs 94, cities 9.2 vs 5.7, pop 42 vs 30, techs 22.5 vs
+   20.4; the original's turns 9-7, 122 vs 99, pop 46 vs 31 (as version 55); all replaying exactly. Still ours: the
+   Romans' roads and the Germans' farms and mines in half the time (`fastWork` traits, halving the doubled turns).
    Other deliberate departures: rivers give +1 trade (on grassland that is the original's River), Michelangelo's acts as a
    cathedral everywhere. The Colossus is the original's since save version 27 (asked for 2026-10-24: "built a
    Colossus, 0 effect": ours helped only the ocean squares its city worked, which Growth rarely picks): +1 trade on

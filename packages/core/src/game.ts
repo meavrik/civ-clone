@@ -138,6 +138,8 @@ export interface NewGameOptions extends MapGenOptions {
   catalogue?: number;
   /** Fish feed a city without a fishery, as before version 54 (see `GameState.freeFish`). Old saves load with it. */
   freeFish?: boolean;
+  /** Roads, irrigation and mines in the original's turns, as before version 56 (see `GameState.quickImprovements`). Old saves load with it. */
+  quickImprovements?: boolean;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
@@ -338,6 +340,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.resourceShields ? { resourceShields: true } : {}),
     ...(opts.catalogue !== undefined ? { catalogue: opts.catalogue } : {}),
     ...(opts.freeFish ? { freeFish: true } : {}),
+    ...(opts.quickImprovements ? { quickImprovements: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

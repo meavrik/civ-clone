@@ -202,6 +202,13 @@ export const MOVE_FRAC = 3;
  * turns of work, the pollution disappears", the 1991 manual; three before save version 46, `quickWork`).
  */
 export const RAILROAD_TURNS_FACTOR = 2;
+/**
+ * Roads, irrigation and mines take this many times the turns in `TERRAIN_RULES` (the 1991 game's) since save version 56
+ * (asked for 2026-11-01: "road, irrigation and mine should take longer to build"; `GameState.quickImprovements` before):
+ * a road 4, 8 or 12 turns by the ground, irrigation and mines 10 or 20. A job that turns the land into another
+ * (clearing forest, draining swamp, planting forest) keeps its turns, and railroads keep twice the original's road.
+ */
+export const IMPROVEMENT_WORK_FACTOR = 2;
 export const FORTRESS_TURNS = 3;
 export const CLEAN_TURNS = 4;
 export const QUICK_CLEAN_TURNS = 3;

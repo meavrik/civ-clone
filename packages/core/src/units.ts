@@ -1,6 +1,6 @@
 import { knows } from "./rules/advances.js";
 import { traitFastWork } from "./traits.js";
-import { CLEAN_TURNS, FORTRESS_TURNS, MOVE_FRAC, QUICK_CLEAN_TURNS, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
+import { CLEAN_TURNS, FORTRESS_TURNS, IMPROVEMENT_WORK_FACTOR, MOVE_FRAC, QUICK_CLEAN_TURNS, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
 import type { RankId } from "./rules/experience.js";
 import { CLASSIC_FIREPOWER, CLASSIC_HP, unitType, type UnitTypeRule } from "./rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Tile, type Unit, type WorkKind } from "./types.js";
@@ -305,12 +305,15 @@ export function workOptions(state: GameState, u: Unit): Partial<Record<WorkKind,
   const r = TERRAIN_RULES[t.terrain];
   const known = state.players[u.owner]!.advances;
   const out: Partial<Record<WorkKind, number>> = {};
+  // A road, irrigation or a mine takes twice the original's turns since version 56; land turned into another as ever.
+  const build = (turns: number) => (state.quickImprovements ? turns : turns * IMPROVEMENT_WORK_FACTOR);
   if (r.irrigate && !t.irrigation && (r.irrigate.becomes !== undefined || hasWaterNearby(state, u.x, u.y)))
-    out.irrigate = r.irrigate.turns;
+    out.irrigate = r.irrigate.becomes !== undefined ? r.irrigate.turns : build(r.irrigate.turns);
   // Mining grassland, plains, swamp or jungle into forest came with the original's rules (version 26).
-  if (r.mine && !t.mine && !(r.mine.becomes !== undefined && state.freecivYields)) out.mine = r.mine.turns;
+  if (r.mine && !t.mine && !(r.mine.becomes !== undefined && state.freecivYields))
+    out.mine = r.mine.becomes !== undefined ? r.mine.turns : build(r.mine.turns);
   // A river takes a road once its civilization knows Bridge Building, as in the original.
-  if (r.road.turns > 0 && !t.road && (!t.river || knows(known, "bridge_building"))) out.road = r.road.turns;
+  if (r.road.turns > 0 && !t.road && (!t.river || knows(known, "bridge_building"))) out.road = build(r.road.turns);
   if (t.road && !t.railroad && knows(known, "railroad")) out.railroad = Math.max(2, r.road.turns * RAILROAD_TURNS_FACTOR);
   if (!t.fortress && t.terrain !== Terrain.Ocean && knows(known, "construction") && !state.cities.some((c) => c.x === u.x && c.y === u.y))
     out.fortress = FORTRESS_TURNS;
