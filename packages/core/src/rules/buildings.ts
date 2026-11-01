@@ -1,7 +1,8 @@
 /**
  * City improvements. Costs are in shields, upkeep in gold per turn, both
- * checked against FreeCiv's civ1 ruleset (no Sewer, Stock Exchange or
- * Harbour in this era). Effects are declared as data and interpreted in
+ * checked against FreeCiv's civ1 ruleset (no Sewer or Stock Exchange in this
+ * era). The Harbour is our addition (save version 53, asked for 2026-11-01,
+ * after Civilization II). Effects are declared as data and interpreted in
  * cities.ts so the AI can reason about them without special cases. Wonders
  * live in their own file.
  */
@@ -36,6 +37,12 @@ export interface BuildingRule {
   pollutionPct?: number;
   /** Culture it adds to the city while it stands, which pushes the border out (rules/culture.ts). */
   culture?: number;
+  /** Built only in a city beside the sea (`coastal`). */
+  coastal?: boolean;
+  /** Food added to each ocean square the city works. */
+  oceanFood?: number;
+  /** The save version that brought it; a game of an older version (`GameState.catalogue`) never offers it. */
+  since?: number;
 }
 
 const B = (id: string, name: string, cost: number, upkeep: number, text: string, extra: Partial<BuildingRule> = {}): BuildingRule => ({
@@ -46,6 +53,7 @@ export const BUILDINGS: BuildingRule[] = [
   B("palace", "Palace", 200, 0, "The seat of government: the farther a city lies from it, the more trade corruption takes.", { requires: "masonry", culture: 1 }),
   B("barracks", "Barracks", 40, 1, "Land units trained here start as veterans.", { barracks: true }),
   B("granary", "Granary", 60, 1, "Half the food stays in store when the city grows.", { requires: "pottery", granary: true }),
+  B("harbour", "Harbour", 60, 1, "Each ocean square the city works yields one more food.", { requires: "seafaring", coastal: true, oceanFood: 1, since: 53 }),
   B("temple", "Temple", 40, 1, "Calms one unhappy citizen.", { requires: "ceremonial_burial", content: 1, culture: 2 }),
   B("marketplace", "Marketplace", 80, 1, "Adds half again to the city's tax and luxuries.", { requires: "currency", taxPct: 50, luxPct: 50 }),
   B("library", "Library", 80, 1, "Adds half again to the city's science.", { requires: "writing", sciencePct: 50, culture: 2 }),

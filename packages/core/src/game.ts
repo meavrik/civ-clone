@@ -134,6 +134,8 @@ export interface NewGameOptions extends MapGenOptions {
   plainGifts?: boolean;
   /** Strategic resources' squares add the shields of their specials, as before version 52 (see `GameState.resourceShields`). Old saves load with it. */
   resourceShields?: boolean;
+  /** Only the units, improvements, advances and resources a save of this version knew (see `GameState.catalogue`). Saves before version 53 load with their version. */
+  catalogue?: number;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
@@ -243,7 +245,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
       if (t.terrain === Terrain.Grassland && t.special && !t.secondSpecial) t.special = false;
     });
   // Strategic resources lie in deposits besides the lattice's specials (rules/resources.ts).
-  if (!opts.noResources) scatterDeposits(map, seed);
+  if (!opts.noResources) scatterDeposits(map, seed, opts.catalogue);
   const humanCiv = opts.civ ?? "romans";
   const roster = opts.roster;
   const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians" && (!homes || homes[c.id] !== undefined) && (roster === undefined || (c.since ?? 0) <= roster));
@@ -332,6 +334,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.eagerCityStates ? { eagerCityStates: true } : {}),
     ...(opts.plainGifts ? { plainGifts: true } : {}),
     ...(opts.resourceShields ? { resourceShields: true } : {}),
+    ...(opts.catalogue !== undefined ? { catalogue: opts.catalogue } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

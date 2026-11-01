@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, BUILDINGS, getTile, newGame, Terrain, WONDERS, type GameState } from "@civ/core";
-import { artLot, BUILDING_ART, cityScene, PICTURES } from "@civ/renderer-api";
+import { artLot, BUILDING_ART, BUILDING_PICTURES_WANTED, cityScene, PICTURES } from "@civ/renderer-api";
 import { C, cityButtonAt, cityViewAt, drawCityView, drawPicture, rasterize, shade, Surface, SCENE_X, SCENE_Y } from "../src/index.js";
 import { encodePng } from "./png.js";
 
@@ -121,7 +121,9 @@ describe("city view", () => {
   it("gives each picture about the room of the drawn one, in its own shape", () => {
     for (const [id, pic] of Object.entries(PICTURES)) {
       const lot = artLot(id, pic);
-      expect(BUILDING_ART[id], id).toBeDefined(); // every drawn picture has one of the user's now
+      // Every drawn picture has one of the user's now, but those still to come (the Harbour's), which stand as drawn.
+      if (BUILDING_PICTURES_WANTED.includes(id)) { expect(BUILDING_ART[id], id).toBeUndefined(); expect(lot).toEqual({ w: pic.w, h: pic.h }); continue; }
+      expect(BUILDING_ART[id], id).toBeDefined();
       expect(lot.h, id).toBeLessThanOrEqual(46);
       expect(lot.w * lot.h, id).toBeGreaterThan(pic.w * pic.h * 0.6);
       expect(lot.w * lot.h, id).toBeLessThan(pic.w * pic.h * 1.2);

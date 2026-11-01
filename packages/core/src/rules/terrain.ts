@@ -26,6 +26,8 @@ export interface SpecialRule {
   within?: number;
   /** Found only this many squares from land or farther (whales keep to deep water: no land beside them). */
   beyond?: number;
+  /** What a fishery laid on it adds (`Tile.fishery`, by a Fishing Boat; since save version 53). */
+  fishery?: { food?: number; shields?: number; trade?: number };
 }
 
 /** The save version from which `within` and `beyond` place specials; older worlds ignore them. */
@@ -68,9 +70,9 @@ export interface TerrainRule {
 export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Ocean]: {
     food: 1, shields: 0, trade: 2, moveCost: 1, defense: 1,
-    special: { name: "Fish", food: 2, within: 2 },
+    special: { name: "Fish", food: 2, within: 2, fishery: { food: 1 } },
     // Whalers put to sea with Navigation.
-    second: { name: "Whales", food: 1, shields: 1, learned: { advance: "navigation", shields: 1 }, since: 17, beyond: 2 },
+    second: { name: "Whales", food: 1, shields: 1, learned: { advance: "navigation", shields: 1 }, since: 17, beyond: 2, fishery: { food: 1, shields: 1 } },
     road: { trade: 0, turns: 0 },
   },
   [Terrain.Grassland]: {

@@ -156,6 +156,13 @@ export const PICTURES: Record<string, Picture> = {
     box(1, 7, 8, 13, "sandstone"), dome(5, 7, 4, 4, "roof"),
     box(1, 11, 8, 1, "wood"), box(1, 15, 8, 1, "wood"),
     box(9, 12, 9, 8, "wood"), slope(8, 9, 11, 3, 2, "thatch"), box(12, 15, 3, 5, "dark")),
+  // The Harbour (since save version 53), until the user's picture of it comes: a warehouse on a stone quay, a jetty
+  // on posts and a fishing boat at it.
+  harbour: pic(30, 20,
+    box(0, 16, 30, 4, "water"),
+    box(0, 11, 13, 9, "stone"), box(1, 5, 10, 6, "sandstone"), gable(0, 1, 12, 4, "roof"), box(4, 7, 3, 4, "dark"),
+    box(12, 12, 9, 2, "wood"), box(13, 14, 1, 6, "wood", -1), box(19, 14, 1, 6, "wood", -1),
+    poly("wood", 19, 16, 30, 16, 28, 19, 21, 19), line(25, 4, 25, 16, "wood"), poly("white", 25, 5, 25, 14, 29, 14)),
   temple: pic(24, 20,
     box(3, 8, 18, 9, "dark"), cols(3, 8, 18, 9, 5),
     box(2, 6, 20, 2, "marble"), gable(2, 1, 20, 5, "marble"),

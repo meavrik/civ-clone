@@ -32,6 +32,7 @@ import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution,
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
+import { drawFishery } from "../fishery.js";
 import { BAD, DIM, drawButton, drawCloseBox, drawScrollTrack, drawStone, drawTitleStrip, drawWindow, FADED, GOLD, GOOD, INK, NOTE, SCROLL_W, scrollTrack, stipple, TITLE_H, type ScrollTrack } from "../widgets.js";
 import { CITIZEN_H, CITIZEN_PITCH, CITIZEN_W, drawCitizen } from "../citizens.js";
 import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk, iconLineWidth } from "../icons.js";
@@ -475,6 +476,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       drawRailroad(s, px, py, state.map, me.explored, wx, my);
       if (tile.mine) drawMine(s, px, py);
       if (tile.special) drawSpecial(s, px, py, state, tile, city.owner);
+      if (tile.fishery) drawFishery(s, px, py);
       if (tile.fortress) drawFortress(s, px, py);
       if (tile.pollution) drawPollution(s, px, py);
       if (fog) s.blit(fog, px, py, SPRITE_CLEAR);

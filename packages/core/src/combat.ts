@@ -16,6 +16,9 @@ export function attackStrength(u: Unit): number {
   return unitType(u.type).attack * rankOf(u.xp).power;
 }
 
+/** What a frightened defender's strength comes to (`UnitTypeRule.frightens`): two thirds, as if its attacker were half again as strong. */
+export const FRIGHTENED = 2 / 3;
+
 export function defenseStrength(state: GameState, d: Unit, attacker: Unit): number {
   const type = unitType(d.type);
   const tile = getTile(state.map, d.x, d.y)!;
@@ -28,6 +31,8 @@ export function defenseStrength(state: GameState, d: Unit, attacker: Unit): numb
   else if (d.order.kind === "fortified" || city) s *= 1.5;
   const aType = unitType(attacker.type);
   if (city && aType.domain === "land" && (city.buildings.includes("city_walls") || hasWonder(state, city.owner, "great_wall"))) s *= 3;
+  // Horses shy from elephants: a unit built from the resource its attacker frightens defends at two thirds.
+  if (aType.frightens && type.needs?.includes(aType.frightens)) s *= FRIGHTENED;
   return s;
 }
 

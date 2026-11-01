@@ -36,6 +36,13 @@ export interface UnitTypeRule {
    * it turns to the city's default (`unitRetired`, `defaultProduction`). Units already in the field stay.
    */
   obsolete?: string;
+  /**
+   * The resource whose units it frightens (asked for 2026-11-01: war elephants): a defender built from it (one that
+   * `needs` it: riders, chariots, knights) defends at two thirds against this unit, horses shying from elephants.
+   */
+  frightens?: string;
+  /** The save version that brought it; a game of an older version (`GameState.catalogue`) never offers it. */
+  since?: number;
   /** Hit points at full health. */
   hp: number;
   /** Hit points each round it wins takes off the enemy. */
@@ -48,8 +55,12 @@ export interface UnitTypeRule {
   /**
    * `coastal`: a ship that must end its turn by a coast (the Trireme): one left on deep water (no land
    * beside it, `deepWater`) at its owner's turn's end sinks with its cargo, and gotos keep off deep water.
+   * `explorer` (since save version 53): every square costs it what a road would, it climbs mountains without one,
+   * and no civilization minds it on its land.
+   * `fishing` (since save version 53): it is spent laying a fishery on a sea special of its civilization's land (the
+   * `fishery` command, `Tile.fishery`), as settlers improve the land.
    */
-  flags?: ("settler" | "diplomat" | "caravan" | "ignoreZoc" | "nuclear" | "leader" | "coastal")[];
+  flags?: ("settler" | "diplomat" | "caravan" | "ignoreZoc" | "nuclear" | "leader" | "coastal" | "explorer" | "fishing")[];
 }
 
 const U = (
@@ -77,14 +88,19 @@ const U = (
  * version 30). Many need strategic resources (`needs`, our departure, save
  * version 33): riders and chariots horses, blades and guns iron, musketeers,
  * riflemen and the big guns saltpeter, steamships coal, engines oil.
+ * Since save version 53 (asked for 2026-11-01, our departure, after Civilization II): Archers (Archery), War
+ * Elephants (Horseback Riding and Elephants, frightening mounted defenders), the Explorer and the Fishing Boat
+ * (Seafaring); older games (`GameState.catalogue`) have none of them.
  */
 export const UNIT_TYPES: UnitTypeRule[] = [
   U("settlers", "Settlers", 0, 1, 1, 40, "land", { flags: ["settler"] }),
   U("militia", "Militia", 1, 1, 1, 10, "land", { obsolete: "gunpowder" }),
   U("phalanx", "Phalanx", 1, 2, 1, 20, "land", { requires: "bronze_working" }),
+  U("archers", "Archers", 3, 2, 1, 30, "land", { requires: "archery", obsolete: "gunpowder", since: 53 }),
   U("legion", "Legion", 3, 1, 1, 20, "land", { requires: "iron_working", needs: ["Iron"], barbarian: { as: ["sea", "build"] } }),
   U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding", needs: ["Horses"], sight: 2, sightSince: 30, barbarian: { as: ["land"] } }),
   U("chariot", "Chariot", 4, 1, 2, 40, "land", { requires: "the_wheel", needs: ["Horses"], wheeled: true }),
+  U("elephants", "War Elephants", 4, 1, 1, 40, "land", { requires: "horseback_riding", needs: ["Elephants"], frightens: "Horses", since: 53 }),
   U("catapult", "Catapult", 6, 1, 1, 40, "land", { requires: "mathematics", wheeled: true }),
   U("knights", "Knights", 4, 2, 2, 40, "land", { requires: "chivalry", needs: ["Horses", "Iron"], barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
   U("musketeers", "Musketeers", 2, 3, 1, 30, "land", { requires: "gunpowder", needs: ["Saltpeter"], hp: 20, barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
@@ -95,7 +111,9 @@ export const UNIT_TYPES: UnitTypeRule[] = [
   U("artillery", "Artillery", 12, 2, 2, 60, "land", { requires: "robotics", needs: ["Iron", "Saltpeter"], hp: 20, firepower: 2, wheeled: true }),
   U("diplomat", "Diplomat", 0, 0, 2, 30, "land", { requires: "writing", sight: 2, sightSince: 30, flags: ["diplomat", "ignoreZoc"] }),
   U("caravan", "Caravan", 0, 1, 1, 50, "land", { requires: "trade", flags: ["caravan", "ignoreZoc"] }),
+  U("explorer", "Explorer", 0, 1, 1, 30, "land", { requires: "seafaring", sight: 2, flags: ["explorer", "ignoreZoc"], since: 53 }),
   U("barbarian_leader", "Barbarian Leader", 0, 0, 2, 40, "land", { flags: ["leader", "ignoreZoc"] }),
+  U("fishing_boat", "Fishing Boat", 0, 1, 2, 30, "sea", { requires: "seafaring", flags: ["fishing"], since: 53 }),
   U("trireme", "Trireme", 1, 0, 3, 40, "sea", { requires: "map_making", capacity: 2, flags: ["coastal"] }),
   U("sail", "Sail", 1, 1, 3, 40, "sea", { requires: "navigation", capacity: 3, barbarian: { as: ["boat"] } }),
   U("frigate", "Frigate", 2, 2, 3, 40, "sea", { requires: "magnetism", capacity: 4, hp: 20 }),

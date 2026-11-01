@@ -126,6 +126,8 @@ export interface GameConfig {
   eagerCityStates?: boolean;
   /** A strategic resource's square adds its special's shields (`GameState.resourceShields`). */
   resourceShields?: boolean;
+  /** Only the units, improvements, advances and resources this save version knew (`GameState.catalogue`). */
+  catalogue?: number;
 }
 
 export interface PlayerStats {
@@ -251,6 +253,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.evenDifficulty ? { evenDifficulty: true } : {}),
     ...(config.eagerCityStates ? { eagerCityStates: true } : {}),
     ...(config.resourceShields ? { resourceShields: true } : {}),
+    ...(config.catalogue !== undefined ? { catalogue: config.catalogue } : {}),
   };
 }
 

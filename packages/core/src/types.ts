@@ -81,6 +81,8 @@ export interface Tile {
    * resource whatever its terrain. Worlds of games from save version 33 hold them; `special` is set with it.
    */
   deposit?: string;
+  /** A fishery laid by a Fishing Boat on a sea special (`SpecialRule.fishery`; since save version 53). */
+  fishery?: boolean;
 }
 
 export interface WorldMap {
@@ -338,6 +340,12 @@ export interface GameState {
   simpleMoods?: boolean;
   /** Second specials only of those a save of this version knew (`SpecialRule.since`). Set for saves before version 20. */
   resources?: number;
+  /**
+   * Only the units, improvements, advances and strategic resources a save of this version knew (each rule's `since`,
+   * `inCatalogue`): Archery, Seafaring, the Harbour, Archers, War Elephants, the Explorer, the Fishing Boat and the
+   * Elephants' deposits came with version 53. Set for saves before version 53. Missing: all of them.
+   */
+  catalogue?: number;
   /** Every change of production kind halves the box again, even a change back. Set for saves before version 21. */
   compoundingPenalty?: boolean;
   /**

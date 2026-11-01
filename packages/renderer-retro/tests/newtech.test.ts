@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { DIMMED } from "../src/palette.js";
 import { ADVANCES, CLASSIC_ADVANCES, newGame } from "@civ/core";
-import { newTechCard, techPicture } from "@civ/renderer-api";
+import { newTechCard, TECH_PICTURES_WANTED, techPicture } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
 import { wrapText } from "../src/font.js";
 import { drawNewTech, modalRect, NEW_TECH_TEXT_W, newTechHit, newTechPicture } from "../src/index.js";
@@ -11,6 +11,8 @@ import { encodePng } from "./png.js";
 describe("New Technology window", () => {
   it("has the user's picture for every advance of the tree new games play, and a square frame for it", () => {
     for (const a of ADVANCES) {
+      // Archery's and Seafaring's are still to come: their windows show the frame's bed meanwhile.
+      if (TECH_PICTURES_WANTED.includes(a.id)) { expect(techPicture(a.id), a.id).toBeNull(); continue; }
       expect(techPicture(a.id), a.id).toBe(a.id);
       expect(existsSync(new URL(`../../../apps/web/src/techs/${a.id}.webp`, import.meta.url)), a.id).toBe(true);
     }

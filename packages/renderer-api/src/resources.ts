@@ -1,4 +1,4 @@
-import { advance, claimant, getTile, mapDistance, resourceAt, resourceKnown, resourceRoaded, RESOURCES, resourceHoldings, resourceSquares, revealedBy, tradesOf, tradeSides, UNIT_TYPES, type GameState } from "@civ/core";
+import { advance, claimant, getTile, mapDistance, resourceAt, resourceKnown, resourceRoaded, resourcesIn, resourceHoldings, resourceSquares, revealedBy, tradesOf, tradeSides, UNIT_TYPES, type GameState } from "@civ/core";
 import type { ReportLine, ReportPage } from "./index.js";
 
 /** The units that need a strategic resource, by name, in the rules' order. */
@@ -53,7 +53,7 @@ export function resourcesReport(state: GameState): ReportPage {
     const c = resourceRoaded(state, getTile(state.map, sq.x, sq.y)!) === roaded ? claimant(state, sq.x, sq.y) : null;
     return c ? [c.name] : [];
   }))];
-  for (const r of RESOURCES) {
+  for (const r of resourcesIn(state)) {
     const h = holdings.find((x) => x.id === r.id)!;
     const from = trades.filter((t) => tradeSides(t, me).gets === r.id).map((t) => `the ${name(t.a === me ? t.b : t.a)}`);
     const roadless = h.unroaded ? `, ${h.unroaded} no road` : "";
@@ -133,7 +133,7 @@ export function resourcesView(state: GameState, me = state.currentPlayer): Resou
     return c ? [c.name] : [];
   }))];
   const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
-  const entries = RESOURCES.map((r): ResourceEntry => {
+  const entries = resourcesIn(state).map((r): ResourceEntry => {
     const h = holdings.find((x) => x.id === r.id)!;
     const needs = UNIT_TYPES.filter((t) => t.needs?.includes(r.id));
     const units = needs.map((t) => t.id);

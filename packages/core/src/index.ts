@@ -16,6 +16,7 @@ export * from "./rules/focus.js";
 export * from "./rules/difficulty.js";
 export * from "./rules/experience.js";
 export * from "./rules/resources.js";
+export * from "./rules/catalogue.js";
 export * from "./cities.js";
 export * from "./chronicle.js";
 export * from "./city-states.js";

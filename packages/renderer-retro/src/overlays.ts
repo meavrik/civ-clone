@@ -278,6 +278,8 @@ export const UNIT_ABBR: Record<string, string> = {
   armor: "A", artillery: "Ar", diplomat: "D", caravan: "Cv", trireme: "T", sail: "Sl",
   frigate: "F", ironclad: "I", cruiser: "Cr", battleship: "B", submarine: "Su", carrier: "CV",
   transport: "Tr", fighter: "Ft", bomber: "Bo", nuclear: "N",
+  // Since save version 53, until the user's pictures of them come.
+  archers: "A", elephants: "E", explorer: "X", fishing_boat: "F",
 };
 
 const spriteCache = new Map<string, Surface>();

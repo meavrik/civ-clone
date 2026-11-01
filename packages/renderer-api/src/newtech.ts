@@ -71,9 +71,15 @@ export function newTechCard(state: GameState, id: string): NewTechCard {
   return { name: rule.name, era: `${rule.era} Era`, text: rule.text, unlocks, leads, needs: rule.requires.map((r) => ({ id: r, name: advance(r).name })) };
 }
 
-/** The advances that have a picture of the user's (every one but the 1991 tree's Future Tech.). */
+/**
+ * Advances still waiting for the user's picture (added 2026-11-01, save version 53): until it comes, their windows show
+ * the frame's bed, as Future Tech.'s does.
+ */
+export const TECH_PICTURES_WANTED: readonly string[] = ["archery", "seafaring"];
+
+/** The advances that have a picture of the user's (every one but the 1991 tree's Future Tech. and those still wanted). */
 export function techPicture(id: string): string | null {
-  return id === "future_tech" ? null : id;
+  return id === "future_tech" || TECH_PICTURES_WANTED.includes(id) ? null : id;
 }
 
 /** The unlocks as a line, when there are too many for their boxes: "Phalanx, Colossus. Reveals Iron". */

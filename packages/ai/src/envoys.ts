@@ -1,4 +1,4 @@
-import { applyCommand, atWar, canExport, hasContact, hasResource, mayTrade, nextInt, RESOURCES, temperToward, whyNoTrade, type GameState, type Player } from "@civ/core";
+import { applyCommand, atWar, canExport, hasContact, hasResource, mayTrade, nextInt, resourcesIn, temperToward, whyNoTrade, type GameState, type Player } from "@civ/core";
 import { attitude, resourcePrice, spareResources, strength, wantsResource } from "./planner.js";
 
 /**
@@ -88,7 +88,7 @@ function demandTribute(state: GameState, me: number, o: Player): boolean {
  */
 function askResource(state: GameState, me: number, o: Player): boolean {
   if (!mayTrade(state, me, o.id) || attitude(state, me, o.id) === "hostile" || askedWithin(state, me, o.id, "resource", ENVOYS.askGap)) return false;
-  const want = RESOURCES.map((r) => r.id).find((id) => !hasResource(state, me, id) && wantsResource(state, me, id) && canExport(state, o.id, id));
+  const want = resourcesIn(state).map((r) => r.id).find((id) => !hasResource(state, me, id) && wantsResource(state, me, id) && canExport(state, o.id, id));
   if (!want) return false;
   const spares = spareResources(state, me).filter((id) => !hasResource(state, o.id, id) && !whyNoTrade(state, o.id, me, want, id));
   const give = spares.find((id) => wantsResource(state, o.id, id)) ?? spares[0];

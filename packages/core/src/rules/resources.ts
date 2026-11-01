@@ -1,4 +1,5 @@
 import { Terrain } from "../types.js";
+import { inCatalogue } from "./catalogue.js";
 import type { SpecialRule } from "./terrain.js";
 
 /**
@@ -32,6 +33,10 @@ export interface ResourceRule {
    * game's own specials of plains and hills, seen from the start.
    */
   revealedBy?: string;
+  /** Its deposits lie only on this terrain or beside it (Elephants: in and at the edge of the jungle). */
+  besides?: Terrain;
+  /** The save version that brought it; worlds of older games (`GameState.catalogue`) hold none, and no unit there needs it. */
+  since?: number;
 }
 
 // The specials themselves; the terrains whose own kind they are name the same objects (rules/terrain.ts).
@@ -42,6 +47,8 @@ export const COAL: SpecialRule = { name: "Coal", shields: 2 };
 export const OIL: SpecialRule = { name: "Oil", shields: 1, learned: { advance: "refining", shields: 3 }, since: 17 };
 // Nitre scraped from dry ground and caves; the powder mills pay for it.
 export const SALTPETER: SpecialRule = { name: "Saltpeter", shields: 1, learned: { advance: "gunpowder", shields: 1 } };
+// Herds in the jungle and on the grass beside it (since save version 53); tamed, they give milk and hides as well.
+export const ELEPHANTS: SpecialRule = { name: "Elephants", learned: { advance: "animal_husbandry", food: 1 } };
 
 export const RESOURCES: readonly ResourceRule[] = [
   { id: "Horses", special: HORSES, deposits: { [Terrain.Grassland]: 0.03, [Terrain.Plains]: 0.05 }, text: "Mounts for riders and chariots." },
@@ -49,6 +56,8 @@ export const RESOURCES: readonly ResourceRule[] = [
   { id: "Saltpeter", special: SALTPETER, deposits: { [Terrain.Desert]: 0.08, [Terrain.Tundra]: 0.06, [Terrain.Plains]: 0.02, [Terrain.Hills]: 0.025 }, text: "The makings of gunpowder.", revealedBy: "gunpowder" },
   { id: "Coal", special: COAL, deposits: { [Terrain.Hills]: 0.04, [Terrain.Forest]: 0.025, [Terrain.Swamp]: 0.04 }, text: "Fuel for steamships." },
   { id: "Oil", special: OIL, deposits: { [Terrain.Desert]: 0.06, [Terrain.Swamp]: 0.06, [Terrain.Tundra]: 0.05, [Terrain.Arctic]: 0.05, [Terrain.Jungle]: 0.02 }, text: "Fuel for engines on land, at sea and in the air.", revealedBy: "refining" },
+  // Asked for 2026-11-01 ("war elephants - if any elephant resource available"): the jungle's own beasts, seen from the start.
+  { id: "Elephants", special: ELEPHANTS, deposits: { [Terrain.Jungle]: 0.07, [Terrain.Grassland]: 0.05, [Terrain.Plains]: 0.05 }, besides: Terrain.Jungle, text: "War beasts that put horses to flight.", since: 53 },
 ];
 
 export const RESOURCE_BY_ID: Readonly<Record<string, ResourceRule>> = Object.fromEntries(RESOURCES.map((r) => [r.id, r]));
@@ -59,6 +68,11 @@ export const RESOURCES_SINCE = 33;
 /** The save version from which a resource with `revealedBy` is hidden from a civilization until it knows that advance. */
 export const REVEAL_SINCE = 40;
 
+
+/** The strategic resources of a game, in `RESOURCES` order: those its version knew (`GameState.catalogue`). */
+export function resourcesIn(state: { catalogue?: number | undefined }): readonly ResourceRule[] {
+  return state.catalogue === undefined ? RESOURCES : RESOURCES.filter((r) => inCatalogue(state, r));
+}
 
 /** Whether a special is strategic (a resource units may need). */
 export function isStrategic(special: SpecialRule | undefined): boolean {

@@ -327,8 +327,11 @@ export function shadeUnseen(s: Surface, dx: number, dy: number, mask: Uint8Array
 
 /** A special's picture by its name (lower case in the resources sheet). */
 export function specialSprite(name: string): Surface | null {
-  return spriteSurface(RESOURCE_SHEET, name.toLowerCase());
+  return spriteSurface(RESOURCE_SHEET, SPECIAL_STAND_INS[name] ?? name.toLowerCase());
 }
+
+/** Specials still waiting for the user's icon, shown meanwhile with one of theirs (Elephants, since save version 53, with Ivory's tusks). */
+const SPECIAL_STAND_INS: Readonly<Record<string, string>> = { Elephants: "ivory" };
 
 /** A square's special resource as `viewer` knows it (`specialFor`: none while a resource is still hidden from it), drawn over its terrain. */
 export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState, tile: Tile, viewer: number): void {

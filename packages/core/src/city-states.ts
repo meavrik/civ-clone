@@ -1,3 +1,4 @@
+import { inCatalogue } from "./rules/catalogue.js";
 import { autoAssignWorkers, canFoundCity, foundCity } from "./cities.js";
 import { goldScale } from "./diplomacy.js";
 import { nextInt } from "./rng.js";
@@ -41,7 +42,7 @@ export function cityStateCount(state: GameState): number {
 export function cityStateUnits(state: GameState): string[] {
   const civs = state.players.filter((p) => p.alive && p.id !== state.barbarians);
   return UNIT_TYPES.filter((t) => {
-    if (t.domain !== "land" || t.attack <= 0 || t.flags?.length) return false;
+    if (t.domain !== "land" || t.attack <= 0 || t.flags?.length || !inCatalogue(state, t)) return false;
     if (!t.requires) return true;
     return civs.filter((p) => p.advances.includes(t.requires!)).length * 2 >= civs.length;
   }).map((t) => t.id);

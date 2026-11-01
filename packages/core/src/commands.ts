@@ -59,7 +59,7 @@ import { findPath, stepDir } from "./pathfind.js";
 import { landOwner } from "./territory.js";
 import { chronicleOf, notePeaks } from "./chronicle.js";
 import { boughtOff, demandOn, dropDemand, noteDemand, payTribute, settleCityStates, tributePrice, unitCityState, whyNoDemand } from "./city-states.js";
-import { addTrade, endTrades, missingResources, settleTrades, whyNoTrade } from "./resources.js";
+import { addTrade, endTrades, missingResources, settleTrades, specialFor, whyNoTrade } from "./resources.js";
 import { advanceWorth, applyExchange, payTrades, resourceWorth, whyNoExchange } from "./exchange.js";
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances } from "./rules/advances.js";
 import { researchCostFor } from "./levels.js";
@@ -93,6 +93,7 @@ export type Command =
   | { type: "disband"; unit: number }
   | { type: "home"; unit: number } // the city the unit stands in supports it from now on
   | { type: "pillage"; unit: number } // wreck the best improvement on the unit's square
+  | { type: "fishery"; unit: number } // a fishing boat lays a fishery on the sea special it floats on, and is spent (since save version 53)
   | { type: "found"; unit: number; name?: string }
   | { type: "setProduction"; city: number; production: Production }
   | { type: "toggleTile"; city: number; slot: number }
@@ -591,6 +592,13 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       selectNextUnit(state, u.id);
       return { ok: true };
     }
+    case "fishery": {
+      const why = whyNoFishery(state, u);
+      if (why) return { ok: false, reason: why };
+      getTile(state.map, u.x, u.y)!.fishery = true;
+      removeUnit(state, u);
+      return { ok: true };
+    }
     case "helpWonder": {
       const city = cityAt(state, u.x, u.y);
       if (!city) return { ok: false, reason: "not in a city" };
@@ -851,6 +859,22 @@ export function pillageTarget(state: GameState, u: Unit): "irrigation" | "mine" 
   if (t.railroad) return "railroad";
   if (t.road) return "road";
   if (t.fortress) return "fortress";
+  return null;
+}
+
+/**
+ * Why unit `u` cannot lay a fishery where it floats, as a code (`fisheryRefusal` in renderer-api puts it in words), or
+ * null when it can: a Fishing Boat with moves left on a sea special a fishery adds to (`SpecialRule.fishery`: Fish,
+ * Whales) as its civilization knows the square, with none laid yet, inside its civilization's land.
+ */
+export function whyNoFishery(state: GameState, u: Unit): string | null {
+  if (!unitType(u.type).flags?.includes("fishing")) return "not a fishing boat";
+  const t = getTile(state.map, u.x, u.y)!;
+  if (t.terrain !== Terrain.Ocean) return "not at sea";
+  if (!specialFor(state, t, u.owner)?.fishery) return "no fish";
+  if (t.fishery) return "has fishery";
+  if (landOwner(state, u.x, u.y) !== u.owner) return "not our waters";
+  if (u.movesLeft <= 0) return "no-moves";
   return null;
 }
 

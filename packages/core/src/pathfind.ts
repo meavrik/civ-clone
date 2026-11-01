@@ -1,8 +1,8 @@
-import { MOVE_FRAC, TERRAIN_RULES } from "./rules/terrain.js";
+import { MOVE_FRAC } from "./rules/terrain.js";
 import { unitType } from "./rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Unit } from "./types.js";
 import { moveAllowance } from "./commands.js";
-import { canEnter, deepWater, hugsCoast } from "./units.js";
+import { canEnter, deepWater, hugsCoast, stepCost } from "./units.js";
 
 let DIST = new Float64Array(0);
 let PREV = new Int32Array(0);
@@ -131,7 +131,7 @@ export function findPath(state: GameState, u: Unit, tx: number, ty: number): [nu
       else if (from.railroad && to.railroad) cost = 0;
       else if (from.road && to.road) cost = 1;
       else if (from.river && to.river && (dx === 0 || dy === 0)) cost = 1;
-      else cost = TERRAIN_RULES[to.terrain].moveCost * MOVE_FRAC;
+      else cost = stepCost(type, to);
       const nd = d + cost;
       if (nd < dist[ni]!) {
         dist[ni] = nd;

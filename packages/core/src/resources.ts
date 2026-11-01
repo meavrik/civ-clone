@@ -1,5 +1,5 @@
 import { atWar, hasContact } from "./diplomacy.js";
-import { RESOURCES, RESOURCE_BY_ID } from "./rules/resources.js";
+import { RESOURCES, RESOURCE_BY_ID, resourcesIn } from "./rules/resources.js";
 import { specialOf, type SpecialRule } from "./rules/terrain.js";
 import { UNIT_TYPES, unitType } from "./rules/units.js";
 import { borderRadius, claimant, withinBorder } from "./territory.js";
@@ -153,7 +153,7 @@ export function tradeSides(t: ResourceTrade, player: number): { gives: string | 
 export function resourceHoldings(state: GameState, player: number): ResourceHolding[] {
   const squares = landResources(state, player);
   const trades = tradesOf(state, player);
-  return RESOURCES.map((r) => {
+  return resourcesIn(state).map((r) => {
     const all = squares.get(r.id) ?? [];
     const own = all.filter((q) => q.roaded).length;
     let exported = 0;

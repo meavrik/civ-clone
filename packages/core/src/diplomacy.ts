@@ -114,13 +114,13 @@ export function mindsTrespass(state: GameState, owner: number, intruder: number)
 
 /**
  * Whose land unit `u` trespasses on, or -1. Land units on land count; ships,
- * units aboard them, and diplomats and caravans (on errands to foreign
- * cities) do not.
+ * units aboard them, and diplomats, caravans (on errands to foreign cities)
+ * and explorers do not.
  */
 export function trespassOn(state: GameState, u: Unit): number {
   if (state.noTrespass) return -1;
   const t = unitType(u.type);
-  if (t.domain !== "land" || u.aboard !== null || t.flags?.includes("diplomat") || t.flags?.includes("caravan")) return -1;
+  if (t.domain !== "land" || u.aboard !== null || t.flags?.some((f) => f === "diplomat" || f === "caravan" || f === "explorer")) return -1;
   if (getTile(state.map, u.x, u.y)?.terrain === Terrain.Ocean) return -1;
   const owner = landOwner(state, u.x, u.y);
   return mindsTrespass(state, owner, u.owner) ? owner : -1;

@@ -19,6 +19,8 @@ export interface AdvanceRule {
   era: Era;
   /** What it is, in a sentence of our own, for the New Technology window. */
   text: string;
+  /** The save version that brought it to the tree; a game of an older version (`GameState.catalogue`) plays without it. */
+  since?: number;
 }
 
 export const ERAS = ["Ancient", "Classical", "Medieval", "Renaissance", "Industrial", "Modern", "Information", "Future"] as const;
@@ -30,6 +32,7 @@ const ABOUT: Record<string, [Era, string]> = {
   bronze_working: ["Ancient", "Copper melted with a little tin gives bronze: harder tools, sharper blades and the first fine castings."],
   ceremonial_burial: ["Ancient", "Laying the dead to rest with care and offerings binds a people together in shared belief."],
   animal_husbandry: ["Ancient", "Herds of sheep, goats and cattle, tamed and bred, give a steady supply of meat, milk, wool and hides."],
+  archery: ["Ancient", "Bows of wood, horn and sinew send arrows farther than any spear can be thrown."],
   horseback_riding: ["Ancient", "Riders on tamed horses cover ground far faster than anyone on foot, in peace and in war."],
   masonry: ["Ancient", "Cutting and fitting stone raises walls, homes and monuments that last for ages."],
   pottery: ["Ancient", "Clay shaped and fired in a kiln makes jars to carry water and keep grain through the winter."],
@@ -38,6 +41,7 @@ const ABOUT: Record<string, [Era, string]> = {
   writing: ["Ancient", "Marks on clay and papyrus keep records, laws and stories long after the speaker is gone."],
   code_of_laws: ["Ancient", "Rules set down for all to see replace the whims of chiefs with justice that can be known."],
   map_making: ["Ancient", "Charts of coasts and landmarks let sailors plan a voyage and find their way home again."],
+  seafaring: ["Ancient", "Sturdy hulls, nets and sheltered quays let a people live from the sea and sail out to see what lies beyond."],
   currency: ["Ancient", "Coins of a set weight and worth make buying, selling and paying taxes simple."],
   iron_working: ["Ancient", "Iron ore smelted in a hot forge gives a metal tougher, and far more common, than bronze."],
   mathematics: ["Ancient", "Numbers, counting frames and geometry let builders measure the land and plan great works."],
@@ -182,6 +186,9 @@ export const CLASSIC_ADVANCES: AdvanceRule[] = [
   A("future_tech", "Future Tech.", ["fusion_power", "genetic_engineering"]),
 ];
 
+/** The save version that brought Archery and Seafaring. */
+const NEW_TREE_SINCE = 53;
+
 /**
  * The tree new games play, our additions to the 1991 one (asked for): Weaving (cloth for
  * the cold: arctic squares stop wearing units down) and Animal Husbandry (pastures: more food
@@ -195,6 +202,9 @@ export const ADVANCES: AdvanceRule[] = (() => {
   const at = (id: string) => tree.findIndex((a) => a.id === id);
   tree.splice(at("horseback_riding"), 0, A("animal_husbandry", "Animal Husbandry", []));
   tree.splice(at("writing"), 0, A("weaving", "Weaving", ["pottery"]));
+  // Since save version 53 (asked for 2026-11-01): Archery, a root, and Seafaring after Pottery and Map Making.
+  tree.splice(at("horseback_riding"), 0, A("archery", "Archery", [], { since: NEW_TREE_SINCE }));
+  tree.splice(at("map_making") + 1, 0, A("seafaring", "Seafaring", ["pottery", "map_making"], { since: NEW_TREE_SINCE }));
   tree.push(
     A("the_internet", "The Internet", ["computers", "the_corporation"]),
     A("mobile_phones", "Mobile Phones", ["the_internet", "plastics"]),
@@ -205,9 +215,21 @@ export const ADVANCES: AdvanceRule[] = (() => {
   return tree;
 })();
 
-/** The tree a game plays: the 1991 one for old saves, else ours. */
-export function advancesFor(state: { classicAdvances?: boolean | undefined }): AdvanceRule[] {
-  return state.classicAdvances ? CLASSIC_ADVANCES : ADVANCES;
+/** The extended tree as a save of `catalogue`'s version knew it: its advances added later left out. */
+const CATALOGUED = new Map<number, AdvanceRule[]>();
+function treeOf(catalogue: number): AdvanceRule[] {
+  let tree = CATALOGUED.get(catalogue);
+  if (!tree) CATALOGUED.set(catalogue, (tree = ADVANCES.filter((a) => a.since === undefined || a.since <= catalogue)));
+  return tree;
+}
+
+/**
+ * The tree a game plays: the 1991 one for old saves, else ours, as its version knew it (`GameState.catalogue`:
+ * no Archery or Seafaring before version 53).
+ */
+export function advancesFor(state: { classicAdvances?: boolean | undefined; catalogue?: number | undefined }): AdvanceRule[] {
+  if (state.classicAdvances) return CLASSIC_ADVANCES;
+  return state.catalogue === undefined ? ADVANCES : treeOf(state.catalogue);
 }
 
 /** Every advance of either tree by id, for names; prerequisites differ between the trees, so read those from `advancesFor`. */

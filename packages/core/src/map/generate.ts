@@ -1,4 +1,5 @@
 import { nextFloat, nextInt, type RngState } from "../rng.js";
+import { inCatalogue } from "../rules/catalogue.js";
 import { RESOURCES } from "../rules/resources.js";
 import { secondKind, SPECIAL_REACH_SINCE, TERRAIN_RULES, type SpecialRule } from "../rules/terrain.js";
 import { MAP_WIDTH, NEIGHBOURS, Terrain, worldSize, wrapX, type Tile, type WorldMap, type WorldSize } from "../types.js";
@@ -493,19 +494,24 @@ export function scatterSpecials(map: WorldMap, rng: RngState, resources?: number
  * Strategic resources' deposits (rules/resources.ts, worlds since save version 33): on every land square
  * without a special, off the polar rows, a hash of the square and the seed picks one of the resources
  * its terrain may hold, each with its share (`ResourceRule.deposits`), or none. No RNG, so the seed's
- * draws stay as they were; the square's special is then that resource (`Tile.deposit`).
+ * draws stay as they were; the square's special is then that resource (`Tile.deposit`). A resource with
+ * `besides` lies only on that terrain or next to it; one its game's version did not know (`catalogue`) lies
+ * nowhere. Each resource keeps its slice of the roll, so a later one only takes squares that held none.
  */
-export function scatterDeposits(map: WorldMap, seed: number): void {
+export function scatterDeposits(map: WorldMap, seed: number, catalogue?: number): void {
   const { width: w, height: h, tiles } = map;
   const ox = 7 * (seed % 1000);
   const oy = seed % 997;
+  const resources = RESOURCES.filter((r) => inCatalogue({ catalogue }, r));
+  const beside = (x: number, y: number, terrain: Terrain): boolean =>
+    tiles[y * w + x]!.terrain === terrain || NEIGHBOURS.some(([dx, dy]) => y + dy >= 0 && y + dy < h && tiles[(y + dy) * w + wrapX(map, x + dx)]!.terrain === terrain);
   for (let y = 1; y < h - 1; y++)
     for (let x = 0; x < w; x++) {
       const t = tiles[y * w + x]!;
       if (t.terrain === Terrain.Ocean || t.special) continue;
       let roll = squareHash(x + ox, y * 31 + oy);
-      for (const r of RESOURCES) {
-        const share = r.deposits[t.terrain] ?? 0;
+      for (const r of resources) {
+        const share = r.besides !== undefined && !beside(x, y, r.besides) ? 0 : r.deposits[t.terrain] ?? 0;
         if (roll < share) {
           t.special = true;
           t.deposit = r.id;

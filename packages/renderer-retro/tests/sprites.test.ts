@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CIV_COLORS, TERRAIN_RULES, Terrain, UNIT_TYPES } from "@civ/core";
+import { UNIT_PICTURES_WANTED } from "@civ/renderer-api";
 import {
   C,
   CITY_SHEET,
@@ -23,6 +24,7 @@ import {
   stipple,
   Surface,
   TERRAIN_SHEET,
+  UNIT_ABBR,
   UNIT_SHEET,
   unitSprite,
 } from "../src/index.js";
@@ -34,7 +36,10 @@ const MOODS = ["happy", "content", "unhappy", "entertainer", "taxman", "scientis
 
 describe("sprite sheets", () => {
   it("cover every unit, terrain and special resource, plus cities of every age and size, walls, villages and mines", () => {
-    for (const t of UNIT_TYPES) expect(UNIT_SHEET.byName.has(t.id), t.id).toBe(true);
+    // Every unit but those whose pictures are still to come, shown meanwhile as their letters on the owner's box.
+    for (const t of UNIT_TYPES) expect(UNIT_SHEET.byName.has(t.id) || (UNIT_PICTURES_WANTED.includes(t.id) && UNIT_ABBR[t.id] !== undefined), t.id).toBe(true);
+    // Elephants (since save version 53) show Ivory's tusks until their icon comes.
+    expect(specialSprite("Elephants")).toBe(specialSprite("Ivory"));
     for (const name of ["ocean", "grassland", "plains", "forest", "hills", "mountains", "desert", "tundra", "arctic", "swamp", "jungle"])
       expect(TERRAIN_SHEET.byName.has(name), name).toBe(true);
     for (const rule of Object.values(TERRAIN_RULES))

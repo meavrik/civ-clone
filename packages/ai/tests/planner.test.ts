@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, createUnit, foundCity, newGame, Terrain, getTile, type GameState } from "@civ/core";
-import { ADVANCES } from "@civ/core";
+import { ADVANCES, advancesFor } from "@civ/core";
 import { CITY_SPACING, pickResearch, plannerTurn, roomForCity, siteScore } from "../src/index.js";
 
 /** Human skips everything; the planner plays the rest. */
@@ -35,8 +35,14 @@ describe("planner AI", () => {
     expect(pickResearch(["bronze_working"], ADVANCES, false)).toBe("alphabet");
     expect(pickResearch(["bronze_working", "alphabet", "ceremonial_burial"], ADVANCES, false)).toBe("code_of_laws");
     expect(pickResearch(["bronze_working", "alphabet", "ceremonial_burial", "code_of_laws"], ADVANCES, false)).toBe("monarchy");
-    // At war, iron working jumps the queue once bronze is known.
-    expect(pickResearch(["bronze_working"], ADVANCES, true)).toBe("iron_working");
+    // At war, bows and then iron jump the queue once bronze is known (a game before version 53 has no Archery).
+    expect(pickResearch(["bronze_working"], ADVANCES, true)).toBe("archery");
+    expect(pickResearch(["bronze_working", "archery"], ADVANCES, true)).toBe("iron_working");
+    expect(pickResearch(["bronze_working"], advancesFor({ catalogue: 52 }), true)).toBe("iron_working");
+    // Seafaring for the ports, once Literacy is in hand.
+    const literate = ["bronze_working", "alphabet", "ceremonial_burial", "code_of_laws", "monarchy", "currency", "writing", "pottery", "archery", "trade", "literacy"];
+    expect(pickResearch(literate, ADVANCES, false)).toBe("map_making");
+    expect(pickResearch([...literate, "map_making"], ADVANCES, false)).toBe("seafaring");
   });
 
   it("scores city sites by their radius and refuses the sea", () => {

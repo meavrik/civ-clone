@@ -71,7 +71,7 @@ describe("research panel: the list", () => {
     const rows = researchRows(state, { discovered: [] });
     expect(rows.filter((r) => r.kind === "header").map((r) => r.kind === "header" && r.group)).toEqual(["next", "later", "known"]);
     expect(ids(rows, "next")).toEqual(expect.arrayContaining(["writing", "code_of_laws", "map_making"]));
-    expect(ids(rows, "next").length).toBe(9); // six roots left, and Writing, Code of Laws, Map Making
+    expect(ids(rows, "next").length).toBe(10); // seven roots left (Archery since save version 53), and Writing, Code of Laws, Map Making
     expect(ids(rows, "later")).toContain("literacy"); // Writing and Code of Laws can both be researched now
     expect(comesLater(state, "literacy")).toBe(true);
     expect(ids(rows, "later")).not.toContain("the_republic"); // it needs Literacy, itself only coming later
@@ -133,7 +133,7 @@ describe("research panel: the list", () => {
     const open = new Set<string>();
     for (let i = 0; i < 12; i++) { view.selected = nextChoice(state, view); open.add(view.selected); }
     for (const id of open) expect(techStatus(state, id)).toBe("available");
-    expect(open.size).toBe(9);
+    expect(open.size).toBe(10);
   });
 });
 

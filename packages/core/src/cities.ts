@@ -1,6 +1,7 @@
 import { barbarianUnits } from "./barbarians.js";
 import { traitContent, traitEffects, traitFoodBoxPct, traitGrowthKeep, traitPct, traitVeteran } from "./traits.js";
 import { knows } from "./rules/advances.js";
+import { inCatalogue } from "./rules/catalogue.js";
 import { addPart, partCount, SPACE_PARTS, spacePart } from "./rules/spaceship.js";
 import { building, BUILDINGS } from "./rules/buildings.js";
 import { wonder, WONDERS, type WonderRule } from "./rules/wonders.js";
@@ -62,6 +63,12 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
       food += learned.food ?? 0;
       shields += learned.shields ?? 0;
       trade += learned.trade ?? 0;
+    }
+    // A fishery a Fishing Boat laid on it (since save version 53).
+    if (tile.fishery && sp.fishery) {
+      food += sp.fishery.food ?? 0;
+      shields += sp.fishery.shields ?? 0;
+      trade += sp.fishery.trade ?? 0;
     }
   }
   if (tile.grassShield && tile.terrain === Terrain.Grassland) shields += 1;
@@ -256,9 +263,18 @@ export function cityTileYield(state: GameState, city: City, slot: number): Yield
   const t = slot === 0 ? getTile(state.map, city.x, city.y) : radiusTile(state, city, slot);
   if (!t) return null;
   const y = tileYield(state, t, slot === 0, cityYieldGovernment(state, city), city.owner);
+  // A Harbour (since save version 53) adds its food to every ocean square the city works.
+  if (t.terrain === Terrain.Ocean) y.food += oceanFood(city);
   const bonus = colossusIn(state, city);
   if (bonus && (state.oceanColossus ? slot !== 0 && t.terrain === Terrain.Ocean : y.trade > 0)) y.trade += bonus;
   return y;
+}
+
+/** Food a city's improvements add to each ocean square it works (the Harbour's). */
+export function oceanFood(city: City): number {
+  let food = 0;
+  for (const id of city.buildings) food += building(id).oceanFood ?? 0;
+  return food;
 }
 
 /** How much a worker on this square is worth to the city, by its focus (`cityFocus`). */
@@ -1223,7 +1239,7 @@ export function unitChoices(state: GameState, city: City): { id: string; missing
   const held = state.noResources ? undefined : heldResources(state, city.owner);
   const out: { id: string; missing: string[] }[] = [];
   for (const t of UNIT_TYPES) {
-    if (t.flags?.includes("leader")) continue;
+    if (t.flags?.includes("leader") || !inCatalogue(state, t)) continue;
     if (t.requires && !knows(p.advances, t.requires)) continue;
     if (unitRetired(state, city.owner, t.id)) continue;
     if (t.domain === "sea" && !coastal(state, city)) continue;
@@ -1244,6 +1260,7 @@ export function buildOptions(state: GameState, city: City): Production[] {
     if (city.buildings.includes(b.id) || city.idle?.includes(b.id)) continue;
     if (b.requires && !knows(p.advances, b.requires)) continue;
     if (b.needs && !city.buildings.includes(b.needs)) continue;
+    if (!inCatalogue(state, b) || (b.coastal && !coastal(state, city))) continue;
     out.push({ kind: "building", id: b.id });
   }
   for (const w of WONDERS) {

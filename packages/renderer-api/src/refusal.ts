@@ -72,6 +72,13 @@ export function workRefusal(reason: string): string {
     case "in city": return "Not inside a city.";
     case "no fortress here": return "No fortress can be built here.";
     case "no pollution": return "No pollution here.";
+    // A fishery a Fishing Boat would lay (core `whyNoFishery`).
+    case "not a fishing boat": return "Only a fishing boat lays a fishery.";
+    case "not at sea": return "Only out at sea.";
+    case "no fish": return "No fish or whales here to fish.";
+    case "has fishery": return "Already has a fishery.";
+    case "not our waters": return "Only in our own waters.";
+    case "no-moves": return "No moves left this turn.";
     default: return `${capitalise(reason)}.`;
   }
 }

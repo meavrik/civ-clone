@@ -895,6 +895,8 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     t.irrigation && "{irrigate} Irrigation",
     t.mine && "{mine} Mine",
     t.fortress && "{fortress} Fortress",
+    // A fishery (since save version 53) adds what its special's `fishery` says.
+    t.fishery && sp?.fishery && `{food} Fishery ${specialGain(sp.fishery)}`,
   ].filter(Boolean);
   if (features.length) lines.push(features.join("  "));
   // A strategic resource says which units want it (rules/resources.ts).

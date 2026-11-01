@@ -271,7 +271,8 @@ describe("modern fog of war", () => {
     const ctx = new FakeContext();
     const r = createModernRenderer(ctx);
     const { state } = world();
-    state.players[0]!.advances.push("alphabet", "code_of_laws", "ceremonial_burial");
+    // Archery known too (a root since save version 53), so the list is as long as it was and Literacy still shows.
+    state.players[0]!.advances.push("alphabet", "code_of_laws", "ceremonial_burial", "archery");
     const panel = openResearch(state, r.researchListRows, { discovered: ["code_of_laws"], choosing: true, closable: false });
     const scan = () => {
       const found = new Set<string>();

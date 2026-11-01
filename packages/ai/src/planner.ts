@@ -58,6 +58,11 @@ import {
   esteem,
   goldScale,
   goodwill,
+  inCatalogue,
+  landOwner,
+  oceanFood,
+  specialFor,
+  whyNoFishery,
   hasContact,
   hasWaterNearby,
   peaceOffered,
@@ -274,6 +279,16 @@ function isSettler(u: Unit): boolean {
 }
 
 /** A ship that can carry settlers (a carrier's deck is for aircraft). */
+/** A unit that explores and does nothing else (the Explorer: since save version 53). */
+function isExplorer(u: Unit): boolean {
+  return unitType(u.type).flags?.includes("explorer") === true;
+}
+
+/** A boat that lays fisheries (since save version 53): no warship, no ferry, no explorer of the seas. */
+function isFishingBoat(u: { type: string } | { id: string }): boolean {
+  return unitType("type" in u ? u.type : u.id).flags?.includes("fishing") === true;
+}
+
 function isFerry(u: Unit): boolean {
   const t = unitType(u.type);
   return t.domain === "sea" && (t.capacity ?? 0) >= 2 && u.type !== "carrier";
@@ -472,11 +487,12 @@ function analyse(state: GameState, me: number): Ctx {
     militaryCap: Math.floor(cities.length * (atWarNow ? 4 : cities.every((c) => freeUnits(state, c) === 0) ? 1.5 : 2)) + 2,
     armyWanted: atWarNow ? 2 + cities.length : Math.ceil(cities.length / 3),
     workersWanted: cities.length >= 3 ? Math.floor(cities.length / 3) : 0,
-    scoutsWanted: Math.max(0, (state.turn < 150 ? Math.min(2, 1 + Math.floor(cities.length / 4)) : landUnexplored ? 1 : 0) - units.filter((u) => isMilitary(u) && !cityAt(state, u.x, u.y)).length),
+    scoutsWanted: Math.max(0, (state.turn < 150 ? Math.min(2, 1 + Math.floor(cities.length / 4)) : landUnexplored ? 1 : 0) - units.filter((u) => (isMilitary(u) || isExplorer(u)) && !cityAt(state, u.x, u.y)).length),
     landUnexplored,
     seaExplorersWanted,
     coastFrontier,
-    ships: units.filter((u) => unitType(u.type).domain === "sea").length + cities.filter((c) => c.production.kind === "unit" && unitType(c.production.id).domain === "sea").length,
+    ships: units.filter((u) => unitType(u.type).domain === "sea" && !isFishingBoat(u)).length
+      + cities.filter((c) => c.production.kind === "unit" && unitType(c.production.id).domain === "sea" && !isFishingBoat(c.production)).length,
   };
 }
 
@@ -648,7 +664,8 @@ function findOverseasSites(state: GameState, me: number, reach: Uint8Array): Sit
 
 const GOALS = [
   "bronze_working", "alphabet", "ceremonial_burial", "code_of_laws", "monarchy", "currency", "writing", "pottery",
-  "trade", "literacy", "masonry", "mathematics", "iron_working", "philosophy", "horseback_riding", "the_wheel",
+  // Seafaring and Archery (since save version 53; a game without them passes them by).
+  "seafaring", "archery", "trade", "literacy", "masonry", "mathematics", "iron_working", "philosophy", "horseback_riding", "the_wheel",
   "construction", "astronomy", "university", "the_republic", "feudalism", "chivalry", "banking", "medicine", "weaving",
   "navigation", "invention", "gunpowder", "physics", "theory_of_gravity", "engineering", "bridge_building", "metallurgy",
   "conscription", "magnetism", "democracy", "steam_engine", "railroad", "industrialization", "electricity",
@@ -659,7 +676,7 @@ const GOALS = [
   // The extended tree's modern advances (a 1991-tree game has none of them, and reaches Future Tech. instead).
   "the_internet", "renewable_energy", "mobile_phones", "artificial_intelligence", "quantum_computing", "future_tech",
 ];
-const WAR_GOALS = ["bronze_working", "iron_working", "mathematics", "feudalism", "chivalry", "gunpowder"];
+const WAR_GOALS = ["bronze_working", "archery", "iron_working", "mathematics", "feudalism", "chivalry", "gunpowder"];
 
 /** An advance and everything beneath it in a tree (an advance the tree lacks stands alone). */
 const CLOSURES = new Map<readonly AdvanceRule[], Map<string, Set<string>>>();
@@ -998,7 +1015,7 @@ export function wantsResource(state: GameState, player: number, id: string): boo
   if (state.noResources) return false;
   const p = state.players[player]!;
   const next = new Set(availableAdvances(p.advances, advancesFor(state)).map((a) => a.id));
-  return UNIT_TYPES.some((t) => t.needs?.includes(id) && (!t.requires || p.advances.includes(t.requires) || next.has(t.requires)));
+  return UNIT_TYPES.some((t) => t.needs?.includes(id) && inCatalogue(state, t) && (!t.requires || p.advances.includes(t.requires) || next.has(t.requires)));
 }
 
 /** The resources `player` may trade away without going short: a second square of one, or one it has no use for yet. */
@@ -1347,7 +1364,11 @@ function wantBuilding(state: GameState, ctx: Ctx, c: City, r: CityReport, id: st
     case "cell_tower": return r.unhappy > 0 ? 6 + r.unhappy * 2 : 0;
     case "automated_office": return r.corruption >= 3 ? 2 + r.corruption : 0;
     case "bank": return r.tax >= 8 ? 4 : 0;
-    case "harbour": return 0;
+    // A Harbour feeds a port working the sea: worth it from two ocean squares worked.
+    case "harbour": {
+      const ocean = c.worked.filter((slot) => radiusTile(state, c, slot)?.terrain === Terrain.Ocean).length;
+      return ocean >= 2 ? 2 + ocean * 2 : 0;
+    }
     case "factory": return r.shields >= 10 ? 8 : 0;
     case "power_plant": case "hydro_plant": case "nuclear_plant": case "solar_plant": return r.shields >= 15 ? 4 + (r.pollution >= 10 ? 4 : 0) : 0;
     case "mass_transit": return r.pollution >= 8 && c.size >= 8 ? 10 : 0;
@@ -1397,7 +1418,7 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     for (const o of options) {
       if (o.kind !== "unit") continue;
       const t = unitType(o.id);
-      if (t.domain !== "sea") continue;
+      if (t.domain !== "sea" || isFishingBoat(o)) continue;
       if (o.id === "trireme" && !ctx.coastFrontier()) continue;
       if (!ship) { ship = o; continue; }
       const sh = unitType(ship.id);
@@ -1406,6 +1427,9 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     if (ship) { ctx.ships++; return ship; }
   }
   if (ctx.scoutsWanted > 0 && c === ctx.cities[0] && here <= wanted && affords(1)) {
+    // An explorer goes anywhere at a road's pace (since save version 53).
+    const explorer = ctx.landUnexplored ? pick("unit", "explorer") : undefined;
+    if (explorer) return explorer;
     let scout: Production | undefined;
     for (const o of options) {
       if (o.kind !== "unit") continue;
@@ -1491,6 +1515,11 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
       if (id === "colossus" && !coastal(state, c)) continue;
       return w;
     }
+  }
+  // A fishing boat for the fish or whales this city works, one at a time (since save version 53).
+  if (threat === 0 && r.shields >= 2 && affords(1) && !ctx.units.some((u) => isFishingBoat(u) && u.homeCity === c.id) && fishingSpots(state, c, true).length > 0) {
+    const boat = pick("unit", "fishing_boat");
+    if (boat) return boat;
   }
   let best: Production | undefined;
   let bestScore = 0;
@@ -1647,6 +1676,7 @@ function slotValue(state: GameState, c: City, slot: number, gov: string): number
   const t = radiusTile(state, c, slot);
   if (!t) return -1;
   const y = tileYield(state, t, false, gov, c.owner);
+  if (t.terrain === Terrain.Ocean) y.food += oceanFood(c);
   return y.food * 3 + y.shields * 2 + y.trade;
 }
 
@@ -1890,6 +1920,8 @@ function orderUnit(state: GameState, ctx: Ctx, u: Unit): void {
   if (type.flags?.includes("settler")) { orderSettler(state, ctx, u); return; }
   if (type.flags?.includes("caravan")) { orderCaravan(state, ctx, u); return; }
   if (type.flags?.includes("diplomat")) { orderDiplomat(state, ctx, u); return; }
+  if (type.flags?.includes("explorer")) { orderExplorer(state, ctx, u); return; }
+  if (type.flags?.includes("fishing")) { orderFishingBoat(state, ctx, u); return; }
   if (type.domain === "sea") { orderShip(state, ctx, u); return; }
   if (type.domain !== "land" || type.attack === 0) { applyCommand(state, { type: "skip", unit: u.id }); return; }
   orderMilitary(state, ctx, u);
@@ -2218,6 +2250,50 @@ function orderShip(state: GameState, ctx: Ctx, u: Unit): void {
   const port = nearestCity(state, ctx, u, (c) => coastal(state, c));
   if (port && goto(state, u, port.x, port.y)) return;
   applyCommand(state, { type: "skip", unit: u.id });
+}
+
+/** An explorer looks for land no one of ours has seen; with none left in reach, it is let go (its upkeep saved). */
+function orderExplorer(state: GameState, ctx: Ctx, u: Unit): void {
+  if (explore(state, u)) return;
+  applyCommand(state, { type: "disband", unit: u.id });
+}
+
+/**
+ * The sea specials of `c`'s squares a fishery would improve (fish or whales `c`'s owner knows, on its land, none laid
+ * yet), as squares; `worked`: only those the city works.
+ */
+function fishingSpots(state: GameState, c: City, worked = false): [number, number][] {
+  const out: [number, number][] = [];
+  for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
+    if (worked && !c.worked.includes(slot)) continue;
+    const t = radiusTile(state, c, slot);
+    if (!t || t.terrain !== Terrain.Ocean || t.fishery || !specialFor(state, t, c.owner)?.fishery) continue;
+    const x = wrapX(state.map, c.x + CITY_RADIUS[slot]![0]);
+    const y = c.y + CITY_RADIUS[slot]![1];
+    if (landOwner(state, x, y) === c.owner) out.push([x, y]);
+  }
+  return out;
+}
+
+/**
+ * A fishing boat lays its fishery where it floats if it can; else it sails for the nearest square of fish or whales
+ * its cities work that no other of our boats is bound for (any of our cities' if none is worked); with none, it is let go.
+ */
+function orderFishingBoat(state: GameState, ctx: Ctx, u: Unit): void {
+  if (!whyNoFishery(state, u)) { applyCommand(state, { type: "fishery", unit: u.id }); return; }
+  const taken = new Set(ctx.units.filter((o) => o.id !== u.id && isFishingBoat(o) && o.order.kind === "goto").map((o) => (o.order.kind === "goto" ? `${o.order.x},${o.order.y}` : "")));
+  for (const worked of [true, false]) {
+    let best: [number, number] | null = null;
+    let bestD = Infinity;
+    for (const c of ctx.cities)
+      for (const [x, y] of fishingSpots(state, c, worked)) {
+        if (taken.has(`${x},${y}`)) continue;
+        const d = dist(state, u.x, u.y, x, y);
+        if (d < bestD) { bestD = d; best = [x, y]; }
+      }
+    if (best && (goto(state, u, best[0], best[1]) || nudge(state, u, best[0], best[1]))) return;
+  }
+  applyCommand(state, { type: "disband", unit: u.id });
 }
 
 function explore(state: GameState, u: Unit): boolean {

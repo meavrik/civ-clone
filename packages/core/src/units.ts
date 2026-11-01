@@ -100,6 +100,11 @@ export function sinkingShips(state: GameState, player: number): Unit[] {
   return state.units.filter((u) => u.owner === player && hugsCoast(state, unitType(u.type)) && deepWater(state, u.x, u.y));
 }
 
+/** What a land unit pays, in thirds, to step onto `to` off road, rail and river: its terrain's cost, an explorer a road's. */
+export function stepCost(type: UnitTypeRule, to: Tile): number {
+  return type.flags?.includes("explorer") ? 1 : TERRAIN_RULES[to.terrain].moveCost * MOVE_FRAC;
+}
+
 /**
  * Can a land unit of this type enter this land square? Off the road, only
  * settlers climb steep ground (mountains) and wheeled units keep off rough
@@ -107,7 +112,7 @@ export function sinkingShips(state: GameState, player: number): Unit[] {
  */
 export function canEnter(state: GameState, type: UnitTypeRule, to: Tile): boolean {
   if (type.domain !== "land" || to.road) return true;
-  if (roadOnly(state, to)) return type.flags?.includes("settler") ?? false;
+  if (roadOnly(state, to)) return type.flags?.some((f) => f === "settler" || f === "explorer") ?? false;
   return !needsRoads(state, type) || !TERRAIN_RULES[to.terrain].rough;
 }
 
@@ -198,7 +203,7 @@ export function checkMove(state: GameState, u: Unit, dx: number, dy: number): Mo
   else if (from.railroad && to.railroad) cost = 0;
   else if (from.road && to.road) cost = 1;
   else if (from.river && to.river && (dx === 0 || dy === 0)) cost = 1;
-  else cost = TERRAIN_RULES[to.terrain].moveCost * MOVE_FRAC;
+  else cost = stepCost(type, to);
   const r: MoveResult = { ok: true, cost };
   if (board !== undefined) r.board = board;
   if (disembark) r.disembark = true;

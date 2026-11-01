@@ -22,6 +22,7 @@ import {
   unitById,
   unitSupport,
   unitType,
+  whyNoFishery,
   workOptions,
   type GameState,
   type GovernmentRule,
@@ -224,6 +225,9 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
       if (flags.includes("settler")) lines.push("Founds cities, and builds roads, farms and mines.");
       if (flags.includes("diplomat")) lines.push("Steals advances and stirs up foreign cities.");
       if (flags.includes("caravan")) lines.push("Helps build wonders and opens trade routes.");
+      if (flags.includes("explorer")) lines.push("Crosses any ground, mountains too, as if on a road; no one minds it on their land.");
+      if (flags.includes("fishing")) lines.push("Lays a fishery on fish or whales in our waters: more food there for good.");
+      if (type.frightens) lines.push(`Frightens units that need ${type.frightens}: they defend at two thirds against it.`);
       if (type.capacity) lines.push(`Carries ${plural(type.capacity, "unit")}.`);
       return { title: type.name, lines };
     }
@@ -287,6 +291,7 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
         ...(w.road !== undefined ? job("R", "road", "Road", w.road) : job("R", "railroad", "Railroad", w.railroad)),
         ...job("F", "fortress", "Fortress", w.fortress),
         ...job("P", "clean", "Clean up pollution", w.clean),
+        ...(whyNoFishery(state, u) === null ? ["F {food}Lay a fishery"] : []),
       ];
       return lines.length ? { title: "Orders: press a key", lines } : null;
     }

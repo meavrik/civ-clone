@@ -415,6 +415,38 @@ Never ship the original's sprites, palette art, fonts or text.
   before, now 5, 4, 1, 0, 0; wars declared on it a game 0, 0.3, 0.9, 1.3, 2.6 (0.4 to 0.9 at every level before),
   tribute demanded 0, 0, 0.3, 1.6, 5.1, its cities lost 0.3, 0.9, 0.4, 0.9, 1.9. Planner vs v2 at Prince (16 x 300):
   unchanged, 8-8, score 158 vs 124, all replaying exactly.
+  Seafaring, Archery and War Elephants (asked for 2026-11-01: "harbor, fishing boat - to extract food from fish tiles,
+  explorer, archer, war elphents - if any elphent resource available", then "do only 1 (Seafaring) and add Elephants and
+  Archers - see if need to add new tech"; our departure, after Civilization II; save version 53): two advances in the
+  extended tree, Archery (a root) and Seafaring (Pottery, Map Making). Seafaring brings the Harbour (60 shields, 1 gold;
+  only by the sea, `BuildingRule.coastal`; +1 food on each ocean square its city works, `oceanFood`, added in
+  `cityTileYield` after the government's -1), the Explorer (0/1/1, 30, sight 2, ignores zones of control; the
+  `explorer` flag: every step costs it a road's third, `stepCost`, it climbs mountains without a road, `canEnter`, and
+  no one minds it on their land, `trespassOn`) and the Fishing Boat (0/1/2, 30; the `fishing` flag: the `fishery`
+  command, `whyNoFishery`, spends it on a Fish or Whales square of its own civilization's land with moves left, laying
+  `Tile.fishery`, which adds its special's `SpecialRule.fishery`: Fish +1 food, Whales +1 food +1 shield; F or the
+  orders' "Lay fishery"). Archery brings Archers (3/2/1, 30, no resource, retired by Gunpowder). War Elephants (4/1/1,
+  40, Horseback Riding) need the sixth strategic resource, Elephants (`ELEPHANTS`, seen from the start, Animal
+  Husbandry's +1 food like Horses): deposits on jungle and on grassland or plains beside jungle (`ResourceRule.besides`;
+  7%, 5%, 5% of such squares; appended after the other resources' slices, so every other deposit lies where it did),
+  about 11 squares a small world, held by half the civs at turn 250. A unit built from the resource its attacker
+  `frightens` (Horses: riders, chariots, knights) defends at two thirds against it (`FRIGHTENED` in `defenseStrength`,
+  so `attackOdds` and the planners count it). Older games keep what they knew: each new rule carries `since` 53 and a
+  save before loads with `catalogue` (its version; `inCatalogue`, `advancesFor`, `resourcesIn`, `scatterDeposits`'s
+  `catalogue`; headless `--catalogue 52`), so it has none of them, and its log replays as it was. The planner researches
+  Seafaring after Pottery and Archery next (Archery first of its war goals), builds a Harbour where a city works two ocean
+  squares, a fishing boat for the fish or whales a city works (one a city at a time; `orderFishingBoat` lays it or sails
+  for the nearest unfished square, else disbands), an explorer as its scout while land is unexplored (`orderExplorer`),
+  and Archers and Elephants by `bestUnit`'s scores. Head to head (planner vs v2, 16 x 300, seeds 1-16): with them
+  10-6, score 143 vs 112, cities 10.2 vs 7.0, pop 58 vs 39 (with Archery researched before Seafaring 11-5,
+  144 vs 113); catalogue 52 9-7, score 135 vs 114, pop 54 vs 37; all replaying exactly. Over 6 all-planner games of 250
+  turns: 26 Archers, 2 War Elephants, 4 Fishing Boats and their fisheries, 1 Harbour, no Explorer (the planner
+  reaches Seafaring late, most of the game on its war goals against the city-states). Pictures: none of the user's yet (see renderer-api `UNIT_PICTURES_WANTED`, `BUILDING_PICTURES_WANTED`,
+  `TECH_PICTURES_WANTED`): the units show their letter on the owner's box (retro `UNIT_ABBR`: A, E, X, F), the Harbour its
+  drawn city-view picture (`PICTURES.harbour`), Archery and Seafaring the New Technology frame's bed, Elephants Ivory's
+  tusks (retro `SPECIAL_STAND_INS`); a fishery is drawn in code (retro `fishery.ts`: two stakes, a sagging net, red and
+  white floats). The Resources advisor's bands close up to fit six (`TRADES_ROOM`). The loader took versions 1-48 and
+  the current one only, so saves of 49 to 51 had been refused since; it now takes every version up to `SAVE_VERSION`.
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
   `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it), `baseline.ts`
   (v1) and `barbarian.ts` (the barbarians, reached through `baselineTurn` so every AI seat shares it:
@@ -1530,7 +1562,9 @@ text), second special resources with reaches (save version 20; the branch's own 
 `loadSave`, a 17 counting as main's). Strategic resources done (2026-10-27, asked for; save version 33, see core above):
 units that need Horses, Iron, Saltpeter, Coal or Oil on the civ's land or traded, deposits on new worlds, trades in the
 audience and between computer civs. Iron, Saltpeter and Oil hidden from a civ until their advance (2026-10-28, asked
-for; save version 40), told on the map as they appear.
+for; save version 40), told on the map as they appear. Seafaring (Harbour, Explorer, Fishing Boat), Archery
+(Archers) and War Elephants on the Elephants resource done (2026-11-01, asked for; save version 53), awaiting the user's
+pictures.
 
 ## Known gaps / next steps
 
@@ -1745,6 +1779,9 @@ for; save version 40), told on the map as they appear.
    `diplomat` and the web app offers the missions, also when a goto brings it to the gate). Nuclear units detonate: everything within a tile dies, the city is halved, fallout is
    left; SDI Defense within three tiles stops them. Triremes sink on deep water (see Ground above). No
    embassies, city investigation or air fuel yet.
+   Ranged attacks (talked over 2026-11-01, not built: archers and siege engines firing a volley of a few rounds with
+   no return fire, never taking the last hit point or a stack, range 1, 2 for guns; the user picked Seafaring, Archery
+   and Elephants first).
 4. Diplomacy: no embassies; computer civilizations mind neither each other's land nor the player's
    (only the player is asked to leave), and a refused tribute demand costs nothing.
 5. Modern renderer (set aside, not in the app): real sprites/icons for units and specials, animation,

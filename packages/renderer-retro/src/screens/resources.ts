@@ -22,6 +22,8 @@ import { playerColor } from "./main.js";
 
 const TOP = 20;
 const BAND = 25;
+/** Room kept under the bands for the trades: their heading and three rows, above the page's hint. */
+const TRADES_ROOM = 46;
 const ICON_X = 10;
 const TEXT_X = 34;
 /** The units' pictures stand right of the words, 17 pixels apart, at most `UNITS_SHOWN`. */
@@ -73,8 +75,10 @@ export function drawResourcesAdvisor(s: Surface, state: GameState): void {
   const me = state.currentPlayer;
   const color = playerColor(state, me);
   const unitsX = SCREEN_W - 10 - UNITS_SHOWN * UNIT_STEP;
+  // Six resources since save version 53 (Elephants): the bands close up a little to leave the trades their rows.
+  const band = Math.min(BAND, Math.floor((SCREEN_H - TOP - TRADES_ROOM) / Math.max(1, view.entries.length)));
   view.entries.forEach((e, i) => {
-    const y = TOP + 2 + i * BAND;
+    const y = TOP + 2 + i * band;
     if (i) s.hline(8, y - 3, SCREEN_W - 16, shade("panel", 3));
     // The resource's picture, or a question mark while it is unseen.
     tile(s, ICON_X, y);
@@ -101,7 +105,7 @@ export function drawResourcesAdvisor(s: Surface, state: GameState): void {
     }
   });
   // Our trades, and the gold a turn they bring all told.
-  let y = TOP + view.entries.length * BAND + 2;
+  let y = TOP + view.entries.length * band + 2;
   s.hline(8, y - 3, SCREEN_W - 16, shade("panel", 2));
   drawText(s, 12, y, "Trades", DIM);
   if (view.income) {

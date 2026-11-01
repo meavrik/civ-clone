@@ -14,6 +14,15 @@ import type { UnitAtlas } from "./unit-atlas.js";
  */
 export const ART_SIZE = 1254;
 
+/**
+ * Units still waiting for the user's pictures (added 2026-11-01, save version 53): the map shows each as its letters
+ * on its owner's box (renderer-retro `UNIT_ABBR`) until they come.
+ */
+export const UNIT_PICTURES_WANTED: readonly string[] = ["archers", "elephants", "explorer", "fishing_boat"];
+
+/** Improvements still waiting for the user's picture (added 2026-11-01, save version 53): their drawn one (`PICTURES`) stands in. */
+export const BUILDING_PICTURES_WANTED: readonly string[] = ["harbour"];
+
 export const BUILDING_ART: Readonly<Record<string, readonly [number, number, number, number]>> = {
   apollo_program: [359, 70, 555, 1087],
   aqueduct: [39, 353, 1176, 627],

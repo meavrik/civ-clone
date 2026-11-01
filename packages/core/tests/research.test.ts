@@ -54,7 +54,7 @@ describe("tech tree", () => {
     expect(CLASSIC_ADVANCES.at(-1)!.id).toBe("future_tech");
     const ours = new Set(ADVANCES.map((a) => a.id));
     expect(ours.has("future_tech")).toBe(false);
-    for (const id of ["weaving", "animal_husbandry", "the_internet", "mobile_phones", "renewable_energy", "artificial_intelligence", "quantum_computing"])
+    for (const id of ["weaving", "animal_husbandry", "archery", "seafaring", "the_internet", "mobile_phones", "renewable_energy", "artificial_intelligence", "quantum_computing"])
       expect(ours.has(id), id).toBe(true);
     expect(ADVANCES.find((a) => a.id === "horseback_riding")!.requires).toEqual(["animal_husbandry"]);
     expect(CLASSIC_ADVANCES.find((a) => a.id === "horseback_riding")!.requires).toEqual([]);
@@ -86,10 +86,16 @@ describe("tech tree", () => {
     }
   });
 
-  it("starts with seven root advances: Animal Husbandry in place of Horseback Riding", () => {
+  it("starts with eight root advances: Animal Husbandry in place of Horseback Riding, and Archery", () => {
     expect(availableAdvances([], ADVANCES).map((a) => a.id).sort()).toEqual(
-      ["alphabet", "animal_husbandry", "bronze_working", "ceremonial_burial", "masonry", "pottery", "the_wheel"],
+      ["alphabet", "animal_husbandry", "archery", "bronze_working", "ceremonial_burial", "masonry", "pottery", "the_wheel"],
     );
+    // A game saved before version 53 plays the tree it knew: no Archery, no Seafaring.
+    const old = advancesFor({ catalogue: 52 });
+    expect(availableAdvances([], old).map((a) => a.id)).not.toContain("archery");
+    expect(old.some((a) => a.id === "seafaring")).toBe(false);
+    expect(old).toHaveLength(ADVANCES.length - 2);
+    expect(advancesFor({ catalogue: 52 })).toBe(old);
     expect(availableAdvances([], CLASSIC_ADVANCES).map((a) => a.id).sort()).toEqual(
       ["alphabet", "bronze_working", "ceremonial_burial", "horseback_riding", "masonry", "pottery", "the_wheel"],
     );
