@@ -4,7 +4,7 @@ import { drawSpaced, drawText, FONT_HEIGHT, spacedWidth, textWidth, wrapText } f
 import { drawIconLine, iconLineWidth, wrapIcons } from "../icons.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { dimScreen, hideArtUnder, drawCloseBox, drawEntering, drawStone, DIM, enteringBox, INK, litStone, TITLE_H } from "../widgets.js";
+import { buttonFace, buttonLook, dimScreen, hideArtUnder, drawCloseBox, drawEntering, drawStone, DIM, enteringBox, INK, TITLE_H } from "../widgets.js";
 
 /**
  * The audience with a foreign leader, after the user's mock-up (2026-10-22), as a window over the map
@@ -171,7 +171,7 @@ function drawNow(s: Surface, state: GameState, view: DiplomacyView): void {
     lines.forEach((t, i) => drawText(s, o.x + Math.floor((o.w - textWidth(t)) / 2), l.panel.y + 11 + i * FONT_HEIGHT, t, C.WHITE!));
   }
   const choices = view.choices ?? [];
-  buttonRects(o, choices.length, low).forEach((b, i) => drawChoice(s, b, choices[i]!, i === (view.selected ?? 0)));
+  buttonRects(o, choices.length, low).forEach((b, i) => drawChoice(s, b, choices[i]!, i === (view.selected ?? 0), view.danger?.includes(i) === true));
 }
 
 /**
@@ -236,9 +236,8 @@ function duskSky(s: Surface, b: Rect): void {
   }
 }
 
-/** A choice: the game's stone, raised, its words in ink; the lit one warmed as every lit button is (`litStone`). */
-function drawChoice(s: Surface, b: Rect, label: string, lit: boolean): void {
-  if (lit) litStone(s, b.x, b.y, b.w, b.h);
-  else drawStone(s, b.x, b.y, b.w, b.h);
-  drawText(s, b.x + Math.floor((b.w - textWidth(label)) / 2), b.y + 3, label, INK);
+/** A choice: the game's stone, raised, its words in ink; lit, or red for war and demands, as every button is (`ButtonLook`). */
+function drawChoice(s: Surface, b: Rect, label: string, lit: boolean, danger: boolean): void {
+  const ink = buttonFace(s, b.x, b.y, b.w, b.h, buttonLook(lit, danger));
+  drawText(s, b.x + Math.floor((b.w - textWidth(label)) / 2), b.y + 3, label, ink);
 }

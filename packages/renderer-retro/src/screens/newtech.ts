@@ -7,7 +7,7 @@ import { C, shade, slotColor } from "../palette.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
 import { specialSprite, TILE } from "../tiles.js";
-import { dimScreen, hideArtUnder, drawEntering, drawStone, INK, speckle } from "../widgets.js";
+import { buttonFace, buttonLook, dimScreen, hideArtUnder, drawEntering, speckle } from "../widgets.js";
 
 /**
  * The New Technology window, after the user's template (2026-10-23), made a small window over the game
@@ -130,20 +130,13 @@ function drawUnlocks(s: Surface, panelRect: Rect, unlocks: Unlock[], leads: bool
 }
 
 /**
- * A raised button of the parchment windows (the Building Completed window's too): the game's stone, gold
- * while lit (under the pointer, or the one Enter takes: Continue as the window opens). Since 2026-10-25
- * (asked for: the lit buttons' rings were "not good") the gold face is what marks it, no ring; it had
- * stood on Continue for good, so the lit stone beside it could not be told apart.
+ * A raised button of the parchment windows (the Building Completed window's too): the game's stone, lit as every
+ * button is (`ButtonLook`; gold here until 2026-11-01) while under the pointer, or the one Enter takes (Continue as
+ * the window opens).
  */
 export function drawWindowButton(s: Surface, b: { x: number; y: number; w: number; h: number }, label: string, lit: boolean): void {
-  if (lit) {
-    speckle(s, b.x + 1, b.y + 1, b.w - 2, b.h - 2, shade("wheat", 3), shade("wheat", 5), shade("wheat", 6));
-    s.hline(b.x, b.y, b.w, shade("wheat", 7));
-    s.vline(b.x, b.y, b.h, shade("wheat", 7));
-    s.hline(b.x + 1, b.y + b.h - 1, b.w - 1, shade("dune", 0));
-    s.vline(b.x + b.w - 1, b.y + 1, b.h - 1, shade("dune", 0));
-  } else drawStone(s, b.x, b.y, b.w, b.h);
-  drawSpaced(s, b.x + Math.floor(b.w / 2), b.y + 3, label, lit ? BROWN() : INK);
+  const ink = buttonFace(s, b.x, b.y, b.w, b.h, buttonLook(lit));
+  drawSpaced(s, b.x + Math.floor(b.w / 2), b.y + 3, label, ink);
 }
 
 /** The window's frame: tan stone inside a brown and gold border, studs at the corners, a shadow under it on the game. */

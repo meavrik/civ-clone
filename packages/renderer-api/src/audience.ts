@@ -20,6 +20,8 @@ export interface DiplomacyView {
   /** Our choices, as buttons under the words (at most AUDIENCE_CHOICES); none, and any key goes on. */
   choices?: string[];
   selected?: number;
+  /** The choices that make an enemy (war, a demand, the demands' subject): red buttons (`talkDanger`). */
+  danger?: number[];
   /**
    * A civilization's card (the menu bar's Diplomacy tab): these sections beside the leader's portrait,
    * in place of the palace; `line` is then our envoy's word, or a leader's answer.
@@ -269,6 +271,11 @@ export function topicLabel(state: GameState, me: number, them: number, topic: Ta
     case "closeBorders": return "Close borders";
     case "war": return atPeace(state, me, them) ? "Break the treaty" : "Declare war";
   }
+}
+
+/** Whether a talk's button makes an enemy of them: war, a demand, or the demands as a subject (red, asked for 2026-11-01). */
+export function talkDanger(button: TalkButton): boolean {
+  return "topic" in button ? TALK_SUBJECT[button.topic] === "demand" : "subject" in button && button.subject === "demand";
 }
 
 /** A button's words. */

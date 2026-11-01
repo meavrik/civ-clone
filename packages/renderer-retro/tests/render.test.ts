@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { DIMMED, mixColor } from "../src/palette.js";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, computeCity, createUnit, foundCity, getTile, newGame, setRelation, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, drawUnitFlash, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, buttonFace, buttonLook, drawButton, drawMenu, drawUnit, drawUnitFlash, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
 import { ACTIVE_PULSE, activePulse, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
@@ -198,6 +198,25 @@ describe("retro renderer", () => {
     for (let y = 9; y < 200; y++) for (let x = 80; x < 320; x++) expect(s.get(x, y), `pixel ${x},${y}`).toBe(expected.get(x, y));
     // The settlers are the user's picture, left a spot where they slide (the apps lay it there), none on their square.
     expect(s.art.filter((a) => a.unit).map((a) => [a.id, a.x, a.y])).toEqual([["settlers", px - 8, py]]);
+  });
+
+  it("draws buttons plain in stone, lit in blue, aggressive ones in red, the lit red ringed, all with white words but the plain", () => {
+    const face = (enabled: boolean, lit: boolean, danger: boolean) => {
+      const s = new Surface(60, 20);
+      drawButton(s, 0, 0, 60, 20, "", enabled, lit, 1, danger);
+      return { middle: s.get(30, 10), ring: s.get(1, 10) };
+    };
+    const stone = new Set([shade("panel", 4), shade("panel", 5), shade("panel", 6)]);
+    expect(stone.has(face(true, false, false).middle)).toBe(true);
+    expect([shade("azure", 2), shade("azure", 3)]).toContain(face(true, true, false).middle);
+    expect([C.RED!, shade("town", 3)]).toContain(face(true, false, true).middle);
+    expect([C.RED!, shade("town", 3)]).toContain(face(true, true, true).middle);
+    expect(face(true, true, true).ring).toBe(shade("marble", 7));
+    expect(face(true, false, true).ring).not.toBe(shade("marble", 7));
+    // A faded button is plain stone, red or not, lit or not.
+    expect(stone.has(face(false, true, true).middle)).toBe(true);
+    expect(buttonFace(new Surface(10, 10), 0, 0, 10, 10, buttonLook(true))).toBe(C.WHITE!);
+    expect(buttonFace(new Surface(10, 10), 0, 0, 10, 10, buttonLook(false))).toBe(C.BLACK!);
   });
 
   it("lets the unit in play breathe, its picture faded and back but never gone, its shield steady", () => {

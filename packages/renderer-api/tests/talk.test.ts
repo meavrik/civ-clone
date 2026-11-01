@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, foundCity, goldScale, newGame, setBordersOpen, setRelation, Terrain, type GameState, type Relation } from "@civ/core";
-import { allianceTargets, AUDIENCE_CHOICES, civCard, dealCard, dealEmpty, dealHas, dealItemLabel, dealItems, giftAmounts, perTurnAmounts, standing, giftThanks, giftWeight, resourcesReport, resourcesView, talkButtons, talkLabel, talkTopics, TALK_SUBJECT, toggleDeal, type DealItem, type TalkMemo, type TalkTone, type TalkTopic } from "../src/index.js";
+import { allianceTargets, AUDIENCE_CHOICES, civCard, dealCard, dealEmpty, dealHas, dealItemLabel, dealItems, giftAmounts, perTurnAmounts, standing, giftThanks, giftWeight, resourcesReport, resourcesView, talkButtons, talkDanger, talkLabel, talkTopics, TALK_SUBJECT, toggleDeal, type DealItem, type TalkMemo, type TalkTone, type TalkTopic } from "../src/index.js";
 
 /** Us (0) and civilization 1, standing as `relation`, knowing `advances`, with 100 gold. */
 function talkGame(relation: Relation, advances: string[] = []): GameState {
@@ -69,6 +69,15 @@ describe("a talk with a foreign leader", () => {
     expect(talkTopics(s, 0, 1, { said: [] }, true).propose).toEqual(["pact", "openBorders", "exchange"]);
     const hostile: TalkMemo = { said: ["tribute"], tone: "hostile", subject: "demand" };
     expect(labels(s, hostile, true)).toEqual(["Break the treaty", "Farewell"]);
+  });
+
+  it("marks war, every demand and the demands as a subject red, nothing else", () => {
+    const red = (Object.keys(TALK_SUBJECT) as TalkTopic[]).filter((topic) => talkDanger({ topic }));
+    expect(red.sort()).toEqual(["closeBorders", "endTrade", "leave", "tribute", "war"]);
+    expect(talkDanger({ subject: "demand" })).toBe(true);
+    expect(talkDanger({ subject: "propose" })).toBe(false);
+    expect(talkDanger({ subject: "gift" })).toBe(false);
+    expect(talkDanger({ farewell: true })).toBe(false);
   });
 
   it("closes open borders as a demand, never right after opening them", () => {

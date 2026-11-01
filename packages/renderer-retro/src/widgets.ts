@@ -154,35 +154,53 @@ export function hideArtUnder(s: Surface, r: { x: number; y: number; w: number; h
 }
 
 /**
- * A raised button of the game's stone (asked for 2026-10-24: every button "stone like"), speckled like
- * the panels, lit along the top and left, shaded along the bottom and right, its label centred in ink;
- * a disabled one keeps its place with a faded label. The lit one (`primary`: under the pointer, or the
- * choice Enter takes) is the same stone warmed to parchment gold, grain and bevel kept (`litStone`;
- * since 2026-10-25, asked for: the whitened, speckled face ringed in gold was "not good").
+ * How a button looks (asked for 2026-11-01: "button hover/selected change style", and "add new button style (maybe
+ * red) for aggressive actions"): `plain`, the game's stone, its label in ink; `lit` (under the pointer, or the choice
+ * Enter takes) the same grain and bevel in the blue of the title strips and the menus' lit rows, its label white
+ * (the stone warmed to parchment gold before, since 2026-10-25); `danger`, a choice that makes an enemy or undoes
+ * something for good (war, a demand, Disband, Pillage, a diplomat's mission), red stone with a white label, and
+ * `dangerLit` the same red ringed in white inside its bevel.
  */
-export function drawButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true, primary = false, scale: 1 | 2 = 1, danger = false): void {
-  if (primary && enabled) litStone(s, x, y, w, h);
-  else {
-    stipple(s, x + 1, y + 1, w - 2, h - 2, "panel");
-    s.hline(x, y, w, shade("panel", 7));
-    s.vline(x, y, h, shade("panel", 7));
-    s.hline(x + 1, y + h - 1, w - 1, shade("panel", 1));
-    s.vline(x + w - 1, y + 1, h - 1, shade("panel", 1));
-  }
-  // A button that undoes something for good (Disband) says so in red.
-  const ink = !enabled ? FADED : danger ? BAD : INK;
-  // A label twice the font's size (the phone's setup questions) stands on a line twice as tall.
-  if (scale === 2) drawTextLarge(s, x + Math.floor((w - textWidthLarge(label)) / 2), y + Math.floor((h - 2 * FONT_HEIGHT) / 2) + 1, label, ink);
-  else drawText(s, x + Math.floor((w - textWidth(label)) / 2), y + Math.floor((h - FONT_HEIGHT) / 2) + 1, label, ink);
+export type ButtonLook = "plain" | "lit" | "danger" | "dangerLit";
+
+/** A button's look: lit or not, aggressive or not. */
+export function buttonLook(lit: boolean, danger = false): ButtonLook {
+  return danger ? (lit ? "dangerLit" : "danger") : lit ? "lit" : "plain";
 }
 
-/** A lit button's face: the stone's grain in parchment gold, lit along the top and left, shaded along the bottom and right. */
-export function litStone(s: Surface, x: number, y: number, w: number, h: number): void {
-  speckle(s, x + 1, y + 1, w - 2, h - 2, shade("sand", 5), shade("sand", 6), shade("sand", 7));
-  s.hline(x, y, w, shade("sand", 7));
-  s.vline(x, y, h, shade("sand", 7));
-  s.hline(x + 1, y + h - 1, w - 1, shade("sand", 1));
-  s.vline(x + w - 1, y + 1, h - 1, shade("sand", 1));
+/** Each look's grain (dark speck, face, light speck), bevel (light top and left, dark bottom and right) and ink. */
+const LOOKS: Record<ButtonLook, () => { grain: [number, number, number]; hi: number; lo: number; ink: number; ring?: number }> = {
+  plain: () => ({ grain: [shade("panel", 4), shade("panel", 5), shade("panel", 6)], hi: shade("panel", 7), lo: shade("panel", 1), ink: INK }),
+  // The coloured faces speckled darker only: their light specks were too loud on a strong colour.
+  lit: () => ({ grain: [shade("azure", 2), shade("azure", 3), shade("azure", 3)], hi: shade("azure", 7), lo: shade("azure", 0), ink: C.WHITE! }),
+  danger: () => ({ grain: [C.RED!, shade("town", 3), shade("town", 3)], hi: C.LRED!, lo: shade("brick", 0), ink: C.WHITE! }),
+  dangerLit: () => ({ grain: [C.RED!, shade("town", 3), shade("town", 3)], hi: C.LRED!, lo: shade("brick", 0), ink: C.WHITE!, ring: shade("marble", 7) }),
+};
+
+/** A raised button's face in `look`: speckled, lit along the top and left, shaded along the bottom and right. Returns the ink its label takes. */
+export function buttonFace(s: Surface, x: number, y: number, w: number, h: number, look: ButtonLook): number {
+  const { grain: [dark, face, light], hi, lo, ink, ring } = LOOKS[look]();
+  speckle(s, x + 1, y + 1, w - 2, h - 2, dark, face, light);
+  s.hline(x, y, w, hi);
+  s.vline(x, y, h, hi);
+  s.hline(x + 1, y + h - 1, w - 1, lo);
+  s.vline(x + w - 1, y + 1, h - 1, lo);
+  // The lit red one ringed just inside its bevel, so it stands apart from the red beside it.
+  if (ring !== undefined && w > 4 && h > 4) s.frame(x + 1, y + 1, w - 2, h - 2, ring);
+  return ink;
+}
+
+/**
+ * A raised button of the game's stone (asked for 2026-10-24: every button "stone like"), speckled like the panels,
+ * its label centred; a disabled one keeps its place with a faded label on the plain stone. `primary` (under the
+ * pointer, or the choice Enter takes) is lit, `danger` red (`ButtonLook`).
+ */
+export function drawButton(s: Surface, x: number, y: number, w: number, h: number, label: string, enabled = true, primary = false, scale: 1 | 2 = 1, danger = false): void {
+  const ink = buttonFace(s, x, y, w, h, enabled ? buttonLook(primary, danger) : "plain");
+  const color = enabled ? ink : FADED;
+  // A label twice the font's size (the phone's setup questions) stands on a line twice as tall.
+  if (scale === 2) drawTextLarge(s, x + Math.floor((w - textWidthLarge(label)) / 2), y + Math.floor((h - 2 * FONT_HEIGHT) / 2) + 1, label, color);
+  else drawText(s, x + Math.floor((w - textWidth(label)) / 2), y + Math.floor((h - FONT_HEIGHT) / 2) + 1, label, color);
 }
 
 /** Horizontal progress box with segment ticks (food box, shield box): a black bed sunk in the stone. */
@@ -535,15 +553,15 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     }
     if (i < top || i >= top + rows) return;
     const ry = itemsY + (i - top) * row;
-    // A row that undoes something for good is red, lit in dark red.
-    if (sel) s.rect(x + 4, ry - 1, rowW, row, danger ? shade("brick", 2) : shade("azure", 2));
+    // A row that makes an enemy or undoes something for good is red, lit in the red of its buttons.
+    if (sel) s.rect(x + 4, ry - 1, rowW, row, danger ? shade("town", 3) : shade("azure", 2));
     // A picture before the row, the words (and the picture) in the middle of the row's height.
     const picture = m.pictures?.[i];
     const ty = m.pictures ? ry + Math.floor((row - lineH) / 2) - 1 : ry + Math.max(0, Math.floor((row - lineH - 1) / 2));
     if (picture) drawRowPicture(s, picture, x + 8, ry + Math.floor((row - UNIT_ROW) / 2), off);
     write(x + 10 + (m.pictures ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : danger ? BAD : C.BLACK!);
     const r = m.right?.[i];
-    if (r) write(x + 4 + rowW - 6 - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("brick", 6) : shade("azure", 7)) : danger ? BAD : DIM);
+    if (r) write(x + 4 + rowW - 6 - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("town", 7) : shade("azure", 7)) : danger ? BAD : DIM);
   });
   if (scrolls) drawScrollBar(s, m, l);
 }

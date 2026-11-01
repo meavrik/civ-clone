@@ -71,6 +71,7 @@ import {
   bestFreeSlot,
   workOptions,
   whyNoCamp,
+  whyNoFishery,
   maxHp,
   deepWater,
   hugsCoast,
@@ -236,6 +237,7 @@ import {
   type MotionFrame,
   type SetupState,
   type TextInputState,
+  talkDanger,
   WORK_NAME,
 } from "@civ/renderer-api";
 import { canvas, configureDisplay, fitCanvas, toLogical } from "./display.js";
@@ -374,7 +376,7 @@ type Screen =
   | { kind: "worldMap" };
 
 /** Our choices in an audience: buttons under the leader's words, never more than AUDIENCE_CHOICES. */
-interface Talk { items: string[]; selected: number; onPick: (i: number) => void; onCancel: () => void }
+interface Talk { items: string[]; selected: number; onPick: (i: number) => void; onCancel: () => void; danger?: number[] }
 
 let screenState: Screen = { kind: "title" };
 /** The opening plays under the title from the first frame (`introStart`); `titleAt` is how far it has come. */
@@ -763,7 +765,7 @@ function dispatch(cmd: Command): boolean {
     if (cmd.type !== "endTurn") slideOwn(lastActions.slice(mark));
     if (cmd.type === "move" && lastCombat) reportCombat(lastCombat);
     if (cmd.type !== "endTurn") afterAction("unit" in cmd ? cmd.unit : undefined);
-  } else if (cmd.type === "work") refuseWork(cmd.unit, r.reason);
+  } else if (cmd.type === "work" || cmd.type === "fishery") refuseWork(cmd.unit, r.reason);
   else say(REASONS[r.reason] ?? r.reason);
   restartBlink();
   return r.ok;
@@ -1202,8 +1204,8 @@ function isAdjacent(u: { x: number; y: number }, tx: number, ty: number): boolea
 }
 
 // ---- menus ------------------------------------------------------------------
-function menu(title: string, items: string[], onPick: (i: number) => void, extra: Partial<Extract<Screen, { kind: "menu" }>> = {}): void {
-  screenState = { kind: "menu", under: screenState, menu: { title, items, selected: 0 }, onPick, ...extra };
+function menu(title: string, items: string[], onPick: (i: number) => void, extra: Partial<Extract<Screen, { kind: "menu" }>> = {}, danger: number[] = []): void {
+  screenState = { kind: "menu", under: screenState, menu: { title, items, selected: 0, ...(danger.length ? { danger } : {}) }, onPick, ...extra };
 }
 
 function openCity(id: number, then?: () => void): void {
@@ -1495,10 +1497,10 @@ function askSupport(cityId: number, id: string): void {
  * close it ("OK") gets no button (asked for 2026-10-24: "replace all close buttons with a generic
  * modal X"): the X in its title strip, Enter, Esc or a click off it close it and go on.
  */
-function modal(title: string, body: string[], items: string[], onPick: (i: number) => void, selected = 0, onCancel?: () => void): void {
+function modal(title: string, body: string[], items: string[], onPick: (i: number) => void, selected = 0, onCancel?: () => void, danger: number[] = []): void {
   const plain = items.length === 1 && /^(OK|Close|Done|Continue)$/.test(items[0]!);
   const cancel = onCancel ?? (plain ? () => onPick(0) : undefined);
-  screenState = { kind: "menu", under: screenState, menu: { title, body, items: plain ? [] : items, selected, ...(plain ? { close: true } : {}) }, onPick, ...(cancel ? { onCancel: cancel } : {}) };
+  screenState = { kind: "menu", under: screenState, menu: { title, body, items: plain ? [] : items, selected, ...(plain ? { close: true } : {}), ...(danger.length && !plain ? { danger } : {}) }, onPick, ...(cancel ? { onCancel: cancel } : {}) };
 }
 
 /** What a tribal village held, in a window like the original's. */
@@ -1858,7 +1860,7 @@ function openWarMenu(player: number, then?: () => void): void {
       say(`War with the ${name}!`, 3000);
       then?.();
     }
-  });
+  }, {}, [1]);
 }
 
 /** A diplomat at a foreign gate: steal, sabotage or buy the city. */
@@ -1882,10 +1884,11 @@ function openDiplomatMenu(unit: number, cityId: number): void {
     [Number.isFinite(cost) ? `Incite revolt (${cost} gold)` : "Incite revolt (capital: impossible)", run("incite")],
     ["Never mind", () => {}],
   ];
-  menu(`${city.name} (${state.players[city.owner]!.name}): our diplomat...`, items.map((i) => i[0]), (i) => items[i]?.[1]());
+  // Every mission but leaving is an act against them: red.
+  menu(`${city.name} (${state.players[city.owner]!.name}): our diplomat...`, items.map((i) => i[0]), (i) => items[i]?.[1](), {}, [0, 1, 2]);
 }
 
-/** A menu entry: its label, the key that does the same on the map, what it does, whether it is faded, whether it undoes something for good (red). */
+/** A menu entry: its label, the key that does the same on the map, what it does, whether it is faded, whether it undoes something for good or wrecks (red). */
 type MenuEntry = [label: string, key: string, run: () => void, disabled?: boolean, danger?: boolean];
 
 /** What the active unit can be ordered to do, with each order's key. */
@@ -1910,6 +1913,8 @@ function unitOrders(unit: number): MenuEntry[] {
   if (w.railroad !== undefined) items.push([`Railroad (${w.railroad} turns)`, "R", () => dispatch({ type: "work", unit, work: "railroad" })]);
   if (w.fortress !== undefined) items.push([`Fortress (${w.fortress} turns)`, "F", () => dispatch({ type: "work", unit, work: "fortress" })]);
   if (w.clean !== undefined) items.push([`Clean pollution (${w.clean} turns)`, "P", () => dispatch({ type: "work", unit, work: "clean" })]);
+  // A fishing boat on fish or whales in our waters lays a fishery, and is spent (since save version 53).
+  if (whyNoFishery(state, u) === null) items.push(["Lay fishery (boat is spent)", "F", () => dispatch({ type: "fishery", unit })]);
   if (type.flags?.includes("caravan")) {
     const c = cityAt(state, u.x, u.y);
     if (c && canHelpWonder(state, u, c) === null) items.push(["Help build wonder", "", () => dispatch({ type: "helpWonder", unit })]);
@@ -1934,7 +1939,7 @@ function unitOrders(unit: number): MenuEntry[] {
   items.push(["Disband", "Shift+D", () => confirmDisband(unit), false, true]);
   // Pillage last, after Disband (asked for 2026-10-27), so it is never picked by a slip.
   const loot = pillageTarget(state, u);
-  if (loot) items.push([`Pillage ${loot}`, "P", () => dispatch({ type: "pillage", unit })]);
+  if (loot) items.push([`Pillage ${loot}`, "P", () => dispatch({ type: "pillage", unit }), false, true]);
   return items;
 }
 
@@ -1947,7 +1952,7 @@ function confirmDisband(unit: number): void {
     if (i !== 1) return;
     dispatch({ type: "disband", unit });
     followActive(true);
-  }, 0, () => {});
+  }, 0, () => {}, [1]);
 }
 
 /** The city the unit stands in pays its upkeep from now on (H), as in the original. */
@@ -2168,25 +2173,26 @@ function endBeat(sc: Extract<Screen, { kind: "beat" }>): void {
  * there is one option, with no back or cancel option") is a last button that goes back as the close box and Esc do:
  * a list's Back, a price's No; null where a choice already says no (Refuse, Farewell).
  */
-function talkMenu(items: string[], onPick: (i: number) => void, onCancel: () => void, exit: string | null = null): void {
+function talkMenu(items: string[], onPick: (i: number) => void, onCancel: () => void, exit: string | null = null, danger: number[] = []): void {
   const sc = screenState;
   if (sc.kind !== "diplomacy") return;
   const all = exit === null ? items : [...items, exit];
   if (all.length > AUDIENCE_CHOICES) console.warn(`audience: ${all.length} choices, showing ${AUDIENCE_CHOICES}`);
   const shown = all.slice(0, AUDIENCE_CHOICES);
-  screenState = { ...sc, talk: { items: shown, selected: 0, onPick: (i) => (exit !== null && i === shown.length - 1 && i >= items.length ? onCancel() : onPick(i)), onCancel } };
+  const red = danger.filter((i) => i < shown.length);
+  screenState = { ...sc, talk: { items: shown, selected: 0, onPick: (i) => (exit !== null && i === shown.length - 1 && i >= items.length ? onCancel() : onPick(i)), onCancel, ...(red.length ? { danger: red } : {}) } };
 }
 
 /** A long list as audience screens, with `exit` (Back) last: two at a time with More... while more are left, then the last few. */
-function pagedChoices(labels: string[], onPick: (i: number) => void, onCancel: () => void, start = 0, exit = "Back"): void {
+function pagedChoices(labels: string[], onPick: (i: number) => void, onCancel: () => void, start = 0, exit = "Back", danger: number[] = []): void {
   const rest = labels.length - start;
   const shown = rest <= AUDIENCE_CHOICES - 1 ? rest : AUDIENCE_CHOICES - 2;
   const items = labels.slice(start, start + shown);
   const more = shown < rest;
   talkMenu([...items, ...(more ? ["More..."] : [])], (i) => {
     if (i < shown) onPick(start + i);
-    else if (more && i === shown) pagedChoices(labels, onPick, onCancel, start + shown, exit);
-  }, onCancel, exit);
+    else if (more && i === shown) pagedChoices(labels, onPick, onCancel, start + shown, exit, danger);
+  }, onCancel, exit, danger.flatMap((d) => (d >= start && d < start + shown ? [d - start] : [])));
 }
 
 /** Pick an audience choice: the screen loses its buttons, then the choice runs (and usually shows new ones). */
@@ -2348,7 +2354,7 @@ function audience(player: number, line: string, done: () => void = () => { scree
           dispatch({ type: "declareWar", player });
           speak("So be it. Our armies will answer you.");
           talkMenu(["Farewell"], done, done);
-        }, back, treaty ? "Keep the treaty" : "Keep the peace");
+        }, back, treaty ? "Keep the treaty" : "Keep the peace", [0]);
         return;
       }
     }
@@ -2361,7 +2367,8 @@ function audience(player: number, line: string, done: () => void = () => { scree
     const topics = talkTopics(state, 0, player, memo, exchange())[subject];
     if (subject === "gift" && topics.length === 1 && topics[0] === "gold") { say("gold", words); return; }
     speak(SUBJECT_WORDS[subject][mood()]);
-    pagedChoices(topics.map((t) => topicLabel(state, 0, player, t)), (i) => { const t = topics[i]; if (t) say(t, words); }, () => talk(words));
+    pagedChoices(topics.map((t) => topicLabel(state, 0, player, t)), (i) => { const t = topics[i]; if (t) say(t, words); }, () => talk(words), 0, "Back",
+      topics.flatMap((t, i) => (talkDanger({ topic: t }) ? [i] : [])));
   };
   const talk = (words: string): void => {
     speak(words);
@@ -2371,7 +2378,7 @@ function audience(player: number, line: string, done: () => void = () => { scree
       if (!b || "farewell" in b) done();
       else if ("subject" in b) open(b.subject, words);
       else say(b.topic, words);
-    }, done);
+    }, done, null, buttons.flatMap((b, i) => (talkDanger(b) ? [i] : [])));
   };
   talk(line);
 }
@@ -2728,8 +2735,8 @@ function openCivCard(player: number, words?: string): void {
   const back = () => { screenState = { kind: "map" }; };
   const items: [string, () => void][] = [[`Talk to ${leader}`, () => audience(player, leaderLine(state, player))]];
   if (trespassers(state, 0, player).length) items.push(["Demand they leave our land", () => demandWithdraw(player, (answer) => openCivCard(player, answer))]);
-  // Back (the close box, Esc) goes back to the map.
-  talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), back, "Back");
+  // Back (the close box, Esc) goes back to the map; the demand is red, as in a talk.
+  talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), back, "Back", items.length > 1 ? [1] : []);
 }
 
 /** Demand that `player` take its units off our land: a friendly leader agrees (their units set off for the nearest way out), a wary one yields to strength, a hostile one refuses. */
@@ -3177,7 +3184,9 @@ function mapKey(e: KeyboardEvent): void {
       const u = active !== null ? unitById(state, active) : undefined;
       // Settlers build a fortress (a refusal says what it needs), never fortify; soldiers fortify.
       const settler = u && unitType(u.type).flags?.includes("settler");
-      order(u && (settler || workOptions(state, u).fortress !== undefined) ? { type: "work", unit: active!, work: "fortress" } : { type: "fortify", unit: active! });
+      // A fishing boat's F lays a fishery (a refusal says why not here).
+      if (u && unitType(u.type).flags?.includes("fishing")) order({ type: "fishery", unit: active! });
+      else order(u && (settler || workOptions(state, u).fortress !== undefined) ? { type: "work", unit: active!, work: "fortress" } : { type: "fortify", unit: active! });
       break;
     }
     case "KeyS": order({ type: "sentry", unit: active! }); break;
@@ -3512,7 +3521,7 @@ function scrollCityList(sc: Extract<Screen, { kind: "city" }>, by: number): void
 /** What the audience screen shows: the leader's words and our choices. */
 function diplomacyView(sc: Extract<Screen, { kind: "diplomacy" }>): DiplomacyView {
   // The leader's mood colours the window (the AI's attitude: hostile at war or after a last warning, else by grievance, pride and our influence).
-  return { player: sc.player, line: sc.line, mood: attitude(state, sc.player, 0), ...(sc.card ? { card: sc.card } : {}), ...(sc.talk ? { choices: sc.talk.items, selected: sc.talk.selected } : {}) };
+  return { player: sc.player, line: sc.line, mood: attitude(state, sc.player, 0), ...(sc.card ? { card: sc.card } : {}), ...(sc.talk ? { choices: sc.talk.items, selected: sc.talk.selected, ...(sc.talk.danger ? { danger: sc.talk.danger } : {}) } : {}) };
 }
 
 // Where the mouse is, for edge scrolling (a finger's pointer is not a mouse).
@@ -3551,6 +3560,13 @@ canvas.addEventListener("mousemove", (e) => {
     const [px, py] = toLogical(e);
     const i = renderer.diplomacyChoiceAt(diplomacyView(sc), px, py);
     if (i >= 0) sc.talk.selected = i;
+    return;
+  }
+  // A menu's row or button under the pointer is lit, as the windows' buttons are (asked for 2026-11-01); a faded one never.
+  if (sc.kind === "menu") {
+    const [px, py] = toLogical(e);
+    const i = renderer.menuHit(sc.menu, px, py);
+    if (i >= 0 && !sc.menu.disabled?.includes(i)) sc.menu.selected = i;
     return;
   }
   if (sc.kind !== "setup") return;

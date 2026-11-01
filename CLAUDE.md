@@ -672,11 +672,17 @@ Never ship the original's sprites, palette art, fonts or text.
   2026-10-31 every screen of a talk also says so in a button (asked for: "sometimes there is one option, with no back
   or cancel option"): a list's Back (Done in an exchange's lists), a price's No, war's Keep the peace, Farewell after
   the last words (the web app's `talkMenu` `exit`). `drawButton` is the speckled stone with a light top-left and dark
-  bottom-right bevel; the lit one (under the pointer, the modals' default choice, Research) is the same
-  stone warmed to parchment gold, grain and bevel kept, no ring (`litStone`; asked for 2026-10-25: the
-  whitened speckled face ringed in gold was "not good"), and so are the audience's lit choices; on the
-  parchment windows (New Technology, Building Completed) the lit button is the gold one, the other stone
-  (`drawWindowButton`: Continue was gold for good, so a lit stone beside it was lost). A window answers
+  bottom-right bevel. Every button takes one of four looks (`ButtonLook`, `buttonFace` in widgets.ts; since
+  2026-11-01, asked for: "button hover/selected change style", "add new button style (maybe red) for aggresive
+  actions"): plain stone with black words; lit (under the pointer, the modals' default choice, Research, the tab
+  shown) the same grain and bevel in the blue of the title strips and menus' lit rows, white words (parchment gold
+  from 2026-10-25 till then); danger, red stone with white words, for what makes an enemy or undoes something for
+  good; lit danger the same red ringed white inside its bevel. A faded button is plain stone. The audience's choices
+  (`DiplomacyView.danger`, renderer-api `talkDanger`: war, each demand and Make demands; the civ card's demand) and
+  the parchment windows' buttons (`drawWindowButton`) take them too. Red elsewhere (`MenuState.danger`, the web
+  app's `menu`/`modal`/`talkMenu` `danger`): Declare war! (the map's and the talk's), Disband and its Yes, disband,
+  Pillage, the diplomat's steal, sabotage and incite. A menu's row or button under the mouse is lit (its `selected`, as the
+  windows' buttons were already; never a faded one). A window answers
   no Enter, Space or click until it stands whole (`WINDOW_ENTER_MS`; the web app's `settled`), and never
   a key held down: a key mashed through the playback cannot dismiss the window that follows it (asked for
   2026-10-24, "building is built, and skip building screen"). The Building Completed window first glides
@@ -782,7 +788,7 @@ Never ship the original's sprites, palette art, fonts or text.
   `activate` order, logged as any, and with moves left the ship comes into play to sail; a ship on a goto keeps it.
   The rules are untouched (the unit aboard still sentries), so the AI and old logs are unchanged.
   A unit's orders (`unitOrders` in the web app; asked for 2026-10-27) end with Disband, in red (`MenuState.danger`:
-  a red row, lit dark red, or a red-lettered button on the phone), then Pillage last; settlers have no Fortify,
+  a red row, lit in the red buttons' red, or a red button on the phone), then Pillage last, red too; settlers have no Fortify,
   and Found city stands faded ("Found city: too close", `MenuState.disabled`) within `CITY_MIN_DISTANCE` of a
   city (B says which city, beside the settlers); a job that changes the land says so ("Plant forest", "Clear to
   plains": mining grassland, plains, swamp or jungle grows forest, as in the original; nothing mines forest,
