@@ -40,7 +40,7 @@ import { drawCity } from "./map-city.js";
 import { drawnOver, fineCopy } from "../art-holes.js";
 import { techLabel } from "./research.js";
 import { BAR_H, PANEL_W } from "./main-layout.js";
-import { drawBeacon } from "../beacon.js";
+import { fadeOver } from "../fade.js";
 
 /**
  * Main map screen layout, as in the original: a menu bar across the top, a
@@ -289,12 +289,14 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     const isActive = top.id === activeId;
     // Units inside a city are hidden behind it unless active, like the original.
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
-    // At the feet of the unit in play, its beacon: a pool of light, a ring and the ripples leaving it (`view.beacon`).
-    if (isActive && view.beacon !== undefined) drawBeacon(s, pos[0], pos[1], view.beacon, picture.room, state.cities.some((c) => c.x === u.x && c.y === u.y));
-    // The unit in play glows, a gold contour round it breathing brighter and dimmer (`view.glow`), never gone; its shield and marks stay.
-    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id], glow: isActive ? view.glow : undefined });
+    // The unit in play blinks smoothly (`view.opacity`), its picture fading, its shield, marks and hit points through
+    // the dither, and a faint gold glow round its figure (`view.glow`).
+    const fade = isActive && view.opacity !== undefined && view.opacity < 1 ? view.opacity : undefined;
+    const under = fade !== undefined ? fineCopy(s, pos[0] - 1, pos[1] - 1, TILE + 2, TILE + 2) : null;
+    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id], glow: isActive ? view.glow : undefined, opacity: fade });
     const max = maxHp(state, top.type);
     if (top.hp < max) drawHpBar(s, pos[0], pos[1], top.hp, max);
+    if (under && fade !== undefined) fadeOver(s, under, fade);
   }
   for (const m of moving) {
     if (m.aboard !== undefined) continue;

@@ -478,11 +478,11 @@ export function rankHoles(x: number, y: number, xp: number): ArtBox[] {
  * A unit on its square. Given `picture` (the room pictures may show in: the map's view), a unit the user
  * drew a picture of (`unitArt`) leaves a spot for it (`Surface.art`; the apps lay it there as it is, over
  * the canvas) in place of its sprite, `lit` ringed in light (a blow landing on it), `frame` its pose (an animated
- * unit's, `UnitAnimator`), `flip` facing left (`UnitFacing`), `glow` how brightly a gold contour glows round it (the unit in play), its
+ * unit's, `UnitAnimator`), `flip` facing left (`UnitFacing`), `glow` how bright a faint gold glow round it is and `opacity` how much of its picture shows (the unit in play), its
  * marks drawn on the canvas showing through it (a wounded unit's hit points lie on its shield).
  */
-export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean, picture?: { room: ArtBox; lit?: boolean; frame?: number | undefined; flip?: boolean | undefined; glow?: number | undefined }): void {
-  if (picture && unitArt(u.type)) drawUnitFigure(s, u.type, dx, dy, color, { clip: picture.room, holes: markBoxes(u, dx, dy, stacked), ...(picture.lit ? { lit: true } : {}), ...(picture.frame !== undefined ? { frame: picture.frame } : {}), ...(picture.flip ? { flip: true } : {}), ...(picture.glow ? { contour: picture.glow } : {}) });
+export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean, picture?: { room: ArtBox; lit?: boolean; frame?: number | undefined; flip?: boolean | undefined; glow?: number | undefined; opacity?: number | undefined }): void {
+  if (picture && unitArt(u.type)) drawUnitFigure(s, u.type, dx, dy, color, { clip: picture.room, holes: markBoxes(u, dx, dy, stacked), ...(picture.lit ? { lit: true } : {}), ...(picture.frame !== undefined ? { frame: picture.frame } : {}), ...(picture.flip ? { flip: true } : {}), ...(picture.glow ? { contour: picture.glow } : {}), ...(picture.opacity !== undefined && picture.opacity < 1 ? { opacity: picture.opacity } : {}) });
   else {
     const sprite = unitSprite(u.type, color);
     if (picture?.glow) drawContour(s, sprite, dx, dy, picture.glow);

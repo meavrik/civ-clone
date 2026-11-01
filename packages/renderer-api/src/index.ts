@@ -148,10 +148,10 @@ export interface MainScreenView {
   blink: boolean;
   /** The year the status panel shows while it counts on to the turn's (`countedYear`), lit; the turn's own when unset. */
   year?: number | undefined;
-  /** How brightly the gold contour round the unit in play glows, 0..1 (`activeGlow`); none when unset or 0. */
+  /** How much of the unit in play shows, 0..1 (`activeOpacity`: it blinks smoothly, its picture fading, its shield and marks dithered); whole when unset. */
+  opacity?: number | undefined;
+  /** How bright the faint gold glow round the unit in play's figure is, 0..1 (`ACTIVE_GLOW`); none when unset or 0. */
   glow?: number | undefined;
-  /** How far into its beacon the unit in play is, in ms (`activeBeacon`: the light, ring and ripples at its feet); none when unset. */
-  beacon?: number | undefined;
   /** Status message under the unit box (e.g. a refused move); wrapped to the panel. */
   message?: string | undefined;
   /** A note on the map beside a square: why the unit there could not move. */

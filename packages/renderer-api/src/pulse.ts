@@ -1,32 +1,23 @@
 /**
- * The unit awaiting orders (asked for 2026-11-01, in turn: it blinked out every 400 ms; then faded to 55% and back,
- * "make more subtle. no 0 opacity"; then a grey silhouette, "too subtle now"; then a glowing gold contour, "still not
- * good - change to glow countor instead"; then "not noticable at all - add glow noticable animation + subtle unit
- * glow"): a faint gold contour round the unit itself, breathing between `ACTIVE_GLOW.low` and full, and on the ground
- * at its feet a beacon (`activeBeacon`): a pool of gold light and a gold ring, brightening as each breath begins, when
- * a ripple of light leaves the ring and spreads out, fading, over `rippleMs`. The one place to tune them.
+ * The unit awaiting orders blinks, as in the original, but smoothly (asked for 2026-11-01, after a fade to 55%, a grey
+ * silhouette, a gold contour and a beacon at its feet were each turned down: "revert unit turn indication to the
+ * original - opacity on off. just try make transition more smooth from 0% to 100% opacity + subtle glow silhouette
+ * around the unit"): it stands `onMs`, fades out over `fadeMs` (eased), is gone `offMs`, and fades back in over
+ * `fadeMs`, the whole unit together (its picture, shield and marks); while it shows, a faint gold glow traced round
+ * its figure (`ACTIVE_GLOW`, steady). The one place to tune them.
  */
-export const ACTIVE_GLOW = { low: 0.5, ms: 1400 };
+export const ACTIVE_BLINK = { onMs: 380, fadeMs: 220, offMs: 180 };
 
-/** How brightly the unit in play's contour glows `ms` after it came into play (or last acted): 1 then, down to `low` half a breath on. */
-export function activeGlow(ms: number): number {
-  const { low, ms: period } = ACTIVE_GLOW;
-  return low + (1 - low) * (0.5 + 0.5 * Math.cos((2 * Math.PI * Math.max(0, ms)) / period));
-}
+/** How faint the gold glow round the unit in play is, 0..1 (`MainScreenView.glow`). */
+export const ACTIVE_GLOW = 0.5;
 
-/** The beacon at the unit in play's feet: one breath every `ms` (with the contour's), its ripple taking `rippleMs` to spread and fade. */
-export const ACTIVE_BEACON = { ms: ACTIVE_GLOW.ms, rippleMs: 1000 };
-
-export interface Beacon {
-  /** How bright the pool and ring are, 0..1: full as a breath begins. */
-  pool: number;
-  /** How far the ripple has spread, 0 leaving the ring to 1 gone; null between ripples. */
-  ripple: number | null;
-}
-
-/** The beacon `ms` after the unit came into play (or last acted): a ripple leaves at once, and again every breath. */
-export function activeBeacon(ms: number): Beacon {
-  const { ms: period, rippleMs } = ACTIVE_BEACON;
-  const t = Math.max(0, ms) % period;
-  return { pool: 0.5 + 0.5 * Math.cos((2 * Math.PI * t) / period), ripple: t < rippleMs ? t / rippleMs : null };
+/** How much of the unit in play shows `ms` after it came into play (or last acted), 0..1: whole then, gone half a blink on. */
+export function activeOpacity(ms: number): number {
+  const { onMs, fadeMs, offMs } = ACTIVE_BLINK;
+  const t = Math.max(0, ms) % (onMs + offMs + 2 * fadeMs);
+  const ease = (f: number) => 0.5 - 0.5 * Math.cos(Math.PI * f);
+  if (t < onMs) return 1;
+  if (t < onMs + fadeMs) return 1 - ease((t - onMs) / fadeMs);
+  if (t < onMs + fadeMs + offMs) return 0;
+  return ease((t - onMs - fadeMs - offMs) / fadeMs);
 }

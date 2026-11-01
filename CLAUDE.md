@@ -1000,18 +1000,17 @@ Never ship the original's sprites, palette art, fonts or text.
   at least 3 squares), in its colour ringed black in the font, before the continents' small capitals, which
   take the room left (`minimapNames`).
   The unit awaiting orders blinks on the minimap in a yellow box (modern: a ring), so it can be found
-  from anywhere. On the map (asked for 2026-11-01, in turn: it blinked out every 400 ms; then faded to 55% and
-  back, "make more subtle. no 0 opacity"; then a grey silhouette, "too subtle now"; then a gold contour, "still not
-  good - change to glow countor instead"; then "not noticable at all - add glow noticable animation + subtle unit
-  glow") it has a faint gold contour, a thin line traced round its figure and a faint haze, breathing between
-  `ACTIVE_GLOW.low` (0.5) and full over 1.4 s (renderer-api `pulse.ts`, `activeGlow`, `MainScreenView.glow`,
-  `ArtSpot.contour`; the web app's `goldContour`, CSS drop-shadows on its picture, which follow its shape; retro
-  `drawContour` round a unit drawn as a sprite), and a beacon at its feet that catches the eye (`activeBeacon`,
-  `MainScreenView.beacon`, retro `beacon.ts`): a flat gold ring on the ground, a pool of light inside it (the ground's
-  colours warmed toward gold through the Bayer dither; none on a city's square, whose picture would show it as
-  speckles), both brightest as each breath begins, when a pale ripple leaves the ring and spreads to 2.3 times its
-  size, thinning out, over 1 s. Both start afresh, brightest, as a unit comes into play or acts; while the view
-  lingers on a unit that just acted it glows steady with no beacon. The unit, its shield and marks are untouched. City names stand under their squares on the map (retro: the owner's colour ringed in
+  from anywhere. On the map it blinks as in the original, whole to gone, but smoothly (asked for 2026-11-01,
+  after a fade to 55%, a grey silhouette, a gold contour and a beacon of light at its feet were each turned down:
+  "revert unit turn indication to the original - opacity on off. just try make transition more smooth from 0% to 100%
+  opacity + subtle glow silhouette around the unit"): whole 380 ms, fading out over 220 ms (eased), gone 180 ms, fading
+  back in over 220 ms, all of it together: its picture by CSS opacity, its shield, marks and hit points on the canvas
+  through the Bayer dither (retro `fade.ts`, `fadeOver`, from the square's pixels as they were, `fineCopy`). While it
+  shows, a faint gold glow is traced round its figure (`ACTIVE_GLOW` 0.5, steady: a thin line and a light haze, the web
+  app's `goldContour`, CSS drop-shadows on its picture, which follow its shape and fade with it; retro `drawContour`
+  round a unit drawn as a sprite). Renderer-api `pulse.ts` (`ACTIVE_BLINK`, `activeOpacity`), `MainScreenView.opacity`
+  and `glow`, `ArtSpot.opacity` and `contour`. It starts whole as a unit comes into play or acts, and stays whole while
+  the view lingers on a unit that just acted. City names stand under their squares on the map (retro: the owner's colour ringed in
   black, drawn before the units so a name never hides one; asked for 2026-10-21).
   Roads and fields (`works.ts`): roads wander. Each square has a meeting point near its centre, and
   the course to each known road neighbour's bows and snakes, keyed by the pair and laid from the same

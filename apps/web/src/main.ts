@@ -108,7 +108,8 @@ import {
   type Unit,
 } from "@civ/core";
 import {
-  activeGlow,
+  ACTIVE_GLOW,
+  activeOpacity,
   countedYear,
   builtNotice,
   canResearch,
@@ -282,13 +283,13 @@ function stepYear(t: number): void {
   if (k >= 1) yearCount = null;
 }
 
-/** When the unit in play last came into play or acted: its glow (`activeGlow`) breathes from there, brightest. */
-let glowFrom = 0;
+/** When the unit in play last came into play or acted: its blink (`activeOpacity`) starts from there, whole. */
+let blinkFrom = 0;
 
-/** Light the unit in play's glow full again, its blink and breath starting over (it has just come into play or acted). */
+/** Show the unit in play whole again, its blink starting over (it has just come into play or acted). */
 function restartBlink(): void {
   blinkOn = true;
-  lastBlink = glowFrom = performance.now();
+  lastBlink = blinkFrom = performance.now();
 }
 
 function say(text: string, ms = 2500): void {
@@ -3951,9 +3952,9 @@ function frame(t: number): void {
   if (staging?.started && !watching) staging = null;
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
-  // The unit that just acted glows steady while the view lingers on it, no beacon at its feet.
-  view.glow = handoff ? 1 : activeGlow(t - glowFrom);
-  view.beacon = handoff ? undefined : t - glowFrom;
+  // The unit in play blinks smoothly, a faint glow round it; the one that just acted stays whole while the view lingers on it.
+  view.opacity = handoff ? 1 : activeOpacity(t - blinkFrom);
+  view.glow = ACTIVE_GLOW;
   stepYear(t);
   // What waits for the slides waits for a fight's zoom to end too, so the news opens on the player's zoom.
   if (!animating && afterSlides.length && screenState.kind === "map" && !battleZoom) for (const fn of afterSlides.splice(0)) fn();

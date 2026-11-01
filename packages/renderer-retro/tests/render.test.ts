@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, computeCity, createUnit, foundCity, getTile, newGame, setRelation, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, buttonFace, buttonLook, drawButton, drawContour, drawMenu, drawUnit, drawUnitFlash, unitSprite, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { ACTIVE_BEACON, ACTIVE_GLOW, activeBeacon, activeGlow, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
+import { ACTIVE_BLINK, ACTIVE_GLOW, activeOpacity, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
@@ -243,29 +243,36 @@ describe("retro renderer", () => {
     expect(menuRect({ ...menu, point: { x: 0, y: 0, w: 320, h: 200 } })).toEqual(menuRect({ ...menu, point: undefined } as MenuState));
   });
 
-  it("rings the unit in play in a glowing gold contour, breathing but never gone, the unit and its shield untouched", () => {
-    const { low, ms } = ACTIVE_GLOW;
-    expect(activeGlow(0)).toBe(1);
-    expect(activeGlow(ms / 2)).toBeCloseTo(low);
-    for (let t = 0; t < 3000; t += 25) expect(activeGlow(t)).toBeGreaterThanOrEqual(low - 1e-9);
+  it("blinks the unit in play smoothly, whole to gone and back, a faint glow round it, its shield and marks fading with it", () => {
+    const { onMs, fadeMs, offMs } = ACTIVE_BLINK;
+    expect(activeOpacity(0)).toBe(1);
+    expect(activeOpacity(onMs - 1)).toBe(1);
+    expect(activeOpacity(onMs + fadeMs / 2)).toBeCloseTo(0.5);
+    expect(activeOpacity(onMs + fadeMs + 1)).toBe(0);
+    expect(activeOpacity(onMs + 2 * fadeMs + offMs)).toBe(1);
+    // Never a jump: from one frame (16 ms) to the next it moves a little at most.
+    for (let t = 0; t < 3000; t += 16) expect(Math.abs(activeOpacity(t + 16) - activeOpacity(t))).toBeLessThan(0.15);
     const state = newGame(2026);
     const u = state.units[0]!;
     state.activeUnit = u.id;
-    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false, placeNames: false };
-    const spot = (glow: number | undefined) => {
-      const s = new Surface();
-      drawMainScreen(s, state, { ...view, glow });
-      return { spot: s.art.find((a) => a.unit && a.id === u.type), s };
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true, placeNames: false, glow: ACTIVE_GLOW };
+    const draw = (opacity: number | undefined) => {
+      const s = Surface.screen();
+      drawMainScreen(s, state, { ...view, opacity });
+      return { spot: s.art.find((a) => a.unit && a.id === u.type)!, s };
     };
-    // Blink off no longer hides it: its picture carries the glow (the apps trace it), none without.
-    const lit = spot(0.7);
-    expect(lit.spot?.contour).toBeCloseTo(0.7);
-    const plain = spot(undefined);
-    expect(plain.spot).toBeDefined();
-    expect(plain.spot?.contour).toBeUndefined();
-    // The canvas under it (its shield and marks) is the same either way.
-    for (let i = 0; i < plain.s.data.length; i++) if (lit.s.data[i] !== plain.s.data[i]) throw new Error(`fine pixel ${i} differs`);
-    // A unit drawn as a sprite has the contour drawn round its figure on the canvas, in gold, outside the figure only.
+    const whole = draw(undefined);
+    expect(whole.spot.contour).toBe(ACTIVE_GLOW);
+    expect(whole.spot.opacity).toBeUndefined();
+    expect(draw(0.4).spot.opacity).toBeCloseTo(0.4);
+    // Gone, its shield and marks are gone from the canvas too; half way, some of them.
+    const differ = (a: Surface, b: Surface) => a.data.reduce((n, v, i) => n + (v !== b.data[i] ? 1 : 0), 0);
+    const gone = differ(draw(0).s, whole.s);
+    expect(gone).toBeGreaterThan(10);
+    const half = differ(draw(0.5).s, whole.s);
+    expect(half).toBeGreaterThan(0);
+    expect(half).toBeLessThan(gone);
+    // A unit drawn as a sprite has the glow drawn round its figure on the canvas, in gold, outside the figure only.
     const sprite = unitSprite("legion", playerColor(state, 0));
     const c = Surface.screen();
     drawContour(c, sprite, 40, 40, 1);
@@ -278,36 +285,6 @@ describe("retro renderer", () => {
         else if (gold.has(v)) ring++;
       }
     expect(ring).toBeGreaterThan(20);
-  });
-
-  it("lights a beacon at the feet of the unit in play: a ring, a pool of light and a ripple spreading out", () => {
-    expect(activeBeacon(0)).toEqual({ pool: 1, ripple: 0 });
-    expect(activeBeacon(ACTIVE_BEACON.rippleMs + 1).ripple).toBeNull();
-    expect(activeBeacon(ACTIVE_BEACON.ms).ripple).toBe(0);
-    const state = newGame(2026);
-    const u = state.units[0]!;
-    state.activeUnit = u.id;
-    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true, placeNames: false };
-    const plain = Surface.screen();
-    drawMainScreen(plain, state, view);
-    const changed = (ms: number) => {
-      const s = Surface.screen();
-      drawMainScreen(s, state, { ...view, beacon: ms });
-      const out: number[] = [];
-      for (let i = 0; i < s.data.length; i++) if (s.data[i] !== plain.data[i]) out.push(i);
-      return { s, out };
-    };
-    const px = 80 + (u.x - view.originX) * 16, py = 9 + (u.y - view.originY) * 16;
-    const at = changed(0);
-    // The ring crosses the square's middle at its feet in gold (pale where the ripple leaves it).
-    const golds = [4, 5, 6, 7].map((i) => shade("wheat", i)).concat(shade("sand", 7));
-    expect(golds).toContain(at.s.fget((px + 8) * 2, (py + 15) * 2 - 1 + Math.round(3.5 * 2)));
-    // The ripple reaches further out than the ring as it spreads: more of the map changed mid-ripple.
-    const spread = changed(ACTIVE_BEACON.rippleMs * 0.4);
-    const reach = (c: number[]) => Math.max(...c.map((i) => Math.abs((i % plain.fw) - (px + 8) * 2)));
-    expect(reach(spread.out)).toBeGreaterThan(reach(changed(ACTIVE_BEACON.rippleMs + 50).out));
-    // Nothing outside the map's view.
-    for (const i of spread.out) expect(i % plain.fw).toBeGreaterThanOrEqual(80 * 2);
   });
 
   it("draws a fight: hit point bars, the flash of a blow, the burst of the loser, and wounds afterwards", () => {
