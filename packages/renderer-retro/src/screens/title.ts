@@ -4,11 +4,12 @@ import { drawIconLine } from "../icons.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { DIM, drawWindow, GOLD, INK } from "../widgets.js";
+import { drawTitleName, prepareTitleName } from "./title-name.js";
 
 /**
  * The opening and title, after the original's (asked for 2026-10-22): stars, the world turning
  * in space as it forms (fire, crust, seas, clouds, green land, the lights of towns), a line of
- * story under it (`introAt`), then the name in flat gold over the finished planet. `at` is
+ * story under it (`introAt`), then the name over the finished planet (`drawTitleName`). `at` is
  * ms since the opening began; from `INTRO_MS` on the title stands complete, the planet still
  * turning. All of it drawn here in the palette, fine pixel by fine pixel; no outside imagery.
  */
@@ -18,7 +19,9 @@ export function drawTitleScreen(s: Surface, at = INTRO_MS): void {
   drawStars(s, at);
   drawPlanet(s, f);
   if (f.caption) drawCaption(s, f.caption.text, f.caption.fade);
-  if (f.name > 0) drawName(s, f.name);
+  if (f.name > 0) drawTitleName(s, f.name);
+  // Its letters drawn ahead, one a frame, once the planet's maps are made (while it glows into view).
+  else if (f.glow > 0) prepareTitleName(s.fw, s.k);
 }
 
 // ---- stars ------------------------------------------------------------------------
@@ -336,90 +339,6 @@ function drawCaption(s: Surface, text: string, fade: number): void {
   const lines = wrapText(text, 290);
   const top = 184 - Math.floor((lines.length * FONT_HEIGHT) / 2);
   lines.forEach((l, i) => drawTextCentered(s, SCREEN_W / 2, top + i * FONT_HEIGHT, l, ink));
-}
-
-/**
- * The name's letters: our own blocky capitals with slab serifs, thick downstrokes and thin
- * crossbars, as Roman letters cut in stone. Each '#' is a block of NAME_CELL fine pixels.
- */
-const LETTERS: Record<string, string[]> = {
-  C: ["..#####", ".##...#", "##.....", "##.....", "##.....", "##.....", "##.....", ".##...#", "..#####"],
-  I: ["####", ".##.", ".##.", ".##.", ".##.", ".##.", ".##.", ".##.", "####"],
-  V: ["###..###", ".##...#.", ".##...#.", "..##.#..", "..##.#..", "..##.#..", "...###..", "...##...", "...##..."],
-  L: ["####...", ".##....", ".##....", ".##....", ".##....", ".##....", ".##...#", ".##..##", "#######"],
-  Z: ["#######", "#....##", "....##.", "...##..", "..##...", ".##....", "##.....", "##....#", "#######"],
-  A: ["...##...", "..####..", "..#.##..", ".##..##.", ".##..##.", ".######.", "##....##", "##....##", "###..###"],
-  T: ["########", "#..##..#", "...##...", "...##...", "...##...", "...##...", "...##...", "...##...", "..####.."],
-  O: ["..####..", ".##..##.", "##....##", "##....##", "##....##", "##....##", "##....##", ".##..##.", "..####.."],
-  N: ["##...###", ".##...#.", ".###..#.", ".###..#.", ".#.##.#.", ".#..###.", ".#...##.", ".#...##.", "###...##"],
-};
-const NAME = "CIVILIZATION";
-const NAME_CELL = 6;
-/** The name's top, in screen pixels. */
-const NAME_Y = 11;
-
-/** Gold, dark to light: the outline, the shaded and lit faces. */
-const GOLD_RAMP = () => [
-  shade("hide", 0), shade("hide", 1), shade("mound", 1), shade("mound", 3), shade("dune", 1), shade("dune", 3),
-  shade("wheat", 4), shade("wheat", 7), shade("sand", 7), C.WHITE!,
-];
-
-/** The name drawn once as levels of GOLD_RAMP per fine pixel (-1 bare); `name` only darkens them. */
-let nameArt: { w: number; h: number; level: Int8Array } | undefined;
-
-function nameLevels(): { w: number; h: number; level: Int8Array } {
-  if (nameArt) return nameArt;
-  const rows = LETTERS.C!.length;
-  const cols = [...NAME].reduce((n, ch) => n + LETTERS[ch]![0]!.length + 1, -1);
-  const pad = 2;
-  const w = cols * NAME_CELL + pad * 2, h = rows * NAME_CELL + pad * 2;
-  const ink = new Uint8Array(w * h);
-  let cx = pad;
-  for (const ch of NAME) {
-    const g = LETTERS[ch]!;
-    g.forEach((line, r) => {
-      for (let c = 0; c < line.length; c++)
-        if (line[c] === "#")
-          for (let y = 0; y < NAME_CELL; y++) ink.fill(1, (pad + r * NAME_CELL + y) * w + cx + c * NAME_CELL, (pad + r * NAME_CELL + y) * w + cx + (c + 1) * NAME_CELL);
-    });
-    cx += (g[0]!.length + 1) * NAME_CELL;
-  }
-  const on = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && ink[y * w + x] === 1;
-  const level = new Int8Array(w * h).fill(-1);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (!on(x, y)) {
-        // A thin outline in the gold's darkest brown, one fine pixel wide.
-        let near = false;
-        for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1 && !near; dx++) near = on(x + dx, y + dy);
-        if (near) level[y * w + x] = 0;
-        continue;
-      }
-      // A flat gold face, a screen pixel of paler gold along each top edge: no bands, no shade.
-      level[y * w + x] = !on(x, y - 1) || !on(x, y - 2) ? 7 : 6;
-    }
-  }
-  nameArt = { w, h, level };
-  return nameArt;
-}
-
-function drawName(s: Surface, name: number): void {
-  const { w, h, level } = nameLevels();
-  const ramp = GOLD_RAMP();
-  const x0 = Math.floor((s.fw - w) / 2), y0 = NAME_Y * s.k;
-  // Up out of the dark, and a glint sweeping across as it lands.
-  const dark = Math.round((1 - name) * 9);
-  const glint = name > 0.3 && name < 1 ? -40 + (w + 80) * ((name - 0.3) / 0.7) : -1e9;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const lv = level[y * w + x]!;
-      if (lv < 0) continue;
-      let l = lv === 0 ? 0 : Math.max(1, lv - dark);
-      if (lv > 0 && Math.abs(x + y * 0.7 - glint) < 7) l = Math.min(9, l + 3);
-      if (lv === 0 && dark > 6) continue; // the outline last, as the letters show
-      s.fset(x0 + x, y0 + y, ramp[l]!);
-    }
-  }
 }
 
 /**

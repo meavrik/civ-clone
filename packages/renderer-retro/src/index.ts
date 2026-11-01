@@ -20,6 +20,7 @@ export * from "./screens/discovery.js";
 export * from "./screens/rates.js";
 export * from "./screens/research.js";
 export * from "./screens/title.js";
+export { drawTitleName, TITLE_NAME_BOTTOM } from "./screens/title-name.js";
 export * from "./screens/setup.js";
 export * from "./screens/advisors.js";
 export * from "./screens/diplomacy.js";

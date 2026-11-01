@@ -764,7 +764,17 @@ Never ship the original's sprites, palette art, fonts or text.
   planet still turning. The web app starts it on the first frame; a key or click skips to the end, and
   the title menu (no header) opens by itself once it is over and whenever the title shows again. Retro
   draws it in `screens/title.ts`: the planet lit per fine pixel from hashed noise maps (made a few rows a
-  frame while only the stars show), the name in our own slab capitals in flat gold (since 2026-10-30, asked for: "less gradient and shadow effects": one gold, a screen pixel paler along each top edge, a fine dark outline; it was banded, dithered and bevelled); modern keeps a
+  frame while only the stars show), the name in `screens/title-name.ts` (since 2026-11-01, asked for with the original's title as the model: "more like
+  the original one ... instead of "sid meier's" - "Avrik's""; before, our slab capitals in flat gold, 2026-10-30): tall,
+  narrow Roman capitals of our own, built from shapes (stems, wedges, rings, bracketed serifs, brush strokes) and filled
+  per fine pixel, 80 fine pixels tall, thick downstrokes and hairline bars, shaded through the Bayer dither from brown at
+  the word's ends to cream in its middle (`FACE_RAMP`: earth then rock), lit pale lavender along each left edge, navy
+  along each right, ringed in navy; over it the byline "Avrik's" in small serif letters, cream, between two ruled lines
+  (a hairline over a band) running out to the name's ends. It comes up out of the dark from the middle of the word
+  outward, a glint sweeping across. Its letters are drawn ahead, one a frame, once the planet glows into view
+  (`prepareTitleName`), so the name costs nothing when it comes. `TITLE_NAME_BOTTOM` is the first row clear of it: the
+  phone's title buttons keep below it (`SETUP_CHOICES.top`, shortened to 22 when five would not fit), the web's menu
+  stands lower already; modern keeps a
   still title with the name.
   Setup cards (`setup.ts`; asked for 2026-10-22, then redone the same day: the first pictures, seats of
   power, town patches and landmarks, were not liked): `setupCards(setup)` gives difficulty and the tribe as

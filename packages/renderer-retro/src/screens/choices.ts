@@ -1,6 +1,7 @@
 import type { MenuState } from "@civ/renderer-api";
 import { textWidth, textWidthLarge } from "../font.js";
 import { SCREEN_H } from "../surface.js";
+import { TITLE_NAME_BOTTOM } from "./title-name.js";
 import type { Surface } from "../surface.js";
 import { dimScreen, drawButton, drawCloseBox, drawEntering, drawWindow, hideArtUnder, TITLE_H, TITLE_H_LARGE } from "../widgets.js";
 
@@ -24,8 +25,10 @@ export interface ChoiceStyle {
   fallback?: ChoiceStyle;
 }
 
+/** The title screen's menu when its large buttons will not fit under the game's name: a little shorter. */
+const SETUP_CHOICES_SHORT: ChoiceStyle = { columns: 1, h: 22, gap: 3, minW: 150, scale: 2, top: TITLE_NAME_BOTTOM };
 /** The starting game's questions (the title screen's menu, the number of civilizations, the world...): a column of large buttons. */
-export const SETUP_CHOICES: ChoiceStyle = { columns: 1, h: 24, gap: 4, minW: 150, scale: 2, top: 44 };
+export const SETUP_CHOICES: ChoiceStyle = { columns: 1, h: 24, gap: 4, minW: 150, scale: 2, top: TITLE_NAME_BOTTOM, fallback: SETUP_CHOICES_SHORT };
 /** A unit's orders as the font's own size, two buttons across, tall enough for a finger. */
 export const ORDER_CHOICES_SMALL: ChoiceStyle = { columns: 2, h: 20, gap: 3, minW: 72, scale: 1 };
 /** A unit's orders: words twice the font's size, two buttons across (or three), else as ORDER_CHOICES_SMALL. */
@@ -66,7 +69,11 @@ function layoutIn(m: MenuState, screenW: number, style: ChoiceStyle): ChoicesLay
     } else {
       x = Math.floor((screenW - w) / 2);
       y = Math.floor((SCREEN_H - h) / 2);
-      if (!m.title && style.top !== undefined && style.top + h <= SCREEN_H) y = Math.max(style.top, y);
+      if (!m.title && style.top !== undefined) {
+        // Kept clear of the game's name, in a smaller style (the fallback) when this one would run off the screen.
+        if (style.top + h > SCREEN_H) return null;
+        y = Math.max(style.top, y);
+      }
     }
     const bx = x + Math.floor((w - block.w) / 2);
     const by = y + head;

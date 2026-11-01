@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { setupCards, setupMenu, type MenuState, type SetupState } from "@civ/renderer-api";
-import { choiceAt, choicesRect, drawChoices, drawSetupChoose, drawSetupScreen, drawTitleScreen, isStone, ORDER_CHOICES, ORDER_CHOICES_SMALL, SETUP_CHOICES, setupChooseAt, setupChooseRect, setupPictureSpots, Surface, TITLE_H, TITLE_H_LARGE } from "../src/index.js";
+import { choiceAt, choicesRect, drawChoices, drawSetupChoose, drawSetupScreen, drawTitleScreen, isStone, ORDER_CHOICES, ORDER_CHOICES_SMALL, SETUP_CHOICES, setupChooseAt, setupChooseRect, setupPictureSpots, Surface, TITLE_H, TITLE_H_LARGE, TITLE_NAME_BOTTOM } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 const setup = (step: SetupState["step"], extra: Partial<SetupState> = {}): SetupState =>
@@ -22,12 +22,16 @@ describe("menus as buttons (the phone app)", () => {
       const r = choicesRect(m, 320, SETUP_CHOICES);
       expect(r, m.title).not.toBeNull();
       expect(r!.y + r!.h).toBeLessThanOrEqual(200);
-      // One column: every button the same, each answering over its whole face.
+      // One column: every button the same, each answering over its whole face (the title's five a little shorter, to fit under the name).
       const areas = hitAreas(m, 320, SETUP_CHOICES);
       expect(new Set(areas).size, m.title).toBe(1);
-      expect(areas[0]).toBeGreaterThanOrEqual(SETUP_CHOICES.minW * SETUP_CHOICES.h);
+      expect(areas[0]).toBeGreaterThanOrEqual(SETUP_CHOICES.minW * (m === title ? SETUP_CHOICES.fallback!.h : SETUP_CHOICES.h));
     }
-    expect(choicesRect(title, 320, SETUP_CHOICES)!.y).toBeGreaterThanOrEqual(SETUP_CHOICES.top!);
+    expect(choicesRect(title, 320, SETUP_CHOICES)!.y).toBeGreaterThanOrEqual(TITLE_NAME_BOTTOM);
+    // Without Continue the title's four keep their full size, under the name too.
+    const four: MenuState = { ...title, items: title.items.slice(1) };
+    expect(choicesRect(four, 320, SETUP_CHOICES)!.y).toBeGreaterThanOrEqual(TITLE_NAME_BOTTOM);
+    expect(hitAreas(four, 320, SETUP_CHOICES)[0]).toBeGreaterThanOrEqual(SETUP_CHOICES.minW * SETUP_CHOICES.h);
     const s = Surface.screen();
     drawTitleScreen(s, 1e9);
     drawChoices(s, title, SETUP_CHOICES);
