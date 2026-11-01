@@ -3951,8 +3951,9 @@ function frame(t: number): void {
   if (staging?.started && !watching) staging = null;
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
-  // The unit that just acted glows steady while the view lingers on it.
+  // The unit that just acted glows steady while the view lingers on it, no beacon at its feet.
   view.glow = handoff ? 1 : activeGlow(t - glowFrom);
+  view.beacon = handoff ? undefined : t - glowFrom;
   stepYear(t);
   // What waits for the slides waits for a fight's zoom to end too, so the news opens on the player's zoom.
   if (!animating && afterSlides.length && screenState.kind === "map" && !battleZoom) for (const fn of afterSlides.splice(0)) fn();

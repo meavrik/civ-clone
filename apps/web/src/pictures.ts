@@ -242,14 +242,15 @@ function clipInset(at: PicturePlace, reveal: number): string {
 }
 
 /**
- * The unit in play's glow (`PicturePlace.contour`, 0..1): a crisp gold line a fine pixel wide traced round the figure's
- * shape (four unblurred shadows a fine pixel out, each tracing the last), never fainter than half, and a soft gold haze
- * beyond it, breathing with `glow`. `sx` is screen pixels to the canvas's logical pixel (two fine pixels).
+ * The unit in play's glow (`PicturePlace.contour`, 0..1), kept subtle (the beacon at its feet is what catches the eye):
+ * a thin gold line a fine pixel wide traced round the figure's shape (four unblurred shadows a fine pixel out, each
+ * tracing the last), and a faint gold haze beyond it, breathing with `glow`. `sx` is screen pixels to the canvas's
+ * logical pixel (two fine pixels).
  */
 function goldContour(glow: number, sx: number): string {
   const k = Math.max(1, Math.round(sx / 2));
-  const line = `rgba(249, 217, 96, ${(0.5 + 0.5 * glow).toFixed(3)})`;
-  const haze = `rgba(255, 200, 60, ${(0.85 * glow).toFixed(3)})`;
+  const line = `rgba(249, 217, 96, ${(0.3 + 0.35 * glow).toFixed(3)})`;
+  const haze = `rgba(255, 200, 60, ${(0.45 * glow).toFixed(3)})`;
   return [`drop-shadow(${k}px 0 0 ${line})`, `drop-shadow(-${k}px 0 0 ${line})`, `drop-shadow(0 ${k}px 0 ${line})`, `drop-shadow(0 -${k}px 0 ${line})`,
     `drop-shadow(0 0 ${(k * (1 + 2 * glow)).toFixed(1)}px ${haze})`].join(" ");
 }

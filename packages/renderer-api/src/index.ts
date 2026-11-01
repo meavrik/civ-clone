@@ -150,6 +150,8 @@ export interface MainScreenView {
   year?: number | undefined;
   /** How brightly the gold contour round the unit in play glows, 0..1 (`activeGlow`); none when unset or 0. */
   glow?: number | undefined;
+  /** How far into its beacon the unit in play is, in ms (`activeBeacon`: the light, ring and ripples at its feet); none when unset. */
+  beacon?: number | undefined;
   /** Status message under the unit box (e.g. a refused move); wrapped to the panel. */
   message?: string | undefined;
   /** A note on the map beside a square: why the unit there could not move. */

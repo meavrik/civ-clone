@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, computeCity, createUnit, foundCity, getTile, newGame, setRelation, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, buttonFace, buttonLook, drawButton, drawContour, drawMenu, drawUnit, drawUnitFlash, unitSprite, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { ACTIVE_GLOW, activeGlow, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
+import { ACTIVE_BEACON, ACTIVE_GLOW, activeBeacon, activeGlow, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
@@ -278,6 +278,36 @@ describe("retro renderer", () => {
         else if (gold.has(v)) ring++;
       }
     expect(ring).toBeGreaterThan(20);
+  });
+
+  it("lights a beacon at the feet of the unit in play: a ring, a pool of light and a ripple spreading out", () => {
+    expect(activeBeacon(0)).toEqual({ pool: 1, ripple: 0 });
+    expect(activeBeacon(ACTIVE_BEACON.rippleMs + 1).ripple).toBeNull();
+    expect(activeBeacon(ACTIVE_BEACON.ms).ripple).toBe(0);
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    state.activeUnit = u.id;
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true, placeNames: false };
+    const plain = Surface.screen();
+    drawMainScreen(plain, state, view);
+    const changed = (ms: number) => {
+      const s = Surface.screen();
+      drawMainScreen(s, state, { ...view, beacon: ms });
+      const out: number[] = [];
+      for (let i = 0; i < s.data.length; i++) if (s.data[i] !== plain.data[i]) out.push(i);
+      return { s, out };
+    };
+    const px = 80 + (u.x - view.originX) * 16, py = 9 + (u.y - view.originY) * 16;
+    const at = changed(0);
+    // The ring crosses the square's middle at its feet in gold (pale where the ripple leaves it).
+    const golds = [4, 5, 6, 7].map((i) => shade("wheat", i)).concat(shade("sand", 7));
+    expect(golds).toContain(at.s.fget((px + 8) * 2, (py + 15) * 2 - 1 + Math.round(3.5 * 2)));
+    // The ripple reaches further out than the ring as it spreads: more of the map changed mid-ripple.
+    const spread = changed(ACTIVE_BEACON.rippleMs * 0.4);
+    const reach = (c: number[]) => Math.max(...c.map((i) => Math.abs((i % plain.fw) - (px + 8) * 2)));
+    expect(reach(spread.out)).toBeGreaterThan(reach(changed(ACTIVE_BEACON.rippleMs + 50).out));
+    // Nothing outside the map's view.
+    for (const i of spread.out) expect(i % plain.fw).toBeGreaterThanOrEqual(80 * 2);
   });
 
   it("draws a fight: hit point bars, the flash of a blow, the burst of the loser, and wounds afterwards", () => {
