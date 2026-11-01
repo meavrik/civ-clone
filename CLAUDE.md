@@ -441,9 +441,10 @@ Never ship the original's sprites, palette art, fonts or text.
   10-6, score 143 vs 112, cities 10.2 vs 7.0, pop 58 vs 39 (with Archery researched before Seafaring 11-5,
   144 vs 113); catalogue 52 9-7, score 135 vs 114, pop 54 vs 37; all replaying exactly. Over 6 all-planner games of 250
   turns: 26 Archers, 2 War Elephants, 4 Fishing Boats and their fisheries, 1 Harbour, no Explorer (the planner
-  reaches Seafaring late, most of the game on its war goals against the city-states). Pictures: the archer's is the user's
-  (see Unit pictures); the rest wait for theirs (renderer-api `UNIT_PICTURES_WANTED`, `BUILDING_PICTURES_WANTED`,
-  `TECH_PICTURES_WANTED`): the units show their letter on the owner's box (retro `UNIT_ABBR`: E, X, F), the Harbour its
+  reaches Seafaring late, most of the game on its war goals against the city-states). Pictures: the archer's and the war
+  elephant's are the user's (see Unit pictures); the rest wait for theirs (renderer-api `UNIT_PICTURES_WANTED`,
+  `BUILDING_PICTURES_WANTED`, `TECH_PICTURES_WANTED`): the units show their letter on the owner's box (retro
+  `UNIT_ABBR`: X, F), the Harbour its
   drawn city-view picture (`PICTURES.harbour`), Archery and Seafaring the New Technology frame's bed, Elephants Ivory's
   tusks (retro `SPECIAL_STAND_INS`); a fishery is drawn in code (retro `fishery.ts`: two stakes, a sagging net, red and
   white floats). The Resources advisor's bands close up to fit six (`TRADES_ROOM`). The loader took versions 1-48 and
@@ -1044,7 +1045,9 @@ Never ship the original's sprites, palette art, fonts or text.
   (`tools/sprites/units/<id>.png`, kept as supplied; `SINGLES` in cut.ts), cut to its bounds a few pixels out, every
   pixel as it is, and stood at a scale of its own (`UNIT_ART`'s third number, its pixels to a square): the archer
   (2026-11-01, asked for: "implement archer image"; 1254 square, drawing his bow, the owner's parts magenta as the
-  sheet's) at 1400, his helmet to his feet (973) as much of the square as the sheet's militia (166 of 240). The sheet's
+  sheet's) at 1400, his helmet to his feet (973) as much of the square as the sheet's militia (166 of 240); the war
+  elephant (the same day, "same for war-elephant"; 1334x1179, its rider small on its back under a magenta caparison)
+  at 1250, as wide as a square allows, as the sheet's chariot stands, so it looms over the horses. The sheet's
   cut matches its 29 to the units of the first rules (`SHEET_UNITS`: those without `since`), the later ones lying among
   them in `UNIT_TYPES`.
   Unit moves (2026-10-28, asked for with the user's militia sheet, `tools/sprites/units/militia-anim.png` kept as

@@ -36,11 +36,11 @@ const MOODS = ["happy", "content", "unhappy", "entertainer", "taxman", "scientis
 
 describe("sprite sheets", () => {
   it("cover every unit, terrain and special resource, plus cities of every age and size, walls, villages and mines", () => {
-    // Every unit but those added since the sheet: their pictures of their own (the archer's), else, while those are still
+    // Every unit but those added since the sheet: their pictures of their own (the archer's, the elephant's), else, while those are still
     // to come, their letters on the owner's box, which stand in wherever no picture is laid.
     for (const t of UNIT_TYPES)
       expect(UNIT_SHEET.byName.has(t.id) || ((unitArt(t.id) || UNIT_PICTURES_WANTED.includes(t.id)) && UNIT_ABBR[t.id] !== undefined), t.id).toBe(true);
-    expect(unitArt("archers")).toBe(true);
+    for (const id of ["archers", "elephants"]) expect(unitArt(id), id).toBe(true);
     // Elephants (since save version 53) show Ivory's tusks until their icon comes.
     expect(specialSprite("Elephants")).toBe(specialSprite("Ivory"));
     for (const name of ["ocean", "grassland", "plains", "forest", "hills", "mountains", "desert", "tundra", "arctic", "swamp", "jungle"])

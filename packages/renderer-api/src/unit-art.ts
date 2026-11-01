@@ -32,4 +32,5 @@ export const UNIT_ART: Record<string, readonly [w: number, h: number, square?: n
   bomber: [217, 114],
   nuclear: [70, 141],
   archers: [997, 1130, 1400],
+  elephants: [1216, 1061, 1250],
 };
