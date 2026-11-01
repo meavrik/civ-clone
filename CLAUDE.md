@@ -954,7 +954,10 @@ Never ship the original's sprites, palette art, fonts or text.
   at least 3 squares), in its colour ringed black in the font, before the continents' small capitals, which
   take the room left (`minimapNames`).
   The unit awaiting orders blinks on the minimap in a yellow box (modern: a ring), so it can be found
-  from anywhere. City names stand under their squares on the map (retro: the owner's colour ringed in
+  from anywhere. On the map it breathes (asked for 2026-11-01: "make more subtle. no 0 opacity"; it had blinked
+  out every 400 ms): its picture fades to `ACTIVE_PULSE.low` (0.55) and back over 1.4 s, eased, whole as it comes
+  into play or acts (renderer-api `pulse.ts`, `activePulse`, `MainScreenView.pulse`, `ArtSpot.opacity`), its shield
+  and marks steady. City names stand under their squares on the map (retro: the owner's colour ringed in
   black, drawn before the units so a name never hides one; asked for 2026-10-21).
   Roads and fields (`works.ts`): roads wander. Each square has a meeting point near its centre, and
   the course to each known road neighbour's bows and snakes, keyed by the pair and laid from the same

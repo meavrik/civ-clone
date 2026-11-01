@@ -453,10 +453,11 @@ export function rankHoles(x: number, y: number, xp: number): ArtBox[] {
  * A unit on its square. Given `picture` (the room pictures may show in: the map's view), a unit the user
  * drew a picture of (`unitArt`) leaves a spot for it (`Surface.art`; the apps lay it there as it is, over
  * the canvas) in place of its sprite, `lit` ringed in light (a blow landing on it), `frame` its pose (an animated
- * unit's, `UnitAnimator`), `flip` facing left (`UnitFacing`), its marks drawn on the canvas showing through it (a wounded unit's hit points lie on its shield).
+ * unit's, `UnitAnimator`), `flip` facing left (`UnitFacing`), `opacity` how much of it shows (the unit in play breathing), its
+ * marks drawn on the canvas showing through it (a wounded unit's hit points lie on its shield).
  */
-export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean, picture?: { room: ArtBox; lit?: boolean; frame?: number | undefined; flip?: boolean | undefined }): void {
-  if (picture && unitArt(u.type)) drawUnitFigure(s, u.type, dx, dy, color, { clip: picture.room, holes: markBoxes(u, dx, dy, stacked), ...(picture.lit ? { lit: true } : {}), ...(picture.frame !== undefined ? { frame: picture.frame } : {}), ...(picture.flip ? { flip: true } : {}) });
+export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean, picture?: { room: ArtBox; lit?: boolean; frame?: number | undefined; flip?: boolean | undefined; opacity?: number | undefined }): void {
+  if (picture && unitArt(u.type)) drawUnitFigure(s, u.type, dx, dy, color, { clip: picture.room, holes: markBoxes(u, dx, dy, stacked), ...(picture.lit ? { lit: true } : {}), ...(picture.frame !== undefined ? { frame: picture.frame } : {}), ...(picture.flip ? { flip: true } : {}), ...(picture.opacity !== undefined && picture.opacity < 1 ? { opacity: picture.opacity } : {}) });
   else s.blit(unitSprite(u.type, color), dx, dy, SPRITE_CLEAR);
   // Whose it is: the owner's shield, a second one peeking out from behind for a stack.
   if (stacked) drawShield(s, dx, dy, SHIELD_AT + STACK_SHIFT, SHIELD_AT + STACK_SHIFT, darker(color), darker(color), -1);

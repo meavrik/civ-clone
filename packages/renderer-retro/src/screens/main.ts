@@ -286,8 +286,8 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     const isActive = top.id === activeId;
     // Units inside a city are hidden behind it unless active, like the original.
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
-    if (isActive && !view.blink) continue;
-    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id] });
+    // The unit in play breathes (`view.pulse`), its picture fading and back, never gone; its shield and marks stay.
+    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id], opacity: isActive ? view.pulse : undefined });
     const max = maxHp(state, top.type);
     if (top.hp < max) drawHpBar(s, pos[0], pos[1], top.hp, max);
   }

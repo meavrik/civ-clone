@@ -102,6 +102,8 @@ export interface ArtSpot extends ArtBox {
   reveal?: number;
   /** Darkened with the screen it stands on, under a window (`dimScreen`). */
   dim?: boolean;
+  /** How much of it shows, 0..1 (the unit in play breathing, `activePulse`); absent: whole. */
+  opacity?: number;
 }
 
 /**

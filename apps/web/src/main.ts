@@ -107,6 +107,7 @@ import {
   type Unit,
 } from "@civ/core";
 import {
+  activePulse,
   builtNotice,
   canResearch,
   civCard,
@@ -261,6 +262,14 @@ let status: string | undefined;
 let statusUntil = 0;
 let blinkOn = true;
 let lastBlink = 0;
+/** When the unit in play last came into play or acted: its breath (`activePulse`) starts whole from there. */
+let pulseFrom = 0;
+
+/** Show the unit in play whole again, its blink and breath starting over (it has just come into play or acted). */
+function restartBlink(): void {
+  blinkOn = true;
+  lastBlink = pulseFrom = performance.now();
+}
 
 function say(text: string, ms = 2500): void {
   status = text;
@@ -487,8 +496,7 @@ function finishHandoff(): void {
   if (!handoff) return;
   handoff = null;
   view.focus = undefined;
-  blinkOn = true;
-  lastBlink = performance.now();
+  restartBlink();
   followActive(true);
 }
 
@@ -757,8 +765,7 @@ function dispatch(cmd: Command): boolean {
     if (cmd.type !== "endTurn") afterAction("unit" in cmd ? cmd.unit : undefined);
   } else if (cmd.type === "work") refuseWork(cmd.unit, r.reason);
   else say(REASONS[r.reason] ?? r.reason);
-  blinkOn = true;
-  lastBlink = performance.now();
+  restartBlink();
   return r.ok;
 }
 
@@ -3131,8 +3138,7 @@ function tryMove(unit: number, dx: number, dy: number): void {
     if (city) openDiplomatMenu(unit, city.id);
     return;
   } else { sound.play("deny"); refuseMove(unit, dx, dy, r.reason); }
-  blinkOn = true;
-  lastBlink = performance.now();
+  restartBlink();
   afterUnitOrder(before, mark);
 }
 
@@ -3905,6 +3911,7 @@ function frame(t: number): void {
   if (staging?.started && !watching) staging = null;
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
+  view.pulse = handoff ? 1 : activePulse(t - pulseFrom);
   // What waits for the slides waits for a fight's zoom to end too, so the news opens on the player's zoom.
   if (!animating && afterSlides.length && screenState.kind === "map" && !battleZoom) for (const fn of afterSlides.splice(0)) fn();
   // The last unit ordered this turn: the turn ends by itself a moment later (see `actedThisTurn`).

@@ -60,6 +60,7 @@ export * from "./staging.js";
 export * from "./outbuilt.js";
 export * from "./reign.js";
 export * from "./loading.js";
+export * from "./pulse.js";
 import type { LoadingView } from "./loading.js";
 export * from "./resources.js";
 import { resourceNote } from "./resources.js";
@@ -142,8 +143,10 @@ export interface MainScreenView {
    * top-left corner held: fewer squares show, from the origin. The mobile app's pinch sets it.
    */
   zoom?: number | undefined;
-  /** Blink phase for the active unit. */
+  /** Blink phase: the unit in play's box on the minimap, "Press Enter" under End of Turn. */
   blink: boolean;
+  /** How much of the unit in play's picture shows, 0..1 (`activePulse`: it breathes, never gone); whole when unset. */
+  pulse?: number | undefined;
   /** Status message under the unit box (e.g. a refused move); wrapped to the panel. */
   message?: string | undefined;
   /** A note on the map beside a square: why the unit there could not move. */

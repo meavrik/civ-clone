@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, computeCity, createUnit, foundCity, getTile, newGame, setRelation, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, drawMenu, drawUnit, drawUnitFlash, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
+import { ACTIVE_PULSE, activePulse, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
@@ -198,6 +198,29 @@ describe("retro renderer", () => {
     for (let y = 9; y < 200; y++) for (let x = 80; x < 320; x++) expect(s.get(x, y), `pixel ${x},${y}`).toBe(expected.get(x, y));
     // The settlers are the user's picture, left a spot where they slide (the apps lay it there), none on their square.
     expect(s.art.filter((a) => a.unit).map((a) => [a.id, a.x, a.y])).toEqual([["settlers", px - 8, py]]);
+  });
+
+  it("lets the unit in play breathe, its picture faded and back but never gone, its shield steady", () => {
+    expect(activePulse(0)).toBe(1);
+    expect(activePulse(ACTIVE_PULSE.ms / 2)).toBeCloseTo(ACTIVE_PULSE.low);
+    for (let ms = 0; ms < 3000; ms += 50) expect(activePulse(ms)).toBeGreaterThanOrEqual(ACTIVE_PULSE.low - 1e-9);
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    state.activeUnit = u.id;
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false, placeNames: false };
+    const spot = (pulse: number | undefined) => {
+      const s = new Surface();
+      drawMainScreen(s, state, { ...view, pulse });
+      return { spot: s.art.find((a) => a.unit && a.id === u.type), s };
+    };
+    // Blink off no longer hides it: half a breath on its picture shows faded, whole at the top of it.
+    const faded = spot(ACTIVE_PULSE.low);
+    expect(faded.spot?.opacity).toBeCloseTo(ACTIVE_PULSE.low);
+    const whole = spot(1);
+    expect(whole.spot).toBeDefined();
+    expect(whole.spot?.opacity).toBeUndefined();
+    // The canvas under it (its shield and marks) is the same either way.
+    for (let i = 0; i < whole.s.data.length; i++) if (faded.s.data[i] !== whole.s.data[i]) throw new Error(`fine pixel ${i} differs`);
   });
 
   it("draws a fight: hit point bars, the flash of a blow, the burst of the loser, and wounds afterwards", () => {
