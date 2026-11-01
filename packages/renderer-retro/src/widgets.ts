@@ -6,6 +6,8 @@ import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { darker } from "./sprites/index.js";
 import { SCREEN_H, SCREEN_W, Surface } from "./surface.js";
 import { CITY_UNITS_BOX } from "./screens/city-layout.js";
+import { BAR_H } from "./screens/main-layout.js";
+import { drawSquareRing, drawWindowPoint, pointedPlace, type PointedPlace } from "./pointing.js";
 
 /**
  * Inks for text on the stone, every panel in the game: black, a dark grey for what matters
@@ -272,6 +274,8 @@ interface MenuLayout {
   count: number; room: number;
   /** A body line that must stay whole (`MenuState.oneLine`) broke all the same: the window is too narrow at this size. */
   wrapped: boolean;
+  /** Where it stands by the square it points at (`MenuState.point`), when there is room for that. */
+  place: PointedPlace | null;
 }
 
 /** The gap between a tabbed list's tabs, and under them before the rows. */
@@ -383,9 +387,13 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean)
   const h = head + bodyH + tabsH + itemsH + foot;
   let x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
   let y = m.anchor ? m.anchor.y : keep ? Math.max(0, floor - h) : Math.max(0, Math.floor((SCREEN_H - h) / 2));
-  if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
+  // By the square it tells of, pointing at it (`MenuState.point`), clear of the menu bar; else clear of the click.
+  const pointed = m.point && !m.anchor ? pointedPlace(screenW, m.point, { w, h }, BAR_H + 1) : null;
+  const place = pointed?.side ? pointed : null;
+  if (place) [x, y] = [place.win.x, place.win.y];
+  else if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
-  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + tabsH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH, tabH, count, room: fits ? count : rows, wrapped: !!m.oneLine && lines.length > (m.body?.length ?? 0) };
+  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + tabsH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH, tabH, count, room: fits ? count : rows, wrapped: !!m.oneLine && lines.length > (m.body?.length ?? 0), place };
 }
 
 export function menuRect(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x: number; y: number; w: number; h: number } {
@@ -490,11 +498,13 @@ export function drawEntering(s: Surface, enter: number, rect: { x: number; y: nu
 }
 
 export function drawMenu(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void, size = DESK_MENU): void {
-  // A titled window (not a dropdown, not the title screen's plain list) darkens what it opens over.
-  if (m.title && !m.anchor) dimScreen(s, menuLayout(m, s.width, size).keep ?? undefined);
-  // A window (not a dropdown) still opening grows into place.
+  const { place } = menuLayout(m, s.width, size);
+  // A titled window (not a dropdown, not the title screen's plain list) darkens what it opens over; the square it points at stays lit, ringed.
+  if (m.title && !m.anchor) dimScreen(s, menuLayout(m, s.width, size).keep ?? (place && m.point) ?? undefined);
+  if (place && m.point) drawSquareRing(s, m.point);
+  // A window (not a dropdown) still opening grows into place, out of its point when it has one.
   if (m.enter !== undefined && m.enter < 1 && !m.anchor) {
-    drawEntering(s, m.enter, menuRect(m, s.width, size), (t) => drawMenuNow(t, m, square, size));
+    drawEntering(s, m.enter, place?.bounds ?? menuRect(m, s.width, size), (t) => drawMenuNow(t, m, square, size), place?.tip ?? undefined);
     return;
   }
   drawMenuNow(s, m, square, size);
@@ -510,8 +520,9 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
   const titleH = t === 2 ? TITLE_H_LARGE : TITLE_H;
   const scrolls = rows < m.items.length;
   // A window or a dropdown covers the pictures under it (the map's units).
-  hideArtUnder(s, { x, y, w, h });
+  hideArtUnder(s, l.place?.bounds ?? { x, y, w, h });
   drawWindow(s, x, y, w, h, m.title, t === 2 ? { scale: 2 } : {});
+  if (l.place) drawWindowPoint(s, l.place);
   if (m.close && m.title) drawCloseBox(s, x + w - 3 - (titleH - 2), y + 3, titleH - 2);
   const bodyY = y + (m.title ? titleH + 6 : 4);
   if (m.square || m.unit) {

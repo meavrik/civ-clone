@@ -32,8 +32,8 @@ export interface PicturePlace {
     pixelated?: boolean;
     /** Mirrored, facing left (a unit, `UnitFacing`). */
     flip?: boolean;
-    /** How much of it shows, 0..1 (the unit in play breathing); absent: whole. */
-    opacity?: number;
+    /** A gold contour glowing round it, 0..1 how brightly (the unit in play, `activeGlow`); absent: none. */
+    contour?: number;
 }
 /** The audience picture of civilization `player`'s leader, at a box of the canvas; null if it has none. */
 export declare function scenePlace(state: GameState, player: number, box: Omit<PicturePlace, "url" | "fit">): PicturePlace | null;

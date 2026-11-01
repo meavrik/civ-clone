@@ -39,6 +39,7 @@ import { drawFounding } from "../founding.js";
 import { drawCity } from "./map-city.js";
 import { drawnOver, fineCopy } from "../art-holes.js";
 import { techLabel } from "./research.js";
+import { BAR_H, PANEL_W } from "./main-layout.js";
 
 /**
  * Main map screen layout, as in the original: a menu bar across the top, a
@@ -46,8 +47,7 @@ import { techLabel } from "./research.js";
  * wide, which fits an 80x50 minimap at one pixel per tile (a bigger world's
  * pixels each stand for a block of squares, see `minimapScale`).
  */
-export const BAR_H = 9;
-export const PANEL_W = 80;
+export { BAR_H, PANEL_W };
 export const VIEW_X = PANEL_W;
 export const VIEW_Y = BAR_H;
 export const VIEW_W = SCREEN_W - PANEL_W; // 240 = 15 tiles
@@ -288,8 +288,8 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     const isActive = top.id === activeId;
     // Units inside a city are hidden behind it unless active, like the original.
     if (!isActive && state.cities.some((c) => c.x === u.x && c.y === u.y)) continue;
-    // The unit in play breathes (`view.pulse`), its picture fading and back, never gone; its shield and marks stay.
-    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id], opacity: isActive ? view.pulse : undefined });
+    // The unit in play glows, a gold contour round it breathing brighter and dimmer (`view.glow`), never gone; its shield and marks stay.
+    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id], glow: isActive ? view.glow : undefined });
     const max = maxHp(state, top.type);
     if (top.hp < max) drawHpBar(s, pos[0], pos[1], top.hp, max);
   }
@@ -1108,7 +1108,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   const ink = INK;
   const dim = DIM;
   drawIconLine(s, TEXT_X, row("population")!.y, `{people}${populationShort(empirePopulation(state, me.id))}`, ink);
-  drawIconLine(s, TEXT_X, row("year")!.y, `{calendar} ${formatYear(turnToYear(state.turn))}`, ink);
+  // The year counting on as a turn passes (`view.year`), lit blue while it counts.
+  drawIconLine(s, TEXT_X, row("year")!.y, `{calendar} ${formatYear(view.year ?? turnToYear(state.turn))}`, view.year !== undefined ? NOTE : ink);
   drawIconLine(s, TEXT_X, row("gold")!.y, `{purse}${me.gold}`, L.treasury.ink);
   if (L.treasury.delta) drawText(s, L.treasury.deltaX, row("gold")!.y, L.treasury.delta, L.treasury.deltaInk);
   drawIconLine(s, L.ratesX, L.ratesY, ratesLine(state), dim);

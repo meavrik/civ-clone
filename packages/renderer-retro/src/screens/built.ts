@@ -8,6 +8,9 @@ import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
 import { dimScreen, hideArtUnder, drawEntering, drawStone, INK, speckle } from "../widgets.js";
 import { VIEW_Y } from "./main.js";
 import { drawModalTitle, drawWindowButton, fitText, modalHit } from "./newtech.js";
+import { drawSquareRing, drawWindowPoint, pointedPlace, type PointedPlace } from "../pointing.js";
+
+export { drawSquareRing, drawWindowPoint };
 
 /**
  * The Building Completed window, after the user's template (2026-10-24), a small window over the game:
@@ -44,57 +47,13 @@ const LINES = 3;
 const LINE_ROOM = 4 + ICON + 3 + 4;
 /** The window's least width. */
 const MIN_W = 140;
-/** How far the point reaches from the window's edge toward the city's ring. */
-const POINT = 6;
-/** The ring round the city's square: black outside, gold within. */
-const RING = 2;
-
-type Side = "above" | "below" | "right" | "left";
-/** Where the window stands: its rect, the side of the city it stands on and where its point ends (null when centred). */
-export interface BuiltPlace {
-  win: Rect;
-  side: Side | null;
-  /** The point's tip, on the ring's edge. */
-  tip: { x: number; y: number } | null;
-  /** The window and its point together (what grows on opening). */
-  bounds: Rect;
-}
+/** Where the window stands (`pointedPlace`, shared with the conquest window and the square's window). */
+export type BuiltPlace = PointedPlace;
 
 /** A window of `size` (the Building Completed window's, the conquest window's) on a screen `screenW` wide: by the city's square when given, else centred. */
 export function builtPlace(screenW: number, square: Rect | undefined, size: { w: number; h: number }): BuiltPlace {
-  const { w, h } = size;
-  const centred = { win: { x: Math.floor((screenW - w) / 2), y: Math.floor((SCREEN_H - h) / 2), w, h }, side: null, tip: null };
-  if (!square) return { ...centred, bounds: centred.win };
-  const cx = square.x + (square.w >> 1);
-  const cy = square.y + (square.h >> 1);
-  // Clear of the menu bar, the shadow (2 pixels down and right) on the screen.
-  const top = VIEW_Y + 1;
-  const xIn = (x: number) => Math.max(1, Math.min(screenW - w - 3, x));
-  const yIn = (y: number) => Math.max(top, Math.min(SCREEN_H - h - 3, y));
-  // The point's foot along the window's edge, kept off its corners.
-  const along = (c: number, from: number, len: number) => Math.max(from + POINT + 2, Math.min(from + len - POINT - 3, c));
-  const reach = RING + POINT;
-  const above = square.y - reach - h;
-  if (above >= top) {
-    const win = { x: xIn(cx - (w >> 1)), y: above, w, h };
-    return { win, side: "above", tip: { x: along(cx, win.x, w), y: square.y - RING - 1 }, bounds: { ...win, h: h + POINT } };
-  }
-  const below = square.y + square.h + reach;
-  if (below + h + 2 <= SCREEN_H) {
-    const win = { x: xIn(cx - (w >> 1)), y: below, w, h };
-    return { win, side: "below", tip: { x: along(cx, win.x, w), y: square.y + square.h + RING }, bounds: { ...win, y: below - POINT, h: h + POINT } };
-  }
-  const right = square.x + square.w + reach;
-  if (right + w + 2 <= screenW) {
-    const win = { x: right, y: yIn(cy - (h >> 1)), w, h };
-    return { win, side: "right", tip: { x: square.x + square.w + RING, y: along(cy, win.y, h) }, bounds: { ...win, x: right - POINT, w: w + POINT } };
-  }
-  const left = square.x - reach - w;
-  if (left >= 1) {
-    const win = { x: left, y: yIn(cy - (h >> 1)), w, h };
-    return { win, side: "left", tip: { x: square.x - RING - 1, y: along(cy, win.y, h) }, bounds: { ...win, w: w + POINT } };
-  }
-  return { ...centred, bounds: centred.win };
+  // Clear of the menu bar.
+  return pointedPlace(screenW, square, size, VIEW_Y + 1);
 }
 
 type InfoLine = { icon: IconName; text: string; quiet?: boolean };
@@ -144,7 +103,6 @@ const PARCHMENT = () => shade("hide", 7);
 const PARCHMENT_DARK = () => shade("hide", 6);
 const RULE = () => shade("panel", 2);
 const QUIET = () => shade("panel", 2);
-const STONE = () => shade("panel", 5);
 
 /** What lies under a point: the button (View City), the close box (a little round it counts too), the city pointed at (View City), or nothing. */
 export function builtHit(state: GameState, view: BuiltView, px: number, py: number, screenW = SCREEN_W): BuiltHit | null {
@@ -171,37 +129,6 @@ function drawEnlarged(s: Surface, b: Rect, px: Int16Array, gw: number, gh: numbe
       const c = px[j * gw + i]!;
       if (c >= 0) s.rect(x0 + i * k, y0 + j * k, k, k, c);
     }
-}
-
-/** The city's square ringed: black outside, gold within, so it shows on any ground (the conquest window's too). */
-export function drawSquareRing(s: Surface, q: Rect): void {
-  s.frame(q.x - 2, q.y - 2, q.w + 4, q.h + 4, C.BLACK!);
-  s.frame(q.x - 1, q.y - 1, q.w + 2, q.h + 2, GOLD());
-}
-
-/**
- * The window's point: a wedge of its stone, rimmed in black, from its edge (joining the stone through
- * the frame) to the tip on the city's ring, narrowing a pixel a side each step.
- */
-export function drawWindowPoint(s: Surface, p: BuiltPlace): void {
-  const { side, tip, win } = p;
-  if (!side || !tip) return;
-  // Step i from the window's edge (0, the frame's line) to the tip (POINT).
-  for (let i = 0; i <= POINT; i++) {
-    const half = POINT - i;
-    const span = (c: number, r: number, color: number) => {
-      if (side === "above" || side === "below") {
-        const y = side === "above" ? win.y + win.h - 1 + i : win.y - i;
-        s.hline(c - r, y, 2 * r + 1, color);
-      } else {
-        const x = side === "left" ? win.x + win.w - 1 + i : win.x - i;
-        s.vline(x, c - r, 2 * r + 1, color);
-      }
-    };
-    const c = side === "above" || side === "below" ? tip.x : tip.y;
-    span(c, half, C.BLACK!);
-    if (half >= 1) span(c, half - 1, STONE());
-  }
 }
 
 export function drawBuilt(s: Surface, state: GameState, view: BuiltView): void {

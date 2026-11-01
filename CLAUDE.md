@@ -776,8 +776,12 @@ Never ship the original's sprites, palette art, fonts or text.
   defence, a few words on the terrain (`TERRAIN_TEXT`, our own) and what the resource, river and shield
   grassland add; then improvements, whose land it is and which of our cities works it, the city, units
   and jobs, and the site note for settlers; an Improvements line; the only button Open city, on our city (Go
-  here removed 2026-10-23, asked for); it opens clear of the square clicked, `MenuState.avoid`, so a second
-  click there closes it), closed by the X in its title
+  here removed 2026-10-23, asked for); it stands by its square and points at it (asked for 2026-11-01: "the tile
+  should be highlited and info window points with an arrow towards the tile"; `MenuState.point`, the square's rect
+  from `Renderer.squareRect` each frame): above it, else below or beside it, a point of its stone reaching to a gold
+  ring round the square, which stays lit while the map darkens, as the Building Completed window stands by its city
+  (renderer-retro `pointing.ts`: `pointedPlace`, `drawSquareRing`, `drawWindowPoint`, shared by the three); with no
+  room so it opens clear of the square clicked (`MenuState.avoid`); either way a second click there closes it), closed by the X in its title
   strip (`MenuState.close`; retro draws it, modern ignores it; any click off a window's choices closes
   it). On the phone a tap moves the unit in play onto a square not ours, else is a left-click; a hold on
   our city or units moves it in, elsewhere shows the square's window (see apps/mobile).
@@ -802,7 +806,11 @@ Never ship the original's sprites, palette art, fonts or text.
   (core `whyNoWork` gives the code, "needs:<advance>" for a missing advance; `workRefusal` the words);
   R asks for a road where the square has none, rails only on a road. A river takes a road once its civ
   knows Bridge Building, as in the original (before, never; no save version: the planner builds no
-  roads on rivers and an old log holds no refused order). Both status panels show the research under way
+  roads on rivers and an old log holds no refused order). As a turn passes the status panel's year counts on to
+  the new one (asked for 2026-11-01: "when years pass - show numbers animation passing quickly to new updated year"):
+  through the years between, fast then slowing, over `YEAR_COUNT_MS` (900), in blue while it counts (renderer-api
+  `year.ts`, `countedYear`, never year 0; `MainScreenView.year`, the web app's `stepYear`; a game started or loaded
+  shows its year at once). Both status panels show the research under way
   (`researchOutlook`: advance, beakers, turns to go), and nothing while none is picked. Panel tips
   (asked for 2026-10-26: "add tooltips for each relevant element - not clear now. money, taxes, science,
   governance type etc"): every part of the status panel but the minimap (`PanelPart`: population, year, treasury,
@@ -992,10 +1000,13 @@ Never ship the original's sprites, palette art, fonts or text.
   at least 3 squares), in its colour ringed black in the font, before the continents' small capitals, which
   take the room left (`minimapNames`).
   The unit awaiting orders blinks on the minimap in a yellow box (modern: a ring), so it can be found
-  from anywhere. On the map it breathes (asked for 2026-11-01: "make more subtle. no 0 opacity"; it had blinked
-  out every 400 ms): its picture fades to `ACTIVE_PULSE.low` (0.55) and back over 1.4 s, eased, whole as it comes
-  into play or acts (renderer-api `pulse.ts`, `activePulse`, `MainScreenView.pulse`, `ArtSpot.opacity`), its shield
-  and marks steady. City names stand under their squares on the map (retro: the owner's colour ringed in
+  from anywhere. On the map it glows (asked for 2026-11-01, in turn: it blinked out every 400 ms; then
+  faded to 55% and back, "make more subtle. no 0 opacity"; then a grey silhouette, "too subtle now"; then "still not
+  good - change to glow countor instead"): a gold line a fine pixel wide traced round its figure and a soft gold haze
+  beyond, breathing between `ACTIVE_GLOW.low` (0.4) and full over 1.2 s, brightest as it comes into play or acts and
+  steady while the view lingers on a unit that just acted (renderer-api `pulse.ts`, `activeGlow`, `MainScreenView.glow`,
+  `ArtSpot.contour`; the web app's `goldContour`, CSS drop-shadows on its picture, which follow its shape; retro
+  `drawContour` on the canvas round a unit drawn as a sprite). The unit, its shield and marks are untouched. City names stand under their squares on the map (retro: the owner's colour ringed in
   black, drawn before the units so a name never hides one; asked for 2026-10-21).
   Roads and fields (`works.ts`): roads wander. Each square has a meeting point near its centre, and
   the course to each known road neighbour's bows and snakes, keyed by the pair and laid from the same

@@ -52,8 +52,8 @@ export interface PicturePlace {
   pixelated?: boolean;
   /** Mirrored, facing left (a unit, `UnitFacing`). */
   flip?: boolean;
-  /** How much of it shows, 0..1 (the unit in play breathing); absent: whole. */
-  opacity?: number;
+  /** A gold contour glowing round it, 0..1 how brightly (the unit in play, `activeGlow`); absent: none. */
+  contour?: number;
 }
 
 /** The audience picture of civilization `player`'s leader, at a box of the canvas; null if it has none. */
@@ -85,7 +85,7 @@ export function buildingPlaces(spots: ArtSpot[], screen: { dx: number; logicalW:
     // An animated unit shows its frame in its owner's colour (none until its atlas is in).
     const anim = spot.unit ? unitAnim(spot.id) : null;
     const url = anim ? unitFrameUrl(spot.id, spot.frame ?? anim.rule.idle, spot.owner) : spot.unit ? unitUrl(spot.id) : spot.city ? cityUrl(spot.id) : buildingUrl(spot.id);
-    if (box && url) out.push({ url, fit: "fill", ...(anim?.rule.pixelated ? { pixelated: true } : {}), ...box, x: box.x + screen.dx, logicalW: screen.logicalW, logicalH: screen.logicalH, z, ...(spot.lit ? { glow: true } : {}), ...(spot.reveal !== undefined ? { reveal: spot.reveal } : {}), ...(spot.dim ? { dim: true } : {}), ...(spot.unseen ? { unseen: true } : {}), clip: spot.clip ? { ...spot.clip, x: spot.clip.x + screen.dx } : { x: screen.dx, y: 0, w: screen.logicalW - 2 * screen.dx, h: screen.logicalH }, ...(spot.holes ? { holes: spot.holes.map((h) => ({ ...h, x: h.x + screen.dx })) } : {}), ...(spot.turn !== undefined ? { turn: spot.turn } : {}), ...(spot.water !== undefined ? { water: spot.water } : {}), ...(spot.flip ? { flip: true } : {}), ...(spot.opacity !== undefined ? { opacity: spot.opacity } : {}) });
+    if (box && url) out.push({ url, fit: "fill", ...(anim?.rule.pixelated ? { pixelated: true } : {}), ...box, x: box.x + screen.dx, logicalW: screen.logicalW, logicalH: screen.logicalH, z, ...(spot.lit ? { glow: true } : {}), ...(spot.reveal !== undefined ? { reveal: spot.reveal } : {}), ...(spot.dim ? { dim: true } : {}), ...(spot.unseen ? { unseen: true } : {}), clip: spot.clip ? { ...spot.clip, x: spot.clip.x + screen.dx } : { x: screen.dx, y: 0, w: screen.logicalW - 2 * screen.dx, h: screen.logicalH }, ...(spot.holes ? { holes: spot.holes.map((h) => ({ ...h, x: h.x + screen.dx })) } : {}), ...(spot.turn !== undefined ? { turn: spot.turn } : {}), ...(spot.water !== undefined ? { water: spot.water } : {}), ...(spot.flip ? { flip: true } : {}), ...(spot.contour ? { contour: spot.contour } : {}) });
   });
   return out;
 }
@@ -241,6 +241,19 @@ function clipInset(at: PicturePlace, reveal: number): string {
   return (at.flip ? [top, left, bottom, right] : [top, right, bottom, left]).map((v) => `${v.toFixed(1)}%`).join(" ");
 }
 
+/**
+ * The unit in play's glow (`PicturePlace.contour`, 0..1): a crisp gold line a fine pixel wide traced round the figure's
+ * shape (four unblurred shadows a fine pixel out, each tracing the last), never fainter than half, and a soft gold haze
+ * beyond it, breathing with `glow`. `sx` is screen pixels to the canvas's logical pixel (two fine pixels).
+ */
+function goldContour(glow: number, sx: number): string {
+  const k = Math.max(1, Math.round(sx / 2));
+  const line = `rgba(249, 217, 96, ${(0.5 + 0.5 * glow).toFixed(3)})`;
+  const haze = `rgba(255, 200, 60, ${(0.85 * glow).toFixed(3)})`;
+  return [`drop-shadow(${k}px 0 0 ${line})`, `drop-shadow(-${k}px 0 0 ${line})`, `drop-shadow(0 ${k}px 0 ${line})`, `drop-shadow(0 -${k}px 0 ${line})`,
+    `drop-shadow(0 0 ${(k * (1 + 2 * glow)).toFixed(1)}px ${haze})`].join(" ");
+}
+
 /** Show these pictures over `canvas` and no others. Call once a frame; it changes the page only where something moved. */
 export function showPictures(canvas: HTMLCanvasElement, places: PicturePlace[]): void {
   const r = places.length ? canvas.getBoundingClientRect() : null;
@@ -258,15 +271,15 @@ export function showPictures(canvas: HTMLCanvasElement, places: PicturePlace[]):
     const inset = clipInset(at, reveal);
     const clip = at.water !== undefined ? waterClip(at, sx, sy) : at.holes?.length ? clipPath(at, sx, sy) : inset ? `inset(${inset})` : "none";
     const turn = [at.flip ? "scaleX(-1)" : "", at.turn ? `rotate(${at.turn.toFixed(2)}deg)` : ""].filter(Boolean).join(" ") || "none";
-    const opacity = at.opacity !== undefined ? at.opacity.toFixed(3) : "1";
-    const key = `${at.fit} ${box.join(" ")} ${at.z ?? 0} ${at.glow ? 1 : 0} ${clip} ${turn} ${at.dim ? 1 : 0} ${at.unseen ? 1 : 0} ${opacity}`;
+    const contour = at.contour ? at.contour.toFixed(3) : "";
+    const key = `${at.fit} ${box.join(" ")} ${at.z ?? 0} ${at.glow ? 1 : 0} ${clip} ${turn} ${at.dim ? 1 : 0} ${at.unseen ? 1 : 0} ${contour}`;
     if (key === slot.key) continue;
     // A rising picture shows from its foot up (clipped from the top), a unit within the map's view and round its marks; one under a window is darkened with the screen.
-    const filters = [at.glow ? "drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)" : "", at.unseen ? "brightness(62%)" : "", at.dim ? "brightness(45%)" : ""].filter(Boolean);
+    const filters = [at.contour ? goldContour(at.contour, sx) : "", at.glow ? "drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)" : "", at.unseen ? "brightness(62%)" : "", at.dim ? "brightness(45%)" : ""].filter(Boolean);
     Object.assign(slot.img.style, {
       display: "block", left: `${box[0]}px`, top: `${box[1]}px`, width: `${box[2]}px`, height: `${box[3]}px`,
       objectFit: at.fit === "contain" ? "contain" : "fill", objectPosition: "50% 100%",
-      zIndex: String(1 + (at.z ?? 0)), filter: filters.length ? filters.join(" ") : "none", opacity,
+      zIndex: String(1 + (at.z ?? 0)), filter: filters.length ? filters.join(" ") : "none",
       clipPath: clip, transform: turn, transformOrigin: "50% 100%", imageRendering: at.pixelated ? "pixelated" : "auto",
     });
     slot.key = key;

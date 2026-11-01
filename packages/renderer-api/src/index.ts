@@ -61,6 +61,7 @@ export * from "./outbuilt.js";
 export * from "./reign.js";
 export * from "./loading.js";
 export * from "./pulse.js";
+export * from "./year.js";
 import type { LoadingView } from "./loading.js";
 export * from "./resources.js";
 import { resourceNote } from "./resources.js";
@@ -145,8 +146,10 @@ export interface MainScreenView {
   zoom?: number | undefined;
   /** Blink phase: the unit in play's box on the minimap, "Press Enter" under End of Turn. */
   blink: boolean;
-  /** How much of the unit in play's picture shows, 0..1 (`activePulse`: it breathes, never gone); whole when unset. */
-  pulse?: number | undefined;
+  /** The year the status panel shows while it counts on to the turn's (`countedYear`), lit; the turn's own when unset. */
+  year?: number | undefined;
+  /** How brightly the gold contour round the unit in play glows, 0..1 (`activeGlow`); none when unset or 0. */
+  glow?: number | undefined;
   /** Status message under the unit box (e.g. a refused move); wrapped to the panel. */
   message?: string | undefined;
   /** A note on the map beside a square: why the unit there could not move. */
@@ -289,6 +292,13 @@ export interface MenuState {
    * pointer and a second click there only closes it. Modern ignores it.
    */
   avoid?: { x: number; y: number };
+  /**
+   * The square the window tells of, on the screen (`Renderer.squareRect`; asked for 2026-11-01: "the tile should be
+   * highlited and info window points with an arrow towards the tile"): the window stands by it as the Building
+   * Completed window stands by its city, above it, else below or beside it, a point of its stone reaching to a gold
+   * ring round the square, which stays lit while the rest darkens; with no room so, `avoid` places it. Modern ignores it.
+   */
+  point?: { x: number; y: number; w: number; h: number };
   /**
    * A map square shown at the head of the window beside its first lines, twice the map's size and as the
    * map draws it (the square's window, `terrainInfo`); drawn when `Renderer.menu` is handed the game.

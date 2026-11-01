@@ -108,7 +108,8 @@ import {
   type Unit,
 } from "@civ/core";
 import {
-  activePulse,
+  activeGlow,
+  countedYear,
   builtNotice,
   canResearch,
   civCard,
@@ -183,6 +184,7 @@ import {
   terrainInfo,
   TEXT_INPUT_MAX,
   WINDOW_ENTER_MS,
+  YEAR_COUNT_MS,
   type RateRow,
   type ResearchView,
   type CityScreenView,
@@ -264,13 +266,29 @@ let status: string | undefined;
 let statusUntil = 0;
 let blinkOn = true;
 let lastBlink = 0;
-/** When the unit in play last came into play or acted: its breath (`activePulse`) starts whole from there. */
-let pulseFrom = 0;
+/** The turn the status panel's year was last set for, and the count on from the year before as a turn passes (`countedYear`). */
+let yearTurn = -1;
+let yearCount: { from: number; to: number; at: number } | null = null;
 
-/** Show the unit in play whole again, its blink and breath starting over (it has just come into play or acted). */
+/** Each frame: as a turn passes the panel's year counts on to the new one; a game started or loaded shows its year at once. */
+function stepYear(t: number): void {
+  if ((state as GameState | undefined) === undefined) return;
+  if (state.turn !== yearTurn) {
+    yearCount = yearTurn >= 0 && state.turn === yearTurn + 1 ? { from: turnToYear(yearTurn), to: turnToYear(state.turn), at: t } : null;
+    yearTurn = state.turn;
+  }
+  const k = yearCount ? (t - yearCount.at) / YEAR_COUNT_MS : 1;
+  view.year = yearCount && k < 1 ? countedYear(yearCount.from, yearCount.to, k) : undefined;
+  if (k >= 1) yearCount = null;
+}
+
+/** When the unit in play last came into play or acted: its glow (`activeGlow`) breathes from there, brightest. */
+let glowFrom = 0;
+
+/** Light the unit in play's glow full again, its blink and breath starting over (it has just come into play or acted). */
 function restartBlink(): void {
   blinkOn = true;
-  lastBlink = pulseFrom = performance.now();
+  lastBlink = glowFrom = performance.now();
 }
 
 function say(text: string, ms = 2500): void {
@@ -3877,6 +3895,12 @@ function draw(sc: Screen): void {
       draw(sc.under);
       view.menuOpen = undefined;
       if (sc.bar === undefined && !sc.sub) sc.menu.enter = enterOf(sc.menu);
+      // The square's window over the map stands by its square, pointing at it, wherever the camera has it.
+      if (sc.menu.square && sc.under.kind === "map") {
+        const at = renderer.squareRect?.(state, view, sc.menu.square.x, sc.menu.square.y);
+        if (at) sc.menu.point = at;
+        else delete sc.menu.point;
+      }
       renderer.menu(sc.menu, state as GameState | undefined);
       if (status && sc.under.kind !== "map" && !sc.sub) renderer.statusLine(status);
       break;
@@ -3927,7 +3951,9 @@ function frame(t: number): void {
   if (staging?.started && !watching) staging = null;
   stepHandoff(t, animating);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
-  view.pulse = handoff ? 1 : activePulse(t - pulseFrom);
+  // The unit that just acted glows steady while the view lingers on it.
+  view.glow = handoff ? 1 : activeGlow(t - glowFrom);
+  stepYear(t);
   // What waits for the slides waits for a fight's zoom to end too, so the news opens on the player's zoom.
   if (!animating && afterSlides.length && screenState.kind === "map" && !battleZoom) for (const fn of afterSlides.splice(0)) fn();
   // The last unit ordered this turn: the turn ends by itself a moment later (see `actedThisTurn`).

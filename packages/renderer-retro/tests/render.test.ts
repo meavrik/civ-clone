@@ -2,9 +2,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { DIMMED, mixColor } from "../src/palette.js";
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, computeCity, createUnit, foundCity, getTile, newGame, setRelation, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
-import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, buttonFace, buttonLook, drawButton, drawMenu, drawUnit, drawUnitFlash, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
+import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, buttonFace, buttonLook, drawButton, drawContour, drawMenu, drawUnit, drawUnitFlash, unitSprite, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { ACTIVE_PULSE, activePulse, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
+import { ACTIVE_GLOW, activeGlow, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
@@ -219,27 +219,65 @@ describe("retro renderer", () => {
     expect(buttonFace(new Surface(10, 10), 0, 0, 10, 10, buttonLook(false))).toBe(C.BLACK!);
   });
 
-  it("lets the unit in play breathe, its picture faded and back but never gone, its shield steady", () => {
-    expect(activePulse(0)).toBe(1);
-    expect(activePulse(ACTIVE_PULSE.ms / 2)).toBeCloseTo(ACTIVE_PULSE.low);
-    for (let ms = 0; ms < 3000; ms += 50) expect(activePulse(ms)).toBeGreaterThanOrEqual(ACTIVE_PULSE.low - 1e-9);
+  it("stands the square's window by its square, pointing at it, the square ringed and lit", () => {
+    const state = newGame(2026);
+    const u = state.units[0]!;
+    const info = terrainInfo(state, u.x, u.y);
+    const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true, placeNames: false };
+    const square = { x: 80 + (u.x - view.originX) * 16, y: 9 + (u.y - view.originY) * 16, w: 16, h: 16 };
+    const menu: MenuState = { title: info.title, body: info.lines, items: [], selected: -1, close: true, square: { x: u.x, y: u.y }, point: square };
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    drawMenu(s, menu);
+    writeFileSync(new URL("./out/square-window.png", import.meta.url), encodePng(s, 3));
+    const r = menuRect(menu);
+    // Clear of the square, beside it, the ring gold round it.
+    expect(r.y + r.h <= square.y - 2 || r.y >= square.y + square.h + 2 || r.x >= square.x + square.w + 2 || r.x + r.w <= square.x - 2).toBe(true);
+    expect(s.get(square.x - 1, square.y + 8)).toBe(shade("wheat", 6));
+    expect(s.get(square.x - 2, square.y + 8)).toBe(C.BLACK!);
+    // Its point of stone reaches from the window toward the square, between them.
+    const below = r.y >= square.y + square.h;
+    const tipY = below ? r.y - 3 : r.y + r.h + 2;
+    expect(isStone(s.get(square.x + 8, tipY)) || s.get(square.x + 8, tipY) === C.BLACK!).toBe(true);
+    // A window without room to point stands as before, clear of the click.
+    expect(menuRect({ ...menu, point: { x: 0, y: 0, w: 320, h: 200 } })).toEqual(menuRect({ ...menu, point: undefined } as MenuState));
+  });
+
+  it("rings the unit in play in a glowing gold contour, breathing but never gone, the unit and its shield untouched", () => {
+    const { low, ms } = ACTIVE_GLOW;
+    expect(activeGlow(0)).toBe(1);
+    expect(activeGlow(ms / 2)).toBeCloseTo(low);
+    for (let t = 0; t < 3000; t += 25) expect(activeGlow(t)).toBeGreaterThanOrEqual(low - 1e-9);
     const state = newGame(2026);
     const u = state.units[0]!;
     state.activeUnit = u.id;
     const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: false, placeNames: false };
-    const spot = (pulse: number | undefined) => {
+    const spot = (glow: number | undefined) => {
       const s = new Surface();
-      drawMainScreen(s, state, { ...view, pulse });
+      drawMainScreen(s, state, { ...view, glow });
       return { spot: s.art.find((a) => a.unit && a.id === u.type), s };
     };
-    // Blink off no longer hides it: half a breath on its picture shows faded, whole at the top of it.
-    const faded = spot(ACTIVE_PULSE.low);
-    expect(faded.spot?.opacity).toBeCloseTo(ACTIVE_PULSE.low);
-    const whole = spot(1);
-    expect(whole.spot).toBeDefined();
-    expect(whole.spot?.opacity).toBeUndefined();
+    // Blink off no longer hides it: its picture carries the glow (the apps trace it), none without.
+    const lit = spot(0.7);
+    expect(lit.spot?.contour).toBeCloseTo(0.7);
+    const plain = spot(undefined);
+    expect(plain.spot).toBeDefined();
+    expect(plain.spot?.contour).toBeUndefined();
     // The canvas under it (its shield and marks) is the same either way.
-    for (let i = 0; i < whole.s.data.length; i++) if (faded.s.data[i] !== whole.s.data[i]) throw new Error(`fine pixel ${i} differs`);
+    for (let i = 0; i < plain.s.data.length; i++) if (lit.s.data[i] !== plain.s.data[i]) throw new Error(`fine pixel ${i} differs`);
+    // A unit drawn as a sprite has the contour drawn round its figure on the canvas, in gold, outside the figure only.
+    const sprite = unitSprite("legion", playerColor(state, 0));
+    const c = Surface.screen();
+    drawContour(c, sprite, 40, 40, 1);
+    const gold = new Set(Array.from({ length: 8 }, (_, i) => shade("wheat", i)));
+    let ring = 0;
+    for (let y = 0; y < sprite.fh; y++)
+      for (let x = 0; x < sprite.fw; x++) {
+        const v = c.fget(40 * c.k + x, 40 * c.k + y);
+        if (sprite.fget(x, y) !== SPRITE_CLEAR) expect(gold.has(v)).toBe(false);
+        else if (gold.has(v)) ring++;
+      }
+    expect(ring).toBeGreaterThan(20);
   });
 
   it("draws a fight: hit point bars, the flash of a blow, the burst of the loser, and wounds afterwards", () => {

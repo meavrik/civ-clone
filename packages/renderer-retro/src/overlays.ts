@@ -445,6 +445,29 @@ export function drawUnitFigure(s: Surface, type: string, x: number, y: number, c
   else s.blit(unitSprite(type, color), x, y, SPRITE_CLEAR);
 }
 
+/**
+ * A gold contour round a sprite's figure at (dx, dy), as the pictures glow round theirs (the unit in play): the clear
+ * fine pixels touching the figure, side or corner, lit by `glow` (0..1) from a deep gold to the brightest, and from
+ * half on a fainter ring a fine pixel further out. Only clear pixels are set, so the figure blitted after stands whole.
+ */
+export function drawContour(s: Surface, sprite: Surface, dx: number, dy: number, glow: number): void {
+  const w = sprite.fw, h = sprite.fh;
+  const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && sprite.fget(x, y) !== SPRITE_CLEAR;
+  const near = (x: number, y: number, r: number) => {
+    for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (solid(x + i, y + j)) return true;
+    return false;
+  };
+  const inner = shade("wheat", Math.round(3 + 4 * glow));
+  const outer = shade("wheat", Math.round(1 + 3 * glow));
+  const ox = dx * s.k, oy = dy * s.k;
+  for (let y = -2; y < h + 2; y++)
+    for (let x = -2; x < w + 2; x++) {
+      if (solid(x, y)) continue;
+      if (near(x, y, 1)) s.fset(ox + x, oy + y, inner);
+      else if (glow >= 0.5 && near(x, y, 2)) s.fset(ox + x, oy + y, outer);
+    }
+}
+
 /** Where a unit's rank shows through its picture on a square at (x, y) (the city screen's units): its chevrons' box, none for a recruit. */
 export function rankHoles(x: number, y: number, xp: number): ArtBox[] {
   const box = rankMarkBox(x, y, xp);
@@ -455,12 +478,16 @@ export function rankHoles(x: number, y: number, xp: number): ArtBox[] {
  * A unit on its square. Given `picture` (the room pictures may show in: the map's view), a unit the user
  * drew a picture of (`unitArt`) leaves a spot for it (`Surface.art`; the apps lay it there as it is, over
  * the canvas) in place of its sprite, `lit` ringed in light (a blow landing on it), `frame` its pose (an animated
- * unit's, `UnitAnimator`), `flip` facing left (`UnitFacing`), `opacity` how much of it shows (the unit in play breathing), its
+ * unit's, `UnitAnimator`), `flip` facing left (`UnitFacing`), `glow` how brightly a gold contour glows round it (the unit in play), its
  * marks drawn on the canvas showing through it (a wounded unit's hit points lie on its shield).
  */
-export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean, picture?: { room: ArtBox; lit?: boolean; frame?: number | undefined; flip?: boolean | undefined; opacity?: number | undefined }): void {
-  if (picture && unitArt(u.type)) drawUnitFigure(s, u.type, dx, dy, color, { clip: picture.room, holes: markBoxes(u, dx, dy, stacked), ...(picture.lit ? { lit: true } : {}), ...(picture.frame !== undefined ? { frame: picture.frame } : {}), ...(picture.flip ? { flip: true } : {}), ...(picture.opacity !== undefined && picture.opacity < 1 ? { opacity: picture.opacity } : {}) });
-  else s.blit(unitSprite(u.type, color), dx, dy, SPRITE_CLEAR);
+export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean, picture?: { room: ArtBox; lit?: boolean; frame?: number | undefined; flip?: boolean | undefined; glow?: number | undefined }): void {
+  if (picture && unitArt(u.type)) drawUnitFigure(s, u.type, dx, dy, color, { clip: picture.room, holes: markBoxes(u, dx, dy, stacked), ...(picture.lit ? { lit: true } : {}), ...(picture.frame !== undefined ? { frame: picture.frame } : {}), ...(picture.flip ? { flip: true } : {}), ...(picture.glow ? { contour: picture.glow } : {}) });
+  else {
+    const sprite = unitSprite(u.type, color);
+    if (picture?.glow) drawContour(s, sprite, dx, dy, picture.glow);
+    s.blit(sprite, dx, dy, SPRITE_CLEAR);
+  }
   // Whose it is: the owner's shield, a second one peeking out from behind for a stack.
   if (stacked) drawShield(s, dx, dy, SHIELD_AT + STACK_SHIFT, SHIELD_AT + STACK_SHIFT, darker(color), darker(color), -1);
   drawShield(s, dx, dy, SHIELD_AT, SHIELD_AT, color, darker(color));
