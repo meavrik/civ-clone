@@ -119,6 +119,7 @@ import {
   type WorldSize,
   influenceSpecials,
   specialFor,
+  specialLocked,
   yieldingSpecial,
 } from "@civ/core";
 
@@ -900,7 +901,10 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
   const sp = !state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial && !t.deposit ? undefined : specialFor(state, t, me.id);
   const features = [
     // As it yields: a strategic resource adds no shields since save version 52 (core `yieldingSpecial`).
-    sp && `{star} ${sp.name} ${specialGain(yieldingSpecial(state, sp))}`.trimEnd(),
+    // Fish feed no one until a Fishing Boat lays a fishery (since save version 54): the line says what one would bring.
+    sp && (specialLocked(state, t, sp)
+      ? `{star} ${sp.name}: ${specialGain({ food: (sp.food ?? 0) + (sp.fishery?.food ?? 0), shields: (sp.shields ?? 0) + (sp.fishery?.shields ?? 0), trade: (sp.trade ?? 0) + (sp.fishery?.trade ?? 0) })} once a Fishing Boat lays a fishery`
+      : `{star} ${sp.name} ${specialGain(yieldingSpecial(state, sp))}`.trimEnd()),
     t.grassShield && t.terrain === Terrain.Grassland && "{shield} Shield grassland +1 {shield}",
     t.river && `{river} River +1 {trade}${state.freecivYields ? "" : ", no road trade"}`,
     t.railroad ? "{railroad} Railroad" : t.road && "{road} Road",

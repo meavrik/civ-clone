@@ -52,8 +52,8 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
   let trade = r.trade;
   // Grassland's first special counts only in games before version 26; since then its shields lie on the original's bands.
   const found = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial && !tile.deposit ? undefined : specialFor(state, tile, owner);
-  // A strategic resource adds no shields since save version 52 (`yieldingSpecial`).
-  const sp = found && yieldingSpecial(state, found);
+  // A strategic resource adds no shields since save version 52 (`yieldingSpecial`); Fish feed no one without a fishery since 54.
+  const sp = found && !specialLocked(state, tile, found) ? yieldingSpecial(state, found) : undefined;
   if (sp) {
     food += sp.food ?? 0;
     shields += sp.shields ?? 0;
@@ -100,6 +100,14 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
     trade = Math.floor(trade / 2);
   }
   return { food, shields, trade };
+}
+
+/**
+ * Whether a special on `tile` yields nothing of its own yet: one a fishery unlocks (`SpecialRule.fishery.unlocks`, Fish)
+ * with none laid there, since save version 54 (`freeFish`: before, Fish fed a city as they lay).
+ */
+export function specialLocked(state: Pick<GameState, "freeFish">, tile: Pick<Tile, "fishery">, sp: SpecialRule): boolean {
+  return !!sp.fishery?.unlocks && !tile.fishery && !state.freeFish;
 }
 
 /** Advances that make each citizen pollute a little more. */

@@ -23,13 +23,16 @@ const UNKNOWN_SQUARE = 5;
  * Value of founding a city at (x, y): yields of the 21-tile radius plus terrain bonuses; null if unfit.
  * With `known` (a player's explored squares) only what that player has seen counts: an unseen centre is
  * unfit, an unseen square of the radius counts `UNKNOWN_SQUARE` and is not land. With `player`, a resource
- * it has yet to reveal (`specialFor`) counts as the plain terrain under it.
+ * it has yet to reveal (`specialFor`) counts as the plain terrain under it. A city is founded for the long run, so fish
+ * count for the food they give once fished, as they fed a city before save version 54 (`freeFish`), not the plain sea
+ * a city works until a Fishing Boat comes: starts and the computer players' sites stay where they were.
  */
 export function siteScore(state: GameState, x: number, y: number, known?: Uint8Array, player?: number): number | null {
   const t = getTile(state.map, x, y);
   if (!t || !SITE_CENTRES.has(t.terrain)) return null;
   if (known && !known[y * state.map.width + x]) return null;
   if ((t.terrain === Terrain.Desert || t.terrain === Terrain.Forest) && !t.river) return null;
+  const rules = state.freeFish ? state : { ...state, freeFish: true };
   let score = 0;
   let land = 0;
   let sea = 0;
@@ -44,7 +47,7 @@ export function siteScore(state: GameState, x: number, y: number, known?: Uint8A
     }
     if (n.terrain === Terrain.Ocean) sea++;
     else land++;
-    const yld = tileYield(state, n, false, "monarchy");
+    const yld = tileYield(rules, n, false, "monarchy");
     score += yld.food * 3 + yld.shields * 2 + yld.trade * 1.5;
     if (n.special) score += 2;
   }

@@ -79,16 +79,26 @@ describe("Seafaring (save version 53)", () => {
     foundCity(s, 0, 10, 10);
     const boat = createUnit(s, "fishing_boat", 0, 11, 10);
     expect(whyNoFishery(s, boat)).toBe("no fish");
+    const sea0 = cityTileYield(s, s.cities[0]!, slotOf(1, 0))!;
     t.special = true; // Fish: the ocean's first special
     expect(specialOf(t)?.name).toBe("Fish");
+    // Fish feed no one until fished (since save version 54): plain sea, then its 2 food and the fishery's 1.
     const plain = cityTileYield(s, s.cities[0]!, slotOf(1, 0))!;
+    expect(plain).toEqual(sea0);
     expect(whyNoFishery(s, boat)).toBeNull();
     expect(applyCommand(s, { type: "fishery", unit: boat.id }).ok).toBe(true);
     expect(t.fishery).toBe(true);
     expect(s.units.some((u) => u.id === boat.id)).toBe(false);
     const fished = cityTileYield(s, s.cities[0]!, slotOf(1, 0))!;
-    expect(fished.food).toBe(plain.food + 1);
+    expect(fished.food).toBe(plain.food + 3);
     expect(fished.shields).toBe(plain.shields);
+    // A game saved before version 54 (`freeFish`): fish fed a city as they lay, and a fishery added one more.
+    s.freeFish = true;
+    expect(cityTileYield(s, s.cities[0]!, slotOf(1, 0))!.food).toBe(plain.food + 3);
+    t.fishery = false;
+    expect(cityTileYield(s, s.cities[0]!, slotOf(1, 0))!.food).toBe(plain.food + 2);
+    t.fishery = true;
+    delete s.freeFish;
     // Whales give a shield as well.
     t.secondSpecial = true;
     expect(specialOf(t)?.name).toBe("Whales");
@@ -179,6 +189,9 @@ describe("older games (catalogue)", () => {
     const save = makeSave(newGame(5, { opponents: 1 }), {}, []);
     const old = loadSave({ ...save, version: 52 }, () => {}).state;
     expect(old.catalogue).toBe(52);
+    expect(old.freeFish).toBe(true);
+    expect(loadSave({ ...save, version: 53 }, () => {}).state.freeFish).toBe(true);
+    expect(loadSave(save, () => {}).state.freeFish).toBeUndefined();
     // Every version before loads (49 to 51 had been refused), each with the catalogue it knew.
     for (const v of [48, 49, 50, 51] as const) expect(loadSave({ ...save, version: v }, () => {}).state.catalogue).toBe(v);
     expect(advancesFor(old).some((a) => a.id === "seafaring" || a.id === "archery")).toBe(false);

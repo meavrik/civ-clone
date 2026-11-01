@@ -1516,8 +1516,9 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
       return w;
     }
   }
-  // A fishing boat for the fish or whales this city works, one at a time (since save version 53).
-  if (threat === 0 && r.shields >= 2 && affords(1) && !ctx.units.some((u) => isFishingBoat(u) && u.homeCity === c.id) && fishingSpots(state, c, true).length > 0) {
+  // A fishing boat for the fish or whales this city works, one at a time (since save version 53); since 54 for any of
+  // its fish (they feed it only once fished: `specialLocked`).
+  if (threat === 0 && r.shields >= 2 && affords(1) && !ctx.units.some((u) => isFishingBoat(u) && u.homeCity === c.id) && fishingSpots(state, c, !!state.freeFish).length > 0) {
     const boat = pick("unit", "fishing_boat");
     if (boat) return boat;
   }

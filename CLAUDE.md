@@ -425,7 +425,15 @@ Never ship the original's sprites, palette art, fonts or text.
   no one minds it on their land, `trespassOn`) and the Fishing Boat (0/1/2, 30; the `fishing` flag: the `fishery`
   command, `whyNoFishery`, spends it on a Fish or Whales square of its own civilization's land with moves left, laying
   `Tile.fishery`, which adds its special's `SpecialRule.fishery`: Fish +1 food, Whales +1 food +1 shield; F or the
-  orders' "Lay fishery"). Archery brings Archers (3/2/1, 30, no resource, retired by Gunpowder). War Elephants (4/1/1,
+  orders' "Lay fishery"). Since save version 54 (asked for 2026-11-01: "fish should give extra food only with fishing
+  boat placed on top") Fish feed a city only once fished (`fishery.unlocks`, core `specialLocked`, read by `tileYield`,
+  so city screens, the planner and `siteScore` follow): plain sea before (1/0/2), 4 food after; the square's window
+  says what a fishery would bring; the planner sends a boat to any fish of a city's, worked or not. A site is still
+  scored with fish as they fed a city before (`siteScore` reads the rules as `freeFish`), so starts and the computer
+  players' sites stay put: scored as plain sea they cost the planner two cities a seat. Saves before 54 load with
+  `freeFish` (headless `--free-fish`): Fish yield as they lie, a fishery adding its 1. Whales are unchanged. Head to head
+  (planner vs v2, 16 x 300, seeds 1-16): 9-7, score 123 vs 99, cities 8.8 vs 6.0, pop 46 vs 31 (fish fed both less;
+  free fish 10-6, 143 vs 112); all replaying exactly. Archery brings Archers (3/2/1, 30, no resource, retired by Gunpowder). War Elephants (4/1/1,
   40, Horseback Riding) need the sixth strategic resource, Elephants (`ELEPHANTS`, seen from the start, Animal
   Husbandry's +1 food like Horses): deposits on jungle and on grassland or plains beside jungle (`ResourceRule.besides`;
   7%, 5%, 5% of such squares; appended after the other resources' slices, so every other deposit lies where it did),

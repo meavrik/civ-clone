@@ -234,7 +234,12 @@ describe("tile yields", () => {
     t.terrain = Terrain.Ocean;
     t.special = true;
     expect(specialOf(t)?.name).toBe("Fish");
-    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 3, shields: 0, trade: 2 });
+    // Fish feed a city only once fished (since save version 54); before, as they lay.
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 1, shields: 0, trade: 2 });
+    t.fishery = true;
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 4, shields: 0, trade: 2 });
+    t.fishery = false;
+    expect(tileYield({ ...s, freeFish: true }, t, false, "monarchy", 0)).toEqual({ food: 3, shields: 0, trade: 2 });
     t.secondSpecial = true;
     expect(specialOf(t)?.name).toBe("Whales");
     expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 2, shields: 1, trade: 2 });

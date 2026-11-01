@@ -346,6 +346,8 @@ export interface GameState {
    * Elephants' deposits came with version 53. Set for saves before version 53. Missing: all of them.
    */
   catalogue?: number;
+  /** Fish feed a city whether or not a fishery was laid on them (`specialLocked`), as before version 54. */
+  freeFish?: boolean;
   /** Every change of production kind halves the box again, even a change back. Set for saves before version 21. */
   compoundingPenalty?: boolean;
   /**
