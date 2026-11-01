@@ -503,13 +503,26 @@ export function scatterDeposits(map: WorldMap, seed: number, catalogue?: number)
   const ox = 7 * (seed % 1000);
   const oy = seed % 997;
   const resources = RESOURCES.filter((r) => inCatalogue({ catalogue }, r));
+  // At sea (since save version 55): squares the land's deposits never took, so those lie where they did.
+  const offshore = resources.flatMap((r) => (r.offshore && inCatalogue({ catalogue }, r.offshore) ? [{ id: r.id, ...r.offshore }] : []));
   const beside = (x: number, y: number, terrain: Terrain): boolean =>
     tiles[y * w + x]!.terrain === terrain || NEIGHBOURS.some(([dx, dy]) => y + dy >= 0 && y + dy < h && tiles[(y + dy) * w + wrapX(map, x + dx)]!.terrain === terrain);
   for (let y = 1; y < h - 1; y++)
     for (let x = 0; x < w; x++) {
       const t = tiles[y * w + x]!;
-      if (t.terrain === Terrain.Ocean || t.special) continue;
+      if (t.special) continue;
       let roll = squareHash(x + ox, y * 31 + oy);
+      if (t.terrain === Terrain.Ocean) {
+        for (const o of offshore) {
+          if (roll < o.share && landDistance(map, x, y, o.within) <= o.within) {
+            t.special = true;
+            t.deposit = o.id;
+            break;
+          }
+          roll -= o.share;
+        }
+        continue;
+      }
       for (const r of resources) {
         const share = r.besides !== undefined && !beside(x, y, r.besides) ? 0 : r.deposits[t.terrain] ?? 0;
         if (roll < share) {

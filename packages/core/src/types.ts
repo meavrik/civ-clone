@@ -83,6 +83,8 @@ export interface Tile {
   deposit?: string;
   /** A fishery laid by a Fishing Boat on a sea special (`SpecialRule.fishery`; since save version 53). */
   fishery?: boolean;
+  /** An oil rig a Fishing Boat built on a resource's deposit at sea (`ResourceRule.offshore`; since save version 55). */
+  rig?: boolean;
 }
 
 export interface WorldMap {
@@ -343,7 +345,8 @@ export interface GameState {
   /**
    * Only the units, improvements, advances and strategic resources a save of this version knew (each rule's `since`,
    * `inCatalogue`): Archery, Seafaring, the Harbour, Archers, War Elephants, the Explorer, the Fishing Boat and the
-   * Elephants' deposits came with version 53. Set for saves before version 53. Missing: all of them.
+   * Elephants' deposits came with version 53, Oil at sea and its oil rigs (`ResourceRule.offshore`) with 55. Set for
+   * saves before version 55. Missing: all of them.
    */
   catalogue?: number;
   /** Fish feed a city whether or not a fishery was laid on them (`specialLocked`), as before version 54. */

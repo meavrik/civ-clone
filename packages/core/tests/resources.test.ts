@@ -68,7 +68,9 @@ describe("strategic resources", () => {
     for (const t of deposits) {
       expect(t.special).toBe(true);
       expect(specialOf(t)?.name).toBe(t.deposit);
-      expect(RESOURCES.find((r) => r.id === t.deposit)!.deposits[t.terrain]).toBeGreaterThan(0);
+      // On land a terrain it lists; at sea (since save version 55) a resource lying offshore.
+      const r = RESOURCES.find((x) => x.id === t.deposit)!;
+      expect(t.terrain === Terrain.Ocean ? r.offshore?.share : r.deposits[t.terrain]).toBeGreaterThan(0);
     }
     // Every kind turns up.
     for (const r of RESOURCES) expect(deposits.some((t) => t.deposit === r.id), r.id).toBe(true);
@@ -96,7 +98,7 @@ describe("strategic resources", () => {
     deposit(s, 11, 11, "Iron");
     expect(hasResource(s, 0, "Iron")).toBe(true);
     expect(ids(s, rome)).toContain("legion");
-    expect(resourceHoldings(s, 0).find((h) => h.id === "Iron")).toEqual({ id: "Iron", own: 1, exported: 0, imported: 0, has: true, unroaded: 0 });
+    expect(resourceHoldings(s, 0).find((h) => h.id === "Iron")).toEqual({ id: "Iron", own: 1, exported: 0, imported: 0, has: true, unroaded: 0, unrigged: 0 });
     // A rival's city nearer the square takes it, and the iron with it.
     foundCity(s, 1, 12, 11);
     expect(hasResource(s, 0, "Iron")).toBe(false);
@@ -115,7 +117,7 @@ describe("strategic resources", () => {
     deposit(s, 11, 11, "Iron", false);
     expect(hasResource(s, 0, "Iron")).toBe(false);
     expect(ids(s, rome)).not.toContain("legion");
-    expect(resourceHoldings(s, 0).find((h) => h.id === "Iron")).toEqual({ id: "Iron", own: 0, exported: 0, imported: 0, has: false, unroaded: 1 });
+    expect(resourceHoldings(s, 0).find((h) => h.id === "Iron")).toEqual({ id: "Iron", own: 0, exported: 0, imported: 0, has: false, unroaded: 1, unrigged: 0 });
     expect(resourceSquares(s, 0).get("Iron")).toBeUndefined();
     expect(resourceSquares(s, 0, true).get("Iron")).toEqual([{ x: 11, y: 11 }]);
     // None to trade away either.

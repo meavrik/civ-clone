@@ -35,6 +35,14 @@ export interface ResourceRule {
   revealedBy?: string;
   /** Its deposits lie only on this terrain or beside it (Elephants: in and at the edge of the jungle). */
   besides?: Terrain;
+  /**
+   * Its deposits at sea (asked for 2026-11-01: "add oil for water", with an oil rig over it; since save version 55,
+   * `since`): open sea without a special, within `within` squares of land, `share` of those squares. Such a square serves
+   * its civilization only with an oil rig on it (`Tile.rig`), as a land square does with a road: a Fishing Boat builds
+   * one once its civilization knows `rig.advance` (the `rig` command, spending the boat, as it lays a fishery), and the
+   * rig adds `rig.shields` to the square for whoever works it.
+   */
+  offshore?: { share: number; within: number; since: number; rig: { advance: string; shields: number } };
   /** The save version that brought it; worlds of older games (`GameState.catalogue`) hold none, and no unit there needs it. */
   since?: number;
 }
@@ -55,7 +63,11 @@ export const RESOURCES: readonly ResourceRule[] = [
   { id: "Iron", special: IRON, deposits: { [Terrain.Hills]: 0.08, [Terrain.Mountains]: 0.08 }, text: "Blades, armour and guns.", revealedBy: "bronze_working" },
   { id: "Saltpeter", special: SALTPETER, deposits: { [Terrain.Desert]: 0.08, [Terrain.Tundra]: 0.06, [Terrain.Plains]: 0.02, [Terrain.Hills]: 0.025 }, text: "The makings of gunpowder.", revealedBy: "gunpowder" },
   { id: "Coal", special: COAL, deposits: { [Terrain.Hills]: 0.04, [Terrain.Forest]: 0.025, [Terrain.Swamp]: 0.04 }, text: "Fuel for steamships." },
-  { id: "Oil", special: OIL, deposits: { [Terrain.Desert]: 0.06, [Terrain.Swamp]: 0.06, [Terrain.Tundra]: 0.05, [Terrain.Arctic]: 0.05, [Terrain.Jungle]: 0.02 }, text: "Fuel for engines on land, at sea and in the air.", revealedBy: "refining" },
+  {
+    id: "Oil", special: OIL, deposits: { [Terrain.Desert]: 0.06, [Terrain.Swamp]: 0.06, [Terrain.Tundra]: 0.05, [Terrain.Arctic]: 0.05, [Terrain.Jungle]: 0.02 },
+    offshore: { share: 0.01, within: 2, since: 55, rig: { advance: "refining", shields: 1 } },
+    text: "Fuel for engines on land, at sea and in the air.", revealedBy: "refining",
+  },
   // Asked for 2026-11-01 ("war elephants - if any elephant resource available"): the jungle's own beasts, seen from the start.
   { id: "Elephants", special: ELEPHANTS, deposits: { [Terrain.Jungle]: 0.07, [Terrain.Grassland]: 0.05, [Terrain.Plains]: 0.05 }, besides: Terrain.Jungle, text: "War beasts that put horses to flight.", since: 53 },
 ];

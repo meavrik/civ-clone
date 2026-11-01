@@ -1,4 +1,4 @@
-import { specialFor, Terrain, type GameState, type Tile, type WorldMap } from "@civ/core";
+import { RESOURCE_BY_ID, specialFor, Terrain, type GameState, type Tile, type WorldMap } from "@civ/core";
 import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, clearingPatch, BLEND_REACH, groundOwner, LAND, landOwner, riverShape, SHORE, strokeDistance, type CoastPatch, type Explored, type Lifting } from "@civ/renderer-api";
 import { FEATURE_SHEET, RESOURCE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
@@ -330,14 +330,19 @@ export function specialSprite(name: string): Surface | null {
   return spriteSurface(RESOURCE_SHEET, SPECIAL_STAND_INS[name] ?? name.toLowerCase());
 }
 
-/** Specials still waiting for the user's icon, shown meanwhile with one of theirs (Elephants, since save version 53, with Ivory's tusks). */
-const SPECIAL_STAND_INS: Readonly<Record<string, string>> = { Elephants: "ivory" };
+/**
+ * Specials still waiting for the user's icon, shown meanwhile with one of theirs: Elephants (since save version 53) with
+ * Ivory's tusks, Oil at sea (since 55) with the land's derrick.
+ */
+const SPECIAL_STAND_INS: Readonly<Record<string, string>> = { Elephants: "ivory", "Offshore Oil": "oil" };
 
 /** A square's special resource as `viewer` knows it (`specialFor`: none while a resource is still hidden from it), drawn over its terrain. */
 export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState, tile: Tile, viewer: number): void {
   const name = specialFor(state, tile, viewer)?.name;
-  if (!name) return;
-  const icon = specialSprite(name);
+  // An oil rig stands for the oil under it (`drawRig`).
+  if (!name || tile.rig) return;
+  // A resource's deposit at sea has an icon of its own (`ResourceRule.offshore`; since save version 55).
+  const icon = specialSprite(tile.terrain === Terrain.Ocean && RESOURCE_BY_ID[name]?.offshore ? `Offshore ${name}` : name);
   if (icon) { s.blit(icon, dx, dy, SPRITE_CLEAR); return; }
   s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!);
 }

@@ -29,6 +29,7 @@ import { C, DIMMED, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
 import { drawFishery } from "../fishery.js";
+import { drawRig } from "../rig.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
 import { BAD, DIM, drawButton, drawStone, drawSwatch, GOOD, hideArtUnder, INK, NOTE } from "../widgets.js";
@@ -183,6 +184,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       if (tile.mine) drawMine(s, dx, dy);
       if (tile.special) drawSpecial(s, dx, dy, state, tile, state.currentPlayer);
       if (tile.fishery) drawFishery(s, dx, dy);
+      if (tile.rig) drawRig(s, dx, dy);
       if (tile.hut) drawHut(s, dx, dy);
       if (tile.fortress) drawFortress(s, dx, dy);
       if (tile.pollution) drawPollution(s, dx, dy);

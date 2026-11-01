@@ -61,7 +61,9 @@ import { chronicleOf, notePeaks } from "./chronicle.js";
 import { boughtOff, demandOn, dropDemand, noteDemand, payTribute, settleCityStates, tributePrice, unitCityState, whyNoDemand } from "./city-states.js";
 import { addTrade, endTrades, missingResources, settleTrades, specialFor, whyNoTrade } from "./resources.js";
 import { advanceWorth, applyExchange, payTrades, resourceWorth, whyNoExchange } from "./exchange.js";
-import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances } from "./rules/advances.js";
+import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, knows } from "./rules/advances.js";
+import { inCatalogue } from "./rules/catalogue.js";
+import { RESOURCE_BY_ID } from "./rules/resources.js";
 import { researchCostFor } from "./levels.js";
 import { building } from "./rules/buildings.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
@@ -94,6 +96,7 @@ export type Command =
   | { type: "home"; unit: number } // the city the unit stands in supports it from now on
   | { type: "pillage"; unit: number } // wreck the best improvement on the unit's square
   | { type: "fishery"; unit: number } // a fishing boat lays a fishery on the sea special it floats on, and is spent (since save version 53)
+  | { type: "rig"; unit: number } // a fishing boat builds an oil rig on the deposit at sea it floats on, and is spent (since save version 55)
   | { type: "found"; unit: number; name?: string }
   | { type: "setProduction"; city: number; production: Production }
   | { type: "toggleTile"; city: number; slot: number }
@@ -599,6 +602,13 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       removeUnit(state, u);
       return { ok: true };
     }
+    case "rig": {
+      const why = whyNoRig(state, u);
+      if (why) return { ok: false, reason: why };
+      getTile(state.map, u.x, u.y)!.rig = true;
+      removeUnit(state, u);
+      return { ok: true };
+    }
     case "helpWonder": {
       const city = cityAt(state, u.x, u.y);
       if (!city) return { ok: false, reason: "not in a city" };
@@ -873,6 +883,25 @@ export function whyNoFishery(state: GameState, u: Unit): string | null {
   if (t.terrain !== Terrain.Ocean) return "not at sea";
   if (!specialFor(state, t, u.owner)?.fishery) return "no fish";
   if (t.fishery) return "has fishery";
+  if (landOwner(state, u.x, u.y) !== u.owner) return "not our waters";
+  if (u.movesLeft <= 0) return "no-moves";
+  return null;
+}
+
+/**
+ * Why unit `u` cannot build an oil rig where it floats, as a code (`workRefusal` in renderer-api puts it in words), or
+ * null when it can: a Fishing Boat with moves left on a resource's deposit at sea (`ResourceRule.offshore`: Oil) as its
+ * civilization knows the square, with none built yet, its civilization knowing the rig's advance ("needs:<advance>"),
+ * inside its civilization's land.
+ */
+export function whyNoRig(state: GameState, u: Unit): string | null {
+  if (!unitType(u.type).flags?.includes("fishing")) return "not a fishing boat";
+  const t = getTile(state.map, u.x, u.y)!;
+  if (t.terrain !== Terrain.Ocean) return "not at sea";
+  const offshore = RESOURCE_BY_ID[specialFor(state, t, u.owner)?.name ?? ""]?.offshore;
+  if (!offshore || !inCatalogue(state, offshore)) return "no oil";
+  if (t.rig) return "has rig";
+  if (!knows(state.players[u.owner]!.advances, offshore.rig.advance)) return `needs:${offshore.rig.advance}`;
   if (landOwner(state, u.x, u.y) !== u.owner) return "not our waters";
   if (u.movesLeft <= 0) return "no-moves";
   return null;

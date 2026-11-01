@@ -1,4 +1,4 @@
-import { advance, claimant, getTile, mapDistance, resourceAt, resourceKnown, resourceRoaded, resourcesIn, resourceHoldings, resourceSquares, revealedBy, tradesOf, tradeSides, UNIT_TYPES, type GameState } from "@civ/core";
+import { advance, claimant, getTile, inCatalogue, mapDistance, resourceAt, resourceKnown, resourceRoaded, resourcesIn, resourceHoldings, resourceSquares, revealedBy, Terrain, tradesOf, tradeSides, UNIT_TYPES, type GameState, type ResourceHolding } from "@civ/core";
 import type { ReportLine, ReportPage } from "./index.js";
 
 /** The units that need a strategic resource, by name, in the rules' order. */
@@ -19,7 +19,23 @@ export function resourceNote(id: string): string {
 /** The resources `player` lacks that lie on its land with no road on their squares (a square serves only with one, since save version 43, or a river, since 48). */
 export function resourcesWantingRoads(state: GameState, player: number): string[] {
   if (state.noResources) return [];
-  return resourceHoldings(state, player).filter((h) => !h.has && h.unroaded > 0).map((h) => h.id);
+  return resourceHoldings(state, player).filter((h) => !h.has && h.unroaded > h.unrigged).map((h) => h.id);
+}
+
+/** The resources `player` lacks that lie in its waters with no oil rig on their squares (since save version 55), and none on its land wanting a road. */
+export function resourcesWantingRigs(state: GameState, player: number): string[] {
+  if (state.noResources) return [];
+  return resourceHoldings(state, player).filter((h) => !h.has && h.unrigged > 0 && h.unroaded === h.unrigged).map((h) => h.id);
+}
+
+/** What a resource's squares that do not serve us want: a road on land, an oil rig at sea, or either. */
+function wanted(h: Pick<ResourceHolding, "unroaded" | "unrigged">): string {
+  return h.unrigged === 0 ? "a road" : h.unrigged === h.unroaded ? "an oil rig" : "a road or an oil rig";
+}
+
+/** Whether a game has deposits at sea (`ResourceRule.offshore`; since save version 55). */
+function offshoreIn(state: GameState): boolean {
+  return resourcesIn(state).some((r) => r.offshore !== undefined && inCatalogue(state, r.offshore));
 }
 
 /**
@@ -33,6 +49,12 @@ export function roadNote(ids: string[]): string | null {
   if (ids.length === 1) return `{road} Our ${ids[0]} lies unused: build a road on its square`;
   const names = ids.length === 2 ? `${ids[0]} and ${ids[1]}` : `${ids[0]}, ${ids[1]} and ${ids.length - 2} more`;
   return `{road} Our ${names} lie unused: build roads on them`;
+}
+
+/** What the build menu says of resources at sea an oil rig would bring into use (since save version 55): "Our Oil lies unused at sea: a Fishing Boat builds a rig". */
+export function rigNote(ids: string[]): string | null {
+  if (!ids.length) return null;
+  return `{shield} Our ${ids.join(" and ")} ${ids.length === 1 ? "lies" : "lie"} unused at sea: a Fishing Boat builds a rig`;
 }
 
 /**
@@ -114,6 +136,9 @@ export const RESOURCE_BADGES: Record<ResourceStatus, string> = {
   held: "Held", imported: "Traded in", road: "Wants road", away: "Traded away", none: "None", unseen: "Unseen",
 };
 
+/** The badge of a resource whose only squares at hand lie at sea without their oil rig (since save version 55). */
+export const RIG_BADGE = "Wants rig";
+
 /**
  * The Resources window (Advisors > Resources; redone 2026-10-31, asked for: "improve the resources main window"): for each
  * strategic resource whether we hold it and where, whom it comes from, which squares still want a road, or that we lack
@@ -121,7 +146,7 @@ export const RESOURCE_BADGES: Record<ResourceStatus, string> = {
  * or costs (`ResourceTrade.pay`, since save version 51).
  */
 export function resourcesView(state: GameState, me = state.currentPlayer): ResourcesView {
-  const roads = state.roadlessResources ? "" : state.riverNeedsRoad ? "A square serves with a road on it." : "A square serves with a road or river on it.";
+  const roads = state.roadlessResources ? "" : (state.riverNeedsRoad ? "A square serves with a road on it." : "A square serves with a road or river on it.") + (offshoreIn(state) ? " At sea, an oil rig." : "");
   if (state.noResources) return { entries: [], trades: [], income: 0, hint: "", none: "In this game no unit needs a resource." };
   const squares = resourceSquares(state, me, true);
   const holdings = resourceHoldings(state, me);
@@ -142,7 +167,7 @@ export function resourcesView(state: GameState, me = state.currentPlayer): Resou
     const from = trades.filter((t) => tradeSides(t, me).gets === r.id).map((t) => people(t.a === me ? t.b : t.a));
     // `own` counts the squares serving us (a road or river on them), `unroaded` the rest.
     const kept = h.own - h.exported;
-    const roadless = h.unroaded ? `${plural(h.unroaded, "square")} near ${shortList(near(false, r.id), 2)} ${h.unroaded === 1 ? "wants" : "want"} a road` : "";
+    const roadless = h.unroaded ? `${plural(h.unroaded, "square")} near ${shortList(near(false, r.id), 2)} ${h.unroaded === 1 ? "wants" : "want"} ${wanted(h)}` : "";
     const away = to.length ? `to ${shortList(to, 2)}` : "";
     let status: ResourceStatus;
     let detail: string;
@@ -152,13 +177,13 @@ export function resourcesView(state: GameState, me = state.currentPlayer): Resou
       detail = `Shows on the map with ${advance(r.revealedBy).name}`;
     } else if (h.has && kept > 0) {
       status = "held";
-      detail = [`${plural(kept, "square")} near ${shortList(near(true, r.id), 2)}`, roadless && `${h.unroaded} more ${h.unroaded === 1 ? "wants" : "want"} a road`, away && `${h.exported} ${away}`].filter(Boolean).join("; ");
+      detail = [`${plural(kept, "square")} near ${shortList(near(true, r.id), 2)}`, roadless && `${h.unroaded} more ${h.unroaded === 1 ? "wants" : "want"} ${wanted(h)}`, away && `${h.exported} ${away}`].filter(Boolean).join("; ");
     } else if (h.has) {
       status = "imported";
       detail = [`From ${shortList(from, 2)}`, roadless].filter(Boolean).join("; ");
     } else if (h.unroaded) {
       status = "road";
-      detail = `${roadless}: build one to use it`;
+      detail = h.unrigged === h.unroaded ? `${roadless}: a Fishing Boat builds one` : `${roadless}: build one to use it`;
     } else if (h.own) {
       status = "away";
       detail = `All traded ${away}`;
@@ -166,7 +191,8 @@ export function resourcesView(state: GameState, me = state.currentPlayer): Resou
       status = "none";
       detail = "None on our land: trade for it, or settle where it lies";
     }
-    return { id: r.id, status, badge: RESOURCE_BADGES[status], detail, units, buildable };
+    const badge = status === "road" && h.unrigged === h.unroaded ? RIG_BADGE : RESOURCE_BADGES[status];
+    return { id: r.id, status, badge, detail, units, buildable };
   });
   let income = 0;
   const tradeEntries = trades.map((t): ResourceTradeEntry => {
@@ -228,8 +254,10 @@ export function resourceReveals(state: GameState, viewer: number, found: readonl
     const isOurs = (q: { x: number; y: number }) => ours.some((o) => o.x === q.x && o.y === q.y);
     const near = squares.filter((q) => !isOurs(q) && cities.some((c) => mapDistance(map, c.x, c.y, q.x, q.y) <= NEARBY));
     const focus = [...ours].sort((a, b) => fromCapital(a) - fromCapital(b))[0] ?? [...near].sort((a, b) => fromCapital(a) - fromCapital(b))[0] ?? null;
-    const roadless = ours.filter((q) => !resourceRoaded(state, getTile(map, q.x, q.y)!)).length;
-    const land = ours.length ? `${ours.length} on our land${roadless ? ` (${roadless} wanting a road)` : ""}` : "none on our land yet";
+    const unserved = ours.filter((q) => !resourceRoaded(state, getTile(map, q.x, q.y)!));
+    const roadless = unserved.length;
+    const want = wanted({ unroaded: roadless, unrigged: unserved.filter((q) => getTile(map, q.x, q.y)!.terrain === Terrain.Ocean).length });
+    const land = ours.length ? `${ours.length} on our land${roadless ? ` (${roadless} wanting ${want})` : ""}` : "none on our land yet";
     out.push({ id, squares, focus, text: `${id} revealed: ${land}${near.length ? `, ${near.length} nearby` : ""}` });
   }
   return out;

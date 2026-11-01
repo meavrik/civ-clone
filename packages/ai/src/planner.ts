@@ -63,6 +63,9 @@ import {
   oceanFood,
   specialFor,
   whyNoFishery,
+  whyNoRig,
+  knows,
+  RESOURCE_BY_ID,
   hasContact,
   hasWaterNearby,
   peaceOffered,
@@ -1517,8 +1520,8 @@ function chooseProduction(state: GameState, ctx: Ctx, c: City, r: CityReport, se
     }
   }
   // A fishing boat for the fish or whales this city works, one at a time (since save version 53); since 54 for any of
-  // its fish (they feed it only once fished: `specialLocked`).
-  if (threat === 0 && r.shields >= 2 && affords(1) && !ctx.units.some((u) => isFishingBoat(u) && u.homeCity === c.id) && fishingSpots(state, c, !!state.freeFish).length > 0) {
+  // its fish (they feed it only once fished: `specialLocked`); since 55 for oil at sea we lack, to build its rig.
+  if (threat === 0 && r.shields >= 2 && affords(1) && !ctx.units.some((u) => isFishingBoat(u) && u.homeCity === c.id) && (fishingSpots(state, c, !!state.freeFish).length > 0 || rigSpots(state, c).length > 0)) {
     const boat = pick("unit", "fishing_boat");
     if (boat) return boat;
   }
@@ -2277,21 +2280,47 @@ function fishingSpots(state: GameState, c: City, worked = false): [number, numbe
 }
 
 /**
- * A fishing boat lays its fishery where it floats if it can; else it sails for the nearest square of fish or whales
- * its cities work that no other of our boats is bound for (any of our cities' if none is worked); with none, it is let go.
+ * The deposits at sea among `c`'s squares an oil rig would bring into use (`ResourceRule.offshore`; since save version
+ * 55): of a resource `c`'s owner sees and lacks, on its land, none built yet, its owner knowing the rig's advance.
+ */
+function rigSpots(state: GameState, c: City): [number, number][] {
+  const known = state.players[c.owner]!.advances;
+  const out: [number, number][] = [];
+  let held: Set<string> | undefined;
+  for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
+    const t = radiusTile(state, c, slot);
+    if (!t || t.terrain !== Terrain.Ocean || !t.deposit || t.rig) continue;
+    const id = specialFor(state, t, c.owner)?.name;
+    const offshore = id ? RESOURCE_BY_ID[id]?.offshore : undefined;
+    if (!id || !offshore || !inCatalogue(state, offshore) || !knows(known, offshore.rig.advance)) continue;
+    held ??= heldResources(state, c.owner);
+    if (held.has(id)) continue;
+    const x = wrapX(state.map, c.x + CITY_RADIUS[slot]![0]);
+    const y = c.y + CITY_RADIUS[slot]![1];
+    if (landOwner(state, x, y) === c.owner) out.push([x, y]);
+  }
+  return out;
+}
+
+/**
+ * A fishing boat lays its fishery where it floats if it can, or builds the rig on oil we lack (since save version 55);
+ * else it sails for the nearest such oil no other of our boats is bound for, then for the nearest square of fish or
+ * whales its cities work (any of our cities' if none is worked); with none, it is let go.
  */
 function orderFishingBoat(state: GameState, ctx: Ctx, u: Unit): void {
   if (!whyNoFishery(state, u)) { applyCommand(state, { type: "fishery", unit: u.id }); return; }
+  const rigs = ctx.cities.flatMap((c) => rigSpots(state, c));
+  if (!whyNoRig(state, u) && rigs.some(([x, y]) => x === u.x && y === u.y)) { applyCommand(state, { type: "rig", unit: u.id }); return; }
   const taken = new Set(ctx.units.filter((o) => o.id !== u.id && isFishingBoat(o) && o.order.kind === "goto").map((o) => (o.order.kind === "goto" ? `${o.order.x},${o.order.y}` : "")));
-  for (const worked of [true, false]) {
+  for (const pass of ["rig", "worked", "any"] as const) {
     let best: [number, number] | null = null;
     let bestD = Infinity;
-    for (const c of ctx.cities)
-      for (const [x, y] of fishingSpots(state, c, worked)) {
-        if (taken.has(`${x},${y}`)) continue;
-        const d = dist(state, u.x, u.y, x, y);
-        if (d < bestD) { bestD = d; best = [x, y]; }
-      }
+    const spots = pass === "rig" ? rigs : ctx.cities.flatMap((c) => fishingSpots(state, c, pass === "worked"));
+    for (const [x, y] of spots) {
+      if (taken.has(`${x},${y}`)) continue;
+      const d = dist(state, u.x, u.y, x, y);
+      if (d < bestD) { bestD = d; best = [x, y]; }
+    }
     if (best && (goto(state, u, best[0], best[1]) || nudge(state, u, best[0], best[1]))) return;
   }
   applyCommand(state, { type: "disband", unit: u.id });

@@ -72,6 +72,7 @@ import {
   workOptions,
   whyNoCamp,
   whyNoFishery,
+  whyNoRig,
   maxHp,
   deepWater,
   hugsCoast,
@@ -233,6 +234,8 @@ import {
   cityStateDemandCard,
   cityStateTitle,
   resourcesWantingRoads,
+  resourcesWantingRigs,
+  rigNote,
   roadNote,
   type WonderLost,
   type Callout,
@@ -784,7 +787,7 @@ function dispatch(cmd: Command): boolean {
     if (cmd.type !== "endTurn") slideOwn(lastActions.slice(mark));
     if (cmd.type === "move" && lastCombat) reportCombat(lastCombat);
     if (cmd.type !== "endTurn") afterAction("unit" in cmd ? cmd.unit : undefined);
-  } else if (cmd.type === "work" || cmd.type === "fishery") refuseWork(cmd.unit, r.reason);
+  } else if (cmd.type === "work" || cmd.type === "fishery" || cmd.type === "rig") refuseWork(cmd.unit, r.reason);
   else say(REASONS[r.reason] ?? r.reason);
   restartBlink();
   return r.ok;
@@ -1647,7 +1650,7 @@ function openProductionMenu(cityId: number, then?: () => void, title?: string, b
   const missing = (p: Production) => (p.kind === "unit" ? lacking.get(p.id) : undefined);
   // Resources we lack only for want of a road on their squares (since save version 43): said under the title.
   const lacked = new Set([...lacking.values()].flat());
-  const roads = roadNote(resourcesWantingRoads(state, city.owner).filter((id) => lacked.has(id)));
+  const roads = roadNote(resourcesWantingRoads(state, city.owner).filter((id) => lacked.has(id))) ?? rigNote(resourcesWantingRigs(state, city.owner).filter((id) => lacked.has(id)));
   if (roads) body = [...(body ?? []), roads];
   const surplus = computeCity(state, city).shieldSurplus;
   // The turns each choice takes from here, counting the shields the change would keep (all of the
@@ -1934,6 +1937,8 @@ function unitOrders(unit: number): MenuEntry[] {
   if (w.clean !== undefined) items.push([`Clean pollution (${w.clean} turns)`, "P", () => dispatch({ type: "work", unit, work: "clean" })]);
   // A fishing boat on fish or whales in our waters lays a fishery, and is spent (since save version 53).
   if (whyNoFishery(state, u) === null) items.push(["Lay fishery (boat is spent)", "F", () => dispatch({ type: "fishery", unit })]);
+  // On oil at sea in our waters, with Refining, it builds an oil rig instead (since save version 55).
+  if (whyNoRig(state, u) === null) items.push(["Build oil rig (boat is spent)", "F", () => dispatch({ type: "rig", unit })]);
   if (type.flags?.includes("caravan")) {
     const c = cityAt(state, u.x, u.y);
     if (c && canHelpWonder(state, u, c) === null) items.push(["Help build wonder", "", () => dispatch({ type: "helpWonder", unit })]);
@@ -3203,8 +3208,9 @@ function mapKey(e: KeyboardEvent): void {
       const u = active !== null ? unitById(state, active) : undefined;
       // Settlers build a fortress (a refusal says what it needs), never fortify; soldiers fortify.
       const settler = u && unitType(u.type).flags?.includes("settler");
-      // A fishing boat's F lays a fishery (a refusal says why not here).
-      if (u && unitType(u.type).flags?.includes("fishing")) order({ type: "fishery", unit: active! });
+      // A fishing boat's F lays a fishery, or on oil at sea builds an oil rig (a refusal says why not here).
+      const oil = u && !["no oil", "not at sea"].includes(whyNoRig(state, u) ?? "");
+      if (u && unitType(u.type).flags?.includes("fishing")) order(oil ? { type: "rig", unit: active! } : { type: "fishery", unit: active! });
       else order(u && (settler || workOptions(state, u).fortress !== undefined) ? { type: "work", unit: active!, work: "fortress" } : { type: "fortify", unit: active! });
       break;
     }

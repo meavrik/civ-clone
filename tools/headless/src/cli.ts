@@ -114,7 +114,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --eager-city-states a city-state asks for tribute as each raid sets out, of anyone, every turn its band is held
                       at home (saves before version 50)
   --resource-shields  a strategic resource's square adds its special's shields (saves before version 52)
-  --catalogue N       only the units, improvements, advances and resources save version N knew (52: no Archery, Seafaring or Elephants)
+  --catalogue N       only the units, improvements, advances and resources save version N knew (52: no Archery, Seafaring or Elephants; 54: no oil at sea)
   --free-fish         Fish feed a city without a fishery (saves before version 54)
   --verify        replay each game from its save and check the state matches
   --quiet          only the aggregate summary

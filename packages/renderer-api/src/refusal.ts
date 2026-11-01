@@ -77,6 +77,9 @@ export function workRefusal(reason: string): string {
     case "not at sea": return "Only out at sea.";
     case "no fish": return "No fish or whales here to fish.";
     case "has fishery": return "Already has a fishery.";
+    // An oil rig a Fishing Boat would build (core `whyNoRig`; "needs:refining" above).
+    case "no oil": return "No oil at sea here.";
+    case "has rig": return "Already has an oil rig.";
     case "not our waters": return "Only in our own waters.";
     case "no-moves": return "No moves left this turn.";
     default: return `${capitalise(reason)}.`;

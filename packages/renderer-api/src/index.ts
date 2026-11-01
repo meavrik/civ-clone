@@ -73,6 +73,7 @@ import {
   CITY_RADIUS,
   resourceAt,
   resourceRoaded,
+  RESOURCE_BY_ID,
   cityStateOf,
   claimant,
   unitCityState,
@@ -911,14 +912,16 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     t.irrigation && "{irrigate} Irrigation",
     t.mine && "{mine} Mine",
     t.fortress && "{fortress} Fortress",
-    // A fishery (since save version 53) adds what its special's `fishery` says.
+    // A fishery (since save version 53) adds what its special's `fishery` says; an oil rig (since 55) its own shields.
     t.fishery && sp?.fishery && `{food} Fishery ${specialGain(sp.fishery)}`,
+    t.rig && `{shield} Oil rig ${specialGain({ shields: RESOURCE_BY_ID[t.deposit ?? ""]?.offshore?.rig.shields ?? 0 })}`,
   ].filter(Boolean);
   if (features.length) lines.push(features.join("  "));
   // A strategic resource says which units want it (rules/resources.ts).
   const strategic = resourceAt(state, x, y, me.id);
   if (strategic) lines.push(resourceNote(strategic));
-  if (strategic && !resourceRoaded(state, t)) lines.push(`{road} No use to anyone until a road is built on it`);
+  if (strategic && !resourceRoaded(state, t))
+    lines.push(t.terrain === Terrain.Ocean ? "{shield} No use to anyone until a Fishing Boat builds an oil rig on it" : "{road} No use to anyone until a road is built on it");
   else if (strategic && t.river && !t.road && !state.roadlessResources) lines.push("{river} The river carries it, as a road would");
   if (t.pollution) lines.push("{pollution} Polluted: output halved");
   if (t.hut) lines.push("{hut} A tribal village");

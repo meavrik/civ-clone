@@ -5,6 +5,7 @@ import { C } from "../palette.js";
 import { Surface } from "../surface.js";
 import { drawHut, drawSpecial, terrainSquare, TILE } from "../tiles.js";
 import { drawFishery } from "../fishery.js";
+import { drawRig } from "../rig.js";
 import { SQUARE_PIC } from "../widgets.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
@@ -36,6 +37,7 @@ export function drawSquarePicture(s: Surface, state: GameState, mx: number, my: 
   if (tile.mine) drawMine(one, 0, 0);
   if (tile.special) drawSpecial(one, 0, 0, state, tile, state.currentPlayer);
   if (tile.fishery) drawFishery(one, 0, 0);
+  if (tile.rig) drawRig(one, 0, 0);
   if (tile.hut) drawHut(one, 0, 0);
   if (tile.fortress) drawFortress(one, 0, 0);
   if (tile.pollution) drawPollution(one, 0, 0);

@@ -456,6 +456,27 @@ Never ship the original's sprites, palette art, fonts or text.
   tusks (retro `SPECIAL_STAND_INS`); a fishery is drawn in code (retro `fishery.ts`: two stakes, a sagging net, red and
   white floats). The Resources advisor's bands close up to fit six (`TRADES_ROOM`). The loader took versions 1-48 and
   the current one only, so saves of 49 to 51 had been refused since; it now takes every version up to `SAVE_VERSION`.
+  Oil at sea and oil rigs (asked for 2026-11-01: "add oil for water and also all the tile improvements that would be
+  added on top", then "add the new needed rules"; save version 55): Oil also lies at sea (`ResourceRule.offshore`: 1% of
+  open sea without a special within 2 squares of land, about 15 squares a small world to land oil's 18; `scatterDeposits`
+  rolls the sea squares the land's deposits never took, so every land deposit, and every start, lies where it did).
+  Hidden until Refining as land oil is. A square of it serves its civilization only with an oil rig on it (`Tile.rig`),
+  the sea's road (`resourceRoaded`): a Fishing Boat builds one in its own waters once its civilization knows Refining
+  (the `rig` command, `whyNoRig`: "no oil", "has rig", "needs:refining", "not our waters"; the boat is spent, after
+  Civilization IV's work boat; F or its orders' "Build oil rig"), and the rig adds a shield to the square
+  (`offshore.rig.shields`, as a mine does; the oil itself adds none, see version 52). Told as roads are: the square's
+  window ("No use to anyone until a Fishing Boat builds an oil rig on it", "Oil rig +1"), Advisors > Resources (badge
+  "Wants rig", "1 square near Rome wants an oil rig: a Fishing Boat builds one", `ResourceHolding.unrigged`), the build
+  menu (`rigNote`: "Our Oil lies unused at sea: a Fishing Boat builds a rig") and the reveal note. Drawn in code until
+  the user's pictures come (retro `rig.ts`: a steel deck on four legs in foam, a derrick and a flare; the oil's icon
+  steps aside under it), the oil at sea with the land's derrick (`SPECIAL_STAND_INS` "Offshore Oil"). The planner's
+  fishing boats build the rig on oil their civilization lacks (`rigSpots`), and its cities build a boat for one;
+  rarely seen: no planner civ knew Refining by turn 300 in 6 all-planner games, and given it at turn 150 one rig went
+  up by 250 (8 of 24 civs knew Seafaring, 8 squares of sea oil lay in anyone's waters). Saves before 55 load with
+  `catalogue` (their version; headless `--catalogue 54`). A site counts no oil at sea (`siteScore`), so
+  starts and city-states stand where they did (scored +2 as any special, it had moved city-states). Head to head
+  (planner vs v2, 16 x 300, seeds 1-16): 9-7, score 122 vs 99, pop 46 vs 31; catalogue 54 9-7, 123 vs 99; all
+  replaying exactly.
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
   `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it), `baseline.ts`
   (v1) and `barbarian.ts` (the barbarians, reached through `baselineTurn` so every AI seat shares it:
@@ -1598,8 +1619,9 @@ text), second special resources with reaches (save version 20; the branch's own 
 units that need Horses, Iron, Saltpeter, Coal or Oil on the civ's land or traded, deposits on new worlds, trades in the
 audience and between computer civs. Iron, Saltpeter and Oil hidden from a civ until their advance (2026-10-28, asked
 for; save version 40), told on the map as they appear. Seafaring (Harbour, Explorer, Fishing Boat), Archery
-(Archers) and War Elephants on the Elephants resource done (2026-11-01, asked for; save version 53), awaiting the user's
-pictures.
+(Archers) and War Elephants on the Elephants resource done (2026-11-01, asked for; save version 53), the units' pictures
+the user's. Oil at sea and the Fishing Boat's oil rigs done (2026-11-01, asked for; save version 55), drawn in code until
+the user's pictures come.
 
 ## Known gaps / next steps
 

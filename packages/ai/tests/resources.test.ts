@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, foundCity, hasResource, newGame, runAiPlayers, setRelation, Terrain, type GameState } from "@civ/core";
+import { applyCommand, createUnit, foundCity, hasResource, newGame, runAiPlayers, setRelation, Terrain, type GameState } from "@civ/core";
 import { aiTurn, plannerTurn, resourceAsk, resourceOffers, spareResources, wantsResource } from "../src/index.js";
 
 /** Two computer civs met on a flat grassland world with no specials, one city each, knowing iron and horses. */
@@ -74,5 +74,43 @@ describe("planner and strategic resources", () => {
       return { units: s.units.map((u) => u.type).join(), trades: JSON.stringify(s.resourceTrades ?? []) };
     };
     expect(play()).toEqual(play());
+  });
+});
+
+describe("planner and oil at sea (save version 55)", () => {
+  /** Civ 0's city by the sea, oil in its waters, knowing Seafaring and Refining, a fishing boat afloat on `boatAt`. */
+  function coast(boatAt: [number, number]): GameState {
+    const s = world();
+    for (const [x, y] of [[11, 9], [11, 10], [11, 11], [12, 9], [12, 10], [12, 11]] as const) s.map.tiles[y * s.map.width + x]!.terrain = Terrain.Ocean;
+    Object.assign(s.map.tiles[10 * s.map.width + 11]!, { special: true, deposit: "Oil" });
+    s.players[0]!.advances.push("pottery", "alphabet", "map_making", "seafaring", "refining");
+    // Awaiting orders, as at its turn's start.
+    s.activeUnit = createUnit(s, "fishing_boat", 0, ...boatAt).id;
+    return s;
+  }
+
+  it("has a fishing boat build the rig on oil it lacks, where it floats or by sailing there", () => {
+    const s = coast([11, 10]);
+    plannerTurn(s);
+    expect(s.map.tiles[10 * s.map.width + 11]!.rig).toBe(true);
+    expect(hasResource(s, 0, "Oil")).toBe(true);
+    const far = coast([12, 11]);
+    for (let i = 0; i < 3 && !far.map.tiles[10 * far.map.width + 11]!.rig; i++) {
+      plannerTurn(far);
+      applyCommand(far, { type: "endTurn" });
+      runAiPlayers(far, () => {});
+    }
+    expect(far.map.tiles[10 * far.map.width + 11]!.rig).toBe(true);
+  });
+
+  it("leaves oil it holds already, and builds nothing without Refining", () => {
+    const held = coast([11, 10]);
+    deposit(held, 9, 9, "Oil");
+    plannerTurn(held);
+    expect(held.map.tiles[10 * held.map.width + 11]!.rig).toBeUndefined();
+    const early = coast([11, 10]);
+    early.players[0]!.advances = early.players[0]!.advances.filter((a) => a !== "refining");
+    plannerTurn(early);
+    expect(early.map.tiles[10 * early.map.width + 11]!.rig).toBeUndefined();
   });
 });

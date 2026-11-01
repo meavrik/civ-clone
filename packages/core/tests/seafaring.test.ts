@@ -158,10 +158,10 @@ describe("War Elephants (save version 53)", () => {
         expect([Terrain.Jungle, Terrain.Grassland, Terrain.Plains]).toContain(t.terrain);
         expect([-1, 0, 1].some((dx) => [-1, 0, 1].some((dy) => jungle(dx, dy)))).toBe(true);
       }
-      // An older game's world holds none, and the other deposits lie where they did.
+      // An older game's world holds none, and the other deposits on land lie where they did (at sea, oil since 55).
       const old = newGame(seed, { catalogue: 52 });
       expect(old.map.tiles.some((t) => t.deposit === "Elephants")).toBe(false);
-      s.map.tiles.forEach((t, i) => { if (t.deposit !== "Elephants") expect(old.map.tiles[i]!.deposit, `${seed}:${i}`).toBe(t.deposit); });
+      s.map.tiles.forEach((t, i) => { if (t.deposit !== "Elephants" && t.terrain !== Terrain.Ocean) expect(old.map.tiles[i]!.deposit, `${seed}:${i}`).toBe(t.deposit); });
     }
     expect(seen).toBeGreaterThan(5);
   });

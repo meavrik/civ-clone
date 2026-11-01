@@ -10,6 +10,7 @@ import { civ } from "./rules/civs.js";
 import { levelContent, levelPct } from "./levels.js";
 import { BALANCED_WEIGHTS, combinedFocus, focusRule, type FocusRule } from "./rules/focus.js";
 import { nextCityName } from "./rules/names.js";
+import { RESOURCE_BY_ID } from "./rules/resources.js";
 import { TERRAIN_RULES, type SpecialRule } from "./rules/terrain.js";
 import { INFLUENCE_YIELD } from "./rules/culture.js";
 import { VETERAN_XP } from "./rules/experience.js";
@@ -72,6 +73,8 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
     }
   }
   if (tile.grassShield && tile.terrain === Terrain.Grassland) shields += 1;
+  // An oil rig a Fishing Boat built at sea (since save version 55), as a mine adds to the land: its own, not the oil's.
+  if (tile.rig) shields += RESOURCE_BY_ID[tile.deposit ?? ""]?.offshore?.rig.shields ?? 0;
   if (tile.river) trade += 1;
   // A road adds no trade on a river (the original), except in games before version 26.
   if (tile.road && (!tile.river || state.freecivYields)) trade += r.road.trade;

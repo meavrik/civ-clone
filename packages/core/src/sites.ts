@@ -49,7 +49,8 @@ export function siteScore(state: GameState, x: number, y: number, known?: Uint8A
     else land++;
     const yld = tileYield(rules, n, false, "monarchy");
     score += yld.food * 3 + yld.shields * 2 + yld.trade * 1.5;
-    if (n.special) score += 2;
+    // Oil at sea (since save version 55) counts nothing until Refining and its rig: starts and city-states stay where they were.
+    if (n.special && !(n.terrain === Terrain.Ocean && n.deposit)) score += 2;
   }
   if (land < 7) return null;
   if (t.river) score += 5;

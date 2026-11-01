@@ -3,7 +3,7 @@ import { RESOURCES, RESOURCE_BY_ID, resourcesIn } from "./rules/resources.js";
 import { specialOf, type SpecialRule } from "./rules/terrain.js";
 import { UNIT_TYPES, unitType } from "./rules/units.js";
 import { borderRadius, claimant, withinBorder } from "./territory.js";
-import { getTile, wrapX, type GameState, type ResourceTrade, type Tile } from "./types.js";
+import { getTile, Terrain, wrapX, type GameState, type ResourceTrade, type Tile } from "./types.js";
 
 /**
  * Who holds which strategic resource (rules/resources.ts): the squares of it on a civilization's land
@@ -80,6 +80,8 @@ export interface ResourceHolding {
   has: boolean;
   /** Squares of it on its land without a road, of no use until one is built (`resourceRoaded`). */
   unroaded: number;
+  /** Of those, how many lie at sea, wanting an oil rig rather than a road (`ResourceRule.offshore`; since save version 55). */
+  unrigged: number;
 }
 
 /**
@@ -87,11 +89,11 @@ export interface ResourceHolding {
  * roads for resources mandatory for them to be available"; save version 43): a road or railroad on it, as every
  * city's own square has, or a river through it, which carries its goods as a road would (asked for 2026-10-30: "if
  * resource have river on its tile - can be reached as a road"; save version 48). Before 48 (`riverNeedsRoad`) a river
- * square wanted its road too, which waits for Bridge Building. In saves before 43 (`roadlessResources`) every square
- * on the land served.
+ * square wanted its road too, which waits for Bridge Building. At sea an oil rig serves as its road (`Tile.rig`; since
+ * save version 55). In saves before 43 (`roadlessResources`) every square on the land served.
  */
-export function resourceRoaded(state: GameState, tile: Pick<Tile, "road" | "railroad" | "river">): boolean {
-  return state.roadlessResources === true || tile.road || tile.railroad || (tile.river && !state.riverNeedsRoad);
+export function resourceRoaded(state: GameState, tile: Pick<Tile, "road" | "railroad" | "river" | "rig">): boolean {
+  return state.roadlessResources === true || tile.road || tile.railroad || (tile.river && !state.riverNeedsRoad) || tile.rig === true;
 }
 
 /**
@@ -107,9 +109,9 @@ export function resourceSquares(state: GameState, player: number, all = false): 
   return out;
 }
 
-/** Every square of each strategic resource on `player`'s land, and whether it has its road. */
-function landResources(state: GameState, player: number): Map<string, { x: number; y: number; roaded: boolean }[]> {
-  const out = new Map<string, { x: number; y: number; roaded: boolean }[]>();
+/** Every square of each strategic resource on `player`'s land, whether it has its road (its rig at sea), and whether it lies at sea. */
+function landResources(state: GameState, player: number): Map<string, { x: number; y: number; roaded: boolean; sea: boolean }[]> {
+  const out = new Map<string, { x: number; y: number; roaded: boolean; sea: boolean }[]>();
   const { map } = state;
   const seen = new Set<number>();
   for (const c of state.cities) {
@@ -129,7 +131,7 @@ function landResources(state: GameState, player: number): Map<string, { x: numbe
         if (!id || !RESOURCE_BY_ID[id]) continue;
         seen.add(i);
         if (claimant(state, x, y)?.owner !== player) continue;
-        const square = { x, y, roaded: resourceRoaded(state, t) };
+        const square = { x, y, roaded: resourceRoaded(state, t), sea: t.terrain === Terrain.Ocean };
         const list = out.get(id);
         if (list) list.push(square);
         else out.set(id, [square]);
@@ -163,7 +165,8 @@ export function resourceHoldings(state: GameState, player: number): ResourceHold
       if (gives === r.id) exported++;
       if (gets === r.id) imported++;
     }
-    return { id: r.id, own, exported, imported, has: own - exported + imported > 0, unroaded: all.length - own };
+    const unrigged = all.filter((q) => !q.roaded && q.sea).length;
+    return { id: r.id, own, exported, imported, has: own - exported + imported > 0, unroaded: all.length - own, unrigged };
   });
 }
 
