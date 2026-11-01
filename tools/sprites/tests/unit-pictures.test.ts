@@ -7,7 +7,7 @@ import { decodePng } from "../src/png.js";
 const read = (p: string) => decodePng(new Uint8Array(readFileSync(new URL(p, import.meta.url))));
 
 describe("a unit's picture of its own", () => {
-  it.each([["archers", 1400], ["elephants", 1250]] as const)("is the user's picture cut to its bounds, every pixel as supplied, nothing of it left out: %s", (id, square) => {
+  it.each([["archers", 1400], ["elephants", 1250], ["explorer", 1600]] as const)("is the user's picture cut to its bounds, every pixel as supplied, nothing of it left out: %s", (id, square) => {
     const pic = read(`../units/${id}.png`);
     const cut = read(`../../../apps/web/src/units/${id}.png`);
     expect(UNIT_ART[id]).toEqual([cut.width, cut.height, square]);
@@ -31,15 +31,19 @@ describe("a unit's picture of its own", () => {
     expect(lost).toBe(0);
   });
 
-  it("stands at its own scale, the archer as tall as the sheet's militia, on the square's foot", () => {
+  it("stands at its own scale, the archer and the explorer as tall as the sheet's militia, on the square's foot", () => {
     const box = unitArtPlace({ id: "archers", unit: true, x: 0, y: 0, w: 16, h: 16 })!;
     const [w, h] = UNIT_ART.archers!;
     expect(box.w).toBeCloseTo((w / 1400) * 16, 6);
     expect(box.h).toBeCloseTo((h / 1400) * 16, 6);
     expect(box.x + box.w / 2).toBeCloseTo(8, 6);
     expect(box.y + box.h).toBeCloseTo(16 - 0.5, 6);
-    // Helmet to feet 973 of its pixels; the militia 166 of the sheet's 240.
+    // Helmet to feet 973 of its pixels; the militia 166 of the sheet's 240; the explorer's hat to his boots 1113.
     expect(973 / 1400).toBeCloseTo(166 / 240, 2);
+    expect(1113 / 1600).toBeCloseTo(166 / 240, 2);
+    const explorer = unitArtPlace({ id: "explorer", unit: true, x: 0, y: 0, w: 16, h: 16 })!;
+    expect(explorer.x + explorer.w / 2).toBeCloseTo(8, 6);
+    expect(explorer.y + explorer.h).toBeCloseTo(16 - 0.5, 6);
   });
 
   it("stands the war elephant as wide as its square allows, as the chariot, and taller than its horses", () => {

@@ -16,9 +16,10 @@ export const ART_SIZE = 1254;
 
 /**
  * Units still waiting for the user's pictures (added 2026-11-01, save version 53): the map shows each as its letters
- * on its owner's box (renderer-retro `UNIT_ABBR`) until they come. The archer's and the war elephant's came the same day.
+ * on its owner's box (renderer-retro `UNIT_ABBR`) until they come. The archer's, the war elephant's and the
+ * explorer's came the same day.
  */
-export const UNIT_PICTURES_WANTED: readonly string[] = ["explorer", "fishing_boat"];
+export const UNIT_PICTURES_WANTED: readonly string[] = ["fishing_boat"];
 
 /** Improvements still waiting for the user's picture (added 2026-11-01, save version 53): their drawn one (`PICTURES`) stands in. */
 export const BUILDING_PICTURES_WANTED: readonly string[] = ["harbour"];
@@ -123,7 +124,7 @@ export interface ArtSpot extends ArtBox {
  * tools/sprites/units/cut.ts). One scale for all, `UNIT_SQUARE` of the sheet's pixels to a map square, so they keep
  * the sizes the sheet gives them; one that would not fit its square (the carrier, the tank, the phalanx's spear)
  * shrinks to fit. A unit added since comes as a picture of its own, drawn at a size of its own, so with its own scale
- * (`UNIT_ART`'s third number: the archer's 1400, the war elephant's 1250). Each stands centred across on the square's foot, a fine pixel up,
+ * (`UNIT_ART`'s third number: the archer's 1400, the war elephant's 1250, the explorer's 1600). Each stands centred across on the square's foot, a fine pixel up,
  * the aircraft (`ALOFT`) in the middle, in flight. The sprites stay for anything without a picture.
  */
 export const UNIT_SQUARE = 240;

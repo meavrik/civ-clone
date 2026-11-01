@@ -34,9 +34,10 @@ const REACH = 4;
  * `UNIT_SQUARE` (240). The archer (2026-11-01, "implement archer image": 1254 square, the man 973 pixels from his
  * helmet to his feet, the bow above him) at 1400, so he stands as tall as the sheet's militia (166 of 240). The war
  * elephant (the same day, "same for war-elephant": 1334x1179, the beast 1212 across with its tail and tusks) at 1250,
- * as wide as a square allows, as the sheet's chariot is, so it stands over the horses.
+ * as wide as a square allows, as the sheet's chariot is, so it stands over the horses. The explorer (the same day,
+ * "same for the explorer": 1254 square, hat to boots 1113) at 1600, as tall as the militia as the archer is.
  */
-const SINGLES: Record<string, number> = { archers: 1400, elephants: 1250 };
+const SINGLES: Record<string, number> = { archers: 1400, elephants: 1250, explorer: 1600 };
 /** The units the sheet drew, in its order: those of the first rules, before any came with a save version. */
 const SHEET_UNITS = UNIT_TYPES.filter((t) => t.since === undefined);
 
