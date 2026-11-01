@@ -36,6 +36,15 @@ export interface SpecialRule {
 /** The save version from which `within` and `beyond` place specials; older worlds ignore them. */
 export const SPECIAL_REACH_SINCE = 19;
 
+/**
+ * Specials of one kind lie at least this many squares apart, counting diagonals as one (worlds since save version 57;
+ * asked for 2026-11-01: "sometimes many resources are near each other - set minimum distance between resources of the
+ * same type"): none of a kind in the 5x5 round another. One that falls nearer moves up to `SPREAD_REACH` squares to a
+ * square that suits it (`spreadSpecials`), else it is left out.
+ */
+export const SPECIAL_SPACING = 3;
+export const SPREAD_REACH = 4;
+
 export interface TerrainRule {
   food: number;
   shields: number;

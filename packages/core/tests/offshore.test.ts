@@ -52,8 +52,9 @@ describe("Oil at sea (save version 55)", () => {
   it("lies on open sea within two squares of land, on new worlds only, every land deposit where it was", () => {
     let seen = 0;
     for (const seed of [2, 5, 9]) {
-      const s = newGame(seed);
-      const old = newGame(seed, { catalogue: 54 });
+      // The worlds as laid, before specials of a kind were spread apart (version 57, `clusteredResources`).
+      const s = newGame(seed, { clusteredResources: true });
+      const old = newGame(seed, { catalogue: 54, clusteredResources: true });
       s.map.tiles.forEach((t, i) => {
         const x = i % s.map.width, y = Math.floor(i / s.map.width);
         if (t.terrain === Terrain.Ocean && t.deposit) {
@@ -68,7 +69,7 @@ describe("Oil at sea (save version 55)", () => {
       const starts = (g: GameState) => g.units.map((u) => `${u.owner}:${u.x},${u.y}`).sort();
       expect(starts(s)).toEqual(starts(old));
       const states = (g: GameState) => g.cities.map((c) => `${c.cityState}:${c.x},${c.y}`);
-      expect(states(newGame(seed, { cityStates: true }))).toEqual(states(newGame(seed, { cityStates: true, catalogue: 54 })));
+      expect(states(newGame(seed, { cityStates: true, clusteredResources: true }))).toEqual(states(newGame(seed, { cityStates: true, catalogue: 54, clusteredResources: true })));
     }
     expect(seen).toBeGreaterThan(20);
   });

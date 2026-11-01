@@ -132,6 +132,8 @@ export interface GameConfig {
   freeFish?: boolean;
   /** Roads, irrigation and mines in the original's turns (`GameState.quickImprovements`). */
   quickImprovements?: boolean;
+  /** Specials of a kind as their placement put them, however near each other (`NewGameOptions.clusteredResources`). */
+  clusteredResources?: boolean;
 }
 
 export interface PlayerStats {
@@ -260,6 +262,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.catalogue !== undefined ? { catalogue: config.catalogue } : {}),
     ...(config.freeFish ? { freeFish: true } : {}),
     ...(config.quickImprovements ? { quickImprovements: true } : {}),
+    ...(config.clusteredResources ? { clusteredResources: true } : {}),
   };
 }
 

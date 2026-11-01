@@ -1,5 +1,5 @@
 import { selectNextUnit } from "./commands.js";
-import { generateMap, scatterDeposits, type MapGenOptions } from "./map/generate.js";
+import { generateMap, scatterDeposits, spreadSpecials, type MapGenOptions } from "./map/generate.js";
 import { premadeMap, premadeStarts, premadeWorld, type PremadeWorld } from "./map/premade.js";
 import { createRng, nextInt } from "./rng.js";
 import { advancesFor } from "./rules/advances.js";
@@ -140,6 +140,11 @@ export interface NewGameOptions extends MapGenOptions {
   freeFish?: boolean;
   /** Roads, irrigation and mines in the original's turns, as before version 56 (see `GameState.quickImprovements`). Old saves load with it. */
   quickImprovements?: boolean;
+  /**
+   * Specials of a kind lie where the lattice and the deposits' rolls put them, however near each other, as before
+   * version 57 (since, `spreadSpecials` keeps them `SPECIAL_SPACING` apart). Old saves load with it.
+   */
+  clusteredResources?: boolean;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
@@ -250,6 +255,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     });
   // Strategic resources lie in deposits besides the lattice's specials (rules/resources.ts).
   if (!opts.noResources) scatterDeposits(map, seed, opts.catalogue);
+  // None of a kind near another (since version 57).
+  if (!opts.clusteredResources) spreadSpecials(map, seed);
   const humanCiv = opts.civ ?? "romans";
   const roster = opts.roster;
   const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians" && (!homes || homes[c.id] !== undefined) && (roster === undefined || (c.since ?? 0) <= roster));

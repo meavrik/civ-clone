@@ -80,7 +80,20 @@ Never ship the original's sprites, palette art, fonts or text.
   The lattice's specials were far too rare to hang units on (1 civ in 24 held any Iron at turn 220), so worlds
   since save version 33 hold deposits (`Tile.deposit`, `scatterDeposits`: on land without a special, off the
   polar rows, a hash of the square and the seed picks a resource its terrain lists in `ResourceRule.deposits`;
-  no RNG), each that resource's special (`specialOf`), drawn and yielding as one. Since save version 52 (asked for
+  no RNG), each that resource's special (`specialOf`), drawn and yielding as one. Specials of one kind lie at least
+  `SPECIAL_SPACING` (3) squares apart since save version 57 (asked for 2026-11-01: "sometimes many resources are near each
+  other - set minimum distance between resources of the same type"; a third of Iron, Horses and Elephants had one of their
+  kind next door, half within two, and Fish and Whales bunched along the sea's second lattice): `spreadSpecials`, after
+  the deposits, keeps the lattice's first, then the deposits, in an order hashed from the square and the seed, and moves
+  one too near to the nearest square that suits it and is clear of its kind, up to `SPREAD_REACH` (4) out (a deposit to a
+  terrain its resource lies on, beside what it must be beside, at sea only at sea; a lattice special to its own terrain
+  within its reach of land), else leaves it out: none of a kind within two squares of another, and about as many of each
+  (Iron 8% fewer, 11% on large worlds, the rest under 4%). A seed's world is the same land, but its sites score anew, so
+  the draws that follow differ: over 20 seeds 17 of 120 players start elsewhere and most city-states stand elsewhere. Saves before 57 load with `clusteredResources` (headless `--clustered-resources`). Head to head:
+  planner vs v2, 16 x 300, seeds 1-16 and 17-32: spread 7-9 and 6-10, score 108 vs 99 and 101 vs 100, pop 44 vs 29
+  and 43 vs 35; clustered (as version 56) 11-5 and 9-7, 108 vs 94 and 118 vs 99, pop 42 vs 30 and 49 vs 33; all replaying
+  exactly. The planner loses its edge on the spread worlds (13-19 over the 32 seeds, against 20-12): not tuned for them
+  yet (its swaps of spare resources may count for less with fewer of a kind on one civ's land). Since save version 52 (asked for
   2026-10-31: "resources on tiles, like horses, should not give extra shields to the city") a strategic resource's
   square adds no shields, neither its own (Horses 2, Iron 3, Coal 2, Oil 1, Saltpeter 1) nor an advance's (Iron
   Working, Gunpowder, Refining): core `yieldingSpecial`, read by `tileYield`, the square's window and the research
@@ -1636,7 +1649,7 @@ for; save version 40), told on the map as they appear. Seafaring (Harbour, Explo
 (Archers) and War Elephants on the Elephants resource done (2026-11-01, asked for; save version 53), the units' pictures
 the user's. Oil at sea and the Fishing Boat's oil rigs done (2026-11-01, asked for; save version 55), drawn in code until
 the user's pictures come. Roads, irrigation and mines take twice the original's turns (2026-11-01, asked for; save
-version 56).
+version 56). Specials of a kind kept three squares apart (2026-11-01, asked for; save version 57).
 
 ## Known gaps / next steps
 

@@ -26,6 +26,7 @@ import {
   seesResource,
   setRelation,
   siteScore,
+  SPECIAL_SPACING,
   specialFor,
   specialOf,
   startTurn,
@@ -74,12 +75,14 @@ describe("strategic resources", () => {
     }
     // Every kind turns up.
     for (const r of RESOURCES) expect(deposits.some((t) => t.deposit === r.id), r.id).toBe(true);
-    // The same seed draws the same world otherwise: only squares without a special took a deposit.
+    // The same seed draws the same world otherwise: only squares without a special took a deposit (as laid, before
+    // specials of a kind were spread apart, since save version 57).
     const old = loadSave({ ...makeSave(newGame(7), {}, []), version: 32 as const }, () => {}).state;
     expect(old.noResources).toBe(true);
     expect(old.map.tiles.some((t) => t.deposit)).toBe(false);
     expect(old.map.tiles.map((t) => t.terrain)).toEqual(s.map.tiles.map((t) => t.terrain));
-    expect(old.map.tiles.filter((t) => t.special).length + deposits.length).toBe(s.map.tiles.filter((t) => t.special).length);
+    const laid = newGame(7, { clusteredResources: true }).map.tiles;
+    expect(old.map.tiles.filter((t) => t.special).length + laid.filter((t) => t.deposit).length).toBe(laid.filter((t) => t.special).length);
     expect(loadSave(makeSave(newGame(7), {}, []), () => {}).state.noResources).toBeUndefined();
   });
 
@@ -301,5 +304,47 @@ describe("strategic resources", () => {
     expect(missingResources(s, s.barbarians, "knights")).toEqual([]);
     const u = createUnit(s, "legion", 0, 5, 5);
     expect(u.type).toBe("legion"); // units already raised stay
+  });
+});
+
+describe("specials kept apart", () => {
+  /** Each special's kind, and how many lie within `reach` squares of another of their kind. */
+  function crowding(s: GameState, reach: number): { count: Record<string, number>; crowded: number } {
+    const { width: w, height: h } = s.map;
+    const kind = (x: number, y: number) => (y < 0 || y >= h ? undefined : specialOf(getTile(s.map, ((x % w) + w) % w, y)!)?.name);
+    const count: Record<string, number> = {};
+    let crowded = 0;
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const k = kind(x, y);
+        if (!k) continue;
+        count[k] = (count[k] ?? 0) + 1;
+        let near = false;
+        for (let dy = -reach; dy <= reach && !near; dy++) for (let dx = -reach; dx <= reach && !near; dx++) near = (dx !== 0 || dy !== 0) && kind(x + dx, y + dy) === k;
+        if (near) crowded++;
+      }
+    return { count, crowded };
+  }
+
+  it("keeps two of a kind SPECIAL_SPACING squares apart, moving them rather than losing them", () => {
+    for (const opts of [{}, { world: "earth" as const }, { size: "large" as const }]) {
+      for (const seed of [1, 2, 3]) {
+        const spread = crowding(newGame(seed, { opponents: 3, ...opts }), SPECIAL_SPACING - 1);
+        const clustered = crowding(newGame(seed, { opponents: 3, ...opts, clusteredResources: true }), SPECIAL_SPACING - 1);
+        expect(spread.crowded, `${JSON.stringify(opts)} seed ${seed}`).toBe(0);
+        expect(clustered.crowded).toBeGreaterThan(0);
+        // About as many of each kind as before: a few left out where no square near them suited.
+        for (const [k, n] of Object.entries(clustered.count)) expect(spread.count[k] ?? 0, k).toBeGreaterThanOrEqual(Math.floor(n * 0.8));
+      }
+    }
+  });
+
+  it("leaves games saved before version 57 their worlds as they were", () => {
+    const s = newGame(5, { opponents: 2 });
+    const save = makeSave(s, { opponents: 2 }, []);
+    const old = loadSave({ ...save, version: 56 as const }, () => {}).state;
+    const laid = newGame(5, { opponents: 2, clusteredResources: true });
+    expect(old.map.tiles.map((t) => [t.special, t.deposit])).toEqual(laid.map.tiles.map((t) => [t.special, t.deposit]));
+    expect(loadSave(save, () => {}).state.map.tiles).toEqual(s.map.tiles);
   });
 });

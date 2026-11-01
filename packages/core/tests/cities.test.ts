@@ -277,7 +277,8 @@ describe("tile yields", () => {
       let terrains = "";
       for (let seed = 1; seed <= 8; seed++) {
         // An old save's world comes with its old yields too (grassland's scattered Resources), and no deposits.
-        const { map } = newGame(seed, resources === undefined ? {} : { resources, freecivYields: true, noResources: true });
+        // The specials as the lattice and deposits lay them (before version 57 spread them apart, `clusteredResources`).
+        const { map } = newGame(seed, resources === undefined ? { clusteredResources: true } : { resources, freecivYields: true, noResources: true, clusteredResources: true });
         for (const t of map.tiles) { const n = specialOf(t)?.name; if (n) names.set(n, (names.get(n) ?? 0) + 1); }
         // Grassland's first kind is gone from new worlds (the original's grassland has none): count the squares off grassland,
         // and the lattice's only (new worlds add strategic deposits besides).

@@ -1,7 +1,7 @@
 import { nextFloat, nextInt, type RngState } from "../rng.js";
 import { inCatalogue } from "../rules/catalogue.js";
-import { RESOURCES } from "../rules/resources.js";
-import { secondKind, SPECIAL_REACH_SINCE, TERRAIN_RULES, type SpecialRule } from "../rules/terrain.js";
+import { RESOURCE_BY_ID, RESOURCES } from "../rules/resources.js";
+import { secondKind, SPECIAL_REACH_SINCE, SPECIAL_SPACING, specialOf, SPREAD_REACH, TERRAIN_RULES, type SpecialRule } from "../rules/terrain.js";
 import { MAP_WIDTH, NEIGHBOURS, Terrain, worldSize, wrapX, type Tile, type WorldMap, type WorldSize } from "../types.js";
 import { findGeography } from "./geography.js";
 
@@ -533,6 +533,84 @@ export function scatterDeposits(map: WorldMap, seed: number, catalogue?: number)
         roll -= share;
       }
     }
+}
+
+/**
+ * Specials of one kind kept `SPECIAL_SPACING` squares apart (worlds since save version 57): the lattice's first, then
+ * the deposits, each in an order hashed from the square and the seed (no RNG, so the seed's draws stay as they were).
+ * One with another of its kind too near moves to the nearest square that suits it and is clear of its kind, ring by
+ * ring up to `SPREAD_REACH` out (a deposit to a terrain its resource may lie on, and beside the terrain it must be
+ * beside; a lattice special to its own terrain, within its reach of land), so a world keeps about as many of each;
+ * with no such square it is left out.
+ */
+export function spreadSpecials(map: WorldMap, seed: number): void {
+  const { width: w, height: h, tiles } = map;
+  const at = (x: number, y: number) => tiles[y * w + wrapX(map, x)]!;
+  interface Item { x: number; y: number; name: string; terrain: Terrain; second: boolean; deposit?: string; order: number }
+  const items: Item[] = [];
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const t = tiles[y * w + x]!;
+      const name = specialOf(t)?.name;
+      if (name === undefined) continue;
+      const order = (t.deposit ? 1 : 0) + squareHash(x * 3 + (seed % 499), y * 17 + (seed % 101));
+      items.push({ x, y, name, terrain: t.terrain, second: !!t.secondSpecial, ...(t.deposit ? { deposit: t.deposit } : {}), order });
+      t.special = false;
+      delete t.secondSpecial;
+      delete t.deposit;
+    }
+  items.sort((a, b) => a.order - b.order);
+  const kept: (string | undefined)[] = new Array(w * h);
+  const clear = (x: number, y: number, name: string) => {
+    for (let dy = 1 - SPECIAL_SPACING; dy < SPECIAL_SPACING; dy++) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= h) continue;
+      for (let dx = 1 - SPECIAL_SPACING; dx < SPECIAL_SPACING; dx++) if (kept[ny * w + wrapX(map, x + dx)] === name) return false;
+    }
+    return true;
+  };
+  const suits = (it: Item, x: number, y: number): boolean => {
+    if (y < 1 || y >= h - 1) return false;
+    const t = at(x, y);
+    if (t.special || kept[y * w + wrapX(map, x)] !== undefined) return false;
+    if (it.deposit !== undefined) {
+      const r = RESOURCE_BY_ID[it.deposit]!;
+      // At sea a deposit stays at sea, on land on land.
+      if ((t.terrain === Terrain.Ocean) !== (it.terrain === Terrain.Ocean)) return false;
+      if (t.terrain === Terrain.Ocean) return !!r.offshore && landDistance(map, x, y, r.offshore.within) <= r.offshore.within;
+      if (!(r.deposits[t.terrain] ?? 0)) return false;
+      return r.besides === undefined || t.terrain === r.besides || NEIGHBOURS.some(([dx, dy]) => y + dy >= 0 && y + dy < h && at(x + dx, y + dy).terrain === r.besides);
+    }
+    if (t.terrain !== it.terrain) return false;
+    const rule = TERRAIN_RULES[t.terrain];
+    const kind = it.second ? rule.second : rule.special;
+    if (!kind || (kind.within === undefined && kind.beyond === undefined)) return true;
+    const d = landDistance(map, x, y, 3);
+    return (kind.within === undefined || d <= kind.within) && (kind.beyond === undefined || d >= kind.beyond);
+  };
+  const place = (it: Item, x: number, y: number) => {
+    const t = at(x, y);
+    t.special = true;
+    if (it.second) t.secondSpecial = true;
+    if (it.deposit !== undefined) t.deposit = it.deposit;
+    kept[y * w + wrapX(map, x)] = it.name;
+  };
+  for (const it of items) {
+    if (clear(it.x, it.y, it.name)) {
+      place(it, it.x, it.y);
+      continue;
+    }
+    search: for (let r = 1; r <= SPREAD_REACH; r++)
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = wrapX(map, it.x + dx), y = it.y + dy;
+          if (suits(it, x, y) && clear(x, y, it.name)) {
+            place(it, x, y);
+            break search;
+          }
+        }
+  }
 }
 
 /** How many squares from land (x, y) lies, counting diagonals as one; `cap` + 1 if no land is that near. */
