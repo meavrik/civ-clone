@@ -35,9 +35,11 @@ const REACH = 4;
  * helmet to his feet, the bow above him) at 1400, so he stands as tall as the sheet's militia (166 of 240). The war
  * elephant (the same day, "same for war-elephant": 1334x1179, the beast 1212 across with its tail and tusks) at 1250,
  * as wide as a square allows, as the sheet's chariot is, so it stands over the horses. The explorer (the same day,
- * "same for the explorer": 1254 square, hat to boots 1113) at 1600, as tall as the militia as the archer is.
+ * "same for the explorer": 1254 square, hat to boots 1113) at 1600, as tall as the militia as the archer is. The
+ * fishing boat (the same day, "same for fishing boat": 1254 square, the boat 1128 high with its sail) at 1600, as big
+ * as the sheet's Sail, its smallest ship (170 of 240).
  */
-const SINGLES: Record<string, number> = { archers: 1400, elephants: 1250, explorer: 1600 };
+const SINGLES: Record<string, number> = { archers: 1400, elephants: 1250, explorer: 1600, fishing_boat: 1600 };
 /** The units the sheet drew, in its order: those of the first rules, before any came with a save version. */
 const SHEET_UNITS = UNIT_TYPES.filter((t) => t.since === undefined);
 

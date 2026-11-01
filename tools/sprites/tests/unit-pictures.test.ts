@@ -7,7 +7,7 @@ import { decodePng } from "../src/png.js";
 const read = (p: string) => decodePng(new Uint8Array(readFileSync(new URL(p, import.meta.url))));
 
 describe("a unit's picture of its own", () => {
-  it.each([["archers", 1400], ["elephants", 1250], ["explorer", 1600]] as const)("is the user's picture cut to its bounds, every pixel as supplied, nothing of it left out: %s", (id, square) => {
+  it.each([["archers", 1400], ["elephants", 1250], ["explorer", 1600], ["fishing_boat", 1600]] as const)("is the user's picture cut to its bounds, every pixel as supplied, nothing of it left out: %s", (id, square) => {
     const pic = read(`../units/${id}.png`);
     const cut = read(`../../../apps/web/src/units/${id}.png`);
     expect(UNIT_ART[id]).toEqual([cut.width, cut.height, square]);
@@ -44,6 +44,14 @@ describe("a unit's picture of its own", () => {
     const explorer = unitArtPlace({ id: "explorer", unit: true, x: 0, y: 0, w: 16, h: 16 })!;
     expect(explorer.x + explorer.w / 2).toBeCloseTo(8, 6);
     expect(explorer.y + explorer.h).toBeCloseTo(16 - 0.5, 6);
+  });
+
+  it("stands the fishing boat as big as the sheet's Sail, its smallest ship, on the square's foot", () => {
+    const at = (id: string) => unitArtPlace({ id, unit: true, x: 0, y: 0, w: 16, h: 16 })!;
+    const boat = at("fishing_boat"), sail = at("sail");
+    expect(boat.h).toBeCloseTo(sail.h, 0);
+    expect(boat.x + boat.w / 2).toBeCloseTo(8, 6);
+    expect(boat.y + boat.h).toBeCloseTo(16 - 0.5, 6);
   });
 
   it("stands the war elephant as wide as its square allows, as the chariot, and taller than its horses", () => {

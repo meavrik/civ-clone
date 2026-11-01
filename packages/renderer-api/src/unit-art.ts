@@ -34,4 +34,5 @@ export const UNIT_ART: Record<string, readonly [w: number, h: number, square?: n
   archers: [997, 1130, 1400],
   elephants: [1216, 1061, 1250],
   explorer: [902, 1117, 1600],
+  fishing_boat: [1131, 1132, 1600],
 };

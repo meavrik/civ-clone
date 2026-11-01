@@ -449,10 +449,9 @@ Never ship the original's sprites, palette art, fonts or text.
   10-6, score 143 vs 112, cities 10.2 vs 7.0, pop 58 vs 39 (with Archery researched before Seafaring 11-5,
   144 vs 113); catalogue 52 9-7, score 135 vs 114, pop 54 vs 37; all replaying exactly. Over 6 all-planner games of 250
   turns: 26 Archers, 2 War Elephants, 4 Fishing Boats and their fisheries, 1 Harbour, no Explorer (the planner
-  reaches Seafaring late, most of the game on its war goals against the city-states). Pictures: the archer's, the war
-  elephant's and the explorer's are the user's (see Unit pictures); the rest wait for theirs (renderer-api
-  `UNIT_PICTURES_WANTED`, `BUILDING_PICTURES_WANTED`, `TECH_PICTURES_WANTED`): the fishing boat shows its letter on the
-  owner's box (retro `UNIT_ABBR`: F), the Harbour its
+  reaches Seafaring late, most of the game on its war goals against the city-states). Pictures: the four units' are the
+  user's (see Unit pictures; `UNIT_PICTURES_WANTED` is empty, retro `UNIT_ABBR`'s letters stand in only where no
+  picture is laid); the rest wait for theirs (renderer-api `BUILDING_PICTURES_WANTED`, `TECH_PICTURES_WANTED`): the Harbour its
   drawn city-view picture (`PICTURES.harbour`), Archery and Seafaring the New Technology frame's bed, Elephants Ivory's
   tusks (retro `SPECIAL_STAND_INS`); a fishery is drawn in code (retro `fishery.ts`: two stakes, a sagging net, red and
   white floats). The Resources advisor's bands close up to fit six (`TRADES_ROOM`). The loader took versions 1-48 and
@@ -1057,7 +1056,8 @@ Never ship the original's sprites, palette art, fonts or text.
   elephant (the same day, "same for war-elephant"; 1334x1179, its rider small on its back under a magenta caparison)
   at 1250, as wide as a square allows, as the sheet's chariot stands, so it looms over the horses; the explorer (the
   same day, "same for the explorer"; 1254 square, hat, bedroll and staff) at 1600, hat to boots (1113) as tall as the
-  militia, as the archer. The sheet's
+  militia, as the archer; the fishing boat (the same day, "same for fishing boat"; 1254 square, a fisherman hauling his
+  net under a magenta sail) at 1600, as big as the sheet's Sail, its smallest ship (170 of 240). The sheet's
   cut matches its 29 to the units of the first rules (`SHEET_UNITS`: those without `since`), the later ones lying among
   them in `UNIT_TYPES`.
   Unit moves (2026-10-28, asked for with the user's militia sheet, `tools/sprites/units/militia-anim.png` kept as
