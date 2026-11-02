@@ -61,6 +61,7 @@ import {
   inCatalogue,
   landOwner,
   oceanFood,
+  oceanTrade,
   specialFor,
   whyNoFishery,
   whyNoRig,
@@ -680,6 +681,15 @@ const GOALS = [
   "the_internet", "renewable_energy", "mobile_phones", "artificial_intelligence", "quantum_computing", "future_tech",
 ];
 const WAR_GOALS = ["bronze_working", "archery", "iron_working", "mathematics", "feudalism", "chivalry", "gunpowder"];
+/**
+ * A seafaring people's goals (`maritime`): Seafaring straight after the Alphabet, for the Harbour, which since save
+ * version 58 brings the sea's second trade.
+ */
+const MARITIME_GOALS = (() => {
+  const g = GOALS.filter((a) => a !== "seafaring");
+  g.splice(g.indexOf("alphabet") + 1, 0, "seafaring");
+  return g;
+})();
 
 /** An advance and everything beneath it in a tree (an advance the tree lacks stands alone). */
 const CLOSURES = new Map<readonly AdvanceRule[], Map<string, Set<string>>>();
@@ -699,13 +709,13 @@ function closure(id: string, tree: readonly AdvanceRule[]): Set<string> {
  * (a coastal civ that has run out of land to explore, or met nobody) puts
  * Map Making first so its ships can go and look; `oceanward` (a civ boxed
  * in with no free coast in sight) puts Navigation next, for ships that can
- * cross the open sea.
+ * cross the open sea. `maritime` (most of its cities by the sea, since save version 58) seeks Seafaring early.
  */
-export function pickResearch(known: string[], tree: readonly AdvanceRule[], atWar: boolean, seaward = false, oceanward = false): string | null {
+export function pickResearch(known: string[], tree: readonly AdvanceRule[], atWar: boolean, seaward = false, oceanward = false, maritime = false): string | null {
   const avail = availableAdvances(known, tree);
   if (avail.length === 0) return null;
   const have = new Set(known);
-  const goals = [...(seaward ? ["map_making"] : []), ...(oceanward ? ["navigation"] : []), ...(atWar ? WAR_GOALS : []), ...GOALS];
+  const goals = [...(seaward ? ["map_making"] : []), ...(oceanward ? ["navigation"] : []), ...(atWar ? WAR_GOALS : []), ...(maritime ? MARITIME_GOALS : GOALS)];
   for (const g of goals) {
     if (have.has(g)) continue;
     const need = closure(g, tree);
@@ -723,7 +733,10 @@ function manageResearch(state: GameState, ctx: Ctx): void {
   const cramped = ctx.cities.length > 0 && ctx.sites().length < 2;
   const seaward = ctx.cities.some((c) => coastal(state, c)) && (!ctx.landUnexplored || lonely || cramped);
   const oceanward = seaward && cramped && ctx.p.advances.includes("map_making") && ctx.overseasSites().length === 0;
-  const pick = pickResearch(ctx.p.advances, advancesFor(state), threatened, seaward, oceanward);
+  // Most of our cities by the sea: the Harbour is worth reaching early (since save version 58).
+  const ports = ctx.cities.filter((c) => coastal(state, c)).length;
+  const maritime = !state.richSea && ctx.cities.length >= 2 && ports * 2 >= ctx.cities.length;
+  const pick = pickResearch(ctx.p.advances, advancesFor(state), threatened, seaward, oceanward, maritime);
   if (pick) applyCommand(state, { type: "research", advance: pick });
 }
 
@@ -1367,10 +1380,16 @@ function wantBuilding(state: GameState, ctx: Ctx, c: City, r: CityReport, id: st
     case "cell_tower": return r.unhappy > 0 ? 6 + r.unhappy * 2 : 0;
     case "automated_office": return r.corruption >= 3 ? 2 + r.corruption : 0;
     case "bank": return r.tax >= 8 ? 4 : 0;
-    // A Harbour feeds a port working the sea: worth it from two ocean squares worked.
+    // A Harbour feeds a port working the sea: worth it from two ocean squares worked. Since save version 58 the sea
+    // brings 1 trade without one and 2 with it, so a port works little sea until it has one: count the sea it could
+    // work, up to half its people (`richSea` games: as before).
     case "harbour": {
       const ocean = c.worked.filter((slot) => radiusTile(state, c, slot)?.terrain === Terrain.Ocean).length;
-      return ocean >= 2 ? 2 + ocean * 2 : 0;
+      if (state.richSea) return ocean >= 2 ? 2 + ocean * 2 : 0;
+      let sea = 0;
+      for (let slot = 1; slot < CITY_RADIUS.length; slot++) if (radiusTile(state, c, slot)?.terrain === Terrain.Ocean && (c.worked.includes(slot) || slotFree(state, ctx, c, slot))) sea++;
+      const use = Math.min(sea, Math.max(ocean, Math.ceil(c.size / 2)));
+      return use >= 2 ? 2 + use * 3 : 0;
     }
     case "factory": return r.shields >= 10 ? 8 : 0;
     case "power_plant": case "hydro_plant": case "nuclear_plant": case "solar_plant": return r.shields >= 15 ? 4 + (r.pollution >= 10 ? 4 : 0) : 0;
@@ -1680,7 +1699,10 @@ function slotValue(state: GameState, c: City, slot: number, gov: string): number
   const t = radiusTile(state, c, slot);
   if (!t) return -1;
   const y = tileYield(state, t, false, gov, c.owner);
-  if (t.terrain === Terrain.Ocean) y.food += oceanFood(c);
+  if (t.terrain === Terrain.Ocean) {
+    y.food += oceanFood(c);
+    y.trade += oceanTrade(state, c);
+  }
   return y.food * 3 + y.shields * 2 + y.trade;
 }
 

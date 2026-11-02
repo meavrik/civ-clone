@@ -41,6 +41,8 @@ export interface BuildingRule {
   coastal?: boolean;
   /** Food added to each ocean square the city works. */
   oceanFood?: number;
+  /** Trade added to each ocean square the city works (since save version 58; `GameState.richSea` games: none). */
+  oceanTrade?: number;
   /** The save version that brought it; a game of an older version (`GameState.catalogue`) never offers it. */
   since?: number;
 }
@@ -53,7 +55,7 @@ export const BUILDINGS: BuildingRule[] = [
   B("palace", "Palace", 200, 0, "The seat of government: the farther a city lies from it, the more trade corruption takes.", { requires: "masonry", culture: 1 }),
   B("barracks", "Barracks", 40, 1, "Land units trained here start as veterans.", { barracks: true }),
   B("granary", "Granary", 60, 1, "Half the food stays in store when the city grows.", { requires: "pottery", granary: true }),
-  B("harbour", "Harbour", 60, 1, "Each ocean square the city works yields one more food.", { requires: "seafaring", coastal: true, oceanFood: 1, since: 53 }),
+  B("harbour", "Harbour", 60, 1, "Each ocean square the city works yields one more food and one more trade.", { requires: "seafaring", coastal: true, oceanFood: 1, oceanTrade: 1, since: 53 }),
   B("temple", "Temple", 40, 1, "Calms one unhappy citizen.", { requires: "ceremonial_burial", content: 1, culture: 2 }),
   B("marketplace", "Marketplace", 80, 1, "Adds half again to the city's tax and luxuries.", { requires: "currency", taxPct: 50, luxPct: 50 }),
   B("library", "Library", 80, 1, "Adds half again to the city's science.", { requires: "writing", sciencePct: 50, culture: 2 }),

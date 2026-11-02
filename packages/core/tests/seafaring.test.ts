@@ -17,6 +17,7 @@ import {
   RESOURCES,
   resourcesIn,
   setRelation,
+  siteScore,
   specialOf,
   Terrain,
   trespassOn,
@@ -71,6 +72,29 @@ describe("Seafaring (save version 53)", () => {
     const landBefore = cityTileYield(s, port, land)!;
     port.buildings.push("harbour");
     expect(cityTileYield(s, port, land)).toEqual(landBefore);
+  });
+
+  it("leaves the sea 1 trade until its city has a Harbour, which adds the second (save version 58)", () => {
+    const s = world();
+    sea(s, 11, 10);
+    const port = foundCity(s, 0, 10, 10);
+    const slot = slotOf(1, 0);
+    expect(cityTileYield(s, port, slot)).toEqual({ food: 1, shields: 0, trade: 1 });
+    port.buildings.push("harbour");
+    expect(cityTileYield(s, port, slot)).toEqual({ food: 2, shields: 0, trade: 2 });
+    // A game saved before version 58 (`richSea`): the sea's 2 trade, and a Harbour of food only.
+    s.richSea = true;
+    expect(cityTileYield(s, port, slot)).toEqual({ food: 2, shields: 0, trade: 2 });
+    port.buildings.pop();
+    expect(cityTileYield(s, port, slot)).toEqual({ food: 1, shields: 0, trade: 2 });
+    // A site is scored for the trade its sea gives with a Harbour, so starts stand where they did.
+    delete s.richSea;
+    const score = siteScore(s, 10, 10);
+    s.richSea = true;
+    expect(siteScore(s, 10, 10)).toBe(score);
+    const save = makeSave(newGame(5, { opponents: 1 }), {}, []);
+    expect(loadSave({ ...save, version: 57 }, () => {}).state.richSea).toBe(true);
+    expect(loadSave(save, () => {}).state.richSea).toBeUndefined();
   });
 
   it("lets a Fishing Boat lay a fishery on fish or whales in its own waters, and spends it", () => {

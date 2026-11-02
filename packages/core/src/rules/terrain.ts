@@ -49,6 +49,11 @@ export interface TerrainRule {
   food: number;
   shields: number;
   trade: number;
+  /**
+   * The original's trade where ours differs, which games before save version 58 keep (`GameState.richSea`): the sea's
+   * 2 (asked for 2026-11-02: "water tile trade - reduce. will be added with harbour"; since, 1, and a Harbour adds 1).
+   */
+  originalTrade?: number;
   moveCost: number;
   defense: number;
   /** The original's special resource on this terrain (see `SpecialRule`). */
@@ -81,7 +86,8 @@ export interface TerrainRule {
 
 export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Ocean]: {
-    food: 1, shields: 0, trade: 2, moveCost: 1, defense: 1,
+    // 1 trade until its city has a Harbour (`BuildingRule.oceanTrade`), since save version 58; the original's 2 before.
+    food: 1, shields: 0, trade: 1, originalTrade: 2, moveCost: 1, defense: 1,
     // Fish feed a city only once a Fishing Boat has laid a fishery on them (asked for 2026-11-01), then 2 food and 1 more.
     special: { name: "Fish", food: 2, within: 2, fishery: { food: 1, unlocks: true } },
     // Whalers put to sea with Navigation.

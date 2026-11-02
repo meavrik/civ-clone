@@ -134,6 +134,8 @@ export interface GameConfig {
   quickImprovements?: boolean;
   /** Specials of a kind as their placement put them, however near each other (`NewGameOptions.clusteredResources`). */
   clusteredResources?: boolean;
+  /** The sea's 2 trade and a Harbour of food only (`GameState.richSea`). */
+  richSea?: boolean;
 }
 
 export interface PlayerStats {
@@ -263,6 +265,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.freeFish ? { freeFish: true } : {}),
     ...(config.quickImprovements ? { quickImprovements: true } : {}),
     ...(config.clusteredResources ? { clusteredResources: true } : {}),
+    ...(config.richSea ? { richSea: true } : {}),
   };
 }
 

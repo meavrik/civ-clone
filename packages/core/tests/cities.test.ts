@@ -62,14 +62,14 @@ describe("the Colossus", () => {
     const west = CITY_RADIUS.findIndex(([dx, dy]) => dx === -1 && dy === 0);
     const north = CITY_RADIUS.findIndex(([dx, dy]) => dx === 0 && dy === -1);
     getTile(s.map, 11, 10)!.road = true; // a road: 1 trade
-    getTile(s.map, 9, 10)!.terrain = Terrain.Ocean; // 2 trade
+    getTile(s.map, 9, 10)!.terrain = Terrain.Ocean; // 1 trade (2 before save version 58)
     c.worked = [east, west, north]; // and plain grassland: no trade
     const before = computeCity(s, c).trade;
     c.wonders.push("colossus");
     // The city's own square (its road), the road and the ocean: three squares with trade, each one more.
     expect(computeCity(s, c).trade).toBe(before + 3);
     expect(cityTileYield(s, c, east)!.trade).toBe(2);
-    expect(cityTileYield(s, c, west)!.trade).toBe(3);
+    expect(cityTileYield(s, c, west)!.trade).toBe(2);
     expect(cityTileYield(s, c, north)!.trade).toBe(0);
     s.oceanColossus = true;
     expect(computeCity(s, c).trade).toBe(before + 1);
@@ -234,15 +234,15 @@ describe("tile yields", () => {
     t.terrain = Terrain.Ocean;
     t.special = true;
     expect(specialOf(t)?.name).toBe("Fish");
-    // Fish feed a city only once fished (since save version 54); before, as they lay.
-    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 1, shields: 0, trade: 2 });
+    // Fish feed a city only once fished (since save version 54); before, as they lay. The sea's trade is 1 since 58.
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 1, shields: 0, trade: 1 });
     t.fishery = true;
-    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 4, shields: 0, trade: 2 });
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 4, shields: 0, trade: 1 });
     t.fishery = false;
-    expect(tileYield({ ...s, freeFish: true }, t, false, "monarchy", 0)).toEqual({ food: 3, shields: 0, trade: 2 });
+    expect(tileYield({ ...s, freeFish: true, richSea: true }, t, false, "monarchy", 0)).toEqual({ food: 3, shields: 0, trade: 2 });
     t.secondSpecial = true;
     expect(specialOf(t)?.name).toBe("Whales");
-    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 2, shields: 1, trade: 2 });
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 2, shields: 1, trade: 1 });
     s.players[0]!.advances.push("navigation");
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);
     // Oil, a strategic resource, adds no shields since version 52 (asked for 2026-10-31), Refining or not.

@@ -72,30 +72,36 @@ describe("terrain info", () => {
     const working = createUnit(s, "settlers", 0, u.x + 1, u.y);
     working.order = { kind: "work", work: "road", turnsLeft: 2 };
     const info = terrainInfo(s, u.x + 1, u.y);
-    // The title names the terrain and the land it lies in; the resource and the river are told of below, once.
+    // The title names the terrain, its resource in brackets (asked for 2026-11-02) and the land it lies in.
     const land = landAt(s.map, u.x + 1, u.y)!.name!;
-    expect(info.title).toBe(`Plains, ${land}`);
+    expect(info.title).toBe(`Plains (Horses), ${land}`);
     // Grassland has no first special in the original: a special flag there names nothing.
     t.terrain = Terrain.Grassland;
+    expect(terrainInfo(s, u.x + 1, u.y).title).toBe(`Grassland, ${land}`);
     expect(terrainInfo(s, u.x + 1, u.y).lines.some((l) => l.includes("Horses"))).toBe(false);
     t.terrain = Terrain.Plains;
-    // Pictures stand in for the words: yields, movement and a river's defence on one line, then a word on the
-    // terrain, then the features with what each adds.
-    expect(info.lines[0]).toMatch(/^\{food\} \d+  \{shield\} \d+  \{trade\} \d+  \{boot\} 1  \{tower\} \+50%$/);
-    expect(info.lines[1]).toBe("Open land for fields and herds, with a little timber.");
+    // Beside the picture, pictures stand in for the words: its yields, then moving onto it and a river's defence,
+    // then a word on the terrain.
+    expect(info.head[0]).toMatch(/^\{food\} \d+  \{shield\} \d+  \{trade\} \d+$/);
+    expect(info.head[1]).toBe("{boot} 1 move  {tower} +50% defence");
+    expect(info.head[2]).toBe("Open land for fields and herds, with a little timber.");
+    // Then its sections, each under a label (asked for 2026-11-02: "too messy. arrange with clear sections").
+    const sec = (i: ReturnType<typeof terrainInfo>, title: string) => i.sections.find((x) => x.title === title)?.lines;
+    expect(info.sections.map((x) => x.title)).toEqual(["Resource", "Features", "Improve", "Units"]);
     // Horses, a strategic resource, add no shields since save version 52 (asked for 2026-10-31); before, their two.
-    expect(info.lines).toContain("{star} Horses  {river} River +1 {trade}, no road trade  {road} Road");
+    expect(sec(info, "Resource")).toEqual(["Needed for Cavalry, Chariot, Knights"]);
     s.resourceShields = true;
-    expect(terrainInfo(s, u.x + 1, u.y).lines).toContain("{star} Horses +2 {shield}  {river} River +1 {trade}, no road trade  {road} Road");
+    expect(sec(terrainInfo(s, u.x + 1, u.y), "Resource")![0]).toBe("+2 {shield}");
     delete s.resourceShields;
-    expect(info.lines.some((l) => l.startsWith("Improvements:  {irrigate} +1 {food}"))).toBe(true);
-    expect(info.lines).toContain("{swords} 2 Militia, Settlers (ours)");
-    expect(info.lines).toContain("{road} Building a road, 2 turns");
+    expect(sec(info, "Features")).toEqual(["{river} River +1 {trade}, no road trade  {road} Road"]);
+    expect(sec(info, "Improve")![0]).toMatch(/^\{irrigate\} \+1 \{food\}/);
+    expect(sec(info, "Units")).toEqual(["2 Militia, Settlers (ours)", "{road} Building a road, 2 turns"]);
+    expect(info.lines).toEqual([...info.head, ...info.sections.flatMap((x) => x.lines)]);
     for (const line of info.lines) for (const seg of iconSegments(line)) if ("icon" in seg) expect(ICONS).toContain(seg.icon);
 
     applyCommand(s, { type: "found", unit: u.id });
-    expect(terrainInfo(s, u.x, u.y).lines.some((l) => l.startsWith(`{city} ${s.cities[0]!.name} (Romans), size 1`))).toBe(true);
-    expect(terrainInfo(s, (u.x + 40) % 80, u.y)).toEqual({ title: "Unexplored", lines: ["Not explored yet."] });
+    expect(sec(terrainInfo(s, u.x, u.y), "City")).toEqual([`${s.cities[0]!.name} (Romans), size 1`]);
+    expect(terrainInfo(s, (u.x + 40) % 80, u.y)).toEqual({ title: "Unexplored", head: ["Not explored yet."], sections: [], lines: ["Not explored yet."] });
   });
 
   it("warns where only settlers climb, where wheels need a road and where the ground wears units down", () => {

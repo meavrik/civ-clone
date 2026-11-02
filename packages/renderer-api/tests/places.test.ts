@@ -57,8 +57,9 @@ describe("place names", () => {
     me.explored.fill(1);
     const rome = state.units.find((u) => u.owner === 0)!;
     const info = terrainInfo(state, rome.x, rome.y);
-    // The terrain, then the land: "Plains, Europe"; the body no longer repeats it.
-    expect(info.title).toMatch(/^(Grassland|Plains|Hills|Forest), Europe$/);
+    // The terrain (its resource in brackets, since 2026-11-02), then the land: "Plains, Europe"; the body no longer repeats it.
+    const bare = (title: string) => title.replace(/ \([^)]*\)/, "");
+    expect(bare(info.title)).toMatch(/^(Grassland|Plains|Hills|Forest), Europe$/);
     expect(info.lines.some((l) => l.includes("Europe"))).toBe(false);
     const find = (test: (x: number, y: number) => boolean) => {
       for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) if (test(x, y)) return { x, y };
@@ -66,14 +67,14 @@ describe("place names", () => {
     };
     // A sea's square is named by its sea alone; a range's square by its range, its terrain's word not said twice.
     const sea = find((x, y) => placeAt(map, x, y)?.name === "the Mediterranean Sea");
-    expect(terrainInfo(state, sea.x, sea.y).title).toBe("The Mediterranean Sea");
+    expect(bare(terrainInfo(state, sea.x, sea.y).title)).toBe("The Mediterranean Sea");
     const named = find((x, y) => { const p = placeAt(map, x, y); return p?.kind === "mountains" && /Mountains/.test(p.name!) && getTile(map, x, y)?.terrain === Terrain.Mountains; });
-    const range = terrainInfo(state, named.x, named.y).title;
+    const range = bare(terrainInfo(state, named.x, named.y).title);
     expect(range).toBe(placeTitle([placeAt(map, named.x, named.y)!.name, landAt(map, named.x, named.y)?.name].filter(Boolean).join(", ")));
     expect(range.match(/Mountains/g)!.length).toBe(1);
     // A range's hills keep their own word: "Hills, the Alps, Europe".
     const hills = find((x, y) => placeAt(map, x, y)?.kind === "mountains" && getTile(map, x, y)?.terrain === Terrain.Hills);
-    expect(terrainInfo(state, hills.x, hills.y).title).toMatch(/^Hills, /);
+    expect(bare(terrainInfo(state, hills.x, hills.y).title)).toMatch(/^Hills, /);
     expect(placeLabelText("the Sea of Caesar")).toBe("Sea of Caesar");
     expect(placeTitle("the Sahara, Africa")).toBe("The Sahara, Africa");
   });

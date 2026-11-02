@@ -50,7 +50,7 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
   const r = TERRAIN_RULES[tile.terrain];
   let food = r.food;
   let shields = r.shields;
-  let trade = r.trade;
+  let trade = state.richSea ? r.originalTrade ?? r.trade : r.trade;
   // Grassland's first special counts only in games before version 26; since then its shields lie on the original's bands.
   const found = !state.freecivYields && tile.terrain === Terrain.Grassland && !tile.secondSpecial && !tile.deposit ? undefined : specialFor(state, tile, owner);
   // A strategic resource adds no shields since save version 52 (`yieldingSpecial`); Fish feed no one without a fishery since 54.
@@ -274,8 +274,11 @@ export function cityTileYield(state: GameState, city: City, slot: number): Yield
   const t = slot === 0 ? getTile(state.map, city.x, city.y) : radiusTile(state, city, slot);
   if (!t) return null;
   const y = tileYield(state, t, slot === 0, cityYieldGovernment(state, city), city.owner);
-  // A Harbour (since save version 53) adds its food to every ocean square the city works.
-  if (t.terrain === Terrain.Ocean) y.food += oceanFood(city);
+  // A Harbour (since save version 53) adds its food to every ocean square the city works, and its trade since 58.
+  if (t.terrain === Terrain.Ocean) {
+    y.food += oceanFood(city);
+    y.trade += oceanTrade(state, city);
+  }
   const bonus = colossusIn(state, city);
   if (bonus && (state.oceanColossus ? slot !== 0 && t.terrain === Terrain.Ocean : y.trade > 0)) y.trade += bonus;
   return y;
@@ -286,6 +289,14 @@ export function oceanFood(city: City): number {
   let food = 0;
   for (const id of city.buildings) food += building(id).oceanFood ?? 0;
   return food;
+}
+
+/** Trade a city's improvements add to each ocean square it works (the Harbour's; none in games before version 58, `richSea`). */
+export function oceanTrade(state: Pick<GameState, "richSea">, city: City): number {
+  if (state.richSea) return 0;
+  let trade = 0;
+  for (const id of city.buildings) trade += building(id).oceanTrade ?? 0;
+  return trade;
 }
 
 /** How much a worker on this square is worth to the city, by its focus (`cityFocus`). */
