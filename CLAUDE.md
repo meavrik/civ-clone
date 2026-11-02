@@ -924,10 +924,11 @@ Never ship the original's sprites, palette art, fonts or text.
   now is too big - reduce and place +/- toggle button on main map for zoom"): `view.zoom` 0.8, 1, 1.2, 1.4 or 1.6 times
   the base (16 to 32 pixels on 20), which the adapter draws as `MAP_TILE` (`sized`), never magnified, its
   `viewTilesX`/`viewTilesY` counted at the base; "Map zoom 120%"; a fight two levels closer (`BATTLE_ZOOM_STEPS`). Two
-  stone buttons, + over -, stand in the map's bottom right corner (`MainScreenView.zoomButtons`, retro `zoomButtonAt`,
-  `Renderer.zoomButtonAt`; 12 pixels a side, the web app's `stepZoomButtons`): lit under the mouse, the sign faded at
-  the zoom's end, the map's names kept off them, pictures cut round them, no edge scrolling while the mouse rests on
-  them. The phone's pinch still magnifies whole times.
+  buttons, + over -, stand in the map's bottom right corner (`MainScreenView.zoomButtons`, retro `zoomButtonAt`,
+  `Renderer.zoomButtonAt`, the web app's `stepZoomButtons`; since the same day, asked for: "button too big - more
+  subtle", one plate 9x18 of the map darkened, `DIMMED`, edged and parted by a fine black line, the signs thin, pale,
+  `ZOOM_SIGN`; at first two 12-pixel stone buttons): the sign white under the mouse, dim at the zoom's end, the map's
+  names kept off them, pictures cut round them, no edge scrolling while the mouse rests on them. The phone's pinch still magnifies whole times.
   Unit animation: core appends every step (`applyMove`) and fight (`resolveCombat`, round by round) to
   `lastActions` (a UI side channel like `lastTurnEvents`, emptied by `endTurn`, never read by replays or
   AI); `MotionPlayer` (`renderer-api/src/motion.ts`) times them into `view.moving` (slides) and

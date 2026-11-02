@@ -32,7 +32,7 @@ import { drawFishery } from "../fishery.js";
 import { drawRig } from "../rig.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
-import { BAD, buttonFace, DIM, drawButton, drawStone, drawSwatch, FADED, GOOD, hideArtUnder, INK, NOTE } from "../widgets.js";
+import { BAD, DIM, drawButton, drawStone, drawSwatch, GOOD, hideArtUnder, INK, NOTE } from "../widgets.js";
 import { drawFireworks } from "../fireworks.js";
 import { drawSinking } from "../sinking.js";
 import { drawShot } from "../shot.js";
@@ -1092,16 +1092,16 @@ function drawMinimapButtons(s: Surface, view: MainScreenView, top: number, map: 
   }
 }
 
-/** The map's zoom buttons are this many pixels a side, + over - in the view's bottom right corner, two pixels in. */
-const ZOOM_BUTTON = 12;
+/** The map's zoom buttons are this many pixels a side, + over - on one plate in the view's bottom right corner, three pixels in. */
+const ZOOM_BUTTON = 9;
 
 /** Where the map's zoom buttons stand on a main screen `screenW` wide. */
 function zoomButtons(screenW: number): { which: ZoomButton; x: number; y: number; w: number; h: number }[] {
-  const x = screenW - ZOOM_BUTTON - 2;
-  const y = SCREEN_H - ZOOM_BUTTON - 2;
+  const x = screenW - ZOOM_BUTTON - 3;
+  const y = SCREEN_H - 3 - 2 * ZOOM_BUTTON;
   return [
-    { which: "in", x, y: y - ZOOM_BUTTON - 1, w: ZOOM_BUTTON, h: ZOOM_BUTTON },
-    { which: "out", x, y, w: ZOOM_BUTTON, h: ZOOM_BUTTON },
+    { which: "in", x, y, w: ZOOM_BUTTON, h: ZOOM_BUTTON },
+    { which: "out", x, y: y + ZOOM_BUTTON, w: ZOOM_BUTTON, h: ZOOM_BUTTON },
   ];
 }
 
@@ -1111,19 +1111,28 @@ export function zoomButtonAt(view: MainScreenView, px: number, py: number, scree
   return zoomButtons(screenW).find((b) => px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h)?.which ?? null;
 }
 
+/** The zoom buttons' signs: pale, white under the pointer, dim where the zoom goes no further. */
+const ZOOM_SIGN = { on: () => shade("panel", 6), lit: () => C.WHITE!, off: () => shade("panel", 3) };
+
 /**
- * The map's zoom buttons (asked for 2026-11-02: "place +/- toggle button on main map for zoom"): the game's stone, a
- * plus over a minus in ink, lit under the pointer, the sign faded where the zoom goes no further; the pictures of
- * units and cities under them cut round them.
+ * The map's zoom buttons (asked for 2026-11-02: "place +/- toggle button on main map for zoom", then "button too big -
+ * more subtle"): one plate of the map darkened under it (`DIMMED`), edged a fine pixel in black and parted between
+ * the two, a thin plus over a thin minus (`ZOOM_SIGN`); the pictures of units and cities under it cut round it.
  */
 function drawZoomButtons(s: Surface, shown: NonNullable<MainScreenView["zoomButtons"]>): void {
-  for (const b of zoomButtons(s.width)) {
-    const on = shown[b.which];
-    hideArtUnder(s, b);
-    const ink = buttonFace(s, b.x, b.y, b.w, b.h, on && shown.lit === b.which ? "lit" : "plain");
-    const color = on ? ink : FADED;
-    s.rect(b.x + 3, b.y + (b.h >> 1) - 1, b.w - 6, 2, color);
-    if (b.which === "in") s.rect(b.x + (b.w >> 1) - 1, b.y + 3, 2, b.h - 6, color);
+  const [top, bottom] = zoomButtons(s.width) as [ReturnType<typeof zoomButtons>[number], ReturnType<typeof zoomButtons>[number]];
+  const plate = { x: top.x, y: top.y, w: top.w, h: bottom.y + bottom.h - top.y };
+  hideArtUnder(s, plate);
+  const k = s.k;
+  const x0 = plate.x * k, y0 = plate.y * k, x1 = (plate.x + plate.w) * k - 1, y1 = (plate.y + plate.h) * k - 1;
+  for (let fy = y0; fy <= y1; fy++)
+    for (let fx = x0; fx <= x1; fx++)
+      s.fset(fx, fy, fx === x0 || fx === x1 || fy === y0 || fy === y1 || fy === bottom.y * k ? C.BLACK! : DIMMED[s.fget(fx, fy)]!);
+  for (const b of [top, bottom]) {
+    const color = !shown[b.which] ? ZOOM_SIGN.off() : shown.lit === b.which ? ZOOM_SIGN.lit() : ZOOM_SIGN.on();
+    const mid = b.w >> 1;
+    s.rect(b.x + 2, b.y + mid, b.w - 4, 1, color);
+    if (b.which === "in") s.rect(b.x + mid, b.y + 2, 1, b.h - 4, color);
   }
 }
 

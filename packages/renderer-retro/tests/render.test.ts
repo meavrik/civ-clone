@@ -7,7 +7,7 @@ import { encodePng } from "./png.js";
 import { ACTIVE_BLINK, ACTIVE_GLOW, activeOpacity, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
-import { DETAIL, FADED, FINE, isWater, setMapTile, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomButtonAt, zoomedTiles } from "../src/index.js";
+import { DETAIL, FINE, isWater, setMapTile, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomButtonAt, zoomedTiles } from "../src/index.js";
 import { CITY_BOXES } from "../src/index.js";
 
 describe("retro renderer", () => {
@@ -174,15 +174,15 @@ describe("retro renderer", () => {
       }
     }
 
-    // The map's zoom buttons (the web game's): + over - in the view's bottom right corner, the one under the pointer
-    // lit, a faded sign where the zoom goes no further; none unless the view asks for them.
+    // The map's zoom buttons (the web game's): + over - on one dark plate in the view's bottom right corner, the sign
+    // under the pointer lit, a dim one where the zoom goes no further; none unless the view asks for them.
     const buttons = Surface.screen();
     drawMainScreen(buttons, state, { ...view, placeNames: false, zoomButtons: { in: true, out: false, lit: "in" } });
     const both = { ...view, zoomButtons: { in: true, out: true } };
-    expect([zoomButtonAt(both, 312, 179), zoomButtonAt(both, 312, 192), zoomButtonAt(both, 300, 192), zoomButtonAt(view, 312, 192)]).toEqual(["in", "out", null, null]);
-    expect(buttons.get(312, 177)).toBe(C.WHITE); // the plus, lit
-    expect(buttons.get(309, 192)).toBe(FADED); // the minus, as far out as it goes
-    expect(buttons.get(312, 192)).not.toBe(flat.get(312, 192));
+    expect([zoomButtonAt(both, 312, 183), zoomButtonAt(both, 312, 192), zoomButtonAt(both, 305, 192), zoomButtonAt(view, 312, 192)]).toEqual(["in", "out", null, null]);
+    expect(buttons.get(312, 182)).toBe(C.WHITE); // the plus, lit
+    expect(buttons.get(311, 192)).toBe(shade("panel", 3)); // the minus, as far out as it goes
+    expect(buttons.get(310, 194)).toBe(DIMMED[flat.get(310, 194)]); // the plate: the map darkened
     expect(buttons.data.subarray(0, 300 * DETAIL)).toEqual(flat.data.subarray(0, 300 * DETAIL));
     writeFileSync(new URL("./out/main-screen-zoom-buttons.png", import.meta.url), encodePng(buttons, 3));
 
