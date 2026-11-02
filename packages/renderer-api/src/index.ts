@@ -3,6 +3,7 @@ import type { MovePlan } from "./plan.js";
 import type { Lifting } from "./fog.js";
 import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
+import type { SleepOrder } from "./unit-standing.js";
 import type { EndCard } from "./chronicle.js";
 import type { MinimapButton, PanelSpot, PanelTip, ZoomButton } from "./panel.js";
 import { setupQuestionCards, type SetupCards } from "./setup.js";
@@ -228,6 +229,8 @@ export interface CityScreenView {
   hoverImprovement?: { id: string; toggle: boolean } | undefined;
   /** The unit (id) in the units box under the pointer (`cityUnits`), told of beside the citizens (`cityUnitNote`). */
   hoverUnit?: number | undefined;
+  /** Units woken in the units box while this city is open, by id, with the order each gave up: a second click restores it. */
+  woken?: Record<number, SleepOrder> | undefined;
 }
 
 /** What can be pointed at on the city screen besides its citizens and squares: its buttons, the close box, the focus toggles. */

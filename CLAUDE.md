@@ -650,7 +650,7 @@ Never ship the original's sprites, palette art, fonts or text.
   pick, it is asked again next turn. Head to head (planner vs v2, 16 x 300, Prince, city-states): 12-4, score 172 vs
   106, cities 10.0 vs 6.4, pop 56 vs 34; with the leftovers as before 8-8, 160 vs 122; all replaying exactly. Saves
   before version 21 load with `compoundingPenalty`: every change of kind halved the box again. Its units (`cityUnits`: those in the city from any home, then those it
-  supports elsewhere, faded, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
+  supports elsewhere, darkened, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
   sentry dropped, the `activate` command) and comes into play; one with no moves left keeps its orders. Since
   2026-11-02 (asked for: "distinct on the units view when unit is fortified or sentry - also when player activate a
   unit - show it activated and dont automaticlly close window, so player could activate several units") the city stays
@@ -660,9 +660,14 @@ Never ship the original's sprites, palette art, fonts or text.
   map puts the shield (retro `SLEEP_MARKS` in `screens/city.ts`: a tower fortified or fortifying, zZ on sentry, a heart
   camped), its picture holed round it; a unit awaiting orders glows gold as the unit in play does on the map
   (`READY_GLOW`, twice `ACTIVE_GLOW` on the stone), so one just woken lights up; the pointer on a unit tells of it
-  beside the citizens (`CityScreenView.hoverUnit`, `cityUnitNote`: "Legion: on sentry, click to wake"). A unit the
-  city supports away from it is darkened and half see-through (asked for the same day: "unit outside the city in the
-  panel - reduce opacity or make darker"; `AWAY_OPACITY` 0.5 with `ArtSpot.dim`), its token whole over it. A city that finishes an improvement, wonder or spaceship part opens
+  beside the citizens (`CityScreenView.hoverUnit`, `cityUnitNote`: "Legion: on sentry, click to wake"). A second click
+  on a unit woken there gives it back the order it gave up (asked for the same day: "a second click would return the
+  unit to the previous state"; `CityScreenView.woken`, the `SleepOrder` by unit, `SLEEP_AGAIN` for the note): the
+  `fortify`, `sentry` or `camp` command, a fortifying unit standing fortified as our turn ends, before anyone strikes, so
+  no save version. A unit the city supports away from it is only darkened (asked for the same day, after a fade and a
+  glow: "remove filters and opacity - just make darker"; `ArtSpot.dark`, `AWAY_LIGHT` 0.35, no glow), its token whole
+  over it, and a click on it closes the city and centres the map on it (`findUnit`), bringing it into play when it
+  awaits orders, its orders otherwise untouched ("click to find it on the map"). A city that finishes an improvement, wonder or spaceship part opens
   the Building Completed window (`built.ts`, `builtCard`; asked for 2026-10-24 with the user's template; retro
   `screens/built.ts`, modern a plain modal), a small window over the game since 2026-10-24 ("should be a
   modal opened on top of the game and not a full screen window"; smaller again since 2026-10-25 and standing

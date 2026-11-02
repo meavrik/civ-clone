@@ -118,6 +118,8 @@ export interface ArtSpot extends ArtBox {
   reveal?: number;
   /** Darkened with the screen it stands on, under a window (`dimScreen`). */
   dim?: boolean;
+  /** Darkened to this share of its light, 0..1 (a unit supported away from its city, in the city screen's units box). */
+  dark?: number;
   /** A faint gold glow traced round it, 0..1 how bright (the unit in play, `ACTIVE_GLOW`); absent: none. */
   contour?: number;
   /** How much of it shows, 0..1 (the unit in play blinking, `activeOpacity`); absent: whole. */

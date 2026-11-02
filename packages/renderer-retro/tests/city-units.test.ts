@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { applyCommand, createUnit, newGame } from "@civ/core";
 import { cityUnitNote } from "@civ/renderer-api";
 import { cityUnitSlot, drawCityScreen, shade, Surface } from "../src/index.js";
-import { AWAY_OPACITY } from "../src/screens/city.js";
+import { AWAY_LIGHT } from "../src/screens/city.js";
 import { encodePng } from "./png.js";
 
 /** A city of ours with, in its units box, a fortified militia, a phalanx on sentry, one awake and one spent. */
@@ -61,7 +61,7 @@ describe("the city screen's units", () => {
     expect(after.art.filter((a) => a.unit && a.y === y).map((a) => (a.contour ?? 0) > 0)).toEqual([true, false, true, false]);
   });
 
-  it("darkens and fades a unit supported away from the city", () => {
+  it("only darkens a unit supported away from the city: no fading, no glow", () => {
     const { state, city } = garrison();
     state.units = state.units.filter((u) => u.owner !== 0);
     const here = createUnit(state, "militia", 0, city.x, city.y, city.id);
@@ -69,9 +69,11 @@ describe("the city screen's units", () => {
     const s = Surface.screen();
     drawCityScreen(s, state, { city: city.id });
     const spot = (id: number) => s.art.find((a) => a.unit && a.x === cityUnitSlot(id === here.id ? 0 : 1).x && a.y === cityUnitSlot(0).y)!;
-    expect(spot(here.id).dim).toBeUndefined();
-    expect(spot(here.id).opacity).toBeUndefined();
-    expect(spot(away.id)).toMatchObject({ dim: true, opacity: AWAY_OPACITY });
+    expect(spot(here.id).dark).toBeUndefined();
+    expect(spot(here.id).contour).toBeGreaterThan(0);
+    expect(spot(away.id).dark).toBe(AWAY_LIGHT);
+    // Awaiting orders as it is, it does not glow; nothing else is laid over it.
+    expect([spot(away.id).contour, spot(away.id).opacity, spot(away.id).dim]).toEqual([undefined, undefined, undefined]);
   });
 
   it("tells of the unit under the pointer beside the citizens", () => {
@@ -80,7 +82,11 @@ describe("the city screen's units", () => {
     expect(cityUnitNote(sentry, true)).toBe("Phalanx: on sentry, click to wake");
     expect(cityUnitNote(ready, true)).toBe("Militia: ready for orders");
     expect(cityUnitNote(spent, true)).toBe("Militia: no moves left");
-    expect(cityUnitNote({ ...ready, xp: 3 }, false)).toBe("Veteran Militia, away: ready for orders");
+    expect(cityUnitNote({ ...ready, xp: 3 }, false)).toBe("Veteran Militia, away: ready for orders, click to find it on the map");
+    expect(cityUnitNote(fortified, false)).toBe("Militia, away: fortified, click to find it on the map");
+    // Woken in the box, a second click gives it back what it gave up.
+    expect(cityUnitNote(ready, true, "fortified")).toBe("Militia: ready for orders, click to fortify again");
+    expect(cityUnitNote(ready, true, "sentry")).toBe("Militia: ready for orders, click to put back on sentry");
     // Drawn where the hint stands, in place of it.
     const hint = Surface.screen();
     drawCityScreen(hint, state, { city: city.id });

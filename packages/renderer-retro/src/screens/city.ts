@@ -26,7 +26,7 @@ import {
   type CityReport,
   type GameState,
 } from "@civ/core";
-import { ACTIVE_GLOW, buildingArt, citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityImprovements, cityLook, cityUnitNote, cityUnits, cityUnitStanding, sleepsUntilWoken, fieldSides, fieldsPicture, FOCUS_CORNERS, minePicture, pierSquare, improvementNote, improvementsTop, isWorker, MOOD_STAGE_ICONS, type ArtBox, type CitizenMood, type IconName, type ImprovementHit, type ImprovementLine } from "@civ/renderer-api";
+import { ACTIVE_GLOW, buildingArt, citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityImprovements, cityLook, cityUnitNote, cityUnits, cityUnitStanding, sleepsUntilWoken, fieldSides, fieldsPicture, FOCUS_CORNERS, minePicture, pierSquare, improvementNote, improvementsTop, isWorker, MOOD_STAGE_ICONS, unitArt, type ArtBox, type CitizenMood, type IconName, type ImprovementHit, type ImprovementLine, type SleepOrder } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRankMark, drawRoad, drawUnitFigure, layWork, rankHoles, waterHoles } from "../overlays.js";
 import { C, shade } from "../palette.js";
@@ -170,7 +170,6 @@ const UNIT_SLOTS = 8;
  * where the map puts the owner's shield (the box shows none) and clear of its rank: a tower fortified (or fortifying),
  * zZ on sentry, a heart camped to heal. A click wakes it, and the token goes.
  */
-type SleepStanding = "fortified" | "fortifying" | "sentry" | "camp";
 const TOWER = [
   ".........",
   ".#.#.#.#.",
@@ -182,7 +181,7 @@ const TOWER = [
   "..#####..",
   ".........",
 ];
-const SLEEP_MARKS: Record<SleepStanding, readonly string[]> = {
+const SLEEP_MARKS: Record<SleepOrder, readonly string[]> = {
   fortified: TOWER,
   fortifying: TOWER,
   sentry: [
@@ -213,8 +212,8 @@ const TOKEN = 13;
 const onToken = (i: number, j: number) => Math.hypot(i + 0.5 - TOKEN / 2, j + 0.5 - TOKEN / 2) <= TOKEN / 2;
 /** How bright the gold glow round a unit awaiting orders is: the map's unit in play glows at `ACTIVE_GLOW`, on terrain; the stone wants it whole. */
 const READY_GLOW = Math.min(1, ACTIVE_GLOW * 2);
-/** How much of a unit supported away from the city shows in the units box, darkened as well. */
-export const AWAY_OPACITY = 0.5;
+/** The share of its light a unit supported away from the city keeps in the units box (`ArtSpot.dark`). */
+export const AWAY_LIGHT = 0.35;
 
 function drawSleepMark(s: Surface, x: number, y: number, glyph: readonly string[]): void {
   const x0 = x * s.k + 1, y0 = y * s.k + 1;
@@ -499,7 +498,7 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const control = view.hoverControl !== undefined ? cityControlNote(state, city, view.hoverControl) : null;
   const improvement = view.hoverImprovement ? improvementNote(state, city, view.hoverImprovement.id) : "";
   const pointed = view.hoverUnit !== undefined ? cityUnits(state, city).find((u) => u.unit.id === view.hoverUnit) : undefined;
-  const unitNote = pointed ? cityUnitNote(pointed.unit, pointed.here) : "";
+  const unitNote = pointed ? cityUnitNote(pointed.unit, pointed.here, view.woken?.[pointed.unit.id]) : "";
   const canWork = bestFreeSlot(state, city) !== undefined;
   const [note, ink] =
     lit !== null ? [textWidth(citizenNote(row[lit]!, canWork)) <= room ? citizenNote(row[lit]!, canWork) : citizenRole(row[lit]!), INK]
@@ -636,15 +635,16 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawBox(s, MID.x, ROW2.y, MID.w, ROW2.h, "Units", String(units.length));
   units.slice(0, UNIT_SLOTS).forEach(({ unit, here, shields, food }, i) => {
     const { x: ux, y: uy } = cityUnitSlot(i);
-    // A picture of the user's: its rank and a sleeper's token showing through, one supported elsewhere darkened and
-    // faded into the stone (asked for 2026-11-02: "unit outside the city in the panel - reduce opacity or make darker"),
-    // one awaiting orders glowing gold as the unit in play does on the map (one just woken among them).
+    // A picture of the user's: its rank and a sleeper's token showing through; one in the city awaiting orders glowing
+    // gold as the unit in play does on the map (one just woken among them); one supported elsewhere only darkened
+    // (asked for 2026-11-02: "units outside the city - remove filters and opacity - just make darker"), a sprite
+    // without a picture half hidden in the stone.
     const standing = cityUnitStanding(unit);
-    const sleep = sleepsUntilWoken(standing) ? SLEEP_MARKS[standing as SleepStanding] : null;
+    const sleep = sleepsUntilWoken(standing) ? SLEEP_MARKS[standing] : null;
     const holes = [...rankHoles(ux, uy, unit.xp), ...(sleep ? sleepHoles(ux, uy) : [])];
-    drawUnitFigure(s, unit.type, ux, uy, playerColor(state, unit.owner), { holes, ...(here ? {} : { dim: true, opacity: AWAY_OPACITY }), ...(standing === "ready" ? { contour: READY_GLOW } : {}) });
+    drawUnitFigure(s, unit.type, ux, uy, playerColor(state, unit.owner), { holes, ...(here ? {} : { dark: AWAY_LIGHT }), ...(here && standing === "ready" ? { contour: READY_GLOW } : {}) });
     drawRankMark(s, ux, uy, unit.xp);
-    if (!here) ghost(s, ux, uy);
+    if (!here && !unitArt(unit.type)) ghost(s, ux, uy);
     // The token over the stone's speckle, whole even on a unit away.
     if (sleep) drawSleepMark(s, ux, uy, sleep);
     let ix = ux;

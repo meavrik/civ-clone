@@ -62,6 +62,8 @@ export interface PicturePlace {
   contour?: number;
   /** How much of it shows, 0..1 (the unit in play blinking, `activeOpacity`); absent: whole. */
   opacity?: number;
+  /** Darkened to this share of its light, 0..1 (`ArtSpot.dark`). */
+  dark?: number;
 }
 
 /** The audience picture of civilization `player`'s leader, at a box of the canvas; null if it has none. */
@@ -93,7 +95,7 @@ export function buildingPlaces(spots: ArtSpot[], screen: { dx: number; logicalW:
     // An animated unit shows its frame in its owner's colour (none until its atlas is in).
     const anim = spot.unit ? unitAnim(spot.id) : null;
     const url = anim ? unitFrameUrl(spot.id, spot.frame ?? anim.rule.idle, spot.owner) : spot.unit ? unitUrl(spot.id) : spot.city ? cityUrl(spot.id) : spot.hut ? hutUrl(spot.id) : spot.work ? workUrl(spot.id) : buildingUrl(spot.id);
-    if (box && url) out.push({ url, fit: "fill", ...(anim?.rule.pixelated ? { pixelated: true } : {}), ...box, x: box.x + screen.dx, logicalW: screen.logicalW, logicalH: screen.logicalH, z, ...(spot.lit ? { glow: true } : {}), ...(spot.reveal !== undefined ? { reveal: spot.reveal } : {}), ...(spot.dim ? { dim: true } : {}), ...(spot.unseen ? { unseen: true } : {}), clip: spot.clip ? { ...spot.clip, x: spot.clip.x + screen.dx } : { x: screen.dx, y: 0, w: screen.logicalW - 2 * screen.dx, h: screen.logicalH }, ...(spot.holes ? { holes: spot.holes.map((h) => ({ ...h, x: h.x + screen.dx })) } : {}), ...(spot.turn !== undefined ? { turn: spot.turn } : {}), ...(spot.water !== undefined ? { water: spot.water } : {}), ...(spot.flip ? { flip: true } : {}), ...(spot.contour ? { contour: spot.contour } : {}), ...(spot.opacity !== undefined ? { opacity: spot.opacity } : {}) });
+    if (box && url) out.push({ url, fit: "fill", ...(anim?.rule.pixelated ? { pixelated: true } : {}), ...box, x: box.x + screen.dx, logicalW: screen.logicalW, logicalH: screen.logicalH, z, ...(spot.lit ? { glow: true } : {}), ...(spot.reveal !== undefined ? { reveal: spot.reveal } : {}), ...(spot.dim ? { dim: true } : {}), ...(spot.unseen ? { unseen: true } : {}), clip: spot.clip ? { ...spot.clip, x: spot.clip.x + screen.dx } : { x: screen.dx, y: 0, w: screen.logicalW - 2 * screen.dx, h: screen.logicalH }, ...(spot.holes ? { holes: spot.holes.map((h) => ({ ...h, x: h.x + screen.dx })) } : {}), ...(spot.turn !== undefined ? { turn: spot.turn } : {}), ...(spot.water !== undefined ? { water: spot.water } : {}), ...(spot.flip ? { flip: true } : {}), ...(spot.contour ? { contour: spot.contour } : {}), ...(spot.opacity !== undefined ? { opacity: spot.opacity } : {}), ...(spot.dark !== undefined ? { dark: spot.dark } : {}) });
   });
   return out;
 }
@@ -283,10 +285,11 @@ export function showPictures(canvas: HTMLCanvasElement, places: PicturePlace[]):
     const turn = [at.flip ? "scaleX(-1)" : "", at.turn ? `rotate(${at.turn.toFixed(2)}deg)` : ""].filter(Boolean).join(" ") || "none";
     const contour = at.contour ? at.contour.toFixed(3) : "";
     const opacity = at.opacity !== undefined ? at.opacity.toFixed(3) : "1";
-    const key = `${at.fit} ${box.join(" ")} ${at.z ?? 0} ${at.glow ? 1 : 0} ${clip} ${turn} ${at.dim ? 1 : 0} ${at.unseen ? 1 : 0} ${contour} ${opacity}`;
+    const dark = at.dark !== undefined ? `brightness(${Math.round(at.dark * 100)}%)` : "";
+    const key = `${at.fit} ${box.join(" ")} ${at.z ?? 0} ${at.glow ? 1 : 0} ${clip} ${turn} ${at.dim ? 1 : 0} ${at.unseen ? 1 : 0} ${contour} ${opacity} ${dark}`;
     if (key === slot.key) continue;
     // A rising picture shows from its foot up (clipped from the top), a unit within the map's view and round its marks; one under a window is darkened with the screen.
-    const filters = [at.contour ? goldContour(at.contour, sx) : "", at.glow ? "drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)" : "", at.unseen ? "brightness(62%)" : "", at.dim ? "brightness(45%)" : ""].filter(Boolean);
+    const filters = [at.contour ? goldContour(at.contour, sx) : "", at.glow ? "drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)" : "", at.unseen ? "brightness(62%)" : "", dark, at.dim ? "brightness(45%)" : ""].filter(Boolean);
     Object.assign(slot.img.style, {
       display: "block", left: `${box[0]}px`, top: `${box[1]}px`, width: `${box[2]}px`, height: `${box[3]}px`,
       objectFit: at.fit === "contain" ? "contain" : "fill", objectPosition: "50% 100%",

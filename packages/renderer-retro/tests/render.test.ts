@@ -1146,7 +1146,7 @@ describe("city screen", () => {
     expect(colours(2).size).toBeGreaterThan(colours(3).size);
   });
 
-  it("shows the units in the city, then those away faded, and picks a unit by its sprite or cost", () => {
+  it("shows the units in the city, then those away darkened, and picks a unit by its sprite or cost", () => {
     const state = newGame(2026);
     applyCommand(state, { type: "found", unit: state.units[0]!.id });
     const city = state.cities[0]!;
@@ -1166,7 +1166,7 @@ describe("city screen", () => {
     expect(cityUnitAt(state, view, 4, 4)).toBeNull();
     // Each stands as the user's picture in its slot, the militia away darkened.
     const units = s.art.filter((a) => a.unit && a.y === cityUnitSlot(0).y);
-    expect(units.map((a) => [a.id, a.x, a.dim === true])).toEqual([0, 1, 2].map((i) => [i === 1 ? "phalanx" : "militia", cityUnitSlot(i).x, i === 2]));
+    expect(units.map((a) => [a.id, a.x, a.dark !== undefined])).toEqual([0, 1, 2].map((i) => [i === 1 ? "phalanx" : "militia", cityUnitSlot(i).x, i === 2]));
   });
 });
 

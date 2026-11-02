@@ -1302,17 +1302,45 @@ function leaveCity(sc: Extract<Screen, { kind: "city" }>): void {
  * A unit picked on the city screen wakes (fortified or sentried, it gives up those orders) and comes into play, as in
  * the original. The city stays open (asked for 2026-11-02: "dont automaticlly close window, so player could activate
  * several units"), the unit glowing there as ready; the map takes up the last one woken once the city is left. One with
- * no moves left keeps its orders.
+ * no moves left keeps its orders. A second click on one woken there gives it back the order it gave up (asked for the
+ * same day: "a second click would return the unit to the previous state"): fortifying again stands fortified as our
+ * turn ends, before anyone can strike. A unit the city supports away from it is found on the map instead (`findUnit`).
  */
 function activateFromCity(sc: Extract<Screen, { kind: "city" }>, unit: number): void {
   const u = unitById(state, unit);
-  if (!u) return;
+  const city = state.cities.find((c) => c.id === sc.view.city);
+  if (!u || !city) return;
+  if (u.x !== city.x || u.y !== city.y) { findUnit(sc, u); return; }
   const name = rankedName(u);
+  const before = sc.view.woken?.[unit];
+  if (before && u.order.kind === "none") {
+    if (!dispatch({ type: before === "sentry" ? "sentry" : before === "camp" ? "camp" : "fortify", unit })) return;
+    delete sc.view.woken![unit];
+    say(before === "sentry" ? `${name}: back on sentry` : before === "camp" ? `${name}: camped again` : `${name}: fortified again`);
+    return;
+  }
   if (u.movesLeft === 0) { say(`${name}: no moves left this turn`); return; }
   const was = u.order.kind;
   if (!dispatch({ type: "activate", unit })) return;
   sc.woke = true;
+  if (was === "fortified" || was === "fortifying" || was === "sentry" || was === "camp") (sc.view.woken ??= {})[unit] = was;
   say(was === "none" ? `${name}: ready for orders` : `${name} wakes, ready for orders`);
+}
+
+/**
+ * A unit the city supports away from it, picked in its units box (asked for 2026-11-02: "click would navigate to the
+ * unit place on the map"): the city closes and the map centres on the unit, which comes into play if it awaits orders
+ * (its orders are never changed: a settler at work stays at work).
+ */
+function findUnit(sc: Extract<Screen, { kind: "city" }>, u: Unit): void {
+  leaveCity(sc);
+  if (u.order.kind === "none" && u.movesLeft > 0 && dispatch({ type: "activate", unit: u.id })) {
+    finishHandoff();
+    followActive(true);
+    return;
+  }
+  centerOn(u.x, u.y);
+  view.inspect = { x: u.x, y: u.y };
 }
 
 /**

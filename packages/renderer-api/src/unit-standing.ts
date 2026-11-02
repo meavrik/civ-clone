@@ -19,26 +19,31 @@ export function cityUnitStanding(u: Pick<Unit, "order" | "movesLeft">): CityUnit
 }
 
 /** Whether a unit of this standing sleeps until woken (a click on it in the units box wakes it). */
-export function sleepsUntilWoken(standing: CityUnitStanding): boolean {
+export function sleepsUntilWoken(standing: CityUnitStanding): standing is SleepOrder {
   return standing === "fortified" || standing === "fortifying" || standing === "sentry" || standing === "camp";
 }
 
+/** The orders a unit sleeps under until woken: what a unit woken in the units box gives up, and a second click restores. */
+export type SleepOrder = "fortified" | "fortifying" | "sentry" | "camp";
+
+/** What a second click on a unit woken in the units box does, in words. */
+export const SLEEP_AGAIN: Record<SleepOrder, string> = { fortified: "fortify again", fortifying: "fortify again", sentry: "put back on sentry", camp: "camp again" };
+
 /**
  * The unit under the pointer in the units box, told of beside the citizens: "Veteran Legion: fortified, click to
- * wake", "Militia: ready for orders", "Settlers: building a road". `here`: standing in the city, else supported there
- * and away.
+ * wake", "Militia: ready for orders, click to fortify again" (woken there, `woken` the order it gave up), "Settlers,
+ * away: building a road, click to find it on the map". `here`: standing in the city, else supported there and away.
  */
-export function cityUnitNote(u: Pick<Unit, "type" | "xp" | "order" | "movesLeft">, here: boolean): string {
+export function cityUnitNote(u: Pick<Unit, "type" | "xp" | "order" | "movesLeft">, here: boolean, woken?: SleepOrder): string {
   const name = rankedName(u);
   const standing = cityUnitStanding(u);
-  const away = here ? "" : ", away";
-  if (u.movesLeft === 0) {
-    const doing = standing === "spent" ? "" : `${doingWords(u)}, `;
-    return `${name}${away}: ${doing}no moves left`;
-  }
-  if (sleepsUntilWoken(standing)) return `${name}${away}: ${doingWords(u)}, click to wake`;
-  if (standing === "busy") return `${name}${away}: ${doingWords(u)}, click to stop`;
-  return `${name}${away}: ready for orders`;
+  const doing = standing === "ready" ? "ready for orders" : standing === "spent" ? "no moves left" : doingWords(u);
+  if (!here) return `${name}, away: ${doing}, click to find it on the map`;
+  if (woken && standing === "ready") return `${name}: ready for orders, click to ${SLEEP_AGAIN[woken]}`;
+  if (u.movesLeft === 0) return `${name}: ${standing === "spent" ? "" : `${doing}, `}no moves left`;
+  if (sleepsUntilWoken(standing)) return `${name}: ${doing}, click to wake`;
+  if (standing === "busy") return `${name}: ${doing}, click to stop`;
+  return `${name}: ready for orders`;
 }
 
 function doingWords(u: Pick<Unit, "type" | "order">): string {
