@@ -94,8 +94,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
   /** The user's pictures this frame shows (`showPictures` lays them over the canvas as the frame is presented). */
   let pictures: PicturePlace[] = [];
   const screenBox = { logicalW: SCREEN_W, logicalH: SCREEN_H };
-  // A trial of bigger map squares (`MAP_TILE`, 2026-11-02): 24 pixels a side unless the page asks otherwise (?tile=16, the original's).
-  setMapTile(Number(new URLSearchParams(location.search).get("tile")) || 24);
+  // A trial of bigger map squares (`MAP_TILE`, 2026-11-02): 20 pixels a side unless the page asks otherwise (?tile=16, the original's; 24, 32).
+  setMapTile(Number(new URLSearchParams(location.search).get("tile")) || 20);
   return {
     id: "retro",
     width: SCREEN_W,

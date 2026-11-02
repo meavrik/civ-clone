@@ -911,12 +911,13 @@ Never ship the original's sprites, palette art, fonts or text.
   meanwhile stands; at 3x it only centres. Not on the phone, whose renderer keeps its own pinch zoom.
   Map square size (a trial on branch big-tiles, asked for 2026-11-02: "enlarge the base tile size and all that related
   (units, cities etc) - see how it looks"): renderer-retro `MAP_TILE` (`setMapTile`; 16, the original's, by default) is
-  the main map's square in screen pixels; the web adapter sets 24 unless the page asks `?tile=16` (or 32). The map then
-  shows fewer squares (10x8 at 24, `viewAcross`, `viewDown`), works out terrain, shores, rivers, roads, fog, the shade
+  the main map's square in screen pixels; the web adapter sets 20 (asked for the same day: "try something in between -
+  20px", after 24) unless the page asks `?tile=16` (or 24, 32). The map then shows fewer squares (12x10 at 20, the last
+  row cut, 10x8 at 24; `viewAcross`, `viewDown`), works out terrain, shores, rivers, roads, fog, the shade
   out of sight and borders at that size (`terrainSquare`, `fogSquare`, `unseenSquare`, `wayPixels`'s `t`; widths in the
   original's fine pixels, so a river or road is as much of a square as before), draws works, resources, villages and
   forts at 16 and lays them on stretched (`onSquare`, `stretchSquare`, `Surface.blitScaled`: nearest, so the terrain art's
-  pixels come 1 and 2 fine pixels wide at 24, even at 32), and lays the units' and cities' pictures over squares that size;
+  pixels come 1 and 2 fine pixels wide at 20 (one in four doubled) and 24 (every other), even at 32), and lays the units' and cities' pictures over squares that size;
   shields, hit points, ranks, names and labels keep their size. The city screen's map, the square's window and the
   phone app (its own renderer) keep 16. Integer zoom works on top.
   Unit animation: core appends every step (`applyMove`) and fight (`resolveCombat`, round by round) to

@@ -154,22 +154,24 @@ describe("retro renderer", () => {
     // Larger squares (`MAP_TILE`, a trial of 2026-11-02): fewer of them on view, each square's terrain worked
     // out at its size (a plain one the original's picture stretched), the pictures of units laid over squares
     // that size; the menu bar as it was.
-    setMapTile(24);
-    try {
-      const big = Surface.screen();
-      drawMainScreen(big, state, { ...view, placeNames: false });
-      expect(zoomedTiles(1)).toEqual({ x: 10, y: 8 });
-      expect(viewAcross(400)).toBe(14);
-      expect(big.data.subarray(0, VIEW_Y * DETAIL * big.fw)).toEqual(flat.data.subarray(0, VIEW_Y * DETAIL * flat.fw));
-      // (The panel's unit box keeps its own size.)
-      const pictures = big.art.filter((a) => a.unit && a.x >= VIEW_X);
-      expect(pictures.length).toBeGreaterThan(0);
-      expect(pictures.every((a) => a.w === 24 && a.h === 24 && (a.x - VIEW_X) % 24 === 0)).toBe(true);
-      const sq = terrainSquare(state.map, u.x, u.y, state.players[0]!.explored, 24);
-      expect([sq.width, sq.fw]).toEqual([24, 48]);
-      writeFileSync(new URL("./out/main-screen-24.png", import.meta.url), encodePng(big, 3));
-    } finally {
-      setMapTile(16);
+    for (const [t, across, down] of [[20, 12, 10], [24, 10, 8]] as const) {
+      setMapTile(t);
+      try {
+        const big = Surface.screen();
+        drawMainScreen(big, state, { ...view, placeNames: false });
+        expect(zoomedTiles(1)).toEqual({ x: across, y: down });
+        expect(viewAcross(400)).toBe(Math.ceil(320 / t));
+        expect(big.data.subarray(0, VIEW_Y * DETAIL * big.fw)).toEqual(flat.data.subarray(0, VIEW_Y * DETAIL * flat.fw));
+        // (The panel's unit box keeps its own size.)
+        const pictures = big.art.filter((a) => a.unit && a.x >= VIEW_X);
+        expect(pictures.length).toBeGreaterThan(0);
+        expect(pictures.every((a) => a.w === t && a.h === t && (a.x - VIEW_X) % t === 0)).toBe(true);
+        const sq = terrainSquare(state.map, u.x, u.y, state.players[0]!.explored, t);
+        expect([sq.width, sq.fw]).toEqual([t, t * DETAIL]);
+        writeFileSync(new URL(`./out/main-screen-${t}.png`, import.meta.url), encodePng(big, 3));
+      } finally {
+        setMapTile(16);
+      }
     }
 
     // A long message wraps inside the panel and never crosses into the map.
