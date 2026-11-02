@@ -847,25 +847,30 @@ Never ship the original's sprites, palette art, fonts or text.
   asked for: "if have a tile resource - show in "()" in the title": "Plains (Horses), Ausonia", "The Sea of Neptune
   (Fish)", `squareTitle`'s `resource`); headed by the square itself as the map draws it, twice the size in a sunken frame
   (`MenuState.square`, retro's `drawSquarePicture`/`squarePainter`, `Renderer.menu(menu, state)`; asked for
-  2026-10-23: "more stylish, add the terrain image, more details"), beside it (`SquareInfo.head`) the yields, moves
-  and defence ("{boot} 1 move  {tower} +50% defence"), a few words on the terrain (`TERRAIN_TEXT`, our own), and
-  where only settlers or no wheels go and the wear on units; then its sections (since 2026-11-02, asked for: "too
-  messy. arrange with clear sections. clean design"; `SquareInfo.sections`, `MenuState.sections`), each only when it
-  has something to say: Resource (what it adds, the units that need it, the road or rig it waits for, a city's
-  influence yield), Features (river, road, irrigation, mine, fortress, fishery, rig, pollution, a village, each with
-  what it adds), Improve (what settlers could make of it; at sea the Harbour), City or Land (whose, worked by which
-  of our cities), Site (the settlers' note) and Units (whose, ranks, jobs, wounds, or out of sight). Retro lays them as
-  a table: the labels in dim ink in a column at the left, the lines beside them, wrapped clear of a leading icon
-  (icons.ts `leadRows`, shared with the civ card), an etched rule under the picture and a faint one between sections;
-  modern writes them on as "Label: line". `SquareInfo.lines` is head and sections in one list. The only button
+  2026-10-23: "more stylish, add the terrain image, more details"). Since 2026-11-02 a card (asked for: "too messy.
+  arrange with clear sections. clean design", then of a table of labels and lines, "still not good. rethink this modal
+  window layout"; renderer-api `square-info.ts`: `SquareInfo.card`, a `SquareCard`, `MenuState.card`; retro
+  `square-card.ts`, `drawSquareCard`, laid by widgets.ts in place of a body): beside the picture the yields in large
+  figures, a nought faded, the moves and defence ("{boot} 1 move  {tower} +50% defence"), whose it is (`owner`: "Rome,
+  ours, size 4", "Our land, worked by Rome", "Land of Tyre") and a few words on the terrain (`TERRAIN_TEXT`, our own)
+  in dim ink; under them one parchment panel, as the Building Completed window's, of facts (`SquareFact`: an icon or
+  a unit's owner's shield, a name in black, a short note in a column of its own, grey, green for good news, red for a
+  warning) in groups, each under a small brown heading in small capitals with a rule running on, each only when it has
+  something to say: Here (the resource, what it adds or the units that need it, the road or rig it waits for; river,
+  road, railroad, irrigation, mine, fortress, fishery, rig, village, pollution, each with what it adds; where only
+  settlers or no wheels go and the wear on units; a city's influence yield; the settlers' site note), Units (ours with
+  their jobs, orders, wounds and ranks, another civ's with whose, alike ones counted, `UNITS_LISTED`) and Improve
+  (what settlers could still add or turn it into, at sea a Fishing Boat's fishery and the Harbour). The card keeps the
+  font's size on the phone (its window laid at `TOUCH_MENU_SMALL`); modern writes it as lines (`squareLines`, also
+  `SquareInfo.lines`). The only button
   Open city, on our city (Go
   here removed 2026-10-23, asked for); it stands by its square and points at it (asked for 2026-11-01: "the tile
   should be highlited and info window points with an arrow towards the tile"; `MenuState.point`, the square's rect
   from `Renderer.squareRect` each frame): above it, else below or beside it, a point of its stone reaching to a gold
   ring round the square, which stays lit while the map darkens, as the Building Completed window stands by its city
   (renderer-retro `pointing.ts`: `pointedPlace`, `drawSquareRing`, `drawWindowPoint`, shared by the three); with no
-  room above or below, a window with sections narrows to stand beside it (`pointedLayout`, `sideRoom`, at least
-  `NARROW_W` 150 and its title's width), its lines wrapping; with no room so it opens clear of the square clicked (`MenuState.avoid`); either way a second click there closes it), closed by the X in its title
+  room above or below, the card narrows to stand beside it (`pointedLayout`, `sideRoom`, at least
+  `CARD_NARROW_W` 160 and its title's width), its notes wrapping; with no room so it opens clear of the square clicked (`MenuState.avoid`); either way a second click there closes it), closed by the X in its title
   strip (`MenuState.close`; retro draws it, modern ignores it; any click off a window's choices closes
   it). On the phone a tap moves the unit in play onto a square not ours, else is a left-click; a hold on
   our city or units moves it in, elsewhere shows the square's window (see apps/mobile).

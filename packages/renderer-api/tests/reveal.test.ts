@@ -33,20 +33,20 @@ describe("resources revealed by an advance", () => {
     expect(newTechCard(s, "bronze_working").unlocks).toContainEqual({ icon: "gem", name: "Iron", kind: "now on the map", resource: "Iron" });
     expect(knownResourceSquares(s, 0).size).toBe(2);
     expect(terrainInfo(s, 21, 21).title).toMatch(/^Grassland \(Iron\)/);
-    expect(terrainInfo(s, 21, 21).sections.find((x) => x.title === "Resource")?.lines[0]).toMatch(/^Needed for Legion/);
+    expect(terrainInfo(s, 21, 21).card!.groups[0]!.facts[0]!.note).toMatch(/^For Legion/);
     // No road on its square yet: of no use, and said so (since save version 43).
-    expect(terrainInfo(s, 21, 21).lines).toContain("{road} No use to anyone until a road is built on it");
+    expect(terrainInfo(s, 21, 21).lines).toContain("{road} No road: Iron unused until one is built");
     const [rv] = resourceReveals(s, 0, ["bronze_working"]);
     expect(rv).toMatchObject({ id: "Iron", focus: { x: 21, y: 21 }, text: "Iron revealed: 1 on our land (1 wanting a road), 1 nearby" });
     expect(resourcesReport(s).lines.find((l) => l.text === "Iron")).toMatchObject({ right: "no road near Rome", dim: true });
     getTile(s.map, 21, 21)!.road = true;
     expect(resourceReveals(s, 0, ["bronze_working"])[0]!.text).toBe("Iron revealed: 1 on our land, 1 nearby");
     expect(resourcesReport(s).lines.find((l) => l.text === "Iron")).toMatchObject({ right: "1 near Rome", dim: false });
-    expect(terrainInfo(s, 21, 21).lines.join(" ")).not.toContain("until a road");
+    expect(terrainInfo(s, 21, 21).lines.join(" ")).not.toContain("No road");
     // A river serves as its road (since save version 48), and the square's window says so.
     Object.assign(getTile(s.map, 21, 21)!, { road: false, river: true });
     expect(resourcesReport(s).lines.find((l) => l.text === "Iron")).toMatchObject({ right: "1 near Rome", dim: false });
-    expect(terrainInfo(s, 21, 21).lines).toContain("{river} The river carries it, as a road would");
+    expect(terrainInfo(s, 21, 21).lines).toContain("{river} River: +1 {trade}, carries the Iron");
     expect(resourcesReport(s).hint).toContain("road or river");
     expect(rv!.squares).toHaveLength(2);
     expect(resourceReveals(s, 0, ["pottery"])).toEqual([]);

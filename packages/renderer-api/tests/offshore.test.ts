@@ -28,14 +28,14 @@ describe("oil at sea, as the game tells of it (save version 55)", () => {
     expect(resourcesWantingRoads(s, 0)).toEqual([]);
     expect(resourcesWantingRigs(s, 0)).toEqual(["Oil"]);
     expect(rigNote(["Oil"])).toBe("{shield} Our Oil lies unused at sea: a Fishing Boat builds a rig");
-    expect(terrainInfo(s, 11, 10).lines).toContain("{shield} No use to anyone until a Fishing Boat builds an oil rig on it");
+    expect(terrainInfo(s, 11, 10).lines).toContain("{shield} No oil rig: Oil unused until a Fishing Boat builds one");
     // Built, it serves: held, and the square's window names the rig and what it adds.
     expect(applyCommand(s, { type: "rig", unit: createUnit(s, "fishing_boat", 0, 11, 10).id }).ok).toBe(true);
     expect(resourcesView(s, 0).entries.find((e) => e.id === "Oil")).toMatchObject({ status: "held", badge: "Held" });
     expect(resourcesWantingRigs(s, 0)).toEqual([]);
     const lines = terrainInfo(s, 11, 10).lines;
-    expect(lines.some((l) => l.includes("{shield} Oil rig +1 {shield}"))).toBe(true);
-    expect(lines.some((l) => l.includes("No use to anyone"))).toBe(false);
+    expect(lines).toContain("{shield} Oil rig: +1 {shield}");
+    expect(lines.some((l) => l.includes("No oil rig"))).toBe(false);
   });
 
   it("says why a boat cannot build one", () => {

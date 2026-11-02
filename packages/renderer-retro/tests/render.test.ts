@@ -260,10 +260,10 @@ describe("retro renderer", () => {
     const info = terrainInfo(state, u.x, u.y);
     const view: MainScreenView = { originX: u.x - 7, originY: Math.max(0, u.y - 6), blink: true, placeNames: false };
     const square = { x: 80 + (u.x - view.originX) * 16, y: 9 + (u.y - view.originY) * 16, w: 16, h: 16 };
-    const menu: MenuState = { title: info.title, body: info.head, sections: info.sections, items: [], selected: -1, close: true, square: { x: u.x, y: u.y }, point: square };
+    const menu: MenuState = { title: info.title, card: info.card!, items: [], selected: -1, close: true, square: { x: u.x, y: u.y }, point: square };
     const s = Surface.screen();
     drawMainScreen(s, state, view);
-    drawMenu(s, menu);
+    drawMenu(s, menu, squarePainter(menu, state));
     writeFileSync(new URL("./out/square-window.png", import.meta.url), encodePng(s, 3));
     const r = menuRect(menu);
     // Clear of the square, beside it, the ring gold round it.
@@ -394,15 +394,15 @@ describe("retro renderer", () => {
     // The terrain window speaks in the same pictures.
     const info = terrainInfo(state, worker.x, worker.y);
     // Headed by the square itself, as the map draws it, twice its size in a dark frame.
-    const window = { title: info.title, body: info.head, sections: info.sections, items: [], selected: -1, close: true, square: { x: worker.x, y: worker.y } };
+    const window = { title: info.title, card: info.card!, items: [], selected: -1, close: true, square: { x: worker.x, y: worker.y } };
     drawMenu(s, window, squarePainter(window, state));
     writeFileSync(new URL("./out/terrain-window.png", import.meta.url), encodePng(s, 3));
-    expect(info.head[2]).toBe(TERRAIN_TEXT[getTile(state.map, worker.x, worker.y)!.terrain]);
+    expect(info.card!.text).toBe(TERRAIN_TEXT[getTile(state.map, worker.x, worker.y)!.terrain]);
     const r = menuRect(window);
     const pic = Surface.fine(32, 32);
     drawSquarePicture(pic, state, worker.x, worker.y, 0, 0);
-    // The picture's middle in the window is the picture's middle.
-    expect(s.fget((r.x + 12 + 16) * s.k, (r.y + 18 + 2 + 16) * s.k)).toBe(pic.fget(16 * pic.k, 16 * pic.k));
+    // The picture's middle in the window is the picture's middle: under the title strip, in from the stone's margin.
+    expect(s.fget((r.x + 7 + 16) * s.k, (r.y + 17 + 2 + 16) * s.k)).toBe(pic.fget(16 * pic.k, 16 * pic.k));
   });
 
   it("heads the new settlers' window with their picture, twice the map's size, beside the sentence", async () => {
@@ -1186,9 +1186,9 @@ describe("unit ranks", () => {
     writeFileSync(new URL("./out/ranks.png", import.meta.url), encodePng(s, 3));
     // The square's window names their ranks and how far each has to go.
     const info = terrainInfo(state, vet.x, vet.y);
-    expect(info.lines).toContain("Veteran Legion, Regular Phalanx (ours)");
-    expect(info.lines).toContain("{veteran} Legion 3/6 experience to Hardened  {regular} Phalanx 1/3 experience to Veteran");
-    const window = { title: info.title, body: info.head, sections: info.sections, items: [], selected: -1, close: true, square: { x: vet.x, y: vet.y } };
+    expect(info.lines).toContain("{swords} Veteran Legion: 3/6 to Hardened");
+    expect(info.lines).toContain("{swords} Regular Phalanx: 1/3 to Veteran");
+    const window = { title: info.title, card: info.card!, items: [], selected: -1, close: true, square: { x: vet.x, y: vet.y } };
     drawMenu(s, window, squarePainter(window, state));
     writeFileSync(new URL("./out/ranks-window.png", import.meta.url), encodePng(s, 3));
     const c = Surface.screen();

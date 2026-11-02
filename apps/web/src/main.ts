@@ -1581,11 +1581,11 @@ function openTerrainInfo(tx: number, ty: number, at?: { x: number; y: number }):
   const city = cityAt(state, tx, ty);
   if (city && city.owner === 0) items.push(["Open city", () => openCity(city.id)]);
   // Closed by its X (or any click off its choices, or Esc); nothing is picked until a choice is.
-  modal(info.title, info.head, items.map((i) => i[0]), (i) => items[i]?.[1](), -1);
+  modal(info.title, info.card ? [] : info.lines, items.map((i) => i[0]), (i) => items[i]?.[1](), -1);
   if (screenState.kind === "menu") {
     screenState.menu.close = true;
-    // Its resource, features, works, ground, land and units, each under a label (asked for 2026-11-02: "too messy").
-    if (info.sections.length) screenState.menu.sections = info.sections;
+    // Its yields, whose it is, and what is here, its units and what could be made of it, a line each (redone 2026-11-02).
+    if (info.card) screenState.menu.card = info.card;
     // The square itself heads the window, as the map draws it.
     screenState.menu.square = { x: tx, y: ty };
     // Opened by a click on the map: the window stands clear of that square, so a second click there only closes it.

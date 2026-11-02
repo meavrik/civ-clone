@@ -1,4 +1,4 @@
-import { menuButtons, MODAL_MAX_SHARE, type MenuState, type TextInputState } from "@civ/renderer-api";
+import { menuButtons, MODAL_MAX_SHARE, squareLines, type MenuState, type TextInputState } from "@civ/renderer-api";
 import type { Context2D } from "../context.js";
 import { fillRound, measure, panel, strokeRound, text, wrap } from "../draw.js";
 import { BUTTON, H, UI, VIEW_X, W } from "../theme.js";
@@ -28,7 +28,7 @@ function menuLayout(ctx: Context2D, m: MenuState): MenuLayout {
   const widest = Math.max(measure(ctx, m.title, 18, "600"), buttons ? bw : itemW);
   // Text wraps rather than widen the window past MODAL_MAX_SHARE of the screen. Labelled sections (the square's
   // window) are written on as body lines, "Label: line".
-  const body = [...(m.body ?? []), ...(m.sections ?? []).flatMap((sec) => sec.lines.map((l, i) => (i ? l : `${sec.title}: ${l}`)))];
+  const body = [...(m.body ?? []), ...(m.card ? squareLines(m.card) : [])];
   let bodyW = 0;
   for (const l of body) bodyW = Math.max(bodyW, Math.min(iconLineWidth(ctx, l, 15), Math.round(W * MODAL_MAX_SHARE) - 56));
   const w = Math.min(W - 80, Math.max(m.anchor ? 240 : 320, Math.max(widest, bodyW) + 56));

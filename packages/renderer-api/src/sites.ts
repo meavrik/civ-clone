@@ -83,6 +83,11 @@ export function settlerSites(state: GameState, unitId: number | null): Suggested
  * "Best place for a city: by a river, on the coast, 2 resources nearby." Only what `viewer` has seen counts.
  */
 export function siteNote(state: GameState, site: SuggestedSite, viewer: number): string {
+  return `${site.best ? "Best place for a city" : "A good place for a city"}: ${siteReasons(state, site, viewer).join(", ")}.`;
+}
+
+/** Why a suggested site is good, up to three reasons: "by a river", "on the coast", "2 resources nearby". */
+export function siteReasons(state: GameState, site: Pick<SuggestedSite, "x" | "y">, viewer: number): string[] {
   const { map } = state;
   const known = state.players[viewer]?.explored;
   const t = getTile(map, site.x, site.y)!;
@@ -112,5 +117,5 @@ export function siteNote(state: GameState, site: SuggestedSite, viewer: number):
   if (land && food / land >= 2) reasons.push("rich farmland");
   else if (land && shields / land >= 1.2) reasons.push("plenty of timber and stone");
   if (!reasons.length) reasons.push("open land all round");
-  return `${site.best ? "Best place for a city" : "A good place for a city"}: ${reasons.slice(0, 3).join(", ")}.`;
+  return reasons.slice(0, 3);
 }

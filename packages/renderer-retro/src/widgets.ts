@@ -1,5 +1,5 @@
 import { drawText, drawTextLarge, FONT_HEIGHT, textWidth, textWidthLarge } from "./font.js";
-import { drawIcon, drawIconLine, iconLineWidth, leadRows, wrapIcons } from "./icons.js";
+import { drawIcon, drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
 import { drawShield, drawUnitFigure } from "./overlays.js";
 import { C, DIMMED, shade, slotColor } from "./palette.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
@@ -8,53 +8,10 @@ import { SCREEN_H, SCREEN_W, Surface } from "./surface.js";
 import { CITY_UNITS_BOX } from "./screens/city-layout.js";
 import { BAR_H } from "./screens/main-layout.js";
 import { drawSquareRing, drawWindowPoint, pointedPlace, sideRoom, type PointedPlace } from "./pointing.js";
+import { CARD_MAX_W, CARD_MIN_W, CARD_NARROW_W, cardLayout, cardNeed, drawSquareCard, type CardLayout } from "./square-card.js";
 
-/**
- * Inks for text on the stone, every panel in the game: black, a dark grey for what matters
- * less, and darker accents (the bright EGA colours are lost on light grey).
- */
-export const INK = C.BLACK!;
-export const DIM = shade("panel", 1);
-export const FADED = shade("panel", 2);
-export const GOOD = shade("grass", 0);
-export const BAD = C.RED!;
-export const NOTE = C.BLUE!;
-export const GOLD = C.BROWN!;
-
-/**
- * Speckle for the stone: -1 a dark speck, 1 a light one, 0 the face. A fixed 64x64
- * pattern laid by screen position, so the grain never crawls as panels redraw.
- */
-const SPECKLE = (() => {
-  const t = new Int8Array(64 * 64);
-  for (let i = 0; i < t.length; i++) {
-    let h = Math.imul(i ^ 0x9e3779b9, 0x85ebca6b);
-    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
-    h = (h ^ (h >>> 16)) & 15;
-    t[i] = h < 3 ? -1 : h < 5 ? 1 : 0;
-  }
-  return t;
-})();
-
-/** Fill a rectangle with a chrome ramp's face (shade 5), speckled with shades 4 and 6. */
-export function stipple(s: Surface, x: number, y: number, w: number, h: number, ramp: string): void {
-  speckle(s, x, y, w, h, shade(ramp, 4), shade(ramp, 5), shade(ramp, 6));
-}
-
-/** Fill a rectangle with `face`, speckled with `dark` and `light` in the stone's grain (any three colours). */
-export function speckle(s: Surface, x: number, y: number, w: number, h: number, dark: number, face: number, light: number): void {
-  // Laid in fine pixels, so the grain is as fine as the screen.
-  const k = s.k;
-  const x0 = Math.max(0, x * k);
-  const y0 = Math.max(0, y * k);
-  const x1 = Math.min(s.fw, (x + w) * k);
-  const y1 = Math.min(s.fh, (y + h) * k);
-  for (let yy = y0; yy < y1; yy++)
-    for (let xx = x0; xx < x1; xx++) {
-      const g = SPECKLE[(yy & 63) * 64 + (xx & 63)]!;
-      s.data[yy * s.fw + xx] = g < 0 ? dark : g > 0 ? light : face;
-    }
-}
+export { BAD, DIM, FADED, GOLD, GOOD, INK, NOTE, speckle, stipple } from "./stone.js";
+import { BAD, DIM, FADED, INK, NOTE, speckle, stipple } from "./stone.js";
 
 /** True for the stone's own colours (its face and specks): what text and pictures are drawn over. */
 export function isStone(color: number): boolean {
@@ -276,13 +233,10 @@ interface MenuLayout {
   wrapped: boolean;
   /** Where it stands by the square it points at (`MenuState.point`), when there is room for that. */
   place: PointedPlace | null;
-  /** Its labelled sections (`MenuState.sections`): their top, the label column's width, and each one's rows below that top. */
-  secTop: number; labelW: number;
-  secs: { title: string; dy: number; rows: { text: string; indent: number }[] }[];
+  /** The square's window's card (`MenuState.card`) laid out at the window's width, and its top. */
+  card: CardLayout | null;
+  cardY: number;
 }
-
-/** The space a section takes before its first line, its rule in the middle of it. */
-const SECTION_GAP = 6;
 
 /** The gap between a tabbed list's tabs, and under them before the rows. */
 const TAB_GAP = 2;
@@ -329,6 +283,8 @@ function clearOf(p: { x: number; y: number }, x: number, y: number, w: number, h
  * `size` large, or its `fallback` size when it would run off the screen so.
  */
 function menuLayout(m: MenuState, screenW = SCREEN_W, size = DESK_MENU, clear = true): MenuLayout {
+  // The square's card keeps the font's size (the phone's large words would not fit it), and so does its window.
+  if (m.card && size.text === 2 && size.fallback) return menuLayout(m, screenW, size.fallback, clear);
   const l = pointedLayout(m, screenW, size, clear);
   // Too few rows in the room above what it keeps clear of: smaller (the phone's), else in the middle after all.
   const cramped = !!l.keep && l.room < Math.min(l.count, CLEAR_ROWS);
@@ -340,20 +296,17 @@ function menuLayout(m: MenuState, screenW = SCREEN_W, size = DESK_MENU, clear = 
   return cramped ? menuLayout(m, screenW, size, false) : l;
 }
 
-/** A window with sections narrows to this at the least to stand beside its square. */
-const NARROW_W = 150;
-
 /**
- * Laid out at its width; a window with sections pointing at its square (the square's window) that finds no room
- * above or below it there stands beside it instead, as wide as the room there allows, its lines wrapping to it.
+ * Laid out at its width; the square's window (its card) pointing at its square that finds no room above or below it
+ * there stands beside it instead, as wide as the room there allows, its notes wrapping to it.
  */
 function pointedLayout(m: MenuState, screenW: number, size: MenuSize, clear: boolean): MenuLayout {
   const l = layoutAt(m, screenW, size, clear);
-  if (l.place || !m.point || m.anchor || !m.sections?.length) return l;
+  if (l.place || !m.point || m.anchor || !m.card) return l;
   const room = sideRoom(screenW, m.point);
-  // Never narrower than its title needs, nor so narrow its lines break into crumbs.
+  // Never narrower than its title needs, nor so narrow its notes break into crumbs.
   const title = (size.text === 2 ? textWidthLarge(m.title) : textWidth(m.title)) + 16 + (m.close ? (size.text === 2 ? TITLE_H_LARGE : TITLE_H) : 0);
-  if (room < Math.max(NARROW_W * size.text, title) || room >= l.w) return l;
+  if (room < Math.max(CARD_NARROW_W, title) || room >= l.w) return l;
   const narrow = layoutAt(m, screenW, size, clear, room);
   return narrow.place && narrow.w <= room ? narrow : l;
 }
@@ -390,33 +343,23 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   // Measured as the lines wrap (the font's widths, `t` times), so a line that sets the window's width keeps to one line.
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l) * t)) + 20 : 0;
   // A map square or a unit's picture heads the window, in the same frame.
-  const framed = !!(m.square || m.unit);
-  // Labelled sections (the square's window): the labels in a column at the left, their lines beside it.
-  const sections = m.sections ?? [];
-  const labelW = sections.length ? Math.max(...sections.map((sec) => tw(sec.title))) + 8 * t : 0;
-  const sectionsW = sections.length ? labelW + Math.max(...sections.flatMap((sec) => sec.lines.map((l) => iconLineWidth(l) * t))) + 20 : 0;
+  const framed = !m.card && !!(m.square || m.unit);
   // Lines that must stay whole (`oneLine`) widen the window as far as the screen lets them.
-  const bodyRoom = m.oneLine ? bodyW + (framed ? SQUARE_SIDE : 0) : Math.min(Math.max(bodyW + (framed ? SQUARE_SIDE : 0), sectionsW), Math.round(SCREEN_W * size.share));
-  const w = Math.min(cap ?? size.maxW, screenW - 8, Math.max(need, bodyRoom, m.title ? size.minW : 0, m.square ? SQUARE_WINDOW_W : 0));
+  const bodyRoom = m.oneLine ? bodyW + (framed ? SQUARE_SIDE : 0) : Math.min(bodyW + (framed ? SQUARE_SIDE : 0), Math.round(SCREEN_W * size.share));
+  // The square's card is as wide as its facts need, within its bounds.
+  const cardW = m.card ? Math.min(CARD_MAX_W, Math.max(CARD_MIN_W, cardNeed(m.card))) : 0;
+  const w = Math.min(cap ?? (m.card ? CARD_MAX_W : size.maxW), screenW - 8, Math.max(need, m.card ? cardW : bodyRoom, m.title ? size.minW : 0, m.square && !m.card ? SQUARE_WINDOW_W : 0));
   // The paragraphs that begin beside the picture wrap to the room left of it.
   const lines: string[] = [];
   const indents: number[] = [];
-  for (const l of m.body ?? []) {
+  for (const l of m.card ? [] : m.body ?? []) {
     const indent = framed && lines.length * lineH < SQUARE_FRAME ? SQUARE_SIDE : 0;
     for (const piece of wrapIcons(l, Math.floor((w - 20 - indent) / t))) { lines.push(piece); indents.push(indent); }
   }
-  const bodyH = lines.length || framed ? Math.max(lines.length * lineH, framed ? SQUARE_FRAME + 2 : 0) + 5 : 0;
-  // Each section's lines wrapped to the room beside the labels, a gap with a rule before each.
-  const secs: MenuLayout["secs"] = [];
-  let secH = 0;
-  for (const sec of sections) {
-    secH += SECTION_GAP;
-    const rows = sec.lines.flatMap((line) => leadRows(line, Math.floor((w - 20 - labelW) / t)));
-    secs.push({ title: sec.title, dy: secH, rows });
-    secH += Math.max(1, rows.length) * lineH;
-  }
-  // Air under the last, more where a rule and the choices follow.
-  if (secH) secH += m.items.length || m.tabs ? 6 : 2;
+  // The card in place of the body, air under it, more where a rule and the choices follow.
+  const card = m.card ? cardLayout(m.card, w) : null;
+  const bodyH = card ? card.h + (m.items.length || m.tabs ? 9 : 3) : lines.length || framed ? Math.max(lines.length * lineH, framed ? SQUARE_FRAME + 2 : 0) + 5 : 0;
+  const secH = 0;
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
   const room = floor - (m.anchor?.y ?? 0) - head - bodyH - secH - tabsH - foot;
   const fits = count * least <= room;
@@ -432,7 +375,7 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   if (place) [x, y] = [place.win.x, place.win.y];
   else if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
-  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + secH + tabsH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH + secH, tabH, count, room: fits ? count : rows, wrapped: !!m.oneLine && lines.length > (m.body?.length ?? 0), place, secTop: y + head + bodyH, labelW, secs };
+  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + secH + tabsH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH + secH, tabH, count, room: fits ? count : rows, wrapped: !!m.oneLine && lines.length > (m.body?.length ?? 0), place, card, cardY: y + (m.title ? titleH + 6 : 4) };
 }
 
 export function menuRect(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x: number; y: number; w: number; h: number } {
@@ -564,7 +507,8 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
   if (l.place) drawWindowPoint(s, l.place);
   if (m.close && m.title) drawCloseBox(s, x + w - 3 - (titleH - 2), y + 3, titleH - 2);
   const bodyY = y + (m.title ? titleH + 6 : 4);
-  if (m.square || m.unit) {
+  if (l.card && m.card) drawSquareCard(s, m.card, x, l.cardY, w, square);
+  else if (m.square || m.unit) {
     // The square in a dark frame, sunk into the stone: shade along the top and left, light along the foot and right.
     const fx = x + 10;
     const fy = bodyY + 1;
@@ -583,18 +527,7 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     else s.rect(fx + 2, fy + 2, SQUARE_PIC, SQUARE_PIC, C.BLACK!);
   }
   lines.forEach((line, i) => drawIconLine(s, x + 10 + (indents[i] ?? 0), bodyY + i * lineH, line, C.BLACK!, t));
-  // The sections: an etched rule under the head, a faint one between them, the label in dim ink at the left, its lines beside it.
-  l.secs.forEach((sec, i) => {
-    const sy = l.secTop + sec.dy;
-    if (i) s.hline(x + 10, sy - 4, w - 20, shade("panel", 3));
-    else {
-      s.hline(x + 6, sy - 4, w - 12, shade("panel", 2));
-      s.hline(x + 6, sy - 3, w - 12, shade("panel", 7));
-    }
-    write(x + 10, sy, sec.title, DIM);
-    sec.rows.forEach((row, k) => drawIconLine(s, x + 10 + l.labelW + row.indent * t, sy + k * lineH, row.text, C.BLACK!, t));
-  });
-  if (lines.length && (m.items.length || m.tabs)) {
+  if ((lines.length || l.card) && (m.items.length || m.tabs)) {
     s.hline(x + 4, l.tabsY - 4, w - 8, shade("panel", 2));
     s.hline(x + 4, l.tabsY - 3, w - 8, shade("panel", 7));
   }

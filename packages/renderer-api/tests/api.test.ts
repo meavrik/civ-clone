@@ -80,28 +80,45 @@ describe("terrain info", () => {
     expect(terrainInfo(s, u.x + 1, u.y).title).toBe(`Grassland, ${land}`);
     expect(terrainInfo(s, u.x + 1, u.y).lines.some((l) => l.includes("Horses"))).toBe(false);
     t.terrain = Terrain.Plains;
-    // Beside the picture, pictures stand in for the words: its yields, then moving onto it and a river's defence,
-    // then a word on the terrain.
-    expect(info.head[0]).toMatch(/^\{food\} \d+  \{shield\} \d+  \{trade\} \d+$/);
-    expect(info.head[1]).toBe("{boot} 1 move  {tower} +50% defence");
-    expect(info.head[2]).toBe("Open land for fields and herds, with a little timber.");
-    // Then its sections, each under a label (asked for 2026-11-02: "too messy. arrange with clear sections").
-    const sec = (i: ReturnType<typeof terrainInfo>, title: string) => i.sections.find((x) => x.title === title)?.lines;
-    expect(info.sections.map((x) => x.title)).toEqual(["Resource", "Features", "Improve", "Units"]);
-    // Horses, a strategic resource, add no shields since save version 52 (asked for 2026-10-31); before, their two.
-    expect(sec(info, "Resource")).toEqual(["Needed for Cavalry, Chariot, Knights"]);
+    // Beside the picture (redone 2026-11-02, "rethink this modal window layout"): its yields, moving onto it and a
+    // river's defence, a word on the terrain; then its facts in groups, each an icon, a name and a note.
+    const card = info.card!;
+    expect([card.moves, card.defence, card.text]).toEqual([1, 50, "Open land for fields and herds, with a little timber."]);
+    expect(info.lines[0]).toMatch(/^\{food\} \d+  \{shield\} \d+  \{trade\} \d+$/);
+    expect(info.lines[1]).toBe("{boot} 1 move  {tower} +50% defence");
+    // Nobody's land yet: no line of whose it is.
+    expect(card.owner).toBeUndefined();
+    const group = (i: ReturnType<typeof terrainInfo>, title: string) => i.card?.groups.find((g) => g.title === title)?.facts;
+    expect(card.groups.map((g) => g.title)).toEqual(["Here", "Units", "Improve"]);
+    // Horses, a strategic resource, add no shields since save version 52 (asked for 2026-10-31): what needs them instead;
+    // a road on a river adds no trade.
+    expect(group(info, "Here")).toEqual([
+      { icon: "star", name: "Horses", note: "For Cavalry, Chariot, Knights" },
+      { icon: "river", name: "River", note: "+1 {trade}" },
+      { icon: "road", name: "Road", note: "No trade on a river", tone: "quiet" },
+    ]);
     s.resourceShields = true;
-    expect(sec(terrainInfo(s, u.x + 1, u.y), "Resource")![0]).toBe("+2 {shield}");
+    expect(group(terrainInfo(s, u.x + 1, u.y), "Here")![0]!.note).toBe("+2 {shield}, for Cavalry, Chariot and 1 more");
     delete s.resourceShields;
-    expect(sec(info, "Features")).toEqual(["{river} River +1 {trade}, no road trade  {road} Road"]);
-    expect(sec(info, "Improve")![0]).toMatch(/^\{irrigate\} \+1 \{food\}/);
-    expect(sec(info, "Units")).toEqual(["2 Militia, Settlers (ours)", "{road} Building a road, 2 turns"]);
-    expect(info.lines).toEqual([...info.head, ...info.sections.flatMap((x) => x.lines)]);
+    // Alike units counted together; ours say what they are about.
+    const shield = s.players[0]!.color;
+    expect(group(info, "Units")).toEqual([
+      { icon: "swords", shield, name: "2 Militia" },
+      { icon: "swords", shield, name: "Settlers", note: "Building a road, 2 turns" },
+    ]);
+    // What settlers could still make of it: irrigation, and a mine that plants a forest.
+    expect(group(info, "Improve")).toEqual([
+      { icon: "irrigate", name: "Irrigate", note: "+1 {food}" },
+      { icon: "mine", name: "Plant", note: "Into Forest" },
+    ]);
     for (const line of info.lines) for (const seg of iconSegments(line)) if ("icon" in seg) expect(ICONS).toContain(seg.icon);
 
     applyCommand(s, { type: "found", unit: u.id });
-    expect(sec(terrainInfo(s, u.x, u.y), "City")).toEqual([`${s.cities[0]!.name} (Romans), size 1`]);
-    expect(terrainInfo(s, (u.x + 40) % 80, u.y)).toEqual({ title: "Unexplored", head: ["Not explored yet."], sections: [], lines: ["Not explored yet."] });
+    expect(terrainInfo(s, u.x, u.y).card!.owner).toEqual({ icon: "city", name: s.cities[0]!.name, note: "ours, size 1" });
+    // Our land beside it, worked by the city or not.
+    const beside = terrainInfo(s, u.x + 1, u.y).card!.owner;
+    expect(beside?.name).toBe("Our land");
+    expect(terrainInfo(s, (u.x + 40) % 80, u.y)).toEqual({ title: "Unexplored", card: null, lines: ["Not explored yet."] });
   });
 
   it("warns where only settlers climb, where wheels need a road and where the ground wears units down", () => {
@@ -109,18 +126,19 @@ describe("terrain info", () => {
     const u = s.units[0]!;
     revealAround(s, 0, u.x, u.y, 3);
     const t = getTile(s.map, u.x + 1, u.y)!;
-    const roadLines = () => terrainInfo(s, u.x + 1, u.y).lines.filter((l) => l.startsWith("{road} "));
+    const warnings = () => terrainInfo(s, u.x + 1, u.y).card!.groups.find((g) => g.title === "Here")?.facts.filter((f) => f.icon === "boot" || f.icon === "heart") ?? [];
     Object.assign(t, { terrain: Terrain.Mountains, river: false, road: false, special: false });
-    expect(roadLines()).toEqual(["{road} Settlers only, until a road"]);
+    expect(warnings()).toEqual([{ icon: "boot", name: "Settlers only", note: "Others need a road", tone: "bad" }]);
     t.terrain = Terrain.Jungle;
-    expect(roadLines()).toEqual(["{road} Wheeled units need a road"]);
+    expect(warnings()).toEqual([{ icon: "boot", name: "No wheels", note: "Wheeled units need a road", tone: "quiet" }]);
     t.road = true;
-    expect(roadLines()).toEqual(["{road} Road"]);
+    expect(warnings()).toEqual([]);
     t.terrain = Terrain.Desert;
-    expect(terrainInfo(s, u.x + 1, u.y).lines).toContain("{heart} Wears units down 10% a turn  until Trade");
+    expect(warnings()).toEqual([{ icon: "heart", name: "Harsh", note: "10% hp a turn, until Trade", tone: "bad" }]);
     applyCommand(s, { type: "found", unit: u.id });
-    expect(terrainInfo(s, u.x + 1, u.y).lines.some((l) => l.startsWith("{heart}"))).toBe(false);
+    expect(warnings()).toEqual([]);
   });
+
 });
 
 describe("world reports", () => {

@@ -38,9 +38,9 @@ describe("city-states in words", () => {
     expect(unitTitle(s, s.barbarians, "legion", "tyre")).toBe("Legion of Tyre");
     expect(unitTitle(s, s.barbarians, "legion")).toBe("Barbarian Legion");
     const lines = terrainInfo(s, 16, 10).lines.join(" | ");
-    expect(lines).toContain("Tyre (a city-state of the Phoenicians), size 1");
-    expect(lines).toContain("Legion (Tyre)");
-    expect(terrainInfo(s, 17, 10).lines.join(" | ")).toContain("Land of Tyre");
+    expect(lines).toContain("{city} Tyre, a city-state of the Phoenicians, size 1");
+    expect(lines).toContain("{swords} Legion: Tyre");
+    expect(terrainInfo(s, 17, 10).card!.owner?.name).toBe("Land of Tyre");
   });
 
   it("tell a city-state taken, and one of ours taken by a city-state's soldiers", () => {

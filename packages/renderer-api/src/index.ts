@@ -6,7 +6,7 @@ import type { Callout } from "./refusal.js";
 import type { EndCard } from "./chronicle.js";
 import type { MinimapButton, PanelSpot, PanelTip, ZoomButton } from "./panel.js";
 import { setupQuestionCards, type SetupCards } from "./setup.js";
-import { treaty, type CardSection, type DiplomacyView, type StandingTone } from "./audience.js";
+import { treaty, type DiplomacyView, type StandingTone } from "./audience.js";
 import type { NewTechHit, NewTechView } from "./newtech.js";
 import type { BuiltHit, BuiltView } from "./built.js";
 import type { ConquestHit, ConquestView, Fireworks } from "./conquest.js";
@@ -39,11 +39,6 @@ export * from "./chronicle.js";
 export * from "./city-states.js";
 export * from "./terrain-text.js";
 export * from "./places.js";
-import { squareTitle } from "./places.js";
-import { settlerSites, siteNote } from "./sites.js";
-import { rankedName, rankIcon, rankProgress } from "./ranks.js";
-import { ownerAt, territory } from "./territory.js";
-import { TERRAIN_TEXT } from "./terrain-text.js";
 export * from "./intro.js";
 export * from "./setup.js";
 export * from "./audience.js";
@@ -66,25 +61,15 @@ export * from "./pulse.js";
 export * from "./year.js";
 import type { LoadingView } from "./loading.js";
 export * from "./resources.js";
-import { resourceNote } from "./resources.js";
+export * from "./square-info.js";
+import type { SquareCard } from "./square-info.js";
 export { hash } from "./hash.js";
-import { WORK_ICON, WORK_NAME, type IconName } from "./icons.js";
+import type { IconName } from "./icons.js";
 import {
   ACCRUED_CULTURE,
   buildingCulture,
-  CITY_RADIUS,
-  resourceAt,
-  resourceRoaded,
-  RESOURCE_BY_ID,
-  cityStateOf,
-  claimant,
-  unitCityState,
   advance,
-  attrition,
-  attritionCure,
-  bordersOpen,
   building,
-  cityAt,
   computeCity,
   civ,
   CIV_COLORS,
@@ -92,25 +77,18 @@ import {
   CULTURE,
   esteem,
   hasContact,
-  maxHp,
   WONDERS,
   nativeCivs,
   partCount,
   PREMADE_WORLDS,
   premadeWorld,
   relation,
-  roadOnly,
   spacePart,
-  Terrain,
-  TERRAIN_NAMES,
-  TERRAIN_RULES,
-  tileYield,
   unitAt,
   unitSupport,
   unitType,
   wonder,
   WORLD_SIZES,
-  wrapX,
   type BuildingRule,
   type City,
   type CityFocus,
@@ -120,10 +98,6 @@ import {
   type Production,
   type Unit,
   type WorldSize,
-  influenceSpecials,
-  specialFor,
-  specialLocked,
-  yieldingSpecial,
 } from "@civ/core";
 
 /**
@@ -318,10 +292,10 @@ export interface MenuState {
    */
   square?: { x: number; y: number };
   /**
-   * Labelled sections under the body (the square's window, `SquareInfo.sections`): each its label in a column at the
-   * left and its lines beside it, a rule between them. Modern writes them on as body lines, "Label: line".
+   * The square's window's card (`terrainInfo`): its yields, moves and defence beside the square's picture, then its
+   * facts in groups, a line each. Drawn in place of the body; modern writes it on as body lines (`squareLines`).
    */
-  sections?: CardSection[];
+  card?: SquareCard;
   /**
    * A unit's picture at the head of the window beside its first lines, in the square's frame and twice the
    * map's size (the new settlers' window, asked for 2026-10-29): its type and its owner's colour slot.
@@ -883,163 +857,6 @@ export function builtNotice(state: GameState, cityId: number, p: Production): { 
 /** Rival civilizations for the n-th choice of the "How many civilizations?" menu. */
 export function opponentsForChoice(index: number): number {
   return Math.max(2, Math.min(6, index + 2));
-}
-
-/** A count and its noun: "1 move", "2 turns". */
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
-
-/** What a special adds to its square, in icons: "+2 {shield}". */
-function specialGain(sp: { food?: number; shields?: number; trade?: number }): string {
-  return [sp.food && `+${sp.food} {food}`, sp.shields && `+${sp.shields} {shield}`, sp.trade && `+${sp.trade} {trade}`].filter(Boolean).join(" ");
-}
-
-/**
- * The square's window (`terrainInfo`): its title, the lines beside its picture (`head`: what it yields a city under our
- * government, and a word on the terrain), and its sections, each a label over a few lines (`MenuState.sections`; asked
- * for 2026-11-02: "too messy. arrange with clear sections. clean design"): Resource, Features, Improve, City or Land,
- * Site and Units, each only when it has something to say. `lines` is all of it, head and sections, in order.
- */
-export interface SquareInfo {
-  title: string;
-  head: string[];
-  sections: CardSection[];
-  lines: string[];
-}
-
-/**
- * What the current player knows about a map square, for the square's window: yields under their government, its
- * resource and what it brings or wants, what stands on it and what settlers could do there, movement and defence,
- * whether wheels need a road or the ground wears units down, whose land it is, and the city and units on it. Lines
- * with {icon} tokens are drawn with pictures; "  " separates groups that may wrap apart.
- */
-export function terrainInfo(state: GameState, x: number, y: number): SquareInfo {
-  const me = state.players[state.currentPlayer]!;
-  const { map } = state;
-  const idx = y * map.width + wrapX(map, x);
-  if (y < 0 || y >= map.height || !me.explored[idx]) return { title: "Unexplored", head: ["Not explored yet."], sections: [], lines: ["Not explored yet."] };
-  const t = map.tiles[idx]!;
-  const r = TERRAIN_RULES[t.terrain];
-  const city = cityAt(state, x, y);
-  const yld = tileYield(state, t, city !== undefined, me.government, me.id);
-  // Beside its picture: what it yields a city, moving onto it and holding it (a river square defends at half again, the
-  // original's River, unless its terrain gives more), and a word on the terrain; then where only settlers or no
-  // wheels go, and the wear on units.
-  const defenseMul = t.river && !state.freecivYields ? Math.max(1.5, r.defense) : r.defense;
-  const wear = attrition(state, me.id, x, y);
-  const head = [
-    `{food} ${yld.food}  {shield} ${yld.shields}  {trade} ${yld.trade}`,
-    `{boot} ${plural(r.moveCost, "move")}${defenseMul === 1 ? "" : `  {tower} +${Math.round((defenseMul - 1) * 100)}% defence`}`,
-    TERRAIN_TEXT[t.terrain],
-    ...[
-      roadOnly(state, t) && !t.road ? "{road} Settlers only, until a road" : r.rough && !t.road && !state.classicTerrain && "{road} Wheeled units need a road",
-      wear > 0 && r.attrition && `{heart} Wears units down ${Math.round(wear * 100)}% a turn  until ${advance(attritionCure(state, r.attrition)).name}`,
-    ].filter((l): l is string => !!l),
-  ];
-  const sections: CardSection[] = [];
-  const section = (title: string, lines: (string | false | undefined | null | 0)[]) => {
-    const kept = lines.filter((l): l is string => !!l);
-    if (kept.length) sections.push({ title, lines: kept });
-  };
-  // Grassland's first special counts only in games before version 26 (`tileYield`).
-  const sp = !state.freecivYields && t.terrain === Terrain.Grassland && !t.secondSpecial && !t.deposit ? undefined : specialFor(state, t, me.id);
-  // Whose land it is, by the borders of the cities we know, and which city of ours works it.
-  const owner = ownerAt(territory(state), x, y);
-  const worker = city ? undefined : state.cities.find((c) => c.owner === me.id && c.worked.some((slot) => {
-    const [dx, dy] = CITY_RADIUS[slot]!;
-    return wrapX(map, c.x + dx) === wrapX(map, x) && c.y + dy === y;
-  }));
-
-  // The resource, named in the title: what it adds as it yields (a strategic resource adds no shields since save version
-  // 52, core `yieldingSpecial`; Fish feed no one until a Fishing Boat lays a fishery, since 54, so the line says what
-  // one would bring), which units want it and what it waits for, and what it brings a city whose border holds it.
-  const strategic = resourceAt(state, x, y, me.id);
-  const gain = !sp ? "" : specialLocked(state, t, sp)
-    ? `${specialGain({ food: (sp.food ?? 0) + (sp.fishery?.food ?? 0), shields: (sp.shields ?? 0) + (sp.fishery?.shields ?? 0), trade: (sp.trade ?? 0) + (sp.fishery?.trade ?? 0) })} once a Fishing Boat lays a fishery`
-    : specialGain(yieldingSpecial(state, sp));
-  let influence = "";
-  if (sp && !city && owner === me.id && !worker) {
-    for (const c of state.cities) {
-      if (c.owner !== me.id) continue;
-      const g = influenceSpecials(state, c).find((i) => i.x === wrapX(map, x) && i.y === y);
-      if (g) { influence = `In ${c.name}'s influence: +${g.trade} {trade}`; break; }
-    }
-  }
-  section("Resource", [
-    gain,
-    strategic && resourceNote(strategic),
-    strategic && !resourceRoaded(state, t) && (t.terrain === Terrain.Ocean ? "{shield} No use to anyone until a Fishing Boat builds an oil rig on it" : "{road} No use to anyone until a road is built on it"),
-    strategic && resourceRoaded(state, t) && t.river && !t.road && !state.roadlessResources && "{river} The river carries it, as a road would",
-    influence,
-  ]);
-
-  // What lies and stands on it, each with what it adds.
-  section("Features", [[
-    t.grassShield && t.terrain === Terrain.Grassland && "{shield} Shield grassland +1 {shield}",
-    t.river && `{river} River +1 {trade}${state.freecivYields ? "" : ", no road trade"}`,
-    t.railroad ? "{railroad} Railroad" : t.road && "{road} Road",
-    t.irrigation && "{irrigate} Irrigation",
-    t.mine && "{mine} Mine",
-    t.fortress && "{fortress} Fortress",
-    // A fishery (since save version 53) adds what its special's `fishery` says; an oil rig (since 55) its own shields.
-    t.fishery && sp?.fishery && `{food} Fishery ${specialGain(sp.fishery)}`,
-    t.rig && `{shield} Oil rig ${specialGain({ shields: RESOURCE_BY_ID[t.deposit ?? ""]?.offshore?.rig.shields ?? 0 })}`,
-    t.pollution && "{pollution} Polluted: output halved",
-    t.hut && "{hut} A tribal village",
-  ].filter(Boolean).join("  ")]);
-
-  // What settlers could make of it; at sea, what a Harbour adds (its trade since save version 58).
-  const work: string[] = [];
-  if (t.terrain !== Terrain.Ocean) {
-    if (r.irrigate) work.push(r.irrigate.becomes !== undefined ? `{irrigate} into ${TERRAIN_NAMES[r.irrigate.becomes]}` : `{irrigate} +${r.irrigate.food ?? 0} {food}`);
-    if (r.mine) work.push(r.mine.becomes !== undefined ? `{mine} into ${TERRAIN_NAMES[r.mine.becomes]}` : `{mine} +${r.mine.shields ?? 0} {shield}`);
-    if (r.road.trade > 0) work.push(`{road} +${r.road.trade} {trade}`);
-  } else if (!state.richSea) {
-    const harbour = building("harbour");
-    work.push(`{house} ${harbour.name} ${specialGain({ food: harbour.oceanFood ?? 0, trade: harbour.oceanTrade ?? 0 })}`);
-  }
-  section("Improve", [work.join("  ")]);
-
-  const cs = cityStateOf(city);
-  if (city) section("City", [`${city.name} (${cs ? `a city-state of the ${cs.people}` : state.players[city.owner]!.name}), size ${city.size}`]);
-  else {
-    const holder = owner === state.barbarians ? cityStateOf(claimant(state, x, y) ?? undefined) : undefined;
-    const land = owner >= 0 ? (owner === me.id ? "Ours" : holder ? `Land of ${holder.name}` : `The ${state.players[owner]?.name ?? "unknown"}'`) : "";
-    const worked = worker ? `${land ? "worked" : "Worked"} by ${worker.name}` : "";
-    section("Land", [[land, worked].filter(Boolean).join(", ")]);
-  }
-  // A square the map suggests for the settlers in play says why.
-  const site = settlerSites(state, state.activeUnit).find((s) => s.x === wrapX(map, x) && s.y === y);
-  if (site) section("Site", [siteNote(state, site, me.id)]);
-
-  const units: string[] = [];
-  if (me.visible[idx]) {
-    const here = unitAt(state, x, y);
-    if (here.length) {
-      const holder = state.players[here[0]!.owner]!;
-      const counts = new Map<string, number>();
-      for (const u of here) counts.set(rankedName(u), (counts.get(rankedName(u)) ?? 0) + 1);
-      const names = [...counts].map(([n, k]) => (k > 1 ? `${k} ${n}` : n)).join(", ");
-      const serves = cityStateOf(unitCityState(state, here[0]!));
-      units.push(`${names} (${holder.id === me.id ? "ours" : serves ? serves.name : holder.name})`);
-      // How far each of ours that has fought has come to its next rank: "{veteran} Legion 4/6 experience to Hardened".
-      if (holder.id === me.id) {
-        const ranks = here.filter((u) => u.xp > 0).map((u) => `${rankIcon(u.xp) ? `{${rankIcon(u.xp)}} ` : ""}${unitType(u.type).name} ${rankProgress(u.xp)}`);
-        if (ranks.length) units.push(ranks.join("  "));
-      }
-      for (const u of here) {
-        if (u.order.kind !== "work") continue;
-        const job = WORK_NAME[u.order.work];
-        units.push(`{${WORK_ICON[u.order.work]}} ${job[0]!.toUpperCase()}${job.slice(1)}, ${plural(u.order.turnsLeft, "turn")}`);
-      }
-      const hurt = here.filter((u) => u.hp < maxHp(state, u.type));
-      if (hurt.length) units.push(hurt.map((u) => `{heart} ${unitType(u.type).name} ${u.hp}/${maxHp(state, u.type)}`).join("  "));
-    }
-  } else units.push("Out of sight: units there are not seen"); // beyond our land and a square past it, and our units' sight (the shaded map)
-  section("Units", units);
-  // The title names the terrain, its resource and where it lies (asked for 2026-10-26: "show land/water mass name in
-  // the title - remove duplicates"; the resource in brackets since 2026-11-02): "Plains (Horses), Ausonia".
-  const title = squareTitle(state, x, y, TERRAIN_NAMES[t.terrain], t.terrain === Terrain.Ocean, sp?.name);
-  return { title, head, sections, lines: [...head, ...sections.flatMap((sec) => sec.lines)] };
 }
 
 /** Colour slots (see CIV_COLORS in core); renderers map each slot to their own palette. */

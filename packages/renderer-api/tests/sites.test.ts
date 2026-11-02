@@ -80,7 +80,7 @@ describe("suggested city sites", () => {
     // A resource the player has not seen is not counted.
     s.players[0]!.explored[19 * s.map.width + 18] = 0;
     expect(siteNote(s, { x: 18, y: 21, best: false }, 0)).not.toContain("resource");
-    expect(terrainInfo(s, 20, 20).sections).toContainEqual({ title: "Site", lines: [siteNote(s, best, 0)] });
-    expect(terrainInfo(s, 12, 12).lines.some((l) => l.includes("place for a city"))).toBe(false);
+    expect(terrainInfo(s, 20, 20).card!.groups[0]!.facts).toContainEqual({ icon: "city", name: "Best city site", note: "by a river, on the coast, on hills, easy to hold", tone: "good" });
+    expect(terrainInfo(s, 12, 12).lines.some((l) => l.includes("city site"))).toBe(false);
   });
 });
