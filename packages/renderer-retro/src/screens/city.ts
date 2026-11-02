@@ -31,7 +31,7 @@ import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } f
 import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRankMark, drawRoad, drawUnitFigure, layWork, rankHoles, waterHoles } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
+import { drawSpecial, drawSpecialMark, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { drawFishery } from "../fishery.js";
 import { drawRig } from "../rig.js";
 import { BAD, DIM, drawButton, drawCloseBox, drawScrollTrack, drawStone, drawTitleStrip, drawWindow, FADED, GOLD, GOOD, INK, NOTE, SCROLL_W, scrollTrack, stipple, TITLE_H, type ScrollTrack } from "../widgets.js";
@@ -483,7 +483,8 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       const mine = tile.mine ? layWork(s, minePicture(tile.terrain), px, py, TILE, pics) : null;
       if (tile.mine && !mine) drawMine(s, px, py);
       const net = tile.fishery ? layWork(s, "fishing_net", px, py, TILE, pics) : null;
-      if (tile.special) drawSpecial(s, px, py, state, tile, city.owner, TILE, pics, !!(fields || mine || net));
+      // The city's own square has its resource's mark once the city stands (below).
+      if (tile.special && slot !== 0) drawSpecial(s, px, py, state, tile, city.owner, TILE, pics, !!(fields || mine || net));
       if (tile.fishery && !net) drawFishery(s, px, py);
       if (tile.rig && !layWork(s, "oil_rig", px, py, TILE, pics)) drawRig(s, px, py);
       if (tile.fortress) drawFortress(s, px, py);
@@ -496,6 +497,8 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
         const spot = slot === 0 ? drawCity(s, px, py - 1, city, cityLook(state, city), playerColor(state, city.owner), false, { room: { x: CITY_MAP_X, y: CITY_MAP_Y, w: 5 * TILE, h: 5 * TILE } }) : null;
         const under = spot ? fineCopy(s, spot.x, spot.y, TILE, TILE) : null;
         yieldIcons(s, px, py, y.food, y.shields, y.trade);
+        // The resource under the city: its mark over the yields, as it stands over the city on the map.
+        if (slot === 0 && tile.special) drawSpecialMark(s, px, py, state, tile, city.owner);
         if (spot && under) {
           const marks = drawnOver(s, under);
           if (marks.length) spot.holes = [...(spot.holes ?? []), ...marks];

@@ -1,10 +1,10 @@
 import { cityAt, Terrain, unitAt, type GameState } from "@civ/core";
 import { cityLook, fieldSides, fieldsPicture, hutKind, minePicture, moveArt, pierSquare, type MenuState } from "@civ/renderer-api";
-import { sealPictures, type SquarePictures } from "../art-holes.js";
+import { drawnOver, fineCopy, sealPictures, type SquarePictures } from "../art-holes.js";
 import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, layWork, waterHoles } from "../overlays.js";
 import { C } from "../palette.js";
 import { Surface } from "../surface.js";
-import { drawHut, drawSpecial, terrainSquare, TILE } from "../tiles.js";
+import { drawHut, drawSpecial, drawSpecialMark, terrainSquare, TILE } from "../tiles.js";
 import { drawFishery } from "../fishery.js";
 import { drawRig } from "../rig.js";
 import { SQUARE_PIC } from "../widgets.js";
@@ -46,14 +46,23 @@ export function drawSquarePicture(s: Surface, state: GameState, mx: number, my: 
   const mine = tile.mine ? layWork(one, minePicture(tile.terrain), 0, 0, TILE, pics) : null;
   if (tile.mine && !mine) drawMine(one, 0, 0);
   const net = tile.fishery ? layWork(one, "fishing_net", 0, 0, TILE, pics) : null;
-  if (tile.special) drawSpecial(one, 0, 0, state, tile, state.currentPlayer, TILE, pics, !!(fields || village || mine || net));
+  const city = cityAt(state, wx, my);
+  // A city's square has its resource's mark once the city stands (below).
+  if (tile.special && !city) drawSpecial(one, 0, 0, state, tile, state.currentPlayer, TILE, pics, !!(fields || village || mine || net));
   if (tile.fishery && !net) drawFishery(one, 0, 0);
   if (tile.rig && !layWork(one, "oil_rig", 0, 0, TILE, pics)) drawRig(one, 0, 0);
   if (tile.fortress) drawFortress(one, 0, 0);
   if (tile.pollution) drawPollution(one, 0, 0);
-  const city = cityAt(state, wx, my);
-  if (city) drawCity(one, 0, 0, city, cityLook(state, city), playerColor(state, city.owner), false, room);
-  else if (me.visible[idx]) {
+  if (city) {
+    const spot = drawCity(one, 0, 0, city, cityLook(state, city), playerColor(state, city.owner), false, room);
+    // The mark shows over the city's picture.
+    const under = spot ? fineCopy(one, 0, 0, TILE, TILE) : null;
+    if (tile.special) drawSpecialMark(one, 0, 0, state, tile, state.currentPlayer);
+    if (spot && under) {
+      const marks = drawnOver(one, under);
+      if (marks.length) spot.holes = [...(spot.holes ?? []), ...marks];
+    }
+  } else if (me.visible[idx]) {
     const units = unitAt(state, wx, my);
     const top = units.find((u) => u.id === state.activeUnit) ?? units[0];
     if (top) drawUnit(one, top, 0, 0, playerColor(state, top.owner), units.length > 1, room);

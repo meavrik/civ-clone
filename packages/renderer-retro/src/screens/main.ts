@@ -27,7 +27,7 @@ import { drawSmallCaps, drawSpacedRinged, drawText, drawTextCentered, drawTextPl
 import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawShield, drawUnit, drawUnitFigure, drawUnitFlash, hpBarBox, layWork, waterHoles } from "../overlays.js";
 import { C, DIMMED, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawHut, drawSpecial, fogSquare, MAP_TILE, onSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
+import { drawHut, drawSpecial, drawSpecialMark, fogSquare, MAP_TILE, onSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
 import { drawFishery } from "../fishery.js";
 import { drawRig } from "../rig.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
@@ -165,6 +165,12 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // shaded over their borders, under the fog; a city's square once the city is drawn, so the city is shaded too.
   const unseen: [Uint8Array | "all", number, number, number][] = [];
   const terr = view.borders ? territory(state) : null;
+  // Cities on explored tiles. Foreign cities and units wait for fog lifting off their square to thin.
+  const fogged = (idx: number, owner: number) => owner !== state.currentPlayer && (view.lifting?.get(idx) ?? 0) >= 0.5;
+  // A city being founded is its settlement going up until the show is over.
+  const founding = view.founding;
+  const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner) && !(founding && c.x === founding.x && c.y === founding.y));
+  const citySquares = new Set(shownCities.map((c) => c.y * map.width + c.x));
   // The user's pictures of works, villages, cities and units show inside the view only.
   const picture = { room: { x: VIEW_X, y: VIEW_Y, w: s.width - VIEW_X, h: VIEW_H } };
   // The squares' works and villages standing as the user's pictures, each laid with its square as drawn under it, so
@@ -217,8 +223,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       if (tile.mine && !mine) onSquare(s, dx, dy, T, (on, x, y) => drawMine(on, x, y));
       const net = tile.fishery ? layWork(s, "fishing_net", dx, dy, T, pics) : null;
       // A resource is drawn at the square's size, a share of it across (`SPECIAL_SHARE`), not stretched with it; where
-      // a work's picture stands, as a badge in its corner, the work whole; oil with a road to it stands as a pump.
-      if (tile.special) drawSpecial(s, dx, dy, state, tile, state.currentPlayer, T, pics, !!(fields || village || mine || net));
+      // a work's picture stands, as its mark in the corner, the work whole; oil with a road to it stands as a pump; a
+      // city's square has its mark once the city stands (below).
+      if (tile.special && !citySquares.has(my * map.width + mx)) drawSpecial(s, dx, dy, state, tile, state.currentPlayer, T, pics, !!(fields || village || mine || net));
       const rig = tile.rig ? layWork(s, "oil_rig", dx, dy, T, pics) : null;
       if ((tile.fishery && !net) || (tile.rig && !rig) || (tile.hut && !village) || tile.fortress || tile.pollution)
         onSquare(s, dx, dy, T, (on, x, y) => {
@@ -244,12 +251,6 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
         const color = playerColor(state, owner);
         for (const b of borderSides(terr, mx, my)) drawBorderSide(s, VIEW_X + tx * MAP_TILE - ox, VIEW_Y + ty * MAP_TILE - oy, b.side, b.startOut, b.endOut, color, darker(color), T);
       }
-  // Cities on explored tiles. Foreign cities and units wait for fog lifting off their square to thin.
-  const fogged = (idx: number, owner: number) => owner !== state.currentPlayer && (view.lifting?.get(idx) ?? 0) >= 0.5;
-  // A city being founded is its settlement going up until the show is over.
-  const founding = view.founding;
-  const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner) && !(founding && c.x === founding.x && c.y === founding.y));
-  const citySquares = new Set(shownCities.map((c) => c.y * map.width + c.x));
   for (const [mask, dx, dy, idx] of unseen) if (!citySquares.has(idx)) shadeUnseen(s, dx, dy, mask, T);
   // A work's or a village's picture out of sight is shaded whole, as a city's is.
   const shadedSquares = new Set(unseen.map(([, dx, dy]) => `${dx},${dy}`));
@@ -282,6 +283,12 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     }
   // What is drawn over a city's square from here on (a unit's shield, a burst, a route's dot) shows over its picture.
   const underCities = [...cityPictures.values()].map((spot) => ({ spot, copy: fineCopy(s, spot.x, spot.y, MAP_TILE, MAP_TILE) }));
+  // A city standing on a resource shows its mark in the corner (asked for 2026-11-02), shaded with the city out of sight.
+  for (const c of shownCities) {
+    const tile = map.tiles[c.y * map.width + c.x]!;
+    const pos = toScreen(c.x, c.y);
+    if (tile.special && pos) drawSpecialMark(s, pos[0], pos[1], state, tile, state.currentPlayer, T, cityPictures.get(c.y * map.width + c.x)?.unseen === true);
+  }
   // Their names under them, as the original showed them; drawn before the units so no unit is hidden by a name.
   for (const c of shownCities) {
     const pos = toScreen(c.x, c.y);
