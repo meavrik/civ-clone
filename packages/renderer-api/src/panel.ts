@@ -53,6 +53,9 @@ export type PanelPart =
  */
 export type MinimapButton = "names" | "borders";
 
+/** The map's zoom buttons (`MainScreenView.zoomButtons`): + draws its squares larger, - smaller. */
+export type ZoomButton = "in" | "out";
+
 /** The minimap's switches as a view holds them: shown when unset. */
 export interface MinimapShows {
   minimapNames?: boolean | undefined;

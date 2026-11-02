@@ -896,7 +896,8 @@ Never ship the original's sprites, palette art, fonts or text.
   map as usual, then `magnifyViewport` blows the viewport's top-left 1/zoom up to fill it (fine pixels,
   in place) before the panel and bar; `zoomedTiles` sizes the minimap's box, `unzoomPoint` maps a tap
   back. The modern renderer ignores it. The web game (only with a mouse: `renderer.mapView`; the phone
-  zooms in its own renderer) keeps 1x, 2x or 3x in `view.zoom` (`epochs.zoom` per browser): the wheel over
+  zooms in its own renderer) keeps 1x, 2x or 3x in `view.zoom` (on branch big-tiles finer steps drawn at their
+  size and buttons on the map, see Map square size below; `epochs.zoom` per browser): the wheel over
   the map (a notch a level, the square under the pointer staying put, `setZoom`), + and - (about the
   middle, the unit in play kept on view) and World > Zoom In / Zoom Out (faded at the ends), with "Map zoom
   2x" in the panel. `Renderer.viewTilesX`/`viewTilesY` stay the unzoomed count: the web app's camera
@@ -919,7 +920,14 @@ Never ship the original's sprites, palette art, fonts or text.
   forts at 16 and lays them on stretched (`onSquare`, `stretchSquare`, `Surface.blitScaled`: nearest, so the terrain art's
   pixels come 1 and 2 fine pixels wide at 20 (one in four doubled) and 24 (every other), even at 32), and lays the units' and cities' pictures over squares that size;
   shields, hit points, ranks, names and labels keep their size. The city screen's map, the square's window and the
-  phone app (its own renderer) keep 16. Integer zoom works on top.
+  phone app (its own renderer) keep 16. The web game's zoom is the square's size there (asked for the same day: "zoom
+  now is too big - reduce and place +/- toggle button on main map for zoom"): `view.zoom` 0.8, 1, 1.2, 1.4 or 1.6 times
+  the base (16 to 32 pixels on 20), which the adapter draws as `MAP_TILE` (`sized`), never magnified, its
+  `viewTilesX`/`viewTilesY` counted at the base; "Map zoom 120%"; a fight two levels closer (`BATTLE_ZOOM_STEPS`). Two
+  stone buttons, + over -, stand in the map's bottom right corner (`MainScreenView.zoomButtons`, retro `zoomButtonAt`,
+  `Renderer.zoomButtonAt`; 12 pixels a side, the web app's `stepZoomButtons`): lit under the mouse, the sign faded at
+  the zoom's end, the map's names kept off them, pictures cut round them, no edge scrolling while the mouse rests on
+  them. The phone's pinch still magnifies whole times.
   Unit animation: core appends every step (`applyMove`) and fight (`resolveCombat`, round by round) to
   `lastActions` (a UI side channel like `lastTurnEvents`, emptied by `endTurn`, never read by replays or
   AI); `MotionPlayer` (`renderer-api/src/motion.ts`) times them into `view.moving` (slides) and

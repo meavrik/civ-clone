@@ -4,7 +4,7 @@ import type { Lifting } from "./fog.js";
 import type { ResearchHit, ResearchView } from "./research.js";
 import type { Callout } from "./refusal.js";
 import type { EndCard } from "./chronicle.js";
-import type { MinimapButton, PanelSpot, PanelTip } from "./panel.js";
+import type { MinimapButton, PanelSpot, PanelTip, ZoomButton } from "./panel.js";
 import { setupQuestionCards, type SetupCards } from "./setup.js";
 import { treaty, type DiplomacyView, type StandingTone } from "./audience.js";
 import type { NewTechHit, NewTechView } from "./newtech.js";
@@ -146,6 +146,12 @@ export interface MainScreenView {
    * top-left corner held: fewer squares show, from the origin. The mobile app's pinch sets it.
    */
   zoom?: number | undefined;
+  /**
+   * The map's zoom buttons, + over - in the view's bottom right corner (asked for 2026-11-02: "place +/- toggle button
+   * on main map for zoom"): each faded where the zoom goes no further (`in`, `out` false), `lit` the one under the
+   * pointer. None when unset (the phone pinches).
+   */
+  zoomButtons?: { in: boolean; out: boolean; lit?: ZoomButton | undefined } | undefined;
   /** Blink phase: the unit in play's box on the minimap, "Press Enter" under End of Turn. */
   blink: boolean;
   /** The year the status panel shows while it counts on to the turn's (`countedYear`), lit; the turn's own when unset. */
@@ -568,6 +574,8 @@ export interface Renderer {
   statusPartAt(state: GameState, view: MainScreenView, px: number, py: number): PanelSpot | null;
   /** The minimap's switch under a point (its names or its borders), or null; absent on a renderer without them. */
   minimapButtonAt?(state: GameState, px: number, py: number): MinimapButton | null;
+  /** The map's zoom button under a point (`MainScreenView.zoomButtons`), or null; absent on a renderer without them. */
+  zoomButtonAt?(view: MainScreenView, px: number, py: number): ZoomButton | null;
 
   /** A report page (wonders, top cities...). */
   report(page: ReportPage): void;

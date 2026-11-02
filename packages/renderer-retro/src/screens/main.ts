@@ -32,7 +32,7 @@ import { drawFishery } from "../fishery.js";
 import { drawRig } from "../rig.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { darker } from "../sprites/index.js";
-import { BAD, DIM, drawButton, drawStone, drawSwatch, GOOD, hideArtUnder, INK, NOTE } from "../widgets.js";
+import { BAD, buttonFace, DIM, drawButton, drawStone, drawSwatch, FADED, GOOD, hideArtUnder, INK, NOTE } from "../widgets.js";
 import { drawFireworks } from "../fireworks.js";
 import { drawSinking } from "../sinking.js";
 import { drawShot } from "../shot.js";
@@ -107,7 +107,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, civNameSpots, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, civNameSpots, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type ZoomButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -412,6 +412,8 @@ function nameRoom(s: Surface, state: GameState, view: MainScreenView, across: nu
     const w = Math.max(MAP_TILE, textPlateWidth(String(c.size)) + 2 + textWidth(c.name) + MOOD_PENNANT_W);
     taken.push([pos[0] + (MAP_TILE >> 1) - (w >> 1), pos[1], w, MAP_TILE + FONT_HEIGHT + 2]);
   }
+  // Clear of the zoom buttons in the corner.
+  if (view.zoomButtons) for (const b of zoomButtons(s.width)) taken.push([b.x - 1, b.y - 1, b.w + 2, b.h + 2]);
   const clear = ([x, y, w, h]: Box) => taken.every(([a, b, c, d]) => x + w <= a || a + c <= x || y + h <= b || b + d <= y);
   const me = state.players[state.currentPlayer]!;
   const overExplored = ([x, y, w, h]: Box) => {
@@ -1090,6 +1092,41 @@ function drawMinimapButtons(s: Surface, view: MainScreenView, top: number, map: 
   }
 }
 
+/** The map's zoom buttons are this many pixels a side, + over - in the view's bottom right corner, two pixels in. */
+const ZOOM_BUTTON = 12;
+
+/** Where the map's zoom buttons stand on a main screen `screenW` wide. */
+function zoomButtons(screenW: number): { which: ZoomButton; x: number; y: number; w: number; h: number }[] {
+  const x = screenW - ZOOM_BUTTON - 2;
+  const y = SCREEN_H - ZOOM_BUTTON - 2;
+  return [
+    { which: "in", x, y: y - ZOOM_BUTTON - 1, w: ZOOM_BUTTON, h: ZOOM_BUTTON },
+    { which: "out", x, y, w: ZOOM_BUTTON, h: ZOOM_BUTTON },
+  ];
+}
+
+/** The map's zoom button under a point of the main screen (`MainScreenView.zoomButtons`), faded or not, or null. */
+export function zoomButtonAt(view: MainScreenView, px: number, py: number, screenW = SCREEN_W): ZoomButton | null {
+  if (!view.zoomButtons) return null;
+  return zoomButtons(screenW).find((b) => px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h)?.which ?? null;
+}
+
+/**
+ * The map's zoom buttons (asked for 2026-11-02: "place +/- toggle button on main map for zoom"): the game's stone, a
+ * plus over a minus in ink, lit under the pointer, the sign faded where the zoom goes no further; the pictures of
+ * units and cities under them cut round them.
+ */
+function drawZoomButtons(s: Surface, shown: NonNullable<MainScreenView["zoomButtons"]>): void {
+  for (const b of zoomButtons(s.width)) {
+    const on = shown[b.which];
+    hideArtUnder(s, b);
+    const ink = buttonFace(s, b.x, b.y, b.w, b.h, on && shown.lit === b.which ? "lit" : "plain");
+    const color = on ? ink : FADED;
+    s.rect(b.x + 3, b.y + (b.h >> 1) - 1, b.w - 6, 2, color);
+    if (b.which === "in") s.rect(b.x + (b.w >> 1) - 1, b.y + 3, 2, b.h - 6, color);
+  }
+}
+
 /** The map square under a minimap pixel (the middle of the block it stands for), or null off the map. */
 export function minimapSquare(map: GameState["map"], px: number, py: number): { x: number; y: number } | null {
   const { w, h } = minimapSize(map);
@@ -1233,6 +1270,7 @@ export function drawMainScreen(s: Surface, state: GameState, view: MainScreenVie
   magnifyViewport(s, viewZoom(view));
   // A city we have just founded: the view glides in on it, dusk, light and its name (`founding.ts`).
   if (view.founding) drawFounding(s, view.founding, { x: VIEW_X, y: VIEW_Y, w: s.width - VIEW_X, h: VIEW_H }, (viewZoom(view) * MAP_TILE) / TILE);
+  else if (view.zoomButtons) drawZoomButtons(s, view.zoomButtons);
   drawStatusPanel(s, state, view);
   if (view.tip) drawPanelTip(s, view.tip);
   drawMenuBar(s, view.menuOpen);

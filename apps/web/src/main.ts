@@ -411,18 +411,21 @@ const CAMERA_MS = 280;
 
 /**
  * The map's zoom (asked for 2026-10-28: "add also in the web browser game version a main map zoom option"):
- * its squares drawn 1, 2 or 3 times larger (`MainScreenView.zoom`, whole numbers so the pixels stay square),
- * by the wheel over the map (the square under the pointer staying put), + and - (about the middle of the
- * view) or World > Zoom In and Zoom Out; kept per browser. Only with a mouse: the phone pinches its own
- * (its renderer has no `mapView` and zooms what it draws).
+ * its squares drawn from 0.8 to 1.6 times the base's size (`MainScreenView.zoom`; the adapter draws each size as it
+ * is, `MAP_TILE`: 16 to 32 pixels on the base's 20; 1, 2 or 3 times larger until 2026-11-02, asked for: "zoom now
+ * is too big - reduce"), by the wheel over the map (the square under the pointer staying put), the + and - buttons
+ * in the map's corner and the keys (about the middle of the view) or World > Zoom In and Zoom Out; kept per browser.
+ * Only with a mouse: the phone pinches its own (its renderer has no `mapView` and zooms what it draws).
  */
-const ZOOMS = [1, 2, 3] as const;
+const ZOOMS = [0.8, 1, 1.2, 1.4, 1.6] as const;
+/** A fight draws the map this many zoom levels closer (`battleZoom`). */
+const BATTLE_ZOOM_STEPS = 2;
 const ZOOM_KEY = "epochs.zoom";
 const zoomable = renderer.mapView !== undefined;
 if (zoomable) {
   try {
     const z = Number(localStorage.getItem(ZOOM_KEY));
-    if ((ZOOMS as readonly number[]).includes(z) && z > 1) view.zoom = z;
+    if ((ZOOMS as readonly number[]).includes(z) && z !== 1) view.zoom = z;
   } catch { /* private mode */ }
 }
 function mapZoom(): number {
@@ -500,7 +503,7 @@ function resetMotion(): void {
   watching = false;
   staging = null;
   // A fight's zoom gives way to the player's own, with no camera to keep.
-  if (battleZoom) { view.zoom = battleZoom.prev > 1 ? battleZoom.prev : undefined; battleZoom = null; }
+  if (battleZoom) { view.zoom = battleZoom.prev !== 1 ? battleZoom.prev : undefined; battleZoom = null; }
   afterSlides.length = 0;
   handoff = null;
   view.focus = undefined;
@@ -994,7 +997,7 @@ function setZoom(z: number, at?: { x: number; y: number }, keep = true): void {
   const py = (at ? at.y : area.y + area.height / 2) - area.y;
   const k = 1 / from - 1 / z;
   if (cam.animating) { cam.x = cam.toX; cam.y = cam.toY; cam.animating = false; }
-  view.zoom = z > 1 ? z : undefined;
+  view.zoom = z !== 1 ? z : undefined;
   const w = state.map.width;
   cam.x = (((cam.x + (px / tile) * k) % w) + w) % w;
   cam.y = Math.max(0, Math.min(state.map.height - viewTiles().y, cam.y + (py / tile) * k));
@@ -1012,7 +1015,16 @@ function zoomBy(step: number, at?: { x: number; y: number }): void {
   setZoom(z, at);
   if (!at) followActive();
   sound.play("click");
-  say(`Map zoom ${z}x`);
+  say(`Map zoom ${Math.round(z * 100)}%`);
+}
+
+/** Each frame: the map's zoom buttons (`MainScreenView.zoomButtons`), faded at the zoom's ends, the one under the mouse lit. */
+function stepZoomButtons(): void {
+  if (!zoomable) return;
+  const shown = { in: mapZoom() < ZOOMS[ZOOMS.length - 1]!, out: mapZoom() > ZOOMS[0] };
+  view.zoomButtons = shown;
+  const over = pointer && screenState.kind === "map" ? renderer.zoomButtonAt?.(view, pointer.x, pointer.y) : null;
+  if (over && shown[over]) view.zoomButtons = { ...shown, lit: over };
 }
 
 /** Each frame while a fight shows, and a moment after: the map zoomed in on it (`battleZoom`). */
@@ -1023,7 +1035,7 @@ function stepBattleZoom(now: number, shown: MotionFrame): void {
     if (!battleZoom) {
       const prev = mapZoom();
       battleZoom = { prev, fight: -1, last: now };
-      const z = Math.min(ZOOMS[ZOOMS.length - 1]!, prev + 1);
+      const z = ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, (ZOOMS as readonly number[]).indexOf(prev)) + BATTLE_ZOOM_STEPS)]!;
       if (z !== prev) setZoom(z, undefined, false);
     }
     // Each new fight in the middle of the view: at once as the map zooms in, gliding to the next.
@@ -1098,6 +1110,8 @@ function edgeDirection(): { dx: number; dy: number } | null {
   const { x, y } = pointer;
   // Over the panel or the menu bar: nothing.
   if (x < area.x || y < area.y || x >= area.x + area.width || y >= area.y + area.height) return null;
+  // Nor over the zoom buttons in its corner.
+  if (renderer.zoomButtonAt?.(view, x, y)) return null;
   const band = Math.max(4, Math.round(Math.min(area.width, area.height) * EDGE.zone));
   const dx = x < area.x + band ? -1 : x >= area.x + area.width - band ? 1 : 0;
   const dy = y < area.y + band ? -1 : y >= area.y + area.height - band ? 1 : 0;
@@ -2061,7 +2075,7 @@ function barEntries(index: number): MenuEntry[] {
         ["Spaceships", "F6", () => { screenState = { kind: "spaceship" }; }],
         ...(zoomable ? ([
           ["Zoom In", "+", () => zoomBy(1), mapZoom() >= ZOOMS[ZOOMS.length - 1]!],
-          ["Zoom Out", "-", () => zoomBy(-1), mapZoom() <= 1],
+          ["Zoom Out", "-", () => zoomBy(-1), mapZoom() <= ZOOMS[0]],
         ] satisfies MenuEntry[]) : []),
       ];
     case "Debug":
@@ -3742,6 +3756,9 @@ function mouseDown(e: MouseEvent): void {
   if (mmButton) { if (e.button === 0) toggleMinimap(mmButton); return; }
   const mm = renderer.minimapAt(state, px, py);
   if (mm) { centerOn(mm.x, mm.y); return; }
+  // The map's zoom buttons in its corner.
+  const zoomButton = renderer.zoomButtonAt?.(view, px, py);
+  if (zoomButton) { if (e.button === 0) zoomBy(zoomButton === "in" ? 1 : -1); return; }
   // The research row of the status panel opens the research panel; its End of Turn ends the turn.
   const panelHit = e.button === 0 ? renderer.statusAt(state, view, px, py) : null;
   if (panelHit === "research") { openTree({ choosing: true, closable: true }); return; }
@@ -3926,6 +3943,7 @@ function frame(t: number): void {
   view.civNames = civNames;
   view.minimapNames = minimapShows.names;
   view.minimapBorders = minimapShows.borders;
+  stepZoomButtons();
   if (screenState.kind === "research") screenState.view.blink = blinkOn;
   if (screenState.kind === "loading") stepLoading(screenState);
   if (screenState.kind !== "title" && screenState.kind !== "setup" && screenState.kind !== "loading") { stepCamera(t); stepEdgePan(t); siteHint(); panelTipStep(t); }

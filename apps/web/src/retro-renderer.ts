@@ -65,11 +65,9 @@ import {
   statusPartAt,
   MAP_TILE,
   setMapTile,
-  viewAcross,
-  viewDown,
+  TILE,
   tileToScreen,
-  unzoomPoint,
-  viewZoom,
+  zoomButtonAt,
   VIEW_H,
   VIEW_W,
   VIEW_X,
@@ -95,14 +93,24 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
   let pictures: PicturePlace[] = [];
   const screenBox = { logicalW: SCREEN_W, logicalH: SCREEN_H };
   // A trial of bigger map squares (`MAP_TILE`, 2026-11-02): 20 pixels a side unless the page asks otherwise (?tile=16, the original's; 24, 32).
-  setMapTile(Number(new URLSearchParams(location.search).get("tile")) || 20);
+  const baseTile = Math.max(TILE, Number(new URLSearchParams(location.search).get("tile")) || 20);
+  /**
+   * The map at its zoom (asked for 2026-11-02: "zoom now is too big - reduce"): `MainScreenView.zoom` is the size of its
+   * squares against the base's (0.8 to 1.6), each size worked out as it is drawn (`MAP_TILE`), never blown up.
+   */
+  const sized = (view: MainScreenView): MainScreenView => {
+    setMapTile(baseTile * (view.zoom ?? 1));
+    return view.zoom === undefined ? view : { ...view, zoom: undefined };
+  };
+  setMapTile(baseTile);
   return {
     id: "retro",
     width: SCREEN_W,
     height: SCREEN_H,
     density: DETAIL,
-    get viewTilesX() { return viewAcross(SCREEN_W); },
-    get viewTilesY() { return viewDown(); },
+    // Counted at the base size: the web app divides them by its zoom.
+    viewTilesX: Math.ceil(VIEW_W / baseTile),
+    viewTilesY: Math.ceil(VIEW_H / baseTile),
     mapView: { x: VIEW_X, y: VIEW_Y, width: VIEW_W, height: VIEW_H },
     researchListRows: RESEARCH_LIST_ROWS,
     beginFrame() {
@@ -130,7 +138,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     },
     setupHit: (cards, px, py) => setupCardAt(cards, px, py),
     main: (state, view) => {
-      drawMainScreen(screen, state, view);
+      drawMainScreen(screen, state, sized(view));
       preloadTech(state.players[state.currentPlayer]?.researching);
       preloadBuildings(state);
     },
@@ -198,16 +206,15 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     cityImprovementRows: (state) => cityImprovementRows(state),
     ratesHit: (px, py) => ratesHit(px, py),
     cityViewAt: (state, view, px, py) => cityViewAt(state, view, px, py),
-    // Through the map's zoom (`MainScreenView.zoom`): a square wholly off the view as drawn has none.
+    // At the map's zoom (`sized`): a square wholly off the view has none.
     squareRect(state: GameState, view: MainScreenView, x, y) {
-      const p = tileToScreen(state, view, x, y);
+      const p = tileToScreen(state, sized(view), x, y);
       if (!p) return null;
-      const z = viewZoom(view);
-      const r = { x: VIEW_X + (p[0] - VIEW_X) * z, y: VIEW_Y + (p[1] - VIEW_Y) * z, w: MAP_TILE * z, h: MAP_TILE * z };
+      const r = { x: p[0], y: p[1], w: MAP_TILE, h: MAP_TILE };
       return r.x < VIEW_X + VIEW_W && r.y < VIEW_Y + VIEW_H ? r : null;
     },
     tileAt(state: GameState, view: MainScreenView, px, py) {
-      [px, py] = unzoomPoint(view, px, py);
+      view = sized(view);
       if (px < VIEW_X || py < VIEW_Y) return null;
       const [ox, oy] = panOffset(view);
       const ty = view.originY + Math.floor((py - VIEW_Y + oy) / MAP_TILE);
@@ -218,6 +225,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     statusAt: (state, view, px, py) => statusPanelAt(state, px, py, view),
     statusPartAt: (state, view, px, py) => statusPartAt(state, px, py, view),
     minimapButtonAt: (state, px, py) => minimapButtonAt(state, px, py),
+    zoomButtonAt: (view, px, py) => zoomButtonAt(view, px, py),
     minimapAt(state: GameState, px, py) {
       if (px >= VIEW_X) return null;
       return minimapSquare(state.map, px, py - (VIEW_Y + 2));
