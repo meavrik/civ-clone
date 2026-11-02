@@ -38,7 +38,7 @@ import { drawSinking } from "../sinking.js";
 import { drawShot } from "../shot.js";
 import { drawFounding } from "../founding.js";
 import { drawCity } from "./map-city.js";
-import { drawnOver, fineCopy } from "../art-holes.js";
+import { drawnOver, fineCopy, type FineCopy } from "../art-holes.js";
 import { techLabel } from "./research.js";
 import { BAR_H, PANEL_W } from "./main-layout.js";
 import { fadeOver } from "../fade.js";
@@ -107,7 +107,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, civNameSpots, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type ZoomButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, civNameSpots, hutKind, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type ZoomButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -165,6 +165,10 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // shaded over their borders, under the fog; a city's square once the city is drawn, so the city is shaded too.
   const unseen: [Uint8Array | "all", number, number, number][] = [];
   const terr = view.borders ? territory(state) : null;
+  // The user's pictures of villages, cities and units show inside the view only.
+  const picture = { room: { x: VIEW_X, y: VIEW_Y, w: s.width - VIEW_X, h: VIEW_H } };
+  // Villages standing as the user's pictures, each with its square as drawn under it, for what goes over it later.
+  const villages: { spot: ArtSpot; copy: FineCopy; idx: number }[] = [];
   for (let ty = 0; ty <= viewDown(); ty++) {
     const my = view.originY + ty;
     const dy = VIEW_Y + ty * MAP_TILE - oy;
@@ -195,16 +199,19 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       // Every square, as roads between two of its neighbours cut across its corners.
       drawRoad(s, dx, dy, map, me.explored, mx, my, ground, T);
       drawRailroad(s, dx, dy, map, me.explored, mx, my, T);
-      if (tile.mine || tile.special || tile.fishery || tile.rig || tile.hut || tile.fortress || tile.pollution)
+      // A village of a kind the user drew stands as its picture, by the land (`hutKind`); else the drawn huts.
+      const village = tile.hut ? drawHut(s, dx, dy, { kind: hutKind(map, mx, my), ...picture }, T) : null;
+      if (tile.mine || tile.special || tile.fishery || tile.rig || (tile.hut && !village) || tile.fortress || tile.pollution)
         onSquare(s, dx, dy, T, (on, x, y) => {
           if (tile.mine) drawMine(on, x, y);
           if (tile.special) drawSpecial(on, x, y, state, tile, state.currentPlayer);
           if (tile.fishery) drawFishery(on, x, y);
           if (tile.rig) drawRig(on, x, y);
-          if (tile.hut) drawHut(on, x, y);
+          if (tile.hut && !village) drawHut(on, x, y);
           if (tile.fortress) drawFortress(on, x, y);
           if (tile.pollution) drawPollution(on, x, y);
         });
+      if (village) villages.push({ spot: village, copy: fineCopy(s, dx, dy, T, T), idx: my * map.width + mx });
       if (fog) fogs.push([fog, dx, dy]);
       const shaded = unseenSquare(map, me.visible, mx, my, T);
       if (shaded) unseen.push([shaded, dx, dy, my * map.width + mx]);
@@ -228,6 +235,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner) && !(founding && c.x === founding.x && c.y === founding.y));
   const citySquares = new Set(shownCities.map((c) => c.y * map.width + c.x));
   for (const [mask, dx, dy, idx] of unseen) if (!citySquares.has(idx)) shadeUnseen(s, dx, dy, mask, T);
+  // A village's picture out of sight is shaded whole, as a city's is.
+  const shadedSquares = new Set(unseen.map(([, , , idx]) => idx));
+  for (const v of villages) if (shadedSquares.has(v.idx)) v.spot.unseen = true;
   for (const [fog, dx, dy] of fogs) s.blit(fog, dx, dy, SPRITE_CLEAR);
   // The names of the seas, lands and landforms on view, then of the civilizations whose land it is, over
   // the fog's edge, under the cities and units, each clear of the cities, their names and the names before it.
@@ -235,8 +245,6 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   if (view.placeNames !== false) drawPlaceNames(s, state, view, across, room);
   if (terr && view.civNames !== false) drawCivNames(s, state, view, across, terr, room);
 
-  // The user's pictures of cities and units show inside the view only.
-  const picture = { room: { x: VIEW_X, y: VIEW_Y, w: s.width - VIEW_X, h: VIEW_H } };
   // A city with units inside shows a shield: always on our own, on others' while we see the square.
   const held = new Set(state.units.map((u) => u.y * map.width + u.x));
   const cityPictures = new Map<number, ArtSpot>();
@@ -376,6 +384,12 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   for (const { spot, copy } of underCities) {
     const marks = drawnOver(s, copy);
     if (marks.length) spot.holes = [...(spot.holes ?? []), ...marks];
+  }
+  // Over a village everything drawn since its square (borders, the fog's edge, names, marks) shows through it; the
+  // shade out of sight does not (its picture is shaded whole).
+  for (const { spot, copy } of villages) {
+    const marks = drawnOver(s, copy, true);
+    if (marks.length) spot.holes = marks;
   }
 
   if (sinking) drawCallout(s, state, view, { x: sinking.x, y: sinking.y, text: sinking.text });

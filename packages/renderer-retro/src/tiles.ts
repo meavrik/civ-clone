@@ -1,5 +1,5 @@
 import { RESOURCE_BY_ID, specialFor, Terrain, type GameState, type Tile, type WorldMap } from "@civ/core";
-import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, clearingPatch, BLEND_REACH, groundOwner, LAND, landOwner, mountainKind, riverShape, SHORE, strokeDistance, terrainVariant, type CoastPatch, type Explored, type Lifting, type TerrainVariant } from "@civ/renderer-api";
+import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, clearingPatch, BLEND_REACH, groundOwner, hutArt, LAND, landOwner, mountainKind, riverShape, SHORE, strokeDistance, terrainVariant, type ArtBox, type ArtSpot, type CoastPatch, type Explored, type HutKind, type Lifting, type TerrainVariant } from "@civ/renderer-api";
 import { FEATURE_SHEET, RESOURCE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { C, PALETTE, shade, UNSEEN } from "./palette.js";
@@ -425,8 +425,18 @@ export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState
   s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!);
 }
 
-/** A minor tribe's village. */
-export function drawHut(s: Surface, dx: number, dy: number): void {
+/**
+ * A minor tribe's village. Given `picture` (its kind, `hutKind`, and the room pictures may show in), a kind the user
+ * drew (`hutArt`) leaves a spot for its picture (`Surface.art`, `t` pixels a side; the apps lay it there as it is)
+ * and returns it, for what the screen draws over it later; else the drawn huts, at the original's size.
+ */
+export function drawHut(s: Surface, dx: number, dy: number, picture?: { kind: HutKind; room: ArtBox }, t = TILE): ArtSpot | null {
+  if (picture && hutArt(picture.kind)) {
+    const spot: ArtSpot = { id: picture.kind, hut: true, x: dx, y: dy, w: t, h: t, clip: picture.room };
+    s.art.push(spot);
+    return spot;
+  }
   const hut = spriteSurface(FEATURE_SHEET, "hut");
   if (hut) s.blit(hut, dx, dy, SPRITE_CLEAR);
+  return null;
 }

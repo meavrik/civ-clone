@@ -1,5 +1,5 @@
 import { civ, UNIT_TYPES, type GameState } from "@civ/core";
-import { artPlace, buildingArt, CITY_ART, LEADER_PORTRAITS, techPicture, unitAnim, unitArt, type ArtBox, type ArtSpot } from "@civ/renderer-api";
+import { artPlace, buildingArt, CITY_ART, HUT_ART, LEADER_PORTRAITS, techPicture, unitAnim, unitArt, type ArtBox, type ArtSpot } from "@civ/renderer-api";
 import { slotColor } from "@civ/renderer-retro";
 import { prepareUnitFrames, unitFrameUrl } from "./unit-frames.js";
 
@@ -13,7 +13,9 @@ import { prepareUnitFrames, unitFrameUrl } from "./unit-frames.js";
  * the city view, the Building Completed window, the research card), kept as WebP at quality 92 (alpha
  * exact) at their supplied sizes; and the units (units/<id>.png, 2026-10-28, the cells of the user's sheet
  * cut out pixel for pixel: "use the asset I placed as is") on the map and in the unit box, and the cities (cities/<era>-<tier>.png,
- * 2026-10-29, cut from the user's sheet pixel for pixel: "USE AS IS") on the map, the city screen and the square's window. Each is an image laid over the canvas where the screen leaves room for
+ * 2026-10-29, cut from the user's sheet pixel for pixel: "USE AS IS") on the map, the city screen and the square's window,
+ * and the tribal villages (huts/<kind>.png, 2026-11-02, cut from the user's sheet of five huts pixel for pixel) on the
+ * map and the square's window. Each is an image laid over the canvas where the screen leaves room for
  * it; they let clicks through to the canvas.
  */
 
@@ -23,6 +25,7 @@ const techUrl = (id: string): string => new URL(`./techs/${id}.webp`, import.met
 const buildingUrl = (id: string): string => new URL(`./buildings/${id}.webp`, import.meta.url).href;
 const unitUrl = (id: string): string => new URL(`./units/${id}.png`, import.meta.url).href;
 const cityUrl = (id: string): string => new URL(`./cities/${id}.png`, import.meta.url).href;
+const hutUrl = (id: string): string => new URL(`./huts/${id}.png`, import.meta.url).href;
 
 export interface PicturePlace {
   url: string;
@@ -86,7 +89,7 @@ export function buildingPlaces(spots: ArtSpot[], screen: { dx: number; logicalW:
     const box = artPlace(spot);
     // An animated unit shows its frame in its owner's colour (none until its atlas is in).
     const anim = spot.unit ? unitAnim(spot.id) : null;
-    const url = anim ? unitFrameUrl(spot.id, spot.frame ?? anim.rule.idle, spot.owner) : spot.unit ? unitUrl(spot.id) : spot.city ? cityUrl(spot.id) : buildingUrl(spot.id);
+    const url = anim ? unitFrameUrl(spot.id, spot.frame ?? anim.rule.idle, spot.owner) : spot.unit ? unitUrl(spot.id) : spot.city ? cityUrl(spot.id) : spot.hut ? hutUrl(spot.id) : buildingUrl(spot.id);
     if (box && url) out.push({ url, fit: "fill", ...(anim?.rule.pixelated ? { pixelated: true } : {}), ...box, x: box.x + screen.dx, logicalW: screen.logicalW, logicalH: screen.logicalH, z, ...(spot.lit ? { glow: true } : {}), ...(spot.reveal !== undefined ? { reveal: spot.reveal } : {}), ...(spot.dim ? { dim: true } : {}), ...(spot.unseen ? { unseen: true } : {}), clip: spot.clip ? { ...spot.clip, x: spot.clip.x + screen.dx } : { x: screen.dx, y: 0, w: screen.logicalW - 2 * screen.dx, h: screen.logicalH }, ...(spot.holes ? { holes: spot.holes.map((h) => ({ ...h, x: h.x + screen.dx })) } : {}), ...(spot.turn !== undefined ? { turn: spot.turn } : {}), ...(spot.water !== undefined ? { water: spot.water } : {}), ...(spot.flip ? { flip: true } : {}), ...(spot.contour ? { contour: spot.contour } : {}), ...(spot.opacity !== undefined ? { opacity: spot.opacity } : {}) });
   });
   return out;
@@ -121,9 +124,10 @@ export function preloadUnits(state: GameState): void {
   prepareUnitFrames([...new Set(state.players.map((p) => slotColor(p.color)))], (url) => imageFor(url));
 }
 
-/** Fetch and decode the pictures of the cities as a game starts or loads (twelve: three ages by four sizes). */
+/** Fetch and decode the pictures of the cities (twelve: three ages by four sizes) and the villages (five) as a game starts or loads. */
 export function preloadCities(): void {
   for (const id of Object.keys(CITY_ART)) imageFor(cityUrl(id));
+  for (const id of Object.keys(HUT_ART)) imageFor(hutUrl(id));
 }
 
 /**

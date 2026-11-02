@@ -21,6 +21,7 @@ export * from "./improvements.js";
 export * from "./blend.js";
 export * from "./coast.js";
 export * from "./terrain-variant.js";
+export * from "./huts.js";
 export * from "./river.js";
 export * from "./fog.js";
 export * from "./territory.js";

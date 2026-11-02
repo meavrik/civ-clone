@@ -1328,6 +1328,20 @@ Never ship the original's sprites, palette art, fonts or text.
   adapters fetch all twelve as a game starts (`preloadCities`). The flags stay the sheet's blue (no owner colour), the
   shield, the label's plate and the borders telling whose a city is. The drawn icons (`cities.art.ts`) stay for anything
   without a picture (tests, the sprite sheets).
+  Village pictures (2026-11-02, asked for with the user's sheet of five huts: "replace huts in game with attached veriety
+  of huts"): `tools/sprites/huts/huts.png` (kept as supplied: a straw-thatched round hut, a timber hall, a mud-brick
+  house, a hide tent, a stone cottage with a chimney, on a clear background) is cut by `tools/sprites/huts/cut.ts` into
+  `apps/web/src/huts/<kind>.png` (thatch, timber, adobe, tent, cottage), every pixel the sheet's, and the cuts' sizes
+  into renderer-api `hut-art.ts` (`HUT_ART`). A village's kind suits its land (renderer-api `huts.ts`, `hutKind`: adobe
+  or a tent in the desert, tents on the plains, tundra and arctic, timber in forest, swamp and jungle, stone in the
+  hills and mountains, thatch on grassland and in the jungle), one of a few for each land by a hash of its square; only
+  the picture. `drawHut` (tiles.ts), given the kind and the room, leaves a spot (`ArtSpot.hut`) in place of the drawn
+  huts on the map and in the square's window; `hutArtPlace` stands it at one scale (`HUT_SQUARE` 500: a hut 0.7 of its
+  square across, a little wider than a city's village; 0.6 was easy to miss), centred on the square's foot. On the map
+  the square is copied as drawn under it (`fineCopy`), so everything drawn over it later (borders, the fog's edge,
+  names, a route's dot) shows through it (`drawnOver`'s `shaded`: the shade out of sight is not a mark, the picture
+  being shaded whole, `ArtSpot.unseen`); windows cut holes in it (`hideArtUnder`). `preloadCities` fetches the five
+  with the cities. The drawn huts (`features.art.ts`) stay for anything without a picture.
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`.
   Fine art (merged from branch terrain-tiles-test, 2026-10-21, asked for): the screen keeps its 320x200
@@ -1725,7 +1739,7 @@ version 56). Specials of a kind kept three squares apart (2026-11-01, asked for;
 Harbour adding the second (2026-11-02, asked for; save version 58). The web game's map squares are 20 pixels, its zoom
 16 to 32 drawn at each size, with + and - on the map (2026-11-02, asked for; no save version; the phone keeps 16).
 The terrain drawn from the user's second sheet, forests and mountains in kinds by the land round them (2026-11-02,
-asked for; no save version).
+asked for; no save version). Villages drawn as the user's five huts, the kind by the land (2026-11-02, asked for).
 
 ## Known gaps / next steps
 

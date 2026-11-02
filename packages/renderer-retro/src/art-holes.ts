@@ -1,5 +1,5 @@
 import type { ArtBox } from "@civ/renderer-api";
-import { DIMMED } from "./palette.js";
+import { DIMMED, UNSEEN } from "./palette.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import type { Surface } from "./surface.js";
 
@@ -50,12 +50,14 @@ export function fineCopy(s: Surface, x: number, y: number, w: number, h: number)
 /**
  * Holes where `s` has changed since `copy` was taken: what a screen drew over a picture's place after laying the
  * picture there (a unit's shield, a burst, a route's dot), which shows over it as it would over a drawn one. A pixel
- * only darkened (`DIMMED`: the dusk of fireworks) is the same ground, not a mark.
+ * only darkened (`DIMMED`: the dusk of fireworks) is the same ground, not a mark; with `shaded`, so is one shaded
+ * out of sight (`UNSEEN`, for a copy taken before the map shades it: the picture is shaded whole instead).
  */
-export function drawnOver(s: Surface, copy: FineCopy): ArtBox[] {
+export function drawnOver(s: Surface, copy: FineCopy, shaded = false): ArtBox[] {
   const k = s.k, fw = copy.w * k;
   const x0 = copy.x * k, y0 = copy.y * k;
   const inside = (fx: number, fy: number) => fx >= 0 && fy >= 0 && fx < s.fw && fy < s.fh;
-  const changed = (now: number, was: number) => now !== was && now !== DIMMED[was];
+  const changed = (now: number, was: number) =>
+    now !== was && now !== DIMMED[was] && !(shaded && (now === UNSEEN[was] || now === DIMMED[UNSEEN[was]!]));
   return runHoles(fw, copy.h * k, k, copy.x, copy.y, (i, j) => inside(x0 + i, y0 + j) && changed(s.fget(x0 + i, y0 + j), copy.data[j * fw + i]!));
 }

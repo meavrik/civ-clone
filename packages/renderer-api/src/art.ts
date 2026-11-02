@@ -1,4 +1,5 @@
 import { CITY_ART } from "./city-art.js";
+import { HUT_ART } from "./hut-art.js";
 import { UNIT_ART } from "./unit-art.js";
 import { animSheet, unitAnim } from "./unit-anim.js";
 import type { UnitAtlas } from "./unit-atlas.js";
@@ -90,6 +91,8 @@ export interface ArtSpot extends ArtBox {
   unit?: boolean;
   /** A city's picture on its square (`cityArt`, the id its age and size, "ancient-village"), standing as `cityArtPlace` puts it. */
   city?: boolean;
+  /** A tribal village's picture on its square (`hutArt`, the id its kind, "thatch"), standing as `hutArtPlace` puts it. */
+  hut?: boolean;
   /** Out of sight: shaded as the map shades the squares it does not see now (`UNSEEN`, each colour at 62%). */
   unseen?: boolean;
   /** Only what lies inside shows: the map's view, for a unit at its edge. */
@@ -196,6 +199,32 @@ export function cityArtPlace(spot: ArtSpot): ArtBox | null {
   return { x: spot.x + ((1 - fw) / 2) * spot.w, y: spot.y + (1 - UNIT_FOOT - fh) * spot.h, w: fw * spot.w, h: fh * spot.h };
 }
 
+/**
+ * The user's pictures of the tribal villages (2026-11-02, their sheet of five huts), shown as they are where a village
+ * lies (`apps/web/src/huts/<kind>.png`, cut from the sheet pixel for pixel by tools/sprites/huts/cut.ts), the kind
+ * by the land (`hutKind`). One scale for all, `HUT_SQUARE` of the sheet's pixels to a map square: a hut stands 0.7 of
+ * its square across, a little wider than a city's village (the ancient one is 0.57 of its square), so a village is
+ * easy to find among the resources (0.6 was easy to miss); centred across on the square's foot, a fine pixel up, as a
+ * city stands. The drawn huts stay for anything without a picture.
+ */
+export const HUT_SQUARE = 500;
+export { HUT_ART };
+
+/** Whether the village kind `id` ("thatch") has a picture of the user's. */
+export function hutArt(id: string): boolean {
+  return id in HUT_ART;
+}
+
+/** Where village picture `spot.id` goes on its square (the spot's box). */
+export function hutArtPlace(spot: ArtSpot): ArtBox | null {
+  const size = HUT_ART[spot.id];
+  if (!size) return null;
+  const [w, h] = size;
+  const k = Math.min(1 / HUT_SQUARE, UNIT_FIT / w, UNIT_FIT / h);
+  const fw = w * k, fh = h * k;
+  return { x: spot.x + ((1 - fw) / 2) * spot.w, y: spot.y + (1 - UNIT_FOOT - fh) * spot.h, w: fw * spot.w, h: fh * spot.h };
+}
+
 /** A spot as it lands where a screen copies its part at (`fromX`, `fromY`) to (`toX`, `toY`), `scale` times larger. */
 export function moveArt(a: ArtSpot, fromX: number, fromY: number, toX: number, toY: number, scale = 1): ArtSpot {
   const at = (b: ArtBox): ArtBox => ({ x: toX + (b.x - fromX) * scale, y: toY + (b.y - fromY) * scale, w: b.w * scale, h: b.h * scale });
@@ -230,6 +259,7 @@ export function artLot(id: string, pic: { w: number; h: number }): { w: number; 
 export function artPlace(spot: ArtSpot): ArtBox | null {
   if (spot.unit) return unitArtPlace(spot);
   if (spot.city) return cityArtPlace(spot);
+  if (spot.hut) return hutArtPlace(spot);
   const art = buildingArt(spot.id);
   if (!art) return null;
   const k = Math.min(spot.w / art.w, spot.h / art.h);

@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { applyCommand, createUnit, newGame, revealAround } from "@civ/core";
-import type { ArtBox, MainScreenView } from "@civ/renderer-api";
+import { applyCommand, createUnit, getTile, newGame, revealAround, Terrain } from "@civ/core";
+import { artPlace, hutKind, type ArtBox, type MainScreenView } from "@civ/renderer-api";
 import { C, DIMMED, drawCityScreen, drawMainScreen, drawSquarePicture, Surface } from "../src/index.js";
 import { drawnOver, fineCopy, runHoles } from "../src/art-holes.js";
 import { encodePng } from "./png.js";
@@ -94,5 +94,81 @@ describe("city pictures", () => {
     const spot = c.art.find((a) => a.city)!;
     expect(spot.id).toBe("ancient-capital");
     expect(spot.holes?.length).toBeGreaterThan(0);
+  });
+});
+
+describe("village pictures", () => {
+  function withVillage() {
+    const { state, view, city } = founded();
+    state.cities = [];
+    const me = state.players[0]!;
+    // A village on explored land in sight, away from the settlers' city.
+    const at = { x: city.x + 3, y: city.y + 2 };
+    const tile = getTile(state.map, at.x, at.y)!;
+    Object.assign(tile, { terrain: Terrain.Desert, hut: true, special: false, river: false, road: false });
+    me.visible[at.y * state.map.width + at.x] = 1;
+    return { state, view, at, px: 80 + (at.x - view.originX) * 16, py: 9 + (at.y - view.originY) * 16 };
+  }
+
+  it("lays the user's picture of a village of the land's kind on its square in place of the drawn huts", () => {
+    const { state, view, at, px, py } = withVillage();
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    writeFileSync(new URL("./out/village-picture.png", import.meta.url), encodePng(s, 3));
+    const spot = s.art.find((a) => a.hut && a.x === px && a.y === py);
+    expect(spot).toMatchObject({ id: hutKind(state.map, at.x, at.y), hut: true, w: 16, h: 16, clip: { x: 80, y: 9 } });
+    expect(["adobe", "tent"]).toContain(spot!.id);
+    expect(spot!.unseen).toBeUndefined();
+    // No drawn huts under it: the square is drawn as it would be without the village.
+    const bare = Surface.screen();
+    getTile(state.map, at.x, at.y)!.hut = false;
+    drawMainScreen(bare, state, view);
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) expect(s.fget(px * 2 + x, py * 2 + y), `${x},${y}`).toBe(bare.fget(px * 2 + x, py * 2 + y));
+    // It stands inside its square on the square's foot, smaller than the square.
+    const box = artPlace(spot!)!;
+    expect(box.x).toBeGreaterThan(px);
+    expect(box.x + box.w).toBeLessThan(px + 16);
+    expect(box.y + box.h).toBeCloseTo(py + 16 - 0.5);
+    expect(box.w).toBeLessThan(12);
+  });
+
+  it("is shaded whole out of sight, the shade making no holes, and what is drawn over it later shows through", () => {
+    const { state, view, at, px, py } = withVillage();
+    state.players[0]!.visible[at.y * state.map.width + at.x] = 0;
+    const s = Surface.screen();
+    drawMainScreen(s, state, view);
+    const spot = s.art.find((a) => a.hut && a.x === px && a.y === py)!;
+    expect(spot.unseen).toBe(true);
+    expect(spot.holes).toBeUndefined();
+    // A planned route's dot over the square shows over the picture.
+    const routed = Surface.screen();
+    drawMainScreen(routed, state, { ...view, plan: { unit: state.units[0]!.id, x: at.x + 1, y: at.y, route: [[at.x, at.y], [at.x + 1, at.y]], text: "1 turn" } });
+    const dotted = routed.art.find((a) => a.hut && a.x === px && a.y === py)!;
+    expect(dotted.holes?.length).toBeGreaterThan(0);
+    expect(within(dotted.holes, px + 8, py + 8)).toBe(true);
+  });
+
+  it("grows with the square's window, the kind the same as on the map", () => {
+    const { state, at } = withVillage();
+    const s = Surface.screen();
+    drawSquarePicture(s, state, at.x, at.y, 100, 50);
+    expect(s.art.filter((a) => a.hut)).toEqual([expect.objectContaining({ id: hutKind(state.map, at.x, at.y), x: 100, y: 50, w: 16 * 2, h: 16 * 2 })]);
+  });
+
+  it("are of a kind for the land, alike on the same square every time, every kind somewhere", () => {
+    const { map } = newGame(4);
+    const seen = new Set<string>();
+    for (let y = 0; y < map.height; y++)
+      for (let x = 0; x < map.width; x++) {
+        const t = map.tiles[y * map.width + x]!.terrain;
+        if (t === Terrain.Ocean) continue;
+        const kind = hutKind(map, x, y);
+        expect(hutKind(map, x + map.width, y)).toBe(kind);
+        seen.add(kind);
+        if (t === Terrain.Desert) expect(["adobe", "tent"]).toContain(kind);
+        if (t === Terrain.Forest) expect(["timber", "cottage"]).toContain(kind);
+        if (t === Terrain.Arctic) expect(kind).toBe("tent");
+      }
+    expect([...seen].sort()).toEqual(["adobe", "cottage", "tent", "thatch", "timber"]);
   });
 });
