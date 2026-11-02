@@ -474,15 +474,16 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       }
       const ground = terrainSquare(state.map, wx, my, me.explored);
       s.blit(ground, px, py);
-      const fields = tile.irrigation ? layWork(s, fieldsPicture(state.map, wx, my, tile), px, py, TILE, pics, waterHoles(ground, px, py)) : null;
       if (pier && pier[0] === wx && pier[1] === my) layWork(s, "pier", px, py, TILE, pics);
-      if (tile.irrigation && !fields) drawIrrigation(s, px, py, ground, tile.terrain, wx, my, fieldSides(state.map, me.explored, wx, my));
       if (tile.grassShield && tile.terrain === Terrain.Grassland) drawGrassShield(s, px, py, ground);
       drawRoad(s, px, py, state.map, me.explored, wx, my, ground);
       drawRailroad(s, px, py, state.map, me.explored, wx, my);
-      if (tile.mine && !layWork(s, minePicture(tile.terrain), px, py, TILE, pics)) drawMine(s, px, py);
+      const fields = tile.irrigation ? layWork(s, fieldsPicture(state.map, wx, my, tile), px, py, TILE, pics, waterHoles(ground, px, py)) : null;
+      if (tile.irrigation && !fields) drawIrrigation(s, px, py, ground, tile.terrain, wx, my, fieldSides(state.map, me.explored, wx, my));
+      const mine = tile.mine ? layWork(s, minePicture(tile.terrain), px, py, TILE, pics) : null;
+      if (tile.mine && !mine) drawMine(s, px, py);
       const net = tile.fishery ? layWork(s, "fishing_net", px, py, TILE, pics) : null;
-      if (tile.special) drawSpecial(s, px, py, state, tile, city.owner, TILE, pics);
+      if (tile.special) drawSpecial(s, px, py, state, tile, city.owner, TILE, pics, !!(fields || mine || net));
       if (tile.fishery && !net) drawFishery(s, px, py);
       if (tile.rig && !layWork(s, "oil_rig", px, py, TILE, pics)) drawRig(s, px, py);
       if (tile.fortress) drawFortress(s, px, py);

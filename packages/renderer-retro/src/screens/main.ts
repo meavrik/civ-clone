@@ -198,29 +198,27 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       const ground = terrainSquare(map, mx, my, me.explored, T);
       s.blit(ground, dx, dy);
       // The user's pictures of works (the sheet of tile improvements), in the order they stand: what is drawn after
-      // each (a road over fields, a resource over a mine or a net) shows through it. Irrigated land is fields of a
-      // kind for the land (`fieldsPicture`), the square's own water showing through; a Harbour's pier on the sea.
-      const fields = tile.irrigation ? layWork(s, fieldsPicture(map, mx, my, tile), dx, dy, T, pics, waterHoles(ground, dx, dy)) : null;
+      // each (a resource's badge, borders, names) shows through it. A Harbour's pier on the sea.
       if (piers.has(my * map.width + mx)) layWork(s, "pier", dx, dy, T, pics);
-      // Fields without a picture are laid at the original's size (on its ground) and stretched over a larger square.
       const shield = tile.grassShield && tile.terrain === Terrain.Grassland;
-      if ((tile.irrigation && !fields) || shield)
-        onSquare(s, dx, dy, T, (on, x, y) => {
-          const under = T === TILE ? ground : terrainSquare(map, mx, my, me.explored);
-          if (tile.irrigation && !fields) drawIrrigation(on, x, y, under, tile.terrain, mx, my, fieldSides(map, me.explored, mx, my));
-          if (shield) drawGrassShield(on, x, y, under);
-        });
+      if (shield) onSquare(s, dx, dy, T, (on, x, y) => drawGrassShield(on, x, y, T === TILE ? ground : terrainSquare(map, mx, my, me.explored)));
       // Every square, as roads between two of its neighbours cut across its corners.
       drawRoad(s, dx, dy, map, me.explored, mx, my, ground, T);
       drawRailroad(s, dx, dy, map, me.explored, mx, my, T);
+      // Irrigated land is fields of a kind for the land (`fieldsPicture`) over the roads (asked for 2026-11-02:
+      // "place irrigation above the road"; a road shows between the plots), the square's own water showing through.
+      const fields = tile.irrigation ? layWork(s, fieldsPicture(map, mx, my, tile), dx, dy, T, pics, waterHoles(ground, dx, dy)) : null;
+      // Fields without a picture are laid at the original's size (on its ground) and stretched over a larger square.
+      if (tile.irrigation && !fields)
+        onSquare(s, dx, dy, T, (on, x, y) => drawIrrigation(on, x, y, T === TILE ? ground : terrainSquare(map, mx, my, me.explored), tile.terrain, mx, my, fieldSides(map, me.explored, mx, my)));
       // A village of a kind the user drew stands as its picture, by the land (`hutKind`); else the drawn huts.
       const village = tile.hut ? drawHut(s, dx, dy, { kind: hutKind(map, mx, my), ...pics }, T) : null;
       const mine = tile.mine ? layWork(s, minePicture(tile.terrain), dx, dy, T, pics) : null;
       if (tile.mine && !mine) onSquare(s, dx, dy, T, (on, x, y) => drawMine(on, x, y));
       const net = tile.fishery ? layWork(s, "fishing_net", dx, dy, T, pics) : null;
-      // A resource is drawn at the square's size, a share of it across (`SPECIAL_SHARE`), not stretched with it; oil
-      // with a road to it stands as a pump.
-      if (tile.special) drawSpecial(s, dx, dy, state, tile, state.currentPlayer, T, pics);
+      // A resource is drawn at the square's size, a share of it across (`SPECIAL_SHARE`), not stretched with it; where
+      // a work's picture stands, as a badge in its corner, the work whole; oil with a road to it stands as a pump.
+      if (tile.special) drawSpecial(s, dx, dy, state, tile, state.currentPlayer, T, pics, !!(fields || village || mine || net));
       const rig = tile.rig ? layWork(s, "oil_rig", dx, dy, T, pics) : null;
       if ((tile.fishery && !net) || (tile.rig && !rig) || (tile.hut && !village) || tile.fortress || tile.pollution)
         onSquare(s, dx, dy, T, (on, x, y) => {

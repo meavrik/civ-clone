@@ -424,13 +424,49 @@ export function specialSprite(name: string): Surface | null {
 export const SPECIAL_SHARE = 0.8;
 
 /**
+ * How much of a square a resource's badge takes across, at the least, where a work's picture stands on the square
+ * (asked for 2026-11-02: "some resources like elephents and horses cover completly the improvements (like
+ * irrigation) - need to think of a fix"): its icon at half its size (`halfIcon`) in the square's top right corner,
+ * the work whole beside it; on the 20-pixel squares exactly that, larger squares the share.
+ */
+export const SPECIAL_BADGE = 0.4;
+
+const halves = new WeakMap<Surface, Surface>();
+/**
+ * An icon at half its size, each 2x2 block of its fine pixels one: clear where most of the block is; on the edge of
+ * its shape (part clear) the darkest of its colours, so the outline holds; inside, the commonest, the darker on a tie.
+ */
+function halfIcon(icon: Surface): Surface {
+  const hit = halves.get(icon);
+  if (hit) return hit;
+  const out = new Surface(icon.width / 2, icon.height / 2, undefined, icon.k);
+  const light = (c: number) => PALETTE[c]![0] + PALETTE[c]![1] + PALETTE[c]![2];
+  for (let j = 0; j < out.fh; j++)
+    for (let i = 0; i < out.fw; i++) {
+      const block = [icon.fget(2 * i, 2 * j), icon.fget(2 * i + 1, 2 * j), icon.fget(2 * i, 2 * j + 1), icon.fget(2 * i + 1, 2 * j + 1)].filter((c) => c !== SPRITE_CLEAR);
+      let c = SPRITE_CLEAR;
+      if (block.length >= 2) {
+        const count = (v: number) => block.filter((b) => b === v).length;
+        c = block.reduce((best, v) =>
+          block.length < 4
+            ? (light(v) < light(best) ? v : best)
+            : count(v) > count(best) || (count(v) === count(best) && light(v) < light(best)) ? v : best);
+      }
+      out.fset(i, j, c);
+    }
+  halves.set(icon, out);
+  return out;
+}
+
+/**
  * A square's special resource as `viewer` knows it (`specialFor`: none while a resource is still hidden from it), drawn
- * over its terrain on a square `t` pixels a side, centred, `SPECIAL_SHARE` of it across. Given `pics`, oil on land
+ * over its terrain on a square `t` pixels a side, centred, `SPECIAL_SHARE` of it across; with `corner`, where a work's
+ * picture stands on the square, as a badge in its top right corner (`SPECIAL_BADGE`). Given `pics`, oil on land
  * with a road built to it (so serving whoever holds the land, `resourceRoaded`; a river alone serves too, but raises
  * no pump in the wilds) stands as an oil pump in its place, the user's picture (2026-11-02, the sheet of tile
  * improvements), as the rig stands for the oil at sea.
  */
-export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState, tile: Tile, viewer: number, t = TILE, pics?: SquarePictures): void {
+export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState, tile: Tile, viewer: number, t = TILE, pics?: SquarePictures, corner = false): void {
   const name = specialFor(state, tile, viewer)?.name;
   // An oil rig stands for the oil under it (the rig's picture, or `drawRig`).
   if (!name || tile.rig) return;
@@ -441,8 +477,18 @@ export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState
   // A resource's deposit at sea has an icon of its own (`ResourceRule.offshore`; since save version 55).
   const icon = specialSprite(tile.terrain === Terrain.Ocean && RESOURCE_BY_ID[name]?.offshore ? `Offshore ${name}` : name);
   if (!icon) { s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!); return; }
-  // In whole fine pixels, the margin either side alike.
   const k = s.k;
+  if (corner) {
+    // A badge in the top right corner, over the work standing on the square (`SPECIAL_BADGE`).
+    const half = halfIcon(icon);
+    const size = Math.max(half.fw, Math.round(t * SPECIAL_BADGE * k));
+    const x = dx + (t * k - size - 1) / k;
+    const y = dy + 1 / k;
+    if (size === half.fw) s.blit(half, x, y, SPRITE_CLEAR);
+    else s.blitScaled(icon, x, y, size / k, size / k, SPRITE_CLEAR);
+    return;
+  }
+  // In whole fine pixels, the margin either side alike.
   const fine = Math.max(icon.fw, Math.round(t * SPECIAL_SHARE * k));
   const off = Math.floor((t * k - fine) / 2) / k;
   if (fine === icon.fw) s.blit(icon, dx + off, dy + off, SPRITE_CLEAR);

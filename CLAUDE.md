@@ -1152,8 +1152,12 @@ Never ship the original's sprites, palette art, fonts or text.
   (`WORK_SQUARE`), centred (`workArtPlace`, `ArtSpot.work`). Each screen (the map, the square's window, the city
   screen's map) lays them in drawing order (`layWork`, art-holes `layPicture`/`SquarePictures`): each picture
   remembers its square as drawn when laid (`fineCopy`), and once the screen is drawn whatever came over it since shows
-  through (`sealPictures`): a road or the grassland's shield over fields, a resource over a mine or a net, borders,
-  the fog's edge, names, yields; the shade out of sight shades the picture whole, as a city's; fields let the square's
+  through (`sealPictures`): a resource's badge, borders, the fog's edge, names, yields. Fields are laid over the roads
+  and railroads (asked for 2026-11-02: "place irrigation above the road"; a road shows between the plots), and where a
+  work's picture stands (fields, mine, net, village) the square's resource is a badge in its top right corner, its
+  icon at half its size (`drawSpecial`'s `corner`, `halfIcon`: each 2x2 block one, its outline kept; `SPECIAL_BADGE`
+  0.4 of a larger square), the work whole beside it (asked for the same day: "resources like elephents and horses
+  cover completly the improvements"); the shade out of sight shades the picture whole, as a city's; fields let the square's
   own water show (`waterHoles`: a river through them, a shore). The villages are laid so too. The logging camp is not
   cut (no work for forests in the rules). The code-drawn fields (`drawIrrigation`, `fieldLayout`: plots in rows either
   side of a canal, running on into irrigated neighbours), mine, fishery (`fishery.ts`) and rig (`rig.ts`) stay for

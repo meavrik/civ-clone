@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, computeCity, createUnit, foundCity, getTile, newGame, setRelation, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, buttonFace, buttonLook, drawButton, drawContour, drawMenu, drawUnit, drawUnitFlash, unitSprite, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
-import { ACTIVE_BLINK, ACTIVE_GLOW, activeOpacity, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
+import { ACTIVE_BLINK, ACTIVE_GLOW, activeOpacity, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type ArtSpot, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
 import { DETAIL, FINE, isWater, setMapTile, spriteSurface, squareSprite, TERRAIN_SHEET, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomButtonAt, zoomedTiles } from "../src/index.js";
@@ -872,10 +872,16 @@ describe("terrain works", () => {
     const through = (fields.holes ?? []).reduce((n, h) => n + Math.round(h.w * h.h * DETAIL * DETAIL), 0);
     expect(through).toBeGreaterThanOrEqual(riverPx);
     expect((fields.holes ?? []).every((h) => h.x >= px && h.y >= py && h.x + h.w <= px + 16 && h.y + h.h <= py + 16)).toBe(true);
-    // A road over fields shows through them.
+    // The fields stand over the road (asked for 2026-11-02): the road cuts no holes in them, showing only between the plots.
+    const area = (a: ArtSpot | undefined) => (a?.holes ?? []).reduce((n, h) => n + h.w * h.h, 0);
     const roadOverFields = spot(x0 + 5, y0 + 3)!;
     expect(roadOverFields.id).toMatch(/^fields_/);
-    expect(roadOverFields.holes?.length).toBeGreaterThan(0);
+    getTile(state.map, x0 + 5, y0 + 3)!.road = false;
+    const noRoad = Surface.screen();
+    drawMainScreen(noRoad, state, view);
+    getTile(state.map, x0 + 5, y0 + 3)!.road = true;
+    const bare = noRoad.art.find((a) => a.work && a.x === roadOverFields.x && a.y === roadOverFields.y);
+    expect(area(roadOverFields)).toBe(area(bare));
   });
 });
 

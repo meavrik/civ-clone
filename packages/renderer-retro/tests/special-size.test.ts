@@ -27,4 +27,22 @@ describe("a resource on its square", () => {
     // 32 pixels (zoomed in): 0.8 of the square, 51 fine pixels across, centred.
     expect(drawn(32).box.every((v) => v >= 6 && v < 57)).toBe(true);
   });
+
+  it("is a badge at half its size in the top right corner where a work stands on the square", () => {
+    const state = newGame(7);
+    const tile = state.map.tiles.find((t) => t.terrain !== Terrain.Ocean && !t.rig && specialFor(state, t, 0))!;
+    for (const t of [16, 20]) {
+      const s = Surface.fine(t, t);
+      s.fill(C.MAGENTA!);
+      drawSpecial(s, 0, 0, state, tile, 0, t, undefined, true);
+      let x0 = s.fw, y0 = s.fh, x1 = -1, y1 = -1, n = 0;
+      for (let j = 0; j < s.fh; j++) for (let i = 0; i < s.fw; i++) if (s.fget(i, j) !== C.MAGENTA!) { n++; x0 = Math.min(x0, i); y0 = Math.min(y0, j); x1 = Math.max(x1, i); y1 = Math.max(y1, j); }
+      // Sixteen fine pixels a side at most, a fine pixel in from the top and the right.
+      expect(n).toBeGreaterThan(40);
+      expect(x0).toBeGreaterThanOrEqual(t * 2 - 17);
+      expect(x1).toBeLessThanOrEqual(t * 2 - 2);
+      expect(y0).toBeGreaterThanOrEqual(1);
+      expect(y1).toBeLessThanOrEqual(16);
+    }
+  });
 });
