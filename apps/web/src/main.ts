@@ -373,7 +373,7 @@ type Screen =
   | { kind: "title" }
   | { kind: "setup"; setup: SetupState }
   | { kind: "map" }
-  | { kind: "city"; view: CityScreenView; then?: () => void } // `then`: the turn's news that waits for the city to close
+  | { kind: "city"; view: CityScreenView; then?: () => void; woke?: boolean } // `then`: the turn's news that waits for the city to close; `woke`: a unit woken there
   | { kind: "cityView"; view: CityViewState; city: Extract<Screen, { kind: "city" }> } // the city as a picture, over its city screen
   | { kind: "wonderShow"; view: CityViewState; start: number; then: () => void } // a wonder just completed rising in its city's picture, before its window
   | { kind: "research"; view: ResearchView; back: Screen; then: () => void }
@@ -1254,24 +1254,28 @@ function openCityView(sc: Extract<Screen, { kind: "city" }>): void {
   screenState = { kind: "cityView", view: { city: sc.view.city }, city: sc };
 }
 
-/** Back to the map; a city opened by the turn's news goes on with the rest of it. */
+/** Back to the map, which takes up the last unit woken there; a city opened by the turn's news goes on with the rest of it. */
 function leaveCity(sc: Extract<Screen, { kind: "city" }>): void {
   screenState = { kind: "map" };
   sc.then?.();
+  if (sc.woke) { finishHandoff(); followActive(true); }
 }
 
 /**
- * A unit picked on the city screen wakes (fortified or sentried, it gives up those orders) and
- * the map takes it up, as in the original. One with no moves left keeps its orders.
+ * A unit picked on the city screen wakes (fortified or sentried, it gives up those orders) and comes into play, as in
+ * the original. The city stays open (asked for 2026-11-02: "dont automaticlly close window, so player could activate
+ * several units"), the unit glowing there as ready; the map takes up the last one woken once the city is left. One with
+ * no moves left keeps its orders.
  */
 function activateFromCity(sc: Extract<Screen, { kind: "city" }>, unit: number): void {
   const u = unitById(state, unit);
   if (!u) return;
-  if (u.movesLeft === 0) { say(`${unitType(u.type).name}: no moves left this turn`); return; }
+  const name = rankedName(u);
+  if (u.movesLeft === 0) { say(`${name}: no moves left this turn`); return; }
+  const was = u.order.kind;
   if (!dispatch({ type: "activate", unit })) return;
-  leaveCity(sc);
-  finishHandoff();
-  followActive(true);
+  sc.woke = true;
+  say(was === "none" ? `${name}: ready for orders` : `${name} wakes, ready for orders`);
 }
 
 /**
@@ -3600,6 +3604,7 @@ canvas.addEventListener("mousemove", (e) => {
     sc.view.hoverControl = renderer.cityButtonAt(px, py) ?? (renderer.cityExitHit(px, py) ? "exit" : null) ?? renderer.cityFocusAt(px, py) ?? undefined;
     const line = renderer.cityImprovementAt(state, sc.view, px, py);
     sc.view.hoverImprovement = line?.kind === "line" ? { id: line.id, toggle: line.toggle } : undefined;
+    sc.view.hoverUnit = renderer.cityUnitAt(state, sc.view, px, py) ?? undefined;
     return;
   }
   if (sc.kind === "diplomacy" && sc.talk) {

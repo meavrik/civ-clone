@@ -26,11 +26,11 @@ import {
   type CityReport,
   type GameState,
 } from "@civ/core";
-import { buildingArt, citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityImprovements, cityLook, cityUnits, fieldSides, fieldsPicture, FOCUS_CORNERS, minePicture, pierSquare, improvementNote, improvementsTop, isWorker, MOOD_STAGE_ICONS, type CitizenMood, type IconName, type ImprovementHit, type ImprovementLine } from "@civ/renderer-api";
+import { ACTIVE_GLOW, buildingArt, citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityImprovements, cityLook, cityUnitNote, cityUnits, cityUnitStanding, sleepsUntilWoken, fieldSides, fieldsPicture, FOCUS_CORNERS, minePicture, pierSquare, improvementNote, improvementsTop, isWorker, MOOD_STAGE_ICONS, type ArtBox, type CitizenMood, type IconName, type ImprovementHit, type ImprovementLine } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRankMark, drawRoad, drawUnitFigure, layWork, rankHoles, waterHoles } from "../overlays.js";
 import { C, shade } from "../palette.js";
-import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
+import { DETAIL, SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, drawSpecialMark, fogSquare, terrainSquare, TILE } from "../tiles.js";
 import { drawFishery } from "../fishery.js";
 import { drawRig } from "../rig.js";
@@ -38,7 +38,7 @@ import { BAD, DIM, drawButton, drawCloseBox, drawScrollTrack, drawStone, drawTit
 import { CITIZEN_H, CITIZEN_PITCH, CITIZEN_W, drawCitizen } from "../citizens.js";
 import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk, iconLineWidth } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
-import { drawnOver, fineCopy, sealPictures, type SquarePictures } from "../art-holes.js";
+import { drawnOver, fineCopy, runHoles, sealPictures, type SquarePictures } from "../art-holes.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
 import { LEFT, MID, RIGHT, ROW1, ROW2, TOP } from "./city-layout.js";
@@ -163,6 +163,70 @@ export function cityUnitSlot(i: number): { x: number; y: number } {
   return { x: MID.x + 3 + (i % 4) * 20, y: ROW2.y + BOX_HEAD + 3 + Math.floor(i / 4) * 27 };
 }
 const UNIT_SLOTS = 8;
+
+/**
+ * A sleeping unit's token in the units box (asked for 2026-11-02: "distinct on the units view when unit is fortified
+ * or sentry"): a glyph of our own, 9x9 fine pixels in cream on a slate disc, in the top left corner of its square,
+ * where the map puts the owner's shield (the box shows none) and clear of its rank: a tower fortified (or fortifying),
+ * zZ on sentry, a heart camped to heal. A click wakes it, and the token goes.
+ */
+type SleepStanding = "fortified" | "fortifying" | "sentry" | "camp";
+const TOWER = [
+  ".........",
+  ".#.#.#.#.",
+  ".#######.",
+  "..#####..",
+  "..#####..",
+  "..##.##..",
+  "..##.##..",
+  "..#####..",
+  ".........",
+];
+const SLEEP_MARKS: Record<SleepStanding, readonly string[]> = {
+  fortified: TOWER,
+  fortifying: TOWER,
+  sentry: [
+    "....#####",
+    ".......#.",
+    "......#..",
+    ".....#...",
+    "....#####",
+    "####.....",
+    "..#......",
+    ".#.......",
+    "####.....",
+  ],
+  camp: [
+    ".........",
+    ".##...##.",
+    "####.####",
+    "#########",
+    "#########",
+    ".#######.",
+    "..#####..",
+    "...###...",
+    "....#....",
+  ],
+};
+/** Fine pixels across the token. */
+const TOKEN = 13;
+const onToken = (i: number, j: number) => Math.hypot(i + 0.5 - TOKEN / 2, j + 0.5 - TOKEN / 2) <= TOKEN / 2;
+/** How bright the gold glow round a unit awaiting orders is: the map's unit in play glows at `ACTIVE_GLOW`, on terrain; the stone wants it whole. */
+const READY_GLOW = Math.min(1, ACTIVE_GLOW * 2);
+
+function drawSleepMark(s: Surface, x: number, y: number, glyph: readonly string[]): void {
+  const x0 = x * s.k + 1, y0 = y * s.k + 1;
+  const r = TOKEN / 2;
+  for (let j = 0; j < TOKEN; j++)
+    for (let i = 0; i < TOKEN; i++) if (onToken(i, j)) s.fset(x0 + i, y0 + j, Math.hypot(i + 0.5 - r, j + 0.5 - r) > r - 1 ? shade("steel", 0) : shade("steel", 2));
+  const o = (TOKEN - glyph.length) >> 1;
+  glyph.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] === "#") s.fset(x0 + o + i, y0 + o + j, shade("rock", 7)); });
+}
+
+/** Where `drawSleepMark` puts its token on the square at (x, y), for the unit's picture to leave it showing. */
+function sleepHoles(x: number, y: number): ArtBox[] {
+  return runHoles(TOKEN, TOKEN, DETAIL, x + 1 / DETAIL, y + 1 / DETAIL, onToken);
+}
 
 /** The unit under a point in the units box, sprite or cost: clicking it wakes it and takes it to the map. */
 export function cityUnitAt(state: GameState, view: CityScreenView, px: number, py: number): number | null {
@@ -432,11 +496,14 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   const room = standX - 6 - noteX;
   const control = view.hoverControl !== undefined ? cityControlNote(state, city, view.hoverControl) : null;
   const improvement = view.hoverImprovement ? improvementNote(state, city, view.hoverImprovement.id) : "";
+  const pointed = view.hoverUnit !== undefined ? cityUnits(state, city).find((u) => u.unit.id === view.hoverUnit) : undefined;
+  const unitNote = pointed ? cityUnitNote(pointed.unit, pointed.here) : "";
   const canWork = bestFreeSlot(state, city) !== undefined;
   const [note, ink] =
     lit !== null ? [textWidth(citizenNote(row[lit]!, canWork)) <= room ? citizenNote(row[lit]!, canWork) : citizenRole(row[lit]!), INK]
     : control ? [control, INK]
     : improvement ? [improvement, INK]
+    : unitNote ? [unitNote, INK]
     : view.message ? [view.message, NOTE]
     : [CITIZENS_HINT, FADED];
   if (textWidth(note) <= room) say(s, noteX, TOP.y + BOX_HEAD + 4, note, ink);
@@ -567,9 +634,14 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawBox(s, MID.x, ROW2.y, MID.w, ROW2.h, "Units", String(units.length));
   units.slice(0, UNIT_SLOTS).forEach(({ unit, here, shields, food }, i) => {
     const { x: ux, y: uy } = cityUnitSlot(i);
-    // A picture of the user's: its rank showing through, one supported elsewhere darkened.
-    drawUnitFigure(s, unit.type, ux, uy, playerColor(state, unit.owner), { holes: rankHoles(ux, uy, unit.xp), ...(here ? {} : { dim: true }) });
+    // A picture of the user's: its rank and a sleeper's token showing through, one supported elsewhere darkened, one
+    // awaiting orders glowing gold as the unit in play does on the map (one just woken among them).
+    const standing = cityUnitStanding(unit);
+    const sleep = sleepsUntilWoken(standing) ? SLEEP_MARKS[standing as SleepStanding] : null;
+    const holes = [...rankHoles(ux, uy, unit.xp), ...(sleep ? sleepHoles(ux, uy) : [])];
+    drawUnitFigure(s, unit.type, ux, uy, playerColor(state, unit.owner), { holes, ...(here ? {} : { dim: true }), ...(standing === "ready" ? { contour: READY_GLOW } : {}) });
     drawRankMark(s, ux, uy, unit.xp);
+    if (sleep) drawSleepMark(s, ux, uy, sleep);
     if (!here) ghost(s, ux, uy);
     let ix = ux;
     if (shields) { drawIcon(s, "shield", ix, uy + 17); ix += ICON; }

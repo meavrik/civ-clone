@@ -34,6 +34,7 @@ export * from "./plan.js";
 export * from "./watch.js";
 export * from "./sites.js";
 export * from "./ranks.js";
+export * from "./unit-standing.js";
 export * from "./panel.js";
 export * from "./treasury.js";
 export * from "./chronicle.js";
@@ -212,6 +213,8 @@ export interface CityScreenView {
   top?: number | undefined;
   /** The improvement under the pointer, lit and told of beside the citizens (`improvementNote`); `toggle` on its Stop or Use button. */
   hoverImprovement?: { id: string; toggle: boolean } | undefined;
+  /** The unit (id) in the units box under the pointer (`cityUnits`), told of beside the citizens (`cityUnitNote`). */
+  hoverUnit?: number | undefined;
 }
 
 /** What can be pointed at on the city screen besides its citizens and squares: its buttons, the close box, the focus toggles. */

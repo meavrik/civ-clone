@@ -651,7 +651,16 @@ Never ship the original's sprites, palette art, fonts or text.
   106, cities 10.0 vs 6.4, pop 56 vs 34; with the leftovers as before 8-8, 160 vs 122; all replaying exactly. Saves
   before version 21 load with `compoundingPenalty`: every change of kind halved the box again. Its units (`cityUnits`: those in the city from any home, then those it
   supports elsewhere, faded, each with its cost) are picked with `cityUnitAt`: the unit wakes (fortify or
-  sentry dropped, the `activate` command) and the map takes it up; one with no moves left keeps its orders. A city that finishes an improvement, wonder or spaceship part opens
+  sentry dropped, the `activate` command) and comes into play; one with no moves left keeps its orders. Since
+  2026-11-02 (asked for: "distinct on the units view when unit is fortified or sentry - also when player activate a
+  unit - show it activated and dont automaticlly close window, so player could activate several units") the city stays
+  open (the web app's `activateFromCity`, `woke` on the city `Screen`) and the map takes up the last one woken once it
+  is left (`leaveCity`); what each unit is doing shows in its slot (renderer-api `unit-standing.ts`,
+  `cityUnitStanding`): a sleeper wears a slate token with a cream glyph of our own in its top left corner, where the
+  map puts the shield (retro `SLEEP_MARKS` in `screens/city.ts`: a tower fortified or fortifying, zZ on sentry, a heart
+  camped), its picture holed round it; a unit awaiting orders glows gold as the unit in play does on the map
+  (`READY_GLOW`, twice `ACTIVE_GLOW` on the stone), so one just woken lights up; the pointer on a unit tells of it
+  beside the citizens (`CityScreenView.hoverUnit`, `cityUnitNote`: "Legion: on sentry, click to wake"). A city that finishes an improvement, wonder or spaceship part opens
   the Building Completed window (`built.ts`, `builtCard`; asked for 2026-10-24 with the user's template; retro
   `screens/built.ts`, modern a plain modal), a small window over the game since 2026-10-24 ("should be a
   modal opened on top of the game and not a full screen window"; smaller again since 2026-10-25 and standing
