@@ -1,7 +1,7 @@
 import type { GameState } from "@civ/core";
 import { AUDIENCE_CHOICES, leaderTitle, MOOD_WORDS, realmName, type CardSection, type DiplomacyView, type LeaderMood } from "@civ/renderer-api";
 import { drawSpaced, drawText, FONT_HEIGHT, spacedWidth, textWidth, wrapText } from "../font.js";
-import { drawIconLine, iconLineWidth, wrapIcons } from "../icons.js";
+import { drawIconLine, iconLineWidth, leadRows, wrapIcons } from "../icons.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
 import { buttonFace, buttonLook, dimScreen, hideArtUnder, drawCloseBox, drawEntering, drawStone, DIM, enteringBox, INK, TITLE_H } from "../widgets.js";
@@ -193,7 +193,7 @@ function drawCard(s: Surface, l: ReturnType<typeof layout>, sections: CardSectio
     const end = x + textWidth(sec.title) + 3;
     if (end < x + w) s.hline(end, y + 4, x + w - end, shade("panel", 2));
     y += FONT_HEIGHT + 1;
-    for (const row of sec.lines.flatMap((line) => cardRows(line, w - 3))) {
+    for (const row of sec.lines.flatMap((line) => leadRows(line, w - 3))) {
       if (y + FONT_HEIGHT > bottom) return;
       drawIconLine(s, x + 3 + row.indent, y, row.text, INK);
       y += FONT_HEIGHT;
@@ -201,16 +201,6 @@ function drawCard(s: Surface, l: ReturnType<typeof layout>, sections: CardSectio
   });
 }
 
-/**
- * A card line as the rows it takes: a line that opens with an icon and goes on in words wraps its words
- * under themselves, clear of the icon; any other wraps as icon lines do (`wrapIcons`).
- */
-function cardRows(line: string, w: number): { text: string; indent: number }[] {
-  const lead = /^(\{\w+\} )([^{]*)$/.exec(line);
-  if (!lead) return wrapIcons(line, w).map((text) => ({ text, indent: 0 }));
-  const indent = iconLineWidth(lead[1]!);
-  return wrapText(lead[2]!, w - indent).map((text, i) => (i ? { text, indent } : { text: lead[1]! + text, indent: 0 }));
-}
 
 /** The leader's picture's place: a frame two pixels thick in the mood's colour round the darkest stone (seen only until the picture has loaded). */
 function drawScene(s: Surface, b: Rect, frame: number): void {

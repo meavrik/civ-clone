@@ -90,6 +90,17 @@ export function wrapIcons(line: string, maxWidth: number): string[] {
   return hasIcons(line) ? wrapIconLine(line, maxWidth, iconLineWidth) : wrapText(line, maxWidth);
 }
 
+/**
+ * A line as the rows it takes in a width: a line that opens with an icon and goes on in words wraps its words under
+ * themselves, clear of the icon; any other wraps as icon lines do (`wrapIcons`). `indent` is where each row starts.
+ */
+export function leadRows(line: string, w: number): { text: string; indent: number }[] {
+  const lead = /^(\{\w+\} )([^{]*)$/.exec(line);
+  if (!lead) return wrapIcons(line, w).map((text) => ({ text, indent: 0 }));
+  const indent = iconLineWidth(lead[1]!);
+  return wrapText(lead[2]!, w - indent).map((text, i) => (i ? { text, indent } : { text: lead[1]! + text, indent: 0 }));
+}
+
 /** Draw a line as icons and text, wrapped to a width; returns how many lines it took (at most maxLines). */
 export function drawIconsWrapped(s: Surface, x: number, y: number, maxWidth: number, line: string, color: number, maxLines: number, lineH = 9): number {
   const lines = wrapIcons(line, maxWidth).slice(0, Math.max(0, maxLines));

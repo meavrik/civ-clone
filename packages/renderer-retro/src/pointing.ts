@@ -65,6 +65,12 @@ export function pointedPlace(screenW: number, square: Rect | undefined, size: { 
   return { ...centred, bounds: centred.win };
 }
 
+/** The widest window that stands beside `square` (right or left of it) on a screen `screenW` wide, point and shadow included. */
+export function sideRoom(screenW: number, square: Rect): number {
+  const reach = RING + POINT;
+  return Math.max(screenW - (square.x + square.w + reach) - 2, square.x - reach - 1);
+}
+
 /** The square ringed: black outside, gold within, so it shows on any ground. */
 export function drawSquareRing(s: Surface, q: Rect): void {
   s.frame(q.x - 2, q.y - 2, q.w + 4, q.h + 4, C.BLACK!);

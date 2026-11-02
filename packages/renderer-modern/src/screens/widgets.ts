@@ -26,11 +26,13 @@ function menuLayout(ctx: Context2D, m: MenuState): MenuLayout {
   });
   const bw = buttons ? Math.max(BUTTON_MIN_W, itemW + 48) : 0;
   const widest = Math.max(measure(ctx, m.title, 18, "600"), buttons ? bw : itemW);
-  // Text wraps rather than widen the window past MODAL_MAX_SHARE of the screen.
+  // Text wraps rather than widen the window past MODAL_MAX_SHARE of the screen. Labelled sections (the square's
+  // window) are written on as body lines, "Label: line".
+  const body = [...(m.body ?? []), ...(m.sections ?? []).flatMap((sec) => sec.lines.map((l, i) => (i ? l : `${sec.title}: ${l}`)))];
   let bodyW = 0;
-  for (const l of m.body ?? []) bodyW = Math.max(bodyW, Math.min(iconLineWidth(ctx, l, 15), Math.round(W * MODAL_MAX_SHARE) - 56));
+  for (const l of body) bodyW = Math.max(bodyW, Math.min(iconLineWidth(ctx, l, 15), Math.round(W * MODAL_MAX_SHARE) - 56));
   const w = Math.min(W - 80, Math.max(m.anchor ? 240 : 320, Math.max(widest, bodyW) + 56));
-  const lines = (m.body ?? []).flatMap((l) => wrapIcons(ctx, l, w - 48, 15));
+  const lines = body.flatMap((l) => wrapIcons(ctx, l, w - 48, 15));
   const bodyH = lines.length ? lines.length * BODY_LINE + 14 : 0;
   // A dropdown (no title) has no header row.
   const head = m.title ? TITLE_H : 10;

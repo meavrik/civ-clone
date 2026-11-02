@@ -11,9 +11,9 @@ function shortList(names: string[], max: number): string {
   return names.length <= max ? names.join(", ") : `${names.slice(0, max).join(", ")} and ${names.length - max} more`;
 }
 
-/** The square's window on a strategic resource: what needs it. */
+/** The square's window on a strategic resource, under the title that names it: what needs it. */
 export function resourceNote(id: string): string {
-  return `{star} ${id} is needed for ${shortList(resourceUnits(id), 4)}`;
+  return `Needed for ${shortList(resourceUnits(id), 4)}`;
 }
 
 /** The resources `player` lacks that lie on its land with no road on their squares (a square serves only with one, since save version 43, or a river, since 48). */

@@ -841,18 +841,29 @@ Never ship the original's sprites, palette art, fonts or text.
   asked for: "show land/water mass name in the title - remove duplicates": the terrain's word left out where
   the place's name says it, "The Apennine Mountains, Ausonia", and a water's name standing for its square,
   "The Sea of Neptune"; the resource and river, in the title from 2026-10-23, and the body's line naming the
-  place are gone, the body telling of the resource and river with what they add; headed by the square itself as the map draws it, twice the size in a sunken frame
+  place are gone; since 2026-11-02 the resource it shows us (`specialFor`) is named in brackets after the first name,
+  asked for: "if have a tile resource - show in "()" in the title": "Plains (Horses), Ausonia", "The Sea of Neptune
+  (Fish)", `squareTitle`'s `resource`); headed by the square itself as the map draws it, twice the size in a sunken frame
   (`MenuState.square`, retro's `drawSquarePicture`/`squarePainter`, `Renderer.menu(menu, state)`; asked for
-  2026-10-23: "more stylish, add the terrain image, more details"), beside it the yields, movement and
-  defence, a few words on the terrain (`TERRAIN_TEXT`, our own) and what the resource, river and shield
-  grassland add; then improvements, whose land it is and which of our cities works it, the city, units
-  and jobs, and the site note for settlers; an Improvements line; the only button Open city, on our city (Go
+  2026-10-23: "more stylish, add the terrain image, more details"), beside it (`SquareInfo.head`) the yields, moves
+  and defence ("{boot} 1 move  {tower} +50% defence"), a few words on the terrain (`TERRAIN_TEXT`, our own), and
+  where only settlers or no wheels go and the wear on units; then its sections (since 2026-11-02, asked for: "too
+  messy. arrange with clear sections. clean design"; `SquareInfo.sections`, `MenuState.sections`), each only when it
+  has something to say: Resource (what it adds, the units that need it, the road or rig it waits for, a city's
+  influence yield), Features (river, road, irrigation, mine, fortress, fishery, rig, pollution, a village, each with
+  what it adds), Improve (what settlers could make of it; at sea the Harbour), City or Land (whose, worked by which
+  of our cities), Site (the settlers' note) and Units (whose, ranks, jobs, wounds, or out of sight). Retro lays them as
+  a table: the labels in dim ink in a column at the left, the lines beside them, wrapped clear of a leading icon
+  (icons.ts `leadRows`, shared with the civ card), an etched rule under the picture and a faint one between sections;
+  modern writes them on as "Label: line". `SquareInfo.lines` is head and sections in one list. The only button
+  Open city, on our city (Go
   here removed 2026-10-23, asked for); it stands by its square and points at it (asked for 2026-11-01: "the tile
   should be highlited and info window points with an arrow towards the tile"; `MenuState.point`, the square's rect
   from `Renderer.squareRect` each frame): above it, else below or beside it, a point of its stone reaching to a gold
   ring round the square, which stays lit while the map darkens, as the Building Completed window stands by its city
   (renderer-retro `pointing.ts`: `pointedPlace`, `drawSquareRing`, `drawWindowPoint`, shared by the three); with no
-  room so it opens clear of the square clicked (`MenuState.avoid`); either way a second click there closes it), closed by the X in its title
+  room above or below, a window with sections narrows to stand beside it (`pointedLayout`, `sideRoom`, at least
+  `NARROW_W` 150 and its title's width), its lines wrapping; with no room so it opens clear of the square clicked (`MenuState.avoid`); either way a second click there closes it), closed by the X in its title
   strip (`MenuState.close`; retro draws it, modern ignores it; any click off a window's choices closes
   it). On the phone a tap moves the unit in play onto a square not ours, else is a left-click; a hold on
   our city or units moves it in, elsewhere shows the square's window (see apps/mobile).

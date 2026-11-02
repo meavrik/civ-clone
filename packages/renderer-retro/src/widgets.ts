@@ -1,5 +1,5 @@
 import { drawText, drawTextLarge, FONT_HEIGHT, textWidth, textWidthLarge } from "./font.js";
-import { drawIcon, drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
+import { drawIcon, drawIconLine, iconLineWidth, leadRows, wrapIcons } from "./icons.js";
 import { drawShield, drawUnitFigure } from "./overlays.js";
 import { C, DIMMED, shade, slotColor } from "./palette.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
@@ -7,7 +7,7 @@ import { darker } from "./sprites/index.js";
 import { SCREEN_H, SCREEN_W, Surface } from "./surface.js";
 import { CITY_UNITS_BOX } from "./screens/city-layout.js";
 import { BAR_H } from "./screens/main-layout.js";
-import { drawSquareRing, drawWindowPoint, pointedPlace, type PointedPlace } from "./pointing.js";
+import { drawSquareRing, drawWindowPoint, pointedPlace, sideRoom, type PointedPlace } from "./pointing.js";
 
 /**
  * Inks for text on the stone, every panel in the game: black, a dark grey for what matters
@@ -276,7 +276,13 @@ interface MenuLayout {
   wrapped: boolean;
   /** Where it stands by the square it points at (`MenuState.point`), when there is room for that. */
   place: PointedPlace | null;
+  /** Its labelled sections (`MenuState.sections`): their top, the label column's width, and each one's rows below that top. */
+  secTop: number; labelW: number;
+  secs: { title: string; dy: number; rows: { text: string; indent: number }[] }[];
 }
+
+/** The space a section takes before its first line, its rule in the middle of it. */
+const SECTION_GAP = 6;
 
 /** The gap between a tabbed list's tabs, and under them before the rows. */
 const TAB_GAP = 2;
@@ -323,7 +329,7 @@ function clearOf(p: { x: number; y: number }, x: number, y: number, w: number, h
  * `size` large, or its `fallback` size when it would run off the screen so.
  */
 function menuLayout(m: MenuState, screenW = SCREEN_W, size = DESK_MENU, clear = true): MenuLayout {
-  const l = layoutAt(m, screenW, size, clear);
+  const l = pointedLayout(m, screenW, size, clear);
   // Too few rows in the room above what it keeps clear of: smaller (the phone's), else in the middle after all.
   const cramped = !!l.keep && l.room < Math.min(l.count, CLEAR_ROWS);
   const bad = l.y + l.h > SCREEN_H || l.x + l.w > screenW || l.wrapped;
@@ -334,7 +340,25 @@ function menuLayout(m: MenuState, screenW = SCREEN_W, size = DESK_MENU, clear = 
   return cramped ? menuLayout(m, screenW, size, false) : l;
 }
 
-function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean): MenuLayout {
+/** A window with sections narrows to this at the least to stand beside its square. */
+const NARROW_W = 150;
+
+/**
+ * Laid out at its width; a window with sections pointing at its square (the square's window) that finds no room
+ * above or below it there stands beside it instead, as wide as the room there allows, its lines wrapping to it.
+ */
+function pointedLayout(m: MenuState, screenW: number, size: MenuSize, clear: boolean): MenuLayout {
+  const l = layoutAt(m, screenW, size, clear);
+  if (l.place || !m.point || m.anchor || !m.sections?.length) return l;
+  const room = sideRoom(screenW, m.point);
+  // Never narrower than its title needs, nor so narrow its lines break into crumbs.
+  const title = (size.text === 2 ? textWidthLarge(m.title) : textWidth(m.title)) + 16 + (m.close ? (size.text === 2 ? TITLE_H_LARGE : TITLE_H) : 0);
+  if (room < Math.max(NARROW_W * size.text, title) || room >= l.w) return l;
+  const narrow = layoutAt(m, screenW, size, clear, room);
+  return narrow.place && narrow.w <= room ? narrow : l;
+}
+
+function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean, cap?: number): MenuLayout {
   const buttons = menuButtons(m);
   const t = size.text;
   const tw = (text: string) => (t === 2 ? textWidthLarge(text) : textWidth(text));
@@ -367,9 +391,13 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean)
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l) * t)) + 20 : 0;
   // A map square or a unit's picture heads the window, in the same frame.
   const framed = !!(m.square || m.unit);
+  // Labelled sections (the square's window): the labels in a column at the left, their lines beside it.
+  const sections = m.sections ?? [];
+  const labelW = sections.length ? Math.max(...sections.map((sec) => tw(sec.title))) + 8 * t : 0;
+  const sectionsW = sections.length ? labelW + Math.max(...sections.flatMap((sec) => sec.lines.map((l) => iconLineWidth(l) * t))) + 20 : 0;
   // Lines that must stay whole (`oneLine`) widen the window as far as the screen lets them.
-  const bodyRoom = m.oneLine ? bodyW + (framed ? SQUARE_SIDE : 0) : Math.min(bodyW + (framed ? SQUARE_SIDE : 0), Math.round(SCREEN_W * size.share));
-  const w = Math.min(size.maxW, screenW - 8, Math.max(need, bodyRoom, m.title ? size.minW : 0, m.square ? SQUARE_WINDOW_W : 0));
+  const bodyRoom = m.oneLine ? bodyW + (framed ? SQUARE_SIDE : 0) : Math.min(Math.max(bodyW + (framed ? SQUARE_SIDE : 0), sectionsW), Math.round(SCREEN_W * size.share));
+  const w = Math.min(cap ?? size.maxW, screenW - 8, Math.max(need, bodyRoom, m.title ? size.minW : 0, m.square ? SQUARE_WINDOW_W : 0));
   // The paragraphs that begin beside the picture wrap to the room left of it.
   const lines: string[] = [];
   const indents: number[] = [];
@@ -378,13 +406,24 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean)
     for (const piece of wrapIcons(l, Math.floor((w - 20 - indent) / t))) { lines.push(piece); indents.push(indent); }
   }
   const bodyH = lines.length || framed ? Math.max(lines.length * lineH, framed ? SQUARE_FRAME + 2 : 0) + 5 : 0;
+  // Each section's lines wrapped to the room beside the labels, a gap with a rule before each.
+  const secs: MenuLayout["secs"] = [];
+  let secH = 0;
+  for (const sec of sections) {
+    secH += SECTION_GAP;
+    const rows = sec.lines.flatMap((line) => leadRows(line, Math.floor((w - 20 - labelW) / t)));
+    secs.push({ title: sec.title, dy: secH, rows });
+    secH += Math.max(1, rows.length) * lineH;
+  }
+  // Air under the last, more where a rule and the choices follow.
+  if (secH) secH += m.items.length || m.tabs ? 6 : 2;
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
-  const room = floor - (m.anchor?.y ?? 0) - head - bodyH - tabsH - foot;
+  const room = floor - (m.anchor?.y ?? 0) - head - bodyH - secH - tabsH - foot;
   const fits = count * least <= room;
   const row = pictured ? unitRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, count)))) : size.row;
   const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
   const itemsH = buttons ? m.items.length * (size.button + size.buttonGap) + 1 : (fits ? count : rows) * row;
-  const h = head + bodyH + tabsH + itemsH + foot;
+  const h = head + bodyH + secH + tabsH + itemsH + foot;
   let x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
   let y = m.anchor ? m.anchor.y : keep ? Math.max(0, floor - h) : Math.max(0, Math.floor((SCREEN_H - h) / 2));
   // By the square it tells of, pointing at it (`MenuState.point`), clear of the menu bar; else clear of the click.
@@ -393,7 +432,7 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean)
   if (place) [x, y] = [place.win.x, place.win.y];
   else if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
-  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + tabsH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH, tabH, count, room: fits ? count : rows, wrapped: !!m.oneLine && lines.length > (m.body?.length ?? 0), place };
+  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + secH + tabsH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH + secH, tabH, count, room: fits ? count : rows, wrapped: !!m.oneLine && lines.length > (m.body?.length ?? 0), place, secTop: y + head + bodyH, labelW, secs };
 }
 
 export function menuRect(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x: number; y: number; w: number; h: number } {
@@ -544,6 +583,17 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     else s.rect(fx + 2, fy + 2, SQUARE_PIC, SQUARE_PIC, C.BLACK!);
   }
   lines.forEach((line, i) => drawIconLine(s, x + 10 + (indents[i] ?? 0), bodyY + i * lineH, line, C.BLACK!, t));
+  // The sections: an etched rule under the head, a faint one between them, the label in dim ink at the left, its lines beside it.
+  l.secs.forEach((sec, i) => {
+    const sy = l.secTop + sec.dy;
+    if (i) s.hline(x + 10, sy - 4, w - 20, shade("panel", 3));
+    else {
+      s.hline(x + 6, sy - 4, w - 12, shade("panel", 2));
+      s.hline(x + 6, sy - 3, w - 12, shade("panel", 7));
+    }
+    write(x + 10, sy, sec.title, DIM);
+    sec.rows.forEach((row, k) => drawIconLine(s, x + 10 + l.labelW + row.indent * t, sy + k * lineH, row.text, C.BLACK!, t));
+  });
   if (lines.length && (m.items.length || m.tabs)) {
     s.hline(x + 4, l.tabsY - 4, w - 8, shade("panel", 2));
     s.hline(x + 4, l.tabsY - 3, w - 8, shade("panel", 7));

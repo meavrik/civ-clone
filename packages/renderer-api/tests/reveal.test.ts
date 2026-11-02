@@ -25,13 +25,15 @@ describe("resources revealed by an advance", () => {
     const s = field();
     expect(knownResourceSquares(s, 0).size).toBe(0);
     expect(terrainInfo(s, 21, 21).lines.join(" ")).not.toContain("Iron");
+    expect(terrainInfo(s, 21, 21).title).not.toContain("Iron");
     expect(resourcesReport(s).lines.find((l) => l.text === "Iron")).toMatchObject({ right: "unseen until Bronze Working", dim: true });
     // The research card and the New Technology window say what the advance shows.
     expect(techDetails(s, "bronze_working").rows.find((r) => r.label === "Reveals")?.items).toEqual(["Iron"]);
     s.players[0]!.advances.push("bronze_working");
     expect(newTechCard(s, "bronze_working").unlocks).toContainEqual({ icon: "gem", name: "Iron", kind: "now on the map", resource: "Iron" });
     expect(knownResourceSquares(s, 0).size).toBe(2);
-    expect(terrainInfo(s, 21, 21).lines.join(" ")).toContain("Iron is needed for");
+    expect(terrainInfo(s, 21, 21).title).toMatch(/^Grassland \(Iron\)/);
+    expect(terrainInfo(s, 21, 21).sections.find((x) => x.title === "Resource")?.lines[0]).toMatch(/^Needed for Legion/);
     // No road on its square yet: of no use, and said so (since save version 43).
     expect(terrainInfo(s, 21, 21).lines).toContain("{road} No use to anyone until a road is built on it");
     const [rv] = resourceReveals(s, 0, ["bronze_working"]);

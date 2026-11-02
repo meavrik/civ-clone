@@ -215,13 +215,16 @@ export function placeLabel(state: GameState, viewer: number, x0: number, y0: num
 /**
  * The square window's title: its terrain, then where it lies ("Grassland, Ausonia"; "The Sahara, Africa"). The
  * terrain's word is left out when its place's name already says it ("The Apennine Mountains, Ausonia"), and
- * a water's name always stands for the sea it is ("The Sea of Neptune", "Lake Avernus").
+ * a water's name always stands for the sea it is ("The Sea of Neptune", "Lake Avernus"). A resource on it is named in
+ * brackets after the first of them (asked for 2026-11-02): "Plains (Horses), Ausonia", "The Sea of Neptune (Fish)".
  */
-export function squareTitle(state: GameState, x: number, y: number, terrain: string, water: boolean): string {
+export function squareTitle(state: GameState, x: number, y: number, terrain: string, water: boolean, resource?: string): string {
   const place = placeAt(state.map, x, y)?.name;
   const land = landAt(state.map, x, y)?.name;
   const said = place !== undefined && (water || new RegExp(`\\b${terrain}\\b`, "i").test(place));
-  return placeTitle([said ? undefined : terrain, place, land].filter((n): n is string => !!n).join(", "));
+  const parts = [said ? undefined : terrain, place, land].filter((n): n is string => !!n);
+  if (resource) parts[0] = `${parts[0]} (${resource})`;
+  return placeTitle(parts.join(", "));
 }
 
 /**
