@@ -213,6 +213,8 @@ const TOKEN = 13;
 const onToken = (i: number, j: number) => Math.hypot(i + 0.5 - TOKEN / 2, j + 0.5 - TOKEN / 2) <= TOKEN / 2;
 /** How bright the gold glow round a unit awaiting orders is: the map's unit in play glows at `ACTIVE_GLOW`, on terrain; the stone wants it whole. */
 const READY_GLOW = Math.min(1, ACTIVE_GLOW * 2);
+/** How much of a unit supported away from the city shows in the units box, darkened as well. */
+export const AWAY_OPACITY = 0.5;
 
 function drawSleepMark(s: Surface, x: number, y: number, glyph: readonly string[]): void {
   const x0 = x * s.k + 1, y0 = y * s.k + 1;
@@ -634,15 +636,17 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawBox(s, MID.x, ROW2.y, MID.w, ROW2.h, "Units", String(units.length));
   units.slice(0, UNIT_SLOTS).forEach(({ unit, here, shields, food }, i) => {
     const { x: ux, y: uy } = cityUnitSlot(i);
-    // A picture of the user's: its rank and a sleeper's token showing through, one supported elsewhere darkened, one
-    // awaiting orders glowing gold as the unit in play does on the map (one just woken among them).
+    // A picture of the user's: its rank and a sleeper's token showing through, one supported elsewhere darkened and
+    // faded into the stone (asked for 2026-11-02: "unit outside the city in the panel - reduce opacity or make darker"),
+    // one awaiting orders glowing gold as the unit in play does on the map (one just woken among them).
     const standing = cityUnitStanding(unit);
     const sleep = sleepsUntilWoken(standing) ? SLEEP_MARKS[standing as SleepStanding] : null;
     const holes = [...rankHoles(ux, uy, unit.xp), ...(sleep ? sleepHoles(ux, uy) : [])];
-    drawUnitFigure(s, unit.type, ux, uy, playerColor(state, unit.owner), { holes, ...(here ? {} : { dim: true }), ...(standing === "ready" ? { contour: READY_GLOW } : {}) });
+    drawUnitFigure(s, unit.type, ux, uy, playerColor(state, unit.owner), { holes, ...(here ? {} : { dim: true, opacity: AWAY_OPACITY }), ...(standing === "ready" ? { contour: READY_GLOW } : {}) });
     drawRankMark(s, ux, uy, unit.xp);
-    if (sleep) drawSleepMark(s, ux, uy, sleep);
     if (!here) ghost(s, ux, uy);
+    // The token over the stone's speckle, whole even on a unit away.
+    if (sleep) drawSleepMark(s, ux, uy, sleep);
     let ix = ux;
     if (shields) { drawIcon(s, "shield", ix, uy + 17); ix += ICON; }
     if (food) drawIcon(s, "food", ix, uy + 17);

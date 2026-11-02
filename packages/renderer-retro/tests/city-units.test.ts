@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { applyCommand, createUnit, newGame } from "@civ/core";
 import { cityUnitNote } from "@civ/renderer-api";
 import { cityUnitSlot, drawCityScreen, shade, Surface } from "../src/index.js";
+import { AWAY_OPACITY } from "../src/screens/city.js";
 import { encodePng } from "./png.js";
 
 /** A city of ours with, in its units box, a fortified militia, a phalanx on sentry, one awake and one spent. */
@@ -58,6 +59,19 @@ describe("the city screen's units", () => {
     drawCityScreen(after, state, { city: city.id });
     expect(after.fget(x * after.k + 3, y * after.k + 6)).not.toBe(shade("steel", 2));
     expect(after.art.filter((a) => a.unit && a.y === y).map((a) => (a.contour ?? 0) > 0)).toEqual([true, false, true, false]);
+  });
+
+  it("darkens and fades a unit supported away from the city", () => {
+    const { state, city } = garrison();
+    state.units = state.units.filter((u) => u.owner !== 0);
+    const here = createUnit(state, "militia", 0, city.x, city.y, city.id);
+    const away = createUnit(state, "militia", 0, city.x, city.y + 2, city.id);
+    const s = Surface.screen();
+    drawCityScreen(s, state, { city: city.id });
+    const spot = (id: number) => s.art.find((a) => a.unit && a.x === cityUnitSlot(id === here.id ? 0 : 1).x && a.y === cityUnitSlot(0).y)!;
+    expect(spot(here.id).dim).toBeUndefined();
+    expect(spot(here.id).opacity).toBeUndefined();
+    expect(spot(away.id)).toMatchObject({ dim: true, opacity: AWAY_OPACITY });
   });
 
   it("tells of the unit under the pointer beside the citizens", () => {

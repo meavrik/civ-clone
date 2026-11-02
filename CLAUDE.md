@@ -660,7 +660,9 @@ Never ship the original's sprites, palette art, fonts or text.
   map puts the shield (retro `SLEEP_MARKS` in `screens/city.ts`: a tower fortified or fortifying, zZ on sentry, a heart
   camped), its picture holed round it; a unit awaiting orders glows gold as the unit in play does on the map
   (`READY_GLOW`, twice `ACTIVE_GLOW` on the stone), so one just woken lights up; the pointer on a unit tells of it
-  beside the citizens (`CityScreenView.hoverUnit`, `cityUnitNote`: "Legion: on sentry, click to wake"). A city that finishes an improvement, wonder or spaceship part opens
+  beside the citizens (`CityScreenView.hoverUnit`, `cityUnitNote`: "Legion: on sentry, click to wake"). A unit the
+  city supports away from it is darkened and half see-through (asked for the same day: "unit outside the city in the
+  panel - reduce opacity or make darker"; `AWAY_OPACITY` 0.5 with `ArtSpot.dim`), its token whole over it. A city that finishes an improvement, wonder or spaceship part opens
   the Building Completed window (`built.ts`, `builtCard`; asked for 2026-10-24 with the user's template; retro
   `screens/built.ts`, modern a plain modal), a small window over the game since 2026-10-24 ("should be a
   modal opened on top of the game and not a full screen window"; smaller again since 2026-10-25 and standing
