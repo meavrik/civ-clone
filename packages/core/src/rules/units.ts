@@ -49,14 +49,20 @@ export interface UnitTypeRule {
   firepower: number;
   /** Enters rough ground (mountains, jungle, swamp, arctic) only along a road. Not a flag: flags mark special roles. */
   wheeled?: boolean;
+  /**
+   * Enters any ground without a road, mountains too (since save version 59, asked for 2026-11-02: "elphents would be the
+   * only unit that can enter any tile without any road"; War Elephants). Settlers climb mountains too, to build the
+   * roads there; see `climbsMountains`.
+   */
+  anyGround?: boolean;
   /** Barbarians field it in these roles; with `needsTech`, only once some civilization knows `requires`. */
   barbarian?: { as: BarbarianRole[]; needsTech?: true };
   /** `leader`: the barbarians' chief, never built; caught alone by a land unit, it pays a ransom. */
   /**
    * `coastal`: a ship that must end its turn by a coast (the Trireme): one left on deep water (no land
    * beside it, `deepWater`) at its owner's turn's end sinks with its cargo, and gotos keep off deep water.
-   * `explorer` (since save version 53): every square costs it what a road would, it climbs mountains without one,
-   * and no civilization minds it on its land.
+   * `explorer` (since save version 53): every square costs it what a road would, and no civilization minds it on its
+   * land; before save version 59 it also climbed mountains without a road (`GameState.mountainExplorers`).
    * `fishing` (since save version 53): it is spent laying a fishery on a sea special of its civilization's land (the
    * `fishery` command, `Tile.fishery`), as settlers improve the land.
    */
@@ -100,7 +106,7 @@ export const UNIT_TYPES: UnitTypeRule[] = [
   U("legion", "Legion", 3, 1, 1, 20, "land", { requires: "iron_working", needs: ["Iron"], barbarian: { as: ["sea", "build"] } }),
   U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding", needs: ["Horses"], sight: 2, sightSince: 30, barbarian: { as: ["land"] } }),
   U("chariot", "Chariot", 4, 1, 2, 40, "land", { requires: "the_wheel", needs: ["Horses"], wheeled: true }),
-  U("elephants", "War Elephants", 4, 1, 1, 40, "land", { requires: "horseback_riding", needs: ["Elephants"], frightens: "Horses", since: 53 }),
+  U("elephants", "War Elephants", 4, 1, 1, 40, "land", { requires: "horseback_riding", needs: ["Elephants"], frightens: "Horses", anyGround: true, since: 53 }),
   U("catapult", "Catapult", 6, 1, 1, 40, "land", { requires: "mathematics", wheeled: true }),
   U("knights", "Knights", 4, 2, 2, 40, "land", { requires: "chivalry", needs: ["Horses", "Iron"], barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
   U("musketeers", "Musketeers", 2, 3, 1, 30, "land", { requires: "gunpowder", needs: ["Saltpeter"], hp: 20, barbarian: { as: ["land", "sea", "build"], needsTech: true } }),

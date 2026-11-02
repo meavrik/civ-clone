@@ -2,6 +2,7 @@ import {
   advancesFor,
   atWar,
   canFoundCity,
+  climbsMountains,
   cityAt,
   cityById,
   computeCity,
@@ -229,7 +230,8 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
       if (flags.includes("settler")) lines.push("Founds cities, and builds roads, farms and mines.");
       if (flags.includes("diplomat")) lines.push("Steals advances and stirs up foreign cities.");
       if (flags.includes("caravan")) lines.push("Helps build wonders and opens trade routes.");
-      if (flags.includes("explorer")) lines.push("Crosses any ground, mountains too, as if on a road; no one minds it on their land.");
+      if (flags.includes("explorer")) lines.push(state.mountainExplorers ? "Crosses any ground, mountains too, as if on a road; no one minds it on their land." : "Crosses any ground but mountains as if on a road; no one minds it on their land.");
+      if (climbsMountains(state, type) && !flags.includes("settler")) lines.push(type.anyGround ? "Goes anywhere without a road, mountains too: the only soldiers that do." : "Climbs mountains without a road.");
       if (flags.includes("fishing")) lines.push("Lays a fishery on fish or whales in our waters: more food there for good. With Refining, builds an oil rig on oil at sea.");
       if (type.frightens) lines.push(`Frightens units that need ${type.frightens}: they defend at two thirds against it.`);
       if (type.capacity) lines.push(`Carries ${plural(type.capacity, "unit")}.`);

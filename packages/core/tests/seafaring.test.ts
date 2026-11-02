@@ -139,15 +139,18 @@ describe("Seafaring (save version 53)", () => {
     expect(whyNoFishery(s, createUnit(s, "trireme", 0, 40, 30))).toBe("not a fishing boat");
   });
 
-  it("sends the Explorer over any ground at a road's cost, up mountains, and no one minds it", () => {
+  it("sends the Explorer over any ground but mountains at a road's cost, and no one minds it", () => {
     const s = world();
-    for (let x = 11; x <= 13; x++) getTile(s.map, x, 10)!.terrain = Terrain.Mountains;
+    for (let x = 11; x <= 13; x++) getTile(s.map, x, 10)!.terrain = Terrain.Hills;
+    getTile(s.map, 14, 10)!.terrain = Terrain.Mountains;
     const ex = createUnit(s, "explorer", 0, 10, 10);
     const legion = createUnit(s, "phalanx", 0, 10, 11);
     for (let i = 0; i < 3; i++) expect(applyCommand(s, { type: "move", unit: ex.id, dx: 1, dy: 0 }).ok).toBe(true);
     expect([ex.x, ex.movesLeft]).toEqual([13, 0]);
-    // A soldier cannot climb them without a road.
-    expect(findPath(s, legion, 12, 10)).toBeNull();
+    // Since save version 59 only settlers and war elephants climb mountains without a road.
+    ex.movesLeft = 3;
+    expect(applyCommand(s, { type: "move", unit: ex.id, dx: 1, dy: 0 })).toEqual({ ok: false, reason: "steep" });
+    expect(findPath(s, legion, 14, 10)).toBeNull();
     // Foreign land: an explorer is no trespasser, a soldier is.
     foundCity(s, 1, 20, 20);
     ex.x = 21; ex.y = 20;

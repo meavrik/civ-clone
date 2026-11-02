@@ -190,7 +190,9 @@ export function terrainInfo(state: GameState, x: number, y: number): SquareInfo 
   if (t.rig) here.push({ icon: "shield", name: "Oil rig", note: yieldGain({ shields: RESOURCE_BY_ID[t.deposit ?? ""]?.offshore?.rig.shields ?? 0 }) });
   if (t.hut) here.push({ icon: "hut", name: "Village", note: "Visit it with a unit", tone: "quiet" });
   if (t.pollution) here.push({ icon: "pollution", name: "Pollution", note: "Output halved", tone: "bad" });
-  if (roadOnly(state, t) && !t.road) here.push({ icon: "boot", name: "Settlers only", note: "Others need a road", tone: "bad" });
+  if (roadOnly(state, t) && !t.road) here.push(state.mountainExplorers
+    ? { icon: "boot", name: "Settlers only", note: "Others need a road", tone: "bad" }
+    : { icon: "boot", name: "Settlers and elephants", note: "Others need a road", tone: "bad" });
   else if (r.rough && !t.road && !state.classicTerrain) here.push({ icon: "boot", name: "No wheels", note: "Wheeled units need a road", tone: "quiet" });
   const wear = attrition(state, me.id, x, y);
   if (wear > 0 && r.attrition) here.push({ icon: "heart", name: "Harsh", note: `${Math.round(wear * 100)}% hp a turn, until ${advance(attritionCure(state, r.attrition)).name}`, tone: "bad" });

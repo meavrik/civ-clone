@@ -79,7 +79,7 @@ export interface SaveGame {
    * 56: saved while specials of a kind could lie side by side (no `spreadSpecials`); clustered resources.
    * 57: saved while the sea yielded 2 trade and the Harbour only food; rich sea.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 59;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -102,7 +102,7 @@ export interface SaveGame {
   state?: GameState;
 }
 
-export const SAVE_VERSION = 58;
+export const SAVE_VERSION = 59;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -261,6 +261,7 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
   if (save.version < 56) options.quickImprovements = true;
   if (save.version < 57) options.clusteredResources = true;
   if (save.version < 58) options.richSea = true;
+  if (save.version < 59) options.mountainExplorers = true;
   const state = newGame(save.seed, options);
   const from = state.turn;
   const progress = (): ReplayProgress => ({ turn: state.turn, from, to: Math.max(from, save.turn) });

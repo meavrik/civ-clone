@@ -107,13 +107,23 @@ export function stepCost(type: UnitTypeRule, to: Tile): number {
 
 /**
  * Can a land unit of this type enter this land square? Off the road, only
- * settlers climb steep ground (mountains) and wheeled units keep off rough
+ * settlers and war elephants climb steep ground (mountains, `climbsMountains`) and wheeled units keep off rough
  * ground; a road (every city square has one) takes everyone.
  */
 export function canEnter(state: GameState, type: UnitTypeRule, to: Tile): boolean {
   if (type.domain !== "land" || to.road) return true;
-  if (roadOnly(state, to)) return type.flags?.some((f) => f === "settler" || f === "explorer") ?? false;
+  if (roadOnly(state, to)) return climbsMountains(state, type);
   return !needsRoads(state, type) || !TERRAIN_RULES[to.terrain].rough;
+}
+
+/**
+ * Whether units of `type` climb mountains without a road: settlers, who build the roads there, and since save version
+ * 59 War Elephants, the only soldiers that go anywhere without one (`UnitTypeRule.anyGround`; asked for 2026-11-02).
+ * Games before load with `mountainExplorers`: the explorer climbed in the elephants' place.
+ */
+export function climbsMountains(state: GameState, type: UnitTypeRule): boolean {
+  if (type.flags?.includes("settler")) return true;
+  return state.mountainExplorers ? type.flags?.includes("explorer") === true : type.anyGround === true;
 }
 
 /**
