@@ -339,5 +339,10 @@ describe("tribal villages", () => {
     const ev = lastTurnEvents.find((e) => e.kind === "hut");
     expect(ev && ev.kind === "hut" && ev.player).toBe(0);
     expect(getTile(s.map, 11, 10)!.hut).toBe(false);
+    // Where it stood and what it brought, for the UI to show once the unit has walked in.
+    expect(ev && ev.kind === "hut" && [ev.x, ev.y]).toEqual([11, 10]);
+    const brought = ev && ev.kind === "hut" ? ev.units : [];
+    expect(brought.every((id) => s.units.some((o) => o.id === id && o.id !== u.id))).toBe(true);
+    expect(brought.length > 0).toBe(ev?.kind === "hut" && (ev.result.kind === "unit" || ev.result.kind === "barbarians"));
   });
 });

@@ -182,7 +182,8 @@ export type TurnEvent =
   | { kind: "barbarians"; x: number; y: number; sea: boolean; near: string; player: number } // a band appeared near `player`'s city `near`
   | { kind: "ransom"; amount: number; player: number } // a barbarian leader caught alone
   | { kind: "eliminated"; player: number }
-  | { kind: "hut"; result: HutResult; player: number }
+  /** A village entered at (x, y); `units` those it brought (mercenaries joining, an ambush), for the UI to show once the village opens. */
+  | { kind: "hut"; result: HutResult; player: number; x: number; y: number; units: number[] }
   | { kind: "tradeRoute"; from: string; to: string; bonus: number }
   | { kind: "globalWarming" }
   | { kind: "spaceLaunched"; player: number }
@@ -980,7 +981,10 @@ function enterHut(state: GameState, u: Unit): void {
   const landed = getTile(state.map, u.x, u.y)!;
   if (!landed.hut || unitType(u.type).domain !== "land") return;
   landed.hut = false;
-  lastTurnEvents.push({ kind: "hut", result: openHut(state, u), player: u.owner });
+  const first = state.nextUnitId;
+  const result = openHut(state, u);
+  const units = state.units.filter((o) => o.id >= first).map((o) => o.id);
+  lastTurnEvents.push({ kind: "hut", result, player: u.owner, x: u.x, y: u.y, units });
 }
 
 /** Enter a minor tribe's village: gold, an advance, a mercenary unit, or an ambush. */

@@ -184,6 +184,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     const at = pierSquare(map, c, known);
     if (at) piers.add(at[1] * map.width + at[0]);
   }
+  const entered = new Set((view.villages ?? []).map((v) => v.y * map.width + v.x));
   for (let ty = 0; ty <= viewDown(); ty++) {
     const my = view.originY + ty;
     const dy = VIEW_Y + ty * MAP_TILE - oy;
@@ -217,8 +218,10 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       // Fields without a picture are laid at the original's size (on its ground) and stretched over a larger square.
       if (tile.irrigation && !fields)
         onSquare(s, dx, dy, T, (on, x, y) => drawIrrigation(on, x, y, T === TILE ? ground : terrainSquare(map, mx, my, me.explored), tile.terrain, mx, my, fieldSides(map, me.explored, mx, my)));
-      // A village of a kind the user drew stands as its picture, by the land (`hutKind`); else the drawn huts.
-      const village = tile.hut ? drawHut(s, dx, dy, { kind: hutKind(map, mx, my), ...pics }, T) : null;
+      // A village of a kind the user drew stands as its picture, by the land (`hutKind`); else the drawn huts. One our
+      // unit has entered stands until it has walked in and the village opens (`view.villages`).
+      const hut = tile.hut || entered.has(my * map.width + mx);
+      const village = hut ? drawHut(s, dx, dy, { kind: hutKind(map, mx, my), ...pics }, T) : null;
       const mine = tile.mine ? layWork(s, minePicture(tile.terrain), dx, dy, T, pics) : null;
       if (tile.mine && !mine) onSquare(s, dx, dy, T, (on, x, y) => drawMine(on, x, y));
       const net = tile.fishery ? layWork(s, "fishing_net", dx, dy, T, pics) : null;
@@ -227,11 +230,11 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       // city's square has its mark once the city stands (below).
       if (tile.special && !citySquares.has(my * map.width + mx)) drawSpecial(s, dx, dy, state, tile, state.currentPlayer, T, pics, !!(fields || village || mine || net));
       const rig = tile.rig ? layWork(s, "oil_rig", dx, dy, T, pics) : null;
-      if ((tile.fishery && !net) || (tile.rig && !rig) || (tile.hut && !village) || tile.fortress || tile.pollution)
+      if ((tile.fishery && !net) || (tile.rig && !rig) || (hut && !village) || tile.fortress || tile.pollution)
         onSquare(s, dx, dy, T, (on, x, y) => {
           if (tile.fishery && !net) drawFishery(on, x, y);
           if (tile.rig && !rig) drawRig(on, x, y);
-          if (tile.hut && !village) drawHut(on, x, y);
+          if (hut && !village) drawHut(on, x, y);
           if (tile.fortress) drawFortress(on, x, y);
           if (tile.pollution) drawPollution(on, x, y);
         });
@@ -326,6 +329,8 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // A ship going down: it and its cargo are drawn sinking, not on their square.
   const sinking = view.sinking;
   if (sinking) for (const u of state.units) if (u.id === sinking.unit || u.aboard === sinking.unit) slidingIds.add(u.id);
+  // What a village entered brought shows once it opens.
+  for (const v of view.villages ?? []) for (const id of v.units) slidingIds.add(id);
   const units = slidingIds.size ? state.units.filter((u) => !slidingIds.has(u.id)) : state.units;
   const drawn = new Set<number>();
   for (const u of units) {

@@ -165,6 +165,12 @@ export interface MainScreenView {
   /** A ship of the viewer's going down on deep water as the turn ends, the words above it (`Sinking`). */
   sinking?: Sinking | undefined;
   /**
+   * Villages the viewer's units have entered, still standing in the picture until the unit has walked in and the
+   * village opens (asked for 2026-11-02: "first the unit need to visibly enter the hut and only then show the hut
+   * result"): drawn on their squares whatever the map says, the units they brought (`units`) not drawn yet.
+   */
+  villages?: readonly EnteredVillage[] | undefined;
+  /**
    * A city the viewer has just founded, made a moment (asked for 2026-10-29 with the user's sheets, "add the build new
    * settlement", then "for new settlement epic effect - add zoom and some effect and delay"; `founding.ts`): where it
    * stands `ms` in (`FoundingMoment`), the founders' show (atlas `id`) on the city's square in place of the city, which
@@ -198,6 +204,13 @@ export interface MainScreenView {
 /** Which unit the main screen shows as in play: the focus while the view lingers, else the active unit. */
 export function shownActive(state: GameState, view: MainScreenView): number | null {
   return view.focus !== undefined ? view.focus : state.activeUnit;
+}
+
+/** A village entered, at (x, y), and the units it brought (mercenaries joining, an ambush): see `MainScreenView.villages`. */
+export interface EnteredVillage {
+  x: number;
+  y: number;
+  units: readonly number[];
 }
 
 export interface CityScreenView {

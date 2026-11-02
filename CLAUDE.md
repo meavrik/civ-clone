@@ -1395,6 +1395,12 @@ Never ship the original's sprites, palette art, fonts or text.
   names, a route's dot) shows through it (`drawnOver`'s `shaded`: the shade out of sight is not a mark, the picture
   being shaded whole, `ArtSpot.unseen`); windows cut holes in it (`hideArtUnder`). `preloadCities` fetches the five
   with the cities. The drawn huts (`features.art.ts`) stay for anything without a picture.
+  Entering one (asked for 2026-11-02: "when enter a village hut - first the unit need to visibly enter the hut and only
+  then show the hut result"): the rules open a village as the step is taken, so the web app holds it on the map
+  (`MainScreenView.villages`, an `EnteredVillage` from core's `hut` event, which carries the square and the `units` it
+  brought; `holdVillages` after our own moves and as our turn begins), and what it brought (mercenaries, an ambush) out
+  of sight, while the unit walks in; once the slides have landed the unit stands in it `VILLAGE_MS` (650 ms, the `beat`
+  screen, a key or click going on; `openVillage`), then the village goes and its window opens (`hutModal`).
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`.
   Fine art (merged from branch terrain-tiles-test, 2026-10-21, asked for): the screen keeps its 320x200

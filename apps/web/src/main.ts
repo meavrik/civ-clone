@@ -508,6 +508,7 @@ function resetMotion(): void {
   afterSlides.length = 0;
   handoff = null;
   view.focus = undefined;
+  view.villages = undefined;
 }
 
 /**
@@ -776,7 +777,43 @@ function afterAction(unit?: number): void {
     } else i++;
   }
   events.unshift(...newContacts());
+  holdVillages(events);
   if (events.length) whenStill(() => presentEvents(events));
+}
+
+/** How long our unit stands in a village it has walked into before the village opens. */
+const VILLAGE_MS = 650;
+
+/**
+ * Villages our units entered stand on the map, and what they brought stays out of sight, until the unit has walked in
+ * (asked for 2026-11-02: "first the unit need to visibly enter the hut and only then show the hut result"): the rules
+ * open a village as the unit's step is taken, and the slide that shows it comes after.
+ */
+function holdVillages(events: readonly TurnEvent[]): void {
+  const entered = events.filter((ev): ev is Extract<TurnEvent, { kind: "hut" }> => ev.kind === "hut" && ev.player === 0);
+  if (entered.length) view.villages = [...(view.villages ?? []), ...entered.map(({ x, y, units }) => ({ x, y, units }))];
+}
+
+/** Our unit stands a moment in the village it walked into (the map held, a key or click going on at once), then it opens. */
+function openVillage(ev: Extract<TurnEvent, { kind: "hut" }>, then: () => void): void {
+  const at = (v: { x: number; y: number }) => v.x === ev.x && v.y === ev.y;
+  const open = (): void => {
+    const left = view.villages?.filter((v) => !at(v));
+    view.villages = left?.length ? left : undefined;
+    then();
+  };
+  if (!view.villages?.some(at)) { then(); return; }
+  if (!onView(ev.x, ev.y)) centerOn(ev.x, ev.y);
+  screenState = { kind: "beat", until: performance.now() + VILLAGE_MS, then: open };
+}
+
+/** Whether square (x, y) lies inside the map's view, a square in from its edges. */
+function onView(x: number, y: number): boolean {
+  const w = state.map.width;
+  const { x: tx, y: ty } = viewTiles();
+  const rx = (((x - view.originX) % w) + w) % w;
+  const ry = y - view.originY;
+  return rx >= 1 && rx <= tx - 2 && ry >= 1 && ry <= ty - 2;
 }
 
 function dispatch(cmd: Command): boolean {
@@ -2933,7 +2970,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       if (due >= 0) events.splice(due, 1);
       announce(found, due >= 0, next);
     }
-    else if (ev.kind === "hut") hutModal(ev.result, next);
+    else if (ev.kind === "hut") openVillage(ev, () => hutModal(ev.result, next));
     else if (ev.kind === "disbanded") {
       // Every unit lost to upkeep this turn, in one window.
       const lost = [ev];
@@ -3103,6 +3140,7 @@ function passTurn(): void {
   const met = new Set(contacts.map((ev) => (ev.kind === "contact" ? ev.player : -1)));
   const wars = events.filter((ev) => ev.kind === "warDeclared" && ev.on === 0 && !met.has(ev.player));
   const news = [...contacts, ...events.filter((ev) => !wars.includes(ev))];
+  holdVillages(news);
   const fights = actions.filter((a): a is UnitBattle => a.kind === "battle" && (a.attacker.owner === 0 || a.defender.owner === 0));
   void runAiPlayers; // replay helper lives in core; here the loop above also harvests events
   autosave();
