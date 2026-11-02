@@ -15,6 +15,47 @@ export const TILE = 16;
 /** Fine pixels across a square's terrain. */
 export const FINE = TILE * DETAIL;
 
+/**
+ * Screen pixels across a square of the main map: TILE, the original's, unless set larger (`setMapTile`; a
+ * trial of bigger squares, 2026-11-02: "enlarge the base tile size and all that related (units, cities etc)").
+ * The map then works out its terrain, shores, rivers, roads, fog and borders at that size, draws the small
+ * things on a square (works, resources, villages) at the original's and lays them on it larger, and lays the
+ * pictures of units and cities over the larger square; marks (shields, hit points, names) keep their size.
+ * The city screen's map and the square's window keep TILE.
+ */
+export let MAP_TILE = TILE;
+export function setMapTile(t: number): void {
+  MAP_TILE = Math.max(TILE, Math.round(t));
+}
+
+/** A square's picture at TILE (FINE fine pixels), stretched to `t` screen pixels a side; cached per picture and size. */
+const stretched = new WeakMap<Surface, Map<number, Surface>>();
+export function stretchSquare(src: Surface, t: number): Surface {
+  if (t === src.width) return src;
+  let sizes = stretched.get(src);
+  if (!sizes) stretched.set(src, (sizes = new Map()));
+  let out = sizes.get(t);
+  if (!out) {
+    out = new Surface(t, t, undefined, src.k);
+    out.blitScaled(src, 0, 0, t, t);
+    sizes.set(t, out);
+  }
+  return out;
+}
+
+let scratch: Surface | null = null;
+/**
+ * Draws what `draw` puts on a square at the original's size (TILE) on the square at (dx, dy), `t` pixels a
+ * side: straight on it at TILE, else on a clear square laid over it stretched (works, resources, villages).
+ */
+export function onSquare(s: Surface, dx: number, dy: number, t: number, draw: (on: Surface, x: number, y: number) => void): void {
+  if (t === TILE) { draw(s, dx, dy); return; }
+  scratch ??= Surface.fine(TILE, TILE);
+  scratch.fill(SPRITE_CLEAR);
+  draw(scratch, 0, 0);
+  s.blitScaled(scratch, dx, dy, t, t, SPRITE_CLEAR);
+}
+
 /** Tiny deterministic hash for per-tile texture noise (not game RNG). */
 function h(x: number, y: number, salt: number): number {
   let n = (x * 374761393 + y * 668265263 + salt * 1274126177) | 0;
@@ -200,25 +241,27 @@ const RIVER_GLINT = 0.07;
  * Every fine pixel is worked out on its own (FINE x FINE), so shores and rivers
  * are as fine as the terrain art.
  */
-export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Explored): Surface {
+export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Explored, t = TILE): Surface {
   const p = coastPatch(map, x, y, explored);
   const river = riverShape(map, x, y, explored);
   const own = p.terrain[4]!;
   const plain = p.depth[4] === DEEP ? deepTile(x, y) : getTile(own, x, y);
   const blend = blends(p);
-  if (!p.mixed && !river && !blend) return plain;
-  const key = river ? `${p.key}|${river.key}` : p.key;
+  if (!p.mixed && !river && !blend) return stretchSquare(plain, t);
+  const key = (t === TILE ? "" : `${t}@`) + (river ? `${p.key}|${river.key}` : p.key);
   const hit = squareCache.get(key);
   if (hit) return hit;
-  const out = Surface.fine(TILE, TILE);
+  // Worked out a fine pixel at a time at the square's size (`t`), the art read from its FINE grid under each.
+  const F = t * DETAIL;
+  const out = Surface.fine(t, t);
   const sea = getTile(Terrain.Ocean, x, y).data;
   const deep = deepTile(x, y).data;
   const { surf, shallow, river: water, glint, bank } = WATER;
-  for (let j = 0; j < FINE; j++)
-    for (let i = 0; i < FINE; i++) {
-      const u = (i + 0.5) / FINE;
-      const v = (j + 0.5) / FINE;
-      const at = j * FINE + i;
+  for (let j = 0; j < F; j++)
+    for (let i = 0; i < F; i++) {
+      const u = (i + 0.5) / F;
+      const v = (j + 0.5) / F;
+      const at = Math.floor(v * FINE) * FINE + Math.floor(u * FINE);
       const g = p.mixed ? coastLevel(p, u, v) : p.depth[4]!;
       const k = g < SHORE ? landOwner(p, u, v) : -1;
       let c: number;
@@ -237,13 +280,14 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
       else if (g < DEEP_EDGE + 0.06) c = (i + j) & 1 ? sea[at]! : deep[at]!;
       else c = deep[at]!;
       if (river && k >= 0)
-        // Distances in screen pixels (dist * TILE), so a river is as wide as it was before the fine grain.
+        // Distances in screen pixels of the original's square (dist * TILE), so a river is as wide as it was before
+        // the fine grain, and as much of a larger square.
         for (const st of river.strokes) {
           const { dist, width } = strokeDistance(st, u, v);
           if (dist * TILE < width * RIVER_HALF) { c = h(i, j, 9) < RIVER_GLINT ? glint : water; break; }
           if (dist * TILE < width * RIVER_HALF + RIVER_BANK) c = bank;
         }
-      out.data[at] = c;
+      out.data[j * F + i] = c;
     }
   // A square is 1 KB as fine as this; a large world is 16000 squares, so the whole of one fits.
   if (squareCache.size > 16384) squareCache.clear();
@@ -266,20 +310,21 @@ const FOG_EDGE = 0.5;
  * dissolves through the same dither. The edge follows world position, so it
  * runs on across square borders.
  */
-export function fogSquare(map: WorldMap, explored: Explored, x: number, y: number, lifting?: Lifting): Surface | null {
+export function fogSquare(map: WorldMap, explored: Explored, x: number, y: number, lifting?: Lifting, t = TILE): Surface | null {
   const p = fogPatch(map, explored, x, y, lifting);
   if (p.cover[4]! < 1 && !p.edge) return null;
-  const hit = fogCache.get(p.key);
+  const key = t === TILE ? p.key : `${t}@${p.key}`;
+  const hit = fogCache.get(key);
   if (hit) return hit;
-  const out = new Surface(TILE, TILE);
-  for (let j = 0; j < TILE; j++)
-    for (let i = 0; i < TILE; i++) {
-      const u = (i + 0.5) / TILE;
-      const v = (j + 0.5) / TILE;
-      out.data[j * TILE + i] = fogLevel(p, u, v, FOG_EDGE) <= BAYER[(j & 3) * 4 + (i & 3)]! ? SPRITE_CLEAR : C.BLACK!;
+  const out = new Surface(t, t);
+  for (let j = 0; j < t; j++)
+    for (let i = 0; i < t; i++) {
+      const u = (i + 0.5) / t;
+      const v = (j + 0.5) / t;
+      out.data[j * t + i] = fogLevel(p, u, v, FOG_EDGE) <= BAYER[(j & 3) * 4 + (i & 3)]! ? SPRITE_CLEAR : C.BLACK!;
     }
   if (fogCache.size > 4096) fogCache.clear();
-  fogCache.set(p.key, out);
+  fogCache.set(key, out);
   return out;
 }
 
@@ -294,31 +339,32 @@ const unseenCache = new Map<string, Uint8Array | "all">();
  * where the seen squares beside it clear a ragged way in (`clearingPatch`),
  * dithered as the fog's edge is.
  */
-export function unseenSquare(map: WorldMap, visible: Explored, x: number, y: number): Uint8Array | "all" | null {
+export function unseenSquare(map: WorldMap, visible: Explored, x: number, y: number, t = TILE): Uint8Array | "all" | null {
   if (y < 0 || y >= map.height) return null;
   if (visible[y * map.width + (((x % map.width) + map.width) % map.width)]) return null;
   const p = clearingPatch(map, visible, x, y);
   if (!p.edge) return "all";
-  const hit = unseenCache.get(p.key);
+  const key = t === TILE ? p.key : `${t}@${p.key}`;
+  const hit = unseenCache.get(key);
   if (hit) return hit;
-  const out = new Uint8Array(TILE * TILE);
-  for (let j = 0; j < TILE; j++)
-    for (let i = 0; i < TILE; i++)
-      out[j * TILE + i] = fogLevel(p, (i + 0.5) / TILE, (j + 0.5) / TILE, FOG_EDGE) > BAYER[(j & 3) * 4 + (i & 3)]! ? 0 : 1;
+  const out = new Uint8Array(t * t);
+  for (let j = 0; j < t; j++)
+    for (let i = 0; i < t; i++)
+      out[j * t + i] = fogLevel(p, (i + 0.5) / t, (j + 0.5) / t, FOG_EDGE) > BAYER[(j & 3) * 4 + (i & 3)]! ? 0 : 1;
   if (unseenCache.size > 4096) unseenCache.clear();
-  unseenCache.set(p.key, out);
+  unseenCache.set(key, out);
   return out;
 }
 
 /** Shades what is drawn on the square at (dx, dy) through `UNSEEN`, where `mask` (from `unseenSquare`) says it is out of sight. */
-export function shadeUnseen(s: Surface, dx: number, dy: number, mask: Uint8Array | "all"): void {
+export function shadeUnseen(s: Surface, dx: number, dy: number, mask: Uint8Array | "all", t = TILE): void {
   const k = s.k;
-  for (let j = 0; j < TILE; j++) {
+  for (let j = 0; j < t; j++) {
     const y = dy + j;
     if (y < 0 || y >= s.height) continue;
-    for (let i = 0; i < TILE; i++) {
+    for (let i = 0; i < t; i++) {
       const x = dx + i;
-      if (x < 0 || x >= s.width || (mask !== "all" && !mask[j * TILE + i])) continue;
+      if (x < 0 || x >= s.width || (mask !== "all" && !mask[j * t + i])) continue;
       let o = y * k * s.fw + x * k;
       for (let b = 0; b < k; b++, o += s.fw) for (let a = 0; a < k; a++) s.data[o + a] = UNSEEN[s.data[o + a]!]!;
     }

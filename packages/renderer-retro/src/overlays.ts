@@ -4,7 +4,7 @@ import { drawIcon, drawIconFine, iconInk } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, PLAYER_COLORS, shade } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
-import { FINE, isWater, TILE, WATER } from "./tiles.js";
+import { FINE, isWater, stretchSquare, TILE, WATER } from "./tiles.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sprites/index.js";
 
@@ -66,18 +66,20 @@ const wayCache = new Map<string, WayPixels>();
  * steel rail either side, bright on top and shadowed outside, the sleepers spaced evenly along each
  * course so they meet the next square's. A road square with no links is a round patch.
  */
-function wayPixels(ways: RoadWays, x: number, y: number, rail: boolean): WayPixels {
-  const key = `${rail ? "r" : "w"}${ways.key}`;
+function wayPixels(ways: RoadWays, x: number, y: number, rail: boolean, t = TILE): WayPixels {
+  const key = `${rail ? "r" : "w"}${t === TILE ? "" : t}${ways.key}`;
   const hit = wayCache.get(key);
   if (hit) return hit;
-  const kinds = new Uint8Array(FINE * FINE);
-  const seams = new Uint8Array(FINE * FINE);
-  const sprite = Surface.fine(TILE, TILE);
+  // Laid a fine pixel at a time at the square's size (`t`), widths and spacings in the original's fine pixels (FINE a square).
+  const F = t * DETAIL;
+  const kinds = new Uint8Array(F * F);
+  const seams = new Uint8Array(F * F);
+  const sprite = Surface.fine(t, t);
   sprite.fill(SPRITE_CLEAR);
-  for (let j = 0; j < FINE; j++)
-    for (let i = 0; i < FINE; i++) {
-      const u = (i + 0.5) / FINE;
-      const v = (j + 0.5) / FINE;
+  for (let j = 0; j < F; j++)
+    for (let i = 0; i < F; i++) {
+      const u = (i + 0.5) / F;
+      const v = (j + 0.5) / F;
       let d = Infinity;
       let along = 0;
       let gap = SLEEPER_GAP;
@@ -89,7 +91,7 @@ function wayPixels(ways: RoadWays, x: number, y: number, rail: boolean): WayPixe
         gap = (g.length * FINE) / Math.max(1, Math.round((g.length * FINE) / SLEEPER_GAP));
       }
       if (ways.patch) d = Math.max(0, Math.hypot(u - ways.patch[0], v - ways.patch[1]) * FINE - 2.5);
-      const grain = hash(x * FINE + i, y * FINE + j, 7);
+      const grain = hash(x * F + i, y * F + j, 7);
       let k = Way.None;
       if (rail) {
         const onSleeper = Math.abs(along / gap - Math.round(along / gap)) * gap < 1;
@@ -99,8 +101,8 @@ function wayPixels(ways: RoadWays, x: number, y: number, rail: boolean): WayPixe
       } else if (d < ROAD.crown) k = grain < 0.06 ? Way.Pebble : Way.Crown;
       else if (d < ROAD.fill) k = grain < 0.06 ? Way.Speck : grain > 0.96 ? Way.Pebble : Way.Edge;
       else if (d < ROAD.outline) k = Way.Outline;
-      kinds[j * FINE + i] = k;
-      seams[j * FINE + i] = Math.floor(along) % PLANK_GAP === 0 ? 1 : 0;
+      kinds[j * F + i] = k;
+      seams[j * F + i] = Math.floor(along) % PLANK_GAP === 0 ? 1 : 0;
       if (LAND_WAY[k] >= 0) sprite.fset(i, j, LAND_WAY[k]);
     }
   const out = { kinds, seams, sprite };
@@ -114,31 +116,32 @@ function wayPixels(ways: RoadWays, x: number, y: number, rail: boolean): WayPixe
  * drawn beneath). Where a river's water runs under it the road is a bridge: a timber deck, its planks
  * across the way, railed in dark wood; elsewhere water stays water (a shore the course brushes).
  */
-export function drawRoad(s: Surface, dx: number, dy: number, map: WorldMap, explored: Explored, x: number, y: number, ground?: Surface): void {
+export function drawRoad(s: Surface, dx: number, dy: number, map: WorldMap, explored: Explored, x: number, y: number, ground?: Surface, t = TILE): void {
   const ways = roadWays(map, explored, x, y);
   if (!ways) return;
-  const { kinds, seams, sprite } = wayPixels(ways, x, y, false);
-  const wet = ground && ground.k === DETAIL && hasWater(ground) ? ground : null;
+  const { kinds, seams, sprite } = wayPixels(ways, x, y, false, t);
+  const F = t * DETAIL;
+  const wet = ground && ground.k === DETAIL && ground.width === t && hasWater(ground) ? ground : null;
   if (!wet || !map.tiles[y * map.width + x]?.river) {
     if (!wet) { s.blit(sprite, dx, dy, SPRITE_CLEAR); return; }
     // Off the river, the road keeps to dry land: water under its course stays water.
-    for (let j = 0; j < FINE; j++)
-      for (let i = 0; i < FINE; i++) {
-        const k = kinds[j * FINE + i]!;
+    for (let j = 0; j < F; j++)
+      for (let i = 0; i < F; i++) {
+        const k = kinds[j * F + i]!;
         if (LAND_WAY[k as Way] >= 0 && !isWater(wet.fget(i, j))) s.fset(dx * s.k + i, dy * s.k + j, LAND_WAY[k as Way]);
       }
     return;
   }
   // Over a river: the deck is the road's width; its planks run across it, its outline is the railing.
   const deck = (i: number, j: number) => isWater(wet.fget(i, j));
-  for (let j = 0; j < FINE; j++)
-    for (let i = 0; i < FINE; i++) {
-      const k = kinds[j * FINE + i]! as Way;
+  for (let j = 0; j < F; j++)
+    for (let i = 0; i < F; i++) {
+      const k = kinds[j * F + i]! as Way;
       if (k === Way.None) continue;
       let c = LAND_WAY[k];
-      if (deck(i, j) || (k === Way.Outline && neighbourWet(deck, i, j))) {
+      if (deck(i, j) || (k === Way.Outline && neighbourWet(deck, i, j, F))) {
         if (k === Way.Outline) c = DECK.rail;
-        else c = seams[j * FINE + i] ? DECK.seam : DECK.plank;
+        else c = seams[j * F + i] ? DECK.seam : DECK.plank;
       }
       if (c >= 0) s.fset(dx * s.k + i, dy * s.k + j, c);
     }
@@ -150,27 +153,27 @@ function hasWater(ground: Surface): boolean {
   let w = watery.get(ground);
   if (w === undefined) {
     w = false;
-    for (let j = 0; j < FINE && !w; j++) for (let i = 0; i < FINE; i++) if (isWater(ground.fget(i, j))) { w = true; break; }
+    for (let j = 0; j < ground.fh && !w; j++) for (let i = 0; i < ground.fw; i++) if (isWater(ground.fget(i, j))) { w = true; break; }
     watery.set(ground, w);
   }
   return w;
 }
 
 /** Whether a fine pixel beside (i, j), side or corner, is water. */
-function neighbourWet(wet: (i: number, j: number) => boolean, i: number, j: number): boolean {
+function neighbourWet(wet: (i: number, j: number) => boolean, i: number, j: number, F = FINE): boolean {
   for (let b = -1; b <= 1; b++)
     for (let a = -1; a <= 1; a++) {
       const ni = i + a;
       const nj = j + b;
-      if ((a || b) && ni >= 0 && nj >= 0 && ni < FINE && nj < FINE && wet(ni, nj)) return true;
+      if ((a || b) && ni >= 0 && nj >= 0 && ni < F && nj < F && wet(ni, nj)) return true;
     }
   return false;
 }
 
 /** The railroad across square (x, y), over its road. */
-export function drawRailroad(s: Surface, dx: number, dy: number, map: WorldMap, explored: Explored, x: number, y: number): void {
+export function drawRailroad(s: Surface, dx: number, dy: number, map: WorldMap, explored: Explored, x: number, y: number, t = TILE): void {
   const ways = roadWays(map, explored, x, y, true);
-  if (ways) s.blit(wayPixels(ways, x, y, true).sprite, dx, dy, SPRITE_CLEAR);
+  if (ways) s.blit(wayPixels(ways, x, y, true, t).sprite, dx, dy, SPRITE_CLEAR);
 }
 
 /**
@@ -381,20 +384,20 @@ export function drawShield(s: Surface, dx: number, dy: number, x: number, y: num
  * The unit's rank on the map: its gold chevrons (the rank's icon, one chevron a rank) in the square's
  * top right corner, standing a fine pixel in from the edges. A recruit wears none.
  */
-export function drawRankMark(s: Surface, dx: number, dy: number, xp: number): void {
+export function drawRankMark(s: Surface, dx: number, dy: number, xp: number, t = TILE): void {
   const icon = rankIcon(xp);
   if (!icon) return;
   const ink = iconInk(icon);
   const f = s.k / DETAIL;
-  drawIconFine(s, icon, dx * s.k + Math.round((TILE * DETAIL - 1 - ink.x - ink.w) * f), dy * s.k + Math.round((1 - ink.y) * f));
+  drawIconFine(s, icon, dx * s.k + Math.round((t * DETAIL - 1 - ink.x - ink.w) * f), dy * s.k + Math.round((1 - ink.y) * f));
 }
 
 /** Where `drawRankMark` puts a rank's chevrons on the square at (dx, dy), in screen pixels; null for a recruit. */
-function rankMarkBox(dx: number, dy: number, xp: number): ArtBox | null {
+function rankMarkBox(dx: number, dy: number, xp: number, t = TILE): ArtBox | null {
   const icon = rankIcon(xp);
   if (!icon) return null;
   const ink = iconInk(icon);
-  return { x: dx + (TILE * DETAIL - 1 - ink.w) / DETAIL, y: dy + 1 / DETAIL, w: ink.w / DETAIL, h: ink.h / DETAIL };
+  return { x: dx + (t * DETAIL - 1 - ink.w) / DETAIL, y: dy + 1 / DETAIL, w: ink.w / DETAIL, h: ink.h / DETAIL };
 }
 
 /** The shield's rows at (x, y) of the square at (dx, dy), in its fine grid, as boxes in screen pixels (each run of rows alike one box). */
@@ -425,12 +428,12 @@ export function hpBarBox(dx: number, dy: number): ArtBox {
  * rank, and what it is doing (fortified, on sentry, at work or camped). A picture laid over the square
  * leaves them showing (`ArtSpot.holes`).
  */
-function markBoxes(u: Pick<Unit, "order"> & { xp?: number }, dx: number, dy: number, stacked: boolean): ArtBox[] {
+function markBoxes(u: Pick<Unit, "order"> & { xp?: number }, dx: number, dy: number, stacked: boolean, t = TILE): ArtBox[] {
   const out = shieldHoles(dx, dy, stacked);
-  if (u.order.kind === "fortified") out.push({ x: dx, y: dy, w: TILE, h: 1 }, { x: dx, y: dy + TILE - 1, w: TILE, h: 1 }, { x: dx, y: dy, w: 1, h: TILE }, { x: dx + TILE - 1, y: dy, w: 1, h: TILE });
-  else if (u.order.kind === "sentry") out.push({ x: dx + 4, y: dy + 15, w: 8, h: 1 });
-  else if (u.order.kind === "work" || u.order.kind === "camp") out.push({ x: dx + 7, y: dy, w: 9, h: 9 });
-  const rank = u.order.kind !== "work" && u.order.kind !== "camp" && u.xp ? rankMarkBox(dx, dy, u.xp) : null;
+  if (u.order.kind === "fortified") out.push({ x: dx, y: dy, w: t, h: 1 }, { x: dx, y: dy + t - 1, w: t, h: 1 }, { x: dx, y: dy, w: 1, h: t }, { x: dx + t - 1, y: dy, w: 1, h: t });
+  else if (u.order.kind === "sentry") out.push(sentryLine(dx, dy, t));
+  else if (u.order.kind === "work" || u.order.kind === "camp") out.push({ x: dx + t - 9, y: dy, w: 9, h: 9 });
+  const rank = u.order.kind !== "work" && u.order.kind !== "camp" && u.xp ? rankMarkBox(dx, dy, u.xp, t) : null;
   if (rank) out.push(rank);
   return out;
 }
@@ -440,9 +443,14 @@ function markBoxes(u: Pick<Unit, "order"> & { xp?: number }, dx: number, dy: num
  * the apps lay over the canvas as it is (`Surface.art`), else its sprite. `spot` adds to the spot (holes
  * for the marks drawn there, the room it shows in, dimmed, lit).
  */
-export function drawUnitFigure(s: Surface, type: string, x: number, y: number, color: number, spot: Partial<ArtSpot> = {}): void {
-  if (unitArt(type)) s.art.push({ id: type, unit: true, x, y, w: TILE, h: TILE, owner: color, ...spot });
-  else s.blit(unitSprite(type, color), x, y, SPRITE_CLEAR);
+export function drawUnitFigure(s: Surface, type: string, x: number, y: number, color: number, spot: Partial<ArtSpot> = {}, t = TILE): void {
+  if (unitArt(type)) s.art.push({ id: type, unit: true, x, y, w: t, h: t, owner: color, ...spot });
+  else s.blit(stretchSquare(unitSprite(type, color), t), x, y, SPRITE_CLEAR);
+}
+
+/** The line along a sentry's foot, on a square `t` pixels a side. */
+function sentryLine(dx: number, dy: number, t: number): ArtBox {
+  return { x: dx + Math.round(t / 4), y: dy + t - 1, w: t >> 1, h: 1 };
 }
 
 /**
@@ -481,10 +489,10 @@ export function rankHoles(x: number, y: number, xp: number): ArtBox[] {
  * unit's, `UnitAnimator`), `flip` facing left (`UnitFacing`), `glow` how bright a faint gold glow round it is and `opacity` how much of its picture shows (the unit in play), its
  * marks drawn on the canvas showing through it (a wounded unit's hit points lie on its shield).
  */
-export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean, picture?: { room: ArtBox; lit?: boolean; frame?: number | undefined; flip?: boolean | undefined; glow?: number | undefined; opacity?: number | undefined }): void {
-  if (picture && unitArt(u.type)) drawUnitFigure(s, u.type, dx, dy, color, { clip: picture.room, holes: markBoxes(u, dx, dy, stacked), ...(picture.lit ? { lit: true } : {}), ...(picture.frame !== undefined ? { frame: picture.frame } : {}), ...(picture.flip ? { flip: true } : {}), ...(picture.glow ? { contour: picture.glow } : {}), ...(picture.opacity !== undefined && picture.opacity < 1 ? { opacity: picture.opacity } : {}) });
+export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: number }, dx: number, dy: number, color: number, stacked: boolean, picture?: { room: ArtBox; lit?: boolean; frame?: number | undefined; flip?: boolean | undefined; glow?: number | undefined; opacity?: number | undefined }, t = TILE): void {
+  if (picture && unitArt(u.type)) drawUnitFigure(s, u.type, dx, dy, color, { clip: picture.room, holes: markBoxes(u, dx, dy, stacked, t), ...(picture.lit ? { lit: true } : {}), ...(picture.frame !== undefined ? { frame: picture.frame } : {}), ...(picture.flip ? { flip: true } : {}), ...(picture.glow ? { contour: picture.glow } : {}), ...(picture.opacity !== undefined && picture.opacity < 1 ? { opacity: picture.opacity } : {}) }, t);
   else {
-    const sprite = unitSprite(u.type, color);
+    const sprite = stretchSquare(unitSprite(u.type, color), t);
     if (picture?.glow) drawContour(s, sprite, dx, dy, picture.glow);
     s.blit(sprite, dx, dy, SPRITE_CLEAR);
   }
@@ -492,16 +500,17 @@ export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: nu
   if (stacked) drawShield(s, dx, dy, SHIELD_AT + STACK_SHIFT, SHIELD_AT + STACK_SHIFT, darker(color), darker(color), -1);
   drawShield(s, dx, dy, SHIELD_AT, SHIELD_AT, color, darker(color));
   if (u.order.kind === "fortified") {
-    s.frame(dx, dy, TILE, TILE, shade("stone", 6));
+    s.frame(dx, dy, t, t, shade("stone", 6));
   } else if (u.order.kind === "sentry") {
-    s.hline(dx + 4, dy + 15, 8, C.WHITE!);
+    const line = sentryLine(dx, dy, t);
+    s.hline(line.x, line.y, line.w, C.WHITE!);
   } else if (u.order.kind === "work" || u.order.kind === "camp") {
     // A settler at work wears a badge of its job in the top right corner; a unit camped to heal, a heart.
-    s.rect(dx + 7, dy, 9, 9, C.BLACK!);
-    drawIcon(s, u.order.kind === "camp" ? "heart" : WORK_ICON[u.order.work], dx + 8, dy);
+    s.rect(dx + t - 9, dy, 9, 9, C.BLACK!);
+    drawIcon(s, u.order.kind === "camp" ? "heart" : WORK_ICON[u.order.work], dx + t - 8, dy);
   }
   // Its rank there otherwise.
-  if (u.order.kind !== "work" && u.order.kind !== "camp" && u.xp) drawRankMark(s, dx, dy, u.xp);
+  if (u.order.kind !== "work" && u.order.kind !== "camp" && u.xp) drawRankMark(s, dx, dy, u.xp, t);
 }
 
 /**
@@ -517,8 +526,8 @@ export function drawHpBar(s: Surface, dx: number, dy: number, hp: number, max: n
 }
 
 /** The unit as a white silhouette: the flash of a blow landing on it. */
-export function drawUnitFlash(s: Surface, type: string, color: number, dx: number, dy: number): void {
-  const sprite = unitSprite(type, color);
+export function drawUnitFlash(s: Surface, type: string, color: number, dx: number, dy: number, t = TILE): void {
+  const sprite = stretchSquare(unitSprite(type, color), t);
   const flash = new Surface(sprite.width, sprite.height, undefined, sprite.k);
   for (let i = 0; i < sprite.data.length; i++) flash.data[i] = sprite.data[i] === SPRITE_CLEAR ? SPRITE_CLEAR : C.WHITE!;
   s.blit(flash, dx, dy, SPRITE_CLEAR);
@@ -530,13 +539,13 @@ function disc(s: Surface, cx: number, cy: number, r: number, color: number): voi
 }
 
 /** The end of a beaten unit, centred on (cx, cy), t from 0 to 1: a white-hot flash, flames flying out, then smoke. */
-export function drawBurst(s: Surface, cx: number, cy: number, t: number): void {
-  const core = Math.round((1 - t) * 6);
+export function drawBurst(s: Surface, cx: number, cy: number, t: number, scale = 1): void {
+  const core = Math.round((1 - t) * 6 * scale);
   if (core > 0) disc(s, cx, cy, core, t < 0.2 ? C.WHITE! : t < 0.45 ? C.YELLOW! : C.ORANGE!);
   const flame = t < 0.3 ? C.YELLOW! : t < 0.6 ? C.ORANGE! : t < 0.8 ? C.LRED! : C.DGREY!;
   const ember = t < 0.5 ? C.LRED! : C.DGREY!;
-  const r = 2 + t * 10;
-  const size = t < 0.6 ? 2 : 1;
+  const r = (2 + t * 10) * scale;
+  const size = Math.round((t < 0.6 ? 2 : 1) * scale);
   for (let k = 0; k < 14; k++) {
     const a = (k / 14) * Math.PI * 2 + (k % 3) * 0.35;
     const d = r * (0.5 + ((k * 7) % 5) * 0.12);
@@ -550,16 +559,16 @@ export function drawBurst(s: Surface, cx: number, cy: number, t: number): void {
  * one pixel past the corner where it rounds an inner corner, and a dotted line
  * of the darker shade just inside it.
  */
-export function drawBorderSide(s: Surface, dx: number, dy: number, side: number, startOut: boolean, endOut: boolean, color: number, inner: number): void {
+export function drawBorderSide(s: Surface, dx: number, dy: number, side: number, startOut: boolean, endOut: boolean, color: number, inner: number, size = TILE): void {
   const a = startOut ? -1 : 0;
-  const b = endOut ? 16 : 15;
+  const b = endOut ? size : size - 1;
   const across = side === 0 || side === 2;
-  const edge = side === 0 || side === 3 ? 0 : 15;
-  const inside = edge === 0 ? 1 : 14;
+  const edge = side === 0 || side === 3 ? 0 : size - 1;
+  const inside = edge === 0 ? 1 : size - 2;
   for (let t = a; t <= b; t++) {
     if (across) s.set(dx + t, dy + edge, color);
     else s.set(dx + edge, dy + t, color);
-    if (t < 1 || t > 14 || (t + inside) & 1) continue;
+    if (t < 1 || t > size - 2 || (t + inside) & 1) continue;
     if (across) s.set(dx + t, dy + inside, inner);
     else s.set(dx + inside, dy + t, inner);
   }

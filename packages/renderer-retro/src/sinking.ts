@@ -33,8 +33,8 @@ type Clip = { x0: number; y0: number; x1: number; y1: number };
  * The ship of `type` sinking at `t` (0..1) on the square whose top left is screen (sx, sy), in its owner's
  * `color`, a second shield behind for its cargo (`stacked`), on the map's view from (`left`, `top`) on.
  */
-export function drawSinking(s: Surface, sx: number, sy: number, type: string, color: number, stacked: boolean, t: number, left = 0, top = 0, flip = false): void {
-  if (unitArt(type)) { sinkPicture(s, sx, sy, type, color, stacked, t, left, top, flip); return; }
+export function drawSinking(s: Surface, sx: number, sy: number, type: string, color: number, stacked: boolean, t: number, left = 0, top = 0, flip = false, size = 16): void {
+  if (unitArt(type)) { sinkPicture(s, sx, sy, type, color, stacked, t, left, top, flip, size); return; }
   const k = s.k;
   const n = 16 * k;
   const clip: Clip = { x0: left * k, y0: top * k, x1: s.fw, y1: s.fh };
@@ -102,9 +102,9 @@ function motion(t: number, height: number, half: number): { tip: number; drop: n
  * about its foot and let down under its waterline; the shield stays on the water, shown through it, while it
  * rocks; foam along the waterline as it goes in, then the rings and bubbles.
  */
-function sinkPicture(s: Surface, sx: number, sy: number, type: string, color: number, stacked: boolean, t: number, left: number, top: number, flip: boolean): void {
+function sinkPicture(s: Surface, sx: number, sy: number, type: string, color: number, stacked: boolean, t: number, left: number, top: number, flip: boolean, size: number): void {
   const k = s.k;
-  const place = unitArtPlace({ id: type, unit: true, x: sx, y: sy, w: 16, h: 16 })!;
+  const place = unitArtPlace({ id: type, unit: true, x: sx, y: sy, w: size, h: size })!;
   const water = place.y + place.h;
   const room = { x: left, y: top, w: s.width - left, h: s.height - top };
   const put = (x: number, y: number, c: number) => {
@@ -117,7 +117,7 @@ function sinkPicture(s: Surface, sx: number, sy: number, type: string, color: nu
     const m = motion(t, place.h * k, (place.w * k) / 2);
     const afloat = t < ROCK;
     s.art.push({
-      id: type, unit: true, x: sx + m.sway / k, y: sy + m.drop / k, w: 16, h: 16, clip: room,
+      id: type, unit: true, x: sx + m.sway / k, y: sy + m.drop / k, w: size, h: size, clip: room,
       turn: (-Math.atan(m.tip) * 180) / Math.PI,
       // Facing left it goes down mirrored, its stern (now on the right) first.
       ...(flip ? { flip: true } : {}),

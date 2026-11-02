@@ -7,7 +7,7 @@ import { encodePng } from "./png.js";
 import { ACTIVE_BLINK, ACTIVE_GLOW, activeOpacity, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
-import { DETAIL, FINE, isWater, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
+import { DETAIL, FINE, isWater, setMapTile, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomedTiles } from "../src/index.js";
 import { CITY_BOXES } from "../src/index.js";
 
 describe("retro renderer", () => {
@@ -150,6 +150,27 @@ describe("retro renderer", () => {
     for (let x = 320; x < 400; x++) if (wide.get(x, 100) !== C.BLACK) mapBeyond++;
     expect(mapBeyond).toBeGreaterThan(0);
     writeFileSync(new URL("./out/main-screen-wide.png", import.meta.url), encodePng(wide, 3));
+
+    // Larger squares (`MAP_TILE`, a trial of 2026-11-02): fewer of them on view, each square's terrain worked
+    // out at its size (a plain one the original's picture stretched), the pictures of units laid over squares
+    // that size; the menu bar as it was.
+    setMapTile(24);
+    try {
+      const big = Surface.screen();
+      drawMainScreen(big, state, { ...view, placeNames: false });
+      expect(zoomedTiles(1)).toEqual({ x: 10, y: 8 });
+      expect(viewAcross(400)).toBe(14);
+      expect(big.data.subarray(0, VIEW_Y * DETAIL * big.fw)).toEqual(flat.data.subarray(0, VIEW_Y * DETAIL * flat.fw));
+      // (The panel's unit box keeps its own size.)
+      const pictures = big.art.filter((a) => a.unit && a.x >= VIEW_X);
+      expect(pictures.length).toBeGreaterThan(0);
+      expect(pictures.every((a) => a.w === 24 && a.h === 24 && (a.x - VIEW_X) % 24 === 0)).toBe(true);
+      const sq = terrainSquare(state.map, u.x, u.y, state.players[0]!.explored, 24);
+      expect([sq.width, sq.fw]).toEqual([24, 48]);
+      writeFileSync(new URL("./out/main-screen-24.png", import.meta.url), encodePng(big, 3));
+    } finally {
+      setMapTile(16);
+    }
 
     // A long message wraps inside the panel and never crosses into the map.
     view.message = "Trade route Rome-Capua: +45 gold and science, a long message that must wrap";

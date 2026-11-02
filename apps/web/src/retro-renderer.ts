@@ -63,12 +63,13 @@ import {
   researchHit,
   statusPanelAt,
   statusPartAt,
-  TILE,
+  MAP_TILE,
+  setMapTile,
+  viewAcross,
+  viewDown,
   tileToScreen,
   unzoomPoint,
   viewZoom,
-  VIEW_TILES_X,
-  VIEW_TILES_Y,
   VIEW_H,
   VIEW_W,
   VIEW_X,
@@ -93,13 +94,15 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
   /** The user's pictures this frame shows (`showPictures` lays them over the canvas as the frame is presented). */
   let pictures: PicturePlace[] = [];
   const screenBox = { logicalW: SCREEN_W, logicalH: SCREEN_H };
+  // A trial of bigger map squares (`MAP_TILE`, 2026-11-02): 24 pixels a side unless the page asks otherwise (?tile=16, the original's).
+  setMapTile(Number(new URLSearchParams(location.search).get("tile")) || 24);
   return {
     id: "retro",
     width: SCREEN_W,
     height: SCREEN_H,
     density: DETAIL,
-    viewTilesX: VIEW_TILES_X,
-    viewTilesY: VIEW_TILES_Y,
+    get viewTilesX() { return viewAcross(SCREEN_W); },
+    get viewTilesY() { return viewDown(); },
     mapView: { x: VIEW_X, y: VIEW_Y, width: VIEW_W, height: VIEW_H },
     researchListRows: RESEARCH_LIST_ROWS,
     beginFrame() {
@@ -200,16 +203,16 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       const p = tileToScreen(state, view, x, y);
       if (!p) return null;
       const z = viewZoom(view);
-      const r = { x: VIEW_X + (p[0] - VIEW_X) * z, y: VIEW_Y + (p[1] - VIEW_Y) * z, w: TILE * z, h: TILE * z };
+      const r = { x: VIEW_X + (p[0] - VIEW_X) * z, y: VIEW_Y + (p[1] - VIEW_Y) * z, w: MAP_TILE * z, h: MAP_TILE * z };
       return r.x < VIEW_X + VIEW_W && r.y < VIEW_Y + VIEW_H ? r : null;
     },
     tileAt(state: GameState, view: MainScreenView, px, py) {
       [px, py] = unzoomPoint(view, px, py);
       if (px < VIEW_X || py < VIEW_Y) return null;
       const [ox, oy] = panOffset(view);
-      const ty = view.originY + Math.floor((py - VIEW_Y + oy) / TILE);
+      const ty = view.originY + Math.floor((py - VIEW_Y + oy) / MAP_TILE);
       if (ty < 0 || ty >= state.map.height) return null;
-      return { x: wrapX(state.map, view.originX + Math.floor((px - VIEW_X + ox) / TILE)), y: ty };
+      return { x: wrapX(state.map, view.originX + Math.floor((px - VIEW_X + ox) / MAP_TILE)), y: ty };
     },
     researchHit: (state, view, px, py) => researchHit(state, view, px, py),
     statusAt: (state, view, px, py) => statusPanelAt(state, px, py, view),

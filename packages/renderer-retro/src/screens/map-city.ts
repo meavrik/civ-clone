@@ -5,7 +5,7 @@ import { drawShield, SHIELD_AT, shieldHoles } from "../overlays.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { CITY_SHEET, darker, FEATURE_SHEET, spriteSurface } from "../sprites/index.js";
 import type { Surface } from "../surface.js";
-import { TILE } from "../tiles.js";
+import { stretchSquare, TILE } from "../tiles.js";
 
 /**
  * City marker on the map, as fine as the terrain: the city's icon for its age and size (`cityLook`,
@@ -17,9 +17,11 @@ import { TILE } from "../tiles.js";
  * picture (`Surface.art`; the apps lay it there as it is, over the canvas) in place of the icon, the front of
  * the walls and the shield showing through it; the spot is returned, for what the screen draws over it later.
  */
-export function drawCity(s: Surface, dx: number, dy: number, city: City, look: { era: CityEra; tier: CityTier }, color: number, garrisoned = false, picture?: { room: ArtBox }): ArtSpot | null {
+export function drawCity(s: Surface, dx: number, dy: number, city: City, look: { era: CityEra; tier: CityTier }, color: number, garrisoned = false, picture?: { room: ArtBox }, t = TILE): ArtSpot | null {
   const walled = city.buildings.includes("city_walls");
-  const sprite = (name: string) => spriteSurface(FEATURE_SHEET, name, color);
+  // Drawn at the original's size, laid on a larger square stretched (`MAP_TILE`).
+  const sized = (sprite: Surface | null) => (sprite ? stretchSquare(sprite, t) : null);
+  const sprite = (name: string) => sized(spriteSurface(FEATURE_SHEET, name, color));
   const back = walled ? sprite("walls") : null;
   if (back) s.blit(back, dx, dy, SPRITE_CLEAR);
   const id = `${look.era}-${look.tier}`;
@@ -27,10 +29,10 @@ export function drawCity(s: Surface, dx: number, dy: number, city: City, look: {
   let spot: ArtSpot | null = null;
   if (picture && cityArt(id)) {
     const holes = [...(front ? spriteHoles(front, dx, dy) : []), ...(garrisoned ? shieldHoles(dx, dy, false) : [])];
-    spot = { id, city: true, x: dx, y: dy, w: TILE, h: TILE, clip: picture.room, ...(holes.length ? { holes } : {}) };
+    spot = { id, city: true, x: dx, y: dy, w: t, h: t, clip: picture.room, ...(holes.length ? { holes } : {}) };
     s.art.push(spot);
   } else {
-    const town = spriteSurface(CITY_SHEET, id, color);
+    const town = sized(spriteSurface(CITY_SHEET, id, color));
     if (town) s.blit(town, dx, dy, SPRITE_CLEAR);
   }
   if (front) s.blit(front, dx, dy, SPRITE_CLEAR);

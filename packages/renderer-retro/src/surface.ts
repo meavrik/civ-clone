@@ -157,6 +157,34 @@ export class Surface {
     }
   }
 
+  /**
+   * Blit `src` stretched to `w` x `h` pixels, its top left at pixel (dx, dy): each fine pixel here reads the
+   * source fine pixel under its centre (nearest, no smoothing), as a map square drawn at the original's size
+   * is laid on a larger square (`MAP_TILE`).
+   */
+  blitScaled(src: Surface, dx: number, dy: number, w: number, h: number, transparent = -1): void {
+    const k = this.k;
+    const tw = w * k;
+    const th = h * k;
+    const x0 = dx * k;
+    const y0 = dy * k;
+    const cols = new Int32Array(tw);
+    for (let x = 0; x < tw; x++) cols[x] = Math.floor(((x + 0.5) * src.fw) / tw);
+    for (let y = 0; y < th; y++) {
+      const ty = y0 + y;
+      if (ty < 0 || ty >= this.fh) continue;
+      const srow = Math.floor(((y + 0.5) * src.fh) / th) * src.fw;
+      const trow = ty * this.fw;
+      for (let x = 0; x < tw; x++) {
+        const tx = x0 + x;
+        if (tx < 0 || tx >= this.fw) continue;
+        const c = src.data[srow + cols[x]!]!;
+        if (c === transparent) continue;
+        this.data[trow + tx] = c;
+      }
+    }
+  }
+
   /** Blit a source as fine as this surface, its top left at fine pixel (fx, fy). */
   fblit(src: Surface, fx: number, fy: number, transparent = -1): void {
     for (let sy = 0; sy < src.fh; sy++) {

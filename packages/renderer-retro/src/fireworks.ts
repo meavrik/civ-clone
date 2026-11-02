@@ -58,13 +58,13 @@ type Clip = { x0: number; y0: number; x1: number; y1: number };
  * to the surface's edges; `cheer` stands under the city's name in large gold capitals from the first
  * burst on (over the bursts when the view's foot is near).
  */
-export function drawFireworks(s: Surface, sx: number, sy: number, t: number, color: number, dark: number, cheer?: string, left = 0, top = 0): void {
+export function drawFireworks(s: Surface, sx: number, sy: number, t: number, color: number, dark: number, cheer?: string, left = 0, top = 0, size = 16): void {
   const k = s.k;
   const clip: Clip = { x0: left * k, y0: top * k, x1: s.fw, y1: s.fh };
   // Dusk over the view, the city's square kept lit.
   const dusk = Math.min(1, t / DUSK);
   if (dusk > 0) {
-    const kx0 = sx * k, kx1 = (sx + 16) * k, ky0 = sy * k, ky1 = (sy + 16) * k;
+    const kx0 = sx * k, kx1 = (sx + size) * k, ky0 = sy * k, ky1 = (sy + size) * k;
     for (let y = clip.y0; y < clip.y1; y++) {
       const row = y * s.fw;
       const lit = y >= ky0 && y < ky1;
@@ -77,8 +77,8 @@ export function drawFireworks(s: Surface, sx: number, sy: number, t: number, col
     if (dusk >= 0.5) for (const a of s.art) if (a.x >= left && a.y >= top && (a.x !== sx || a.y !== sy)) a.dim = true;
   }
   // The square's middle, in fine pixels.
-  const cx = (sx + 8) * k;
-  const cy = (sy + 6) * k;
+  const cx = (sx + size / 2) * k;
+  const cy = (sy + (size * 3) / 8) * k;
   for (let i = 0; i < ROCKETS; i++) {
     const start = i * LAUNCH_GAP + hash(i, 1, 41) * 0.02;
     const el = t - start;
@@ -134,8 +134,8 @@ export function drawFireworks(s: Surface, sx: number, sy: number, t: number, col
   // The cheer, from the first burst on: under the city's name, clear of the bursts (over them near the view's foot).
   const words = cheer.toUpperCase();
   const w = textWidthLarge(words, 2);
-  const x = Math.max(left + 2, Math.min(s.width - w - 2, sx + 8 - (w >> 1)));
-  const below = sy + 16 + FONT_HEIGHT + 4;
+  const x = Math.max(left + 2, Math.min(s.width - w - 2, sx + (size >> 1) - (w >> 1)));
+  const below = sy + size + FONT_HEIGHT + 4;
   const y = below + 2 * FONT_HEIGHT + 2 <= s.height ? below : Math.max(top + 2, sy - 88);
   drawTextLargeRinged(s, x, y, words, shade("wheat", 7), shade("hide", 0));
 }

@@ -27,7 +27,7 @@ import { drawSmallCaps, drawSpacedRinged, drawText, drawTextCentered, drawTextPl
 import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawShield, drawUnit, drawUnitFigure, drawUnitFlash, hpBarBox } from "../overlays.js";
 import { C, DIMMED, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
-import { drawHut, drawSpecial, fogSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
+import { drawHut, drawSpecial, fogSquare, MAP_TILE, onSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
 import { drawFishery } from "../fishery.js";
 import { drawRig } from "../rig.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
@@ -54,8 +54,14 @@ export const VIEW_X = PANEL_W;
 export const VIEW_Y = BAR_H;
 export const VIEW_W = SCREEN_W - PANEL_W; // 240 = 15 tiles
 export const VIEW_H = SCREEN_H - BAR_H; // 191 = 12 tiles (the last one cut)
+/** Squares across and down the view at the original's square size; at the map's own (`MAP_TILE`), `viewAcross` and `viewDown`. */
 export const VIEW_TILES_X = Math.ceil(VIEW_W / TILE);
 export const VIEW_TILES_Y = Math.ceil(VIEW_H / TILE);
+
+/** Squares (or part of one) down the view, at the map's square size. */
+export function viewDown(): number {
+  return Math.ceil(VIEW_H / MAP_TILE);
+}
 
 /**
  * The main screen may be drawn wider than the original's 320 (the mobile app fills a phone held
@@ -63,7 +69,7 @@ export const VIEW_TILES_Y = Math.ceil(VIEW_H / TILE);
  * shows more squares across. Everything below takes the width from the surface it draws on.
  */
 export function viewAcross(screenW: number): number {
-  return Math.ceil((screenW - PANEL_W) / TILE);
+  return Math.ceil((screenW - PANEL_W) / MAP_TILE);
 }
 
 const BAR_X0 = 6;
@@ -132,17 +138,17 @@ export function minimapColor(map: GameState["map"], x: number, y: number, explor
 /** Screen position of a map tile relative to the viewport, or null if off-screen. */
 /** Pixel shift of the whole viewport while the camera glides between tiles. */
 export function panOffset(view: MainScreenView): [number, number] {
-  return [Math.round((view.panX ?? 0) * TILE), Math.round((view.panY ?? 0) * TILE)];
+  return [Math.round((view.panX ?? 0) * MAP_TILE), Math.round((view.panY ?? 0) * MAP_TILE)];
 }
 
-export function tileToScreen(state: GameState, view: MainScreenView, x: number, y: number, across = VIEW_TILES_X): [number, number] | null {
+export function tileToScreen(state: GameState, view: MainScreenView, x: number, y: number, across = viewAcross(SCREEN_W)): [number, number] | null {
   const w = state.map.width;
   let tx = (((x - view.originX) % w) + w) % w;
   if (tx > w - 1) tx -= w; // a unit sliding out past the left edge, under the panel
   const ty = y - view.originY;
-  if (tx > across || ty <= -1 || ty > VIEW_TILES_Y) return null;
+  if (tx > across || ty <= -1 || ty > viewDown()) return null;
   const [ox, oy] = panOffset(view);
-  return [Math.round(VIEW_X + tx * TILE - ox), Math.round(VIEW_Y + ty * TILE - oy)];
+  return [Math.round(VIEW_X + tx * MAP_TILE - ox), Math.round(VIEW_Y + ty * MAP_TILE - oy)];
 }
 
 export function drawMapViewport(s: Surface, state: GameState, view: MainScreenView): void {
@@ -151,50 +157,61 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const [ox, oy] = panOffset(view);
   const across = viewAcross(s.width);
   const toScreen = (x: number, y: number) => tileToScreen(state, view, x, y, across);
+  // The squares' size (`MAP_TILE`): the original's 16 pixels, or larger to try bigger squares.
+  const T = MAP_TILE;
   // Fog goes on last, over the borders; borders over every square, as their corners reach into the next one.
   const fogs: [Surface, number, number][] = [];
   // Explored squares out of sight (core's `visible`: our land and a square beyond it, and round our units) are
   // shaded over their borders, under the fog; a city's square once the city is drawn, so the city is shaded too.
   const unseen: [Uint8Array | "all", number, number, number][] = [];
   const terr = view.borders ? territory(state) : null;
-  for (let ty = 0; ty <= VIEW_TILES_Y; ty++) {
+  for (let ty = 0; ty <= viewDown(); ty++) {
     const my = view.originY + ty;
-    const dy = VIEW_Y + ty * TILE - oy;
+    const dy = VIEW_Y + ty * MAP_TILE - oy;
     for (let tx = 0; tx <= across; tx++) {
       const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
-      const dx = VIEW_X + tx * TILE - ox;
+      const dx = VIEW_X + tx * MAP_TILE - ox;
       if (my < 0 || my >= map.height) {
-        s.rect(dx, dy, TILE, TILE, C.BLACK!);
+        s.rect(dx, dy, MAP_TILE, MAP_TILE, C.BLACK!);
         continue;
       }
       // Unexplored squares are black; the black drifts a little way into explored squares beside them.
-      const fog = fogSquare(map, me.explored, mx, my, view.lifting);
+      const fog = fogSquare(map, me.explored, mx, my, view.lifting, T);
       if (!me.explored[my * map.width + mx]) {
         s.blit(fog!, dx, dy);
         continue;
       }
       const tile = map.tiles[my * map.width + mx]!;
-      const ground = terrainSquare(map, mx, my, me.explored);
+      const ground = terrainSquare(map, mx, my, me.explored, T);
       s.blit(ground, dx, dy);
-      if (tile.irrigation) drawIrrigation(s, dx, dy, ground, tile.terrain, mx, my, fieldSides(map, me.explored, mx, my));
-      if (tile.grassShield && tile.terrain === Terrain.Grassland) drawGrassShield(s, dx, dy, ground);
+      // Fields are laid at the original's size (on its ground) and stretched over a larger square.
+      const shield = tile.grassShield && tile.terrain === Terrain.Grassland;
+      if (tile.irrigation || shield)
+        onSquare(s, dx, dy, T, (on, x, y) => {
+          const under = T === TILE ? ground : terrainSquare(map, mx, my, me.explored);
+          if (tile.irrigation) drawIrrigation(on, x, y, under, tile.terrain, mx, my, fieldSides(map, me.explored, mx, my));
+          if (shield) drawGrassShield(on, x, y, under);
+        });
       // Every square, as roads between two of its neighbours cut across its corners.
-      drawRoad(s, dx, dy, map, me.explored, mx, my, ground);
-      drawRailroad(s, dx, dy, map, me.explored, mx, my);
-      if (tile.mine) drawMine(s, dx, dy);
-      if (tile.special) drawSpecial(s, dx, dy, state, tile, state.currentPlayer);
-      if (tile.fishery) drawFishery(s, dx, dy);
-      if (tile.rig) drawRig(s, dx, dy);
-      if (tile.hut) drawHut(s, dx, dy);
-      if (tile.fortress) drawFortress(s, dx, dy);
-      if (tile.pollution) drawPollution(s, dx, dy);
+      drawRoad(s, dx, dy, map, me.explored, mx, my, ground, T);
+      drawRailroad(s, dx, dy, map, me.explored, mx, my, T);
+      if (tile.mine || tile.special || tile.fishery || tile.rig || tile.hut || tile.fortress || tile.pollution)
+        onSquare(s, dx, dy, T, (on, x, y) => {
+          if (tile.mine) drawMine(on, x, y);
+          if (tile.special) drawSpecial(on, x, y, state, tile, state.currentPlayer);
+          if (tile.fishery) drawFishery(on, x, y);
+          if (tile.rig) drawRig(on, x, y);
+          if (tile.hut) drawHut(on, x, y);
+          if (tile.fortress) drawFortress(on, x, y);
+          if (tile.pollution) drawPollution(on, x, y);
+        });
       if (fog) fogs.push([fog, dx, dy]);
-      const shaded = unseenSquare(map, me.visible, mx, my);
+      const shaded = unseenSquare(map, me.visible, mx, my, T);
       if (shaded) unseen.push([shaded, dx, dy, my * map.width + mx]);
     }
   }
   if (terr)
-    for (let ty = 0; ty <= VIEW_TILES_Y; ty++)
+    for (let ty = 0; ty <= viewDown(); ty++)
       for (let tx = 0; tx <= across; tx++) {
         const mx = (((view.originX + tx) % map.width) + map.width) % map.width;
         const my = view.originY + ty;
@@ -202,7 +219,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
         const owner = ownerAt(terr, mx, my);
         if (owner < 0) continue;
         const color = playerColor(state, owner);
-        for (const b of borderSides(terr, mx, my)) drawBorderSide(s, VIEW_X + tx * TILE - ox, VIEW_Y + ty * TILE - oy, b.side, b.startOut, b.endOut, color, darker(color));
+        for (const b of borderSides(terr, mx, my)) drawBorderSide(s, VIEW_X + tx * MAP_TILE - ox, VIEW_Y + ty * MAP_TILE - oy, b.side, b.startOut, b.endOut, color, darker(color), T);
       }
   // Cities on explored tiles. Foreign cities and units wait for fog lifting off their square to thin.
   const fogged = (idx: number, owner: number) => owner !== state.currentPlayer && (view.lifting?.get(idx) ?? 0) >= 0.5;
@@ -210,7 +227,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const founding = view.founding;
   const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner) && !(founding && c.x === founding.x && c.y === founding.y));
   const citySquares = new Set(shownCities.map((c) => c.y * map.width + c.x));
-  for (const [mask, dx, dy, idx] of unseen) if (!citySquares.has(idx)) shadeUnseen(s, dx, dy, mask);
+  for (const [mask, dx, dy, idx] of unseen) if (!citySquares.has(idx)) shadeUnseen(s, dx, dy, mask, T);
   for (const [fog, dx, dy] of fogs) s.blit(fog, dx, dy, SPRITE_CLEAR);
   // The names of the seas, lands and landforms on view, then of the civilizations whose land it is, over
   // the fog's edge, under the cities and units, each clear of the cities, their names and the names before it.
@@ -226,25 +243,25 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   for (const c of shownCities) {
     const idx = c.y * map.width + c.x;
     const pos = toScreen(c.x, c.y);
-    const spot = pos ? drawCity(s, pos[0], pos[1], c, cityLook(state, c), playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1), picture) : null;
+    const spot = pos ? drawCity(s, pos[0], pos[1], c, cityLook(state, c), playerColor(state, c.owner), held.has(idx) && (c.owner === state.currentPlayer || me.visible[idx] === 1), picture, T) : null;
     if (spot) cityPictures.set(idx, spot);
   }
   // The settlement going up, the settlers' own picture (their show's frame) where the city will stand.
   const foundAt = founding ? toScreen(founding.x, founding.y) : null;
-  if (founding && foundAt) drawUnitFigure(s, founding.id, foundAt[0], foundAt[1], playerColor(state, founding.owner), { clip: picture.room, frame: founding.frame });
+  if (founding && foundAt) drawUnitFigure(s, founding.id, foundAt[0], foundAt[1], playerColor(state, founding.owner), { clip: picture.room, frame: founding.frame }, T);
   for (const [mask, dx, dy, idx] of unseen)
     if (citySquares.has(idx)) {
-      shadeUnseen(s, dx, dy, mask);
+      shadeUnseen(s, dx, dy, mask, T);
       // A city's picture out of sight is shaded whole.
       const spot = cityPictures.get(idx);
       if (spot) spot.unseen = true;
     }
   // What is drawn over a city's square from here on (a unit's shield, a burst, a route's dot) shows over its picture.
-  const underCities = [...cityPictures.values()].map((spot) => ({ spot, copy: fineCopy(s, spot.x, spot.y, TILE, TILE) }));
+  const underCities = [...cityPictures.values()].map((spot) => ({ spot, copy: fineCopy(s, spot.x, spot.y, MAP_TILE, MAP_TILE) }));
   // Their names under them, as the original showed them; drawn before the units so no unit is hidden by a name.
   for (const c of shownCities) {
     const pos = toScreen(c.x, c.y);
-    if (pos) drawCityLabel(s, pos[0] + (TILE >> 1), pos[1] + TILE + 1, c.name, c.size, playerColor(state, c.owner), c.owner === state.currentPlayer ? cityMood(state, c) : null, c.owner !== state.currentPlayer);
+    if (pos) drawCityLabel(s, pos[0] + (MAP_TILE >> 1), pos[1] + MAP_TILE + 1, c.name, c.size, playerColor(state, c.owner), c.owner === state.currentPlayer ? cityMood(state, c) : null, c.owner !== state.currentPlayer);
   }
   // Settlers in play: pins on the best squares near them to found a city on (`settlerSites`), under the units.
   const active = shownActive(state, view);
@@ -264,7 +281,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // A planned move's route, under the units: a dot on each square on the way.
   if (view.plan) for (const [x, y] of view.plan.route.slice(0, -1)) {
     const pos = toScreen(x, y);
-    if (pos) drawRouteDot(s, pos[0] + (TILE >> 1), pos[1] + (TILE >> 1));
+    if (pos) drawRouteDot(s, pos[0] + (MAP_TILE >> 1), pos[1] + (MAP_TILE >> 1));
   }
 
   // Units: only those on tiles we currently see. Draw one per tile (top of stack).
@@ -294,8 +311,8 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     // The unit in play blinks smoothly (`view.opacity`), its picture fading, its shield, marks and hit points through
     // the dither, and a faint gold glow round its figure (`view.glow`).
     const fade = isActive && view.opacity !== undefined && view.opacity < 1 ? view.opacity : undefined;
-    const under = fade !== undefined ? fineCopy(s, pos[0] - 1, pos[1] - 1, TILE + 2, TILE + 2) : null;
-    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id], glow: isActive ? view.glow : undefined, opacity: fade });
+    const under = fade !== undefined ? fineCopy(s, pos[0] - 1, pos[1] - 1, MAP_TILE + 2, MAP_TILE + 2) : null;
+    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id], glow: isActive ? view.glow : undefined, opacity: fade }, T);
     const max = maxHp(state, top.type);
     if (top.hp < max) drawHpBar(s, pos[0], pos[1], top.hp, max);
     if (under && fade !== undefined) fadeOver(s, under, fade);
@@ -304,7 +321,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     if (m.aboard !== undefined) continue;
     const pos = toScreen(m.x, m.y);
     if (!pos) continue;
-    drawUnit(s, { type: m.type, order: { kind: "none" }, xp: state.units.find((u) => u.id === m.unit)?.xp ?? 0 }, pos[0], pos[1], playerColor(state, m.owner), m.stacked === true || moving.some((o) => o.aboard === m.unit), { ...picture, frame: view.unitFrames?.[m.unit], flip: view.facingLeft?.[m.unit] });
+    drawUnit(s, { type: m.type, order: { kind: "none" }, xp: state.units.find((u) => u.id === m.unit)?.xp ?? 0 }, pos[0], pos[1], playerColor(state, m.owner), m.stacked === true || moving.some((o) => o.aboard === m.unit), { ...picture, frame: view.unitFrames?.[m.unit], flip: view.facingLeft?.[m.unit] }, T);
     const hp = m.hp ?? state.units.find((u) => u.id === m.unit)?.hp;
     const max = m.maxHp ?? maxHp(state, m.type);
     if (hp !== undefined && hp < max) drawHpBar(s, pos[0], pos[1], hp, max);
@@ -318,11 +335,11 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       const gone = f.dying > 0.35 || (f.dying > 0 && Math.floor(f.dying * 24) % 2 === 1);
       if (!gone) {
         // A blow landing flashes the sprite white, a picture ringed in light.
-        if (f.hit > 0.45 && !unitArt(f.type)) drawUnitFlash(s, f.type, color, pos[0], pos[1]);
-        else drawUnit(s, { type: f.type, order: { kind: "none" }, xp: f.xp }, pos[0], pos[1], color, f.stacked, { ...picture, lit: f.hit > 0.45, frame: view.unitFrames?.[f.unit], flip: view.facingLeft?.[f.unit] });
+        if (f.hit > 0.45 && !unitArt(f.type)) drawUnitFlash(s, f.type, color, pos[0], pos[1], T);
+        else drawUnit(s, { type: f.type, order: { kind: "none" }, xp: f.xp }, pos[0], pos[1], color, f.stacked, { ...picture, lit: f.hit > 0.45, frame: view.unitFrames?.[f.unit], flip: view.facingLeft?.[f.unit] }, T);
         drawHpBar(s, pos[0], pos[1], f.hp, f.maxHp);
       }
-      if (f.dying > 0) drawBurst(s, pos[0] + 8, pos[1] + 8, f.dying);
+      if (f.dying > 0) drawBurst(s, pos[0] + (T >> 1), pos[1] + (T >> 1), f.dying, T / TILE);
     }
   // What the attacker looses (a catapult's stone), in flight to its foe, then its dust.
   const shot = battle?.shot;
@@ -332,13 +349,13 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
 
   // The ship going down, under the words above it.
   const sinkAt = sinking ? toScreen(sinking.x, sinking.y) : null;
-  if (sinking && sinkAt) drawSinking(s, sinkAt[0], sinkAt[1], sinking.type, playerColor(state, sinking.owner), sinking.stacked, sinking.t, VIEW_X, VIEW_Y, view.facingLeft?.[sinking.unit] === true);
+  if (sinking && sinkAt) drawSinking(s, sinkAt[0], sinkAt[1], sinking.type, playerColor(state, sinking.owner), sinking.stacked, sinking.t, VIEW_X, VIEW_Y, view.facingLeft?.[sinking.unit] === true, T);
 
   // Goto destination of the active unit.
   const act = activeId !== null ? state.units.find((u) => u.id === activeId) : undefined;
   if (act?.order.kind === "goto") {
     const pos = toScreen(act.order.x, act.order.y);
-    if (pos) s.frame(pos[0], pos[1], TILE, TILE, C.YELLOW!);
+    if (pos) s.frame(pos[0], pos[1], MAP_TILE, MAP_TILE, C.YELLOW!);
   }
 
   // A planned move's end: corners round the square and the note (turns, odds), till the second click.
@@ -353,7 +370,7 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const fwAt = fw ? toScreen(fw.x, fw.y) : null;
   if (fw && fwAt) {
     const color = playerColor(state, fw.owner);
-    drawFireworks(s, fwAt[0], fwAt[1], fw.t, color, darker(color), fw.cheer, VIEW_X, VIEW_Y);
+    drawFireworks(s, fwAt[0], fwAt[1], fw.t, color, darker(color), fw.cheer, VIEW_X, VIEW_Y, T);
   }
 
   for (const { spot, copy } of underCities) {
@@ -392,17 +409,17 @@ function nameRoom(s: Surface, state: GameState, view: MainScreenView, across: nu
   for (const c of cities) {
     const pos = tileToScreen(state, view, c.x, c.y, across);
     if (!pos) continue;
-    const w = Math.max(TILE, textPlateWidth(String(c.size)) + 2 + textWidth(c.name) + MOOD_PENNANT_W);
-    taken.push([pos[0] + (TILE >> 1) - (w >> 1), pos[1], w, TILE + FONT_HEIGHT + 2]);
+    const w = Math.max(MAP_TILE, textPlateWidth(String(c.size)) + 2 + textWidth(c.name) + MOOD_PENNANT_W);
+    taken.push([pos[0] + (MAP_TILE >> 1) - (w >> 1), pos[1], w, MAP_TILE + FONT_HEIGHT + 2]);
   }
   const clear = ([x, y, w, h]: Box) => taken.every(([a, b, c, d]) => x + w <= a || a + c <= x || y + h <= b || b + d <= y);
   const me = state.players[state.currentPlayer]!;
   const overExplored = ([x, y, w, h]: Box) => {
     for (const py of [y, y + h - 1]) {
-      const my = view.originY + Math.floor((py - VIEW_Y + oy) / TILE);
+      const my = view.originY + Math.floor((py - VIEW_Y + oy) / MAP_TILE);
       if (my < 0 || my >= state.map.height) return false;
-      for (let px = x; px < x + w + TILE; px += TILE) {
-        const mx = wrapX(state.map, view.originX + Math.floor((Math.min(px, x + w - 1) - VIEW_X + ox) / TILE));
+      for (let px = x; px < x + w + MAP_TILE; px += MAP_TILE) {
+        const mx = wrapX(state.map, view.originX + Math.floor((Math.min(px, x + w - 1) - VIEW_X + ox) / MAP_TILE));
         if (!me.explored[my * state.map.width + mx]) return false;
       }
     }
@@ -427,7 +444,7 @@ function nameRoom(s: Surface, state: GameState, view: MainScreenView, across: nu
 function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, across: number, room: NameRoom): void {
   const [ox, oy] = panOffset(view);
   const zoom = viewZoom(view);
-  const label = placeLabel(state, state.currentPlayer, view.originX, view.originY, Math.ceil((across + 1) / zoom), Math.ceil((VIEW_TILES_Y + 1) / zoom));
+  const label = placeLabel(state, state.currentPlayer, view.originX, view.originY, Math.ceil((across + 1) / zoom), Math.ceil((viewDown() + 1) / zoom));
   if (!label) return;
   const text = placeLabelText(label.name);
   const style = label.land ? "land" : WATER_KINDS.has(label.kind) ? "water" : "landform";
@@ -437,8 +454,8 @@ function drawPlaceNames(s: Surface, state: GameState, view: MainScreenView, acro
   const { left, right } = room;
   if (w > right - left) return;
   for (const { tx, ty } of label.at) {
-    const cx = Math.min(right - (w >> 1) - 1, Math.max(left + (w >> 1) + 1, VIEW_X + tx * TILE - ox + (TILE >> 1)));
-    const y = Math.min(room.bottom - h, Math.max(room.top, VIEW_Y + ty * TILE - oy + ((TILE - h) >> 1)));
+    const cx = Math.min(right - (w >> 1) - 1, Math.max(left + (w >> 1) + 1, VIEW_X + tx * MAP_TILE - ox + (MAP_TILE >> 1)));
+    const y = Math.min(room.bottom - h, Math.max(room.top, VIEW_Y + ty * MAP_TILE - oy + ((MAP_TILE - h) >> 1)));
     const box: Box = [cx - (w >> 1) - 2, y - 1, w + 4, h + 2];
     if (!room.free(box)) continue;
     room.taken.push(box);
@@ -466,7 +483,7 @@ function civLabel(state: GameState, owner: number): string | undefined {
 function drawCivNames(s: Surface, state: GameState, view: MainScreenView, across: number, terr: Territory, room: NameRoom): void {
   const [ox, oy] = panOffset(view);
   const zoom = viewZoom(view);
-  const spots = civNameSpots(state, terr, state.currentPlayer, view.originX, view.originY, Math.ceil((across + 1) / zoom), Math.ceil((VIEW_TILES_Y + 1) / zoom));
+  const spots = civNameSpots(state, terr, state.currentPlayer, view.originX, view.originY, Math.ceil((across + 1) / zoom), Math.ceil((viewDown() + 1) / zoom));
   for (const spot of spots) {
     const name = civLabel(state, spot.owner);
     if (!name) continue;
@@ -474,9 +491,9 @@ function drawCivNames(s: Surface, state: GameState, view: MainScreenView, across
     const { left, right } = room;
     if (w + 4 > right - left) continue;
     find: for (const { tx, ty } of spot.at)
-      for (const dy of [0, -(TILE >> 1), TILE >> 1, -TILE, TILE]) {
-        const cx = Math.min(right - (w >> 1) - 1, Math.max(left + (w >> 1) + 1, VIEW_X + tx * TILE - ox + (TILE >> 1)));
-        const y = Math.min(room.bottom - FONT_HEIGHT, Math.max(room.top, VIEW_Y + ty * TILE - oy + ((TILE - FONT_HEIGHT) >> 1) + dy));
+      for (const dy of [0, -(MAP_TILE >> 1), MAP_TILE >> 1, -MAP_TILE, MAP_TILE]) {
+        const cx = Math.min(right - (w >> 1) - 1, Math.max(left + (w >> 1) + 1, VIEW_X + tx * MAP_TILE - ox + (MAP_TILE >> 1)));
+        const y = Math.min(room.bottom - FONT_HEIGHT, Math.max(room.top, VIEW_Y + ty * MAP_TILE - oy + ((MAP_TILE - FONT_HEIGHT) >> 1) + dy));
         const box: Box = [cx - (w >> 1) - 2, y - 1, w + 4, FONT_HEIGHT + 2];
         if (!room.free(box)) continue;
         room.taken.push(box);
@@ -544,10 +561,10 @@ function drawCallout(s: Surface, state: GameState, view: MainScreenView, c: Call
   const lines = wrapText(c.text, CALLOUT_W - 8).slice(0, 4);
   const w = Math.max(...lines.map(textWidth)) + 9;
   const h = lines.length * FONT_HEIGHT + 5;
-  const cx = pos[0] + (TILE >> 1);
+  const cx = pos[0] + (MAP_TILE >> 1);
   const x = Math.max(VIEW_X + 1, Math.min(s.width - 1 - w, cx - (w >> 1)));
   const above = pos[1] - 5 - h >= VIEW_Y + 1;
-  const y = above ? pos[1] - 5 - h : pos[1] + TILE + 5;
+  const y = above ? pos[1] - 5 - h : pos[1] + MAP_TILE + 5;
   hideArtUnder(s, { x, y, w, h });
   s.frame(x, y, w, h, C.BLACK!);
   drawStone(s, x + 1, y + 1, w - 2, h - 2);
@@ -566,15 +583,15 @@ function drawCallout(s: Surface, state: GameState, view: MainScreenView, c: Call
  * edge round the square, a dot of one screen pixel every few along each side, gold for the best site and
  * pale for the others. The mouse over it explains the site (`view.hint`).
  */
-const SITE_DOTS = [3, 9, 15, 21, 27];
 function drawSiteMark(s: Surface, x: number, y: number, best: boolean): void {
   const c = best ? shade("wheat", 7) : shade("panel", 7);
   const k = s.k;
-  const last = TILE * k - 2 * k;
+  const last = MAP_TILE * k - 2 * k;
   const dot = (i: number, j: number) => {
     for (let b = 0; b < k; b++) for (let a = 0; a < k; a++) s.fset(x * k + i + a, y * k + j + b, c);
   };
-  for (const p of SITE_DOTS) {
+  // Every six fine pixels along each side (3, 9 .. 27 on the original's square).
+  for (let p = 3; p < MAP_TILE * 2 - 2; p += 6) {
     const q = Math.round((p * k) / 2);
     dot(q, k);
     dot(q, last);
@@ -585,8 +602,8 @@ function drawSiteMark(s: Surface, x: number, y: number, best: boolean): void {
 
 /** A square of a resource just revealed: a gold edge round it with a dark line inside, bright and dim by turns. */
 function drawRevealRing(s: Surface, x: number, y: number, lit: boolean): void {
-  s.frame(x, y, TILE, TILE, shade("wheat", lit ? 7 : 4));
-  s.frame(x + 1, y + 1, TILE - 2, TILE - 2, shade("wheat", lit ? 1 : 0));
+  s.frame(x, y, MAP_TILE, MAP_TILE, shade("wheat", lit ? 7 : 4));
+  s.frame(x + 1, y + 1, MAP_TILE - 2, MAP_TILE - 2, shade("wheat", lit ? 1 : 0));
 }
 
 /** A dot on a planned route: white, ringed in black so it reads on any ground. */
@@ -598,7 +615,7 @@ function drawRouteDot(s: Surface, cx: number, cy: number): void {
 /** The corners of a planned move's square: white brackets edged in black. */
 function drawTargetCorners(s: Surface, x: number, y: number): void {
   const L = 5;
-  for (const [cx, cy, sx, sy] of [[x, y, 1, 1], [x + TILE - 1, y, -1, 1], [x, y + TILE - 1, 1, -1], [x + TILE - 1, y + TILE - 1, -1, -1]] as const) {
+  for (const [cx, cy, sx, sy] of [[x, y, 1, 1], [x + MAP_TILE - 1, y, -1, 1], [x, y + MAP_TILE - 1, 1, -1], [x + MAP_TILE - 1, y + MAP_TILE - 1, -1, -1]] as const) {
     for (let i = 0; i < L; i++) {
       s.set(cx + i * sx, cy + sy, C.BLACK!);
       s.set(cx + sx, cy + i * sy, C.BLACK!);
@@ -1215,7 +1232,7 @@ export function drawMainScreen(s: Surface, state: GameState, view: MainScreenVie
   drawMapViewport(s, state, view);
   magnifyViewport(s, viewZoom(view));
   // A city we have just founded: the view glides in on it, dusk, light and its name (`founding.ts`).
-  if (view.founding) drawFounding(s, view.founding, { x: VIEW_X, y: VIEW_Y, w: s.width - VIEW_X, h: VIEW_H }, viewZoom(view));
+  if (view.founding) drawFounding(s, view.founding, { x: VIEW_X, y: VIEW_Y, w: s.width - VIEW_X, h: VIEW_H }, (viewZoom(view) * MAP_TILE) / TILE);
   drawStatusPanel(s, state, view);
   if (view.tip) drawPanelTip(s, view.tip);
   drawMenuBar(s, view.menuOpen);
@@ -1228,7 +1245,7 @@ export function viewZoom(view: MainScreenView): number {
 
 /** Squares (or parts of one) that show across and down the viewport at a zoom, on a screen `screenW` wide. */
 export function zoomedTiles(zoom: number, screenW = SCREEN_W): { x: number; y: number } {
-  return { x: Math.ceil((screenW - PANEL_W) / (TILE * zoom)), y: Math.ceil(VIEW_H / (TILE * zoom)) };
+  return { x: Math.ceil((screenW - PANEL_W) / (MAP_TILE * zoom)), y: Math.ceil(VIEW_H / (MAP_TILE * zoom)) };
 }
 
 /** A point on a zoomed viewport as the point of the map drawn at 1:1 under it (anywhere else as it is). */
