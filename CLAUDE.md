@@ -627,7 +627,20 @@ Never ship the original's sprites, palette art, fonts or text.
   `MenuState.keepClear` "cityUnits", the box from renderer-retro `screens/city-layout.ts`, which holds the city
   screen's boxes so widgets.ts can read them), its rows scrolling in the room there (4 on the desktop, 3 on the
   phone, with the tabs); where that leaves fewer than 3 rows (a note above the list, on the phone) the phone takes
-  its smaller menu, else the window stands in the middle as before (`CLEAR_ROWS`). A change of production keeps the box for the kind it was
+  its smaller menu, else the window stands in the middle as before (`CLEAR_ROWS`). Each row ends in an info mark, a
+  small blue disc with a white i (asked for 2026-11-02: "on the build menu - add for each building/unit a info icon -
+  when clicked or hover show building/unit info"; `MenuState.info`/`MenuTab.info`, renderer-api `production-info.ts`,
+  `productionInfo`: a `MenuInfo`, its name and lines with icons; retro `menu-info.ts`, `drawInfoMark`, `drawMenuTip`):
+  the mouse on it shows a tip beside it (`MenuState.infoShown`; right of the mark, else left of it over the window,
+  pointing at it, the font's size on the phone too), a click or tap keeps it up (the menu screen's `infoPinned`), a
+  second click on the mark or one on the tip lets it go (`Renderer.menuInfoAt`, `menuTipAt`), and I shows the selected
+  row's, following the selection, Esc hiding it before it closes the window. A unit's tells its attack, defence and
+  moves, hit points, firepower and sight, what it can do (`unitAbilities`, shared with the panel's unit tip), wheels,
+  deep water, zones of control, fuel, a veteran trained here (Barracks, traits), its upkeep in this city (its free
+  units, a settler's food), the resources it needs and whether we hold them, and the advance that retires it; a
+  building's its sentence, its effects in numbers (the Building Completed window's, `productionEffects`) and its upkeep;
+  a wonder's its sentence, effect and culture, and the advance that ends its effect. No shield costs (the menu gives
+  the turns). A change of production keeps the box for the kind it was
   gathered for and half of it for another kind (`shieldsAfterChange`: reckoned from the box as the turn
   began, `City.turnShields`/`turnKind`, or as bought, so changing and changing back in a turn costs
   nothing; FreeCiv's model). Units are one kind and improvements, wonders and spaceship parts another,

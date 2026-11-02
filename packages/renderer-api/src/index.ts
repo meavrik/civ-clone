@@ -13,6 +13,7 @@ import type { BuiltHit, BuiltView } from "./built.js";
 import type { ConquestHit, ConquestView, Fireworks } from "./conquest.js";
 import type { Sinking } from "./sinking.js";
 import type { Sacking } from "./sack.js";
+import type { MenuInfo } from "./production-info.js";
 import type { FoundingMoment } from "./founding.js";
 import type { ReignHit, ReignView } from "./reign.js";
 import type { ImprovementHit } from "./improvements.js";
@@ -57,6 +58,7 @@ export * from "./built.js";
 export * from "./conquest.js";
 export * from "./sinking.js";
 export * from "./sack.js";
+export * from "./production-info.js";
 export * from "./founding.js";
 export * from "./staging.js";
 export * from "./outbuilt.js";
@@ -354,6 +356,13 @@ export interface MenuState {
   tabs?: MenuTab[];
   tab?: number;
   /**
+   * What each row is, told in a tip (the build menu, asked for 2026-11-02: "add for each building/unit a info icon - when
+   * clicked or hover show building/unit info"; `productionInfo`): rows with one carry an info mark at their right end
+   * (`Renderer.menuInfoAt`), and `infoShown` is the row whose tip stands beside its mark. Modern ignores them.
+   */
+  info?: (MenuInfo | null)[];
+  infoShown?: number | undefined;
+  /**
    * Its body's lines never break (the build menu's road note, asked for 2026-10-31: "keep in one text line - do not
    * break"): the window widens to hold them, and where the screen is too narrow takes its smaller size (the phone's).
    * Modern ignores it.
@@ -371,6 +380,7 @@ export interface MenuTab {
   right?: string[];
   pictures?: (MenuPicture | null)[];
   disabled?: number[];
+  info?: (MenuInfo | null)[];
   /** The row picked while it is shown, kept for when it is shown again. */
   selected: number;
   /** Nothing in it to pick now (the build menu's Wonders with none to build): drawn faded, never shown. */
@@ -390,6 +400,8 @@ export function showTab(m: MenuState, i: number): void {
   if (t.right) m.right = t.right; else delete m.right;
   if (t.pictures) m.pictures = t.pictures; else delete m.pictures;
   if (t.disabled) m.disabled = t.disabled; else delete m.disabled;
+  if (t.info) m.info = t.info; else delete m.info;
+  delete m.infoShown;
 }
 
 /** How long a window takes to grow to its full size as it opens (asked for 2026-10-24: "animate window modals entrance"). */
@@ -545,6 +557,10 @@ export interface Renderer {
   menuRowRect?(menu: MenuState, row: number): { x: number; y: number; w: number; h: number } | null;
   /** The tab under a point of a tabbed menu (`MenuState.tabs`), or null. */
   menuTabAt?(menu: MenuState, px: number, py: number): number | null;
+  /** The row of a menu whose info mark (`MenuState.info`) lies under a point, or null. */
+  menuInfoAt?(menu: MenuState, px: number, py: number): number | null;
+  /** Whether a point lies on the tip a menu shows (`MenuState.infoShown`). */
+  menuTipAt?(menu: MenuState, px: number, py: number): boolean;
   /** Radius slot under a point on the city screen's resource map, or null. */
   citySlotAt(px: number, py: number): number | null;
   /** True when the point is on the city screen's exit bar. */

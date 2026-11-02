@@ -2,7 +2,6 @@ import {
   advancesFor,
   atWar,
   canFoundCity,
-  climbsMountains,
   cityAt,
   cityById,
   computeCity,
@@ -30,6 +29,7 @@ import {
   type GovernmentRule,
 } from "@civ/core";
 import { tileIcons, type IconName } from "./icons.js";
+import { unitAbilities } from "./production-info.js";
 import { rankLine, rankProgress } from "./ranks.js";
 import { researchOutlook, sciencePerTurn } from "./research.js";
 import { TERRAIN_TEXT } from "./terrain-text.js";
@@ -226,15 +226,7 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
   switch (part) {
     case "unit": {
       const lines = [`Attack ${type.attack}, defence ${type.defense}, moves ${moves(moveAllowance(state, u))}.`, `Hit points ${u.hp} of ${maxHp(state, u.type)}, firepower ${firepower(state, u.type)}.`];
-      const flags = type.flags ?? [];
-      if (flags.includes("settler")) lines.push("Founds cities, and builds roads, farms and mines.");
-      if (flags.includes("diplomat")) lines.push("Steals advances and stirs up foreign cities.");
-      if (flags.includes("caravan")) lines.push("Helps build wonders and opens trade routes.");
-      if (flags.includes("explorer")) lines.push("Crosses any ground, mountains too, as if on a road; no one minds it on their land.");
-      if (type.anyGround && climbsMountains(state, type)) lines.push("Goes anywhere without a road, mountains too: the only soldiers that do.");
-      if (flags.includes("fishing")) lines.push("Lays a fishery on fish or whales in our waters: more food there for good. With Refining, builds an oil rig on oil at sea.");
-      if (type.frightens) lines.push(`Frightens units that need ${type.frightens}: they defend at two thirds against it.`);
-      if (type.capacity) lines.push(`Carries ${plural(type.capacity, "unit")}.`);
+      lines.push(...unitAbilities(state, type));
       return { title: type.name, lines };
     }
     case "moves": {

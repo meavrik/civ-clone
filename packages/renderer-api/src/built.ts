@@ -99,26 +99,33 @@ function wonderEffect(w: WonderRule): BuiltEffect {
 }
 
 
-/** What the window says of a city's new improvement, wonder or spaceship part; null for anything else. */
-export function builtCard(state: GameState, view: BuiltView): BuiltCard | null {
-  const city = state.cities.find((c) => c.id === view.city);
-  if (!city) return null;
-  const title = (name: string) => `${name} is completed in ${city.name}`;
-  const p = view.production;
+/**
+ * What an improvement, wonder or spaceship part is and does, for `owner` (its spaceship's parts counted): the Building
+ * Completed window's words, and the build menu's info (`productionInfo`). A unit has none.
+ */
+export function productionEffects(state: GameState, p: Production, owner: number): Omit<BuiltCard, "title"> {
   if (p.kind === "building") {
     const b = building(p.id);
-    return { title: title(b.name), name: b.name, text: b.text, effects: buildingEffects(state, b), upkeep: b.upkeep };
+    return { name: b.name, text: b.text, effects: buildingEffects(state, b), upkeep: b.upkeep };
   }
   if (p.kind === "wonder") {
     const w = wonder(p.id);
     const effects = [wonderEffect(w)];
     if (!state.fixedBorders) effects.push({ icon: "culture", text: `+${state.accruedCulture ? ACCRUED_CULTURE.wonder : CULTURE.wonder} culture${state.accruedCulture ? " a turn" : ""}` });
-    return { title: title(w.name), name: w.name, text: w.text, effects, upkeep: 0 };
+    return { name: w.name, text: w.text, effects, upkeep: 0 };
   }
   if (p.kind === "spaceship") {
     const part = spacePart(p.id);
-    const ship = state.players[city.owner]!.spaceship;
-    return { title: title(part.name), name: part.name, text: part.text, effects: [{ icon: "star", text: `${partCount(ship, p.id)} of ${part.max} built` }], upkeep: 0 };
+    const ship = state.players[owner]!.spaceship;
+    return { name: part.name, text: part.text, effects: [{ icon: "star", text: `${partCount(ship, p.id)} of ${part.max} built` }], upkeep: 0 };
   }
-  return null;
+  return { name: "", text: "", effects: [], upkeep: 0 };
+}
+
+/** What the window says of a city's new improvement, wonder or spaceship part; null for anything else. */
+export function builtCard(state: GameState, view: BuiltView): BuiltCard | null {
+  const city = state.cities.find((c) => c.id === view.city);
+  if (!city || view.production.kind === "unit") return null;
+  const card = productionEffects(state, view.production, city.owner);
+  return { title: `${card.name} is completed in ${city.name}`, ...card };
 }

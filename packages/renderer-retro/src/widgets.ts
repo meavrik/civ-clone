@@ -9,6 +9,7 @@ import { CITY_UNITS_BOX } from "./screens/city-layout.js";
 import { BAR_H } from "./screens/main-layout.js";
 import { drawSquareRing, drawWindowPoint, pointedPlace, sideRoom, type PointedPlace } from "./pointing.js";
 import { CARD_MAX_W, CARD_MIN_W, CARD_NARROW_W, cardLayout, cardNeed, drawSquareCard, type CardLayout } from "./square-card.js";
+import { drawInfoMark, drawMenuTip, INFO_MARK, menuTipRect } from "./menu-info.js";
 
 export { BAD, DIM, FADED, GOLD, GOOD, INK, NOTE, speckle, stipple } from "./stone.js";
 import { BAD, DIM, FADED, INK, NOTE, speckle, stipple } from "./stone.js";
@@ -317,7 +318,7 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   const tw = (text: string) => (t === 2 ? textWidthLarge(text) : textWidth(text));
   const lineH = FONT_HEIGHT * t;
   // A tabbed list is sized for every tab's rows (`MenuState.tabs`), so it keeps its size as they change.
-  const lists: Pick<MenuState, "items" | "right" | "pictures">[] = m.tabs ?? [m];
+  const lists: Pick<MenuState, "items" | "right" | "pictures" | "info">[] = m.tabs ?? [m];
   const count = Math.max(0, ...lists.map((l) => l.items.length));
   // Rows with a picture before them keep the picture's height (or the row's, if taller) and never close up.
   const pictured = lists.some((l) => l.pictures);
@@ -331,7 +332,9 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   // The window's room ends at the screen's foot, or above what it keeps clear of, its shadow too.
   const keep = clear ? keptClear(m) : null;
   const floor = keep ? keep.y - 2 : SCREEN_H;
-  const itemW = Math.max(0, ...lists.flatMap((l) => l.items.map((i, k) => pic + tw(i) + (l.right?.[k] ? tw(l.right[k]!) + 12 : 0))));
+  // Rows that tell what they are (`MenuState.info`) end in an info mark.
+  const mark = lists.some((l) => l.info) ? INFO_MARK * t + 4 : 0;
+  const itemW = Math.max(0, ...lists.flatMap((l) => l.items.map((i, k) => pic + tw(i) + (l.right?.[k] ? tw(l.right[k]!) + 12 : 0) + mark)));
   const bw = buttons ? Math.max(size.buttonW, itemW + 16) : 0;
   const titleH = t === 2 ? TITLE_H_LARGE : TITLE_H;
   const head = m.title ? titleH + 5 : 3;
@@ -554,10 +557,52 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     const ty = m.pictures ? ry + Math.floor((row - lineH) / 2) - 1 : ry + Math.max(0, Math.floor((row - lineH - 1) / 2));
     if (picture) drawRowPicture(s, picture, x + 8, ry + Math.floor((row - UNIT_ROW) / 2), off);
     write(x + 10 + (m.pictures ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : danger ? BAD : C.BLACK!);
+    // The info mark at the row's end, lit while its tip shows; the second column stands before it.
+    const info = infoMarkRect(l, m, i);
+    if (info) drawInfoMark(s, info.x, info.y, t, m.infoShown === i);
     const r = m.right?.[i];
-    if (r) write(x + 4 + rowW - 6 - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("town", 7) : shade("azure", 7)) : danger ? BAD : DIM);
+    if (r) write((info ? info.x - 2 : x + 4 + rowW - 6) - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("town", 7) : shade("azure", 7)) : danger ? BAD : DIM);
   });
   if (scrolls) drawScrollBar(s, m, l);
+  // The tip of the row whose info shows, over the window, pointing at its mark.
+  const shown = m.infoShown !== undefined ? m.info?.[m.infoShown] : null;
+  const at = shown ? infoMarkRect(l, m, m.infoShown!) : null;
+  if (shown && at) {
+    const tip = menuTipRect(shown, at, s.width);
+    hideArtUnder(s, tip);
+    s.frame(tip.x, tip.y, tip.w, tip.h, C.BLACK!);
+    drawStone(s, tip.x + 1, tip.y + 1, tip.w - 2, tip.h - 2);
+    drawMenuTip(s, shown, at, tip);
+  }
+}
+
+/** Where the info mark of row `i` of a menu laid out so stands (`MenuState.info`): at the row's right end, in the middle of its height; null for a row without one, or off view. */
+function infoMarkRect(l: MenuLayout, m: MenuState, i: number): { x: number; y: number; w: number; h: number } | null {
+  if (l.buttons || !m.info?.[i] || i < l.top || i >= l.top + l.rows) return null;
+  const n = INFO_MARK * l.size.text;
+  const scrolls = l.rows < m.items.length;
+  const right = l.x + l.w - 4 - (scrolls ? l.size.scroll + 2 : 0);
+  return { x: right - 3 - n, y: l.itemsY - 1 + (i - l.top) * l.row + Math.floor((l.row - n) / 2), w: n, h: n };
+}
+
+/** Whether a screen point lies on the tip a menu shows (`MenuState.infoShown`). */
+export function menuTipAt(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): boolean {
+  const shown = m.infoShown !== undefined ? m.info?.[m.infoShown] : null;
+  const l = shown ? menuLayout(m, screenW, size) : null;
+  const at = l ? infoMarkRect(l, m, m.infoShown!) : null;
+  if (!shown || !at) return false;
+  const r = menuTipRect(shown, at, screenW);
+  return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+}
+
+/** The row of a menu whose info mark lies under a screen point (a pixel round it counting), or null. */
+export function menuInfoAt(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): number | null {
+  const l = menuLayout(m, screenW, size);
+  for (let i = l.top; i < Math.min(m.items.length, l.top + l.rows); i++) {
+    const r = infoMarkRect(l, m, i);
+    if (r && px >= r.x - 1 && px <= r.x + r.w && py >= r.y - 1 && py <= r.y + r.h) return i;
+  }
+  return null;
 }
 
 /**

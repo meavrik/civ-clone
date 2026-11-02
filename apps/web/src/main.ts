@@ -198,6 +198,7 @@ import {
   type BuiltView,
   conquestCard,
   sinkingWords,
+  productionInfo,
   SACK,
   sackBlows,
   sackFall,
@@ -401,7 +402,7 @@ type Screen =
   | { kind: "end"; card: EndCard }
   | { kind: "spaceship" }
   | { kind: "input"; input: TextInputState; onSubmit: (text: string) => void; under: Screen }
-  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number; sub?: boolean }
+  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number; sub?: boolean; infoPinned?: number | undefined }
   | { kind: "report"; page: ReportPage }
   | { kind: "worldMap" };
 
@@ -1816,6 +1817,8 @@ function openProductionMenu(cityId: number, then?: () => void, title?: string, b
         return `${t ? `${t.attack}/${t.defense}/${t.moves + traitMoves(state, city.owner, p.id)} ` : ""}${lacks ? `needs ${lacks.join(", ")}` : turns(p)}`;
       }),
       pictures: list.map((p) => (p.kind === "unit" ? { unit: p.id, color: state.players[city.owner]!.color } : { building: p.id })),
+      // What each is, behind the info mark at the row's end (asked for 2026-11-02).
+      info: list.map((p) => productionInfo(state, city.owner, p, city)),
       disabled: list.flatMap((p, i) => (missing(p) ? [i] : [])),
       selected: pick >= 0 ? pick : Math.max(0, list.findIndex((p) => !missing(p))),
     };
@@ -3463,6 +3466,13 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     else if (e.code === "Escape") { screenState = sc.under; sc.onCancel?.(); }
     return;
   }
+  // Rows that tell what they are (the build menu's): I shows the selected row's tip and keeps it with the selection,
+  // again hides it; Esc hides a tip before it closes the window.
+  if (m.info && (e.code === "KeyI" || (e.code === "Escape" && m.infoShown !== undefined))) {
+    sc.infoPinned = e.code === "KeyI" && m.infoShown === undefined ? m.selected : undefined;
+    m.infoShown = sc.infoPinned;
+    return;
+  }
   // A tabbed list (the build menu's Units, Buildings and Wonders): Left and Right, or Tab, show the next tab with something in it.
   if (m.tabs && (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.code === "Numpad4" || e.code === "Numpad6" || e.code === "Tab")) {
     e.preventDefault();
@@ -3474,6 +3484,7 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
       if (!m.tabs[to]!.off) break;
     }
     showTab(m, to);
+    delete sc.infoPinned;
     m.top = keepInView(m, renderer.menuRows(m));
     sound.play("click");
     return;
@@ -3489,6 +3500,8 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     case "Escape": screenState = sc.under; sc.onCancel?.(); return;
   }
   m.top = keepInView(m, renderer.menuRows(m));
+  // A tip kept by I goes with the selection.
+  if (sc.infoPinned !== undefined) m.infoShown = sc.infoPinned = m.selected;
 }
 
 /** Move a menu's selection by `by` rows, stopping at the ends, and scroll it into view. */
@@ -3734,6 +3747,14 @@ canvas.addEventListener("mousemove", (e) => {
   // A menu's row or button under the pointer is lit, as the windows' buttons are (asked for 2026-11-01); a faded one never.
   if (sc.kind === "menu") {
     const [px, py] = toLogical(e);
+    // An info mark under the pointer shows its row's tip; off it, the tip a click (or I) kept, if any.
+    if (sc.menu.info) {
+      // Over the tip itself it stays.
+      if (renderer.menuTipAt?.(sc.menu, px, py)) return;
+      const info = renderer.menuInfoAt?.(sc.menu, px, py) ?? null;
+      sc.menu.infoShown = info ?? sc.infoPinned;
+      if (info !== null) return;
+    }
     const i = renderer.menuHit(sc.menu, px, py);
     if (i >= 0 && !sc.menu.disabled?.includes(i)) sc.menu.selected = i;
     return;
@@ -3784,7 +3805,16 @@ function mouseDown(e: MouseEvent): void {
       // A tab of a tabbed list shows its rows.
       const tab = renderer.menuTabAt?.(sc.menu, px, py) ?? null;
       if (tab !== null) {
-        if (tab !== (sc.menu.tab ?? 0)) { sound.play("click"); showTab(sc.menu, tab); }
+        if (tab !== (sc.menu.tab ?? 0)) { sound.play("click"); showTab(sc.menu, tab); delete sc.infoPinned; }
+        return;
+      }
+      // An info mark keeps its row's tip up (a tap on the phone shows it), a second click on it or on the tip lets it go.
+      if (renderer.menuTipAt?.(sc.menu, px, py)) { delete sc.infoPinned; delete sc.menu.infoShown; return; }
+      const info = sc.menu.info ? renderer.menuInfoAt?.(sc.menu, px, py) ?? null : null;
+      if (info !== null) {
+        sc.infoPinned = sc.infoPinned === info ? undefined : info;
+        sc.menu.infoShown = sc.infoPinned;
+        sound.play("click");
         return;
       }
       const i = renderer.menuHit(sc.menu, px, py);
