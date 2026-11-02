@@ -12,6 +12,7 @@ import type { NewTechHit, NewTechView } from "./newtech.js";
 import type { BuiltHit, BuiltView } from "./built.js";
 import type { ConquestHit, ConquestView, Fireworks } from "./conquest.js";
 import type { Sinking } from "./sinking.js";
+import type { Sacking } from "./sack.js";
 import type { FoundingMoment } from "./founding.js";
 import type { ReignHit, ReignView } from "./reign.js";
 import type { ImprovementHit } from "./improvements.js";
@@ -55,6 +56,7 @@ export * from "./facing.js";
 export * from "./built.js";
 export * from "./conquest.js";
 export * from "./sinking.js";
+export * from "./sack.js";
 export * from "./founding.js";
 export * from "./staging.js";
 export * from "./outbuilt.js";
@@ -171,6 +173,8 @@ export interface MainScreenView {
    * result"): drawn on their squares whatever the map says, the units they brought (`units`) not drawn yet.
    */
   villages?: readonly EnteredVillage[] | undefined;
+  /** A village of those being sacked by the unit that walked in, before it opens (`Sacking`): the hut shaken, looted and brought down. */
+  sacking?: Sacking | undefined;
   /**
    * A city the viewer has just founded, made a moment (asked for 2026-10-29 with the user's sheets, "add the build new
    * settlement", then "for new settlement epic effect - add zoom and some effect and delay"; `founding.ts`): where it

@@ -369,6 +369,13 @@ interface Playing {
   struck?: number;
 }
 
+/** A unit sacking a village (`Sacking`): from `start` it strikes at it, from `cheer` (the hut going down) it cheers; times on the animator's clock. */
+export interface SackStrike {
+  unit: number;
+  start: number;
+  cheer: number;
+}
+
 /** One frame's poses: the atlas frame of each animated unit by id, and the units whose strike landed this frame (each time round). */
 export interface UnitPoses {
   frames: Record<number, number>;
@@ -385,13 +392,15 @@ export interface UnitPoses {
  * round while the fight is shown, `fightStep`: the attacker's timed from the fight's start so its first strike lands
  * with the first blow, the defender's from the lunge at its own pace; each strike reported in `impacts` as it lands),
  * and, once the fight is decided (the loser begins to burst, `BattleFighter.dying`), the winner its triumph (`won`,
- * played through even once the fight is over); then back to what its orders say; a finished fortify likewise. A unit plays only the moves its rule has. Redrawing,
- * moving the camera or picking units changes nothing.
+ * played through even once the fight is over); then back to what its orders say; a finished fortify likewise. A unit
+ * sacking a village (`sacks`) strikes at it as it would attack, at its attack's own pace from the sack's start, and
+ * cheers as the hut goes down. A unit plays only the moves its rule has. Redrawing, moving the camera or picking units
+ * changes nothing.
  */
 export class UnitAnimator {
   private units = new Map<number, Playing>();
 
-  update(state: GameState, battle: BattleFrame | undefined, now: number, moving: readonly Pick<UnitMotion, "unit">[] = []): UnitPoses {
+  update(state: GameState, battle: BattleFrame | undefined, now: number, moving: readonly Pick<UnitMotion, "unit">[] = [], sacks: readonly SackStrike[] = []): UnitPoses {
     const poses: UnitPoses = { frames: {}, impacts: [] };
     const seen = new Set<number>();
     const going = new Set(moving.map((m) => m.unit));
@@ -412,7 +421,7 @@ export class UnitAnimator {
       // Walking while it goes; stopped, back to its orders.
       if (going.has(u.id) && anim.rule.travel && p.action !== "attack" && p.action !== "travel") Object.assign(p, { action: "travel", since: now });
       else if (!going.has(u.id) && p.action === "travel") Object.assign(p, { action: steady, since: now });
-      this.pose(u.id, u.type, u.order, battle, now, poses);
+      this.pose(u.id, u.type, u.order, battle, now, poses, sacks.find((k) => k.unit === u.id));
     }
     // A fighter gone from the state already (it lost) keeps its moves while the fight is shown.
     for (const f of battle ? [battle.attacker, battle.defender] : []) {
@@ -425,10 +434,15 @@ export class UnitAnimator {
     return poses;
   }
 
-  private pose(id: number, type: string, order: Unit["order"], battle: BattleFrame | undefined, now: number, poses: UnitPoses): void {
+  private pose(id: number, type: string, order: Unit["order"], battle: BattleFrame | undefined, now: number, poses: UnitPoses, sack?: SackStrike): void {
     const { rule } = unitAnim(type)!;
     const p = this.units.get(id)!;
     const side = battle ? (battle.attacker.unit === id ? "attacker" : battle.defender.unit === id ? "defender" : null) : null;
+    // Sacking a village (one that shoots does not): its attack from the sack's start at its own pace, its cheer as the hut goes down.
+    const sacking = !side && sack && rule.attack && !rule.attack.shot ? sack : undefined;
+    if (sacking && p.fight !== sacking.start && now < sacking.cheer) Object.assign(p, { action: "attack", since: sacking.start, fight: sacking.start, attacking: true, struck: -1 });
+    if (sacking && p.fight === sacking.start && p.action === "attack" && now >= sacking.cheer)
+      Object.assign(p, rule.won ? { action: "won", since: sacking.cheer } : { action: steadyAction(rule, order), since: now });
     // One that shoots does so only as it attacks; attacked, it stands as it was.
     if (battle && side && rule.attack && p.fight !== battle.start && !(side === "defender" && rule.attack.shot)) {
       // The attacker from the fight's start, its first strike with the first blow; the defender answers from that blow.
@@ -440,9 +454,11 @@ export class UnitAnimator {
       const foe = side === "attacker" ? battle.defender : battle.attacker;
       if (foe.dying > 0 && rule.won && p.action === "attack") Object.assign(p, { action: "won", since: now });
     }
-    // The fight over (or another one shown, not ours): back to its orders; a win plays on to its end.
-    if (p.action === "attack" && (!side || battle!.start !== p.fight)) Object.assign(p, { action: steadyAction(rule, order), since: now });
-    const strikeAt = battle?.strikeMs ?? LUNGE_MS;
+    // The fight over (or another one shown, not ours), or the sack: back to its orders; a win plays on to its end.
+    const fighting = side ? battle!.start : sacking?.start;
+    if (p.action === "attack" && fighting !== p.fight) Object.assign(p, { action: steadyAction(rule, order), since: now });
+    // A sack's blows come at the attack's own pace.
+    const strikeAt = sacking ? undefined : battle?.strikeMs ?? LUNGE_MS;
     let shown = actionFrame(rule, p.action, now - p.since, p.action === "attack" && p.attacking ? strikeAt : undefined);
     if (p.action === "attack" && rule.attack) {
       const { round, step } = fightStep(rule, Math.max(0, now - p.since), p.attacking ? strikeAt : undefined);

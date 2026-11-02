@@ -1406,8 +1406,20 @@ Never ship the original's sprites, palette art, fonts or text.
   then show the hut result"): the rules open a village as the step is taken, so the web app holds it on the map
   (`MainScreenView.villages`, an `EnteredVillage` from core's `hut` event, which carries the square and the `units` it
   brought; `holdVillages` after our own moves and as our turn begins), and what it brought (mercenaries, an ambush) out
-  of sight, while the unit walks in; once the slides have landed the unit stands in it `VILLAGE_MS` (650 ms, the `beat`
-  screen, a key or click going on; `openVillage`), then the village goes and its window opens (`hutModal`).
+  of sight, while the unit walks in; once the slides have landed the unit sacks it (asked for the same day: "when unit
+  enter a village hut - add a sack village animation"; the web app's `sack` screen, `openVillage`, about 2.1 s, a key or
+  click after 0.4 s cutting it short; renderer-api `sack.ts`, the timeline: `Sacking`, `SACK`, `sackBlows`, `sackFall`,
+  `sackLength`, `sackLoot`, `sackedHut`, `sackAside`; `MainScreenView.sacking`): the unit steps aside from the hut, on the
+  side it came from, and strikes at it, a unit with an attack of its own playing it at its own pace (`UnitAnimator`'s
+  `sacks`, `SackStrike`), its blows landing with the strikes (else on a beat); each blow jolts the hut a pixel and knocks
+  chips of its stuff off it (straw, timber, mud brick, hide, stone by its kind); with the last, what it held bursts out:
+  gold coins (4 to 10 by the gold, most flying away from the unit, spinning, then lying glinting about its foot) or a
+  scroll rising over it among sparkles (mercenaries, an ambush or nothing bring nothing out); then the hut goes down
+  under its foot into a cloud of dust, smoke and embers rise, the unit cheers (its `won`) and steps back. Retro
+  `sack.ts`: `sackHut` moves the hut's picture and clips it at its foot, `drawSack` draws the rest on the fine grid
+  after the units (loot over the dust and smoke), the hut holed where they cross it. Sounds: a hit each blow, the
+  `gift` jingle for coins, a `crash` as it falls. Core's `hut` event names the unit (`unit`). Then the village goes
+  and its window opens (`hutModal`).
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`.
   Fine art (merged from branch terrain-tiles-test, 2026-10-21, asked for): the screen keeps its 320x200
@@ -1809,7 +1821,8 @@ version 56). Specials of a kind kept three squares apart (2026-11-01, asked for;
 Harbour adding the second (2026-11-02, asked for; save version 58). The web game's map squares are 20 pixels, its zoom
 16 to 32 drawn at each size, with + and - on the map (2026-11-02, asked for; no save version; the phone keeps 16).
 The terrain drawn from the user's second sheet, forests and mountains in kinds by the land round them (2026-11-02,
-asked for; no save version). Villages drawn as the user's five huts, the kind by the land (2026-11-02, asked for).
+asked for; no save version). Villages drawn as the user's five huts, the kind by the land (2026-11-02, asked for); a unit
+walking into one sacks it before it opens, its loot bursting out (2026-11-02, asked for; no save version).
 Tile improvements drawn as the user's sheet: fields, mines and quarries, oil pumps, rigs, nets and piers as its
 pictures, bridges in its woods, roads thin and muted (2026-11-02, asked for). War Elephants climb mountains without a road,
 as settlers and explorers do (2026-11-02, asked for; save version 59).

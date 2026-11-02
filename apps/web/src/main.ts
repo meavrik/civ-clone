@@ -198,6 +198,12 @@ import {
   type BuiltView,
   conquestCard,
   sinkingWords,
+  SACK,
+  sackBlows,
+  sackFall,
+  sackLength,
+  sackLoot,
+  type Sacking,
   foundingShow,
   foundingMoment,
   FOUNDING,
@@ -384,6 +390,7 @@ type Screen =
   | { kind: "conquest"; view: ConquestView; then: () => void } // a city taken by us or from us: its window over the map
   | { kind: "sinking"; sinking: Omit<Sinking, "t">; start: number; then: () => void } // the map, a ship of ours going down as the turn ends
   | { kind: "founding"; founding: Pick<NonNullable<MainScreenView["founding"]>, "x" | "y" | "id" | "owner" | "city">; start: number; then: () => void } // the map, a city of ours founded, made a moment
+  | { kind: "sack"; sack: Omit<Sacking, "ms">; start: number; length: number; heard: number; fell: boolean; then: () => void } // the map, a village our unit walked into sacked
   | { kind: "reign"; view: ReignView } // a new game's opening window over the map: our leader, the people, what the tribe brings
   | { kind: "loading"; view: LoadingView; label: string; replay: Generator<ReplayProgress, LoadedGame, void>; under: Screen } // a save replayed a slice a frame, its window over `under`
   | { kind: "science" }
@@ -781,9 +788,6 @@ function afterAction(unit?: number): void {
   if (events.length) whenStill(() => presentEvents(events));
 }
 
-/** How long our unit stands in a village it has walked into before the village opens. */
-const VILLAGE_MS = 650;
-
 /**
  * Villages our units entered stand on the map, and what they brought stays out of sight, until the unit has walked in
  * (asked for 2026-11-02: "first the unit need to visibly enter the hut and only then show the hut result"): the rules
@@ -794,17 +798,54 @@ function holdVillages(events: readonly TurnEvent[]): void {
   if (entered.length) view.villages = [...(view.villages ?? []), ...entered.map(({ x, y, units }) => ({ x, y, units }))];
 }
 
-/** Our unit stands a moment in the village it walked into (the map held, a key or click going on at once), then it opens. */
+type SackScreen = Extract<Screen, { kind: "sack" }>;
+
+/**
+ * Our unit sacks the village it walked into (asked for 2026-11-02: "when unit enter a village hut - add a sack village
+ * animation"), the map held on it: it strikes at the hut, which shakes, what it held bursts out with the last blow and
+ * it goes down in its dust (renderer-api `sack.ts`); then the village opens. A key or click after the first moment
+ * cuts it short.
+ */
 function openVillage(ev: Extract<TurnEvent, { kind: "hut" }>, then: () => void): void {
   const at = (v: { x: number; y: number }) => v.x === ev.x && v.y === ev.y;
   const open = (): void => {
+    screenState = { kind: "map" };
+    view.sacking = undefined;
     const left = view.villages?.filter((v) => !at(v));
     view.villages = left?.length ? left : undefined;
     then();
   };
   if (!view.villages?.some(at)) { then(); return; }
   if (!onView(ev.x, ev.y)) centerOn(ev.x, ev.y);
-  screenState = { kind: "beat", until: performance.now() + VILLAGE_MS, then: open };
+  const blows = sackBlows(unitById(state, ev.unit)?.type ?? "");
+  screenState = {
+    kind: "sack",
+    sack: { x: ev.x, y: ev.y, unit: ev.unit, loot: sackLoot(ev.result), blows },
+    // Once the map has come to it.
+    start: performance.now() + (cam.animating ? CAMERA_MS : 0),
+    length: sackLength(blows),
+    heard: 0,
+    fell: false,
+    then: open,
+  };
+}
+
+/** Each frame of the sack: how far it has gone, each blow heard as it lands, the coins' jingle, the hut's fall; over, the village opens. */
+function stepSack(sc: SackScreen, t: number): void {
+  const ms = Math.max(0, t - sc.start);
+  if (ms >= sc.length) { sc.then(); return; }
+  view.sacking = { ...sc.sack, ms };
+  const { blows, loot } = sc.sack;
+  for (; sc.heard < blows.length && ms >= blows[sc.heard]!; sc.heard++) {
+    sound.play("hit");
+    if (sc.heard === blows.length - 1 && loot?.kind === "coins") sound.play("gift");
+  }
+  if (!sc.fell && ms >= sackFall(blows)) { sound.play("crash"); sc.fell = true; }
+}
+
+/** A key or click ends the sack once it has had its first moment. */
+function skipSack(sc: SackScreen): void {
+  if (performance.now() - sc.start >= SACK.skipAfterMs) sc.then();
 }
 
 /** Whether square (x, y) lies inside the map's view, a square in from its edges. */
@@ -3555,6 +3596,7 @@ addEventListener("keydown", (e) => {
     case "triumph": e.preventDefault(); skipTriumph(sc); break;
     case "sinking": e.preventDefault(); skipSinking(sc); break;
     case "founding": e.preventDefault(); skipFounding(sc); break;
+    case "sack": e.preventDefault(); skipSack(sc); break;
     case "conquest": conquestKey(e, sc); break;
     case "rates": ratesKey(e); break;
     case "science":
@@ -3779,6 +3821,7 @@ function mouseDown(e: MouseEvent): void {
     case "triumph": skipTriumph(sc); return;
     case "sinking": skipSinking(sc); return;
     case "founding": skipFounding(sc); return;
+    case "sack": skipSack(sc); return;
     case "conquest": {
       // Its buttons, the close box or the city it points at; a window with nothing to choose goes on at a click anywhere.
       if (e.button !== 0 || !settled(sc.view)) return;
@@ -3959,7 +4002,7 @@ function draw(sc: Screen): void {
       renderer.menu({ ...m, selected: setupSelection });
       break;
     }
-    case "map": case "beat": case "triumph": case "sinking": case "founding": view.message = status; renderer.main(mapState(), view); break;
+    case "map": case "beat": case "triumph": case "sinking": case "founding": case "sack": view.message = status; renderer.main(mapState(), view); break;
     case "report": renderer.report(sc.page); break;
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
@@ -4047,12 +4090,16 @@ function frame(t: number): void {
   else view.sinking = undefined;
   if (screenState.kind === "founding") stepFounding(screenState, t);
   else view.founding = undefined;
+  if (screenState.kind === "sack") stepSack(screenState, t);
+  else view.sacking = undefined;
   const shown = motion.at(t);
   stepBattleZoom(t, shown);
   view.moving = shown.moving.length ? shown.moving : undefined;
   view.battle = shown.battle;
   // Its strike lands with the fight's first blow, which the fight already shows (`UnitPoses.impacts`).
-  view.unitFrames = (state as GameState | undefined) ? animator.update(state, shown.battle, t, shown.moving).frames : undefined;
+  // A unit sacking a village strikes at it, then cheers as the hut goes down.
+  const sacks = screenState.kind === "sack" ? [{ unit: screenState.sack.unit, start: screenState.start, cheer: screenState.start + sackFall(screenState.sack.blows) }] : [];
+  view.unitFrames = (state as GameState | undefined) ? animator.update(state, shown.battle, t, shown.moving, sacks).frames : undefined;
   view.facingLeft = (state as GameState | undefined) ? facing.update(state, shown) : undefined;
   battleSound(shown.battle);
   showHold(shown.hold);

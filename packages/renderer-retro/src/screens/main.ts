@@ -35,6 +35,7 @@ import { darker } from "../sprites/index.js";
 import { BAD, DIM, drawButton, drawStone, drawSwatch, GOOD, hideArtUnder, INK, NOTE } from "../widgets.js";
 import { drawFireworks } from "../fireworks.js";
 import { drawSinking } from "../sinking.js";
+import { drawSack, sackHut } from "../sack.js";
 import { drawShot } from "../shot.js";
 import { drawFounding } from "../founding.js";
 import { drawCity } from "./map-city.js";
@@ -107,7 +108,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, civNameSpots, fieldsPicture, hutKind, minePicture, pierSquare, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type ZoomButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, civNameSpots, fieldsPicture, hutKind, minePicture, pierSquare, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type ZoomButton, type Territory, rankLine, researchOutlook, sackAside, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -222,6 +223,8 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       // unit has entered stands until it has walked in and the village opens (`view.villages`).
       const hut = tile.hut || entered.has(my * map.width + mx);
       const village = hut ? drawHut(s, dx, dy, { kind: hutKind(map, mx, my), ...pics }, T) : null;
+      // One being sacked shakes under the blows and goes down (`view.sacking`).
+      if (village && view.sacking?.x === mx && view.sacking.y === my) sackHut(village, view.sacking);
       const mine = tile.mine ? layWork(s, minePicture(tile.terrain), dx, dy, T, pics) : null;
       if (tile.mine && !mine) onSquare(s, dx, dy, T, (on, x, y) => drawMine(on, x, y));
       const net = tile.fishery ? layWork(s, "fishing_net", dx, dy, T, pics) : null;
@@ -347,10 +350,12 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     // The unit in play blinks smoothly (`view.opacity`), its picture fading, its shield, marks and hit points through
     // the dither, and a faint gold glow round its figure (`view.glow`).
     const fade = isActive && view.opacity !== undefined && view.opacity < 1 ? view.opacity : undefined;
-    const under = fade !== undefined ? fineCopy(s, pos[0] - 1, pos[1] - 1, MAP_TILE + 2, MAP_TILE + 2) : null;
-    drawUnit(s, top, pos[0], pos[1], playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id], glow: isActive ? view.glow : undefined, opacity: fade }, T);
+    // Sacking a village, it stands aside from the hut, on the side it came from (`sackAside`).
+    const ux = pos[0] + (view.sacking?.unit === top.id ? Math.round(sackAside(view.sacking) * T) * (view.facingLeft?.[top.id] ? 1 : -1) : 0), uy = pos[1];
+    const under = fade !== undefined ? fineCopy(s, ux - 1, uy - 1, MAP_TILE + 2, MAP_TILE + 2) : null;
+    drawUnit(s, top, ux, uy, playerColor(state, top.owner), stack.length > 1, { ...picture, frame: view.unitFrames?.[top.id], flip: view.facingLeft?.[top.id], glow: isActive ? view.glow : undefined, opacity: fade }, T);
     const max = maxHp(state, top.type);
-    if (top.hp < max) drawHpBar(s, pos[0], pos[1], top.hp, max);
+    if (top.hp < max) drawHpBar(s, ux, uy, top.hp, max);
     if (under && fade !== undefined) fadeOver(s, under, fade);
   }
   for (const m of moving) {
@@ -386,6 +391,11 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // The ship going down, under the words above it.
   const sinkAt = sinking ? toScreen(sinking.x, sinking.y) : null;
   if (sinking && sinkAt) drawSinking(s, sinkAt[0], sinkAt[1], sinking.type, playerColor(state, sinking.owner), sinking.stacked, sinking.t, VIEW_X, VIEW_Y, view.facingLeft?.[sinking.unit] === true, T);
+
+  // A village being sacked: chips flying off it, its loot bursting out, its dust, smoke and embers.
+  const sacking = view.sacking;
+  const sackAt = sacking ? toScreen(sacking.x, sacking.y) : null;
+  if (sacking && sackAt) drawSack(s, sacking, sackAt[0], sackAt[1], hutKind(map, sacking.x, sacking.y), T, VIEW_X, VIEW_Y, view.facingLeft?.[sacking.unit] ? -1 : 1);
 
   // Goto destination of the active unit.
   const act = activeId !== null ? state.units.find((u) => u.id === activeId) : undefined;

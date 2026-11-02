@@ -4,7 +4,7 @@
  * until the first key, click or touch (browsers allow sound only then). Sound and Music are switches in
  * Game > Options, kept per browser. Nothing here touches the game: the app calls `play` as things happen.
  */
-export type Sfx = "click" | "deny" | "found" | "built" | "wonder" | "tech" | "clash" | "hit" | "boom" | "triumph" | "lament" | "war" | "turn" | "gift" | "meet" | "sink";
+export type Sfx = "click" | "deny" | "found" | "built" | "wonder" | "tech" | "clash" | "hit" | "boom" | "triumph" | "lament" | "war" | "turn" | "gift" | "meet" | "sink" | "crash";
 /** A note of an effect: when it starts (s), its pitch (MIDI number), length, wave and loudness; `to` slides the pitch there. */
 export interface Tone {
     at: number;
