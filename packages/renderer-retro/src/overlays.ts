@@ -12,20 +12,21 @@ import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sp
 /**
  * Roads and railroads at the fine grain of the terrain art (32 pixels a square), in its flat fills
  * (asked for 2026-10-23: the old one-pixel track on the coarse grid did not match the terrain; then
- * "too wide, more subtle" and "drop the outline"). Widths are fine pixels from the course. Since 2026-11-02 in the
- * look of the road on the user's sheet of tile improvements ("implement updated tile improvements"): sandy earth,
- * lighter along its crown and flecked with brown, a band of brown either side and a dark brown edge, ragged; about as
- * wide as the sheet's (near a fifth of its square, twice the packed earth before it).
+ * "too wide, more subtle" and "drop the outline"). Widths are fine pixels from the course. On 2026-11-02 they took
+ * the look of the road on the user's sheet of tile improvements, as wide as it (a fifth of a square) in sandy earth
+ * with a dark brown edge, and were "too wide and taking all the focus - minimize and subtle them": now packed earth
+ * in muted shades, lighter along its crown, about three fine pixels across as before, flecked as the sheet's road is,
+ * its sides a shade darker and ragged as the sheet's, no dark edge.
  */
 const ROAD = {
-  /** Sandy earth, lightest along the crown... */
-  crown: 0.9,
-  fill: 1.8,
-  /** ...a band of brown either side... */
-  band: 2.4,
-  /** ...and a dark edge, ragged by this much either way; on a bridge its railing. */
-  outline: 2.9,
-  ragged: 0.35,
+  /** Packed earth, lightest along the crown... */
+  crown: 0.5,
+  fill: 1.3,
+  /** ...its sides a shade darker, ragged by this much either way... */
+  band: 1.7,
+  ragged: 0.25,
+  /** ...and, where it crosses water, a bridge's railing out to here. */
+  outline: 2.3,
 };
 const RAIL = {
   /** Sleepers of dark timber across the road beneath; a steel rail either side, bright on top, shadowed outside. */
@@ -51,12 +52,12 @@ const enum Way { None, Outline, Band, Edge, Crown, Speck, Pebble, Sleeper, RailT
 /** The colour of each kind of pixel: road and railroad on land, and the timber deck where a road crosses water. */
 const LAND_WAY: Record<Way, number> = {
   [Way.None]: -1,
-  [Way.Outline]: shade("canopy", 2),
-  [Way.Band]: shade("dune", 1),
-  [Way.Edge]: shade("dune", 5),
-  [Way.Crown]: shade("dune", 6),
-  [Way.Speck]: shade("hide", 4),
-  [Way.Pebble]: shade("dune", 1),
+  [Way.Outline]: -1, // only a bridge's railing
+  [Way.Band]: shade("earth", 4),
+  [Way.Edge]: shade("earth", 5),
+  [Way.Crown]: shade("earth", 6),
+  [Way.Speck]: shade("earth", 3),
+  [Way.Pebble]: shade("earth", 3),
   [Way.Sleeper]: shade("earth", 1),
   [Way.RailTop]: shade("steel", 7),
   [Way.RailFoot]: shade("steel", 2),
@@ -108,12 +109,12 @@ function wayPixels(ways: RoadWays, x: number, y: number, rail: boolean, t = TILE
         else if (d >= RAIL.railTop && d < RAIL.railOut) k = Way.RailFoot;
         else if (d < RAIL.sleeper && (onSleeper || ways.patch)) k = Way.Sleeper;
       } else {
-        // The edge ragged by the grain, as the sheet's road is stepped along its sides.
+        // The sides ragged by the grain, as the sheet's road is stepped along its sides.
         const e = d + (hash(x * F + i, y * F + j, 11) - 0.5) * 2 * ROAD.ragged;
-        if (d < ROAD.crown) k = grain < 0.08 ? Way.Speck : Way.Crown;
-        else if (d < ROAD.fill) k = grain < 0.1 ? Way.Speck : Way.Edge;
-        else if (e < ROAD.band) k = grain < 0.08 ? Way.Pebble : Way.Band;
-        else if (e < ROAD.outline) k = Way.Outline;
+        if (d < ROAD.crown) k = grain < 0.05 ? Way.Speck : Way.Crown;
+        else if (d < ROAD.fill) k = grain < 0.06 ? Way.Speck : Way.Edge;
+        else if (e < ROAD.band) k = Way.Band;
+        else if (d < ROAD.outline) k = Way.Outline;
       }
       kinds[j * F + i] = k;
       seams[j * F + i] = Math.floor(along) % PLANK_GAP === 0 ? 1 : 0;

@@ -824,8 +824,8 @@ describe("terrain works", () => {
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/works.png", import.meta.url), encodePng(crop, 4));
 
-    // A road wanders across its square, in the sandy earth of the user's sheet, and meets the next square's at the border.
-    const surface = (c: number) => c === shade("dune", 6) || c === shade("dune", 5);
+    // A road wanders across its square, packed earth, and meets the next square's at the border.
+    const surface = (c: number) => c === shade("earth", 6) || c === shade("earth", 5);
     const rows = (mx: number, i: number) => [...Array(16).keys()].filter((j) => surface(at(mx, y0 + 3, i, j)));
     const leaving = rows(x0 + 2, 15);
     expect(leaving.length).toBeGreaterThan(0);

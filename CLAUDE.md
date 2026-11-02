@@ -1130,9 +1130,10 @@ Never ship the original's sprites, palette art, fonts or text.
   beside a diagonal draw their part of it too (`roadWays`), so roads join without seams. Railroads
   lay rails and sleepers (spaced evenly along each course) on the same courses. Retro draws both at the
   fine grain in the terrain art's manner (asked for 2026-10-23, then "too wide, more subtle": `ROAD`,
-  `RAIL` in `overlays.ts`; "drop the outline"): since 2026-11-02 in the look of the road on the user's sheet of tile
-  improvements (below), about as wide as it (near a fifth of a square, twice the packed earth before): sandy earth
-  (`dune`), lightest along its crown and flecked with brown, a band of brown either side and a ragged dark brown edge;
+  `RAIL` in `overlays.ts`; "drop the outline"): packed earth about three fine pixels across in muted shades (`earth`),
+  lighter along its crown, flecked and its sides a shade darker and ragged as the road on the user's sheet of tile
+  improvements (below) is, no dark edge (on 2026-11-02 it took that road's look whole, sandy, a fifth of a square wide
+  with a dark brown edge, and was "too wide and taking all the focus - minimize and subtle them" the same day);
   a railroad lays dark sleepers across it with a bright steel rail either side shadowed outside. Over a river's water
   (Bridge Building) the road is a timber deck in the woods of the sheet's bridge, its planks across the way and a dark
   railing; elsewhere water under a course stays water. The sheet's four road pieces and its bridge are not drawn: they
@@ -1771,7 +1772,7 @@ Harbour adding the second (2026-11-02, asked for; save version 58). The web game
 The terrain drawn from the user's second sheet, forests and mountains in kinds by the land round them (2026-11-02,
 asked for; no save version). Villages drawn as the user's five huts, the kind by the land (2026-11-02, asked for).
 Tile improvements drawn as the user's sheet: fields, mines and quarries, oil pumps, rigs, nets and piers as its
-pictures, roads and bridges in its look (2026-11-02, asked for).
+pictures, bridges in its woods, roads thin and muted (2026-11-02, asked for).
 
 ## Known gaps / next steps
 
