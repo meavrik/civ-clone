@@ -26,9 +26,9 @@ import {
   type CityReport,
   type GameState,
 } from "@civ/core";
-import { buildingArt, citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityImprovements, cityLook, cityUnits, fieldSides, FOCUS_CORNERS, improvementNote, improvementsTop, isWorker, MOOD_STAGE_ICONS, type CitizenMood, type IconName, type ImprovementHit, type ImprovementLine } from "@civ/renderer-api";
+import { buildingArt, citizenNote, citizenRole, citizenRow, CITIZENS_HINT, cityControlNote, cityImprovements, cityLook, cityUnits, fieldSides, fieldsPicture, FOCUS_CORNERS, minePicture, pierSquare, improvementNote, improvementsTop, isWorker, MOOD_STAGE_ICONS, type CitizenMood, type IconName, type ImprovementHit, type ImprovementLine } from "@civ/renderer-api";
 import { drawText, drawTextCentered, drawTextWrapped, FONT_HEIGHT, textWidth } from "../font.js";
-import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRankMark, drawRoad, drawUnitFigure, rankHoles } from "../overlays.js";
+import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRankMark, drawRoad, drawUnitFigure, layWork, rankHoles, waterHoles } from "../overlays.js";
 import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawSpecial, fogSquare, terrainSquare, TILE } from "../tiles.js";
@@ -38,7 +38,7 @@ import { BAD, DIM, drawButton, drawCloseBox, drawScrollTrack, drawStone, drawTit
 import { CITIZEN_H, CITIZEN_PITCH, CITIZEN_W, drawCitizen } from "../citizens.js";
 import { drawIcon, drawIconFine, drawIconLine, ICON, iconInk, iconLineWidth } from "../icons.js";
 import { SPRITE_CLEAR } from "../sprites/sheet.js";
-import { drawnOver, fineCopy } from "../art-holes.js";
+import { drawnOver, fineCopy, sealPictures, type SquarePictures } from "../art-holes.js";
 import { drawCity } from "./map-city.js";
 import { playerColor } from "./main.js";
 import { LEFT, MID, RIGHT, ROW1, ROW2, TOP } from "./city-layout.js";
@@ -449,6 +449,9 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   drawBox(s, MID.x, ROW1.y, MID.w, ROW1.h);
   const me = state.players[state.currentPlayer]!;
   s.rect(CITY_MAP_X - 1, CITY_MAP_Y - 1, 82, 82, C.BLACK!);
+  // The works the user drew laid as the map lays them (see `drawMainScreen`), what is drawn after each showing through.
+  const pics: SquarePictures = { room: { x: CITY_MAP_X, y: CITY_MAP_Y, w: 5 * TILE, h: 5 * TILE }, laid: [] };
+  const pier = pierSquare(state.map, city, (x, y) => me.explored[y * state.map.width + x] === 1);
   for (let ty = 0; ty < 5; ty++)
     for (let tx = 0; tx < 5; tx++) {
       const dx = tx - 2;
@@ -471,14 +474,17 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
       }
       const ground = terrainSquare(state.map, wx, my, me.explored);
       s.blit(ground, px, py);
-      if (tile.irrigation) drawIrrigation(s, px, py, ground, tile.terrain, wx, my, fieldSides(state.map, me.explored, wx, my));
+      const fields = tile.irrigation ? layWork(s, fieldsPicture(state.map, wx, my, tile), px, py, TILE, pics, waterHoles(ground, px, py)) : null;
+      if (pier && pier[0] === wx && pier[1] === my) layWork(s, "pier", px, py, TILE, pics);
+      if (tile.irrigation && !fields) drawIrrigation(s, px, py, ground, tile.terrain, wx, my, fieldSides(state.map, me.explored, wx, my));
       if (tile.grassShield && tile.terrain === Terrain.Grassland) drawGrassShield(s, px, py, ground);
       drawRoad(s, px, py, state.map, me.explored, wx, my, ground);
       drawRailroad(s, px, py, state.map, me.explored, wx, my);
-      if (tile.mine) drawMine(s, px, py);
-      if (tile.special) drawSpecial(s, px, py, state, tile, city.owner);
-      if (tile.fishery) drawFishery(s, px, py);
-      if (tile.rig) drawRig(s, px, py);
+      if (tile.mine && !layWork(s, minePicture(tile.terrain), px, py, TILE, pics)) drawMine(s, px, py);
+      const net = tile.fishery ? layWork(s, "fishing_net", px, py, TILE, pics) : null;
+      if (tile.special) drawSpecial(s, px, py, state, tile, city.owner, TILE, pics);
+      if (tile.fishery && !net) drawFishery(s, px, py);
+      if (tile.rig && !layWork(s, "oil_rig", px, py, TILE, pics)) drawRig(s, px, py);
       if (tile.fortress) drawFortress(s, px, py);
       if (tile.pollution) drawPollution(s, px, py);
       if (fog) s.blit(fog, px, py, SPRITE_CLEAR);
@@ -521,6 +527,8 @@ export function drawCityScreen(s: Surface, state: GameState, view: CityScreenVie
   // The focus toggles in the map's corners: lit for each focus the city works for (any of them together).
   const foci = cityFoci(state, city);
   FOCUS_CORNERS.forEach(({ focus, icon }, i) => drawFocusToggle(s, focusCorner(i), icon, foci.includes(focus), view.hoverControl === focus));
+  // The yields, the shade and hatching of squares it cannot work and the border show over the works' pictures.
+  sealPictures(s, pics.laid);
 
   drawImprovements(s, state, city, view, r);
   // Culture toward the level where the border grows next (and, in old saves, what a turn adds).

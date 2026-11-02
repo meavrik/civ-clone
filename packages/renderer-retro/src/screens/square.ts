@@ -1,6 +1,7 @@
 import { cityAt, Terrain, unitAt, type GameState } from "@civ/core";
-import { cityLook, fieldSides, hutKind, moveArt, type MenuState } from "@civ/renderer-api";
-import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit } from "../overlays.js";
+import { cityLook, fieldSides, fieldsPicture, hutKind, minePicture, moveArt, pierSquare, type MenuState } from "@civ/renderer-api";
+import { sealPictures, type SquarePictures } from "../art-holes.js";
+import { drawFortress, drawGrassShield, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawUnit, layWork, waterHoles } from "../overlays.js";
 import { C } from "../palette.js";
 import { Surface } from "../surface.js";
 import { drawHut, drawSpecial, terrainSquare, TILE } from "../tiles.js";
@@ -30,16 +31,23 @@ export function drawSquarePicture(s: Surface, state: GameState, mx: number, my: 
   const tile = map.tiles[idx]!;
   const ground = terrainSquare(map, wx, my, me.explored);
   one.blit(ground, 0, 0);
-  if (tile.irrigation) drawIrrigation(one, 0, 0, ground, tile.terrain, wx, my, fieldSides(map, me.explored, wx, my));
+  // The works the user drew laid as the map lays them (see `drawMainScreen`), what is drawn after each showing through.
+  const room = { room: { x: 0, y: 0, w: TILE, h: TILE } };
+  const pics: SquarePictures = { ...room, laid: [] };
+  const known = (kx: number, ky: number) => me.explored[ky * map.width + kx] === 1;
+  const fields = tile.irrigation ? layWork(one, fieldsPicture(map, wx, my, tile), 0, 0, TILE, pics, waterHoles(ground, 0, 0)) : null;
+  const pier = state.cities.some((c) => known(c.x, c.y) && pierSquare(map, c, known)?.join() === `${wx},${my}`);
+  if (pier) layWork(one, "pier", 0, 0, TILE, pics);
+  if (tile.irrigation && !fields) drawIrrigation(one, 0, 0, ground, tile.terrain, wx, my, fieldSides(map, me.explored, wx, my));
   if (tile.grassShield && tile.terrain === Terrain.Grassland) drawGrassShield(one, 0, 0, ground);
   drawRoad(one, 0, 0, map, me.explored, wx, my, ground);
   drawRailroad(one, 0, 0, map, me.explored, wx, my);
-  if (tile.mine) drawMine(one, 0, 0);
-  if (tile.special) drawSpecial(one, 0, 0, state, tile, state.currentPlayer);
-  if (tile.fishery) drawFishery(one, 0, 0);
-  if (tile.rig) drawRig(one, 0, 0);
-  const room = { room: { x: 0, y: 0, w: TILE, h: TILE } };
-  if (tile.hut) drawHut(one, 0, 0, { kind: hutKind(map, wx, my), ...room });
+  if (tile.hut) drawHut(one, 0, 0, { kind: hutKind(map, wx, my), ...pics });
+  if (tile.mine && !layWork(one, minePicture(tile.terrain), 0, 0, TILE, pics)) drawMine(one, 0, 0);
+  const net = tile.fishery ? layWork(one, "fishing_net", 0, 0, TILE, pics) : null;
+  if (tile.special) drawSpecial(one, 0, 0, state, tile, state.currentPlayer, TILE, pics);
+  if (tile.fishery && !net) drawFishery(one, 0, 0);
+  if (tile.rig && !layWork(one, "oil_rig", 0, 0, TILE, pics)) drawRig(one, 0, 0);
   if (tile.fortress) drawFortress(one, 0, 0);
   if (tile.pollution) drawPollution(one, 0, 0);
   const city = cityAt(state, wx, my);
@@ -49,7 +57,8 @@ export function drawSquarePicture(s: Surface, state: GameState, mx: number, my: 
     const top = units.find((u) => u.id === state.activeUnit) ?? units[0];
     if (top) drawUnit(one, top, 0, 0, playerColor(state, top.owner), units.length > 1, room);
   }
-  // The village's, the city's or the unit's picture grows with the square.
+  sealPictures(one, pics.laid);
+  // The pictures of its works, village, city or unit grow with the square.
   s.art.push(...one.art.map((a) => moveArt(a, 0, 0, x, y, scale)));
   // Each fine pixel of the square as a block of scale x scale.
   const k = s.k;

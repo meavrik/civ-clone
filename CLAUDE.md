@@ -468,7 +468,7 @@ Never ship the original's sprites, palette art, fonts or text.
   user's (see Unit pictures; `UNIT_PICTURES_WANTED` is empty, retro `UNIT_ABBR`'s letters stand in only where no
   picture is laid); the rest wait for theirs (renderer-api `BUILDING_PICTURES_WANTED`, `TECH_PICTURES_WANTED`): the Harbour its
   drawn city-view picture (`PICTURES.harbour`), Archery and Seafaring the New Technology frame's bed (Elephants
-  have the user's icon since their resource sheet of the same day); a fishery is drawn in code (retro `fishery.ts`: two stakes, a sagging net, red and
+  have the user's icon since their resource sheet of the same day); a fishery is the user's net since 2026-11-02 (see Tile improvement pictures; before, drawn in code, retro `fishery.ts`: two stakes, a sagging net, red and
   white floats). The Resources advisor's bands close up to fit six (`TRADES_ROOM`). The loader took versions 1-48 and
   the current one only, so saves of 49 to 51 had been refused since; it now takes every version up to `SAVE_VERSION`.
   Oil at sea and oil rigs (asked for 2026-11-01: "add oil for water and also all the tile improvements that would be
@@ -482,9 +482,9 @@ Never ship the original's sprites, palette art, fonts or text.
   (`offshore.rig.shields`, as a mine does; the oil itself adds none, see version 52). Told as roads are: the square's
   window ("No use to anyone until a Fishing Boat builds an oil rig on it", "Oil rig +1"), Advisors > Resources (badge
   "Wants rig", "1 square near Rome wants an oil rig: a Fishing Boat builds one", `ResourceHolding.unrigged`), the build
-  menu (`rigNote`: "Our Oil lies unused at sea: a Fishing Boat builds a rig") and the reveal note. Drawn in code until
-  the user's pictures come (retro `rig.ts`: a steel deck on four legs in foam, a derrick and a flare; the oil's icon
-  steps aside under it), the oil at sea an icon of its own, a slick with bubbles (`offshore_oil` in the user's resource sheet of the same day;
+  menu (`rigNote`: "Our Oil lies unused at sea: a Fishing Boat builds a rig") and the reveal note. The user's picture
+  of a rig since 2026-11-02 (see Tile improvement pictures; before, drawn in code, retro `rig.ts`: a steel deck on four
+  legs in foam, a derrick and a flare; the oil's icon steps aside under it), the oil at sea an icon of its own, a slick with bubbles (`offshore_oil` in the user's resource sheet of the same day;
   retro `drawSpecial` picks it on the sea, `specialSprite` joining a name's words). The planner's
   fishing boats build the rig on oil their civilization lacks (`rigSpots`), and its cities build a boat for one;
   rarely seen: no planner civ knew Refining by turn 300 in 6 all-planner games, and given it at turn 150 one rig went
@@ -1130,13 +1130,33 @@ Never ship the original's sprites, palette art, fonts or text.
   beside a diagonal draw their part of it too (`roadWays`), so roads join without seams. Railroads
   lay rails and sleepers (spaced evenly along each course) on the same courses. Retro draws both at the
   fine grain in the terrain art's manner (asked for 2026-10-23, then "too wide, more subtle": `ROAD`,
-  `RAIL` in `overlays.ts`; "drop the outline"): a road is packed earth about 3 fine pixels wide, lighter
-  along its crown, a few pebbles, no outline; a railroad lays dark sleepers across it with a bright steel rail either
-  side shadowed outside. Over a river's water (Bridge Building) the road is a timber deck with its
-  planks across the way and a dark railing; elsewhere water under a course stays water. Irrigation is fields:
-  plots of crops in rows either side of an east-west canal (`fieldLayout`), running on into
-  irrigated neighbours (`fieldSides`) with a strip of terrain elsewhere; water and the knolls of
-  hills stay above them. Mines are a rock mound with a timber-framed shaft, drawn over the roads.
+  `RAIL` in `overlays.ts`; "drop the outline"): since 2026-11-02 in the look of the road on the user's sheet of tile
+  improvements (below), about as wide as it (near a fifth of a square, twice the packed earth before): sandy earth
+  (`dune`), lightest along its crown and flecked with brown, a band of brown either side and a ragged dark brown edge;
+  a railroad lays dark sleepers across it with a bright steel rail either side shadowed outside. Over a river's water
+  (Bridge Building) the road is a timber deck in the woods of the sheet's bridge, its planks across the way and a dark
+  railing; elsewhere water under a course stays water. The sheet's four road pieces and its bridge are not drawn: they
+  run four ways, the roads eight and wandering.
+  Tile improvement pictures (2026-11-02, asked for with the user's sheet: "implement updated tile improvements"):
+  `tools/sprites/works/works.png` (kept as supplied, a 4x4 grid: roads, fields of four kinds, mine, quarry, logging camp,
+  oil pump, offshore rig, fishing net, pier, bridge; a red fringe of its background's removal at alpha 1 to 3, unseen) is
+  cut by `tools/sprites/works/cut.ts` (pieces of alpha over 64 to the cell their middle lies in, every pixel the
+  sheet's) into `apps/web/src/works/<id>.png` and renderer-api `work-art.ts` (`WORK_ART`); renderer-api
+  `work-pictures.ts` says which stands where, only the picture (the rules know one irrigation and one mine):
+  irrigation is fields of a kind for the land (`fieldsPicture`: crops on grassland and hills, wheat on the plains,
+  ploughed earth in the desert and tundra, one of a few by a hash; on a river, fields with canals), a mine a timbered
+  shaft, on mountains a quarry (`minePicture`), oil on land with a road to it an oil pump in place of its icon
+  (`drawSpecial`'s `pics`), `Tile.rig` the offshore rig, `Tile.fishery` the net, and a city with a Harbour its pier on
+  the first sea square beside it, sides before corners (`pierSquare`). One scale, the sheet's 350-pixel cell to a square
+  (`WORK_SQUARE`), centred (`workArtPlace`, `ArtSpot.work`). Each screen (the map, the square's window, the city
+  screen's map) lays them in drawing order (`layWork`, art-holes `layPicture`/`SquarePictures`): each picture
+  remembers its square as drawn when laid (`fineCopy`), and once the screen is drawn whatever came over it since shows
+  through (`sealPictures`): a road or the grassland's shield over fields, a resource over a mine or a net, borders,
+  the fog's edge, names, yields; the shade out of sight shades the picture whole, as a city's; fields let the square's
+  own water show (`waterHoles`: a river through them, a shore). The villages are laid so too. The logging camp is not
+  cut (no work for forests in the rules). The code-drawn fields (`drawIrrigation`, `fieldLayout`: plots in rows either
+  side of a canal, running on into irrigated neighbours), mine, fishery (`fishery.ts`) and rig (`rig.ts`) stay for
+  anything without a picture.
   Unit pictures (2026-10-28, asked for, twice in capitals: "implement new units sprite-sheet. USE AS IS - DO NOT
   regenerate"; a first try converted three of them into the palette with an outline and was rejected): the user's
   sheet of all 29 units (`tools/sprites/units/units.png`, 1774x887, magenta where the owner's colour goes) is cut by
@@ -1750,6 +1770,8 @@ Harbour adding the second (2026-11-02, asked for; save version 58). The web game
 16 to 32 drawn at each size, with + and - on the map (2026-11-02, asked for; no save version; the phone keeps 16).
 The terrain drawn from the user's second sheet, forests and mountains in kinds by the land round them (2026-11-02,
 asked for; no save version). Villages drawn as the user's five huts, the kind by the land (2026-11-02, asked for).
+Tile improvements drawn as the user's sheet: fields, mines and quarries, oil pumps, rigs, nets and piers as its
+pictures, roads and bridges in its look (2026-11-02, asked for).
 
 ## Known gaps / next steps
 

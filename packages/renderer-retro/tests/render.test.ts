@@ -818,48 +818,64 @@ describe("terrain works", () => {
     // `fine` reads a fine pixel of the terrain beneath, 0 to FINE - 1.
     const at = (mx: number, my: number, i: number, j: number) => s.get(80 + (mx - view.originX) * 16 + i, 9 + (my - view.originY) * 16 + j);
     const fine = (mx: number, my: number, i: number, j: number) => s.fget((80 + (mx - view.originX) * 16) * s.k + i, (9 + (my - view.originY) * 16) * s.k + j);
-    const earth = (c: number) => c >= C.EARTH! && c < C.EARTH! + 8;
     const water = isWater;
     const crop = Surface.fine((TERRAIN[0]!.length + 1) * 16, (TERRAIN.length + 1) * 16);
     for (let y = 0; y < crop.fh; y++) for (let x = 0; x < crop.fw; x++) crop.fset(x, y, s.fget(80 * s.k + x, 9 * s.k + y));
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     writeFileSync(new URL("./out/works.png", import.meta.url), encodePng(crop, 4));
 
-    // A road wanders across its square, and its packed earth meets the next square's at the border.
-    const surface = (c: number) => c === shade("earth", 6) || c === shade("earth", 5);
+    // A road wanders across its square, in the sandy earth of the user's sheet, and meets the next square's at the border.
+    const surface = (c: number) => c === shade("dune", 6) || c === shade("dune", 5);
     const rows = (mx: number, i: number) => [...Array(16).keys()].filter((j) => surface(at(mx, y0 + 3, i, j)));
     const leaving = rows(x0 + 2, 15);
     expect(leaving.length).toBeGreaterThan(0);
     expect(leaving.some((j) => rows(x0 + 3, 0).some((k) => Math.abs(j - k) <= 1))).toBe(true);
     expect(new Set([0, 4, 8, 12, 15].map((i) => rows(x0 + 2, i).join())).size).toBeGreaterThan(1);
+    // What a road changes on a square: the square drawn with it against without it.
+    const without = (squares: [number, number][]) => {
+      for (const [i, j] of squares) getTile(state.map, x0 + i, y0 + j)!.road = false;
+      const bare = Surface.screen();
+      drawMainScreen(bare, state, view);
+      for (const [i, j] of squares) getTile(state.map, x0 + i, y0 + j)!.road = true;
+      return (mx: number, my: number, i: number, j: number) => bare.fget((80 + (mx - view.originX) * 16) * s.k + i, (9 + (my - view.originY) * 16) * s.k + j);
+    };
     // The diagonal from (6,2) to (7,1) passes the corner of (6,1) and (7,2), roadless, which draw their part of it.
+    const noDiagonal = without([[6, 2], [7, 1]]);
     let corner = 0;
-    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) if (earth(at(x0 + 6, y0 + 1, i, j)) || earth(at(x0 + 7, y0 + 2, i, j))) corner++;
+    for (const [mx, my] of [[x0 + 6, y0 + 1], [x0 + 7, y0 + 2]] as const)
+      for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) if (fine(mx, my, i, j) !== noDiagonal(mx, my, i, j)) corner++;
     expect(corner).toBeGreaterThan(0);
-    // Where the road crosses the river it is a bridge: timber planks over the water, none on dry road squares.
-    const planks = (mx: number, my: number) => {
+    // Where the road crosses the river it is a bridge: planks with dark seams over the water, none on dry road squares.
+    const noRoads = without([[9, 4], [2, 3]]);
+    const seams = (mx: number, my: number) => {
       let n = 0;
-      for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) if (fine(mx, my, i, j) === shade("earth", 4)) n++;
+      for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) if (fine(mx, my, i, j) === shade("hide", 2) && noRoads(mx, my, i, j) !== shade("hide", 2)) n++;
       return n;
     };
     expect(getTile(state.map, x0 + 9, y0 + 4)!.river).toBe(true);
-    expect(planks(x0 + 9, y0 + 4)).toBeGreaterThan(0);
-    expect(planks(x0 + 2, y0 + 3)).toBe(0);
-    // Fields: a canal runs through the middle and on into the irrigated neighbour; a strip of terrain shows toward the rest.
-    expect(water(at(x0 + 3, y0 + 4, 15, 7)) && water(at(x0 + 4, y0 + 4, 0, 7))).toBe(true);
-    const ground = (c: number) => c >= C.MEADOW! && c < C.MEADOW! + 8;
-    expect(ground(at(x0 + 4, y0 + 1, 8, 0))).toBe(true);
-    // The river keeps its water through the fields it waters.
+    expect(seams(x0 + 9, y0 + 4)).toBeGreaterThan(0);
+    expect(seams(x0 + 2, y0 + 3)).toBe(0);
+    // Fields and mines are the user's pictures (the sheet of tile improvements), of a kind for the land.
+    const spot = (mx: number, my: number) => s.art.find((a) => a.work && a.x === 80 + (mx - view.originX) * 16 && a.y === 9 + (my - view.originY) * 16);
+    expect(spot(x0 + 3, y0 + 4)?.id).toMatch(/^fields_/);
+    expect(spot(x0 + 10, y0)?.id).toBe("mine");
+    expect(spot(x0 + 12, y0)?.id).toBe("quarry");
+    expect(spot(x0 + 4, y0 + 3)).toBeUndefined();
+    // The river keeps its water through the fields it waters: canals in the picture, the river's water showing through.
     const riverSquare = { x: x0 + 9, y: y0 + 5 };
+    const fields = spot(riverSquare.x, riverSquare.y)!;
+    expect(fields.id).toBe("fields_irrigated");
     let riverPx = 0;
-    // The canal runs along screen row 7, fine rows 14 and 15; leave out that row and column.
-    const canal = (n: number) => Math.floor(n / DETAIL) === 7;
-    for (let j = 0; j < FINE; j++) for (let i = 0; i < FINE; i++) if (water(fine(riverSquare.x, riverSquare.y, i, j)) && !canal(i) && !canal(j)) riverPx++;
+    for (let j = 0; j < FINE; j++) for (let i = 0; i < FINE; i++) if (water(fine(riverSquare.x, riverSquare.y, i, j))) riverPx++;
     expect(riverPx).toBeGreaterThan(8 * DETAIL * DETAIL);
-    // A mine is a rock mound with a dark shaft framed in timber.
-    expect(at(x0 + 10, y0, 7, 13)).toBe(shade("steel", 0));
-    expect(at(x0 + 10, y0, 4, 13)).toBe(shade("rock", 4));
-
+    const px = 80 + (riverSquare.x - view.originX) * 16, py = 9 + (riverSquare.y - view.originY) * 16;
+    const through = (fields.holes ?? []).reduce((n, h) => n + Math.round(h.w * h.h * DETAIL * DETAIL), 0);
+    expect(through).toBeGreaterThanOrEqual(riverPx);
+    expect((fields.holes ?? []).every((h) => h.x >= px && h.y >= py && h.x + h.w <= px + 16 && h.y + h.h <= py + 16)).toBe(true);
+    // A road over fields shows through them.
+    const roadOverFields = spot(x0 + 5, y0 + 3)!;
+    expect(roadOverFields.id).toMatch(/^fields_/);
+    expect(roadOverFields.holes?.length).toBeGreaterThan(0);
   });
 });
 

@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, createUnit, getTile, newGame, revealAround, Terrain } from "@civ/core";
-import { artPlace, hutKind, type ArtBox, type MainScreenView } from "@civ/renderer-api";
+import { artPlace, fieldsPicture, hutKind, minePicture, pierSquare, type ArtBox, type MainScreenView } from "@civ/renderer-api";
 import { C, DIMMED, drawCityScreen, drawMainScreen, drawSquarePicture, Surface } from "../src/index.js";
 import { drawnOver, fineCopy, runHoles } from "../src/art-holes.js";
 import { encodePng } from "./png.js";
@@ -170,5 +170,56 @@ describe("village pictures", () => {
         if (t === Terrain.Arctic) expect(kind).toBe("tent");
       }
     expect([...seen].sort()).toEqual(["adobe", "cottage", "tent", "thatch", "timber"]);
+  });
+});
+
+describe("tile improvement pictures", () => {
+  it("lay oil with a road as a pump, a net under the fish, a pier on the sea beside a Harbour's city", () => {
+    const { state, view, city } = founded();
+    const me = state.players[0]!;
+    const sq = (dx: number, dy: number) => getTile(state.map, city.x + dx, city.y + dy)!;
+    const box = (dx: number, dy: number) => ({ x: 80 + (city.x + dx - view.originX) * 16, y: 9 + (city.y + dy - view.originY) * 16 });
+    // Oil on land, seen (Refining), with a road built to it.
+    me.advances.push("refining");
+    Object.assign(sq(2, 0), { terrain: Terrain.Plains, deposit: "Oil", special: true, road: false, river: false, rig: false, hut: false });
+    // A fishery on the sea, with its fish.
+    Object.assign(sq(0, 2), { terrain: Terrain.Ocean, special: true, fishery: true, deposit: undefined, hut: false });
+    for (const [dx, dy] of [[0, 1], [1, 1], [-1, 1], [1, 0], [-1, 0]] as const) Object.assign(sq(dx, dy), { terrain: Terrain.Grassland, river: false });
+    Object.assign(sq(0, 1), { terrain: Terrain.Ocean, special: false, fishery: false, hut: false });
+    const draw = () => { const s = Surface.screen(); drawMainScreen(s, state, view); return s; };
+    const at = (s: Surface, dx: number, dy: number) => s.art.find((a) => a.work && a.x === box(dx, dy).x && a.y === box(dx, dy).y);
+    let s = draw();
+    expect(at(s, 2, 0)).toBeUndefined();
+    sq(2, 0).road = true;
+    s = draw();
+    expect(at(s, 2, 0)?.id).toBe("oil_pump");
+    // The net lies under the fish: the fish's icon shows through it.
+    const net = at(s, 0, 2)!;
+    expect(net.id).toBe("fishing_net");
+    expect(net.holes?.length).toBeGreaterThan(0);
+    // No Harbour, no pier; with one, a pier on the sea beside it, the sides before the corners.
+    expect(s.art.some((a) => a.id === "pier")).toBe(false);
+    city.buildings.push("harbour");
+    s = draw();
+    expect(at(s, 0, 1)?.id).toBe("pier");
+    expect(pierSquare(state.map, city, () => true)).toEqual([city.x, city.y + 1]);
+    city.buildings = city.buildings.filter((b) => b !== "harbour");
+    expect(pierSquare(state.map, city, () => true)).toBeNull();
+  });
+
+  it("are fields of a kind for the land, mines a shaft or a quarry", () => {
+    const { map } = newGame(4);
+    for (let y = 0; y < map.height; y++)
+      for (let x = 0; x < map.width; x++) {
+        const t = map.tiles[y * map.width + x]!;
+        const f = fieldsPicture(map, x, y, t);
+        if (t.river) expect(f).toBe("fields_irrigated");
+        else if (t.terrain === Terrain.Plains) expect(["fields_wheat", "fields_crops"]).toContain(f);
+        else if (t.terrain === Terrain.Desert) expect(["fields_ploughed", "fields_wheat"]).toContain(f);
+        else if (t.terrain === Terrain.Tundra) expect(f).toBe("fields_ploughed");
+      }
+    expect(minePicture(Terrain.Mountains)).toBe("quarry");
+    expect(minePicture(Terrain.Hills)).toBe("mine");
+    expect(minePicture(Terrain.Desert)).toBe("mine");
   });
 });

@@ -102,13 +102,13 @@ export function dimScreen(s: Surface, keep?: { x: number; y: number; w: number; 
 /**
  * Drop the pictures the screen under a window left spots for where the window stands: the apps lay
  * them over the canvas, so one under the window would cover it. The rest stay, darkened (`dimScreen`).
- * A unit's, a city's or a village's picture is only cut round the window (a hole where it stands), so the map's
- * units, cities and villages at its edge keep what shows of them; a ship going down under its waterline goes.
+ * A unit's, a city's, a village's or a work's picture is only cut round the window (a hole where it stands), so the
+ * map's units, cities, villages and works at its edge keep what shows of them; a ship going down under its waterline goes.
  */
 export function hideArtUnder(s: Surface, r: { x: number; y: number; w: number; h: number }): void {
   s.art = s.art.flatMap((a) => {
     if (!(a.x < r.x + r.w && a.x + a.w > r.x && a.y < r.y + r.h && a.y + a.h > r.y)) return [a];
-    return (a.unit || a.city || a.hut) && a.water === undefined ? [{ ...a, holes: [...(a.holes ?? []), { x: r.x, y: r.y, w: r.w, h: r.h }] }] : [];
+    return (a.unit || a.city || a.hut || a.work) && a.water === undefined ? [{ ...a, holes: [...(a.holes ?? []), { x: r.x, y: r.y, w: r.w, h: r.h }] }] : [];
   });
 }
 

@@ -1,5 +1,6 @@
 import { CITY_ART } from "./city-art.js";
 import { HUT_ART } from "./hut-art.js";
+import { workArtPlace } from "./work-pictures.js";
 import { UNIT_ART } from "./unit-art.js";
 import { animSheet, unitAnim } from "./unit-anim.js";
 import type { UnitAtlas } from "./unit-atlas.js";
@@ -93,6 +94,8 @@ export interface ArtSpot extends ArtBox {
   city?: boolean;
   /** A tribal village's picture on its square (`hutArt`, the id its kind, "thatch"), standing as `hutArtPlace` puts it. */
   hut?: boolean;
+  /** A tile improvement's picture on its square (`workArt`, the id a `WorkPicture`, "mine"), as `workArtPlace` puts it. */
+  work?: boolean;
   /** Out of sight: shaded as the map shades the squares it does not see now (`UNSEEN`, each colour at 62%). */
   unseen?: boolean;
   /** Only what lies inside shows: the map's view, for a unit at its edge. */
@@ -260,6 +263,7 @@ export function artPlace(spot: ArtSpot): ArtBox | null {
   if (spot.unit) return unitArtPlace(spot);
   if (spot.city) return cityArtPlace(spot);
   if (spot.hut) return hutArtPlace(spot);
+  if (spot.work) return workArtPlace(spot);
   const art = buildingArt(spot.id);
   if (!art) return null;
   const k = Math.min(spot.w / art.w, spot.h / art.h);

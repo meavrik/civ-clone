@@ -24,7 +24,7 @@ import {
   specialFor,
 } from "@civ/core";
 import { drawSmallCaps, drawSpacedRinged, drawText, drawTextCentered, drawTextPlate, drawTextRinged, drawTextWrapped, FONT_HEIGHT, SMALL_CAPS_HEIGHT, smallCapsWidth, spacedWidth, textPlateWidth, textWidth, wrapText } from "../font.js";
-import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawShield, drawUnit, drawUnitFigure, drawUnitFlash, hpBarBox } from "../overlays.js";
+import { drawBorderSide, drawBurst, drawFortress, drawGrassShield, drawHpBar, drawIrrigation, drawMine, drawPollution, drawRailroad, drawRoad, drawShield, drawUnit, drawUnitFigure, drawUnitFlash, hpBarBox, layWork, waterHoles } from "../overlays.js";
 import { C, DIMMED, shade, slotColor, PALETTE, UNSEEN } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { drawHut, drawSpecial, fogSquare, MAP_TILE, onSquare, shadeUnseen, terrainSquare, TILE, unseenSquare } from "../tiles.js";
@@ -38,7 +38,7 @@ import { drawSinking } from "../sinking.js";
 import { drawShot } from "../shot.js";
 import { drawFounding } from "../founding.js";
 import { drawCity } from "./map-city.js";
-import { drawnOver, fineCopy, type FineCopy } from "../art-holes.js";
+import { drawnOver, fineCopy, sealPictures, type SquarePictures } from "../art-holes.js";
 import { techLabel } from "./research.js";
 import { BAR_H, PANEL_W } from "./main-layout.js";
 import { fadeOver } from "../fade.js";
@@ -107,7 +107,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, civNameSpots, hutKind, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type ZoomButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, civNameSpots, fieldsPicture, hutKind, minePicture, pierSquare, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type ZoomButton, type Territory, rankLine, researchOutlook, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -165,10 +165,19 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   // shaded over their borders, under the fog; a city's square once the city is drawn, so the city is shaded too.
   const unseen: [Uint8Array | "all", number, number, number][] = [];
   const terr = view.borders ? territory(state) : null;
-  // The user's pictures of villages, cities and units show inside the view only.
+  // The user's pictures of works, villages, cities and units show inside the view only.
   const picture = { room: { x: VIEW_X, y: VIEW_Y, w: s.width - VIEW_X, h: VIEW_H } };
-  // Villages standing as the user's pictures, each with its square as drawn under it, for what goes over it later.
-  const villages: { spot: ArtSpot; copy: FineCopy; idx: number }[] = [];
+  // The squares' works and villages standing as the user's pictures, each laid with its square as drawn under it, so
+  // what goes over it later shows through (`layPicture`, `sealPictures`).
+  const pics: SquarePictures = { ...picture, laid: [] };
+  // Each city with a Harbour has a pier on the sea beside it (`pierSquare`).
+  const known = (x: number, y: number) => me.explored[y * map.width + x] === 1;
+  const piers = new Set<number>();
+  for (const c of state.cities) {
+    if (!known(c.x, c.y)) continue;
+    const at = pierSquare(map, c, known);
+    if (at) piers.add(at[1] * map.width + at[0]);
+  }
   for (let ty = 0; ty <= viewDown(); ty++) {
     const my = view.originY + ty;
     const dy = VIEW_Y + ty * MAP_TILE - oy;
@@ -188,31 +197,39 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       const tile = map.tiles[my * map.width + mx]!;
       const ground = terrainSquare(map, mx, my, me.explored, T);
       s.blit(ground, dx, dy);
-      // Fields are laid at the original's size (on its ground) and stretched over a larger square.
+      // The user's pictures of works (the sheet of tile improvements), in the order they stand: what is drawn after
+      // each (a road over fields, a resource over a mine or a net) shows through it. Irrigated land is fields of a
+      // kind for the land (`fieldsPicture`), the square's own water showing through; a Harbour's pier on the sea.
+      const fields = tile.irrigation ? layWork(s, fieldsPicture(map, mx, my, tile), dx, dy, T, pics, waterHoles(ground, dx, dy)) : null;
+      if (piers.has(my * map.width + mx)) layWork(s, "pier", dx, dy, T, pics);
+      // Fields without a picture are laid at the original's size (on its ground) and stretched over a larger square.
       const shield = tile.grassShield && tile.terrain === Terrain.Grassland;
-      if (tile.irrigation || shield)
+      if ((tile.irrigation && !fields) || shield)
         onSquare(s, dx, dy, T, (on, x, y) => {
           const under = T === TILE ? ground : terrainSquare(map, mx, my, me.explored);
-          if (tile.irrigation) drawIrrigation(on, x, y, under, tile.terrain, mx, my, fieldSides(map, me.explored, mx, my));
+          if (tile.irrigation && !fields) drawIrrigation(on, x, y, under, tile.terrain, mx, my, fieldSides(map, me.explored, mx, my));
           if (shield) drawGrassShield(on, x, y, under);
         });
       // Every square, as roads between two of its neighbours cut across its corners.
       drawRoad(s, dx, dy, map, me.explored, mx, my, ground, T);
       drawRailroad(s, dx, dy, map, me.explored, mx, my, T);
       // A village of a kind the user drew stands as its picture, by the land (`hutKind`); else the drawn huts.
-      const village = tile.hut ? drawHut(s, dx, dy, { kind: hutKind(map, mx, my), ...picture }, T) : null;
-      if (tile.mine) onSquare(s, dx, dy, T, (on, x, y) => drawMine(on, x, y));
-      // A resource is drawn at the square's size, a share of it across (`SPECIAL_SHARE`), not stretched with it.
-      if (tile.special) drawSpecial(s, dx, dy, state, tile, state.currentPlayer, T);
-      if (tile.fishery || tile.rig || (tile.hut && !village) || tile.fortress || tile.pollution)
+      const village = tile.hut ? drawHut(s, dx, dy, { kind: hutKind(map, mx, my), ...pics }, T) : null;
+      const mine = tile.mine ? layWork(s, minePicture(tile.terrain), dx, dy, T, pics) : null;
+      if (tile.mine && !mine) onSquare(s, dx, dy, T, (on, x, y) => drawMine(on, x, y));
+      const net = tile.fishery ? layWork(s, "fishing_net", dx, dy, T, pics) : null;
+      // A resource is drawn at the square's size, a share of it across (`SPECIAL_SHARE`), not stretched with it; oil
+      // with a road to it stands as a pump.
+      if (tile.special) drawSpecial(s, dx, dy, state, tile, state.currentPlayer, T, pics);
+      const rig = tile.rig ? layWork(s, "oil_rig", dx, dy, T, pics) : null;
+      if ((tile.fishery && !net) || (tile.rig && !rig) || (tile.hut && !village) || tile.fortress || tile.pollution)
         onSquare(s, dx, dy, T, (on, x, y) => {
-          if (tile.fishery) drawFishery(on, x, y);
-          if (tile.rig) drawRig(on, x, y);
+          if (tile.fishery && !net) drawFishery(on, x, y);
+          if (tile.rig && !rig) drawRig(on, x, y);
           if (tile.hut && !village) drawHut(on, x, y);
           if (tile.fortress) drawFortress(on, x, y);
           if (tile.pollution) drawPollution(on, x, y);
         });
-      if (village) villages.push({ spot: village, copy: fineCopy(s, dx, dy, T, T), idx: my * map.width + mx });
       if (fog) fogs.push([fog, dx, dy]);
       const shaded = unseenSquare(map, me.visible, mx, my, T);
       if (shaded) unseen.push([shaded, dx, dy, my * map.width + mx]);
@@ -236,9 +253,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
   const shownCities = state.cities.filter((c) => me.explored[c.y * map.width + c.x] && !fogged(c.y * map.width + c.x, c.owner) && !(founding && c.x === founding.x && c.y === founding.y));
   const citySquares = new Set(shownCities.map((c) => c.y * map.width + c.x));
   for (const [mask, dx, dy, idx] of unseen) if (!citySquares.has(idx)) shadeUnseen(s, dx, dy, mask, T);
-  // A village's picture out of sight is shaded whole, as a city's is.
-  const shadedSquares = new Set(unseen.map(([, , , idx]) => idx));
-  for (const v of villages) if (shadedSquares.has(v.idx)) v.spot.unseen = true;
+  // A work's or a village's picture out of sight is shaded whole, as a city's is.
+  const shadedSquares = new Set(unseen.map(([, dx, dy]) => `${dx},${dy}`));
+  for (const { spot } of pics.laid) if (shadedSquares.has(`${spot.x},${spot.y}`)) spot.unseen = true;
   for (const [fog, dx, dy] of fogs) s.blit(fog, dx, dy, SPRITE_CLEAR);
   // The names of the seas, lands and landforms on view, then of the civilizations whose land it is, over
   // the fog's edge, under the cities and units, each clear of the cities, their names and the names before it.
@@ -386,12 +403,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
     const marks = drawnOver(s, copy);
     if (marks.length) spot.holes = [...(spot.holes ?? []), ...marks];
   }
-  // Over a village everything drawn since its square (borders, the fog's edge, names, marks) shows through it; the
-  // shade out of sight does not (its picture is shaded whole).
-  for (const { spot, copy } of villages) {
-    const marks = drawnOver(s, copy, true);
-    if (marks.length) spot.holes = marks;
-  }
+  // Over a work or a village everything drawn since it was laid (a road, a resource, borders, the fog's edge, names,
+  // marks) shows through it; the shade out of sight does not (its picture is shaded whole).
+  sealPictures(s, pics.laid, true);
 
   if (sinking) drawCallout(s, state, view, { x: sinking.x, y: sinking.y, text: sinking.text });
   else if (view.callout) drawCallout(s, state, view, view.callout);

@@ -1,5 +1,6 @@
 import { Terrain, unitType, type Unit, type WorldMap } from "@civ/core";
-import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, rankIcon, roadWays, unitArt, WORK_ICON, type ArtBox, type ArtSpot, type Explored, type RoadWays } from "@civ/renderer-api";
+import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, rankIcon, roadWays, unitArt, workArt, WORK_ICON, type ArtBox, type ArtSpot, type Explored, type RoadWays, type WorkPicture } from "@civ/renderer-api";
+import { layPicture, runHoles, type SquarePictures } from "./art-holes.js";
 import { drawIcon, drawIconFine, iconInk } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, PLAYER_COLORS, shade } from "./palette.js";
@@ -11,14 +12,20 @@ import { darker, FEATURE_SHEET, ownerBox, spriteSurface, UNIT_SHEET } from "./sp
 /**
  * Roads and railroads at the fine grain of the terrain art (32 pixels a square), in its flat fills
  * (asked for 2026-10-23: the old one-pixel track on the coarse grid did not match the terrain; then
- * "too wide, more subtle" and "drop the outline"). Widths are fine pixels from the course.
+ * "too wide, more subtle" and "drop the outline"). Widths are fine pixels from the course. Since 2026-11-02 in the
+ * look of the road on the user's sheet of tile improvements ("implement updated tile improvements"): sandy earth,
+ * lighter along its crown and flecked with brown, a band of brown either side and a dark brown edge, ragged; about as
+ * wide as the sheet's (near a fifth of its square, twice the packed earth before it).
  */
 const ROAD = {
-  /** Packed earth out to here, lighter along the crown; no outline on land. */
-  crown: 0.6,
-  fill: 1.5,
-  /** A bridge's railing, one pixel beyond the deck, where it crosses water. */
-  outline: 2.3,
+  /** Sandy earth, lightest along the crown... */
+  crown: 0.9,
+  fill: 1.8,
+  /** ...a band of brown either side... */
+  band: 2.4,
+  /** ...and a dark edge, ragged by this much either way; on a bridge its railing. */
+  outline: 2.9,
+  ragged: 0.35,
 };
 const RAIL = {
   /** Sleepers of dark timber across the road beneath; a steel rail either side, bright on top, shadowed outside. */
@@ -39,21 +46,23 @@ function inRamp(c: number, ramp: string): boolean {
 }
 
 /** What each fine pixel of a way is, before the ground decides (a bridge over water). */
-const enum Way { None, Outline, Edge, Crown, Speck, Pebble, Sleeper, RailTop, RailFoot }
+const enum Way { None, Outline, Band, Edge, Crown, Speck, Pebble, Sleeper, RailTop, RailFoot }
 
 /** The colour of each kind of pixel: road and railroad on land, and the timber deck where a road crosses water. */
 const LAND_WAY: Record<Way, number> = {
   [Way.None]: -1,
-  [Way.Outline]: -1, // only a bridge's railing
-  [Way.Edge]: shade("earth", 5),
-  [Way.Crown]: shade("earth", 6),
-  [Way.Speck]: shade("earth", 7),
-  [Way.Pebble]: shade("earth", 3),
+  [Way.Outline]: shade("canopy", 2),
+  [Way.Band]: shade("dune", 1),
+  [Way.Edge]: shade("dune", 5),
+  [Way.Crown]: shade("dune", 6),
+  [Way.Speck]: shade("hide", 4),
+  [Way.Pebble]: shade("dune", 1),
   [Way.Sleeper]: shade("earth", 1),
   [Way.RailTop]: shade("steel", 7),
   [Way.RailFoot]: shade("steel", 2),
 };
-const DECK = { outline: shade("earth", 0), plank: shade("earth", 4), seam: shade("earth", 2), rail: shade("earth", 1) };
+/** A bridge's timber, in the woods of the sheet's bridge: planks, the seams between them, the railing. */
+const DECK = { plank: shade("dune", 1), seam: shade("hide", 2), rail: shade("hide", 0) };
 
 /** A way's pixels: what each is (`Way`), whether a bridge's plank seam falls there, and the sprite on land. */
 interface WayPixels { kinds: Uint8Array; seams: Uint8Array; sprite: Surface }
@@ -98,9 +107,14 @@ function wayPixels(ways: RoadWays, x: number, y: number, rail: boolean, t = TILE
         if (d >= RAIL.railIn && d < RAIL.railTop) k = Way.RailTop;
         else if (d >= RAIL.railTop && d < RAIL.railOut) k = Way.RailFoot;
         else if (d < RAIL.sleeper && (onSleeper || ways.patch)) k = Way.Sleeper;
-      } else if (d < ROAD.crown) k = grain < 0.06 ? Way.Pebble : Way.Crown;
-      else if (d < ROAD.fill) k = grain < 0.06 ? Way.Speck : grain > 0.96 ? Way.Pebble : Way.Edge;
-      else if (d < ROAD.outline) k = Way.Outline;
+      } else {
+        // The edge ragged by the grain, as the sheet's road is stepped along its sides.
+        const e = d + (hash(x * F + i, y * F + j, 11) - 0.5) * 2 * ROAD.ragged;
+        if (d < ROAD.crown) k = grain < 0.08 ? Way.Speck : Way.Crown;
+        else if (d < ROAD.fill) k = grain < 0.1 ? Way.Speck : Way.Edge;
+        else if (e < ROAD.band) k = grain < 0.08 ? Way.Pebble : Way.Band;
+        else if (e < ROAD.outline) k = Way.Outline;
+      }
       kinds[j * F + i] = k;
       seams[j * F + i] = Math.floor(along) % PLANK_GAP === 0 ? 1 : 0;
       if (LAND_WAY[k] >= 0) sprite.fset(i, j, LAND_WAY[k]);
@@ -273,6 +287,21 @@ export function drawIrrigation(s: Surface, dx: number, dy: number, ground: Surfa
 export function drawMine(s: Surface, dx: number, dy: number): void {
   const mine = spriteSurface(FEATURE_SHEET, "mine");
   if (mine) s.blit(mine, dx, dy, SPRITE_CLEAR);
+}
+
+/**
+ * A tile improvement of the user's (`WorkPicture`: fields, a mine, a rig...) laid on the square at (dx, dy), `t` a
+ * side, as its picture (`layPicture`: what is drawn over the square afterwards shows through it), with `holes` where
+ * the square's own water shows through (a river across fields); null when it has no picture.
+ */
+export function layWork(s: Surface, id: WorkPicture, dx: number, dy: number, t: number, pics: SquarePictures, holes: ArtBox[] = [], idx?: number): ArtSpot | null {
+  if (!workArt(id)) return null;
+  return layPicture(s, { id, work: true, x: dx, y: dy, w: t, h: t, clip: pics.room, ...(holes.length ? { holes } : {}) }, pics.laid, idx);
+}
+
+/** Holes where the water of `ground` (a square as drawn, `terrainSquare`, its top left at screen (dx, dy)) lies: rivers and shores. */
+export function waterHoles(ground: Surface, dx: number, dy: number): ArtBox[] {
+  return runHoles(ground.fw, ground.fh, ground.k, dx, dy, (i, j) => isWater(ground.fget(i, j)));
 }
 
 export const UNIT_ABBR: Record<string, string> = {

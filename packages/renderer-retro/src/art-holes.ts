@@ -1,4 +1,4 @@
-import type { ArtBox } from "@civ/renderer-api";
+import type { ArtBox, ArtSpot } from "@civ/renderer-api";
 import { DIMMED, UNSEEN } from "./palette.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import type { Surface } from "./surface.js";
@@ -60,4 +60,29 @@ export function drawnOver(s: Surface, copy: FineCopy, shaded = false): ArtBox[] 
   const changed = (now: number, was: number) =>
     now !== was && now !== DIMMED[was] && !(shaded && (now === UNSEEN[was] || now === DIMMED[UNSEEN[was]!]));
   return runHoles(fw, copy.h * k, k, copy.x, copy.y, (i, j) => inside(x0 + i, y0 + j) && changed(s.fget(x0 + i, y0 + j), copy.data[j * fw + i]!));
+}
+
+/** A picture laid on a square (`layPicture`) and the square as drawn under it then; `idx` the square's on the map. */
+export interface Laid { spot: ArtSpot; copy: FineCopy; idx?: number }
+
+/** Where a screen lays the pictures of the squares it draws: the room they may show in, and what it has laid. */
+export interface SquarePictures { room: ArtBox; laid: Laid[] }
+
+/**
+ * Leave `spot` for its picture (`Surface.art`) and remember its square as drawn so far, so that what the screen draws
+ * there afterwards (a road over fields, a resource over a mine, borders, the fog's edge, names) shows through it once
+ * the screen is drawn (`sealPictures`).
+ */
+export function layPicture(s: Surface, spot: ArtSpot, laid: Laid[], idx?: number): ArtSpot {
+  s.art.push(spot);
+  laid.push({ spot, copy: fineCopy(s, spot.x, spot.y, spot.w, spot.h), ...(idx !== undefined ? { idx } : {}) });
+  return spot;
+}
+
+/** Holes in each laid picture where the screen has drawn over its square since (`drawnOver`; `shaded`: the shade out of sight not counted). */
+export function sealPictures(s: Surface, laid: Laid[], shaded = false): void {
+  for (const { spot, copy } of laid) {
+    const marks = drawnOver(s, copy, shaded);
+    if (marks.length) spot.holes = [...(spot.holes ?? []), ...marks];
+  }
 }

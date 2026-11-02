@@ -62,7 +62,7 @@ export declare function preloadTech(id: string | null | undefined): void;
  * make the animated units' frames in the colours of the game's civilizations, a few at a time.
  */
 export declare function preloadUnits(state: GameState): void;
-/** Fetch and decode the pictures of the cities (twelve: three ages by four sizes) and the villages (five) as a game starts or loads. */
+/** Fetch and decode the pictures of the cities (twelve: three ages by four sizes), the villages (five) and the tile improvements as a game starts or loads. */
 export declare function preloadCities(): void;
 /**
  * Fetch and decode the audience pictures of a game's leaders as it starts, and their portraits (a civilization's card,

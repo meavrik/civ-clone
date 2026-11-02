@@ -1,7 +1,8 @@
 import { RESOURCE_BY_ID, specialFor, Terrain, type GameState, type Tile, type WorldMap } from "@civ/core";
-import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, clearingPatch, BLEND_REACH, groundOwner, hutArt, LAND, landOwner, mountainKind, riverShape, SHORE, strokeDistance, terrainVariant, type ArtBox, type ArtSpot, type CoastPatch, type Explored, type HutKind, type Lifting, type TerrainVariant } from "@civ/renderer-api";
+import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, clearingPatch, BLEND_REACH, groundOwner, hutArt, LAND, workArt, landOwner, mountainKind, riverShape, SHORE, strokeDistance, terrainVariant, type ArtBox, type ArtSpot, type CoastPatch, type Explored, type HutKind, type Lifting, type TerrainVariant } from "@civ/renderer-api";
 import { FEATURE_SHEET, RESOURCE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
+import { layPicture, type SquarePictures } from "./art-holes.js";
 import { C, PALETTE, shade, UNSEEN } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
 
@@ -424,12 +425,19 @@ export const SPECIAL_SHARE = 0.8;
 
 /**
  * A square's special resource as `viewer` knows it (`specialFor`: none while a resource is still hidden from it), drawn
- * over its terrain on a square `t` pixels a side, centred, `SPECIAL_SHARE` of it across.
+ * over its terrain on a square `t` pixels a side, centred, `SPECIAL_SHARE` of it across. Given `pics`, oil on land
+ * with a road built to it (so serving whoever holds the land, `resourceRoaded`; a river alone serves too, but raises
+ * no pump in the wilds) stands as an oil pump in its place, the user's picture (2026-11-02, the sheet of tile
+ * improvements), as the rig stands for the oil at sea.
  */
-export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState, tile: Tile, viewer: number, t = TILE): void {
+export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState, tile: Tile, viewer: number, t = TILE, pics?: SquarePictures): void {
   const name = specialFor(state, tile, viewer)?.name;
-  // An oil rig stands for the oil under it (`drawRig`).
+  // An oil rig stands for the oil under it (the rig's picture, or `drawRig`).
   if (!name || tile.rig) return;
+  if (pics && name === "Oil" && tile.terrain !== Terrain.Ocean && (tile.road || tile.railroad) && workArt("oil_pump")) {
+    layPicture(s, { id: "oil_pump", work: true, x: dx, y: dy, w: t, h: t, clip: pics.room }, pics.laid);
+    return;
+  }
   // A resource's deposit at sea has an icon of its own (`ResourceRule.offshore`; since save version 55).
   const icon = specialSprite(tile.terrain === Terrain.Ocean && RESOURCE_BY_ID[name]?.offshore ? `Offshore ${name}` : name);
   if (!icon) { s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!); return; }
@@ -442,16 +450,12 @@ export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState
 }
 
 /**
- * A minor tribe's village. Given `picture` (its kind, `hutKind`, and the room pictures may show in), a kind the user
- * drew (`hutArt`) leaves a spot for its picture (`Surface.art`, `t` pixels a side; the apps lay it there as it is)
- * and returns it, for what the screen draws over it later; else the drawn huts, at the original's size.
+ * A minor tribe's village. Given `picture` (its kind, `hutKind`, and where the screen lays its pictures), a kind the
+ * user drew (`hutArt`) is laid as its picture (`layPicture`, `t` pixels a side; the apps lay it there as it is, what
+ * the screen draws over it later showing through) and returned; else the drawn huts, at the original's size.
  */
-export function drawHut(s: Surface, dx: number, dy: number, picture?: { kind: HutKind; room: ArtBox }, t = TILE): ArtSpot | null {
-  if (picture && hutArt(picture.kind)) {
-    const spot: ArtSpot = { id: picture.kind, hut: true, x: dx, y: dy, w: t, h: t, clip: picture.room };
-    s.art.push(spot);
-    return spot;
-  }
+export function drawHut(s: Surface, dx: number, dy: number, picture?: { kind: HutKind } & SquarePictures, t = TILE): ArtSpot | null {
+  if (picture && hutArt(picture.kind)) return layPicture(s, { id: picture.kind, hut: true, x: dx, y: dy, w: t, h: t, clip: picture.room }, picture.laid);
   const hut = spriteSurface(FEATURE_SHEET, "hut");
   if (hut) s.blit(hut, dx, dy, SPRITE_CLEAR);
   return null;
