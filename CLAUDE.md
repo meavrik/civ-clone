@@ -924,24 +924,24 @@ Never ship the original's sprites, palette art, fonts or text.
   map as usual, then `magnifyViewport` blows the viewport's top-left 1/zoom up to fill it (fine pixels,
   in place) before the panel and bar; `zoomedTiles` sizes the minimap's box, `unzoomPoint` maps a tap
   back. The modern renderer ignores it. The web game (only with a mouse: `renderer.mapView`; the phone
-  zooms in its own renderer) keeps 1x, 2x or 3x in `view.zoom` (on branch big-tiles finer steps drawn at their
-  size and buttons on the map, see Map square size below; `epochs.zoom` per browser): the wheel over
-  the map (a notch a level, the square under the pointer staying put, `setZoom`), + and - (about the
-  middle, the unit in play kept on view) and World > Zoom In / Zoom Out (faded at the ends), with "Map zoom
-  2x" in the panel. `Renderer.viewTilesX`/`viewTilesY` stay the unzoomed count: the web app's camera
+  zooms in its own renderer) keeps its zoom in `view.zoom` (`epochs.zoom` per browser) but draws it as the square's
+  size, never magnified (see Map square size below; 1x, 2x or 3x until 2026-11-02): the wheel over
+  the map (a notch a level, the square under the pointer staying put, `setZoom`), the + and - buttons in the map's
+  corner, the keys + and - (about the middle, the unit in play kept on view) and World > Zoom In / Zoom Out (faded at
+  the ends), with "Map zoom 120%" in the panel. `Renderer.viewTilesX`/`viewTilesY` stay the unzoomed count: the web app's camera
   (centring, following, edge scrolling at the same speed on screen, the other civs' playback) reads
   `viewTiles()`, the whole squares shown at the zoom, and the web adapter's `tileAt` and `squareRect` go
-  through the zoom (a square off the zoomed view has no rect). A fight on the map zooms it one level closer
+  through the zoom (a square off the zoomed view has no rect). A fight on the map zooms it closer
   (asked for 2026-10-29: "when there is a battle zoom in to the battle - when finish zoom out to the previous
   zoom"; the web app's `battleZoom`, `stepBattleZoom`): at once as the fight begins, centred on it (a later
   fight glided to), held through the playback's notes beside it so a run of attacks stays close, and
   `BATTLE_LINGER_MS` (700) after the last, then the player's zoom again about the view's middle; the turn's
   news and the turn's end wait for that. Never kept per browser (`setZoom`'s `keep`); a zoom of the player's own
-  meanwhile stands; at 3x it only centres. Not on the phone, whose renderer keeps its own pinch zoom.
-  Map square size (a trial on branch big-tiles, asked for 2026-11-02: "enlarge the base tile size and all that related
-  (units, cities etc) - see how it looks"): renderer-retro `MAP_TILE` (`setMapTile`; 16, the original's, by default) is
-  the main map's square in screen pixels; the web adapter sets 20 (asked for the same day: "try something in between -
-  20px", after 24) unless the page asks `?tile=16` (or 24, 32). The map then shows fewer squares (12x10 at 20, the last
+  meanwhile stands; at the closest zoom it only centres. Not on the phone, whose renderer keeps its own pinch zoom.
+  Map square size (asked for 2026-11-02: "enlarge the base tile size and all that related (units, cities etc) - see
+  how it looks", tried on branch big-tiles at 24, then "try something in between - 20px", then merged): renderer-retro
+  `MAP_TILE` (`setMapTile`; 16, the original's, by default) is the main map's square in screen pixels; the web adapter
+  sets 20 unless the page asks `?tile=16` (or 24, 32). The map then shows fewer squares (12x10 at 20, the last
   row cut, 10x8 at 24; `viewAcross`, `viewDown`), works out terrain, shores, rivers, roads, fog, the shade
   out of sight and borders at that size (`terrainSquare`, `fogSquare`, `unseenSquare`, `wayPixels`'s `t`; widths in the
   original's fine pixels, so a river or road is as much of a square as before), draws works, resources, villages and
@@ -1698,7 +1698,8 @@ for; save version 40), told on the map as they appear. Seafaring (Harbour, Explo
 the user's. Oil at sea and the Fishing Boat's oil rigs done (2026-11-01, asked for; save version 55), drawn in code until
 the user's pictures come. Roads, irrigation and mines take twice the original's turns (2026-11-01, asked for; save
 version 56). Specials of a kind kept three squares apart (2026-11-01, asked for; save version 57). The sea yields 1 trade, the
-Harbour adding the second (2026-11-02, asked for; save version 58).
+Harbour adding the second (2026-11-02, asked for; save version 58). The web game's map squares are 20 pixels, its zoom
+16 to 32 drawn at each size, with + and - on the map (2026-11-02, asked for; no save version; the phone keeps 16).
 
 ## Known gaps / next steps
 
