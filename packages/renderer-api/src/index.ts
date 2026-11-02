@@ -935,6 +935,10 @@ export function terrainInfo(state: GameState, x: number, y: number): { title: st
     if (r.mine) work.push(r.mine.becomes !== undefined ? `{mine} into ${TERRAIN_NAMES[r.mine.becomes]}` : `{mine} +${r.mine.shields ?? 0} {shield}`);
     if (r.road.trade > 0) work.push(`{road} +${r.road.trade} {trade}`);
     if (work.length) lines.push(`Improvements:  ${work.join("  ")}`);
+  } else if (!state.richSea) {
+    // The sea's second trade comes with a Harbour in the city working it (since save version 58), with more food.
+    const harbour = building("harbour");
+    lines.push(`Improvements:  {house} ${harbour.name} ${specialGain({ food: harbour.oceanFood ?? 0, trade: harbour.oceanTrade ?? 0 })}`);
   }
   const cs = cityStateOf(city);
   if (city) lines.push(`{city} ${city.name} (${cs ? `a city-state of the ${cs.people}` : state.players[city.owner]!.name}), size ${city.size}`);

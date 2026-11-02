@@ -62,6 +62,7 @@ function buildingEffects(state: GameState, b: BuildingRule): BuiltEffect[] {
   if (b.halveCorruption) out.push({ icon: "trade", text: "-50% corruption" });
   if (b.granary) out.push({ icon: "food", text: "Half the food kept on growth" });
   if (b.oceanFood) out.push({ icon: "food", text: `+${b.oceanFood} food on each ocean square` });
+  if (b.oceanTrade && !state.richSea) out.push({ icon: "trade", text: `+${b.oceanTrade} trade on each ocean square` });
   if (b.aqueduct) out.push({ icon: "people", text: "Grows past size 10" });
   if (b.barracks) out.push({ icon: "swords", text: "Land units trained as veterans" });
   if (b.wallsPct) out.push({ icon: "tower", text: `x${1 + b.wallsPct / 100} defence against land attacks` });

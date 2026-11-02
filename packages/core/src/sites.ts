@@ -25,14 +25,15 @@ const UNKNOWN_SQUARE = 5;
  * unfit, an unseen square of the radius counts `UNKNOWN_SQUARE` and is not land. With `player`, a resource
  * it has yet to reveal (`specialFor`) counts as the plain terrain under it. A city is founded for the long run, so fish
  * count for the food they give once fished, as they fed a city before save version 54 (`freeFish`), not the plain sea
- * a city works until a Fishing Boat comes: starts and the computer players' sites stay where they were.
+ * a city works until a Fishing Boat comes, and the sea for the trade it gives once the city has a Harbour, as before
+ * version 58 (`richSea`), not the 1 before it: starts and the computer players' sites stay where they were.
  */
 export function siteScore(state: GameState, x: number, y: number, known?: Uint8Array, player?: number): number | null {
   const t = getTile(state.map, x, y);
   if (!t || !SITE_CENTRES.has(t.terrain)) return null;
   if (known && !known[y * state.map.width + x]) return null;
   if ((t.terrain === Terrain.Desert || t.terrain === Terrain.Forest) && !t.river) return null;
-  const rules = state.freeFish ? state : { ...state, freeFish: true };
+  const rules = state.freeFish && state.richSea ? state : { ...state, freeFish: true, richSea: true };
   let score = 0;
   let land = 0;
   let sea = 0;

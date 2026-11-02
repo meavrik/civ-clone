@@ -356,6 +356,11 @@ export interface GameState {
    * (`IMPROVEMENT_WORK_FACTOR`).
    */
   quickImprovements?: boolean;
+  /**
+   * The sea yields the original's 2 trade (`TerrainRule.originalTrade`) and a Harbour adds no trade
+   * (`BuildingRule.oceanTrade`), as before version 58; since, 1 trade, and a Harbour's city 1 more on each ocean square.
+   */
+  richSea?: boolean;
   /** Every change of production kind halves the box again, even a change back. Set for saves before version 21. */
   compoundingPenalty?: boolean;
   /**

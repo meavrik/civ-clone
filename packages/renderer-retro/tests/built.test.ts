@@ -63,6 +63,12 @@ describe("Building Completed window", () => {
     const temple = builtCard(state, { city, production: { kind: "building", id: "temple" } })!;
     expect(temple).toMatchObject({ title: `Temple is completed in ${name}`, name: "Temple", upkeep: 1 });
     expect(temple.effects).toEqual([{ icon: "heart", text: "+1 content citizen" }, { icon: "culture", text: "+2 culture" }]);
+    // The Harbour's food and, since save version 58, its trade on the sea (`richSea` games: food only).
+    expect(builtCard(state, { city, production: { kind: "building", id: "harbour" } })!.effects).toEqual([
+      { icon: "food", text: "+1 food on each ocean square" },
+      { icon: "trade", text: "+1 trade on each ocean square" },
+    ]);
+    expect(builtCard({ ...state, richSea: true }, { city, production: { kind: "building", id: "harbour" } })!.effects).toEqual([{ icon: "food", text: "+1 food on each ocean square" }]);
     expect(builtCard(state, { city, production: { kind: "wonder", id: "pyramids" } })!.title).toBe(`Pyramids is completed in ${name}`);
     expect(builtCard(state, { city: 9999, production: { kind: "building", id: "temple" } })).toBeNull();
     expect(builtCard(state, { city, production: { kind: "unit", id: "settlers" } })).toBeNull();
@@ -84,6 +90,11 @@ describe("Building Completed window", () => {
       expect(o.x).toBeGreaterThan(0);
       expect(o.x + o.w).toBeLessThan(320);
     }
+    // The Harbour's two lines, its picture still to come (`BUILDING_PICTURES_WANTED`).
+    const harbour: BuiltView = { city, production: { kind: "building", id: "harbour" } };
+    drawBuilt(s, state, harbour);
+    writeFileSync(new URL("./out/built-harbour.png", import.meta.url), encodePng(s, 3));
+    expect(builtRect(state, harbour).x + builtRect(state, harbour).w).toBeLessThan(320);
     const view = { city, production: { kind: "building", id: "temple" } as Production };
     const hits = new Set<string | null>();
     for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) hits.add(builtHit(state, view, x, y));

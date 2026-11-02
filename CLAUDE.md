@@ -491,6 +491,23 @@ Never ship the original's sprites, palette art, fonts or text.
   starts and city-states stand where they did (scored +2 as any special, it had moved city-states). Head to head
   (planner vs v2, 16 x 300, seeds 1-16): 9-7, score 122 vs 99, pop 46 vs 31; catalogue 54 9-7, 123 vs 99; all
   replaying exactly.
+  The sea's trade (asked for 2026-11-02: "water tile trade - reduce. will be added with harbour"; our departure, save
+  version 58): an ocean square yields 1 trade (`TERRAIN_RULES` Ocean; the original's 2 kept as `originalTrade`), and a
+  Harbour adds the second to each ocean square its city works (`BuildingRule.oceanTrade`, core `oceanTrade`, added in
+  `cityTileYield` with its food), so a port with one has the sea as before plus the food (2 food, 2 trade) and a port
+  without one little use for it. Before, the sea was 9 to 17% of the squares the planner's cities worked but 26 to 44%
+  of their trade, and 1 city in 223 had a Harbour at turn 200 (6 all-planner games). A site is scored with the sea's 2
+  trade, as a port has it in the long run (`siteScore` reads the rules as `richSea`), so starts and the computer
+  players' sites stay put. Told in the square's window ("Improvements: Harbour +1 food +1 trade") and the Building
+  Completed window (a line each). The planner counts a Harbour's trade on each square (`slotValue`), wants one for the
+  sea its city could work, up to half its people (`wantBuilding`; it had counted the sea worked, which a port without
+  one hardly works now), and a civilization with half its cities or more by the sea (`maritime`) researches Seafaring
+  straight after the Alphabet (`MARITIME_GOALS`; its war goals still come first when threatened). Over the same 6
+  games: total trade at turns 50, 100, 150 and 200 is 68%, 88%, 89% and 127% of before, Harbours 0, 0, 6 and 57 (in
+  226 cities). Saves before 58 load with `richSea` (headless `--rich-sea`). Head to head (planner vs v2, 16 x 300,
+  seeds 1-16): 10-6, score 95 vs 74, pop 40 vs 24, techs 19.4 vs 14.9 (Seafaring in its old place: 8-8, 93 vs 81); rich
+  sea 7-9, 108 vs 99, techs 24.0 vs 20.8, as version 57; all replaying exactly. Research runs about a fifth slower for
+  everyone (v2 builds no Harbour).
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
   `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it), `baseline.ts`
   (v1) and `barbarian.ts` (the barbarians, reached through `baselineTurn` so every AI seat shares it:
@@ -1649,7 +1666,8 @@ for; save version 40), told on the map as they appear. Seafaring (Harbour, Explo
 (Archers) and War Elephants on the Elephants resource done (2026-11-01, asked for; save version 53), the units' pictures
 the user's. Oil at sea and the Fishing Boat's oil rigs done (2026-11-01, asked for; save version 55), drawn in code until
 the user's pictures come. Roads, irrigation and mines take twice the original's turns (2026-11-01, asked for; save
-version 56). Specials of a kind kept three squares apart (2026-11-01, asked for; save version 57).
+version 56). Specials of a kind kept three squares apart (2026-11-01, asked for; save version 57). The sea yields 1 trade, the
+Harbour adding the second (2026-11-02, asked for; save version 58).
 
 ## Known gaps / next steps
 
@@ -1689,7 +1707,7 @@ version 56). Specials of a kind kept three squares apart (2026-11-01, asked for;
    20.4; the original's turns 9-7, 122 vs 99, pop 46 vs 31 (as version 55); all replaying exactly. Still ours: the
    Romans' roads and the Germans' farms and mines in half the time (`fastWork` traits, halving the doubled turns).
    Other deliberate departures: rivers give +1 trade (on grassland that is the original's River), Michelangelo's acts as a
-   cathedral everywhere. The Colossus is the original's since save version 27 (asked for 2026-10-24: "built a
+   cathedral everywhere, the sea yields 1 trade until its city has a Harbour (save version 58, see core above). The Colossus is the original's since save version 27 (asked for 2026-10-24: "built a
    Colossus, 0 effect": ours helped only the ocean squares its city worked, which Growth rarely picks): +1 trade on
    every square its city works that yields trade, its own square too, until Electricity; a square's yield for a
    city is core `cityTileYield` (government, celebration, Colossus), which the city's totals, the choice of
