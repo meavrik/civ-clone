@@ -10,7 +10,7 @@ import { C, PALETTE, shade, type Rgb } from "../palette.js";
  * Legend:
  *   .  clear            k  black        w  white
  *   P  owner colour     p  owner dark   (filled in per civilization)
- *   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey  (EGA)
+ *   r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey  (EGA)  m orange (the autumn leaves)
  *   0-7  shades of the sprite's first ramp (dark to light)
  *   a-h  shades of its second ramp,  A-H  shades of its third
  *   JKLMOQST  its fourth,  jloqstvx  its fifth (letters the rest leave free; for pictures of many colours)
@@ -28,7 +28,7 @@ const RAMP_CHARS = ["01234567", "abcdefgh", "ABCDEFGH", "JKLMOQST", "jloqstvx"];
 
 const FIXED: Record<string, number> = {
   k: C.BLACK!, w: C.WHITE!, r: C.RED!, R: C.LRED!, y: C.YELLOW!, Y: C.BROWN!, u: C.BLUE!, U: C.LBLUE!,
-  n: C.GREEN!, N: C.LGREEN!, i: C.CYAN!, I: C.LCYAN!, z: C.DGREY!, Z: C.LGREY!,
+  n: C.GREEN!, N: C.LGREEN!, i: C.CYAN!, I: C.LCYAN!, z: C.DGREY!, Z: C.LGREY!, m: C.ORANGE!,
 };
 
 export interface SpriteDef {

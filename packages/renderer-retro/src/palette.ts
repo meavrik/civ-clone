@@ -120,13 +120,16 @@ for (const [name, colors] of Object.entries(BUILT)) {
 }
 // Terrain (2026-10-21): the rest of the colours fitted to the user's reference sheet, each terrain
 // drawing on up to three ramps (mire, canopy, rock and ice took the places of unused ramps above).
+// Since the user's second terrain sheet (2026-11-02) heath 0, 1 and 6 and mound 5, which nothing drew any more,
+// hold the autumn forest's dark red, red-orange, deep orange and orange (the palette had no orange between brown and
+// the civilizations' bright one, so its trees came out tan or salmon). Neither is a ramp from dark to light.
 const LAND: Record<string, Rgb[]> = {
   meadow: [[31, 74, 41], [36, 79, 42], [74, 70, 42], [96, 117, 44], [120, 143, 43], [122, 147, 44], [124, 149, 46], [127, 150, 49]],
   leaf: [[13, 29, 28], [11, 50, 36], [14, 83, 45], [48, 83, 34], [71, 84, 33], [81, 116, 46], [52, 144, 48], [86, 163, 49]],
-  mound: [[64, 51, 39], [123, 61, 28], [96, 78, 49], [160, 80, 33], [138, 104, 59], [137, 128, 51], [153, 118, 63], [211, 167, 74]],
+  mound: [[64, 51, 39], [123, 61, 28], [96, 78, 49], [160, 80, 33], [138, 104, 59], [244, 158, 14], [153, 118, 63], [211, 167, 74]],
   wheat: [[187, 137, 51], [197, 149, 53], [208, 162, 60], [214, 171, 58], [228, 190, 73], [234, 201, 92], [249, 217, 96], [253, 223, 103]],
   dune: [[152, 102, 52], [162, 109, 55], [191, 137, 63], [206, 152, 70], [223, 175, 74], [229, 183, 84], [238, 195, 95], [253, 217, 110]],
-  heath: [[50, 67, 36], [55, 73, 38], [88, 75, 57], [70, 88, 39], [102, 84, 67], [111, 96, 75], [109, 130, 41], [133, 119, 96]],
+  heath: [[144, 42, 36], [192, 78, 28], [88, 75, 57], [70, 88, 39], [102, 84, 67], [111, 96, 75], [236, 132, 12], [133, 119, 96]],
   sea: [[5, 42, 115], [11, 88, 117], [3, 85, 199], [11, 115, 243], [47, 134, 179], [64, 150, 239], [122, 175, 167], [115, 186, 251]],
   steel: [[5, 6, 10], [12, 13, 19], [38, 37, 37], [73, 75, 62], [84, 89, 102], [114, 133, 156], [150, 158, 168], [188, 185, 181]], // units: outlines, iron, hulls
 };

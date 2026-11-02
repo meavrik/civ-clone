@@ -48,6 +48,9 @@ describe("sprite sheets", () => {
     expect(specialSprite("Offshore Oil")).not.toBe(specialSprite("Oil"));
     for (const name of ["ocean", "grassland", "plains", "forest", "hills", "mountains", "desert", "tundra", "arctic", "swamp", "jungle"])
       expect(TERRAIN_SHEET.byName.has(name), name).toBe(true);
+    // The kinds of forest and mountains (the user's sheet of 2026-11-02).
+    for (const name of ["forest_pine", "forest_birch", "forest_autumn", "forest_mixed", "mountains_snow", "mountains_red", "mountains_ice", "deep_ocean"])
+      expect(TERRAIN_SHEET.byName.has(name), name).toBe(true);
     for (const rule of Object.values(TERRAIN_RULES))
       for (const sp of [rule.special, rule.second]) if (sp) expect(specialSprite(sp.name), sp.name).not.toBeNull();
     for (const name of ["walls", "walls_front", "hut", "mine"]) expect(FEATURE_SHEET.byName.has(name), name).toBe(true);
@@ -108,8 +111,8 @@ describe("sprite sheets", () => {
 
   it("reject a character outside the legend, and say where", () => {
     const rows = Array.from({ length: 4 }, () => "....");
-    rows[2] = "..m.";
-    expect(() => parseSheet("test", 4, `@thing\n${rows.join("\n")}`, ["grass"])).toThrow(/test\/thing \(2,2\): 'm' is not in the sprite legend/);
+    rows[2] = "..V.";
+    expect(() => parseSheet("test", 4, `@thing\n${rows.join("\n")}`, ["grass"])).toThrow(/test\/thing \(2,2\): 'V' is not in the sprite legend/);
     expect(() => parseSheet("test", 4, "@thing\n....\n....", ["grass"])).toThrow(/2 rows, expected 4/);
   });
 
@@ -142,7 +145,8 @@ describe("sprite sheets", () => {
     const unitRows = Math.ceil(units.length / cols);
     const features = FEATURE_SHEET.sprites.length;
     const resources = RESOURCE_SHEET.sprites.length;
-    const height = 12 + unitRows * 2 * 18 + 12 + 18 + 12 + Math.ceil(features / cols) * 18 + 12 + Math.ceil(resources / cols) * 18 + 12 + 3 * 15 + 4;
+    const terrainRows = Math.ceil(TERRAIN_SHEET.sprites.length / cols);
+    const height = 12 + unitRows * 2 * 18 + 12 + terrainRows * 18 + 12 + Math.ceil(features / cols) * 18 + 12 + Math.ceil(resources / cols) * 18 + 12 + 3 * 15 + 4;
     // As fine as the screen, so the terrain shows its fine pixels.
     const s = Surface.fine(cols * 18 + 4, height);
     s.fill(C.DGREY!);
@@ -156,8 +160,8 @@ describe("sprite sheets", () => {
     y += 2;
     drawText(s, 2, y, "Terrain", C.WHITE!);
     y += 10;
-    TERRAIN_SHEET.sprites.forEach((t, i) => s.blit(spriteSurface(TERRAIN_SHEET, t.name)!, 2 + i * 18, y));
-    y += 18 + 2;
+    TERRAIN_SHEET.sprites.forEach((t, i) => s.blit(spriteSurface(TERRAIN_SHEET, t.name)!, 2 + (i % cols) * 18, y + Math.floor(i / cols) * 18));
+    y += terrainRows * 18 + 2;
     drawText(s, 2, y, "Features", C.WHITE!);
     y += 10;
     FEATURE_SHEET.sprites.forEach((f, i) => {

@@ -1333,8 +1333,27 @@ Never ship the original's sprites, palette art, fonts or text.
   Fine art (merged from branch terrain-tiles-test, 2026-10-21, asked for): the screen keeps its 320x200
   layout but holds `DETAIL` (2) x 2 fine pixels per screen pixel (`Surface.k`, `fw`/`fh`, `fset`/`fget`/
   `frect`/`fblit`; `Surface.screen()`, `Surface.fine()`), so a 16-pixel square shows a 32x32 picture.
-  Terrain (`terrain.art.ts`, recovered pixel for pixel from the user's reference sheet, no mirroring;
-  two blues: coastal `ocean`, open `deep_ocean`), units (`units.art.ts`, the user's 32x32 sheet of the
+  Terrain (`terrain.art.ts`, from the user's second terrain sheet since 2026-11-02, asked for: "implement updated
+  attached terrain tiles - add the forest verity for forests around the map - same for mountens"; the sheet kept as
+  supplied in `tools/sprites/draw/terrain.png`, 5x4 tiles of about 32 art pixels on an uneven grid, converted by
+  `draw/terrain.ts`: each tile's box between the gutters cut into 32x32 blocks, each the block's commonest colour
+  among the five ramps nearest the tile's, hue weighed over lightness, a tile's mottled ground snapped to one colour
+  and every tile on grass taking the grassland's ground; no mirroring; two blues: coastal `ocean`, open
+  `deep_ocean`; the sheet's river tile is not drawn, the code-drawn rivers taking its blues, `WATER` in tiles.ts).
+  Forests and mountains come in kinds, only in the picture (renderer-api `terrain-variant.ts`, `terrainVariant`,
+  `forestKind`, `mountainKind`; retro `squareSprite`, `VARIANT_SPRITE`): forest (broadleaf), `forest_pine`,
+  `forest_birch`, `forest_autumn`, `forest_mixed`; mountains (grey), `mountains_snow`, `mountains_red`,
+  `mountains_ice`. A square's kind is read from the explored squares round it as a climate would have it (pines,
+  then mixed woods and birches, by tundra, ice, hills and peaks, never by jungle, swamp or desert; a glacier beside
+  arctic, snow beside tundra, red rock beside desert, snow on a range's inner peaks with four mountains round it) and
+  where that says nothing from slow noise of its world position (`PATCH`, patches about eight squares across: autumn
+  woods, snowy and red ranges); no RNG, no save version; only explored squares count, as the shores, so a square at
+  the edge of the explored land may change kind as its neighbour comes to light. A glacier stands on the ice's
+  ground (`groundAt`), so the arctic beside it blends with no grass; the drawn square's cache key carries each
+  square's sprite and the patch's grounds (`patchGrounds`). On a generated world about a third of the forests are
+  broadleaf, a fifth to a quarter pine, the rest birch, autumn and mixed; about half the mountains grey, the rest snow and red,
+  a few glaciers. Before 2026-11-02 the terrain was the first reference sheet (2026-10-21), recovered pixel for
+  pixel, one picture a terrain), units (`units.art.ts`, the user's 32x32 sheet of the
   original's 28, standing free with the owner's shield in the top-left corner, `drawShield`/`SHIELD_AT`,
   bearing its colour slot's device (`DEVICES` in `overlays.ts`, in the colour's darker partner: white a pale,
   green per pale, blue a cross, yellow plain, cyan a chevron, magenta a base, grey a roundel, orange a fess,
@@ -1385,7 +1404,10 @@ Never ship the original's sprites, palette art, fonts or text.
   `shade` clamps to `RAMP_SIZE`); `town` (the city icons' colours, not a dark-to-light ramp) took the
   city view's `copper` slots, copper now drawn from `steel`; `skin` is likewise named colours (the citizens'
   outline, the jester's plum, the scientist's coat; 4 and 7 the browns the city icons and the deepest skin
-  share); new art must reuse these ramps or free one. Panel icons (`icons.art.ts`,
+  share); new art must reuse these ramps or free one. `heath` 0, 1 and 6 and `mound` 5 (bags of the first terrain
+  sheet's colours, not ramps from dark to light), which nothing drew once the second sheet came, hold the autumn
+  forest's dark red, red-orange, deep orange and orange since 2026-11-02, and the sprite legend's `m` is the
+  civilizations' orange (`C.ORANGE`), for its brightest leaves. Panel icons (`icons.art.ts`,
   drawn with `src/icons.ts`) and the small marks (`drawMark`: tick, new, moves) are hand-drawn
   16x16: food is an ear of wheat, `shield` (production) a steel-rimmed blue shield as the original showed
   it (a hammer until 2026-10-24, "not good"), `people` a head, `happy`/`unhappy` a smiling and a frowning
@@ -1415,7 +1437,9 @@ Never ship the original's sprites, palette art, fonts or text.
   draws the mobile app's icons (a walled city, `icons.ts`) into `apps/mobile/public/icons`. A sprite may
   name up to five ramps (`ramps=a,b,c,d,e`; characters 0-7, a-h, A-H, JKLMOQST, jloqstvx), for pictures
   of many colours. `draw/*.ts` make sheets: `cities.ts`, `features.ts`, `citizens.ts` (the city screen's people from part grids),
-  `resources.ts` (the user's resource icons from `resources.png`).
+  `resources.ts` (the user's resource icons from `resources.png`), `terrain.ts` (the user's terrain tiles from
+  `terrain.png`; `npx vite-node --script tools/sprites/draw/terrain.ts [preview.png]`, the preview each tile beside
+  its sprite).
 - `packages/renderer-modern` — canvas-2D renderer on a 960x600 logical surface (same panel/
   viewport split, 48px tiles): `theme.ts` (all colours and fonts), `draw.ts` (panels, wrapped
   text, bars), `tiles.ts`/`markers.ts` (terrain, overlays, units, cities), `screens/*`. It draws
@@ -1700,6 +1724,8 @@ the user's pictures come. Roads, irrigation and mines take twice the original's 
 version 56). Specials of a kind kept three squares apart (2026-11-01, asked for; save version 57). The sea yields 1 trade, the
 Harbour adding the second (2026-11-02, asked for; save version 58). The web game's map squares are 20 pixels, its zoom
 16 to 32 drawn at each size, with + and - on the map (2026-11-02, asked for; no save version; the phone keeps 16).
+The terrain drawn from the user's second sheet, forests and mountains in kinds by the land round them (2026-11-02,
+asked for; no save version).
 
 ## Known gaps / next steps
 

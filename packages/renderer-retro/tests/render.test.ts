@@ -7,7 +7,7 @@ import { encodePng } from "./png.js";
 import { ACTIVE_BLINK, ACTIVE_GLOW, activeOpacity, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
-import { DETAIL, FINE, isWater, setMapTile, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomButtonAt, zoomedTiles } from "../src/index.js";
+import { DETAIL, FINE, isWater, setMapTile, spriteSurface, squareSprite, TERRAIN_SHEET, terrainSquare, unzoomPoint, viewAcross, VIEW_H, VIEW_W, VIEW_X, VIEW_Y, zoomButtonAt, zoomedTiles } from "../src/index.js";
 import { CITY_BOXES } from "../src/index.js";
 
 describe("retro renderer", () => {
@@ -654,21 +654,70 @@ describe("land borders", () => {
         else if (sandy(grass.data[at]!)) east++;
       }
     expect(east).toBeGreaterThan(0);
-    // Mountains ringed by desert: the sand reaches in, every peak stays whole.
+    // Mountains ringed by desert are the red kind: the sand reaches in, every peak stays whole.
     set(X + 1, Y, Terrain.Grassland);
     set(X, Y, Terrain.Mountains);
-    const alone = terrainSquare(map, X, Y);
     for (let y = Y - 1; y <= Y + 1; y++) for (let x = X - 1; x <= X + 1; x++) if (x !== X || y !== Y) set(x, y, Terrain.Desert);
+    expect(squareSprite(map, X, Y, Terrain.Mountains)).toBe("mountains_red");
+    const alone = spriteSurface(TERRAIN_SHEET, "mountains_red")!;
     const ringed = terrainSquare(map, X, Y);
-    const rock = (c: number) => c >= C.ROCK! && c < C.ROCK! + 8;
+    const rock = (c: number) => (c >= C.BRICK! && c < C.BRICK! + 8) || (c >= C.MOUND! && c < C.MOUND! + 8);
+    // A peak is a patch of rock of 16 fine pixels or more, corner to corner; the specks of scree are the ground's.
+    const peak = new Uint8Array(FINE * FINE);
+    const seen = new Uint8Array(FINE * FINE);
+    for (let s0 = 0; s0 < FINE * FINE; s0++) {
+      if (seen[s0] || !rock(alone.data[s0]!)) continue;
+      const patch = [s0];
+      seen[s0] = 1;
+      for (let q = 0; q < patch.length; q++)
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const px = (patch[q]! % FINE) + dx, py = Math.floor(patch[q]! / FINE) + dy;
+            const at = py * FINE + px;
+            if (px < 0 || py < 0 || px >= FINE || py >= FINE || seen[at] || !rock(alone.data[at]!)) continue;
+            seen[at] = 1;
+            patch.push(at);
+          }
+      if (patch.length >= 16) for (const at of patch) peak[at] = 1;
+    }
     let peaks = 0;
     for (let at = 0; at < FINE * FINE; at++) {
-      if (!rock(alone.data[at]!)) continue;
+      if (!peak[at]) continue;
       peaks++;
       expect(ringed.data[at]).toBe(alone.data[at]);
     }
     expect(peaks).toBeGreaterThan(100);
     expect([...ringed.data].some(sandy)).toBe(true);
+  });
+
+  it("draws forests and mountains of the kind the land round them calls for, glaciers on the ice's ground", () => {
+    const { map } = newGame(7);
+    const X = 20;
+    const Y = 20;
+    const set = (x: number, y: number, t: Terrain) => { const tile = map.tiles[y * map.width + x]!; tile.terrain = t; tile.river = false; };
+    const ring = (t: Terrain) => { for (let y = Y - 1; y <= Y + 1; y++) for (let x = X - 1; x <= X + 1; x++) if (x !== X || y !== Y) set(x, y, t); };
+    // Each kind is its own sprite, and a terrain's own sprite stands for its plainest kind.
+    const pictures = new Set(["forest", "forest_pine", "forest_birch", "forest_autumn", "forest_mixed", "mountains", "mountains_snow", "mountains_red", "mountains_ice"]
+      .map((name) => Array.from(spriteSurface(TERRAIN_SHEET, name)!.data).join()));
+    expect(pictures.size).toBe(9);
+    set(X, Y, Terrain.Mountains);
+    ring(Terrain.Tundra);
+    expect(squareSprite(map, X, Y, Terrain.Mountains)).toBe("mountains_snow");
+    set(X, Y, Terrain.Forest);
+    expect(squareSprite(map, X, Y, Terrain.Forest)).toBe("forest_pine");
+    // A glacier beside the ice stands on the ice's ground: the arctic round it shows no grass.
+    for (let y = Y - 2; y <= Y + 2; y++) for (let x = X - 2; x <= X + 2; x++) set(x, y, Terrain.Arctic);
+    set(X, Y, Terrain.Mountains);
+    expect(squareSprite(map, X, Y, Terrain.Mountains)).toBe("mountains_ice");
+    const meadow = (c: number) => c >= C.MEADOW! && c < C.MEADOW! + 8;
+    expect([...terrainSquare(map, X, Y).data].some(meadow)).toBe(false);
+    expect([...terrainSquare(map, X + 1, Y).data].some(meadow)).toBe(false);
+    // Only what the viewer has explored counts: unexplored ice beside it leaves the glacier a mountain of the land it knows.
+    const explored = new Uint8Array(map.width * map.height);
+    for (let y = Y - 1; y <= Y + 1; y++) for (let x = X - 1; x <= X + 1; x++) explored[y * map.width + x] = 1;
+    expect(squareSprite(map, X, Y, Terrain.Mountains, explored)).toBe("mountains_ice");
+    for (let y = Y - 1; y <= Y + 1; y++) for (let x = X - 1; x <= X + 1; x++) if (x !== X || y !== Y) explored[y * map.width + x] = 0;
+    expect(squareSprite(map, X, Y, Terrain.Mountains, explored)).not.toBe("mountains_ice");
   });
 });
 
