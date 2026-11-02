@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, autoAssignWorkers, buildOptions, building, computeCity, createUnit, foundCity, getTile, newGame, setRelation, productionCost, productionName, recomputeVisibility, revealAround, slotInLand, Terrain, unitType } from "@civ/core";
 import { borderSides, C, MOOD_PENNANT_W, planMove, type MovePlan, CITY_MAP_X, CITY_MAP_Y, cityButtonAt, fogSquare, SPRITE_CLEAR, citySlotAt, cityUnitAt, cityUnitSlot, cityCitizenAt, cityExitHit, cityFocusAt, storeLayout, darker, isStone, ownerAt, territory, drawCityScreen, drawMainScreen, drawResearch, openResearch, RESEARCH_LIST_ROWS, researchHit, researchRows, statusPanelAt, statusPartAt, type ResearchHit, buttonFace, buttonLook, drawButton, drawContour, drawMenu, drawUnit, drawUnitFlash, unitSprite, menuRect, menuRows, menuTabAt, playerColor, terrainInfo, drawRatesScreen, drawScienceScreen, drawText, drawTextInput, menuHit, PALETTE, shade, Surface, textPlateWidth, textWidth, type MainScreenView } from "../src/index.js";
 import { encodePng } from "./png.js";
+import { drawJobMark, MARK_SIZE } from "../src/marks.js";
 import { ACTIVE_BLINK, ACTIVE_GLOW, activeOpacity, civCard, empireIncome, panelTip, settlerSites, showTab, standing, TERRAIN_TEXT, type ArtSpot, type MenuState, type MenuTab, type PanelPart } from "@civ/renderer-api";
 import { cardPicture, diplomacyChoiceAt, diplomacyPicture, drawDiplomacyScreen, drawResourcesAdvisor, ratesAt, ratesHit, ratesRect } from "../src/index.js";
 import { drawSquarePicture, squarePainter } from "../src/index.js";
@@ -363,7 +364,7 @@ describe("retro renderer", () => {
     expect(count(s, px + 16, [C.LRED!])).toBeGreaterThan(0);
   });
 
-  it("shows the panel as icons, and a badge of its job on a working settler", () => {
+  it("shows the panel as icons, and the mark of its job on a working settler", () => {
     const state = newGame(2026);
     const u = state.units[0]!;
     revealAround(state, 0, u.x, u.y, 9);
@@ -383,14 +384,20 @@ describe("retro renderer", () => {
     const s = Surface.screen();
     drawMainScreen(s, state, view);
     writeFileSync(new URL("./out/panel-icons.png", import.meta.url), encodePng(s, 3));
-    // The working settler's badge: a black square in its top right corner with the irrigation's blue canal inside.
-    const bx = 80 + (u.x + 1 - view.originX) * 16 + 7;
-    const by = 9 + (u.y - view.originY) * 16;
-    let black = 0;
-    let blue = 0;
-    for (let y = by; y < by + 9; y++) for (let x = bx; x < bx + 9; x++) { const c = s.get(x, y); if (c === C.BLACK!) black++; if ((c >= C.ICE! && c < C.ICE! + 8) || (c >= C.OCEAN! && c < C.OCEAN! + 8)) blue++; }
-    expect(black).toBeGreaterThan(20);
-    expect(blue).toBeGreaterThan(4);
+    // The working settler's mark: the irrigation's drop over furrows, cream on a slate token in its top right corner,
+    // showing through the settlers' picture.
+    const sx = 80 + (u.x + 1 - view.originX) * 16, sy = 9 + (u.y - view.originY) * 16;
+    const fx = (sx + 16) * s.k - MARK_SIZE - 1, fy = sy * s.k + 1;
+    const mark = Surface.fine(16, 16);
+    drawJobMark(mark, 0, 0, "irrigate", 16);
+    for (let j = 0; j < MARK_SIZE; j++)
+      for (let i = 0; i < MARK_SIZE; i++) {
+        const c = mark.fget(32 - MARK_SIZE - 1 + i, 1 + j);
+        if (c === shade("rock", 7) || c === shade("steel", 2)) expect(s.fget(fx + i, fy + j), `${i},${j}`).toBe(c);
+      }
+    const figure = s.art.find((a) => a.unit && a.x === sx && a.y === sy)!;
+    const cx = (fx + MARK_SIZE / 2) / s.k, cy = (fy + MARK_SIZE / 2) / s.k;
+    expect((figure.holes ?? []).some((h) => cx >= h.x && cx < h.x + h.w && cy >= h.y && cy < h.y + h.h)).toBe(true);
     // The terrain window speaks in the same pictures.
     const info = terrainInfo(state, worker.x, worker.y);
     // Headed by the square itself, as the map draws it, twice its size in a dark frame.

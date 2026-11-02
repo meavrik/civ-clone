@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyCommand, newGame, revealAround, specialFor, Terrain } from "@civ/core";
 import type { MainScreenView } from "@civ/renderer-api";
 import { C, drawMainScreen, drawSpecial, RESOURCE_SHEET, shade, SPRITE_CLEAR, specialSprite, Surface } from "../src/index.js";
-import { drawResourceMark, MARK_SIZE } from "../src/resource-marks.js";
+import { drawResourceMark, MARK_SIZE } from "../src/marks.js";
 
 describe("a resource on its square", () => {
   it("is its icon's own size on the 20-pixel squares and the original's, 0.8 of a larger square, centred", () => {

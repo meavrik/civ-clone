@@ -3,7 +3,7 @@ import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, clearingPa
 import { FEATURE_SHEET, RESOURCE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
 import { layPicture, type SquarePictures } from "./art-holes.js";
-import { drawResourceMark } from "./resource-marks.js";
+import { drawResourceMark } from "./marks.js";
 import { C, PALETTE, shade, UNSEEN } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
 

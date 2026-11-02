@@ -1,7 +1,8 @@
 import { Terrain, unitType, type Unit, type WorldMap } from "@civ/core";
-import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, rankIcon, roadWays, unitArt, workArt, WORK_ICON, type ArtBox, type ArtSpot, type Explored, type RoadWays, type WorkPicture } from "@civ/renderer-api";
+import { courseGap, FIELD_E, FIELD_N, FIELD_S, FIELD_W, fieldLayout, hash, rankIcon, roadWays, unitArt, workArt, type ArtBox, type ArtSpot, type Explored, type RoadWays, type WorkPicture } from "@civ/renderer-api";
 import { layPicture, runHoles, type SquarePictures } from "./art-holes.js";
-import { drawIcon, drawIconFine, iconInk } from "./icons.js";
+import { drawJobMark, markHoles } from "./marks.js";
+import { drawIconFine, iconInk } from "./icons.js";
 import { drawText, textWidth } from "./font.js";
 import { C, PLAYER_COLORS, shade } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
@@ -462,7 +463,7 @@ function markBoxes(u: Pick<Unit, "order"> & { xp?: number }, dx: number, dy: num
   const out = shieldHoles(dx, dy, stacked);
   if (u.order.kind === "fortified") out.push({ x: dx, y: dy, w: t, h: 1 }, { x: dx, y: dy + t - 1, w: t, h: 1 }, { x: dx, y: dy, w: 1, h: t }, { x: dx + t - 1, y: dy, w: 1, h: t });
   else if (u.order.kind === "sentry") out.push(sentryLine(dx, dy, t));
-  else if (u.order.kind === "work" || u.order.kind === "camp") out.push({ x: dx + t - 9, y: dy, w: 9, h: 9 });
+  else if (u.order.kind === "work" || u.order.kind === "camp") out.push(...markHoles(dx, dy, t));
   const rank = u.order.kind !== "work" && u.order.kind !== "camp" && u.xp ? rankMarkBox(dx, dy, u.xp, t) : null;
   if (rank) out.push(rank);
   return out;
@@ -535,9 +536,8 @@ export function drawUnit(s: Surface, u: Pick<Unit, "type" | "order"> & { xp?: nu
     const line = sentryLine(dx, dy, t);
     s.hline(line.x, line.y, line.w, C.WHITE!);
   } else if (u.order.kind === "work" || u.order.kind === "camp") {
-    // A settler at work wears a badge of its job in the top right corner; a unit camped to heal, a heart.
-    s.rect(dx + t - 9, dy, 9, 9, C.BLACK!);
-    drawIcon(s, u.order.kind === "camp" ? "heart" : WORK_ICON[u.order.work], dx + t - 8, dy);
+    // A settler at work wears the mark of its job in the top right corner (`drawJobMark`); a unit camped to heal, a heart.
+    drawJobMark(s, dx, dy, u.order.kind === "camp" ? "camp" : u.order.work, t);
   }
   // Its rank there otherwise.
   if (u.order.kind !== "work" && u.order.kind !== "camp" && u.xp) drawRankMark(s, dx, dy, u.xp, t);

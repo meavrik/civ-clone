@@ -1158,11 +1158,15 @@ Never ship the original's sprites, palette art, fonts or text.
   right corner, the work or city whole beside it (asked for the same day: "resources like elephents and horses cover
   completly the improvements", then, of the icon at half its size tried first, "i dont like the smaller resource
   solution ... maybe show a small symbolic icon on the tile edge"; the user picked a tiny silhouette on a round dark
-  token, top right): retro `resource-marks.ts` (`drawResourceMark`, `MARKS`, `MARK_SIZE` 13 fine pixels), a pictogram
+  token, top right): retro `marks.ts` (`drawResourceMark`, `MARKS`, `MARK_SIZE` 13 fine pixels), a pictogram
   of our own for each resource, 9x9 fine pixels in cream (`rock` 7) on a slate token ringed near black, each the
   plainest thing that tells it (a horse's head, a bull's, antlers, a coin, a drop of oil, a whale's flukes; the icons'
   own shapes at that size were blobs); `drawSpecial`'s `corner`, and `drawSpecialMark` for a city's square, drawn once
-  the city stands (over its picture, shaded with it out of sight; on the city screen over its yields); the shade out of sight shades the picture whole, as a city's; fields let the square's
+  the city stands (over its picture, shaded with it out of sight; on the city screen over its yields). A unit at work
+  wears the mark of its job on the same token in the same corner (asked for the same day: "also change settler icons
+  when working on something. maybe also same style silluette"; `drawJobMark`, `JOB_MARKS`: a receding road, rails on
+  sleepers, a drop over furrows, a pickaxe, battlements over a gate, a broom, and for a unit camped to heal a heart;
+  its picture cut round the disc, `markHoles`), where a black square held the panel's icon of the job before; the shade out of sight shades the picture whole, as a city's; fields let the square's
   own water show (`waterHoles`: a river through them, a shore). The villages are laid so too. The logging camp is not
   cut (no work for forests in the rules). The code-drawn fields (`drawIrrigation`, `fieldLayout`: plots in rows either
   side of a canal, running on into irrigated neighbours), mine, fishery (`fishery.ts`) and rig (`rig.ts`) stay for
