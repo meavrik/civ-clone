@@ -201,10 +201,11 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
       drawRailroad(s, dx, dy, map, me.explored, mx, my, T);
       // A village of a kind the user drew stands as its picture, by the land (`hutKind`); else the drawn huts.
       const village = tile.hut ? drawHut(s, dx, dy, { kind: hutKind(map, mx, my), ...picture }, T) : null;
-      if (tile.mine || tile.special || tile.fishery || tile.rig || (tile.hut && !village) || tile.fortress || tile.pollution)
+      if (tile.mine) onSquare(s, dx, dy, T, (on, x, y) => drawMine(on, x, y));
+      // A resource is drawn at the square's size, a share of it across (`SPECIAL_SHARE`), not stretched with it.
+      if (tile.special) drawSpecial(s, dx, dy, state, tile, state.currentPlayer, T);
+      if (tile.fishery || tile.rig || (tile.hut && !village) || tile.fortress || tile.pollution)
         onSquare(s, dx, dy, T, (on, x, y) => {
-          if (tile.mine) drawMine(on, x, y);
-          if (tile.special) drawSpecial(on, x, y, state, tile, state.currentPlayer);
           if (tile.fishery) drawFishery(on, x, y);
           if (tile.rig) drawRig(on, x, y);
           if (tile.hut && !village) drawHut(on, x, y);

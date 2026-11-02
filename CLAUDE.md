@@ -947,6 +947,9 @@ Never ship the original's sprites, palette art, fonts or text.
   original's fine pixels, so a river or road is as much of a square as before), draws works, resources, villages and
   forts at 16 and lays them on stretched (`onSquare`, `stretchSquare`, `Surface.blitScaled`: nearest, so the terrain art's
   pixels come 1 and 2 fine pixels wide at 20 (one in four doubled) and 24 (every other), even at 32), and lays the units' and cities' pictures over squares that size;
+  but a resource is drawn at the square's size, `SPECIAL_SHARE` (0.8) of it across, centred, never below its icon's own
+  32 fine pixels (`drawSpecial`'s `t`; asked for 2026-11-02: "on tile resources are bit too big now - reduce size":
+  stretched, they had filled the 20-pixel squares), so at 20 an icon is its own pixels, unstretched, and at 16 as before;
   shields, hit points, ranks, names and labels keep their size. The city screen's map, the square's window and the
   phone app (its own renderer) keep 16. The web game's zoom is the square's size there (asked for the same day: "zoom
   now is too big - reduce and place +/- toggle button on main map for zoom"): `view.zoom` 0.8, 1, 1.2, 1.4 or 1.6 times

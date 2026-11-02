@@ -414,15 +414,31 @@ export function specialSprite(name: string): Surface | null {
   return spriteSurface(RESOURCE_SHEET, name.toLowerCase().replace(/ /g, "_"));
 }
 
-/** A square's special resource as `viewer` knows it (`specialFor`: none while a resource is still hidden from it), drawn over its terrain. */
-export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState, tile: Tile, viewer: number): void {
+/**
+ * How much of a square larger than the original's a resource's icon takes across (asked for 2026-11-02: "on tile
+ * resources are bit too big now - reduce size": stretched with the 20-pixel squares they had filled them): on the
+ * 20-pixel squares the icon's own 32 fine pixels, as drawn. Never smaller than that, so on the original's squares
+ * (the phone, the city screen, the square's window, the map zoomed out) an icon is its own size, no pixel dropped.
+ */
+export const SPECIAL_SHARE = 0.8;
+
+/**
+ * A square's special resource as `viewer` knows it (`specialFor`: none while a resource is still hidden from it), drawn
+ * over its terrain on a square `t` pixels a side, centred, `SPECIAL_SHARE` of it across.
+ */
+export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState, tile: Tile, viewer: number, t = TILE): void {
   const name = specialFor(state, tile, viewer)?.name;
   // An oil rig stands for the oil under it (`drawRig`).
   if (!name || tile.rig) return;
   // A resource's deposit at sea has an icon of its own (`ResourceRule.offshore`; since save version 55).
   const icon = specialSprite(tile.terrain === Terrain.Ocean && RESOURCE_BY_ID[name]?.offshore ? `Offshore ${name}` : name);
-  if (icon) { s.blit(icon, dx, dy, SPRITE_CLEAR); return; }
-  s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!);
+  if (!icon) { s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!); return; }
+  // In whole fine pixels, the margin either side alike.
+  const k = s.k;
+  const fine = Math.max(icon.fw, Math.round(t * SPECIAL_SHARE * k));
+  const off = Math.floor((t * k - fine) / 2) / k;
+  if (fine === icon.fw) s.blit(icon, dx + off, dy + off, SPRITE_CLEAR);
+  else s.blitScaled(icon, dx + off, dy + off, fine / k, fine / k, SPRITE_CLEAR);
 }
 
 /**
