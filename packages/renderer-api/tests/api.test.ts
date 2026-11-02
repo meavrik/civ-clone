@@ -121,18 +121,21 @@ describe("terrain info", () => {
     expect(terrainInfo(s, (u.x + 40) % 80, u.y)).toEqual({ title: "Unexplored", card: null, lines: ["Not explored yet."] });
   });
 
-  it("warns where only settlers and elephants climb, where wheels need a road and where the ground wears units down", () => {
+  it("warns where only a few climb, where wheels need a road and where the ground wears units down", () => {
     const s = newGame(2026);
     const u = s.units[0]!;
     revealAround(s, 0, u.x, u.y, 3);
     const t = getTile(s.map, u.x + 1, u.y)!;
     const warnings = () => terrainInfo(s, u.x + 1, u.y).card!.groups.find((g) => g.title === "Here")?.facts.filter((f) => f.icon === "boot" || f.icon === "heart") ?? [];
     Object.assign(t, { terrain: Terrain.Mountains, river: false, road: false, special: false });
-    expect(warnings()).toEqual([{ icon: "boot", name: "Settlers and elephants", note: "Others need a road", tone: "bad" }]);
-    // Before save version 59 the explorer climbed in the elephants' place.
-    s.mountainExplorers = true;
-    expect(warnings()).toEqual([{ icon: "boot", name: "Settlers only", note: "Others need a road", tone: "bad" }]);
-    delete s.mountainExplorers;
+    expect(warnings()).toEqual([{ icon: "boot", name: "Steep", note: "Only Settlers, War Elephants and Explorer without a road", tone: "bad" }]);
+    // Before save version 59 the elephants kept off; before 53 there were neither they nor explorers.
+    s.groundedElephants = true;
+    expect(warnings()[0]?.note).toBe("Only Settlers and Explorer without a road");
+    s.catalogue = 52;
+    expect(warnings()[0]?.note).toBe("Only Settlers without a road");
+    delete s.groundedElephants;
+    delete s.catalogue;
     t.terrain = Terrain.Jungle;
     expect(warnings()).toEqual([{ icon: "boot", name: "No wheels", note: "Wheeled units need a road", tone: "quiet" }]);
     t.road = true;

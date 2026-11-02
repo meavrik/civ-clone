@@ -436,8 +436,8 @@ Never ship the original's sprites, palette art, fonts or text.
   extended tree, Archery (a root) and Seafaring (Pottery, Map Making). Seafaring brings the Harbour (60 shields, 1 gold;
   only by the sea, `BuildingRule.coastal`; +1 food on each ocean square its city works, `oceanFood`, added in
   `cityTileYield` after the government's -1), the Explorer (0/1/1, 30, sight 2, ignores zones of control; the
-  `explorer` flag: every step costs it a road's third, `stepCost`, and no one minds it on their land, `trespassOn`;
-  until save version 59 it also climbed mountains without a road, see Ground under Known gaps 1) and the Fishing Boat (0/1/2, 30; the `fishing` flag: the `fishery`
+  `explorer` flag: every step costs it a road's third, `stepCost`, it climbs mountains without a road, `canEnter`, and
+  no one minds it on their land, `trespassOn`) and the Fishing Boat (0/1/2, 30; the `fishing` flag: the `fishery`
   command, `whyNoFishery`, spends it on a Fish or Whales square of its own civilization's land with moves left, laying
   `Tile.fishery`, which adds its special's `SpecialRule.fishery`: Fish +1 food, Whales +1 food +1 shield; F or the
   orders' "Lay fishery"). Since save version 54 (asked for 2026-11-01: "fish should give extra food only with fishing
@@ -1806,8 +1806,8 @@ Harbour adding the second (2026-11-02, asked for; save version 58). The web game
 The terrain drawn from the user's second sheet, forests and mountains in kinds by the land round them (2026-11-02,
 asked for; no save version). Villages drawn as the user's five huts, the kind by the land (2026-11-02, asked for).
 Tile improvements drawn as the user's sheet: fields, mines and quarries, oil pumps, rigs, nets and piers as its
-pictures, bridges in its woods, roads thin and muted (2026-11-02, asked for). War Elephants the only soldiers that
-climb mountains without a road, explorers no longer (2026-11-02, asked for; save version 59).
+pictures, bridges in its woods, roads thin and muted (2026-11-02, asked for). War Elephants climb mountains without a road,
+as settlers and explorers do (2026-11-02, asked for; save version 59).
 
 ## Known gaps / next steps
 
@@ -1879,12 +1879,12 @@ climb mountains without a road, explorers no longer (2026-11-02, asked for; save
    `simpleVeterans` (headless `--simple-veterans`): a win made the winner a veteran half the time, the coin
    drawn as before (6 x 250 planner-v2 games came out identical to the code before). Head to head (planner
    vs v2, 16 x 300): ranks 1-15, score 125 vs 228; simple veterans 1-15, 127 vs 225, both replaying exactly.
-   Ground: off the road only settlers and War Elephants climb `roadOnly` terrain (mountains, `climbsMountains`), so a
-   range is a wall to the rest until settlers build a road over it (elephants since save version 59, asked for
-   2026-11-02: "elphents would be the only unit that can enter any tile without any road", `UnitTypeRule.anyGround`;
-   the explorer, which had climbed since version 53, keeps off them now; saves before 59 load with `mountainExplorers`,
-   headless `--mountain-explorers`: explorers climb, elephants not. Head to head, planner vs v2, 16 x 300, seeds 1-16:
-   10-6, score 95 vs 74, pop 41 vs 24; as before 10-6, 95 vs 74; all replaying exactly, elephants being rare); `wheeled` units (chariot, catapult, cannon, artillery, armor, mech inf)
+   Ground: off the road only settlers, explorers and War Elephants climb `roadOnly` terrain (mountains,
+   `climbsMountains`), so a range is a wall to the rest until settlers build a road over it (elephants since save
+   version 59, asked for 2026-11-02: "elphents would be the only unit that can enter any tile without any road", then
+   "settlers and explorers should also be able to climb", `UnitTypeRule.anyGround`, the only soldiers that do; saves
+   before 59 load with `groundedElephants`, headless `--grounded-elephants`. Head to head, planner vs v2, 16 x 300,
+   seeds 1-16: 10-6, score 95 vs 75, pop 40 vs 24; grounded 10-6, 95 vs 74; all replaying exactly, elephants being rare); `wheeled` units (chariot, catapult, cannon, artillery, armor, mech inf)
    also keep off `rough` terrain (jungle, swamp, arctic) without one. City squares have a road, and
    attacking onto such ground is fine. One rule, `canEnter`, serves `checkMove`, `findPath`, barbarians
    and the planner (camp squares, scouting to the edge of ground it cannot enter). `openMountains`

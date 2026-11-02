@@ -261,7 +261,7 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
   if (save.version < 56) options.quickImprovements = true;
   if (save.version < 57) options.clusteredResources = true;
   if (save.version < 58) options.richSea = true;
-  if (save.version < 59) options.mountainExplorers = true;
+  if (save.version < 59) options.groundedElephants = true;
   const state = newGame(save.seed, options);
   const from = state.turn;
   const progress = (): ReplayProgress => ({ turn: state.turn, from, to: Math.max(from, save.turn) });

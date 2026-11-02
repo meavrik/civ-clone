@@ -3,10 +3,12 @@ import {
   attrition,
   attritionCure,
   building,
+  climbsMountains,
   CITY_RADIUS,
   cityAt,
   cityStateOf,
   civ,
+  inCatalogue,
   claimant,
   influenceSpecials,
   maxHp,
@@ -21,6 +23,7 @@ import {
   TERRAIN_NAMES,
   TERRAIN_RULES,
   tileYield,
+  UNIT_TYPES,
   unitAt,
   unitCityState,
   wrapX,
@@ -190,9 +193,7 @@ export function terrainInfo(state: GameState, x: number, y: number): SquareInfo 
   if (t.rig) here.push({ icon: "shield", name: "Oil rig", note: yieldGain({ shields: RESOURCE_BY_ID[t.deposit ?? ""]?.offshore?.rig.shields ?? 0 }) });
   if (t.hut) here.push({ icon: "hut", name: "Village", note: "Visit it with a unit", tone: "quiet" });
   if (t.pollution) here.push({ icon: "pollution", name: "Pollution", note: "Output halved", tone: "bad" });
-  if (roadOnly(state, t) && !t.road) here.push(state.mountainExplorers
-    ? { icon: "boot", name: "Settlers only", note: "Others need a road", tone: "bad" }
-    : { icon: "boot", name: "Settlers and elephants", note: "Others need a road", tone: "bad" });
+  if (roadOnly(state, t) && !t.road) here.push({ icon: "boot", name: "Steep", note: `Only ${climbers(state)} without a road`, tone: "bad" });
   else if (r.rough && !t.road && !state.classicTerrain) here.push({ icon: "boot", name: "No wheels", note: "Wheeled units need a road", tone: "quiet" });
   const wear = attrition(state, me.id, x, y);
   if (wear > 0 && r.attrition) here.push({ icon: "heart", name: "Harsh", note: `${Math.round(wear * 100)}% hp a turn, until ${advance(attritionCure(state, r.attrition)).name}`, tone: "bad" });
@@ -297,4 +298,10 @@ export function squareLines(card: SquareCard): string[] {
     card.text,
     ...card.groups.flatMap((g) => g.facts.map((f) => `{${f.icon}} ${f.name}${f.note ? `: ${f.note}` : ""}`)),
   ];
+}
+
+/** Who climbs mountains without a road in this game (`climbsMountains`), by name: "Settlers, Explorer and War Elephants". */
+function climbers(state: GameState): string {
+  const names = UNIT_TYPES.filter((u) => u.domain === "land" && inCatalogue(state, u) && climbsMountains(state, u)).map((u) => u.name);
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names.join("");
 }

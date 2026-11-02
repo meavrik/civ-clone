@@ -167,7 +167,7 @@ describe("mountains", () => {
     const elephants = createUnit(s, "elephants", 0, 10, 10);
     const explorer = createUnit(s, "explorer", 0, 10, 10);
     expect(move(s, elephants.id, 1, 0).ok).toBe(true);
-    expect(move(s, explorer.id, 1, 0)).toEqual({ ok: false, reason: "steep" });
+    expect(move(s, explorer.id, 1, 0).ok).toBe(true);
     for (let y = 0; y < s.map.height; y++) for (const x of [14]) getTile(s.map, x, y)!.terrain = Terrain.Mountains;
     elephants.x = 12; elephants.y = 10;
     expect(findPath(s, elephants, 16, 10)).not.toBeNull();
@@ -175,13 +175,13 @@ describe("mountains", () => {
     getTile(s.map, 9, 10)!.terrain = Terrain.Jungle;
     expect(canEnter(s, unitType("elephants"), getTile(s.map, 9, 10)!)).toBe(true);
 
-    // Games before version 59: the explorer climbed in the elephants' place.
-    const old = flatWorld(Terrain.Grassland, { mountainExplorers: true });
+    // Games before version 59: the elephants kept off; the explorer climbed as ever.
+    const old = flatWorld(Terrain.Grassland, { groundedElephants: true });
     getTile(old.map, 11, 10)!.terrain = Terrain.Mountains;
     expect(move(old, createUnit(old, "elephants", 0, 10, 10).id, 1, 0)).toEqual({ ok: false, reason: "steep" });
     expect(move(old, createUnit(old, "explorer", 0, 10, 10).id, 1, 0).ok).toBe(true);
-    expect(loadSave({ ...makeSave(s, { opponents: 1 }, []), version: 58 as const }, () => {}).state.mountainExplorers).toBe(true);
-    expect(loadSave(makeSave(s, { opponents: 1 }, []), () => {}).state.mountainExplorers).toBeUndefined();
+    expect(loadSave({ ...makeSave(s, { opponents: 1 }, []), version: 58 as const }, () => {}).state.groundedElephants).toBe(true);
+    expect(loadSave(makeSave(s, { opponents: 1 }, []), () => {}).state.groundedElephants).toBeUndefined();
   });
 
   it("route soldiers over a range by its road and settlers straight across", () => {

@@ -50,9 +50,9 @@ export interface UnitTypeRule {
   /** Enters rough ground (mountains, jungle, swamp, arctic) only along a road. Not a flag: flags mark special roles. */
   wheeled?: boolean;
   /**
-   * Enters any ground without a road, mountains too (since save version 59, asked for 2026-11-02: "elphents would be the
-   * only unit that can enter any tile without any road"; War Elephants). Settlers climb mountains too, to build the
-   * roads there; see `climbsMountains`.
+   * Enters any ground without a road, mountains too (since save version 59, asked for 2026-11-02, then "settlers and
+   * explorers should also be able to climb"; War Elephants, the only soldiers that do). Settlers and explorers climb
+   * mountains by their flags; see `climbsMountains`.
    */
   anyGround?: boolean;
   /** Barbarians field it in these roles; with `needsTech`, only once some civilization knows `requires`. */
@@ -61,8 +61,8 @@ export interface UnitTypeRule {
   /**
    * `coastal`: a ship that must end its turn by a coast (the Trireme): one left on deep water (no land
    * beside it, `deepWater`) at its owner's turn's end sinks with its cargo, and gotos keep off deep water.
-   * `explorer` (since save version 53): every square costs it what a road would, and no civilization minds it on its
-   * land; before save version 59 it also climbed mountains without a road (`GameState.mountainExplorers`).
+   * `explorer` (since save version 53): every square costs it what a road would, it climbs mountains without one,
+   * and no civilization minds it on its land.
    * `fishing` (since save version 53): it is spent laying a fishery on a sea special of its civilization's land (the
    * `fishery` command, `Tile.fishery`), as settlers improve the land.
    */

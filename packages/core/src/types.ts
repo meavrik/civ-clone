@@ -361,11 +361,8 @@ export interface GameState {
    * (`BuildingRule.oceanTrade`), as before version 58; since, 1 trade, and a Harbour's city 1 more on each ocean square.
    */
   richSea?: boolean;
-  /**
-   * Explorers climb mountains without a road and War Elephants do not, as before version 59; since, the elephants climb
-   * and the explorers keep off (`climbsMountains`).
-   */
-  mountainExplorers?: boolean;
+  /** War Elephants keep off mountains without a road, as before version 59; since, they climb (`climbsMountains`). */
+  groundedElephants?: boolean;
   /** Every change of production kind halves the box again, even a change back. Set for saves before version 21. */
   compoundingPenalty?: boolean;
   /**

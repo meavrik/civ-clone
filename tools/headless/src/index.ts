@@ -136,8 +136,8 @@ export interface GameConfig {
   clusteredResources?: boolean;
   /** The sea's 2 trade and a Harbour of food only (`GameState.richSea`). */
   richSea?: boolean;
-  /** Explorers climb mountains, War Elephants not (`GameState.mountainExplorers`). */
-  mountainExplorers?: boolean;
+  /** War Elephants keep off roadless mountains (`GameState.groundedElephants`). */
+  groundedElephants?: boolean;
 }
 
 export interface PlayerStats {
@@ -268,7 +268,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.quickImprovements ? { quickImprovements: true } : {}),
     ...(config.clusteredResources ? { clusteredResources: true } : {}),
     ...(config.richSea ? { richSea: true } : {}),
-    ...(config.mountainExplorers ? { mountainExplorers: true } : {}),
+    ...(config.groundedElephants ? { groundedElephants: true } : {}),
   };
 }
 

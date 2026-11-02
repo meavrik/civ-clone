@@ -106,8 +106,8 @@ export function stepCost(type: UnitTypeRule, to: Tile): number {
 }
 
 /**
- * Can a land unit of this type enter this land square? Off the road, only
- * settlers and war elephants climb steep ground (mountains, `climbsMountains`) and wheeled units keep off rough
+ * Can a land unit of this type enter this land square? Off the road, only settlers, explorers and war elephants
+ * climb steep ground (mountains, `climbsMountains`) and wheeled units keep off rough
  * ground; a road (every city square has one) takes everyone.
  */
 export function canEnter(state: GameState, type: UnitTypeRule, to: Tile): boolean {
@@ -117,13 +117,13 @@ export function canEnter(state: GameState, type: UnitTypeRule, to: Tile): boolea
 }
 
 /**
- * Whether units of `type` climb mountains without a road: settlers, who build the roads there, and since save version
- * 59 War Elephants, the only soldiers that go anywhere without one (`UnitTypeRule.anyGround`; asked for 2026-11-02).
- * Games before load with `mountainExplorers`: the explorer climbed in the elephants' place.
+ * Whether units of `type` climb mountains without a road: settlers, who build the roads there, explorers (since save
+ * version 53), and since 59 War Elephants, the only soldiers that go anywhere without one (`UnitTypeRule.anyGround`;
+ * asked for 2026-11-02). Games before 59 load with `groundedElephants`: the elephants kept off.
  */
 export function climbsMountains(state: GameState, type: UnitTypeRule): boolean {
-  if (type.flags?.includes("settler")) return true;
-  return state.mountainExplorers ? type.flags?.includes("explorer") === true : type.anyGround === true;
+  if (type.flags?.some((f) => f === "settler" || f === "explorer")) return true;
+  return type.anyGround === true && !state.groundedElephants;
 }
 
 /**
