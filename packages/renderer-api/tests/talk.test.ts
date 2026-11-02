@@ -15,11 +15,14 @@ const labels = (s: GameState, memo: TalkMemo, exchange = false) =>
   talkButtons(talkTopics(s, 0, 1, memo, exchange), memo).map((b) => talkLabel(s, 0, 1, b, memo));
 
 describe("a talk with a foreign leader", () => {
-  it("opens a first meeting with proposals (peace, a pact), a gift, war and a parting in peace", () => {
+  it("opens a first meeting with proposals (peace, a pact), a gift, demands (tribute, war) and a parting in peace", () => {
     const s = talkGame("contact");
     // A gift is always Offer a gift, opening what to give (asked for 2026-10-31: a lone "Give gold" said nothing of why).
-    expect(labels(s, { said: [], first: true })).toEqual(["Make a proposal", "Offer a gift", "Declare war", "Part in peace"]);
+    expect(labels(s, { said: [], first: true })).toEqual(["Make a proposal", "Offer a gift", "Make demands", "Part in peace"]);
     expect(talkTopics(s, 0, 1, { said: [] }, false).propose).toEqual(["peace", "pact"]);
+    // Tribute from the first meeting, Writing or not (asked for 2026-11-02: "add a demand tribute option for the player").
+    expect(s.players[0]!.advances).not.toContain("writing");
+    expect(talkTopics(s, 0, 1, { said: [] }, false).demand).toEqual(["tribute", "war"]);
   });
 
   it("never offers to break a treaty just signed, nor war after a gift", () => {

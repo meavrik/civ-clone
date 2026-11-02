@@ -1563,7 +1563,11 @@ Never ship the original's sprites, palette art, fonts or text.
   proposal or gift, so a refused demand leaves war or farewell; at war only peace and farewell. What we
   may say falls under three subjects: proposals (peace, `proposePeace`: yes, for `peacePrice` or no; a pact; an
   alliance; with Writing open borders, `bordersAnswer`; an exchange), gifts and demands (their units off our
-  land, tribute with Writing, close borders, declare war or break the treaty). Writing and Trade stand for
+  land, tribute, close borders, declare war or break the treaty). Tribute needs no Writing since 2026-11-02 (asked
+  for: "add a demand tribute option for the player"; it waited for Writing before, so early on it was never offered),
+  and the civ card has it too, Demand tribute in red out of war beside Talk (the web app's `demandTribute`, shared by
+  both: the AI's `tributeOffer`, a leader under half our strength paying a share of its treasury once in 20 turns, the
+  rest refusing). Writing and Trade stand for
   the knowledge that brings more to say (asked for 2026-10-24, "when get diplomacy tech add more diplomacy
   options, when get trade tech add trade options"; the tree has no Diplomacy, so Writing, the Diplomat's).
   Gifts (asked for 2026-10-31: "give gold - why? - replace with offer a gift (to improve relationship) with also

@@ -2377,7 +2377,6 @@ function audience(player: number, line: string, done: () => void = () => { scree
   const memo: TalkMemo = { said: [], tone: opts.tone, first: opts.first };
   const speak = (words: string) => { screenState = { kind: "diplomacy", player, line: words }; };
   const mood = () => attitude(state, player, 0);
-  const them = () => state.players[player]!;
   // An exchange could hand something either way: advances (with Trade), resources (with Currency).
   const exchange = () => exchangeGoods(player);
   /** The leader's answer: their words, and the turn the talk takes with it. */
@@ -2420,15 +2419,7 @@ function audience(player: number, line: string, done: () => void = () => { scree
         answer("So be it. Our caravans will carry nothing more between us.", "hostile");
         return;
       case "leave": demandWithdraw(player, (w) => answer(w, "hostile")); return;
-      case "tribute": {
-        const gold = tributeOffer(state, player, 0);
-        if (gold > 0) { dispatch({ type: "tribute", player, amount: gold }); answer(`Take these ${gold} gold, and leave us in peace.`, "hostile"); return; }
-        const paid = state.tributePaid?.[`${player}>0`];
-        answer(paid !== undefined && state.turn - paid < 20 ? "We paid you not long ago. Do not ask again so soon."
-          : them().gold < 10 ? "Our treasury is bare; there is nothing to give."
-          : "We pay tribute to no one. Come and take it, if you dare.", "hostile");
-        return;
-      }
+      case "tribute": demandTribute(player, (w) => answer(w, "hostile")); return;
       case "closeBorders":
         dispatch({ type: "closeBorders", player });
         answer("So be it. Our borders are closed to you again.", "hostile");
@@ -2821,8 +2812,27 @@ function openCivCard(player: number, words?: string): void {
   const back = () => { screenState = { kind: "map" }; };
   const items: [string, () => void][] = [[`Talk to ${leader}`, () => audience(player, leaderLine(state, player))]];
   if (trespassers(state, 0, player).length) items.push(["Demand they leave our land", () => demandWithdraw(player, (answer) => openCivCard(player, answer))]);
-  // Back (the close box, Esc) goes back to the map; the demand is red, as in a talk.
-  talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), back, "Back", items.length > 1 ? [1] : []);
+  // Tribute, out of war (asked for 2026-11-02: "add a demand tribute option for the player"); also among a talk's demands.
+  if (!atWar(state, 0, player)) items.push(["Demand tribute", () => demandTribute(player, (answer) => openCivCard(player, answer))]);
+  // Back (the close box, Esc) goes back to the map; the demands are red, as in a talk.
+  talkMenu(items.map((i) => i[0]), (i) => items[i]?.[1](), back, "Back", items.map((_, i) => i).slice(1));
+}
+
+/**
+ * Demand tribute of `player`: a leader far the weaker pays a share of its treasury (the AI's `tributeOffer`: under half
+ * our strength, once in 20 turns), the rest refuse; `talk` says the answer.
+ */
+function demandTribute(player: number, talk: (words: string) => void): void {
+  const gold = tributeOffer(state, player, 0);
+  if (gold > 0 && dispatch({ type: "tribute", player, amount: gold })) {
+    sound.play("gift");
+    talk(`Take these ${gold} gold, and leave us in peace.`);
+    return;
+  }
+  const paid = state.tributePaid?.[`${player}>0`];
+  talk(paid !== undefined && state.turn - paid < 20 ? "We paid you not long ago. Do not ask again so soon."
+    : state.players[player]!.gold < 10 ? "Our treasury is bare; there is nothing to give."
+    : "We pay tribute to no one. Come and take it, if you dare.");
 }
 
 /** Demand that `player` take its units off our land: a friendly leader agrees (their units set off for the nearest way out), a wary one yields to strength, a hostile one refuses. */

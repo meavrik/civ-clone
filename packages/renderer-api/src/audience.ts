@@ -127,7 +127,7 @@ export function leaderTitle(state: GameState, player: number): string {
  * (a treaty, a deal, a gift), no proposal or gift once it has turned hostile (a demand), nothing that
  * needs a treaty before there is one. What we may say falls under three subjects: proposals (peace, a pact,
  * an alliance; with Writing open borders, at peace; an exchange), gifts (gold, an advance, with Currency a
- * resource) and demands (their units off our land, tribute with Writing, closing borders, war). The exchange
+ * resource) and demands (their units off our land, tribute, closing borders, war). The exchange
  * of maps is gone (asked for 2026-10-27; core's `shareMaps` stays for the logs that hold it). Since 2026-10-31
  * (asked for: "give gold - why? - replace with offer a gift (to improve relationship) with also other options",
  * "add exchange as a inner new section") the gifts are always one button, Offer a gift, opening what to give, and
@@ -225,7 +225,8 @@ export function talkTopics(state: GameState, me: number, them: number, memo: Tal
     ]),
     demand: memo.tone === "friendly" ? [] : fresh([
       ["leave", trespassers(state, me, them).length > 0],
-      ["tribute", !war && knows("writing")],
+      // Tribute from the first meeting (asked for 2026-11-02: "add a demand tribute option for the player"; with Writing before).
+      ["tribute", !war],
       ["closeBorders", open],
       ["endTrade", tradesOf(state, me, them).length > 0],
       ["war", !war && !warBarred(state, me, them)],
