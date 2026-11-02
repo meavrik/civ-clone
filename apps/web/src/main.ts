@@ -81,6 +81,7 @@ import {
   exportable,
   heldResources,
   RESOURCES,
+  RESOURCE_BY_ID,
   resourceKnown,
   hasResource,
   missingResources,
@@ -1656,13 +1657,17 @@ function inputKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "input" }>): voi
 
 /**
  * What a city should build next; `then` runs once it is picked or the menu is left. Units waiting on a
- * strategic resource we lack stand among the units, faded, saying what they need (`unitChoices`).
+ * strategic resource we lack stand among the units, faded, saying what they need (`unitChoices`), but for
+ * those of an `unlisted` resource (War Elephants), left out until we hold it, unless the city builds one.
  */
 function openProductionMenu(cityId: number, then?: () => void, title?: string, body?: string[]): void {
   const city = state.cities.find((c) => c.id === cityId)!;
   const ready = buildOptions(state, city);
-  const lacking = new Map(unitChoices(state, city).filter((u) => u.missing.length).map((u) => [u.id, u.missing]));
-  const units = unitChoices(state, city).map((u): Production => ({ kind: "unit", id: u.id }));
+  const choices = unitChoices(state, city);
+  const lacking = new Map(choices.filter((u) => u.missing.length).map((u) => [u.id, u.missing]));
+  const listed = (u: (typeof choices)[number]) =>
+    (city.production.kind === "unit" && city.production.id === u.id) || !u.missing.some((r) => RESOURCE_BY_ID[r]?.unlisted);
+  const units = choices.filter(listed).map((u): Production => ({ kind: "unit", id: u.id }));
   const missing = (p: Production) => (p.kind === "unit" ? lacking.get(p.id) : undefined);
   // Resources we lack only for want of a road on their squares (since save version 43): said under the title.
   const lacked = new Set([...lacking.values()].flat());

@@ -110,7 +110,9 @@ Never ship the original's sprites, palette art, fonts or text.
   trade, paid for each turn if agreed so, `ResourceTrade.pay`), a resource as a gift, End our trade (a demand). The
   planner swaps spares with other computer civs every third turn per pair (`manageResources`; spare: a second
   square, or one it has no use for yet, `spareResources`, `wantsResource`) and calls off a trade that gave away
-  what it now needs. Shown in the build menu (faded, "needs Iron"), the production box ("Needs Iron", Buy
+  what it now needs. Shown in the build menu (faded, "needs Iron"; but a resource marked `unlisted`, Elephants, keeps its
+  units out of the menu until the civ holds it, unless the city builds one already: asked for 2026-11-02, "dont show
+  war-elephents until have elephents as resource"), the production box ("Needs Iron", Buy
   faded), the square's window ("Iron is needed for Legion, ..."), the civ card's Resources line and Advisors >
   Resources (since 2026-10-31, asked for: "improve the resources main window", its own page, the advisor kind
   `resources`: renderer-api `resourcesView`, retro `drawResourcesAdvisor`; before, the report page's grey rows of

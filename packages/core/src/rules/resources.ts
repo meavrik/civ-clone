@@ -36,6 +36,12 @@ export interface ResourceRule {
   /** Its deposits lie only on this terrain or beside it (Elephants: in and at the edge of the jungle). */
   besides?: Terrain;
   /**
+   * The units that need it stay out of a city's build menu until its civilization holds it (asked for 2026-11-02: "dont
+   * show war-elephents until have elephents as resource"; half the civs never hold Elephants). Other resources' units
+   * stand there faded, saying what they need. Only the menu: the rules are untouched.
+   */
+  unlisted?: true;
+  /**
    * Its deposits at sea (asked for 2026-11-01: "add oil for water", with an oil rig over it; since save version 55,
    * `since`): open sea without a special, within `within` squares of land, `share` of those squares. Such a square serves
    * its civilization only with an oil rig on it (`Tile.rig`), as a land square does with a road: a Fishing Boat builds
@@ -69,7 +75,7 @@ export const RESOURCES: readonly ResourceRule[] = [
     text: "Fuel for engines on land, at sea and in the air.", revealedBy: "refining",
   },
   // Asked for 2026-11-01 ("war elephants - if any elephant resource available"): the jungle's own beasts, seen from the start.
-  { id: "Elephants", special: ELEPHANTS, deposits: { [Terrain.Jungle]: 0.07, [Terrain.Grassland]: 0.05, [Terrain.Plains]: 0.05 }, besides: Terrain.Jungle, text: "War beasts that put horses to flight.", since: 53 },
+  { id: "Elephants", special: ELEPHANTS, deposits: { [Terrain.Jungle]: 0.07, [Terrain.Grassland]: 0.05, [Terrain.Plains]: 0.05 }, besides: Terrain.Jungle, unlisted: true, text: "War beasts that put horses to flight.", since: 53 },
 ];
 
 export const RESOURCE_BY_ID: Readonly<Record<string, ResourceRule>> = Object.fromEntries(RESOURCES.map((r) => [r.id, r]));
