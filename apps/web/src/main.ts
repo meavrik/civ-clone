@@ -67,7 +67,6 @@ import {
   unitById,
   unitType,
   wonder,
-  wrapX,
   weakestWorked,
   bestFreeSlot,
   workOptions,
@@ -199,6 +198,8 @@ import {
   type BuiltView,
   conquestCard,
   sinkingWords,
+  SightHold,
+  sightLost,
   productionInfo,
   SACK,
   sackBlows,
@@ -233,7 +234,6 @@ import {
   watchTurn,
   cityChanges,
   stagedCities,
-  stagedSight,
   wondersLost,
   wonderLostNotice,
   treasuryWarning,
@@ -485,22 +485,38 @@ function whenStill(fn: () => void): void {
  * The cities as the map shows them while the other civilizations' turns play back (asked for 2026-10-29: the
  * map showed a city taken, and its new borders, while the fight for it still played): as they stood when our
  * turn ended (`before`), each changed by a step the playback shows changing as that step lands (`changes`, set
- * as the playback is queued: `started`), the rest once it is over. `sawBefore` keeps the sight of a city of ours
- * until it falls (`stagedSight`, `sight` its last answer by `key`).
+ * as the playback is queued: `started`), the rest once it is over. What we saw as our turn ended stays seen meanwhile
+ * (`sightHold`).
  */
-let staging: { before: City[]; sawBefore: Uint8Array; changes: Map<number, UnitStep>; started: boolean; key?: string; sight?: Uint8Array } | null = null;
+let staging: { before: City[]; sawBefore: Uint8Array; changes: Map<number, UnitStep>; started: boolean } | null = null;
 
-/** The state the map draws: the real one, or during the playback a copy with the cities (and our sight) `staging` shows. */
+/**
+ * Sight kept after it is lost (asked for 2026-11-03: "when city is conquered or unit is lost - visibilty around should
+ * stay until the battle is COMPLETLY over and all fight animations and all enemy and player units done fighting";
+ * renderer-api `SightHold`): what we saw before a fight of ours that cost us sight, or as our turn ended, stays seen on
+ * the map, whatever stands there drawn, until every slide and fight has played, the fight's zoom has gone, the view no
+ * longer lingers and the news that followed is closed (`releaseSight`, each frame). Before, a city of ours kept its
+ * land in sight only until it fell, and a unit lost took its sight with it at once.
+ */
+const sightHold = new SightHold();
+
+/** Hold what we saw (`saw`) if the fight just fought (actions from `mark` on) cost us sight. */
+function holdIfLost(saw: Uint8Array, mark: number): void {
+  if (lastActions.slice(mark).some((a) => a.kind === "battle") && sightLost(saw, state.players[0]!.visible)) sightHold.hold(saw);
+}
+
+/** Let the held sight go once the fighting is all over: nothing playing or lingering, the news closed, the map shown. */
+function releaseSight(t: number): void {
+  if (!sightHold.holding || screenState.kind !== "map" || motion.busy(t) || watching || staging || battleZoom || handoff || afterSlides.length) return;
+  sightHold.release();
+}
+
+/** The state the map draws: the real one, or during the playback a copy with the cities `staging` shows, and our sight as held. */
 function mapState(): GameState {
-  if (!staging) return state;
-  const cities = stagedCities(staging.before, state.cities, staging.changes, (a) => motion.playing(a, frameNow));
+  if (!staging && !sightHold.holding) return state;
+  const cities = staging ? stagedCities(staging.before, state.cities, staging.changes, (a) => motion.playing(a, frameNow)) : state.cities;
   const staged: GameState = { ...state, cities };
-  const key = cities.map((c) => `${c.id}:${c.owner}`).join(",");
-  if (staging.key !== key || !staging.sight) {
-    staging.key = key;
-    staging.sight = stagedSight(staged, 0, state.players[0]!.visible, staging.sawBefore);
-  }
-  const visible = staging.sight;
+  const visible = sightHold.shown(state.players[0]!.visible, frameNow);
   staged.players = state.players.map((p, i) => (i === 0 ? { ...p, visible } : p));
   return staged;
 }
@@ -520,6 +536,7 @@ function resetMotion(): void {
   motion.clear();
   watching = false;
   staging = null;
+  sightHold.release();
   // A fight's zoom gives way to the player's own, with no camera to keep.
   if (battleZoom) { view.zoom = battleZoom.prev !== 1 ? battleZoom.prev : undefined; battleZoom = null; }
   afterSlides.length = 0;
@@ -586,22 +603,11 @@ function slideOwn(actions: readonly UnitAction[]): void {
 function watchOthers(actions: readonly UnitAction[], sawBefore: Uint8Array): void {
   const me = state.players[0]!;
   const w = state.map.width;
-  // Squares whose sight we lost with a unit this turn: seen before, not now, by nobody's eyes but the lost unit's.
-  const lost = new Set<number>();
-  for (const a of actions) {
-    if (a.kind !== "battle") continue;
-    const ours = a.attacker.owner === 0 ? (a.attackerWon ? null : a.attacker) : a.defender.owner === 0 && a.attackerWon ? a.defender : null;
-    if (!ours) continue;
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-      const y = ours.y + dy;
-      if (y >= 0 && y < state.map.height) lost.add(y * w + wrapX(state.map, ours.x + dx));
-    }
-  }
-  // And what our land saw as it stood, so a city of ours is seen falling (`stagedSight`).
-  const land = staging ? stagedSight({ ...state, cities: staging.before }, 0, me.visible, sawBefore) : me.visible;
+  // What we see now and what we saw as our turn ended (held seen till it is all over, `sightHold`): a unit or a city
+  // of ours lost takes no sight with it while the fighting plays.
   const seen = (x: number, y: number) => {
     const i = y * w + x;
-    return me.explored[i] === 1 && (land[i] === 1 || (sawBefore[i] === 1 && lost.has(i)));
+    return me.explored[i] === 1 && (me.visible[i] === 1 || sawBefore[i] === 1);
   };
   const camera = {
     originX: ((Math.round(cam.animating ? cam.toX : cam.x) % w) + w) % w,
@@ -947,7 +953,10 @@ function onView(x: number, y: number): boolean {
 function dispatch(cmd: Command): boolean {
   view.inspect = undefined;
   const mark = lastActions.length;
+  // A fight of ours that costs us sight (a unit lost) keeps what we saw seen till it is all over (`sightHold`).
+  const saw = cmd.type === "move" ? state.players[0]?.visible.slice() : undefined;
   const r = applyCommand(state, cmd);
+  if (r.ok && saw) holdIfLost(saw, mark);
   if (r.ok) {
     log.push(cmd);
     if (cmd.type === "found") sound.play("found");
@@ -3298,8 +3307,10 @@ function passTurn(): void {
   // What we can see now; a unit lost in the turns to come takes its sight with it.
   const sawBefore = state.players[0]!.visible.slice();
   dispatch({ type: "endTurn" });
-  // The map keeps the cities as they stand now until the playback shows them changing (`staging`).
+  // The map keeps the cities as they stand now until the playback shows them changing (`staging`), and what we saw
+  // seen till the fighting and its news are over (`sightHold`).
   staging = { before: structuredClone(state.cities), sawBefore, changes: new Map(), started: false };
+  sightHold.hold(sawBefore);
   // Our own end of turn (contacts come from the relations; other civs' villages are theirs).
   // Ships lost at sea were shown going down before the turn passed.
   const events: TurnEvent[] = lastTurnEvents.filter((ev) => ev.kind !== "contact" && !(ev.kind === "hut" && ev.player !== 0) && ev.kind !== "lostAtSea");
@@ -3390,7 +3401,10 @@ function tryMove(unit: number, dx: number, dy: number): void {
   const before = state.activeUnit;
   const mark = lastActions.length;
   const wasAboard = unitById(state, unit)?.aboard ?? null;
+  const saw = state.players[0]!.visible.slice();
   const r = applyCommand(state, { type: "move", unit, dx, dy });
+  // A fight that costs us sight (our unit lost) keeps what we saw seen till it is all over (`sightHold`).
+  if (r.ok) holdIfLost(saw, mark);
   if (r.ok) {
     log.push({ type: "move", unit, dx, dy });
     actedThisTurn = true; // a move is an order too: the turn may end by itself after the last one
@@ -4247,6 +4261,7 @@ function frame(t: number): void {
   if (!animating) watching = false;
   if (staging?.started && !watching) staging = null;
   stepHandoff(t, animating);
+  releaseSight(t);
   if (handoff) view.blink = true; // the unit that just acted stays solid while the view lingers
   // The unit in play blinks smoothly, a faint glow round it; the one that just acted stays whole while the view lingers on it.
   view.opacity = handoff ? 1 : activeOpacity(t - blinkFrom);

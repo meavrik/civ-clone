@@ -1025,8 +1025,8 @@ Never ship the original's sprites, palette art, fonts or text.
   The other civilizations' turns (asked for 2026-10-22: enemies "come as a surprise, too swift"):
   `watchTurn` (`renderer-api/src/watch.ts`) plans the playback from their actions and the squares we
   see (`seen`, the web app's `watchOthers`: squares we see now, so a unit shown stays in sight or is seen
-  walking out of it, and the squares a unit of ours lost in a fight saw before, for the steps that led
-  to it; until 2026-10-24 any square seen before or after counted, and a unit shown on one we no longer
+  walking out of it, and since 2026-11-03 every square we saw as our turn ended, held in sight meanwhile (below;
+  before, only the squares a unit of ours lost in a fight saw, for the steps that led to it); until 2026-10-24 any square seen before or after counted, and a unit shown on one we no longer
   saw vanished the moment its slide ended, "shown for a glimpse and disappear"): every move of a civ at
   war with us (or barbarians) on seen squares, one unit at a
   time at a slow pace, a `MotionPlayer.hold` first gliding the camera there when it is not well on screen;
@@ -1039,8 +1039,15 @@ Never ship the original's sprites, palette art, fonts or text.
   a city taken, and its new borders, showed while the fight for it still played): renderer-api `staging.ts`,
   the web app's `staging` and `mapState` (a copy of the state with `stagedCities`), so borders, flags and sizes
   wait; a city taken, razed or founded by a step the playback shows changes as that step lands (`cityChanges`:
-  the conqueror's, raider's or settlers' last step onto its square; `MotionPlayer.playing`), and our sight
-  round a city of ours stays until it falls (`stagedSight`; the playback counts it seen, so the march in plays).
+  the conqueror's, raider's or settlers' last step onto its square; `MotionPlayer.playing`). Sight lost in the
+  fighting stays until it is all over (asked for 2026-11-03: "when city is conquered or unit is lost - visibilty
+  around should stay until the battle is COMPLETLY over and all fight animations and all enemy and player units done
+  fighting"; renderer-api `SightHold`, the web app's `sightHold`, `holdIfLost`, `releaseSight`): what we saw as our
+  turn ended, and what we saw before a fight of ours that cost a unit's sight (`sightLost`), stays seen on the map
+  (`mapState`'s sight: what we see now and what is held), whatever stands there drawn, until no slide or fight plays,
+  the fight's zoom and the view's linger are over and the news after them is closed, the map shown; then the shade
+  falls. A UI side channel: `Player.visible` is the rules' as ever. Before, a city of ours kept its land in sight only
+  until it fell (`stagedSight`, gone) and a unit lost took its sight with it at once.
   Coasts: `coast.ts` gives both renderers one shoreline field (square depth 0 land / 1 water touching
   land / 2 open sea, interpolated between square centres plus noise that wraps with the map), so shores
   and the edge of deep water wander across square borders while every square's centre keeps its kind.

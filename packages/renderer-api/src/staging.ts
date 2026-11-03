@@ -1,4 +1,4 @@
-import { landSight, type City, type GameState, type UnitAction, type UnitStep } from "@civ/core";
+import type { City, UnitAction, UnitStep } from "@civ/core";
 
 /**
  * The cities as the map shows them while the other civilizations' turns play back (asked for
@@ -58,17 +58,5 @@ export function stagedCities(before: readonly City[], after: readonly City[], ch
   }
   const was = new Set(before.map((c) => c.id));
   for (const c of after) if (!was.has(c.id) && changed(c.id)) out.push(c);
-  return out;
-}
-
-/**
- * What the viewer sees while the map shows `staged`'s cities: what they see now, and what they saw
- * before (`sawBefore`) of the land those cities hold and a square beyond (core's `landSight`), so a
- * city of theirs still standing as theirs is not shaded out of sight before it falls.
- */
-export function stagedSight(staged: GameState, viewer: number, visible: Uint8Array, sawBefore: Uint8Array): Uint8Array {
-  const out = visible.slice();
-  if (staged.farContact || staged.narrowSight) return out;
-  for (const i of landSight(staged, viewer)) if (sawBefore[i] === 1) out[i] = 1;
   return out;
 }

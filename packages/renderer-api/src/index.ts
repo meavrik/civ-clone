@@ -58,6 +58,7 @@ export * from "./built.js";
 export * from "./conquest.js";
 export * from "./sinking.js";
 export * from "./sack.js";
+export * from "./sight-hold.js";
 export * from "./production-info.js";
 export * from "./founding.js";
 export * from "./staging.js";

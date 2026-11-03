@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { foundCity, landSight, newGame, recomputeVisibility, type City, type UnitStep } from "@civ/core";
-import { cityChanges, MotionPlayer, stagedCities, stagedSight } from "../src/index.js";
+import { cityChanges, MotionPlayer, SightHold, sightLost, stagedCities } from "../src/index.js";
 
 const step = (unit: number, owner: number, fromX: number, fromY: number, toX: number, toY: number): UnitStep =>
   ({ kind: "step", unit, type: "legion", owner, fromX, fromY, toX, toY });
@@ -58,21 +58,42 @@ describe("the cities shown while the other civilizations' turns play back", () =
     expect(changes.size).toBe(0);
     expect(stagedCities(before, s.cities, changes, () => false).find((c) => c.id === rome.id)!.owner).toBe(0);
   });
+});
 
-  it("keep a fallen city's sight until it falls, and nothing more than was seen", () => {
-    const { s, rome, before } = turn();
+describe("sight held through the fighting", () => {
+  it("keeps what was seen before a city or unit was lost, with what is seen now, until let go", () => {
+    const { s, rome } = turn();
     recomputeVisibility(s, 0);
-    const sawBefore = s.players[0]!.visible.slice();
     const w = s.map.width;
+    const saw = s.players[0]!.visible.slice();
     const ours = landSight(s, 0);
     rome.owner = 1;
     recomputeVisibility(s, 0);
     const now = s.players[0]!.visible;
     expect(now[rome.y * w + rome.x]).toBe(0);
-    const sight = stagedSight({ ...s, cities: before }, 0, now, sawBefore);
-    for (const i of ours) expect(sight[i]).toBe(sawBefore[i]);
-    // Once it has fallen, the shade falls with it.
-    expect(stagedSight(s, 0, now, sawBefore)).toEqual(now);
+    expect(sightLost(saw, now)).toBe(true);
+    expect(sightLost(now, saw)).toBe(false);
+    const hold = new SightHold();
+    // Nothing held: the sight as it is.
+    expect(hold.shown(now, 1)).toBe(now);
+    hold.hold(saw);
+    expect(hold.holding).toBe(true);
+    const shown = hold.shown(now, 1);
+    for (const i of ours) expect(shown[i]).toBe(1);
+    for (let i = 0; i < now.length; i++) expect(shown[i]).toBe(saw[i] || now[i] ? 1 : 0);
+    // Worked out once a frame; anew on the next.
+    expect(hold.shown(now, 1)).toBe(shown);
+    expect(hold.shown(now, 2)).not.toBe(shown);
+    // A second loss adds to what is held.
+    const more = new Uint8Array(now.length);
+    more[5] = 1;
+    hold.hold(more);
+    expect(hold.shown(now, 3)[5]).toBe(1);
+    expect(hold.shown(now, 3)[rome.y * w + rome.x]).toBe(1);
+    // Let go: the shade falls.
+    hold.release();
+    expect(hold.holding).toBe(false);
+    expect(hold.shown(now, 4)).toBe(now);
   });
 });
 
