@@ -140,6 +140,8 @@ export interface GameConfig {
   groundedElephants?: boolean;
   /** A fishery on Fish adds no shield (`GameState.foodOnlyFishery`). */
   foodOnlyFishery?: boolean;
+  /** City-states' raiders neither hunt nor pillage and fortify where they stop (`GameState.meekCityStates`). */
+  meekCityStates?: boolean;
 }
 
 export interface PlayerStats {
@@ -272,6 +274,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.richSea ? { richSea: true } : {}),
     ...(config.groundedElephants ? { groundedElephants: true } : {}),
     ...(config.foodOnlyFishery ? { foodOnlyFishery: true } : {}),
+    ...(config.meekCityStates ? { meekCityStates: true } : {}),
   };
 }
 

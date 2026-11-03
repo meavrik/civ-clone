@@ -132,6 +132,56 @@ describe("city-states", () => {
     }
   });
 
+  it("lay waste a city they cannot storm, never fortifying beside it (since save version 63)", () => {
+    for (const meek of [false, true]) {
+      const { s, tyre, rome } = world();
+      if (meek) s.meekCityStates = true;
+      s.units = s.units.filter((u) => u.owner !== 0);
+      createUnit(s, "musketeers", 0, rome.x, rome.y).order = { kind: "fortified" };
+      const farm = s.map.tiles[9 * s.map.width + 11]!;
+      farm.irrigation = true;
+      const raider = createUnit(s, "legion", s.barbarians, 11, 10, tyre.id);
+      // Rome's musketeers are past storming: the raider steps out of their zone of control and back in onto the farm
+      // along the walls, and wrecks it, where it stood fortified at the gates before.
+      for (let t = 0; t < 4 && farm.irrigation; t++) {
+        turn(s);
+        expect(s.units).toContain(raider);
+        expect(["fortified", "fortifying"].includes(raider.order.kind)).toBe(meek);
+        s.turn++;
+      }
+      expect(farm.irrigation).toBe(meek);
+    }
+  });
+
+  it("wreck farms and mines on the way, but not on the land of a civilization that paid them off", () => {
+    for (const paid of [false, true]) {
+      const { s, tyre, rome } = world();
+      s.units = s.units.filter((u) => u.owner !== 0);
+      createUnit(s, "musketeers", 0, rome.x, rome.y).order = { kind: "fortified" };
+      const mine = s.map.tiles[11 * s.map.width + 11]!;
+      mine.mine = true;
+      if (paid) s.cityStatePeace = { [`${tyre.id}:0`]: s.turn + 5 };
+      createUnit(s, "legion", s.barbarians, 11, 11, tyre.id);
+      turn(s);
+      expect(mine.mine).toBe(paid);
+    }
+  });
+
+  it("go after a unit in the open a few squares off and strike it", () => {
+    const { s, tyre } = world();
+    const settlers = createUnit(s, "settlers", 0, 14, 10);
+    createUnit(s, "cavalry", s.barbarians, 16, 10, tyre.id);
+    turn(s);
+    expect(s.units).not.toContain(settlers);
+    const { s: old, tyre: oldTyre } = world();
+    old.meekCityStates = true;
+    const spared = createUnit(old, "settlers", 0, 14, 10);
+    createUnit(old, "cavalry", old.barbarians, 16, 10, oldTyre.id);
+    turn(old);
+    // Before, raiders hit only what stood next door on their way.
+    expect(old.units).toContain(spared);
+  });
+
   it("make all-computer games replay exactly", () => {
     const opts = { allAi: true, opponents: 3, cityStates: true };
     const s = newGame(5, opts);

@@ -211,6 +211,24 @@ Never ship the original's sprites, palette art, fonts or text.
   lapsed (`state.cityStateAsked`, `askedLately`, `noteDemand`): a band held at home had asked again every turn. Saves
   before 50 load with `eagerCityStates` (headless `--eager-city-states`). Head to head (planner vs v2, 16 x 300, seeds
   1-16): eager 12-4, score 172 vs 106, pop 56 vs 34; now 10-6, 174 vs 114, pop 58 vs 39; all replaying exactly.
+  Since save version 63 (asked for 2026-11-03: "city-state units - need to also pillage. and more aggresive - more
+  attack, less fortify near units"; the AI's `prowl`) its soldiers out of the city fortify only at home; from the grace
+  they strike what is next door at worse odds for themselves (`RAID_ODDS` 0.2 in the field, the barbarians' 0.3 before;
+  a city at `STORM_ODDS` 0.1 as before), go after a unit in the open within `HUNT_RANGE` (3) squares they have those
+  odds against (`hunt`), and wreck the farms, mines, railroads and fortresses they stand on (the `pillage` command) on
+  the land of any civilization that has not paid them off (`plunder`). A city they cannot storm (their odds at its gates
+  were under 1% nine times in ten) they lay waste instead of waiting at its gates: they make for what lies on its land
+  within `LOOT_RANGE` (3) of it, roads too (`lootNear`), stepping out of its defenders' zone of control first where it
+  bars the way along the walls (`stepToward`); and a raid takes, of the three nearest cities, the nearest it could storm
+  or has something to wreck round (`raidTarget`), else the nearest. Saves before 63 load with `meekCityStates`
+  (headless `--meek-city-states`): raiders fought at the barbarians' odds and only next door, wrecked nothing and
+  fortified wherever they stopped. In 6 all-planner games of 200 turns: before, 833 of the raiders' 2194 turns a game
+  ended fortified away from home, 792 of them beside an enemy, now none; squares pillaged 0.5 a game, now 11; attacks 43,
+  now 44 (the computers' cities have few improvements round them and are rarely stormable, so a band with nothing left to
+  wreck still waits at the gates, unfortified, striking once the odds turn). Head to head (planner vs v2, 16 x 300, seeds
+  1-16): 7-9, score 103 vs 101, pop 43 vs 38, cities 8.5 vs 7.1, cities lost 1.2 vs 0.9 a seat; meek 8-8, 111 vs 97, pop
+  46 vs 35 (as version 62); all replaying exactly. The planner, its settlers and soldiers more often in the open near
+  the city-states, loses the most: not tuned for the bolder raiders yet.
   Paid (`cityStateTribute`), that city-state leaves the payer be for 20 turns (`state.cityStatePeace`,
   `peaceUntil`/`boughtOff`: its units may not strike the payer's), until the payer strikes it (`breakPeace`). Taken,
   it is a city-state no more (`endCityState`); its soldiers fight on as barbarians. The planner pays while its
@@ -218,12 +236,16 @@ Never ship the original's sprites, palette art, fonts or text.
   default; `cityStateDemandCard`), the news, the conquest window ("Taken from the city-state of Tyre", "Burned by
   ..."), fights ("Legion of Tyre attacks!", `BattleSide.cityState`, `unitTitle`), the square's window ("Tyre (a
   city-state of the Phoenicians)", "Land of Tyre"); the barbarians' land bears no civ name on the maps. The first time
-  the player comes upon each city-state (`cameUpon`; asked for 2026-11-03: "when encouter a city-state add a small
-  notification explanation about it"), the map glides to it (its city, else its soldier in sight) and a small window
-  stands by it pointing at it (renderer-api `cityStateIntro`: "Petra, a City-State", three lines: a lone city of its
-  people at war with all, it raids unless paid, click it to buy peace or take it; the web app's `newCityStates`,
-  `introduceCityState`, a `cityStateMet` item of the news, `News`, before what it demands; a loaded game knows those it
-  had come upon, `metCityStates`). Peace is bought unasked too (asked for the same day: "allow clicking each city-state
+  the player comes upon a city-state in a game (`cameUpon`; asked for 2026-11-03: "when encouter a city-state add a
+  small notification explanation about it"), the map glides to it (its city, else its soldier in sight) and a small
+  window stands by it pointing at it (renderer-api `cityStateIntro`: "Petra, a City-State", three lines: a lone city of
+  its people at war with all, it raids unless paid, click it to buy peace or take it; the web app's `newCityStates`,
+  `introduceCityState`, a `cityStateMet` item of the news, `News`, before what it demands). Once a game (asked for the
+  same day: "make sure intoduction message appear once, and not each time you encouter a city-state unit or city"; it
+  had come for each city-state, and again for one met only by its soldiers after a reload): the others come upon pass
+  quietly (`metCityStates`), and the game is remembered per browser by its seed (`epochs.cityStateIntro`,
+  `shownThisGame`/`markShownThisGame`, shared with the deep-water warning's `epochs.deepWater`), a loaded game that
+  had come upon one counting as told. Peace is bought unasked too (asked for the same day: "allow clicking each city-state
   unit+city and asking to pay tribute to stop city aggresion"): a left-click on a city-state's city (explored) or a
   soldier of it in sight (renderer-api `cityStateAt`), or the square's window's "City-state..." (the phone's way, as
   a tap there with a unit in play moves it), opens its window by the square (`cityStateCard`, `openCityStateCard`; the
@@ -1934,7 +1956,9 @@ as settlers and explorers do (2026-11-02, asked for; save version 59). A fishery
 (2026-11-02, asked for; save version 60). Herds: Sheep, Camels and Bison as bonus resources that Animal Husbandry tames
 and, Sheep's wool, Weaving spins, with the user's updated sheet of resources (2026-11-03, asked for; save version 61);
 the same day the resources became the user's pictures as they are, laid over the canvas (asked for: "USE AS IS!!"), and
-Ivory left the game (asked for; save version 62).
+Ivory left the game (asked for; save version 62). City-states' raiders pillage, hunt units in the open and lay waste a
+city they cannot storm, never fortifying in the field, and what a city-state is is told once a game (2026-11-03, asked
+for; save version 63).
 
 ## Known gaps / next steps
 

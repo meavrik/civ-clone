@@ -507,6 +507,13 @@ export interface GameState {
    */
   eagerCityStates?: boolean;
   /**
+   * City-states' soldiers as before version 63: raiders fought in the field at the barbarians' odds, went after nothing
+   * beyond the square next door, wrecked nothing, and fortified wherever they stopped, often beside the enemy. Since 63
+   * they fight at better odds for their foes, hunt units in the open three squares off and wreck farms, mines, railroads
+   * and fortresses on the land of whoever has not paid them off (the AI's `prowl`).
+   */
+  meekCityStates?: boolean;
+  /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.
    */

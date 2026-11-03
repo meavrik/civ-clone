@@ -7,10 +7,13 @@ import {
   peaceUntil,
   unitCityState,
   bestDefender,
+  boughtOff,
   cargo,
+  checkMove,
   cityAt,
   findPath,
   getTile,
+  landOwner,
   mapDistance,
   NEIGHBOURS,
   pillageTarget,
@@ -30,6 +33,12 @@ const SALLY_ODDS = 0.6;
 const LEADER_ESCAPE = 8;
 /** Beyond this distance from the city it marches on, a band loots the farms and mines it stands on. */
 const LOOT_DISTANCE = 3;
+/** Odds a city-state's soldier attacks at in the field (since save version 63; the barbarians' `ATTACK_ODDS` before). */
+const RAID_ODDS = 0.2;
+/** A city-state's soldier goes after an enemy unit in the open this many squares off (since save version 63). */
+const HUNT_RANGE = 3;
+/** A city-state's soldier that cannot storm the city it raids wrecks what lies this far round it, on its land (since save version 63). */
+const LOOT_RANGE = 3;
 
 /**
  * The barbarians (every game except old saves' simple barbarians). Like the
@@ -250,7 +259,8 @@ function cityStateProduce(state: GameState, c: City): void {
  * defenders hold the city, sallying only at good odds. The rest wait at home until there are `CITY_STATE.raid` of
  * them (and the turn is past `grace`), then set out together for the nearest civilization's city within reach on
  * their land whose owner has not paid them off, its owner first asked for tribute (`cityStateDemand`); on the way
- * they strike what they meet. With no city to raid they go home.
+ * they strike what they meet. With no city to raid they go home. Since save version 63 they hunt, pillage and lay waste
+ * on the way and at home alike, fortifying only there (`prowl`).
  */
 function cityStateTurn(state: GameState, c: City): void {
   const units = state.units.filter((u) => u.homeCity === c.id && u.owner === c.owner && isSoldier(u) && u.aboard === null);
@@ -262,7 +272,8 @@ function cityStateTurn(state: GameState, c: City): void {
   const target = state.turn >= CITY_STATE.grace && spare.length && (out.length || spare.length >= CITY_STATE.raid) ? raidTarget(state, c, spare[0]!) : null;
   if (!target) {
     for (const u of spare) {
-      if (u.x === c.x && u.y === c.y) { if (u.order.kind !== "fortified") applyCommand(state, { type: "fortify", unit: u.id }); }
+      if (!state.meekCityStates) prowl(state, u, c);
+      else if (u.x === c.x && u.y === c.y) { if (u.order.kind !== "fortified") applyCommand(state, { type: "fortify", unit: u.id }); }
       else applyCommand(state, { type: "goto", unit: u.id, x: c.x, y: c.y });
     }
     return;
@@ -274,20 +285,28 @@ function cityStateTurn(state: GameState, c: City): void {
   const victim = target.owner;
   const demand = () => applyCommand(state, { type: "cityStateDemand", city: c.id, player: victim, target: target.id });
   if (!state.eagerCityStates || !out.length) demand();
-  for (const u of spare) raid(state, u, target);
+  for (const u of spare) (state.meekCityStates ? raid(state, u, target) : prowl(state, u, target, true));
   if (!state.eagerCityStates && target.owner === victim && spare.some((u) => state.units.includes(u))) demand();
 }
 
-/** The nearest city of a civilization within `CITY_STATE.reach` on the city-state's land, not paid off, that `u` can walk to. */
+/**
+ * The city of a civilization a city-state raids: of the three nearest within `CITY_STATE.reach` on its land, not paid
+ * off, that `u` can walk to, the nearest; since save version 63 the nearest of those it could storm or has something
+ * to wreck round (`lootNear`), else the nearest.
+ */
 function raidTarget(state: GameState, c: City, u: Unit): City | null {
   const land = getTile(state.map, c.x, c.y)!.continent;
   const near = citiesByDistance(state, c.x, c.y).filter((t) =>
     mapDistance(state.map, c.x, c.y, t.x, t.y) <= CITY_STATE.reach && getTile(state.map, t.x, t.y)!.continent === land && peaceUntil(state, c.id, t.owner) === undefined);
-  for (const t of near.slice(0, 3)) if (findPath(state, u, t.x, t.y)) return t;
-  return null;
+  if (state.meekCityStates) {
+    for (const t of near.slice(0, 3)) if (findPath(state, u, t.x, t.y)) return t;
+    return null;
+  }
+  const open = near.slice(0, 3).filter((t) => findPath(state, u, t.x, t.y));
+  return open.find((t) => canStorm(state, u, t) || lootNear(state, u, t)) ?? open[0] ?? null;
 }
 
-/** A raider's turn: strike what it meets (a city at long odds), else march on the target. */
+/** A raider's turn before save version 63 (`meekCityStates`): strike what it meets (a city at long odds), else march on the target, fortifying where it stops. */
 function raid(state: GameState, u: Unit, target: City): void {
   for (let guard = 0; guard < 4 && state.units.includes(u) && u.movesLeft > 0; guard++) {
     if (strike(state, u, ATTACK_ODDS, STORM_ODDS)) continue;
@@ -297,6 +316,137 @@ function raid(state: GameState, u: Unit, target: City): void {
       return;
     }
   }
+}
+
+/**
+ * A city-state's soldier on the move (since save version 63; asked for 2026-11-03: "city-state units - need to also
+ * pillage. and more aggresive - more attack, less fortify near units"), toward `dest`, the city it raids (`raid`) or
+ * its home. From the grace on it strikes what is next door (a field fight at `RAID_ODDS`, a city at `STORM_ODDS`),
+ * goes after a unit in the open within `HUNT_RANGE` it has those odds against, and wrecks the farms, mines, railroads
+ * and fortresses it stands on, wherever they lie on the land of whoever has not paid it off (`plunder`). A city it
+ * cannot storm (its odds there were under 1% nine times in ten) it lays waste instead of waiting at its gates: it
+ * makes for what lies on that city's land within `LOOT_RANGE` of it (`lootNear`), roads too, and wrecks it, stepping
+ * out of its defenders' zone of control first when that bars the way along its walls. Stopped short, it wrecks what it
+ * stands on or steps next door onto something to wreck, and waits there ready to strike: it fortifies only at home.
+ */
+function prowl(state: GameState, u: Unit, dest: City, raid = false): void {
+  const hostile = state.turn >= CITY_STATE.grace;
+  for (let guard = 0; guard < 4 && state.units.includes(u) && u.movesLeft > 0; guard++) {
+    if (hostile && strike(state, u, RAID_ODDS, STORM_ODDS)) continue;
+    if (hostile && hunt(state, u)) continue;
+    const siege = hostile && raid && dest.owner !== u.owner && !canStorm(state, u, dest);
+    const wasting = siege && mapDistance(state.map, u.x, u.y, dest.x, dest.y) <= LOOT_RANGE && landOwner(state, u.x, u.y) === dest.owner;
+    if (hostile && plunder(state, u, wasting)) return;
+    if (u.x === dest.x && u.y === dest.y) {
+      if (u.order.kind !== "fortified") applyCommand(state, { type: "fortify", unit: u.id });
+      return;
+    }
+    const loot = siege ? lootNear(state, u, dest) : null;
+    const goal = loot ?? [dest.x, dest.y];
+    if (goal[0] === u.x && goal[1] === u.y) return;
+    const before = u.movesLeft;
+    if (applyCommand(state, { type: "goto", unit: u.id, x: goal[0], y: goal[1] }).ok && u.movesLeft < before) continue;
+    if (!hostile) return;
+    if (plunder(state, u, true)) return;
+    if (toPlunder(state, u)) continue;
+    // Held by the defenders' zone of control at the gates: a step out of it, toward the loot, to come at it from there.
+    if (!loot || !stepToward(state, u, loot)) return;
+  }
+}
+
+/** One step to the square next door nearest (x, y) that `u` may enter now (`checkMove`: zones of control too), no city; true if it moved. */
+function stepToward(state: GameState, u: Unit, [x, y]: [number, number]): boolean {
+  let best: [number, number] | null = null;
+  let bestD = Infinity;
+  for (const [dx, dy] of NEIGHBOURS) {
+    const nx = wrapX(state.map, u.x + dx);
+    const ny = u.y + dy;
+    if (!getTile(state.map, nx, ny) || cityAt(state, nx, ny)) continue;
+    const d = mapDistance(state.map, nx, ny, x, y);
+    if (d < bestD && checkMove(state, u, dx, dy).ok) { bestD = d; best = [dx, dy]; }
+  }
+  return best !== null && applyCommand(state, { type: "move", unit: u.id, dx: best[0], dy: best[1] }).ok;
+}
+
+/** Whether `u` could storm `city` (`STORM_ODDS` against its best defender), or walk into it empty. */
+function canStorm(state: GameState, u: Unit, city: City): boolean {
+  const d = bestDefender(state, city.x, city.y, u);
+  return !d || attackOdds(state, u, d) >= STORM_ODDS;
+}
+
+/**
+ * The square of `city`'s land within `LOOT_RANGE` of it with the most to wreck for the walk to it (farms and mines
+ * first, then railroads and fortresses, then roads), free of every other unit; its own square if it stands on such;
+ * else null.
+ */
+function lootNear(state: GameState, u: Unit, city: City): [number, number] | null {
+  let best: [number, number] | null = null;
+  let bestV = -Infinity;
+  for (let dy = -LOOT_RANGE; dy <= LOOT_RANGE; dy++)
+    for (let dx = -LOOT_RANGE; dx <= LOOT_RANGE; dx++) {
+      const x = wrapX(state.map, city.x + dx);
+      const y = city.y + dy;
+      const t = getTile(state.map, x, y);
+      if (!t || cityAt(state, x, y) || landOwner(state, x, y) !== city.owner || !plunderable(state, u, x, y)) continue;
+      const worth = t.irrigation || t.mine ? 3 : t.railroad || t.fortress ? 2 : t.road ? 1 : 0;
+      if (!worth || state.units.some((o) => o.x === x && o.y === y && o.id !== u.id)) continue;
+      const v = worth * 2 - mapDistance(state.map, u.x, u.y, x, y);
+      if (v > bestV) { bestV = v; best = [x, y]; }
+    }
+  return best;
+}
+
+/** Whether a city-state's soldier may wreck what lies on square (x, y): another civilization's land, one that has not paid it off. */
+function plunderable(state: GameState, u: Unit, x: number, y: number): boolean {
+  const owner = landOwner(state, x, y);
+  return owner >= 0 && owner !== u.owner && owner !== state.barbarians && !boughtOff(state, u, owner);
+}
+
+/** Wreck what the soldier stands on (`pillageTarget`), if it may: anything but a road on the way, a road too once `stuck`. True if it did. */
+function plunder(state: GameState, u: Unit, stuck: boolean): boolean {
+  const loot = pillageTarget(state, u);
+  if (!loot || (loot === "road" && !stuck) || !plunderable(state, u, u.x, u.y)) return false;
+  return applyCommand(state, { type: "pillage", unit: u.id }).ok;
+}
+
+/** Step next door onto a square it may wreck, farms and mines first; true if it moved. */
+function toPlunder(state: GameState, u: Unit): boolean {
+  let best: [number, number] | null = null;
+  let bestV = 0;
+  for (const [dx, dy] of NEIGHBOURS) {
+    const x = wrapX(state.map, u.x + dx);
+    const y = u.y + dy;
+    const t = getTile(state.map, x, y);
+    if (!t || cityAt(state, x, y) || !plunderable(state, u, x, y)) continue;
+    const v = t.irrigation || t.mine ? 3 : t.railroad || t.fortress ? 2 : t.road ? 1 : 0;
+    if (v > bestV && checkMove(state, u, dx, dy).ok) { bestV = v; best = [dx, dy]; }
+  }
+  return best !== null && applyCommand(state, { type: "move", unit: u.id, dx: best[0], dy: best[1] }).ok;
+}
+
+/** Go after the enemy unit in the open within `HUNT_RANGE` (not next door: `strike` has those) it has the best odds against, `RAID_ODDS` at least; true if it drew closer. */
+function hunt(state: GameState, u: Unit): boolean {
+  const here = getTile(state.map, u.x, u.y)!.continent;
+  const seen = new Set<number>();
+  let best: { x: number; y: number; p: number; d: number } | null = null;
+  for (const o of state.units) {
+    if (o.owner === u.owner || o.owner === state.barbarians || o.aboard !== null) continue;
+    const d = mapDistance(state.map, u.x, u.y, o.x, o.y);
+    if (d <= 1 || d > HUNT_RANGE || seen.has(o.y * state.map.width + o.x)) continue;
+    seen.add(o.y * state.map.width + o.x);
+    const t = getTile(state.map, o.x, o.y)!;
+    if (t.terrain === Terrain.Ocean || t.continent !== here || cityAt(state, o.x, o.y) || boughtOff(state, u, o.owner)) continue;
+    const foe = bestDefender(state, o.x, o.y, u);
+    if (!foe) continue;
+    const p = attackOdds(state, u, foe);
+    if (p < RAID_ODDS) continue;
+    if (!best || p > best.p || (p === best.p && d < best.d)) best = { x: o.x, y: o.y, p, d };
+  }
+  if (!best) return false;
+  const path = findPath(state, u, best.x, best.y);
+  if (!path || path.length > HUNT_RANGE + 2) return false;
+  const before = u.movesLeft;
+  return applyCommand(state, { type: "goto", unit: u.id, x: best.x, y: best.y }).ok && u.movesLeft < before;
 }
 
 // ---- the leader --------------------------------------------------------------------------

@@ -810,24 +810,26 @@ function afterAction(unit?: number): void {
 }
 
 /**
- * The city-states we have come upon (`cameUpon`: their city's square explored, or a soldier of theirs in sight), each
- * introduced once, the first time (asked for 2026-11-03: "when encouter a city-state add a small notification
- * explanation about it"); a loaded game knows those it had come upon.
+ * The city-states we have come upon (`cameUpon`: their city's square explored, or a soldier of theirs in sight). What a
+ * city-state is is told once a game (asked for 2026-11-03: "when encouter a city-state add a small notification
+ * explanation about it", then the same day "make sure intoduction message appear once, and not each time you encouter
+ * a city-state unit or city"): the first one come upon is introduced, the rest pass quietly. Told is remembered per
+ * browser by the game's seed (`CITY_STATE_INTRO_KEY`), so a game loaded again stays quiet, and a loaded game that had
+ * come upon one counts as told; `metCityStates` holds those come upon this session.
  */
 let metCityStates = new Set<number>();
+const CITY_STATE_INTRO_KEY = "epochs.cityStateIntro";
 function cityStatesCameUpon(): number[] {
   return state.cities.filter((c) => c.cityState !== undefined && c.owner === state.barbarians && cameUpon(state, c, 0)).map((c) => c.id);
 }
 
-/** City-states come upon since we last looked, as news to introduce them. */
+/** City-states come upon since we last looked: the first of the game as news to introduce it, the rest noted only. */
 function newCityStates(): News[] {
-  const out: News[] = [];
-  for (const id of cityStatesCameUpon()) {
-    if (metCityStates.has(id)) continue;
-    metCityStates.add(id);
-    out.push({ kind: "cityStateMet", city: id });
-  }
-  return out;
+  const fresh = cityStatesCameUpon().filter((id) => !metCityStates.has(id));
+  for (const id of fresh) metCityStates.add(id);
+  if (!fresh.length || shownThisGame(CITY_STATE_INTRO_KEY)) return [];
+  markShownThisGame(CITY_STATE_INTRO_KEY);
+  return [{ kind: "cityStateMet", city: fresh[0]! }];
 }
 
 /** Where a city-state shows to us: its city, if we have seen its square, else the soldier of it in sight nearest it. */
@@ -1087,6 +1089,7 @@ function enterLoaded(loaded: LoadedGame): void {
     knowPlaces();
     knowResources();
     metCityStates = new Set(cityStatesCameUpon());
+    if (metCityStates.size) markShownThisGame(CITY_STATE_INTRO_KEY);
     resetMotion();
     for (const p of state.players) if (p.id !== 0 && hasContact(state, 0, p.id)) announced.add(p.id);
     screenState = { kind: "map" };
@@ -3416,12 +3419,12 @@ const MOVES: Record<string, [number, number]> = {
 /**
  * A Trireme steered onto deep water is warned beside it once its slide is over: back by a coast before
  * the turn ends, or it sinks. It comes after the note of places found on the way, so it is the one left.
- * Once a game (asked for 2026-10-27: "show warning message - once in a game"; `deepWaterWarned`).
+ * Once a game (asked for 2026-10-27: "show warning message - once in a game"; `shownThisGame`).
  */
 function warnDeepWater(unit: number): void {
   const u = unitById(state, unit);
-  if (!u || !hugsCoast(state, unitType(u.type)) || !deepWater(state, u.x, u.y) || deepWaterWarned()) return;
-  markDeepWaterWarned();
+  if (!u || !hugsCoast(state, unitType(u.type)) || !deepWater(state, u.x, u.y) || shownThisGame(DEEP_WATER_KEY)) return;
+  markShownThisGame(DEEP_WATER_KEY);
   const name = unitType(u.type).name;
   const text = u.movesLeft > 0 ? `Deep water! End the turn beside land, or the ${name} sinks` : `Deep water! The ${name} will sink as the turn ends`;
   whenStill(() => {
@@ -3430,21 +3433,25 @@ function warnDeepWater(unit: number): void {
   });
 }
 
-/** The games whose deep-water warning has been shown, by seed, the latest `DEEP_WATER_KEEP` kept per browser, so a game loaded again stays quiet. */
 const DEEP_WATER_KEY = "epochs.deepWater";
-const DEEP_WATER_KEEP = 20;
-function warnedSeeds(): number[] {
+
+/**
+ * A note shown once a game (the deep-water warning, what a city-state is): the games it has been shown in, by seed,
+ * under its key per browser, the latest `SHOWN_KEEP`, so a game loaded again stays quiet.
+ */
+const SHOWN_KEEP = 20;
+function shownSeeds(key: string): number[] {
   try {
-    const v: unknown = JSON.parse(localStorage.getItem(DEEP_WATER_KEY) ?? "[]");
+    const v: unknown = JSON.parse(localStorage.getItem(key) ?? "[]");
     return Array.isArray(v) ? v.filter((x): x is number => typeof x === "number") : [];
   } catch { return []; }
 }
-function deepWaterWarned(): boolean {
-  return warnedSeeds().includes(state.seed);
+function shownThisGame(key: string): boolean {
+  return shownSeeds(key).includes(state.seed);
 }
-function markDeepWaterWarned(): void {
-  const seeds = [...warnedSeeds().filter((x) => x !== state.seed), state.seed].slice(-DEEP_WATER_KEEP);
-  try { localStorage.setItem(DEEP_WATER_KEY, JSON.stringify(seeds)); } catch { /* private mode: it may show again */ }
+function markShownThisGame(key: string): void {
+  const seeds = [...shownSeeds(key).filter((x) => x !== state.seed), state.seed].slice(-SHOWN_KEEP);
+  try { localStorage.setItem(key, JSON.stringify(seeds)); } catch { /* private mode: it may show again */ }
 }
 
 function tryMove(unit: number, dx: number, dy: number): void {
