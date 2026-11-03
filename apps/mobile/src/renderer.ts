@@ -1,6 +1,6 @@
 import { civ, wrapX, type GameState } from "@civ/core";
 import { scrollRows } from "./menus.js";
-import { reignCard, type AdvisorKind, type CityScreenView, type DiplomacyView, type MainScreenView, type MenuState, type NewTechView, type ReignView, type Renderer, type ResearchView, type SetupCards, type TextInputState } from "@civ/renderer-api";
+import { reignCard, type AdvanceInfoView, type AdvisorKind, type CityScreenView, type DiplomacyView, type MainScreenView, type MenuState, type NewTechView, type ReignView, type Renderer, type ResearchView, type SetupCards, type TextInputState } from "@civ/renderer-api";
 import {
   BAR_H,
   cityButtonAt,
@@ -29,6 +29,9 @@ import {
   drawNewTech,
   newTechPicture,
   newTechHit,
+  drawAdvanceInfo,
+  advanceInfoHit,
+  advanceInfoPicture,
   drawBuilt,
   builtHit,
   drawConquest,
@@ -487,6 +490,14 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if (picture) pictures.push(picture);
     },
     newTechHit: (view, px, py) => (shown.wide ? newTechHit(view, px, py, screenW()) : newTechHit(view, px - inset(), py)),
+    advanceInfo: (state: GameState, view: AdvanceInfoView) => {
+      const s = surface();
+      drawAdvanceInfo(s, state, view);
+      const box = advanceInfoPicture(s.width);
+      const picture = (view.enter ?? 1) >= 1 ? techPlace(view.advance, wideFrame ? { ...box, logicalW: screenW(), logicalH: SCREEN_H } : onScreen(box)) : null;
+      if (picture) pictures.push(picture);
+    },
+    advanceInfoHit: (view, px, py) => (shown.wide ? advanceInfoHit(view, px, py, screenW()) : advanceInfoHit(view, px - inset(), py)),
     built: (state, view) => drawBuilt(surface(), state, view),
     builtHit: (state, view, px, py) => (shown.wide ? builtHit(state, view, px, py, screenW()) : builtHit(state, view, px - inset(), py)),
     conquest: (state, view) => drawConquest(surface(), state, view),

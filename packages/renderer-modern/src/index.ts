@@ -1,4 +1,4 @@
-import { BUILT_BUTTON, builtCard, conquestCard, NEW_TECH_BUTTONS, newTechCard, LOADING_TITLE, REIGN_BUTTON, reignCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
+import { advanceInfo, BUILT_BUTTON, builtCard, conquestCard, NEW_TECH_BUTTONS, newTechCard, LOADING_TITLE, REIGN_BUTTON, reignCard, type DiplomacyView, type MenuState, type Renderer, type SetupCards } from "@civ/renderer-api";
 import type { Context2D } from "./context.js";
 import { drawCityScreen, cityButtonAt, cityCitizenAt, citySlotAt, cityExitHit, cityUnitAt } from "./screens/city.js";
 import { cityViewAt, drawCityView } from "./screens/cityview.js";
@@ -74,6 +74,17 @@ export function createModernRenderer(ctx: Context2D, scale: () => number = () =>
       const i = newTechShown ? menuHit(ctx, newTechShown, px, py) : -1;
       return i === 0 ? "tree" : i === 1 ? "continue" : null;
     },
+    // Set aside (not in the app): the window of more about an advance as a modal of lines; any click closes it.
+    advanceInfo: (state, view) => {
+      const info = advanceInfo(state, view.advance);
+      drawMenu(ctx, {
+        title: info.name,
+        body: [info.text, `${info.era}. ${info.needs}. ${info.standing}`, info.history, `Unlocks: ${info.unlocks.map((u) => u.text).join(", ") || "nothing"}`, `Leads to: ${info.leads.map((l) => l.name).join(", ") || "nothing"}`],
+        items: [],
+        selected: 0,
+      });
+    },
+    advanceInfoHit: () => "close",
     // Set aside (not in the app): the Building Completed window as a modal with its button.
     built: (state, view) => {
       const card = builtCard(state, view);

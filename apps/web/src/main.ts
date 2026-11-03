@@ -134,6 +134,8 @@ import {
   researchRows,
   researchStep,
   researchTarget,
+  researchOutlook,
+  techPictures,
   DIFFICULTIES,
   leaderLine,
   leaderTitle,
@@ -195,6 +197,7 @@ import {
   type AdvisorKind,
   type DiplomacyView,
   type NewTechView,
+  type AdvanceInfoView,
   type BuiltView,
   conquestCard,
   sinkingWords,
@@ -411,7 +414,8 @@ type Screen =
   | { kind: "end"; card: EndCard }
   | { kind: "spaceship" }
   | { kind: "input"; input: TextInputState; onSubmit: (text: string) => void; under: Screen }
-  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number; sub?: boolean; infoPinned?: number | undefined; pointTo?: { x: number; y: number } }
+  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number; sub?: boolean; infoPinned?: number | undefined; pointTo?: { x: number; y: number }; onInfo?: (i: number) => void }
+  | { kind: "advanceInfo"; view: AdvanceInfoView; back: Screen }
   | { kind: "report"; page: ReportPage }
   | { kind: "worldMap" };
 
@@ -2000,7 +2004,7 @@ function leaveNewTech(sc: NewTechScreen, tree: boolean): void {
     openTree({ discovered: sc.found, choosing: true, closable: !sc.due }, then, sc.back);
     if (screenState.kind === "research") treeSelect(screenState, sc.view.advance);
   } else if (sc.at + 1 < sc.found.length) announce(sc.found, sc.due, sc.then, sc.back, sc.at + 1);
-  else if (sc.due) openTree({ discovered: sc.found, choosing: true, closable: false }, then, sc.back);
+  else if (sc.due) { screenState = sc.back; openResearchList(true, then, sc.back); }
   else {
     screenState = sc.back;
     then();
@@ -2041,10 +2045,55 @@ function newTechKey(e: KeyboardEvent, sc: NewTechScreen): void {
   }
 }
 
-/** The research is due: pick the next advance in the panel. */
+/** The research is due: pick the next advance from the list. */
 function askResearch(then: () => void = () => {}): void {
   if (!availableAdvances(state.players[0]!.advances, advancesFor(state)).length) { then(); return; }
-  openTree({ choosing: true, closable: false }, then);
+  openResearchList(true, then, { kind: "map" });
+}
+
+// ---- the research list ---------------------------------------------------------------
+
+/**
+ * The research list (asked for 2026-11-03: "a basic simple tech list - like the original civ1 game", after two
+ * redesigns of the panel were turned down): a menu of the advances that can be researched now, in the tree's order,
+ * each with small pictures of what it unlocks after its name (`MenuState.trail`, `techPictures`) and an info mark
+ * that opens the window of more about it (`openAdvanceInfo`; I too). A pick researches it; while research is `due`
+ * it cannot be left without one (Esc or a click off it leave it standing). `then` runs once it is done. The research
+ * panel stays for the New Technology window's View Tech Tree.
+ */
+function openResearchList(due: boolean, then: () => void = () => {}, under: Screen = screenState): void {
+  const p = state.players[0]!;
+  const ids = availableAdvances(p.advances, advancesFor(state)).map((a) => a.id);
+  if (!ids.length) { if (!due) say("Nothing left to research"); then(); return; }
+  const o = researchOutlook(state);
+  const left = o.turns === null ? "" : `: ${o.turns} turn${o.turns === 1 ? "" : "s"} left`;
+  const menu: MenuState = {
+    title: p.researching ? `Researching ${advance(p.researching).name}${left}` : "Wise men ask: what shall we research?",
+    items: ids.map((id) => advance(id).name),
+    selected: Math.max(0, ids.indexOf(p.researching ?? "")),
+    right: ids.map((id) => (id === p.researching ? "under way" : "")),
+    trail: ids.map((id) => techPictures(id, p.color)),
+    info: ids.map((id) => ({ title: advance(id).name, lines: [] })),
+  };
+  const list: Extract<Screen, { kind: "menu" }> = {
+    kind: "menu",
+    under,
+    menu,
+    onPick: (i) => {
+      const id = ids[i]!;
+      if (id !== p.researching && dispatch({ type: "research", advance: id })) say(`Researching ${advance(id).name}`);
+      then();
+    },
+    onCancel: due ? () => { screenState = list; } : then,
+    onInfo: (i) => openAdvanceInfo(ids[i]!, list),
+  };
+  screenState = list;
+}
+
+/** The window of more about an advance (`Renderer.advanceInfo`) over the screen it opened from, which it goes back to. */
+function openAdvanceInfo(id: string, back: Screen): void {
+  sound.play("click");
+  screenState = { kind: "advanceInfo", view: { advance: id }, back };
 }
 
 function closeTree(sc: ResearchScreen): void {
@@ -2292,7 +2341,7 @@ function barEntries(index: number): MenuEntry[] {
         ["Military Advisor", "F2", () => { screenState = { kind: "advisor", which: "military" }; }],
         ["Foreign Minister", "F3", () => { screenState = { kind: "advisor", which: "foreign" }; }],
         ["Science Advisor", "F4", () => { screenState = { kind: "science" }; }],
-        ["Research", "", () => openTree({ choosing: true, closable: true })],
+        ["Research", "", () => openResearchList(false)],
         ["Resources", "", () => { screenState = { kind: "advisor", which: "resources" }; }],
       ];
     case "World":
@@ -3583,6 +3632,8 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     else if (e.code === "Escape") { screenState = sc.under; sc.onCancel?.(); }
     return;
   }
+  // Rows whose info marks open a window of their own (the research list's): I opens the selected row's.
+  if (sc.onInfo && e.code === "KeyI") { sc.onInfo(m.selected); return; }
   // Rows that tell what they are (the build menu's): I shows the selected row's tip and keeps it with the selection,
   // again hides it; Esc hides a tip before it closes the window.
   if (m.info && (e.code === "KeyI" || (e.code === "Escape" && m.infoShown !== undefined))) {
@@ -3730,7 +3781,7 @@ addEventListener("keydown", (e) => {
     case "conquest": conquestKey(e, sc); break;
     case "rates": ratesKey(e); break;
     case "science":
-      if (e.code === "KeyA") openTree({ choosing: true, closable: true }, undefined, sc);
+      if (e.code === "KeyA") openResearchList(false, undefined, sc);
       else if (e.code === "Escape" || e.code === "F4") screenState = { kind: "map" };
       else advisorHotkey(e);
       break;
@@ -3741,6 +3792,13 @@ addEventListener("keydown", (e) => {
       break;
     case "research": treeKey(e, sc); break;
     case "newTech": newTechKey(e, sc); break;
+    case "advanceInfo":
+      // Esc, Enter, Space or I go back to the list (Enter not held, nor before the window stands whole).
+      if (e.code === "Escape" || ((e.code === "Enter" || e.code === "NumpadEnter" || e.code === "Space" || e.code === "KeyI") && !e.repeat && settled(sc.view))) {
+        e.preventDefault();
+        screenState = sc.back;
+      }
+      break;
     case "built": builtKey(e, sc); break;
     case "reign": reignKey(e, sc); break;
     case "diplomacy": diplomacyKey(e, sc); break;
@@ -3864,8 +3922,8 @@ canvas.addEventListener("mousemove", (e) => {
   // A menu's row or button under the pointer is lit, as the windows' buttons are (asked for 2026-11-01); a faded one never.
   if (sc.kind === "menu") {
     const [px, py] = toLogical(e);
-    // An info mark under the pointer shows its row's tip; off it, the tip a click (or I) kept, if any.
-    if (sc.menu.info) {
+    // An info mark under the pointer shows its row's tip; off it, the tip a click (or I) kept, if any (none where marks open a window).
+    if (sc.menu.info && !sc.onInfo) {
       // Over the tip itself it stays.
       if (renderer.menuTipAt?.(sc.menu, px, py)) return;
       const info = renderer.menuInfoAt?.(sc.menu, px, py) ?? null;
@@ -3925,6 +3983,9 @@ function mouseDown(e: MouseEvent): void {
         if (tab !== (sc.menu.tab ?? 0)) { sound.play("click"); showTab(sc.menu, tab); delete sc.infoPinned; }
         return;
       }
+      // An info mark that opens a window (the research list's) opens it.
+      const opens = sc.onInfo ? renderer.menuInfoAt?.(sc.menu, px, py) ?? null : null;
+      if (opens !== null) { sc.onInfo!(opens); return; }
       // An info mark keeps its row's tip up (a tap on the phone shows it), a second click on it or on the tip lets it go.
       if (renderer.menuTipAt?.(sc.menu, px, py)) { delete sc.infoPinned; delete sc.menu.infoShown; return; }
       const info = sc.menu.info ? renderer.menuInfoAt?.(sc.menu, px, py) ?? null : null;
@@ -3941,6 +4002,7 @@ function mouseDown(e: MouseEvent): void {
     }
     case "report": case "worldMap": screenState = { kind: "map" }; return;
     case "research": if (e.button === 0) treeClick(sc, px, py); return;
+    case "advanceInfo": if (settled(sc.view) && renderer.advanceInfoHit(sc.view, px, py)) screenState = sc.back; return;
     case "newTech": {
       const hit = e.button === 0 && settled(sc.view) ? renderer.newTechHit(sc.view, px, py) : null;
       if (hit) leaveNewTech(sc, hit === "tree");
@@ -4039,7 +4101,7 @@ function mouseDown(e: MouseEvent): void {
   if (zoomButton) { if (e.button === 0) zoomBy(zoomButton === "in" ? 1 : -1); return; }
   // The research row of the status panel opens the research panel; its End of Turn ends the turn.
   const panelHit = e.button === 0 ? renderer.statusAt(state, view, px, py) : null;
-  if (panelHit === "research") { openTree({ choosing: true, closable: true }); return; }
+  if (panelHit === "research") { openResearchList(false); return; }
   if (panelHit === "endTurn" && state.activeUnit === null) { endTurn(); return; }
   if (panelHit === "rates") { screenState = { kind: "rates" }; return; }
   if (handoff) { finishHandoff(); return; }
@@ -4160,6 +4222,7 @@ function draw(sc: Screen): void {
     case "research": draw(sc.back); renderer.research(state, sc.view); break; // a window over the screen it opened on (asked for 2026-10-24)
     // The small windows over the screen they opened on.
     case "newTech": draw(sc.back); sc.view.enter = enterOf(sc.view); renderer.newTech(state, sc.view); break;
+    case "advanceInfo": draw(sc.back); sc.view.enter = enterOf(sc.view); renderer.advanceInfo(state, sc.view); break;
     case "built": {
       draw(sc.under);
       sc.view.enter = enterOf(sc.view);

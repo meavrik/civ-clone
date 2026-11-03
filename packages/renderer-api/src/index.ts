@@ -9,6 +9,7 @@ import type { MinimapButton, PanelSpot, PanelTip, ZoomButton } from "./panel.js"
 import { setupQuestionCards, type SetupCards } from "./setup.js";
 import { treaty, type DiplomacyView, type StandingTone } from "./audience.js";
 import type { NewTechHit, NewTechView } from "./newtech.js";
+import type { AdvanceInfoHit, AdvanceInfoView } from "./advance-info.js";
 import type { BuiltHit, BuiltView } from "./built.js";
 import type { ConquestHit, ConquestView, Fireworks } from "./conquest.js";
 import type { Sinking } from "./sinking.js";
@@ -48,6 +49,7 @@ export * from "./intro.js";
 export * from "./setup.js";
 export * from "./audience.js";
 export * from "./newtech.js";
+export * from "./advance-info.js";
 export * from "./art.js";
 export * from "./unit-atlas.js";
 export * from "./unit-anim.js";
@@ -364,6 +366,12 @@ export interface MenuState {
   info?: (MenuInfo | null)[];
   infoShown?: number | undefined;
   /**
+   * Small pictures after each row's words, in a column of their own (null: none): what an advance brings in the
+   * research list (asked for 2026-11-03: "near each tech can add in small icons the improvements/buildings/units it
+   * unlocks - just icons small"). Rows grow to hold them; never buttons. Modern ignores them.
+   */
+  trail?: (MenuPicture[] | null)[];
+  /**
    * Its body's lines never break (the build menu's road note, asked for 2026-10-31: "keep in one text line - do not
    * break"): the window widens to hold them, and where the screen is too narrow takes its smaller size (the phone's).
    * Modern ignores it.
@@ -371,8 +379,11 @@ export interface MenuState {
   oneLine?: boolean;
 }
 
-/** A row's picture in a list (`MenuState.pictures`): a unit's in its owner's colours, or a building's (a wonder's, a spaceship part's). */
-export type MenuPicture = { unit: string; color: number } | { building: string };
+/**
+ * A row's picture in a list (`MenuState.pictures`, `MenuState.trail`): a unit's in its owner's colours, a building's (a
+ * wonder's, a spaceship part's), or one of the panel icons (a government's crown).
+ */
+export type MenuPicture = { unit: string; color: number } | { building: string } | { icon: IconName };
 
 /** A tab of a list (`MenuState.tabs`): its label and its rows, as the menu's own fields hold them while it is shown. */
 export interface MenuTab {
@@ -425,7 +436,7 @@ export const MODAL_MAX_SHARE = 0.55;
  * longer lists (what to build, every tribe) keep rows.
  */
 export function menuButtons(m: MenuState): boolean {
-  return m.title !== "" && !m.anchor && m.items.length <= 4 && !m.right?.some(Boolean) && !m.pictures && !m.tabs;
+  return m.title !== "" && !m.anchor && m.items.length <= 4 && !m.right?.some(Boolean) && !m.pictures && !m.trail && !m.info && !m.tabs;
 }
 
 export interface TextInputState {
@@ -523,6 +534,10 @@ export interface Renderer {
   newTech(state: GameState, view: NewTechView): void;
   /** The New Technology window's button (or close box) under a point, or null. */
   newTechHit(view: NewTechView, px: number, py: number): NewTechHit | null;
+  /** The window of more about an advance (`advanceInfo`): its picture, what it is, its history, all it unlocks and what it leads to. */
+  advanceInfo(state: GameState, view: AdvanceInfoView): void;
+  /** Its close box under a point ("close"), else null. */
+  advanceInfoHit(view: AdvanceInfoView, px: number, py: number): AdvanceInfoHit | null;
   /** The Building Completed window: an improvement, wonder or spaceship part a city just finished, said in its title, its picture under it. */
   built(state: GameState, view: BuiltView): void;
   /** The Building Completed window's button (or close box) under a point, or null (its width follows its title). */

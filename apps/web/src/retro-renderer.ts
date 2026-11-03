@@ -20,6 +20,9 @@ import {
   drawNewTech,
   newTechPicture,
   newTechHit,
+  drawAdvanceInfo,
+  advanceInfoHit,
+  advanceInfoPicture,
   drawBuilt,
   builtHit,
   drawConquest,
@@ -172,6 +175,13 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
       if (picture) pictures.push(picture);
     },
     newTechHit: (view, px, py) => newTechHit(view, px, py),
+    advanceInfo: (state, view) => {
+      drawAdvanceInfo(screen, state, view);
+      // The advance's picture as it is, in its frame, once the window stands whole.
+      const picture = (view.enter ?? 1) >= 1 ? techPlace(view.advance, { ...advanceInfoPicture(), ...screenBox }) : null;
+      if (picture) pictures.push(picture);
+    },
+    advanceInfoHit: (view, px, py) => advanceInfoHit(view, px, py),
     built: (state, view) => drawBuilt(screen, state, view),
     builtHit: (state, view, px, py) => builtHit(state, view, px, py),
     conquest: (state, view) => drawConquest(screen, state, view),

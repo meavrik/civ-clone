@@ -1,5 +1,5 @@
 import { drawText, drawTextLarge, FONT_HEIGHT, textWidth, textWidthLarge } from "./font.js";
-import { drawIcon, drawIconLine, iconLineWidth, wrapIcons } from "./icons.js";
+import { drawIcon, drawIconLine, ICON, iconLineWidth, wrapIcons } from "./icons.js";
 import { drawShield, drawUnitFigure } from "./overlays.js";
 import { C, DIMMED, shade, slotColor } from "./palette.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
@@ -220,6 +220,8 @@ export const TOUCH_MENU: MenuSize = { row: 19, least: 18, button: 22, buttonGap:
 interface MenuLayout {
   size: MenuSize;
   x: number; y: number; w: number; h: number; lines: string[]; itemsY: number; row: number; buttons: boolean; bx: number; bw: number;
+  /** Where the small pictures after the rows' words begin (`MenuState.trail`). */
+  trailX: number;
   /** How far in each body line starts: past the square's picture (`MenuState.square`) for the lines beside it. */
   indents: number[];
   /** Rows on view, and the first of them; `rows` is short of the items when the list scrolls. */
@@ -253,6 +255,11 @@ const SQUARE_WINDOW_W = 236;
 /** A row with a picture before it (`MenuState.pictures`): the picture's side, and the row tall enough to hold it with a pixel either side. */
 const UNIT_PIC = 16;
 const UNIT_ROW = UNIT_PIC + 2;
+
+/** The small pictures after a row's words (`MenuState.trail`): each this big, a pixel apart, the column this far past the longest words. */
+const TRAIL_W = 14;
+const TRAIL_H = 12;
+const TRAIL_GAP = 8;
 
 /** The part of the screen a window keeps clear of and leaves lit (`MenuState.keepClear`), or null. */
 function keptClear(m: MenuState): { x: number; y: number; w: number; h: number } | null {
@@ -318,13 +325,19 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   const tw = (text: string) => (t === 2 ? textWidthLarge(text) : textWidth(text));
   const lineH = FONT_HEIGHT * t;
   // A tabbed list is sized for every tab's rows (`MenuState.tabs`), so it keeps its size as they change.
-  const lists: Pick<MenuState, "items" | "right" | "pictures" | "info">[] = m.tabs ?? [m];
+  const lists: Pick<MenuState, "items" | "right" | "pictures" | "info" | "trail">[] = m.tabs ?? [m];
   const count = Math.max(0, ...lists.map((l) => l.items.length));
+  // Small pictures after the words stand in a column of their own, past the longest words, and the rows hold them.
+  const trailed = lists.some((l) => l.trail);
+  const labelW = Math.max(0, ...lists.flatMap((l) => l.items.map((i) => tw(i))));
+  const trailN = Math.max(0, ...lists.flatMap((l) => (l.trail ?? []).map((p) => p?.length ?? 0)));
+  const trailW = trailed ? TRAIL_GAP + trailN * (TRAIL_W + 1) : 0;
+  const trailRow = Math.max(size.row, TRAIL_H + 2);
   // Rows with a picture before them keep the picture's height (or the row's, if taller) and never close up.
   const pictured = lists.some((l) => l.pictures);
   const pic = pictured ? UNIT_PIC + 4 : 0;
   const unitRow = Math.max(UNIT_ROW, size.row);
-  const least = pictured ? unitRow : size.least;
+  const least = pictured ? unitRow : trailed ? trailRow : size.least;
   // Its tabs: a row of buttons as tall as a window's buttons across the top of the list, each as wide as the longest label needs.
   const tabH = m.tabs ? size.button : 0;
   const tabsH = m.tabs ? tabH + TAB_FOOT : 0;
@@ -334,7 +347,9 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   const floor = keep ? keep.y - 2 : SCREEN_H;
   // Rows that tell what they are (`MenuState.info`) end in an info mark.
   const mark = lists.some((l) => l.info) ? INFO_MARK * t + 4 : 0;
-  const itemW = Math.max(0, ...lists.flatMap((l) => l.items.map((i, k) => pic + tw(i) + (l.right?.[k] ? tw(l.right[k]!) + 12 : 0) + mark)));
+  const itemW = trailed
+    ? pic + labelW + trailW + Math.max(0, ...lists.flatMap((l) => (l.right ?? []).map((r) => (r ? tw(r) + 12 : 0)))) + mark
+    : Math.max(0, ...lists.flatMap((l) => l.items.map((i, k) => pic + tw(i) + (l.right?.[k] ? tw(l.right[k]!) + 12 : 0) + mark)));
   const bw = buttons ? Math.max(size.buttonW, itemW + 16) : 0;
   const titleH = t === 2 ? TITLE_H_LARGE : TITLE_H;
   const head = m.title ? titleH + 5 : 3;
@@ -366,7 +381,7 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
   const room = floor - (m.anchor?.y ?? 0) - head - bodyH - secH - tabsH - foot;
   const fits = count * least <= room;
-  const row = pictured ? unitRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, count)))) : size.row;
+  const row = pictured ? unitRow : trailed ? trailRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, count)))) : size.row;
   const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
   const itemsH = buttons ? m.items.length * (size.button + size.buttonGap) + 1 : (fits ? count : rows) * row;
   const h = head + bodyH + secH + tabsH + itemsH + foot;
@@ -378,7 +393,7 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   if (place) [x, y] = [place.win.x, place.win.y];
   else if (m.avoid && !m.anchor) [x, y] = clearOf(m.avoid, x, y, w, h, screenW);
   const top = rows < m.items.length ? keepInView(m, rows) : 0;
-  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + secH + tabsH, row, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH + secH, tabH, count, room: fits ? count : rows, wrapped: !!m.oneLine && lines.length > (m.body?.length ?? 0), place, card, cardY: y + (m.title ? titleH + 6 : 4) };
+  return { size, x, y, w, h, lines, indents, itemsY: y + head + bodyH + secH + tabsH, row, trailX: x + 10 + pic + labelW + TRAIL_GAP, buttons, bx: x + Math.floor((w - bw) / 2), bw, rows, top, keep, tabsY: y + head + bodyH + secH, tabH, count, room: fits ? count : rows, wrapped: !!m.oneLine && lines.length > (m.body?.length ?? 0), place, card, cardY: y + (m.title ? titleH + 6 : 4) };
 }
 
 export function menuRect(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x: number; y: number; w: number; h: number } {
@@ -557,6 +572,8 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     const ty = m.pictures ? ry + Math.floor((row - lineH) / 2) - 1 : ry + Math.max(0, Math.floor((row - lineH - 1) / 2));
     if (picture) drawRowPicture(s, picture, x + 8, ry + Math.floor((row - UNIT_ROW) / 2), off);
     write(x + 10 + (m.pictures ? UNIT_PIC + 4 : 0), ty, item, off ? FADED : sel ? C.WHITE! : danger ? BAD : C.BLACK!);
+    // The small pictures after the words, in their column.
+    m.trail?.[i]?.forEach((p, k) => drawSmallPicture(s, p, l.trailX + k * (TRAIL_W + 1), ry - 1 + Math.floor((row - TRAIL_H) / 2), TRAIL_W, TRAIL_H, off));
     // The info mark at the row's end, lit while its tip shows; the second column stands before it.
     const info = infoMarkRect(l, m, i);
     if (info) drawInfoMark(s, info.x, info.y, t, m.infoShown === i);
@@ -613,8 +630,25 @@ export function menuInfoAt(m: MenuState, px: number, py: number, screenW = SCREE
 function drawRowPicture(s: Surface, p: MenuPicture, x: number, y: number, off: boolean): void {
   const dim = off ? { dim: true } : {};
   if ("unit" in p) drawUnitFigure(s, p.unit, x, y, slotColor(p.color), dim);
-  else if (buildingArt(p.building)) s.art.push({ id: p.building, x, y, w: UNIT_PIC, h: UNIT_PIC, middle: true, ...dim });
-  else drawIcon(s, "house", x, y);
+  else if ("building" in p && buildingArt(p.building)) s.art.push({ id: p.building, x, y, w: UNIT_PIC, h: UNIT_PIC, middle: true, ...dim });
+  else drawIcon(s, "icon" in p ? p.icon : "house", x + 4, y + 4);
+}
+
+/**
+ * A small picture `w` by `h` at (x, y) (`MenuState.trail`, the advance window's unlocks): a unit standing on its foot
+ * (the user's picture, else its sprite), the user's picture of a building as large as it fits, shape kept (a house
+ * where there is none), or an icon in the middle; darkened on a row that cannot be picked.
+ */
+export function drawSmallPicture(s: Surface, p: MenuPicture, x: number, y: number, w: number, h: number, off = false): void {
+  const dim = off ? { dim: true } : {};
+  if ("unit" in p) {
+    // A unit stands in the lower part of its square: the square a little taller than the room, its foot on the room's.
+    const t = Math.min(w, h + 2);
+    drawUnitFigure(s, p.unit, x + Math.floor((w - t) / 2), y + h - t, slotColor(p.color), dim, t);
+  } else if ("building" in p) {
+    if (buildingArt(p.building)) s.art.push({ id: p.building, x, y, w, h, middle: true, ...dim });
+    else drawIcon(s, "house", x + Math.floor((w - ICON) / 2), y + Math.floor((h - ICON) / 2));
+  } else drawIcon(s, p.icon, x + Math.floor((w - ICON) / 2), y + Math.floor((h - ICON) / 2));
 }
 
 /** The bar beside a scrolling menu. */

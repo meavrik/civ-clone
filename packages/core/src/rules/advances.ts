@@ -1,3 +1,4 @@
+import { ADVANCE_HISTORY } from "./advance-history.js";
 import { difficultyRule } from "./difficulty.js";
 
 /**
@@ -19,6 +20,8 @@ export interface AdvanceRule {
   era: Era;
   /** What it is, in a sentence of our own, for the New Technology window. */
   text: string;
+  /** Its place in history, a few sentences of our own, for its window of more about it (`ADVANCE_HISTORY`). */
+  history: string;
   /** The save version that brought it to the tree; a game of an older version (`GameState.catalogue`) plays without it. */
   since?: number;
 }
@@ -109,8 +112,9 @@ const ABOUT: Record<string, [Era, string]> = {
 
 const A = (id: string, name: string, requires: string[], extra: Partial<AdvanceRule> = {}): AdvanceRule => {
   const about = ABOUT[id];
-  if (!about) throw new Error(`advance ${id} has no era or text`);
-  return { id, name, requires, era: about[0], text: about[1], ...extra };
+  const history = ADVANCE_HISTORY[id];
+  if (!about || history === undefined) throw new Error(`advance ${id} has no era, text or history`);
+  return { id, name, requires, era: about[0], text: about[1], history, ...extra };
 };
 
 export const CLASSIC_ADVANCES: AdvanceRule[] = [

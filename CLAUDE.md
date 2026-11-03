@@ -1095,6 +1095,27 @@ Never ship the original's sprites, palette art, fonts or text.
   neighbour's clearing reaches with the fog's ragged dithered edge (`clearingPatch`; `sightPatch` is the
   patch the other way round); a city there is shaded with its square, its name not; the minimap shades a block with
   no square in sight; the square's window says "Out of sight". Modern (set aside) does not shade.
+  Research list (asked for 2026-11-03, after two redesigns of the research panel were turned down and reverted, "very
+  BAD. revert all ... start from the start - a basic simple tech list - like the original civ1 game"): research is
+  picked from a plain game menu, the web app's `openResearchList`: the advances that can be researched now in the
+  tree's order, "Wise men ask: what shall we research?" (or "Researching Writing: 5 turns left", its row "under way"),
+  after each name small pictures of what it unlocks (asked for: "just icons small"; `MenuState.trail`, renderer-api
+  `techPictures`: the government's crown, wonders, buildings and spaceship parts, units; retro draws them 14x12 in a
+  column past the longest name, rows 14 high, `drawSmallPicture` in widgets.ts) and an info mark at the row's end
+  (`MenuState.info`, the build menu's mark) that opens the window of more about the advance (the menu `Screen`'s
+  `onInfo`, no tip; I too). A click or Enter researches the row; while research is due the list cannot be left
+  without a pick (Esc or a click off it leave it standing). A list with pictures after its words or info marks is
+  never buttons (`menuButtons`). It opens wherever research is picked: after the New Technology windows when research
+  is due, science advisor A, Advisors > Research, the status panel's research row. The advance window (renderer-api
+  `advance-info.ts`, `advanceInfo`; retro `screens/advance-info.ts`, `drawAdvanceInfo`/`advanceInfoHit`,
+  `Renderer.advanceInfo`; the web app's `advanceInfo` screen over the list, which it goes back to): the New
+  Technology window's parchment and gold, 288x184, the advance's name in the title strip, the user's picture of it in
+  a gold frame (`advanceInfoPicture`), Description (`AdvanceRule.text`, its era and what it needs, where it stands for
+  us), History (`AdvanceRule.history`, a few sentences of our own each, plain ASCII, three lines at most:
+  core `rules/advance-history.ts`), Unlocks (every gift with its small picture, units with their attack, defence and
+  moves, then the other gains a line each with their icons; two columns past three) and Leads to (each advance with
+  what else it waits for; past four, their names as one list). The close box, Esc, Enter or a click off it go back.
+  Modern draws it as a plain modal.
   Research panel (`research.ts`; redesigned 2026-10-20, asked for: the old tier graph was confusing and
   disliked, so it is gone; a window over the screen it opened on since 2026-10-24, "should not take 100%
   of the screen": `researchRect` 300x188 centred, the game darkened behind, 15 list rows, its parts laid
@@ -1111,10 +1132,9 @@ Never ship the original's sprites, palette art, fonts or text.
   "with Mysticism" or "then ready"), all links to their own cards, and along its bottom the city view's
   pictures of its wonders and buildings and its units' sprites where there is room. The Research button
   studies `researchTarget`: the advance, or for one further on the first step toward it. Keys: Up/Down,
-  PgUp/PgDn, Home/End, Tab (the next choice), Enter, Esc. `Renderer.research`/`researchHit`. The web app
-  opens it (`openTree`) after the New Technology windows when research is due, from their View Tech Tree,
-  and wherever research is picked (science advisor A, Advisors > Research, and a click on the status
-  panel's research row: `Renderer.statusAt`); when research is due it closes only on a pick.
+  PgUp/PgDn, Home/End, Tab (the next choice), Enter, Esc. `Renderer.research`/`researchHit`. Since 2026-11-03 the
+  web app opens it (`openTree`) only from the New Technology window's View Tech Tree; research is picked from the
+  research list above everywhere else. When research is due it closes only on a pick.
   Opening window (`reign.ts` in renderer-api and renderer-retro; asked for 2026-10-26: "improve the
   starting game first message ... add civ image + short description and civ bonuses", in place of a plain
   message with the trait's line): a new game opens on the map with "A New Civilization", the New
