@@ -363,6 +363,8 @@ export interface GameState {
   richSea?: boolean;
   /** War Elephants keep off mountains without a road, as before version 59; since, they climb (`climbsMountains`). */
   groundedElephants?: boolean;
+  /** A fishery on Fish adds only its food, as before version 60; since, a shield too (`fisheryYield`). */
+  foodOnlyFishery?: boolean;
   /** Every change of production kind halves the box again, even a change back. Set for saves before version 21. */
   compoundingPenalty?: boolean;
   /**

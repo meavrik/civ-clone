@@ -64,6 +64,7 @@ interface Options {
   clusteredResources: boolean;
   richSea: boolean;
   groundedElephants: boolean;
+  foodOnlyFishery: boolean;
 }
 
 const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
@@ -124,12 +125,13 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --clustered-resources specials of a kind may lie side by side, not 3 squares apart (saves before version 57)
   --rich-sea           the sea yields 2 trade and a Harbour only food (saves before version 58)
   --grounded-elephants war elephants keep off mountains without a road (saves before version 59)
+  --food-only-fishery  a fishery on fish adds no shield (saves before version 60)
   --verify        replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, richSea: false, groundedElephants: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -197,6 +199,7 @@ function parseArgs(argv: string[]): Options {
       case "clustered-resources": o.clusteredResources = true; break;
       case "rich-sea": o.richSea = true; break;
       case "grounded-elephants": o.groundedElephants = true; break;
+      case "food-only-fishery": o.foodOnlyFishery = true; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
       default: throw new Error(`unknown option --${key}\n\n${HELP}`);
@@ -351,6 +354,7 @@ function main(argv: string[]): number {
       ...(o.clusteredResources ? { clusteredResources: true } : {}),
       ...(o.richSea ? { richSea: true } : {}),
       ...(o.groundedElephants ? { groundedElephants: true } : {}),
+      ...(o.foodOnlyFishery ? { foodOnlyFishery: true } : {}),
     });
     if (!o.quiet && o.every > 0) {
       console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).map((a, i) => seatLabel(config, i) === "human" ? "human" : a).join(", ")}`);

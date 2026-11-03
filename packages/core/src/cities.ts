@@ -67,9 +67,10 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
     }
     // A fishery a Fishing Boat laid on it (since save version 53).
     if (tile.fishery && sp.fishery) {
-      food += sp.fishery.food ?? 0;
-      shields += sp.fishery.shields ?? 0;
-      trade += sp.fishery.trade ?? 0;
+      const f = fisheryYield(state, sp);
+      food += f.food;
+      shields += f.shields;
+      trade += f.trade;
     }
   }
   if (tile.grassShield && tile.terrain === Terrain.Grassland) shields += 1;
@@ -103,6 +104,13 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
     trade = Math.floor(trade / 2);
   }
   return { food, shields, trade };
+}
+
+/** What a fishery on special `sp` adds to its square in this game: a Fish fishery's shield only since save version 60. */
+export function fisheryYield(state: Pick<GameState, "foodOnlyFishery">, sp: SpecialRule): Yield {
+  const f = sp.fishery;
+  if (!f) return { food: 0, shields: 0, trade: 0 };
+  return { food: f.food ?? 0, shields: f.shieldsSince !== undefined && state.foodOnlyFishery ? 0 : f.shields ?? 0, trade: f.trade ?? 0 };
 }
 
 /**

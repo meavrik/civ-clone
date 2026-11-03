@@ -138,6 +138,8 @@ export interface GameConfig {
   richSea?: boolean;
   /** War Elephants keep off roadless mountains (`GameState.groundedElephants`). */
   groundedElephants?: boolean;
+  /** A fishery on Fish adds no shield (`GameState.foodOnlyFishery`). */
+  foodOnlyFishery?: boolean;
 }
 
 export interface PlayerStats {
@@ -269,6 +271,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.clusteredResources ? { clusteredResources: true } : {}),
     ...(config.richSea ? { richSea: true } : {}),
     ...(config.groundedElephants ? { groundedElephants: true } : {}),
+    ...(config.foodOnlyFishery ? { foodOnlyFishery: true } : {}),
   };
 }
 

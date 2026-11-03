@@ -237,7 +237,9 @@ describe("tile yields", () => {
     // Fish feed a city only once fished (since save version 54); before, as they lay. The sea's trade is 1 since 58.
     expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 1, shields: 0, trade: 1 });
     t.fishery = true;
-    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 4, shields: 0, trade: 1 });
+    // Fished: its 2 food, the fishery's 1 and, since save version 60, a shield; before, the food alone.
+    expect(tileYield(s, t, false, "monarchy", 0)).toEqual({ food: 4, shields: 1, trade: 1 });
+    expect(tileYield({ ...s, foodOnlyFishery: true }, t, false, "monarchy", 0)).toEqual({ food: 4, shields: 0, trade: 1 });
     t.fishery = false;
     expect(tileYield({ ...s, freeFish: true, richSea: true }, t, false, "monarchy", 0)).toEqual({ food: 3, shields: 0, trade: 2 });
     t.secondSpecial = true;

@@ -8,6 +8,7 @@ import {
   cityAt,
   cityStateOf,
   civ,
+  fisheryYield,
   inCatalogue,
   claimant,
   influenceSpecials,
@@ -188,8 +189,8 @@ export function terrainInfo(state: GameState, x: number, y: number): SquareInfo 
   if (t.irrigation && r.irrigate?.food) here.push({ icon: "irrigate", name: "Irrigation", note: `+${r.irrigate.food} {food}` });
   if (t.mine && r.mine?.shields) here.push({ icon: "mine", name: "Mine", note: `+${r.mine.shields} {shield}` });
   if (t.fortress) here.push({ icon: "fortress", name: "Fortress", note: "Doubles defence" });
-  // A fishery (since save version 53) adds what its special's `fishery` says; an oil rig (since 55) its own shields.
-  if (t.fishery && sp?.fishery) here.push({ icon: "food", name: "Fishery", note: yieldGain(sp.fishery) });
+  // A fishery (since save version 53) adds what its special's `fishery` says (`fisheryYield`); an oil rig (since 55) its own shields.
+  if (t.fishery && sp?.fishery) here.push({ icon: "food", name: "Fishery", note: yieldGain(fisheryYield(state, sp)) });
   if (t.rig) here.push({ icon: "shield", name: "Oil rig", note: yieldGain({ shields: RESOURCE_BY_ID[t.deposit ?? ""]?.offshore?.rig.shields ?? 0 }) });
   if (t.hut) here.push({ icon: "hut", name: "Village", note: "Visit it with a unit", tone: "quiet" });
   if (t.pollution) here.push({ icon: "pollution", name: "Pollution", note: "Output halved", tone: "bad" });
@@ -261,7 +262,8 @@ export function terrainInfo(state: GameState, x: number, y: number): SquareInfo 
     if (!t.road && r.road.trade > 0 && (!t.river || state.freecivYields)) improve.push({ icon: "road", name: "Road", note: `+${r.road.trade} {trade}` });
   } else if (sea) {
     if (sp?.fishery && !t.fishery) {
-      const gain = specialLocked(state, t, sp) ? { food: (sp.food ?? 0) + (sp.fishery.food ?? 0), shields: (sp.shields ?? 0) + (sp.fishery.shields ?? 0), trade: (sp.trade ?? 0) + (sp.fishery.trade ?? 0) } : sp.fishery;
+      const f = fisheryYield(state, sp);
+      const gain = specialLocked(state, t, sp) ? { food: (sp.food ?? 0) + f.food, shields: (sp.shields ?? 0) + f.shields, trade: (sp.trade ?? 0) + f.trade } : f;
       improve.push({ icon: "food", name: "Fishing Boat", note: yieldGain(gain) });
     }
     const harbour = building("harbour");

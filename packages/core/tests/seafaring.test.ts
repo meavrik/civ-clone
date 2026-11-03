@@ -115,7 +115,9 @@ describe("Seafaring (save version 53)", () => {
     expect(s.units.some((u) => u.id === boat.id)).toBe(false);
     const fished = cityTileYield(s, s.cities[0]!, slotOf(1, 0))!;
     expect(fished.food).toBe(plain.food + 3);
-    expect(fished.shields).toBe(plain.shields);
+    // And a shield since save version 60 (asked for 2026-11-02), more than a Harbour gives the open sea; before, none.
+    expect(fished.shields).toBe(plain.shields + 1);
+    expect(cityTileYield({ ...s, foodOnlyFishery: true }, s.cities[0]!, slotOf(1, 0))!.shields).toBe(plain.shields);
     // A game saved before version 54 (`freeFish`): fish fed a city as they lay, and a fishery added one more.
     s.freeFish = true;
     expect(cityTileYield(s, s.cities[0]!, slotOf(1, 0))!.food).toBe(plain.food + 3);

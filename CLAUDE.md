@@ -439,8 +439,8 @@ Never ship the original's sprites, palette art, fonts or text.
   `explorer` flag: every step costs it a road's third, `stepCost`, it climbs mountains without a road, `canEnter`, and
   no one minds it on their land, `trespassOn`) and the Fishing Boat (0/1/2, 30; the `fishing` flag: the `fishery`
   command, `whyNoFishery`, spends it on a Fish or Whales square of its own civilization's land with moves left, laying
-  `Tile.fishery`, which adds its special's `SpecialRule.fishery`: Fish +1 food, Whales +1 food +1 shield; F or the
-  orders' "Lay fishery"). Since save version 54 (asked for 2026-11-01: "fish should give extra food only with fishing
+  `Tile.fishery`, which adds its special's `SpecialRule.fishery` (core `fisheryYield`): Fish +1 food (and +1 shield since
+  save version 60, below), Whales +1 food +1 shield; F or the orders' "Lay fishery"). Since save version 54 (asked for 2026-11-01: "fish should give extra food only with fishing
   boat placed on top") Fish feed a city only once fished (`fishery.unlocks`, core `specialLocked`, read by `tileYield`,
   so city screens, the planner and `siteScore` follow): plain sea before (1/0/2), 4 food after; the square's window
   says what a fishery would bring; the planner sends a boat to any fish of a city's, worked or not. A site is still
@@ -448,7 +448,13 @@ Never ship the original's sprites, palette art, fonts or text.
   players' sites stay put: scored as plain sea they cost the planner two cities a seat. Saves before 54 load with
   `freeFish` (headless `--free-fish`): Fish yield as they lie, a fishery adding its 1. Whales are unchanged. Head to head
   (planner vs v2, 16 x 300, seeds 1-16): 9-7, score 123 vs 99, cities 8.8 vs 6.0, pop 46 vs 31 (fish fed both less;
-  free fish 10-6, 143 vs 112); all replaying exactly. Archery brings Archers (3/2/1, 30, no resource, retired by Gunpowder). War Elephants (4/1/1,
+  free fish 10-6, 143 vs 112); all replaying exactly. Since save version 60 (asked for 2026-11-02: "fish with fishery
+  should get more than regular water with harbour - more food or production") the fishery on Fish adds a shield too
+  (`fishery.shields`, `shieldsSince` 60): fished Fish under Despotism had yielded 3 food 1 trade, the plain sea with a
+  Harbour 2 food 2 trade, as much all told; now 3/1/1 (4/1/1 under a Monarchy, a Harbour adding its food and trade to
+  both). Saves before 60 load with `foodOnlyFishery` (headless `--food-only-fishery`). Head to head (planner vs v2, 16 x
+  300, seeds 1-16): 10-6, score 95 vs 75, pop 41 vs 24; food only 10-6, 95 vs 75, pop 40 vs 24 (fisheries are rare in
+  the computers' games); all replaying exactly. Archery brings Archers (3/2/1, 30, no resource, retired by Gunpowder). War Elephants (4/1/1,
   40, Horseback Riding) need the sixth strategic resource, Elephants (`ELEPHANTS`, seen from the start, Animal
   Husbandry's +1 food like Horses): deposits on jungle and on grassland or plains beside jungle (`ResourceRule.besides`;
   7%, 5%, 5% of such squares; appended after the other resources' slices, so every other deposit lies where it did),
@@ -1840,7 +1846,8 @@ asked for; no save version). Villages drawn as the user's five huts, the kind by
 walking into one sacks it before it opens, its loot bursting out (2026-11-02, asked for; no save version).
 Tile improvements drawn as the user's sheet: fields, mines and quarries, oil pumps, rigs, nets and piers as its
 pictures, bridges in its woods, roads thin and muted (2026-11-02, asked for). War Elephants climb mountains without a road,
-as settlers and explorers do (2026-11-02, asked for; save version 59).
+as settlers and explorers do (2026-11-02, asked for; save version 59). A fishery on Fish adds a shield as well as its food
+(2026-11-02, asked for; save version 60).
 
 ## Known gaps / next steps
 

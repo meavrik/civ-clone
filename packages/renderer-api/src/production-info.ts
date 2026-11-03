@@ -31,7 +31,7 @@ export function unitAbilities(state: GameState, type: UnitTypeRule): string[] {
   if (flags.includes("caravan")) lines.push("Helps build wonders and opens trade routes.");
   if (flags.includes("explorer")) lines.push("Crosses any ground, mountains too, as if on a road; no one minds it on their land.");
   if (type.anyGround && climbsMountains(state, type)) lines.push("Goes anywhere without a road, mountains too: the only soldiers that do.");
-  if (flags.includes("fishing")) lines.push("Lays a fishery on fish or whales in our waters: more food there for good. With Refining, builds an oil rig on oil at sea.");
+  if (flags.includes("fishing")) lines.push("Lays a fishery on fish or whales in our waters: more food and a shield there for good. With Refining, builds an oil rig on oil at sea.");
   if (type.frightens) lines.push(`Frightens units that need ${type.frightens}: they defend at two thirds against it.`);
   if (type.capacity) lines.push(`Carries ${plural(type.capacity, "unit")}.`);
   return lines;

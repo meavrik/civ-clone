@@ -78,8 +78,10 @@ export interface SaveGame {
    * 55: saved while roads, irrigation and mines took the 1991 game's turns; quick improvements.
    * 56: saved while specials of a kind could lie side by side (no `spreadSpecials`); clustered resources.
    * 57: saved while the sea yielded 2 trade and the Harbour only food; rich sea.
+   * 58: saved while War Elephants kept off mountains without a road; grounded elephants.
+   * 59: saved while a fishery on Fish added only its food; food-only fishery.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 59;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 59 | 60;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -102,7 +104,7 @@ export interface SaveGame {
   state?: GameState;
 }
 
-export const SAVE_VERSION = 59;
+export const SAVE_VERSION = 60;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -262,6 +264,7 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
   if (save.version < 57) options.clusteredResources = true;
   if (save.version < 58) options.richSea = true;
   if (save.version < 59) options.groundedElephants = true;
+  if (save.version < 60) options.foodOnlyFishery = true;
   const state = newGame(save.seed, options);
   const from = state.turn;
   const progress = (): ReplayProgress => ({ turn: state.turn, from, to: Math.max(from, save.turn) });

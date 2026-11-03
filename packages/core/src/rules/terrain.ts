@@ -27,10 +27,12 @@ export interface SpecialRule {
   /** Found only this many squares from land or farther (whales keep to deep water: no land beside them). */
   beyond?: number;
   /**
-   * What a fishery laid on it adds (`Tile.fishery`, by a Fishing Boat; since save version 53). `unlocks`: the special
-   * yields nothing of its own until one is laid (Fish, since save version 54; `GameState.freeFish` before).
+   * What a fishery laid on it adds (`Tile.fishery`, by a Fishing Boat; since save version 53; read it with
+   * `fisheryYield`). `unlocks`: the special yields nothing of its own until one is laid (Fish, since save version 54;
+   * `GameState.freeFish` before). `shieldsSince`: its shields came with that save version (Fish's, 60); a game before
+   * it (`GameState.foodOnlyFishery`) has none.
    */
-  fishery?: { food?: number; shields?: number; trade?: number; unlocks?: boolean };
+  fishery?: { food?: number; shields?: number; trade?: number; unlocks?: boolean; shieldsSince?: number };
 }
 
 /** The save version from which `within` and `beyond` place specials; older worlds ignore them. */
@@ -88,8 +90,10 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Ocean]: {
     // 1 trade until its city has a Harbour (`BuildingRule.oceanTrade`), since save version 58; the original's 2 before.
     food: 1, shields: 0, trade: 1, originalTrade: 2, moveCost: 1, defense: 1,
-    // Fish feed a city only once a Fishing Boat has laid a fishery on them (asked for 2026-11-01), then 2 food and 1 more.
-    special: { name: "Fish", food: 2, within: 2, fishery: { food: 1, unlocks: true } },
+    // Fish feed a city only once a Fishing Boat has laid a fishery on them (asked for 2026-11-01), then 2 food and 1 more,
+    // and a shield since save version 60 (asked for 2026-11-02: "fish with fishery should get more than regular water
+    // with harbour - more food or production": 3 food 1 trade under Despotism had matched a Harbour's 2 food 2 trade).
+    special: { name: "Fish", food: 2, within: 2, fishery: { food: 1, shields: 1, shieldsSince: 60, unlocks: true } },
     // Whalers put to sea with Navigation.
     second: { name: "Whales", food: 1, shields: 1, learned: { advance: "navigation", shields: 1 }, since: 17, beyond: 2, fishery: { food: 1, shields: 1 } },
     road: { trade: 0, turns: 0 },
