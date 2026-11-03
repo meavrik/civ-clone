@@ -433,14 +433,15 @@ const CAMERA_MS = 280;
 
 /**
  * The map's zoom (asked for 2026-10-28: "add also in the web browser game version a main map zoom option"):
- * its squares drawn from 0.8 to 1.6 times the base's size (`MainScreenView.zoom`; the adapter draws each size as it
- * is, `MAP_TILE`: 16 to 32 pixels on the base's 20; 1, 2 or 3 times larger until 2026-11-02, asked for: "zoom now
- * is too big - reduce"), by the wheel over the map (the square under the pointer staying put), the + and - buttons
- * in the map's corner and the keys (about the middle of the view) or World > Zoom In and Zoom Out; kept per browser.
+ * its squares drawn at 0.8, 1 or 1.2 times the base's size (`MainScreenView.zoom`; the adapter draws each size as it
+ * is, `MAP_TILE`: 16, 20 or 24 pixels on the base's 20; 1, 2 or 3 times larger until 2026-11-02, asked for: "zoom now
+ * is too big - reduce", then five levels to 1.6 until 2026-11-03, asked for: "reduce to 3 levels only"), by the wheel
+ * over the map (the square under the pointer staying put), the + and - buttons in the map's corner and the keys
+ * (about the middle of the view) or World > Zoom In and Zoom Out; kept per browser.
  * Only with a mouse: the phone pinches its own (its renderer has no `mapView` and zooms what it draws).
  */
-const ZOOMS = [0.8, 1, 1.2, 1.4, 1.6] as const;
-/** A fight draws the map this many zoom levels closer (`battleZoom`). */
+const ZOOMS = [0.8, 1, 1.2] as const;
+/** A fight draws the map this many zoom levels closer (`battleZoom`), at most the closest. */
 const BATTLE_ZOOM_STEPS = 2;
 const ZOOM_KEY = "epochs.zoom";
 const zoomable = renderer.mapView !== undefined;

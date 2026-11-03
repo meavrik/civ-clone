@@ -101,7 +101,7 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
   const baseTile = Math.max(TILE, Number(new URLSearchParams(location.search).get("tile")) || 20);
   /**
    * The map at its zoom (asked for 2026-11-02: "zoom now is too big - reduce"): `MainScreenView.zoom` is the size of its
-   * squares against the base's (0.8 to 1.6), each size worked out as it is drawn (`MAP_TILE`), never blown up.
+   * squares against the base's (0.8, 1 or 1.2), each size worked out as it is drawn (`MAP_TILE`), never blown up.
    */
   const sized = (view: MainScreenView): MainScreenView => {
     setMapTile(baseTile * (view.zoom ?? 1));

@@ -1032,9 +1032,10 @@ Never ship the original's sprites, palette art, fonts or text.
   stretched, they had filled the 20-pixel squares), so at 20 an icon is its own pixels, unstretched, and at 16 as before;
   shields, hit points, ranks, names and labels keep their size. The city screen's map, the square's window and the
   phone app (its own renderer) keep 16. The web game's zoom is the square's size there (asked for the same day: "zoom
-  now is too big - reduce and place +/- toggle button on main map for zoom"): `view.zoom` 0.8, 1, 1.2, 1.4 or 1.6 times
-  the base (16 to 32 pixels on 20), which the adapter draws as `MAP_TILE` (`sized`), never magnified, its
-  `viewTilesX`/`viewTilesY` counted at the base; "Map zoom 120%"; a fight two levels closer (`BATTLE_ZOOM_STEPS`). Two
+  now is too big - reduce and place +/- toggle button on main map for zoom"): `view.zoom` 0.8, 1 or 1.2 times
+  the base (16, 20 or 24 pixels on 20; five levels to 1.6, 32 pixels, until 2026-11-03, asked for: "reduce to 3 levels
+  only"), which the adapter draws as `MAP_TILE` (`sized`), never magnified, its `viewTilesX`/`viewTilesY` counted at
+  the base; "Map zoom 120%"; a fight two levels closer, at most the closest (`BATTLE_ZOOM_STEPS`). Two
   buttons, + over -, stand in the map's bottom right corner (`MainScreenView.zoomButtons`, retro `zoomButtonAt`,
   `Renderer.zoomButtonAt`, the web app's `stepZoomButtons`; since the same day, asked for: "button too big - more
   subtle", one plate 9x18 of the map darkened, `DIMMED`, edged and parted by a fine black line, the signs thin, pale,
@@ -1923,7 +1924,7 @@ the user's. Oil at sea and the Fishing Boat's oil rigs done (2026-11-01, asked f
 the user's pictures come. Roads, irrigation and mines take twice the original's turns (2026-11-01, asked for; save
 version 56). Specials of a kind kept three squares apart (2026-11-01, asked for; save version 57). The sea yields 1 trade, the
 Harbour adding the second (2026-11-02, asked for; save version 58). The web game's map squares are 20 pixels, its zoom
-16 to 32 drawn at each size, with + and - on the map (2026-11-02, asked for; no save version; the phone keeps 16).
+16, 20 or 24 drawn at each size (three levels since 2026-11-03), with + and - on the map (2026-11-02, asked for; no save version; the phone keeps 16).
 The terrain drawn from the user's second sheet, forests and mountains in kinds by the land round them (2026-11-02,
 asked for; no save version). Villages drawn as the user's five huts, the kind by the land (2026-11-02, asked for); a unit
 walking into one sacks it before it opens, its loot bursting out (2026-11-02, asked for; no save version).
