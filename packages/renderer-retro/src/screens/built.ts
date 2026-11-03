@@ -3,7 +3,7 @@ import { BUILT_BUTTON, builtCard, buildingArt, PICTURES, type BuiltCard, type Bu
 import { drawText, FONT_HEIGHT, spacedWidth, textWidth } from "../font.js";
 import { drawIcon, ICON } from "../icons.js";
 import { C, shade, slotColor } from "../palette.js";
-import { rasterize } from "../pictures.js";
+import { drawEnlarged, rasterize } from "../pictures.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
 import { dimScreen, hideArtUnder, drawEntering, drawStone, INK, speckle } from "../widgets.js";
 import { VIEW_Y } from "./main.js";
@@ -117,18 +117,6 @@ export function builtHit(state: GameState, view: BuiltView, px: number, py: numb
 function parchment(s: Surface, b: Rect): void {
   s.frame(b.x, b.y, b.w, b.h, RULE());
   speckle(s, b.x + 1, b.y + 1, b.w - 2, b.h - 2, PARCHMENT_DARK(), PARCHMENT(), PARCHMENT());
-}
-
-/** A drawn picture's pixels (`rasterize`, `gw` by `gh`, -1 clear) as large as whole blocks fit in the picture's box, in its middle. */
-function drawEnlarged(s: Surface, b: Rect, px: Int16Array, gw: number, gh: number): void {
-  const k = Math.max(1, Math.floor(Math.min(b.w / gw, b.h / gh)));
-  const x0 = b.x + Math.floor((b.w - gw * k) / 2);
-  const y0 = b.y + Math.floor((b.h - gh * k) / 2);
-  for (let j = 0; j < gh; j++)
-    for (let i = 0; i < gw; i++) {
-      const c = px[j * gw + i]!;
-      if (c >= 0) s.rect(x0 + i * k, y0 + j * k, k, k, c);
-    }
 }
 
 export function drawBuilt(s: Surface, state: GameState, view: BuiltView): void {

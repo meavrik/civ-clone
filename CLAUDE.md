@@ -1102,16 +1102,30 @@ Never ship the original's sprites, palette art, fonts or text.
   draws the screen's `back` under it): built round the choice. Under the title a band with the research under way
   (bulb, beaker bar, turns) or what the advance just found brings (`researchBand`); on the left a list
   (`researchRows`) of three groups: Research next (the research under way first, then what the latest
-  find brought within reach, marked with a yellow diamond, then the rest; each row with icons of what it
-  brings, `techIcons`), Coming later (`comesLater`: everything it needs is known or can be researched now;
+  find brought within reach, marked with a yellow diamond, then the rest; those two each ranked by `techWorth`,
+  the more it brings first: a government 3, a wonder, building or unit 2 each, another kind of gain 1, an advance it
+  leads to 1; each row with icons of what it brings, `techIcons`), Coming later (`comesLater`: everything it needs is known or can be researched now;
   the hint of what lies ahead, faint) and Discovered (ticked, newest first); it scrolls (`ResearchView.top`,
   `keepResearchInView`, `Renderer.researchListRows`). On the right a card for the selected advance
   (`techDetails`): its standing ("Discovered", "Researching", "Can research now", "Later: needs ...
   first"), what it brings, what it needs and what it opens the way to (each with what else it waits for,
-  "with Mysticism" or "then ready"), all links to their own cards, and along its bottom the city view's
-  pictures of its wonders and buildings and its units' sprites where there is room. The Research button
+  "with Mysticism" or "then ready"), all links to their own cards. Its wonders, buildings and units
+  (`TechDetails.gifts`) stand in frames under the standing (asked for 2026-11-03: "tech improvement images - too
+  small. place inside frames with badge title"; they had stood small on a strip of grass along the card's foot,
+  where the links left room): retro `giftFrames`/`drawFrame`, each a slate bed (the Building Completed window's)
+  40 high holding the user's picture as large as it fits (`middle`; else the drawn one enlarged, `drawEnlarged`,
+  moved to pictures.ts) or the unit standing on its floor, its name on a badge across its foot, wonders in gold,
+  buildings in parchment, units in navy; one or two frames 64 wide, more narrower (at least 40), the last counting
+  what did not fit ("+2 more"); the rest of what it brings a line each under them (rows not `pictured`). Brief
+  (`ResearchView.brief`, asked for the same day: "too big. minimize - show more details only if player choose to",
+  "show less options for next research"): a window of 248x138 (`researchRect`'s `brief`), the list only the first
+  `BRIEF_CHOICES` (5) of Research next with "+6 more choices" under them (`hiddenChoices`), the card only its
+  standing, frames and gains (no needs or opens, so no links); Details at the foot's left, D, the "+N more choices"
+  line or a brief "+N more" frame (`ResearchHit` "details") opens the whole panel, whose Less goes back; the web
+  app opens it brief until the player picks Details, then whole until Less, for the session (`researchBrief`), and
+  whole from View Tech Tree. The Research button
   studies `researchTarget`: the advance, or for one further on the first step toward it. Keys: Up/Down,
-  PgUp/PgDn, Home/End, Tab (the next choice), Enter, Esc. `Renderer.research`/`researchHit`. The web app
+  PgUp/PgDn, Home/End, Tab (the next choice), Enter, D (details), Esc. `Renderer.research`/`researchHit`. The web app
   opens it (`openTree`) after the New Technology windows when research is due, from their View Tech Tree,
   and wherever research is picked (science advisor A, Advisors > Research, and a click on the status
   panel's research row: `Renderer.statusAt`); when research is due it closes only on a pick.

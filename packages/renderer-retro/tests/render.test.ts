@@ -1274,6 +1274,46 @@ describe("advisor screens", () => {
     expect(kinds.has("research")).toBe(false);
   });
 
+  it("renders the research panel brief: the best few choices, what the advance brings in frames, and the way to the details", () => {
+    const state = newGame(2026);
+    const p = state.players[0]!;
+    p.advances.push("alphabet", "bronze_working", "ceremonial_burial", "code_of_laws");
+    const s = Surface.screen();
+    const view = openResearch(state, RESEARCH_LIST_ROWS, { discovered: ["code_of_laws"], choosing: true, closable: false, brief: true });
+    expect(view.selected).toBe("monarchy");
+    view.selected = "masonry"; // four things to frame: three fit, the third counting the rest
+    drawResearch(s, state, view);
+    writeFileSync(new URL("./out/research-brief.png", import.meta.url), encodePng(s, 3));
+    const hits = new Map<string, ResearchHit>();
+    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
+      const h = researchHit(state, view, x, y);
+      if (h) hits.set(h.kind === "row" || h.kind === "link" ? `${h.kind}:${h.id}` : h.kind, h);
+    }
+    const listed = researchRows(state, view).filter((r) => r.kind === "advance");
+    expect(listed.length).toBe(5); // the best few choices...
+    for (const r of listed) expect(hits.has(`row:${r.id}`)).toBe(true);
+    expect(hits.has("details")).toBe(true); // ...and the way to the rest
+    expect([...hits.keys()].some((k) => k.startsWith("link:"))).toBe(false); // what it needs and opens: details only
+    expect(hits.has("scroll")).toBe(false);
+    expect(hits.has("research")).toBe(true);
+    // Its pictures: the user's pictures of the wonders, laid in their frames, larger than the city view's.
+    const pyramids = s.art.find((a) => a.id === "pyramids");
+    expect(pyramids?.w).toBeGreaterThanOrEqual(36);
+    // A unit's frame, an advance's gains a line each.
+    view.selected = "bronze_working";
+    drawResearch(s, state, view);
+    writeFileSync(new URL("./out/research-brief-bronze.png", import.meta.url), encodePng(s, 3));
+    applyCommand(state, { type: "research", advance: "writing" });
+    p.science = 10;
+    const browsing = openResearch(state, RESEARCH_LIST_ROWS, { choosing: true, closable: true, brief: true });
+    expect(browsing.selected).toBe("writing");
+    drawResearch(s, state, browsing);
+    writeFileSync(new URL("./out/research-brief-under-way.png", import.meta.url), encodePng(s, 3));
+    browsing.selected = "animal_husbandry";
+    drawResearch(s, state, browsing);
+    writeFileSync(new URL("./out/research-brief-husbandry.png", import.meta.url), encodePng(s, 3));
+  });
+
   it("opens the research panel from the status panel's research row", () => {
     const state = newGame(2026);
     applyCommand(state, { type: "found", unit: state.units.find((u) => u.type === "settlers")!.id });
