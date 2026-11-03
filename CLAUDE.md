@@ -685,7 +685,9 @@ Never ship the original's sprites, palette art, fonts or text.
   `screens/built.ts`, modern a plain modal), a small window over the game since 2026-10-24 ("should be a
   modal opened on top of the game and not a full screen window"; smaller again since 2026-10-25 and standing
   by its city, "smaller - and placed above the relevant built city with an arrow": `builtPlace`;
-  over the map the map glides to put the city a square below the middle, the web app hands each frame the
+  over the map the map glides to put the city a square below the middle and rests there `BUILT_SETTLE_MS` (250 ms) before
+  the window opens (asked for 2026-11-02: "first let the camera set on the city, and only than show building complete
+  popup"; the `beat` screen, a key or click opening it at once; its sound with it), the web app hands each frame the
   city's square on screen (`BuiltView.square`, `Renderer.squareRect`, the phone's through its pan and zoom)
   and the window stands above it, else below, else beside it, a point of its stone reaching to a gold ring
   round the square, which `dimScreen`'s `keep` leaves lit; it grows out of that point (`drawEntering`'s

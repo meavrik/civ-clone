@@ -1396,8 +1396,8 @@ function builtWindow(cityId: number, p: Production, then: () => void): void {
   const city = state.cities.find((c) => c.id === cityId);
   const notice = builtNotice(state, cityId, p);
   if (!city || city.owner !== 0 || !notice) { then(); return; }
-  sound.play(p.kind === "wonder" ? "wonder" : "built");
   if (p.kind === "wonder") {
+    sound.play("wonder");
     // A wonder is a spectacle (asked for 2026-10-24): it rises in the city's picture, sparkles, and
     // only then does its window open, over that picture.
     wonderShow(cityId, p.id, () => {
@@ -1409,17 +1409,27 @@ function builtWindow(cityId: number, p: Production, then: () => void): void {
   if (p.kind !== "unit") {
     // A small window over the game; one after another, each over the same screen. The map glides to
     // the city first (asked for 2026-10-24), a square below the middle so the window stands above it
-    // pointing at it (2026-10-25, `BuiltView.square`, set as each frame is drawn).
+    // pointing at it (2026-10-25, `BuiltView.square`, set as each frame is drawn), and settles there
+    // before the window opens (asked for 2026-11-02: "first let the camera set on the city, and only than
+    // show building complete popup"), a key or click opening it at once.
     const under = screenState.kind === "built" ? screenState.under : screenState;
-    if (under.kind === "map") centerOn(city.x, city.y - 1);
-    screenState = { kind: "built", view: { city: cityId, production: p }, then, under };
+    const open = (): void => { sound.play("built"); screenState = { kind: "built", view: { city: cityId, production: p }, then, under }; };
+    if (under.kind === "map") {
+      centerOn(city.x, city.y - 1);
+      if (cam.animating) { screenState = { kind: "beat", until: performance.now() + CAMERA_MS + BUILT_SETTLE_MS, then: open }; return; }
+    }
+    open();
     return;
   }
+  sound.play("built");
   openCity(cityId, then);
   modal(notice.title, notice.lines, ["Build next..."], () => openProductionMenu(cityId));
   // The new settlers' picture beside the sentence (asked for 2026-10-29).
   if (screenState.kind === "menu") screenState.menu.unit = { type: p.id, color: state.players[0]!.color };
 }
+
+/** How long the map rests on a city it has come to before its Building Completed window opens. */
+const BUILT_SETTLE_MS = 250;
 
 type BuiltScreen = Extract<Screen, { kind: "built" }>;
 type WonderShowScreen = Extract<Screen, { kind: "wonderShow" }>;
