@@ -1964,21 +1964,14 @@ function openProductionMenu(cityId: number, then?: () => void, title?: string, b
 type ResearchScreen = Extract<Screen, { kind: "research" }>;
 
 /**
- * The research panel opens brief (asked for 2026-11-03: "show more details only if player choose to") until the
- * player picks Details, then with details until they pick Less again, for the rest of the session.
+ * Open the research window: the short one where research is picked (since 2026-11-03, asked for: "a shorter list to
+ * choose from without more options"), or with `tree` the whole panel (View Tech Tree's only). `then` runs once it
+ * closes (the next of the turn's events), and `back` is the screen it closes onto. When research is due it can only
+ * be left by picking the next advance, as the wise men insist.
  */
-let researchBrief = true;
-
-/**
- * Open the research panel. `then` runs once it closes (the next of the turn's
- * events), and `back` is the screen it closes onto. When research is due it can
- * only be left by picking the next advance, as the wise men insist. `details`
- * opens it whole whatever the player last chose (View Tech Tree).
- */
-function openTree(opts: { discovered?: string[]; choosing: boolean; closable: boolean; details?: boolean }, then: () => void = () => {}, back: Screen = { kind: "map" }): void {
+function openTree(opts: { discovered?: string[]; choosing: boolean; closable: boolean; tree?: boolean }, then: () => void = () => {}, back: Screen = { kind: "map" }): void {
   const choosing = opts.choosing && availableAdvances(state.players[0]!.advances, advancesFor(state)).length > 0;
-  const brief = researchBrief && !opts.details;
-  const view = openResearch(state, renderer.researchListRows, { discovered: opts.discovered ?? [], choosing, closable: opts.closable || !choosing, brief });
+  const view = openResearch(state, renderer.researchListRows, { discovered: opts.discovered ?? [], choosing, closable: opts.closable || !choosing, brief: !opts.tree });
   screenState = { kind: "research", view, back, then };
 }
 
@@ -2005,7 +1998,7 @@ function leaveNewTech(sc: NewTechScreen, tree: boolean): void {
   // Once the windows (and the panel) are done, the resources the advances revealed, then what comes next.
   const then = (): void => showReveals(sc.found, sc.then);
   if (tree) {
-    openTree({ discovered: sc.found, choosing: true, closable: !sc.due, details: true }, then, sc.back);
+    openTree({ discovered: sc.found, choosing: true, closable: !sc.due, tree: true }, then, sc.back);
     if (screenState.kind === "research") treeSelect(screenState, sc.view.advance);
   } else if (sc.at + 1 < sc.found.length) announce(sc.found, sc.due, sc.then, sc.back, sc.at + 1);
   else if (sc.due) openTree({ discovered: sc.found, choosing: true, closable: false }, then, sc.back);
@@ -2074,14 +2067,6 @@ function treeSelect(sc: ResearchScreen, id: string): void {
   keepResearchInView(state, sc.view, renderer.researchListRows);
 }
 
-/** Between the brief panel and the whole one (Details and Less, D); the player's choice holds for the next time. */
-function treeDetails(sc: ResearchScreen): void {
-  sc.view.brief = !sc.view.brief;
-  researchBrief = sc.view.brief;
-  sc.view.top = 0;
-  keepResearchInView(state, sc.view, renderer.researchListRows);
-}
-
 function treeScroll(sc: ResearchScreen, by: number): void {
   const rows = researchRows(state, sc.view).length;
   sc.view.top = Math.max(0, Math.min(Math.max(0, rows - renderer.researchListRows), sc.view.top + by));
@@ -2098,7 +2083,6 @@ function treeKey(e: KeyboardEvent, sc: ResearchScreen): void {
     case "Home": treeSelect(sc, researchStep(state, v, -1000)); break;
     case "End": treeSelect(sc, researchStep(state, v, 1000)); break;
     case "Tab": e.preventDefault(); if (v.choosing) treeSelect(sc, nextChoice(state, v, e.shiftKey ? -1 : 1)); break;
-    case "KeyD": treeDetails(sc); break;
     case "Enter": case "NumpadEnter": case "Space":
       e.preventDefault();
       if (canResearch(state, v)) pickResearch(sc);
@@ -2119,10 +2103,13 @@ function treeClick(sc: ResearchScreen, px: number, py: number): void {
       else treeSelect(sc, hit.id);
       break;
     case "link": treeSelect(sc, hit.id); break;
-    case "research": pickResearch(sc); break;
+    case "research":
+      // A row's own button researches its advance.
+      if (hit.id) sc.view.selected = hit.id;
+      pickResearch(sc);
+      break;
     case "close": closeTree(sc); break;
     case "scroll": treeScroll(sc, hit.by); break;
-    case "details": treeDetails(sc); break;
   }
 }
 

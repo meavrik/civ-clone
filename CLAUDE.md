@@ -1095,40 +1095,50 @@ Never ship the original's sprites, palette art, fonts or text.
   neighbour's clearing reaches with the fog's ragged dithered edge (`clearingPatch`; `sightPatch` is the
   patch the other way round); a city there is shaded with its square, its name not; the minimap shades a block with
   no square in sight; the square's window says "Out of sight". Modern (set aside) does not shade.
+  Research window (`research-choice.ts` in renderer-retro; asked for 2026-11-03: "too big. minimize", "a shorter
+  list to choose from without more options", then "i still dont like the layout - rethink it all"; the user picked
+  rows from three mock-ups, after a brief version of the panel below with Details was rejected): where research is
+  picked, `ResearchView.brief`. The New Technology window's frame, parchment and navy title strip (`drawModalTitle`,
+  its close box only when the window may be left), 268 wide and as tall as its rows, a row for each of
+  `BRIEF_CHOICES` (3) advances (`researchRows` brief: the research under way first, then the choices ranked by
+  `choiceScore`: `techWorth`, what an advance brings itself, a government 3, a wonder, building or unit 2 each,
+  another kind of gain 1, and for each advance it leads to that one's worth and 1 shared among what else it waits
+  for, so the Alphabet ranks high; and `WAIT_WORTH` (2) for each advance found since it could first be researched,
+  `researchWait`, so a choice passed over climbs and none waits long: Animal Husbandry, last at the start, comes in
+  within a few picks). No way from it to more choices. Each row: the name (the bulb for the research under way, the
+  yellow diamond for what the latest find brought within reach) and its turns ("8 turns", "3 turns left"); what it
+  brings framed (`TechDetails.gifts`: its government's crown, wonders, buildings, units; renderer-retro
+  `gift-frames.ts`, `giftFrames`/`drawGiftFrame`: a slate bed 22 high with the user's picture as large as it fits
+  (else the drawn one, `drawEnlarged`, moved to pictures.ts) or the unit on its floor, its name on a badge across the
+  foot, each frame as wide as its name wants (30 to 52), government green, wonders gold, buildings brown, units navy,
+  past what fits a narrow frame counting the rest, "+1 more"; asked for the same day, "place inside frames with badge
+  title", then "images are too big", the first frames 40 high); then the rest a line each (`techGainLines`: "{food}Wheat
+  +1", "{gem}Reveals Iron"), or for an advance that brings nothing "Leads to ..."; and its own Research button
+  (`ResearchHit` "research" with the row's `id`), the research under way "Under way" and its beakers instead. The row
+  selected is a deeper parchment ringed in gold, its button lit; a click on a row selects it, Up/Down and Tab move,
+  Enter or a button researches, Esc or the close box leaves when it may be left. The web app opens it (`openTree`)
+  wherever research is picked: after the New Technology windows when research is due, science advisor A, Advisors >
+  Research, the status panel's research row (`Renderer.statusAt`); when research is due it closes only on a pick.
   Research panel (`research.ts`; redesigned 2026-10-20, asked for: the old tier graph was confusing and
   disliked, so it is gone; a window over the screen it opened on since 2026-10-24, "should not take 100%
   of the screen": `researchRect` 300x188 centred, the game darkened behind, 15 list rows, its parts laid
   from `layout(screenW)`, `researchHit` taking the screen's width for the phone's wide map; the web app
-  draws the screen's `back` under it): built round the choice. Under the title a band with the research under way
+  draws the screen's `back` under it): since 2026-11-03 opened only by the New Technology window's View Tech Tree
+  (`openTree`'s `tree`; the user chose to keep it there); `drawResearch` and `researchHit` hand a brief view to the
+  research window above. Built round the choice. Under the title a band with the research under way
   (bulb, beaker bar, turns) or what the advance just found brings (`researchBand`); on the left a list
   (`researchRows`) of three groups: Research next (the research under way first, then what the latest
-  find brought within reach, marked with a yellow diamond, then the rest; those two each ranked by `techWorth`,
-  the more it brings first: a government 3, a wonder, building or unit 2 each, another kind of gain 1, an advance it
-  leads to 1; each row with icons of what it brings, `techIcons`), Coming later (`comesLater`: everything it needs is known or can be researched now;
+  find brought within reach, marked with a yellow diamond, then the rest in tree order; each row with icons of what it
+  brings, `techIcons`), Coming later (`comesLater`: everything it needs is known or can be researched now;
   the hint of what lies ahead, faint) and Discovered (ticked, newest first); it scrolls (`ResearchView.top`,
   `keepResearchInView`, `Renderer.researchListRows`). On the right a card for the selected advance
   (`techDetails`): its standing ("Discovered", "Researching", "Can research now", "Later: needs ...
-  first"), what it brings, what it needs and what it opens the way to (each with what else it waits for,
-  "with Mysticism" or "then ready"), all links to their own cards. Its wonders, buildings and units
-  (`TechDetails.gifts`) stand in frames under the standing (asked for 2026-11-03: "tech improvement images - too
-  small. place inside frames with badge title"; they had stood small on a strip of grass along the card's foot,
-  where the links left room): retro `giftFrames`/`drawFrame`, each a slate bed (the Building Completed window's)
-  40 high holding the user's picture as large as it fits (`middle`; else the drawn one enlarged, `drawEnlarged`,
-  moved to pictures.ts) or the unit standing on its floor, its name on a badge across its foot, wonders in gold,
-  buildings in parchment, units in navy; one or two frames 64 wide, more narrower (at least 40), the last counting
-  what did not fit ("+2 more"); the rest of what it brings a line each under them (rows not `pictured`). Brief
-  (`ResearchView.brief`, asked for the same day: "too big. minimize - show more details only if player choose to",
-  "show less options for next research"): a window of 248x138 (`researchRect`'s `brief`), the list only the first
-  `BRIEF_CHOICES` (5) of Research next with "+6 more choices" under them (`hiddenChoices`), the card only its
-  standing, frames and gains (no needs or opens, so no links); Details at the foot's left, D, the "+N more choices"
-  line or a brief "+N more" frame (`ResearchHit` "details") opens the whole panel, whose Less goes back; the web
-  app opens it brief until the player picks Details, then whole until Less, for the session (`researchBrief`), and
-  whole from View Tech Tree. The Research button
+  first"), what it brings (framed as in the research window, centred, then the rest a line each, rows not
+  `pictured`; until 2026-11-03 the city view's pictures stood small on a strip of grass along the card's foot), what it
+  needs and what it opens the way to (each with what else it waits for, "with Mysticism" or "then ready"), all links to
+  their own cards. The Research button
   studies `researchTarget`: the advance, or for one further on the first step toward it. Keys: Up/Down,
-  PgUp/PgDn, Home/End, Tab (the next choice), Enter, D (details), Esc. `Renderer.research`/`researchHit`. The web app
-  opens it (`openTree`) after the New Technology windows when research is due, from their View Tech Tree,
-  and wherever research is picked (science advisor A, Advisors > Research, and a click on the status
-  panel's research row: `Renderer.statusAt`); when research is due it closes only on a pick.
+  PgUp/PgDn, Home/End, Tab (the next choice), Enter, Esc. `Renderer.research`/`researchHit`.
   Opening window (`reign.ts` in renderer-api and renderer-retro; asked for 2026-10-26: "improve the
   starting game first message ... add civ image + short description and civ bonuses", in place of a plain
   message with the trait's line): a new game opens on the map with "A New Civilization", the New

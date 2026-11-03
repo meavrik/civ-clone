@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ADVANCES, applyCommand, newGame } from "@civ/core";
 import {
+  BRIEF_CHOICES,
   canResearch,
+  choiceScore,
   comesLater,
   keepResearchInView,
   nextChoice,
@@ -13,7 +15,10 @@ import {
   researchTarget,
   researchTitle,
   techDetails,
+  techGainLines,
   techIcons,
+  techWorth,
+  researchWait,
   techPath,
   techStatus,
   type ResearchRow,
@@ -160,5 +165,57 @@ describe("research panel: what to research", () => {
     expect(researchTarget(state, view)).toBeNull(); // the research under way is a step toward it
     expect(researchHint(state, view)).toBe("On the way: Code of Laws");
     expect(researchTarget(state, { ...view, selected: "writing", choosing: false })).toBeNull();
+  });
+});
+
+describe("research window: the short list", () => {
+  const offered = (state: ReturnType<typeof newGame>) => ids(researchRows(state, { discovered: [], brief: true }), "next");
+
+  it("offers a few choices, the research under way first, nothing coming later or discovered", () => {
+    const state = newGame(2026);
+    const p = state.players[0]!;
+    p.advances.push("alphabet");
+    const rows = researchRows(state, { discovered: [], brief: true });
+    expect(rows.filter((r) => r.kind === "header").length).toBe(1);
+    expect(offered(state).length).toBe(BRIEF_CHOICES);
+    for (const id of offered(state)) expect(techStatus(state, id)).toBe("available");
+    applyCommand(state, { type: "research", advance: "the_wheel" });
+    expect(offered(state)[0]).toBe("the_wheel");
+    expect(offered(state).length).toBe(BRIEF_CHOICES);
+  });
+
+  it("ranks a plain step toward much (the Alphabet) by what it leads to", () => {
+    const state = newGame(2026, { classicCivs: true });
+    expect(techDetails(state, "alphabet").gifts).toEqual([]);
+    expect(techWorth(state, "alphabet")).toBeGreaterThan(techWorth(state, "animal_husbandry"));
+    expect(offered(state)).toContain("alphabet");
+  });
+
+  it("lifts a choice passed over each time an advance is found, so none waits long", () => {
+    const state = newGame(2026, { classicCivs: true });
+    const p = state.players[0]!;
+    const low = "animal_husbandry";
+    expect(offered(state)).not.toContain(low);
+    expect(researchWait(state, low)).toBe(0);
+    const before = choiceScore(state, low);
+    // Research what is offered, never the low one: it climbs into the list.
+    let turns = 0;
+    while (!offered(state).includes(low) && turns < 12) {
+      p.advances.push(offered(state)[0]!);
+      turns++;
+    }
+    expect(offered(state)).toContain(low);
+    expect(researchWait(state, low)).toBe(turns);
+    expect(choiceScore(state, low)).toBeGreaterThan(before);
+    expect(turns).toBeLessThanOrEqual(8);
+  });
+
+  it("frames a government and says the rest a line each", () => {
+    const state = newGame(2026);
+    expect(techDetails(state, "monarchy").gifts).toEqual([{ kind: "government", id: "monarchy", name: "Monarchy" }]);
+    expect(techGainLines(techDetails(state, "monarchy"))).toEqual([]);
+    expect(techGainLines(techDetails(state, "bronze_working"))).toEqual(["{gem}Reveals Iron"]);
+    expect(techGainLines(techDetails(state, "pottery"))).toEqual(["{food}Wheat +1"]);
+    expect(techGainLines(techDetails(state, "weaving"))).toContain("{heart}No wear in Arctic");
   });
 });

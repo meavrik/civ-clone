@@ -32,9 +32,10 @@ import type { IconName } from "./icons.js";
  * for the selected advance (what it brings, what it needs, what it opens the
  * way to), under a band with the research under way.
  *
- * Brief by default since 2026-11-03 (asked for: "too big. minimize - show more details only if player
- * choose to", "show less options for next research"): the best few choices (`BRIEF_CHOICES`, ranked by
- * `techWorth`) and a card of what the selected one brings; the player's Details shows the rest.
+ * Since 2026-11-03 research is picked in a short window (`ResearchView.brief`; asked for: "too big. minimize",
+ * "a shorter list to choose from without more options", then "rethink it all"): `BRIEF_CHOICES` advances
+ * (`researchRows`, ranked by `choiceScore`), each a row with what it brings, and nothing more to open. The
+ * whole panel stays for the New Technology window's View Tech Tree only.
  */
 
 // ---- where each advance stands for the current player ------------------------------
@@ -107,9 +108,9 @@ export interface TechLink {
   also: string[];
 }
 
-/** Something an advance brings that has a picture: a wonder, a building (or spaceship part) or a unit. */
+/** Something an advance brings that is shown framed: a government (its crown), a wonder, a building (or spaceship part) or a unit. */
 export interface TechGift {
-  kind: "wonder" | "building" | "unit";
+  kind: "government" | "wonder" | "building" | "unit";
   id: string;
   name: string;
 }
@@ -121,10 +122,10 @@ export interface TechDetails {
   standing: string;
   /**
    * What it brings, a row per kind (units, improvements...); units carry their ids, for their sprites. The rows
-   * of what has a picture (units, buildings, wonders) are `pictured`: the panel shows those as `gifts`.
+   * of what is framed (government, units, buildings, wonders) are `pictured`: the panels show those as `gifts`.
    */
   rows: { icon: IconName; label: string; items: string[]; ids?: string[]; pictured?: boolean }[];
-  /** What it brings that has a picture, in the order the panel frames them: wonders, buildings, units. */
+  /** What it brings that is framed, in the order the panels frame them: government, wonders, buildings, units. */
   gifts: TechGift[];
   /** What it needs, and the advances it opens the way to (even those not in sight yet). */
   needs: TechLink[];
@@ -164,7 +165,7 @@ export function techDetails(state: GameState, id: string): TechDetails {
   }
   const rows: TechDetails["rows"] = [];
   const add = (icon: IconName, label: string, items: string[], more: { ids?: string[]; pictured?: boolean } = {}): void => { if (items.length) rows.push({ icon, label, items, ...more }); };
-  add("crown", "Government", a.government ? [government(a.government).name] : []);
+  add("crown", "Government", a.government ? [government(a.government).name] : [], { pictured: true });
   const units = UNIT_TYPES.filter((u) => u.requires === id);
   const buildings = [...BUILDINGS.filter((b) => b.requires === id), ...SPACE_PARTS.filter((s) => s.requires === id)];
   const wonders = WONDERS.filter((w) => w.requires === id);
@@ -172,6 +173,7 @@ export function techDetails(state: GameState, id: string): TechDetails {
   add("house", "Buildings", buildings.map((b) => b.name), { pictured: true });
   add("star", "Wonders", wonders.map((w) => w.name), { pictured: true });
   const gifts: TechGift[] = [
+    ...(a.government ? [{ kind: "government" as const, id: a.government, name: government(a.government).name }] : []),
     ...wonders.map((w) => ({ kind: "wonder" as const, id: w.id, name: w.name })),
     ...buildings.map((b) => ({ kind: "building" as const, id: b.id, name: b.name })),
     ...units.map((u) => ({ kind: "unit" as const, id: u.id, name: u.name })),
@@ -200,9 +202,19 @@ export function techDetails(state: GameState, id: string): TechDetails {
 }
 
 /**
- * How much an advance brings, to rank the choices: a government 3, each wonder, building or unit 2, each other
- * kind of gain (the specials' food, resources revealed, settlers' work, wear ended) 1 however many it names, and
- * each advance it leads to 1. The wonders it ends count nothing.
+ * What an advance brings itself: a government 3, each wonder, building or unit 2, each other kind of gain (the
+ * specials' food, resources revealed, settlers' work, wear ended) 1 however many it names; the wonders it ends nothing.
+ */
+function ownWorth(d: TechDetails): number {
+  let worth = 0;
+  for (const r of d.rows) worth += r.label === "Government" ? 3 : r.pictured ? 2 * r.items.length : r.icon === "hourglass" ? 0 : 1;
+  return worth;
+}
+
+/**
+ * How much an advance is worth, to rank the choices: what it brings itself, and for each advance it opens the way
+ * to what that one brings and 1, shared among the advances it still waits for, so a plain step toward much (the
+ * Alphabet, Warrior Code) counts too.
  */
 export function techWorth(state: GameState, id: string): number {
   // Asked for again and again each frame (the list ranks its choices for every draw and hit test): kept per game,
@@ -214,12 +226,31 @@ export function techWorth(state: GameState, id: string): number {
   const kept = known.get(key);
   if (kept !== undefined) return kept;
   const d = techDetails(state, id);
-  let worth = d.opens.length;
-  for (const r of d.rows) worth += r.label === "Government" ? 3 : r.pictured ? 2 * r.items.length : r.icon === "hourglass" ? 0 : 1;
+  let worth = ownWorth(d);
+  for (const o of d.opens) worth += (ownWorth(techDetails(state, o.id)) + 1) / (1 + o.also.length);
   known.set(key, worth);
   return worth;
 }
 const worths = new WeakMap<GameState, Map<string, number>>();
+
+/**
+ * How many advances the player has found since this one could first be researched (all it needs known): a choice
+ * passed over climbs the short list each time, so none waits long however little it is worth.
+ */
+export function researchWait(state: GameState, id: string): number {
+  const p = state.players[state.currentPlayer]!;
+  const a = advancesFor(state).find((x) => x.id === id);
+  const since = Math.max(-1, ...(a?.requires ?? []).map((r) => p.advances.indexOf(r)));
+  return p.advances.length - 1 - since;
+}
+
+/** Each advance found while a choice waits counts this much toward its place on the short list. */
+const WAIT_WORTH = 2;
+
+/** A choice's place on the short list: its worth, and its wait. */
+export function choiceScore(state: GameState, id: string): number {
+  return techWorth(state, id) + WAIT_WORTH * researchWait(state, id);
+}
 
 /** The pictures for what an advance brings, at most three, for its row in the list. */
 export function techIcons(state: GameState, id: string): IconName[] {
@@ -242,15 +273,15 @@ export interface ResearchView {
   /** Blink phase, for the advances just found. */
   blink: boolean;
   /**
-   * Brief: the list holds only the best `BRIEF_CHOICES` choices and the card what the advance brings, in a smaller
-   * window; the player's Details shows every choice, what comes later, what is discovered, and what each needs and
-   * opens. Absent: details.
+   * The short window where research is picked: `BRIEF_CHOICES` advances, each a row with what it brings. Absent:
+   * the whole panel (every choice, what comes later, what is discovered, each advance's card), opened only from
+   * the New Technology window's View Tech Tree.
    */
   brief?: boolean;
 }
 
-/** The choices a brief list holds: the research under way, what the latest find brought within reach, the best of the rest. */
-export const BRIEF_CHOICES = 5;
+/** The advances the short window offers: the research under way, then the choices `choiceScore` ranks first. */
+export const BRIEF_CHOICES = 3;
 
 export type ResearchGroup = "next" | "later" | "known";
 
@@ -270,16 +301,16 @@ export type ResearchRow =
 export type ResearchHit =
   | { kind: "row"; id: string }
   | { kind: "link"; id: string } // an advance named on the card: show its card
-  | { kind: "research" }
+  | { kind: "research"; id?: string } // the selected advance, or the one whose row's button it is
   | { kind: "close" }
-  | { kind: "scroll"; by: number }
-  | { kind: "details" }; // between the brief panel and the one with details
+  | { kind: "scroll"; by: number };
 
 /**
  * The list, group by group: what can be researched now (the research under
- * way first, then what the latest find brought within reach, then the rest,
- * each the more it brings first, `techWorth`), what comes later, and what is
- * discovered, newest first. Brief, only the first `BRIEF_CHOICES` choices.
+ * way first, then what the latest find brought within reach, then the rest
+ * in tree order), what comes later, and what is discovered, newest first.
+ * Brief, only the research under way and the choices `choiceScore` ranks
+ * first, `BRIEF_CHOICES` in all.
  */
 export function researchRows(state: GameState, view: Pick<ResearchView, "discovered" | "brief">): ResearchRow[] {
   const p = state.players[state.currentPlayer]!;
@@ -293,25 +324,32 @@ export function researchRows(state: GameState, view: Pick<ResearchView, "discove
     for (const id of ids) rows.push({ kind: "advance", id, group: g, status: techStatus(state, id), fresh: fresh.has(id), unlocked: g === "next" && unlockedBy(id) });
   };
   const open = availableAdvances(p.advances, tree).map((a) => a.id).filter((id) => id !== p.researching);
-  // The more an advance brings, the higher it stands (a stable sort: tree order among equals).
-  const ranked = (ids: string[]): string[] => ids.map((id) => ({ id, worth: techWorth(state, id) })).sort((a, b) => b.worth - a.worth).map((x) => x.id);
-  const next = [...(p.researching ? [p.researching] : []), ...ranked(open.filter((id) => unlockedBy(id))), ...ranked(open.filter((id) => !unlockedBy(id)))];
+  const under = p.researching ? [p.researching] : [];
   if (view.brief) {
-    group("next", "Research next", next.slice(0, BRIEF_CHOICES));
+    // The best first (a stable sort: tree order among equals).
+    const ranked = open.map((id) => ({ id, score: choiceScore(state, id) })).sort((a, b) => b.score - a.score).map((x) => x.id);
+    group("next", "Research next", [...under, ...ranked].slice(0, BRIEF_CHOICES));
     return rows;
   }
+  const next = [...under, ...open.filter((id) => unlockedBy(id)), ...open.filter((id) => !unlockedBy(id))];
   group("next", "Research next", next);
   group("later", "Coming later", tree.filter((a) => comesLater(state, a.id)).map((a) => a.id));
   group("known", `Discovered (${p.advances.length})`, [...p.advances].reverse());
   return rows;
 }
 
-/** The choices a brief list leaves out (none with details). */
-export function hiddenChoices(state: GameState, view: Pick<ResearchView, "brief">): number {
-  if (!view.brief) return 0;
-  const p = state.players[state.currentPlayer]!;
-  const open = availableAdvances(p.advances, advancesFor(state)).filter((a) => a.id !== p.researching).length;
-  return Math.max(0, open + (p.researching ? 1 : 0) - BRIEF_CHOICES);
+/**
+ * What an advance brings beyond what is framed, a line each with its icon, for the short window's rows: the
+ * specials' gains, resources revealed, settlers' work, wear and wonders it ends.
+ */
+export function techGainLines(d: TechDetails): string[] {
+  return d.rows.filter((r) => !r.pictured).map((r) => {
+    const items = r.items.join(", ");
+    if (r.label === "Reveals") return `{gem}Reveals ${items}`;
+    if (r.label === "Ends wear") return `{heart}No wear in ${items}`;
+    if (r.label === "Ends") return `{hourglass}Ends ${items}`;
+    return `{${r.icon}}${items}`;
+  });
 }
 
 function advanceRows(state: GameState, view: ResearchView): Extract<ResearchRow, { kind: "advance" }>[] {
