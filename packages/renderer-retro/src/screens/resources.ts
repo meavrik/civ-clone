@@ -4,9 +4,8 @@ import { drawText, FONT_HEIGHT, textWidth } from "../font.js";
 import { drawIcon } from "../icons.js";
 import { drawUnitFigure } from "../overlays.js";
 import { C, shade, slotColor } from "../palette.js";
-import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { specialSprite } from "../tiles.js";
+import { drawResourceIcon } from "../tiles.js";
 import { DIM, drawPage, drawSwatch, FADED, GOOD, INK, BAD } from "../widgets.js";
 import { playerColor } from "./main.js";
 
@@ -82,8 +81,7 @@ export function drawResourcesAdvisor(s: Surface, state: GameState): void {
     if (i) s.hline(8, y - 3, SCREEN_W - 16, shade("panel", 3));
     // The resource's picture, or a question mark while it is unseen.
     tile(s, ICON_X, y);
-    const icon = e.status === "unseen" ? null : specialSprite(RESOURCE_BY_ID[e.id]?.special.name ?? e.id);
-    if (icon) s.blit(icon, ICON_X + 1, y + 1, SPRITE_CLEAR);
+    if (e.status !== "unseen") drawResourceIcon(s, RESOURCE_BY_ID[e.id]?.special.name ?? e.id, ICON_X + 1, y + 1);
     else drawText(s, ICON_X + 7, y + 5, "?", shade("panel", 5));
     // Its name and its badge, the line of where it stands under them.
     const lacking = e.status === "none" || e.status === "away" || e.status === "unseen";

@@ -1,5 +1,6 @@
 import { CITY_ART } from "./city-art.js";
 import { HUT_ART } from "./hut-art.js";
+import { RESOURCE_ART } from "./resource-art.js";
 import { workArtPlace } from "./work-pictures.js";
 import { UNIT_ART } from "./unit-art.js";
 import { animSheet, unitAnim } from "./unit-anim.js";
@@ -96,6 +97,8 @@ export interface ArtSpot extends ArtBox {
   hut?: boolean;
   /** A tile improvement's picture on its square (`workArt`, the id a `WorkPicture`, "mine"), as `workArtPlace` puts it. */
   work?: boolean;
+  /** A resource's picture (`resourceArt`, the id its icon's name, "horses"), the box the room its icon takes, as `resourceArtPlace` puts it. */
+  resource?: boolean;
   /** Out of sight: shaded as the map shades the squares it does not see now (`UNSEEN`, each colour at 62%). */
   unseen?: boolean;
   /** Only what lies inside shows: the map's view, for a unit at its edge. */
@@ -230,6 +233,31 @@ export function hutArtPlace(spot: ArtSpot): ArtBox | null {
   return { x: spot.x + ((1 - fw) / 2) * spot.w, y: spot.y + (1 - UNIT_FOOT - fh) * spot.h, w: fw * spot.w, h: fh * spot.h };
 }
 
+/**
+ * The user's pictures of the resources (2026-11-03, their updated sheet: "USE AS IS!! do not regenerate assets"; before,
+ * their sheets were drawn into the palette), shown as they are wherever a resource lies (`apps/web/src/resources/<id>.png`,
+ * cut from the sheet pixel for pixel by tools/sprites/resources/cut.ts; Ivory from the sheet before, whose cell the new
+ * one left empty). One scale for all, the sheet's cell (`RESOURCE_CELL` of its pixels across) to the room an icon takes
+ * on its square (the spot's box: `SPECIAL_SHARE` of the square in renderer-retro, at least the original's square), so
+ * they keep the sizes the sheet gives them; each centred in it.
+ */
+export const RESOURCE_CELL = 256;
+export { RESOURCE_ART };
+
+/** Whether the resource icon `id` ("horses", "offshore_oil") has a picture of the user's. */
+export function resourceArt(id: string): boolean {
+  return id in RESOURCE_ART;
+}
+
+/** Where resource picture `spot.id` goes in its room (the spot's box). */
+export function resourceArtPlace(spot: ArtSpot): ArtBox | null {
+  const size = RESOURCE_ART[spot.id];
+  if (!size) return null;
+  const k = spot.w / RESOURCE_CELL;
+  const w = size[0] * k, h = size[1] * k;
+  return { x: spot.x + (spot.w - w) / 2, y: spot.y + (spot.h - h) / 2, w, h };
+}
+
 /** A spot as it lands where a screen copies its part at (`fromX`, `fromY`) to (`toX`, `toY`), `scale` times larger. */
 export function moveArt(a: ArtSpot, fromX: number, fromY: number, toX: number, toY: number, scale = 1): ArtSpot {
   const at = (b: ArtBox): ArtBox => ({ x: toX + (b.x - fromX) * scale, y: toY + (b.y - fromY) * scale, w: b.w * scale, h: b.h * scale });
@@ -266,6 +294,7 @@ export function artPlace(spot: ArtSpot): ArtBox | null {
   if (spot.city) return cityArtPlace(spot);
   if (spot.hut) return hutArtPlace(spot);
   if (spot.work) return workArtPlace(spot);
+  if (spot.resource) return resourceArtPlace(spot);
   const art = buildingArt(spot.id);
   if (!art) return null;
   const k = Math.min(spot.w / art.w, spot.h / art.h);

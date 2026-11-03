@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import { newGame, Terrain, type GameState } from "@civ/core";
 import type { MainScreenView } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
-import { drawMainScreen, shade, tileToScreen, TILE } from "../src/index.js";
+import { drawMainScreen, MAP_TILE, shade, tileToScreen, TILE } from "../src/index.js";
 import { Surface } from "../src/surface.js";
 import { encodePng } from "./png.js";
 
@@ -49,8 +49,11 @@ describe("resources hidden until revealed", () => {
     expect(square(s, state, map, x, y)).toEqual(hidden);
     state.map.tiles[y * state.map.width + x]!.special = true;
     state.players[0]!.advances.push("bronze_working");
+    // Hidden, no picture of it either; known, its picture laid over the square (the user's, as it is).
+    expect(s.art.some((a) => a.resource && a.id === "iron")).toBe(false);
     drawMainScreen(s, state, map);
-    expect(square(s, state, map, x, y)).not.toEqual(hidden);
+    const [ix, iy] = tileToScreen(state, map, x, y)!;
+    expect(s.art.some((a) => a.resource && a.id === "iron" && a.x >= ix && a.y >= iy && a.x + a.w <= ix + MAP_TILE && a.y + a.h <= iy + MAP_TILE)).toBe(true);
     // The reveal's rings: a gold edge round each square of it, bright then dim.
     drawMainScreen(s, state, { ...map, revealed: { squares: iron.map(([i, j]) => ({ x: i, y: j })), at: 0.1 } });
     writeFileSync(new URL("./out/reveal.png", import.meta.url), encodePng(s, 3));

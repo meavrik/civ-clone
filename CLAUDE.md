@@ -1449,6 +1449,22 @@ Never ship the original's sprites, palette art, fonts or text.
   adapters fetch all twelve as a game starts (`preloadCities`). The flags stay the sheet's blue (no owner colour), the
   shield, the label's plate and the borders telling whose a city is. The drawn icons (`cities.art.ts`) stay for anything
   without a picture (tests, the sprite sheets).
+  Resource pictures (2026-11-03, asked for with the user's updated sheet: "updates resources sprite-sheet - USE AS IS!! do
+  not regenerate assets"; their earlier sheets, and that morning's, had been drawn into the palette, see renderer-retro
+  below): `tools/sprites/resources/resources.png` (kept byte for byte as supplied: 26 icons in rows of eight, cells 256
+  wide and 192 tall, on a clear background whose soft colours have no alpha; the cell where Ivory stood empty) is cut by
+  `tools/sprites/resources/cut.ts` (pieces of alpha over 64 to the cell their middle lies in, cut by their bounds two
+  pixels out, every pixel the sheet's; Ivory from the sheet before, `tools/sprites/draw/resources-2026-11-01.png`) into
+  `apps/web/src/resources/<id>.png` (the icon's name: horses, offshore_oil) and the cuts' sizes into renderer-api
+  `resource-art.ts` (`RESOURCE_ART`). Retro `drawSpecial`, given the screen's pictures (`SquarePictures`: the map, the
+  city screen's map, the square's window), leaves a spot (`ArtSpot.resource`) in the room the icon took (`SPECIAL_SHARE`
+  of the square, at least the original's 16 pixels) and remembers the square as drawn (`fineCopy` of the whole square),
+  so what is drawn over it later shows through (`sealPictures`): borders, the fog's edge, the site pins, names, units'
+  marks; `resourceArtPlace` stands the picture centred in that room at one scale, the sheet's cell across to the room's
+  width (`RESOURCE_CELL` 256), so the icons keep the sizes the sheet gives them. Out of sight the picture is shaded whole
+  (by the square it was laid on). The New Technology window's box and Advisors > Resources lay theirs too
+  (`drawResourceIcon`). The corner marks (`drawResourceMark`) stay our pictograms. `preloadCities` fetches the 26. The
+  palette sprites (`resources.art.ts`) stay for anything without a picture (tests, `npm run sprites`).
   Village pictures (2026-11-02, asked for with the user's sheet of five huts: "replace huts in game with attached veriety
   of huts"): `tools/sprites/huts/huts.png` (kept as supplied: a straw-thatched round hut, a timber hall, a mud-brick
   house, a hide tent, a stone cottage with a chimney, on a clear background) is cut by `tools/sprites/huts/cut.ts` into
@@ -1531,7 +1547,8 @@ Never ship the original's sprites, palette art, fonts or text.
   population sits on a plate of the owner's colour before its name under the square, and its mood
   (the viewer's own cities) as a pennant before the plate, another civ's city its owner's shield there
   (`drawCityLabel`, `drawMoodPennant` in
-  `screens/main.ts`; asked for 2026-10-21/22 after overlays on the town hid it) and resources (`resources.art.ts`, named after the special: the user's sheet of 22 icons of
+  `screens/main.ts`; asked for 2026-10-21/22 after overlays on the town hid it) and resources (`resources.art.ts`, since 2026-11-03 only the fallback for the user's pictures laid as they are,
+  see Resource pictures above; named after the special: the user's sheet of 22 icons of
   2026-10-27, "replace ... resources on terrain tiles", redrawn 2026-11-01 with 24 ("implement attached updated resources
   sprite-sheet": Elephants and Oil at sea added, `offshore_oil`) and 2026-11-03 with 26 ("updated resources sprite-sheet":
   Sheep and Camels added, rows of eight in cells 256 wide and 192 tall, the cell where Ivory stood left empty, so Ivory
@@ -1891,7 +1908,8 @@ Tile improvements drawn as the user's sheet: fields, mines and quarries, oil pum
 pictures, bridges in its woods, roads thin and muted (2026-11-02, asked for). War Elephants climb mountains without a road,
 as settlers and explorers do (2026-11-02, asked for; save version 59). A fishery on Fish adds a shield as well as its food
 (2026-11-02, asked for; save version 60). Herds: Sheep, Camels and Bison as bonus resources that Animal Husbandry tames
-and, Sheep's wool, Weaving spins, with the user's updated sheet of resources (2026-11-03, asked for; save version 61).
+and, Sheep's wool, Weaving spins, with the user's updated sheet of resources (2026-11-03, asked for; save version 61);
+the same day the resources became the user's pictures as they are, laid over the canvas (asked for: "USE AS IS!!").
 
 ## Known gaps / next steps
 

@@ -4,9 +4,8 @@ import { drawSpaced, drawText, drawTextLarge, drawTextWrapped, FONT_HEIGHT, spac
 import { drawIcon, ICON } from "../icons.js";
 import { drawUnitFigure } from "../overlays.js";
 import { C, shade, slotColor } from "../palette.js";
-import { SPRITE_CLEAR } from "../sprites/sheet.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { specialSprite, TILE } from "../tiles.js";
+import { drawResourceIcon, TILE } from "../tiles.js";
 import { buttonFace, buttonLook, dimScreen, hideArtUnder, drawEntering, speckle } from "../widgets.js";
 
 /**
@@ -102,9 +101,8 @@ export function fitText(text: string, w: number): string {
 function itemBox(s: Surface, x: number, y: number, size: number, icon: Unlock["icon"], unit: string | undefined, owner: number, resource?: string): void {
   s.frame(x, y, size, size, BROWN_DIM());
   s.rect(x + 1, y + 1, size - 2, size - 2, shade("earth", 7));
-  const picture = resource ? specialSprite(resource) : null;
   if (unit) drawUnitFigure(s, unit, x, y, owner);
-  else if (picture) s.blit(picture, x + Math.floor((size - TILE) / 2), y + Math.floor((size - TILE) / 2), SPRITE_CLEAR);
+  else if (resource) drawResourceIcon(s, resource, x + Math.floor((size - TILE) / 2), y + Math.floor((size - TILE) / 2));
   else drawIcon(s, icon, x + Math.floor((size - ICON) / 2), y + Math.floor((size - ICON) / 2));
 }
 

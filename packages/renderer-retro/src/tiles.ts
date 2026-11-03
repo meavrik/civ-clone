@@ -1,8 +1,8 @@
 import { RESOURCE_BY_ID, specialFor, Terrain, type GameState, type Tile, type WorldMap } from "@civ/core";
-import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, clearingPatch, BLEND_REACH, groundOwner, hutArt, LAND, workArt, landOwner, mountainKind, riverShape, SHORE, strokeDistance, terrainVariant, type ArtBox, type ArtSpot, type CoastPatch, type Explored, type HutKind, type Lifting, type TerrainVariant } from "@civ/renderer-api";
+import { coastLevel, coastPatch, DEEP, DEEP_EDGE, fogLevel, fogPatch, clearingPatch, BLEND_REACH, groundOwner, hutArt, LAND, resourceArt, workArt, landOwner, mountainKind, riverShape, SHORE, strokeDistance, terrainVariant, type ArtBox, type ArtSpot, type CoastPatch, type Explored, type HutKind, type Lifting, type TerrainVariant } from "@civ/renderer-api";
 import { FEATURE_SHEET, RESOURCE_SHEET, spriteSurface, TERRAIN_SHEET } from "./sprites/index.js";
 import { SPRITE_CLEAR } from "./sprites/sheet.js";
-import { layPicture, type SquarePictures } from "./art-holes.js";
+import { fineCopy, layPicture, type SquarePictures } from "./art-holes.js";
 import { drawResourceMark } from "./marks.js";
 import { C, PALETTE, shade, UNSEEN } from "./palette.js";
 import { DETAIL, Surface } from "./surface.js";
@@ -423,6 +423,20 @@ export function specialSprite(name: string): Surface | null {
 }
 
 /**
+ * A special's icon (by its name, "Horses", "Offshore Oil") in the original's square at screen (x, y), on a screen with
+ * no map under it (the New Technology window's box, Advisors > Resources): the user's picture as it is (`resourceArt`,
+ * laid over the canvas), else its drawn sprite.
+ */
+export function drawResourceIcon(s: Surface, name: string, x: number, y: number): void {
+  if (resourceArt(iconName(name))) {
+    s.art.push({ id: iconName(name), resource: true, x, y, w: TILE, h: TILE });
+    return;
+  }
+  const icon = specialSprite(name);
+  if (icon) s.blit(icon, x, y, SPRITE_CLEAR);
+}
+
+/**
  * The mark of the resource on the square at (dx, dy), `t` a side, as `viewer` knows it (`drawResourceMark`), for a
  * city standing on it: none for oil under a rig; `shaded` out of sight, as the city's picture is.
  */
@@ -461,11 +475,20 @@ export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState
   const sprite = tile.terrain === Terrain.Ocean && RESOURCE_BY_ID[name]?.offshore ? `Offshore ${name}` : name;
   if (corner) { drawResourceMark(s, dx, dy, iconName(sprite), t); return; }
   const icon = specialSprite(sprite);
-  if (!icon) { s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!); return; }
   const k = s.k;
   // In whole fine pixels, the margin either side alike.
-  const fine = Math.max(icon.fw, Math.round(t * SPECIAL_SHARE * k));
+  const fine = Math.max(icon?.fw ?? TILE * k, Math.round(t * SPECIAL_SHARE * k));
   const off = Math.floor((t * k - fine) / 2) / k;
+  // The user's picture of it (2026-11-03, "USE AS IS"), laid over the canvas in the room its icon takes; what the screen
+  // draws over its square afterwards (borders, the fog's edge, names, a unit's marks) shows through it (`sealPictures`).
+  const id = iconName(sprite);
+  if (pics && resourceArt(id)) {
+    const spot: ArtSpot = { id, resource: true, x: dx + off, y: dy + off, w: fine / k, h: fine / k, clip: pics.room };
+    s.art.push(spot);
+    pics.laid.push({ spot, copy: fineCopy(s, dx, dy, t, t) });
+    return;
+  }
+  if (!icon) { s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!); return; }
   if (fine === icon.fw) s.blit(icon, dx + off, dy + off, SPRITE_CLEAR);
   else s.blitScaled(icon, dx + off, dy + off, fine / k, fine / k, SPRITE_CLEAR);
 }

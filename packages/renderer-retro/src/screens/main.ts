@@ -258,9 +258,9 @@ export function drawMapViewport(s: Surface, state: GameState, view: MainScreenVi
         for (const b of borderSides(terr, mx, my)) drawBorderSide(s, VIEW_X + tx * MAP_TILE - ox, VIEW_Y + ty * MAP_TILE - oy, b.side, b.startOut, b.endOut, color, darker(color), T);
       }
   for (const [mask, dx, dy, idx] of unseen) if (!citySquares.has(idx)) shadeUnseen(s, dx, dy, mask, T);
-  // A work's or a village's picture out of sight is shaded whole, as a city's is.
+  // A work's, a village's or a resource's picture out of sight is shaded whole, as a city's is (by the square it was laid on).
   const shadedSquares = new Set(unseen.map(([, dx, dy]) => `${dx},${dy}`));
-  for (const { spot } of pics.laid) if (shadedSquares.has(`${spot.x},${spot.y}`)) spot.unseen = true;
+  for (const { spot, copy } of pics.laid) if (shadedSquares.has(`${copy.x},${copy.y}`)) spot.unseen = true;
   for (const [fog, dx, dy] of fogs) s.blit(fog, dx, dy, SPRITE_CLEAR);
   // The names of the seas, lands and landforms on view, then of the civilizations whose land it is, over
   // the fog's edge, under the cities and units, each clear of the cities, their names and the names before it.
