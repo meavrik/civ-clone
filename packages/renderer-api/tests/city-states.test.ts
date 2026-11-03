@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createUnit, foundCity, newGame, Terrain, type GameState, type TurnEvent } from "@civ/core";
-import { cityStateDemandCard, cityStateTitle, conquestCard, terrainInfo, unitTitle } from "../src/index.js";
+import { applyCommand, CITY_STATE, createUnit, foundCity, newGame, Terrain, type GameState, type TurnEvent } from "@civ/core";
+import { cityStateAt, cityStateCard, cityStateDemandCard, cityStateIntro, cityStateTitle, conquestCard, terrainInfo, unitTitle } from "../src/index.js";
 
 /** Grassland, our Rome at (10, 10), city-state Tyre at (16, 10) with a militia; all of it explored by us. */
 function field(): GameState {
@@ -51,5 +51,48 @@ describe("city-states in words", () => {
     expect(won.where).toBe("Taken from the city-state of Tyre");
     const lost = conquestCard(s, { event: { kind: "cityLost", name: "Rome", player: 0, by: s.barbarians, x: 10, y: 10, plunder: 0, capital: true, byCityState: "tyre" }, viewer: 0 });
     expect(lost.where).toBe("Burned by the city-state of Tyre");
+  });
+
+  it("are found under a click on their city or a soldier of theirs in sight, and nowhere else", () => {
+    const s = field();
+    const tyre = s.cities.find((c) => c.cityState)!;
+    expect(cityStateAt(s, 16, 10, 0)?.id).toBe(tyre.id);
+    // A soldier of Tyre out in the field, in sight; a barbarian of no city-state is none of it.
+    createUnit(s, "legion", s.barbarians, 14, 12, tyre.id);
+    createUnit(s, "legion", s.barbarians, 13, 13);
+    expect(cityStateAt(s, 14, 12, 0)?.id).toBe(tyre.id);
+    expect(cityStateAt(s, 13, 13, 0)).toBeUndefined();
+    expect(cityStateAt(s, 10, 10, 0)).toBeUndefined();
+    // Out of sight, the soldier is not there for us; an unexplored city is not either.
+    s.players[0]!.visible[12 * s.map.width + 14] = 0;
+    expect(cityStateAt(s, 14, 12, 0)).toBeUndefined();
+    s.players[0]!.explored[10 * s.map.width + 16] = 0;
+    expect(cityStateAt(s, 16, 10, 0)).toBeUndefined();
+  });
+
+  it("say what a city-state is when we come upon it, and sell its peace when clicked", () => {
+    const s = field();
+    const tyre = s.cities.find((c) => c.cityState)!;
+    const intro = cityStateIntro(tyre);
+    expect(intro.title).toBe("Tyre, a City-State");
+    expect(intro.lines[0]).toBe("{city}A lone city of the Phoenicians, at war with all.");
+    expect(intro.lines.join(" ")).toMatch(/tribute/);
+    s.players[0]!.gold = 300;
+    const open = cityStateCard(s, tyre, 0);
+    expect(open.title).toBe("Tyre, a City-State");
+    expect(open.lines[1]).toBe("{swords}Its soldiers may strike us at any time.");
+    expect(open.lines[2]).toMatch(new RegExp(`^\\{purse\\}Pay ${open.price} gold: it leaves us be until \\d+ (BC|AD)\\.$`));
+    expect(open.buttons).toEqual([`Pay ${open.price} gold`, "Leave"]);
+    // Too poor: Leave alone, and it says why.
+    s.players[0]!.gold = 0;
+    expect(cityStateCard(s, tyre, 0)).toMatchObject({ buttons: ["Leave"], canPay: false });
+    expect(cityStateCard(s, tyre, 0).lines).toContain("We have not the gold to pay.");
+    // Paid: how long it leaves us be, nothing to buy.
+    s.players[0]!.gold = 300;
+    expect(applyCommand(s, { type: "cityStateOffer", city: tyre.id }).ok).toBe(true);
+    const paid = cityStateCard(s, tyre, 0);
+    expect(paid.buttons).toEqual([]);
+    expect(paid.lines[1]).toMatch(/^\{heart\}Paid off: it leaves us be until \d+ (BC|AD), unless we strike it\.$/);
+    expect(s.cityStatePeace?.[`${tyre.id}:0`]).toBe(s.turn + CITY_STATE.peaceTurns);
   });
 });

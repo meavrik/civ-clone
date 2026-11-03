@@ -33,6 +33,7 @@ import {
   FINAL_TURN,
   findPath,
   formatYear,
+  cameUpon,
   getTile,
   government,
   governmentsAvailable,
@@ -240,6 +241,9 @@ import {
   endCard,
   type EndCard,
   cityStateDemandCard,
+  cityStateAt,
+  cityStateCard,
+  cityStateIntro,
   cityStateTitle,
   resourcesWantingRoads,
   resourcesWantingRigs,
@@ -374,7 +378,12 @@ const REASONS: Record<string, string> = {
   supported: "Already supported",
   palace: "The Palace is never sold",
   wonder: "Wonders are never sold",
+  "paid already": "Its peace is paid for already",
+  "not enough gold": "We have not the gold",
 };
+
+/** What the turn's news (`presentEvents`) tells: the rules' events, and a city-state we have just come upon (`newCityStates`). */
+type News = TurnEvent | { kind: "cityStateMet"; city: number };
 
 type Screen =
   | { kind: "title" }
@@ -402,7 +411,7 @@ type Screen =
   | { kind: "end"; card: EndCard }
   | { kind: "spaceship" }
   | { kind: "input"; input: TextInputState; onSubmit: (text: string) => void; under: Screen }
-  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number; sub?: boolean; infoPinned?: number | undefined }
+  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number; sub?: boolean; infoPinned?: number | undefined; pointTo?: { x: number; y: number } }
   | { kind: "report"; page: ReportPage }
   | { kind: "worldMap" };
 
@@ -784,9 +793,86 @@ function afterAction(unit?: number): void {
       else landNote(ev);
     } else i++;
   }
-  events.unshift(...newContacts());
+  const news: News[] = [...newContacts(), ...events, ...newCityStates()];
   holdVillages(events);
-  if (events.length) whenStill(() => presentEvents(events));
+  if (news.length) whenStill(() => presentEvents(news));
+}
+
+/**
+ * The city-states we have come upon (`cameUpon`: their city's square explored, or a soldier of theirs in sight), each
+ * introduced once, the first time (asked for 2026-11-03: "when encouter a city-state add a small notification
+ * explanation about it"); a loaded game knows those it had come upon.
+ */
+let metCityStates = new Set<number>();
+function cityStatesCameUpon(): number[] {
+  return state.cities.filter((c) => c.cityState !== undefined && c.owner === state.barbarians && cameUpon(state, c, 0)).map((c) => c.id);
+}
+
+/** City-states come upon since we last looked, as news to introduce them. */
+function newCityStates(): News[] {
+  const out: News[] = [];
+  for (const id of cityStatesCameUpon()) {
+    if (metCityStates.has(id)) continue;
+    metCityStates.add(id);
+    out.push({ kind: "cityStateMet", city: id });
+  }
+  return out;
+}
+
+/** Where a city-state shows to us: its city, if we have seen its square, else the soldier of it in sight nearest it. */
+function cityStateSquare(city: City): { x: number; y: number } {
+  const me = state.players[0]!;
+  const w = state.map.width;
+  if (me.explored[city.y * w + city.x]) return city;
+  const seen = state.units.filter((u) => u.homeCity === city.id && u.owner === city.owner && me.visible[u.y * w + u.x]);
+  seen.sort((a, b) => mapDistance(state.map, a.x, a.y, city.x, city.y) - mapDistance(state.map, b.x, b.y, city.x, city.y));
+  return seen[0] ?? city;
+}
+
+/**
+ * A city-state come upon: the map goes to it and settles, then a small window by it, pointing at it, says what a
+ * city-state is and how to deal with it (`cityStateIntro`); the X, Enter, Esc or a click off it go on.
+ */
+function introduceCityState(cityId: number, then: () => void): void {
+  const city = state.cities.find((c) => c.id === cityId);
+  if (!city || city.cityState === undefined) { then(); return; }
+  const at = cityStateSquare(city);
+  const open = (): void => {
+    const intro = cityStateIntro(city);
+    sound.play("meet");
+    modal(intro.title, intro.lines, ["OK"], () => then(), 0, then);
+    if (screenState.kind === "menu") screenState.pointTo = { x: at.x, y: at.y };
+  };
+  centerOn(at.x, at.y);
+  if (cam.animating) { screenState = { kind: "beat", until: performance.now() + CAMERA_MS + BUILT_SETTLE_MS, then: open }; return; }
+  open();
+}
+
+/**
+ * A city-state's window (asked for 2026-11-03: "allow clicking each city-state unit+city and asking to pay tribute to
+ * stop city aggresion"), opened by a click on its city or a soldier of it, or from the square's window: how we stand
+ * with it, and its peace for its price (`cityStateCard`), standing by the square clicked and pointing at it.
+ */
+function openCityStateCard(cityId: number, at: { x: number; y: number }): void {
+  const city = state.cities.find((c) => c.id === cityId);
+  if (!city || city.cityState === undefined) return;
+  const card = cityStateCard(state, city, 0);
+  if (!card.buttons.length) modal(card.title, card.lines, ["OK"], () => {});
+  else modal(card.title, card.lines, card.buttons, (i) => { if (card.canPay && i === 0) payCityState(cityId); }, card.buttons.length - 1);
+  if (screenState.kind === "menu") {
+    screenState.menu.close = true;
+    screenState.pointTo = at;
+  }
+}
+
+/** Pay city-state `cityId` for its peace unasked (`cityStateOffer`), said here, not again in the turn's news. */
+function payCityState(cityId: number): void {
+  const mark = lastTurnEvents.length;
+  if (!dispatch({ type: "cityStateOffer", city: cityId })) return;
+  const ev = lastTurnEvents.slice(mark).find((e) => e.kind === "cityStateTribute");
+  lastTurnEvents.splice(mark);
+  sound.play("gift");
+  if (ev?.kind === "cityStateTribute" && ev.until !== undefined) say(`${ev.name} takes our ${ev.gold} gold and leaves us be until ${formatYear(turnToYear(ev.until))}.`, 4000);
 }
 
 /**
@@ -794,7 +880,7 @@ function afterAction(unit?: number): void {
  * (asked for 2026-11-02: "first the unit need to visibly enter the hut and only then show the hut result"): the rules
  * open a village as the unit's step is taken, and the slide that shows it comes after.
  */
-function holdVillages(events: readonly TurnEvent[]): void {
+function holdVillages(events: readonly News[]): void {
   const entered = events.filter((ev): ev is Extract<TurnEvent, { kind: "hut" }> => ev.kind === "hut" && ev.player === 0);
   if (entered.length) view.villages = [...(view.villages ?? []), ...entered.map(({ x, y, units }) => ({ x, y, units }))];
 }
@@ -917,6 +1003,7 @@ function startGame(opts: NewGameOptions, seed = (Date.now() ^ (Math.random() * 0
   announced.clear();
   knowPlaces();
   knowResources();
+  metCityStates.clear();
   resetMotion();
   screenState = { kind: "map" };
   cam.ready = false;
@@ -985,6 +1072,7 @@ function enterLoaded(loaded: LoadedGame): void {
     announced.clear();
     knowPlaces();
     knowResources();
+    metCityStates = new Set(cityStatesCameUpon());
     resetMotion();
     for (const p of state.players) if (p.id !== 0 && hasContact(state, 0, p.id)) announced.add(p.id);
     screenState = { kind: "map" };
@@ -1701,6 +1789,9 @@ function openTerrainInfo(tx: number, ty: number, at?: { x: number; y: number }):
   const items: [string, () => void][] = [];
   const city = cityAt(state, tx, ty);
   if (city && city.owner === 0) items.push(["Open city", () => openCity(city.id)]);
+  // A city-state's city or soldier: its window, to buy its peace (the phone's way: a tap there with a unit in play moves it).
+  const cs = cityStateAt(state, tx, ty, 0);
+  if (cs) items.push(["City-state...", () => openCityStateCard(cs.id, { x: tx, y: ty })]);
   // Closed by its X (or any click off its choices, or Esc); nothing is picked until a choice is.
   modal(info.title, info.card ? [] : info.lines, items.map((i) => i[0]), (i) => items[i]?.[1](), -1);
   if (screenState.kind === "menu") {
@@ -3041,7 +3132,7 @@ function askChoices(then: () => void): void {
 }
 
 /** Play the turn's events as a chain of screens, then land on the map. */
-function presentEvents(events: TurnEvent[], done?: () => void): void {
+function presentEvents(events: News[], done?: () => void): void {
   const next = (): void => {
     const ev = events.shift();
     if (!ev) {
@@ -3050,6 +3141,7 @@ function presentEvents(events: TurnEvent[], done?: () => void): void {
       done?.();
       return;
     }
+    if (ev.kind === "cityStateMet") { introduceCityState(ev.city, next); return; }
     if (ev.kind === "discovered") {
       // Everything found this turn (research, Darwin's Voyage, the Great Library) shares one window,
       // and when the research is due the next advance is picked there.
@@ -3231,7 +3323,8 @@ function passTurn(): void {
   // A declaration of war from someone we know comes before their attack is seen, so it explains it.
   const met = new Set(contacts.map((ev) => (ev.kind === "contact" ? ev.player : -1)));
   const wars = events.filter((ev) => ev.kind === "warDeclared" && ev.on === 0 && !met.has(ev.player));
-  const news = [...contacts, ...events.filter((ev) => !wars.includes(ev))];
+  // City-states come upon (their soldiers marching into sight) are introduced before what they demand.
+  const news: News[] = [...contacts, ...newCityStates(), ...events.filter((ev) => !wars.includes(ev))];
   holdVillages(news);
   const fights = actions.filter((a): a is UnitBattle => a.kind === "battle" && (a.attacker.owner === 0 || a.defender.owner === 0));
   void runAiPlayers; // replay helper lives in core; here the loop above also harvests events
@@ -3968,6 +4061,9 @@ function mouseDown(e: MouseEvent): void {
     if (state.activeUnit !== own.id) say("No moves left this turn");
     return;
   }
+  // A city-state's city or soldier: its window, how we stand with it and its peace for sale (asked for 2026-11-03).
+  const cs = cityStateAt(state, tx, ty, 0);
+  if (cs) { openCityStateCard(cs.id, { x: tx, y: ty }); return; }
   // Anywhere else the map centres on the square and shows it in the panel; a second left-click on it
   // opens the square's window (asked for 2026-10-27: with the right button moving the unit in play,
   // a square's terrain could not be seen without Shift).
@@ -4090,9 +4186,10 @@ function draw(sc: Screen): void {
       draw(sc.under);
       view.menuOpen = undefined;
       if (sc.bar === undefined && !sc.sub) sc.menu.enter = enterOf(sc.menu);
-      // The square's window over the map stands by its square, pointing at it, wherever the camera has it.
-      if (sc.menu.square && sc.under.kind === "map") {
-        const at = renderer.squareRect?.(state, view, sc.menu.square.x, sc.menu.square.y);
+      // The square's window over the map (or a city-state's) stands by its square, pointing at it, wherever the camera has it.
+      const pointTo = sc.menu.square ?? sc.pointTo;
+      if (pointTo && sc.under.kind === "map") {
+        const at = renderer.squareRect?.(state, view, pointTo.x, pointTo.y);
         if (at) sc.menu.point = at;
         else delete sc.menu.point;
       }

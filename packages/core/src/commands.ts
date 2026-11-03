@@ -58,7 +58,7 @@ import { discoverExplored } from "./map/geography.js";
 import { findPath, stepDir } from "./pathfind.js";
 import { landOwner } from "./territory.js";
 import { chronicleOf, notePeaks } from "./chronicle.js";
-import { boughtOff, demandOn, dropDemand, noteDemand, payTribute, settleCityStates, tributePrice, unitCityState, whyNoDemand } from "./city-states.js";
+import { boughtOff, demandOn, dropDemand, noteDemand, offerTribute, payTribute, settleCityStates, tributePrice, unitCityState, whyNoDemand, whyNoOffer } from "./city-states.js";
 import { addTrade, endTrades, missingResources, settleTrades, specialFor, whyNoTrade } from "./resources.js";
 import { advanceWorth, applyExchange, payTrades, resourceWorth, whyNoExchange } from "./exchange.js";
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, knows } from "./rules/advances.js";
@@ -141,6 +141,7 @@ export type Command =
   | { type: "launch" } // the spaceship, once it can fly
   | { type: "cityStateDemand"; city: number; player: number; target?: number } // a city-state (the barbarians' seat) demands tribute of `player`, its soldiers set out for `target`
   | { type: "cityStateTribute"; city: number; pay: boolean } // the current player pays city-state `city` its demand (its peace for a while), or refuses
+  | { type: "cityStateOffer"; city: number } // the current player pays city-state `city` unasked (its demand, else its price) for its peace a while
   | { type: "cheat"; cheat: Cheat } // the debug menu; logged like any order so saves still replay
   | { type: "endTurn" };
 
@@ -291,6 +292,15 @@ export function applyCommand(state: GameState, cmd: Command): CommandResult {
       if (me.gold < d.gold) return { ok: false, reason: "not enough gold" };
       const until = payTribute(state, d);
       lastTurnEvents.push({ kind: "cityStateTribute", from: cmd.city, name, player: me.id, gold: d.gold, paid: true, until });
+      return { ok: true };
+    }
+    case "cityStateOffer": {
+      const me = state.players[state.currentPlayer]!;
+      const city = state.cities.find((c) => c.id === cmd.city);
+      const why = whyNoOffer(state, city, me.id);
+      if (why) return { ok: false, reason: why };
+      const { gold, until } = offerTribute(state, cmd.city, me.id);
+      lastTurnEvents.push({ kind: "cityStateTribute", from: cmd.city, name: city!.name, player: me.id, gold, paid: true, until });
       return { ok: true };
     }
     case "declareWar": {
@@ -1061,7 +1071,7 @@ function clampRates(p: Player): void {
 
 function applyCityCommand(
   state: GameState,
-  cmd: Exclude<Extract<Command, { city: number }>, { type: "cityStateDemand" | "cityStateTribute" }>,
+  cmd: Exclude<Extract<Command, { city: number }>, { type: "cityStateDemand" | "cityStateTribute" | "cityStateOffer" }>,
 ): CommandResult {
   const city = cityById(state, cmd.city);
   if (!city) return { ok: false, reason: "no such city" };

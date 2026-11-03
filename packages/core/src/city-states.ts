@@ -221,6 +221,37 @@ export function payTribute(state: GameState, d: CityStateDemand): number {
   return until;
 }
 
+/**
+ * What `player` pays city-state `city` for its peace unasked (asked for 2026-11-03: "allow clicking each city-state
+ * unit+city and asking to pay tribute to stop city aggresion"): the gold of the demand it has standing on them, else
+ * its price (`tributePrice`).
+ */
+export function offerPrice(state: GameState, city: number, player: number): number {
+  return demandOn(state, city, player)?.gold ?? tributePrice(state, player);
+}
+
+/** Why `player` may not pay city-state `city` tribute unasked now, or null when they may (`cityStateOffer`). */
+export function whyNoOffer(state: GameState, city: City | undefined, player: number): string | null {
+  if (!city || city.cityState === undefined || city.owner !== state.barbarians) return "not a city-state";
+  const p = state.players[player];
+  if (!p || !p.alive || player === state.barbarians) return "no one to pay";
+  if (peaceUntil(state, city.id, player) !== undefined) return "paid already";
+  if (!cameUpon(state, city, player)) return "not come upon";
+  if (p.gold < offerPrice(state, city.id, player)) return "not enough gold";
+  return null;
+}
+
+/** `player` pays city-state `city` unasked: its standing demand if it has one, else its price; it leaves them be a while. */
+export function offerTribute(state: GameState, city: number, player: number): { gold: number; until: number } {
+  const d = demandOn(state, city, player);
+  if (d) return { gold: d.gold, until: payTribute(state, d) };
+  const gold = tributePrice(state, player);
+  state.players[player]!.gold -= gold;
+  const until = state.turn + CITY_STATE.peaceTurns;
+  (state.cityStatePeace ??= {})[peaceKey(city, player)] = until;
+  return { gold, until };
+}
+
 export function dropDemand(state: GameState, d: CityStateDemand): void {
   state.cityStateDemands = (state.cityStateDemands ?? []).filter((x) => x !== d);
   if (!state.cityStateDemands.length) delete state.cityStateDemands;

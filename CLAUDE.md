@@ -214,7 +214,21 @@ Never ship the original's sprites, palette art, fonts or text.
   treasury keeps its cushion after. Told by name: the web app's "Knossos Demands Tribute" window (Pay, or Refuse by
   default; `cityStateDemandCard`), the news, the conquest window ("Taken from the city-state of Tyre", "Burned by
   ..."), fights ("Legion of Tyre attacks!", `BattleSide.cityState`, `unitTitle`), the square's window ("Tyre (a
-  city-state of the Phoenicians)", "Land of Tyre"); the barbarians' land bears no civ name on the maps. Head to head
+  city-state of the Phoenicians)", "Land of Tyre"); the barbarians' land bears no civ name on the maps. The first time
+  the player comes upon each city-state (`cameUpon`; asked for 2026-11-03: "when encouter a city-state add a small
+  notification explanation about it"), the map glides to it (its city, else its soldier in sight) and a small window
+  stands by it pointing at it (renderer-api `cityStateIntro`: "Petra, a City-State", three lines: a lone city of its
+  people at war with all, it raids unless paid, click it to buy peace or take it; the web app's `newCityStates`,
+  `introduceCityState`, a `cityStateMet` item of the news, `News`, before what it demands; a loaded game knows those it
+  had come upon, `metCityStates`). Peace is bought unasked too (asked for the same day: "allow clicking each city-state
+  unit+city and asking to pay tribute to stop city aggresion"): a left-click on a city-state's city (explored) or a
+  soldier of it in sight (renderer-api `cityStateAt`), or the square's window's "City-state..." (the phone's way, as
+  a tap there with a unit in play moves it), opens its window by the square (`cityStateCard`, `openCityStateCard`; the
+  menu screen's `pointTo`): its size, how we stand (open to its raids, a demand standing, or paid off until a year),
+  "Pay N gold" and Leave (Leave alone without the gold, no button while its peace holds); paying is the core
+  `cityStateOffer` command (`whyNoOffer`: a city-state we have come upon, not paid already, the gold in hand;
+  `offerTribute`: its standing demand's gold, else `offerPrice`, `tributePrice`; the same `CITY_STATE.peaceTurns`), told
+  in the status line. No save version: the AI never offers, and old logs hold no offer. Head to head
   (planner vs v2, 16 x 300, seeds 1-16): without them 10-6, score 217 vs 183, cities 12.3 vs 11.6, pop 77 vs 72; with
   them 8-8, 158 vs 124, cities 10.7 vs 6.8, pop 58 vs 38 (the planner takes 1.4 cities a seat, v2 never fights them),
   all replaying exactly. At turn 200 (planner in every seat, 3 seeds) cities a civ 7.4 without, 4.9 with (5.8 with

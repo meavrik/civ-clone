@@ -18,6 +18,7 @@ import {
   resolveCombat,
   setRelation,
   Terrain,
+  tributePrice,
   type City,
   type GameState,
 } from "../src/index.js";
@@ -138,6 +139,37 @@ describe("city-states", () => {
     expect(peaceUntil(s, tyre.id, 0)).toBeUndefined();
   });
 
+  it("take tribute offered unasked, for their price or their standing demand, from one who has come upon them", () => {
+    const { s, tyre } = world();
+    const me = s.players[0]!;
+    // Ours to offer: not a city of anyone else's, not one we have never come upon, not without the gold.
+    const rome = foundCity(s, 0, 26, 10, "Rome");
+    expect(applyCommand(s, { type: "cityStateOffer", city: rome.id })).toEqual({ ok: false, reason: "not a city-state" });
+    me.gold = 0;
+    expect(applyCommand(s, { type: "cityStateOffer", city: tyre.id })).toEqual({ ok: false, reason: "not enough gold" });
+    me.explored[10 * s.map.width + 20] = 0;
+    me.gold = 500;
+    expect(applyCommand(s, { type: "cityStateOffer", city: tyre.id })).toEqual({ ok: false, reason: "not come upon" });
+    me.explored[10 * s.map.width + 20] = 1;
+    // Paid: its price goes, and Tyre leaves us be for its turns of peace, as a demand paid would.
+    const price = tributePrice(s, 0);
+    expect(applyCommand(s, { type: "cityStateOffer", city: tyre.id }).ok).toBe(true);
+    expect(me.gold).toBe(500 - price);
+    expect(peaceUntil(s, tyre.id, 0)).toBe(s.turn + CITY_STATE.peaceTurns);
+    expect([...lastTurnEvents].reverse().find((e) => e.kind === "cityStateTribute")).toMatchObject({ from: tyre.id, player: 0, gold: price, paid: true, until: s.turn + CITY_STATE.peaceTurns });
+    expect(applyCommand(s, { type: "cityStateOffer", city: tyre.id })).toEqual({ ok: false, reason: "paid already" });
+    // With a demand standing, it is the demand that is paid.
+    const { s: s2, tyre: tyre2 } = world();
+    s2.players[0]!.gold = 500;
+    s2.currentPlayer = s2.barbarians;
+    expect(applyCommand(s2, { type: "cityStateDemand", city: tyre2.id, player: 0 }).ok).toBe(true);
+    s2.cityStateDemands![0]!.gold = 70;
+    s2.currentPlayer = 0;
+    expect(applyCommand(s2, { type: "cityStateOffer", city: tyre2.id }).ok).toBe(true);
+    expect(s2.players[0]!.gold).toBe(430);
+    expect(s2.cityStateDemands).toBeUndefined();
+  });
+
   it("let an unanswered demand lapse as their turn comes round, and refuse one we cannot pay", () => {
     const { s, tyre } = world();
     s.players[0]!.gold = 0;
@@ -151,7 +183,7 @@ describe("city-states", () => {
     s.currentPlayer = 0;
     expect(s.cityStateDemands).toHaveLength(1);
     expect(applyCommand(s, { type: "cityStateTribute", city: tyre.id, pay: false }).ok).toBe(true);
-    expect(lastTurnEvents.find((e) => e.kind === "cityStateTribute")).toMatchObject({ paid: false, name: "Tyre" });
+    expect([...lastTurnEvents].reverse().find((e) => e.kind === "cityStateTribute")).toMatchObject({ paid: false, name: "Tyre" });
     expect(s.players[0]!.gold).toBe(500);
     // Refused, it asks again only after its turns between (asked for 2026-10-31: it asked every turn).
     s.currentPlayer = s.barbarians;
