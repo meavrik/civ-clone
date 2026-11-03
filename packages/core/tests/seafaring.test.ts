@@ -188,7 +188,7 @@ describe("War Elephants (save version 53)", () => {
       // laid: before specials of a kind were spread apart (version 57, `clusteredResources`).
       const old = newGame(seed, { catalogue: 52, clusteredResources: true });
       expect(old.map.tiles.some((t) => t.deposit === "Elephants")).toBe(false);
-      newGame(seed, { clusteredResources: true }).map.tiles.forEach((t, i) => { if (t.deposit !== "Elephants" && t.terrain !== Terrain.Ocean) expect(old.map.tiles[i]!.deposit, `${seed}:${i}`).toBe(t.deposit); });
+      newGame(seed, { clusteredResources: true, catalogue: 60 }).map.tiles.forEach((t, i) => { if (t.deposit !== "Elephants" && t.terrain !== Terrain.Ocean) expect(old.map.tiles[i]!.deposit, `${seed}:${i}`).toBe(t.deposit); });
     }
     expect(seen).toBeGreaterThan(5);
   });

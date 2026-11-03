@@ -1,6 +1,6 @@
 import { nextFloat, nextInt, type RngState } from "../rng.js";
 import { inCatalogue } from "../rules/catalogue.js";
-import { RESOURCE_BY_ID, RESOURCES } from "../rules/resources.js";
+import { DEPOSIT_BY_ID, HERDS, RESOURCE_BY_ID, RESOURCES, type DepositRule } from "../rules/resources.js";
 import { secondKind, SPECIAL_REACH_SINCE, SPECIAL_SPACING, specialOf, SPREAD_REACH, TERRAIN_RULES, type SpecialRule } from "../rules/terrain.js";
 import { MAP_WIDTH, NEIGHBOURS, Terrain, worldSize, wrapX, type Tile, type WorldMap, type WorldSize } from "../types.js";
 import { findGeography } from "./geography.js";
@@ -496,15 +496,16 @@ export function scatterSpecials(map: WorldMap, rng: RngState, resources?: number
  * its terrain may hold, each with its share (`ResourceRule.deposits`), or none. No RNG, so the seed's
  * draws stay as they were; the square's special is then that resource (`Tile.deposit`). A resource with
  * `besides` lies only on that terrain or next to it; one its game's version did not know (`catalogue`) lies
- * nowhere. Each resource keeps its slice of the roll, so a later one only takes squares that held none.
+ * nowhere. Each resource keeps its slice of the roll, so a later one only takes squares that held none;
+ * the herds (`HERDS`, since save version 61) roll after them all.
  */
 export function scatterDeposits(map: WorldMap, seed: number, catalogue?: number): void {
   const { width: w, height: h, tiles } = map;
   const ox = 7 * (seed % 1000);
   const oy = seed % 997;
-  const resources = RESOURCES.filter((r) => inCatalogue({ catalogue }, r));
+  const resources: readonly DepositRule[] = [...RESOURCES, ...HERDS].filter((r) => inCatalogue({ catalogue }, r));
   // At sea (since save version 55): squares the land's deposits never took, so those lie where they did.
-  const offshore = resources.flatMap((r) => (r.offshore && inCatalogue({ catalogue }, r.offshore) ? [{ id: r.id, ...r.offshore }] : []));
+  const offshore = RESOURCES.filter((r) => inCatalogue({ catalogue }, r)).flatMap((r) => (r.offshore && inCatalogue({ catalogue }, r.offshore) ? [{ id: r.id, ...r.offshore }] : []));
   const beside = (x: number, y: number, terrain: Terrain): boolean =>
     tiles[y * w + x]!.terrain === terrain || NEIGHBOURS.some(([dx, dy]) => y + dy >= 0 && y + dy < h && tiles[(y + dy) * w + wrapX(map, x + dx)]!.terrain === terrain);
   for (let y = 1; y < h - 1; y++)
@@ -537,7 +538,8 @@ export function scatterDeposits(map: WorldMap, seed: number, catalogue?: number)
 
 /**
  * Specials of one kind kept `SPECIAL_SPACING` squares apart (worlds since save version 57): the lattice's first, then
- * the deposits, each in an order hashed from the square and the seed (no RNG, so the seed's draws stay as they were).
+ * the deposits, then the herds (since save version 61, so every other special lies where it did), each in an order
+ * hashed from the square and the seed (no RNG, so the seed's draws stay as they were).
  * One with another of its kind too near moves to the nearest square that suits it and is clear of its kind, ring by
  * ring up to `SPREAD_REACH` out (a deposit to a terrain its resource may lie on, and beside the terrain it must be
  * beside; a lattice special to its own terrain, within its reach of land), so a world keeps about as many of each;
@@ -553,7 +555,7 @@ export function spreadSpecials(map: WorldMap, seed: number): void {
       const t = tiles[y * w + x]!;
       const name = specialOf(t)?.name;
       if (name === undefined) continue;
-      const order = (t.deposit ? 1 : 0) + squareHash(x * 3 + (seed % 499), y * 17 + (seed % 101));
+      const order = (!t.deposit ? 0 : HERD_IDS.has(t.deposit) ? 2 : 1) + squareHash(x * 3 + (seed % 499), y * 17 + (seed % 101));
       items.push({ x, y, name, terrain: t.terrain, second: !!t.secondSpecial, ...(t.deposit ? { deposit: t.deposit } : {}), order });
       t.special = false;
       delete t.secondSpecial;
@@ -574,10 +576,11 @@ export function spreadSpecials(map: WorldMap, seed: number): void {
     const t = at(x, y);
     if (t.special || kept[y * w + wrapX(map, x)] !== undefined) return false;
     if (it.deposit !== undefined) {
-      const r = RESOURCE_BY_ID[it.deposit]!;
+      const r = DEPOSIT_BY_ID[it.deposit]!;
+      const offshore = RESOURCE_BY_ID[it.deposit]?.offshore;
       // At sea a deposit stays at sea, on land on land.
       if ((t.terrain === Terrain.Ocean) !== (it.terrain === Terrain.Ocean)) return false;
-      if (t.terrain === Terrain.Ocean) return !!r.offshore && landDistance(map, x, y, r.offshore.within) <= r.offshore.within;
+      if (t.terrain === Terrain.Ocean) return !!offshore && landDistance(map, x, y, offshore.within) <= offshore.within;
       if (!(r.deposits[t.terrain] ?? 0)) return false;
       return r.besides === undefined || t.terrain === r.besides || NEIGHBOURS.some(([dx, dy]) => y + dy >= 0 && y + dy < h && at(x + dx, y + dy).terrain === r.besides);
     }
@@ -596,7 +599,9 @@ export function spreadSpecials(map: WorldMap, seed: number): void {
     kept[y * w + wrapX(map, x)] = it.name;
   };
   for (const it of items) {
-    if (clear(it.x, it.y, it.name)) {
+    // A herd never takes a square another special moved to (the others, before it, may: as worlds of save version 57 had them).
+    const free = it.deposit === undefined || !HERD_IDS.has(it.deposit) || kept[it.y * w + it.x] === undefined;
+    if (free && clear(it.x, it.y, it.name)) {
       place(it, it.x, it.y);
       continue;
     }
@@ -612,6 +617,8 @@ export function spreadSpecials(map: WorldMap, seed: number): void {
         }
   }
 }
+
+const HERD_IDS: ReadonlySet<string> = new Set(HERDS.map((r) => r.id));
 
 /** How many squares from land (x, y) lies, counting diagonals as one; `cap` + 1 if no land is that near. */
 function landDistance(map: WorldMap, x: number, y: number, cap: number): number {

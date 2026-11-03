@@ -36,8 +36,8 @@ const MARKS: Record<string, readonly string[]> = {
     "..#####..",
     ".#.....#.",
   ],
-  // Buffalo: bull's head with horns.
-  resources: [
+  // Bison: a bull's head with horns.
+  bison: [
     "#.......#",
     "##.....##",
     ".#######.",
@@ -278,6 +278,30 @@ const MARKS: Record<string, readonly string[]> = {
     "#.#######",
     "#.##..##.",
     "..##..##.",
+    ".........",
+  ],
+  // Sheep facing right: a fleece on thin legs.
+  sheep: [
+    ".........",
+    ".#.#.#...",
+    "########.",
+    "#########",
+    "#######..",
+    ".######..",
+    ".#...#...",
+    ".#...#...",
+    ".........",
+  ],
+  // Camel facing right: two humps, the neck up to its head.
+  camels: [
+    ".......##",
+    ".##.##.#.",
+    "########.",
+    ".######..",
+    ".#....#..",
+    ".#....#..",
+    ".#....#..",
+    ".#....#..",
     ".........",
   ],
   // Drop over a wave.

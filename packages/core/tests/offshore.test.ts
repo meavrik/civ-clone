@@ -53,7 +53,7 @@ describe("Oil at sea (save version 55)", () => {
     let seen = 0;
     for (const seed of [2, 5, 9]) {
       // The worlds as laid, before specials of a kind were spread apart (version 57, `clusteredResources`).
-      const s = newGame(seed, { clusteredResources: true });
+      const s = newGame(seed, { clusteredResources: true, catalogue: 60 });
       const old = newGame(seed, { catalogue: 54, clusteredResources: true });
       s.map.tiles.forEach((t, i) => {
         const x = i % s.map.width, y = Math.floor(i / s.map.width);
@@ -69,7 +69,7 @@ describe("Oil at sea (save version 55)", () => {
       const starts = (g: GameState) => g.units.map((u) => `${u.owner}:${u.x},${u.y}`).sort();
       expect(starts(s)).toEqual(starts(old));
       const states = (g: GameState) => g.cities.map((c) => `${c.cityState}:${c.x},${c.y}`);
-      expect(states(newGame(seed, { cityStates: true, clusteredResources: true }))).toEqual(states(newGame(seed, { cityStates: true, catalogue: 54, clusteredResources: true })));
+      expect(states(newGame(seed, { cityStates: true, clusteredResources: true, catalogue: 60 }))).toEqual(states(newGame(seed, { cityStates: true, catalogue: 54, clusteredResources: true })));
     }
     expect(seen).toBeGreaterThan(20);
   });

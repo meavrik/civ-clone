@@ -11,7 +11,7 @@ import { levelContent, levelPct } from "./levels.js";
 import { BALANCED_WEIGHTS, combinedFocus, focusRule, type FocusRule } from "./rules/focus.js";
 import { nextCityName } from "./rules/names.js";
 import { RESOURCE_BY_ID } from "./rules/resources.js";
-import { TERRAIN_RULES, type SpecialRule } from "./rules/terrain.js";
+import { learnedOf, TERRAIN_RULES, type SpecialRule } from "./rules/terrain.js";
 import { INFLUENCE_YIELD } from "./rules/culture.js";
 import { VETERAN_XP } from "./rules/experience.js";
 import { UNIT_TYPES, unitType, type UnitTypeRule } from "./rules/units.js";
@@ -59,12 +59,14 @@ export function tileYield(state: GameState, tile: Tile, isCentre: boolean, govId
     food += sp.food ?? 0;
     shields += sp.shields ?? 0;
     trade += sp.trade ?? 0;
-    const learned = sp.learned;
-    if (learned && owner !== undefined && knows(state.players[owner]?.advances ?? [], learned.advance)) {
-      food += learned.food ?? 0;
-      shields += learned.shields ?? 0;
-      trade += learned.trade ?? 0;
-    }
+    // What the working civilization's advances add (Animal Husbandry's pastures, Weaving's wool).
+    if (owner !== undefined)
+      for (const learned of learnedOf(sp))
+        if (knows(state.players[owner]?.advances ?? [], learned.advance)) {
+          food += learned.food ?? 0;
+          shields += learned.shields ?? 0;
+          trade += learned.trade ?? 0;
+        }
     // A fishery a Fishing Boat laid on it (since save version 53).
     if (tile.fishery && sp.fishery) {
       const f = fisheryYield(state, sp);

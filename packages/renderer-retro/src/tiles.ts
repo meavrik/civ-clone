@@ -411,8 +411,11 @@ export function shadeUnseen(s: Surface, dx: number, dy: number, mask: Uint8Array
   }
 }
 
-/** A special's icon's name in the resources sheet (lower case, words joined: "Offshore Oil" is offshore_oil). */
-const iconName = (name: string) => name.toLowerCase().replace(/ /g, "_");
+/**
+ * A special's icon's name in the resources sheet (lower case, words joined: "Offshore Oil" is offshore_oil). Grassland's
+ * Resources (games before save version 26) are the bison, as the Bison herds since 61.
+ */
+const iconName = (name: string) => (name === "Resources" ? "bison" : name.toLowerCase().replace(/ /g, "_"));
 
 /** A special's picture by its name (`iconName`). */
 export function specialSprite(name: string): Surface | null {

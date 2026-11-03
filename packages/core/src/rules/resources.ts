@@ -16,13 +16,7 @@ import type { SpecialRule } from "./terrain.js";
  * a special of that kind, drawn and yielding as one. Saves before version 33 load with `noResources`:
  * no deposits, and every unit built from its advance alone.
  */
-export interface ResourceRule {
-  /** The special it is (`SpecialRule.name`), and its name. */
-  id: string;
-  /** Its special, wherever it lies. */
-  special: SpecialRule;
-  /** The terrains its deposits lie on, and the share of their squares without a special that hold one. */
-  deposits: Partial<Record<Terrain, number>>;
+export interface ResourceRule extends DepositRule {
   /** A few words of our own on what it is good for. */
   text: string;
   /**
@@ -33,8 +27,6 @@ export interface ResourceRule {
    * game's own specials of plains and hills, seen from the start.
    */
   revealedBy?: string;
-  /** Its deposits lie only on this terrain or beside it (Elephants: in and at the edge of the jungle). */
-  besides?: Terrain;
   /**
    * The units that need it stay out of a city's build menu until its civilization holds it (asked for 2026-11-02: "dont
    * show war-elephents until have elephents as resource"; half the civs never hold Elephants). Other resources' units
@@ -49,6 +41,21 @@ export interface ResourceRule {
    * rig adds `rig.shields` to the square for whoever works it.
    */
   offshore?: { share: number; within: number; since: number; rig: { advance: string; shields: number } };
+}
+
+/**
+ * A special that lies in deposits (`Tile.deposit`) besides the terrains' own lattice: a strategic resource
+ * (`ResourceRule`), or a herd (`HERDS`), which only yields.
+ */
+export interface DepositRule {
+  /** The special it is (`SpecialRule.name`), and its name. */
+  id: string;
+  /** Its special, wherever it lies. */
+  special: SpecialRule;
+  /** The terrains its deposits lie on, and the share of their squares without a special that hold one. */
+  deposits: Partial<Record<Terrain, number>>;
+  /** Its deposits lie only on this terrain or beside it (Elephants: in and at the edge of the jungle). */
+  besides?: Terrain;
   /** The save version that brought it; worlds of older games (`GameState.catalogue`) hold none, and no unit there needs it. */
   since?: number;
 }
@@ -80,6 +87,30 @@ export const RESOURCES: readonly ResourceRule[] = [
 
 export const RESOURCE_BY_ID: Readonly<Record<string, ResourceRule>> = Object.fromEntries(RESOURCES.map((r) => [r.id, r]));
 
+// Mutton and milk; tamed, more; Weaving spins their wool for trade.
+export const SHEEP: SpecialRule = { name: "Sheep", food: 1, learned: [{ advance: "animal_husbandry", food: 1 }, { advance: "weaving", trade: 1 }], since: 61 };
+// The caravans' beasts; tamed, milk as well.
+export const CAMELS: SpecialRule = { name: "Camels", food: 1, trade: 2, learned: { advance: "animal_husbandry", food: 1 }, since: 61 };
+// Hides and meat, as grassland's Resources gave a shield; tamed, more meat.
+export const BISON: SpecialRule = { name: "Bison", shields: 1, learned: { advance: "animal_husbandry", food: 1 }, since: 61 };
+
+/**
+ * Herds (asked for 2026-11-03, with the user's sheet of resources: "sheep, bison, dear camel, seal - would get food bonus
+ * with husbandry tech", "sheep cotton silk - would get bonus with weaving tech"; since save version 61): bonus resources
+ * that lie in deposits as the strategic ones do, after their slices of the roll, so every other deposit lies where it
+ * did, but only yield: no unit needs them, no one holds or trades them. Sheep graze the plains, camels the desert, bison
+ * the grassland (the bison was the picture of grassland's Resources, gone from the land since save version 26). All seen
+ * from the start, and Animal Husbandry tames each for a food more, as it does Horses, Game, Seals and Elephants.
+ */
+export const HERDS: readonly DepositRule[] = [
+  { id: "Sheep", special: SHEEP, deposits: { [Terrain.Plains]: 0.06 }, since: 61 },
+  { id: "Camels", special: CAMELS, deposits: { [Terrain.Desert]: 0.1 }, since: 61 },
+  { id: "Bison", special: BISON, deposits: { [Terrain.Grassland]: 0.04 }, since: 61 },
+];
+
+/** Every special that lies in deposits, strategic resources and herds, by id. */
+export const DEPOSIT_BY_ID: Readonly<Record<string, DepositRule>> = Object.fromEntries([...RESOURCES, ...HERDS].map((r) => [r.id, r]));
+
 /** The save version that brought strategic resources and their deposits. */
 export const RESOURCES_SINCE = 33;
 
@@ -90,6 +121,11 @@ export const REVEAL_SINCE = 40;
 /** The strategic resources of a game, in `RESOURCES` order: those its version knew (`GameState.catalogue`). */
 export function resourcesIn(state: { catalogue?: number | undefined }): readonly ResourceRule[] {
   return state.catalogue === undefined ? RESOURCES : RESOURCES.filter((r) => inCatalogue(state, r));
+}
+
+/** The herds of a game: those its version knew (`GameState.catalogue`). */
+export function herdsIn(state: { catalogue?: number | undefined }): readonly DepositRule[] {
+  return HERDS.filter((r) => inCatalogue(state, r));
 }
 
 /** Whether a special is strategic (a resource units may need). */

@@ -59,9 +59,9 @@ Never ship the original's sprites, palette art, fonts or text.
   land terrain and the sea has a second kind (our departure, asked for 2026-10-21, after Civilization II:
   Whales, Cotton, Wheat, Silk, Wine, Iron, Oil, Furs, Ivory, Spices, Fruit; tundra's Game is forest's),
   on about half their lattice squares (`Tile.secondSpecial`, a hash of the square, no RNG, so seeds keep
-  their worlds); `learned` may add food, shields or trade with an advance (a strategic resource no shields since
-  save version 52, see Strategic resources below; Navigation, Weaving, Pottery,
-  Iron Working, Refining). Each carries `since` (the save version that brought it); old saves load with
+  their worlds); `learned` may add food, shields or trade with an advance, or with each of several (read it with
+  `learnedOf`: Sheep's two, see Herds below; a strategic resource no shields since save version 52, see Strategic
+  resources below; Navigation, Weaving, Pottery, Iron Working, Refining, Animal Husbandry). Each carries `since` (the save version that brought it); old saves load with
   `resources` (their version), so their worlds have only the kinds they knew (`secondKind`). A kind may
   have a reach (`within`/`beyond` squares from land): Fish within 2, Whales beyond 2 (deep water), from
   version 19 (`SPECIAL_REACH_SINCE`). A city works whales only two squares out off a straight coast;
@@ -530,6 +530,25 @@ Never ship the original's sprites, palette art, fonts or text.
   seeds 1-16): 10-6, score 95 vs 74, pop 40 vs 24, techs 19.4 vs 14.9 (Seafaring in its old place: 8-8, 93 vs 81); rich
   sea 7-9, 108 vs 99, techs 24.0 vs 20.8, as version 57; all replaying exactly. Research runs about a fifth slower for
   everyone (v2 builds no Harbour).
+  Herds (asked for 2026-11-03 with the user's updated sheet of resources: "sheep cotton silk - would get bonus with weaving
+  tech", "sheep, bison, dear camel, seal - would get food bonus with husbandry tech"; save version 61): `HERDS` in
+  `rules/resources.ts`, bonus resources: Sheep on plains (+1 food; Animal Husbandry +1 food, Weaving +1 trade: 2/1/0, 3/1/1
+  with both), Camels in the desert (+1 food +2 trade; Animal Husbandry +1 food: 1/1/2, 2/1/2) and Bison on grassland (+1
+  shield, as grassland's Resources gave before save version 26, its picture the bison; Animal Husbandry +1 food: 2/1/0,
+  3/1/0). Cotton and Silk had Weaving's gains already, Game (the deer) and Seals Animal Husbandry's. A special carries one
+  advance's gain or a list (`SpecialRule.learned`, read with `learnedOf`: `tileYield`, `yieldingSpecial`, the research
+  card). They lie in deposits as the strategic resources do (`Tile.deposit`; a `DepositRule`, looked up in `DEPOSIT_BY_ID`
+  by `specialOf`), rolled after the strategic resources' slices (`scatterDeposits`: Sheep 6% of plains without a special,
+  Camels 10% of desert, Bison 4% of grassland) and spread last (`spreadSpecials`, never onto a square another special
+  moved to), so every other special lies where it did: about 13 sheep, 9 camels and 10 bison a small world (27, 22 and 23
+  medium). Seen from the start; no unit needs them, no one holds or trades them (`RESOURCE_BY_ID`, `isStrategic` and the
+  Resources advisor know only the strategic). The research card and the New Technology window name the deposits' gains
+  too (Animal Husbandry: Horses, Game, Seals, Elephants, Sheep, Camels, Bison; Weaving's trade: Silk, Sheep), and the
+  square's window counts our advances' gains in and names those to come ("Sheep +1 food; Animal Husbandry +1 food,
+  Weaving +1 trade"). Sites count them (`siteScore`), so over 20 seeds 17 of 120 players start elsewhere (26 on medium
+  worlds). Saves before 61 load with `catalogue` (their version; headless `--catalogue 60`). Head to head (planner vs v2,
+  16 x 300, seeds 1-16): 8-8, score 111 vs 97, pop 46 vs 35, techs 21.6 vs 19.9; catalogue 60 10-6, 95 vs 75, pop 41 vs 24
+  (as version 60); all replaying exactly. The herds feed everyone; v2, working whatever its cities hold, gains more.
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
   `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it), `baseline.ts`
   (v1) and `barbarian.ts` (the barbarians, reached through `baselineTurn` so every AI seat shares it:
@@ -1218,8 +1237,8 @@ Never ship the original's sprites, palette art, fonts or text.
   solution ... maybe show a small symbolic icon on the tile edge"; the user picked a tiny silhouette on a round dark
   token, top right): retro `marks.ts` (`drawResourceMark`, `MARKS`, `MARK_SIZE` 13 fine pixels), a pictogram
   of our own for each resource, 9x9 fine pixels in cream (`rock` 7) on a slate token ringed near black, each the
-  plainest thing that tells it (a horse's head, a bull's, antlers, a coin, a drop of oil, a whale's flukes; the icons'
-  own shapes at that size were blobs); `drawSpecial`'s `corner`, and `drawSpecialMark` for a city's square, drawn once
+  plainest thing that tells it (a horse's head, a bull's for the bison, antlers, a coin, a drop of oil, a whale's
+  flukes, a fleece on legs for the sheep, two humps for the camel; the icons' own shapes at that size were blobs); `drawSpecial`'s `corner`, and `drawSpecialMark` for a city's square, drawn once
   the city stands (over its picture, shaded with it out of sight; on the city screen over its yields). A unit at work
   wears the mark of its job on the same token in the same corner (asked for the same day: "also change settler icons
   when working on something. maybe also same style silluette"; `drawJobMark`, `JOB_MARKS`: a receding road, rails on
@@ -1514,8 +1533,11 @@ Never ship the original's sprites, palette art, fonts or text.
   (`drawCityLabel`, `drawMoodPennant` in
   `screens/main.ts`; asked for 2026-10-21/22 after overlays on the town hid it) and resources (`resources.art.ts`, named after the special: the user's sheet of 22 icons of
   2026-10-27, "replace ... resources on terrain tiles", redrawn 2026-11-01 with 24 ("implement attached updated resources
-  sprite-sheet": Elephants and Oil at sea added, `offshore_oil`), converted by `tools/sprites/draw/resources.ts` from
-  `resources.png`: each icon its solid pixels (alpha over 128; the glow behind them fainter, left out), each piece going
+  sprite-sheet": Elephants and Oil at sea added, `offshore_oil`) and 2026-11-03 with 26 ("updated resources sprite-sheet":
+  Sheep and Camels added, rows of eight in cells 256 wide and 192 tall, the cell where Ivory stood left empty, so Ivory
+  comes from the sheet before, kept as supplied in `resources-2026-11-01.png`; the bison stands for the Bison herds and
+  for grassland's Resources of games before save version 26, `iconName`), converted by `tools/sprites/draw/resources.ts`
+  from `resources.png`: each icon its solid pixels (alpha over 128; the glow behind them fainter, left out), each piece going
   to the cell its middle lies in so an icon reaching over its cell's edge comes whole (the stag's hooves; a flood of the
   glow's colours from the cell's edge did it before, and cut them off), a 256-pixel cell the map's square (three of the art's pixels to
   two of ours; two to one was muddy), each icon in the five ramps nearest its colours, the silhouette's edge
@@ -1868,7 +1890,8 @@ walking into one sacks it before it opens, its loot bursting out (2026-11-02, as
 Tile improvements drawn as the user's sheet: fields, mines and quarries, oil pumps, rigs, nets and piers as its
 pictures, bridges in its woods, roads thin and muted (2026-11-02, asked for). War Elephants climb mountains without a road,
 as settlers and explorers do (2026-11-02, asked for; save version 59). A fishery on Fish adds a shield as well as its food
-(2026-11-02, asked for; save version 60).
+(2026-11-02, asked for; save version 60). Herds: Sheep, Camels and Bison as bonus resources that Animal Husbandry tames
+and, Sheep's wool, Weaving spins, with the user's updated sheet of resources (2026-11-03, asked for; save version 61).
 
 ## Known gaps / next steps
 

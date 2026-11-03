@@ -20,6 +20,8 @@ import {
   resourceAt,
   resourceHoldings,
   resourceKnown,
+  DEPOSIT_BY_ID,
+  RESOURCE_BY_ID,
   RESOURCES,
   resourceSquares,
   revealedBy,
@@ -70,8 +72,9 @@ describe("strategic resources", () => {
       expect(t.special).toBe(true);
       expect(specialOf(t)?.name).toBe(t.deposit);
       // On land a terrain it lists; at sea (since save version 55) a resource lying offshore.
-      const r = RESOURCES.find((x) => x.id === t.deposit)!;
-      expect(t.terrain === Terrain.Ocean ? r.offshore?.share : r.deposits[t.terrain]).toBeGreaterThan(0);
+      // A strategic resource or a herd (since save version 61).
+      const r = DEPOSIT_BY_ID[t.deposit!]!;
+      expect(t.terrain === Terrain.Ocean ? RESOURCE_BY_ID[t.deposit!]?.offshore?.share : r.deposits[t.terrain]).toBeGreaterThan(0);
     }
     // Every kind turns up.
     for (const r of RESOURCES) expect(deposits.some((t) => t.deposit === r.id), r.id).toBe(true);
@@ -343,7 +346,7 @@ describe("specials kept apart", () => {
     const s = newGame(5, { opponents: 2 });
     const save = makeSave(s, { opponents: 2 }, []);
     const old = loadSave({ ...save, version: 56 as const }, () => {}).state;
-    const laid = newGame(5, { opponents: 2, clusteredResources: true });
+    const laid = newGame(5, { opponents: 2, clusteredResources: true, catalogue: 56 });
     expect(old.map.tiles.map((t) => [t.special, t.deposit])).toEqual(laid.map.tiles.map((t) => [t.special, t.deposit]));
     expect(loadSave(save, () => {}).state.map.tiles).toEqual(s.map.tiles);
   });

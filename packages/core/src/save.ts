@@ -80,8 +80,9 @@ export interface SaveGame {
    * 57: saved while the sea yielded 2 trade and the Harbour only food; rich sea.
    * 58: saved while War Elephants kept off mountains without a road; grounded elephants.
    * 59: saved while a fishery on Fish added only its food; food-only fishery.
+   * 60: saved before the herds (Sheep, Camels, Bison: `HERDS`); catalogue 60.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 59 | 60;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 59 | 60 | 61;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -104,7 +105,7 @@ export interface SaveGame {
   state?: GameState;
 }
 
-export const SAVE_VERSION = 60;
+export const SAVE_VERSION = 61;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -258,7 +259,7 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
   if (save.version < 50) options.eagerCityStates = true;
   if (save.version < 51) options.plainGifts = true;
   if (save.version < 52) options.resourceShields = true;
-  if (save.version < 55) options.catalogue = save.version;
+  if (save.version < 61) options.catalogue = save.version;
   if (save.version < 54) options.freeFish = true;
   if (save.version < 56) options.quickImprovements = true;
   if (save.version < 57) options.clusteredResources = true;

@@ -1,5 +1,5 @@
 import { Terrain } from "../types.js";
-import { COAL, HORSES, IRON, OIL, RESOURCE_BY_ID } from "./resources.js";
+import { COAL, DEPOSIT_BY_ID, HORSES, IRON, OIL } from "./resources.js";
 
 /**
  * Terrain ruleset. Yields are food/shields/trade per worked tile; move cost is
@@ -10,16 +10,20 @@ import { COAL, HORSES, IRON, OIL, RESOURCE_BY_ID } from "./resources.js";
  * jungle are mined into forest (games before save version 26, `freecivYields`,
  * had FreeCiv's civ1 numbers: nothing mined into forest), mountains mine for +1.
  */
+/** What an advance adds to a special's square for a worker whose civilization knows it. */
+export interface Learned { advance: string; food?: number; shields?: number; trade?: number }
+
 /**
  * A special resource and what it adds to its square; `learned` adds more for a worker whose
- * civilization knows an advance (Animal Husbandry: pastures for Horses, Game and Seals).
+ * civilization knows an advance (Animal Husbandry: pastures for Horses, Game and Seals), or each of
+ * several (Sheep: Animal Husbandry's food and Weaving's wool); read it with `learnedOf`.
  */
 export interface SpecialRule {
   name: string;
   food?: number;
   shields?: number;
   trade?: number;
-  learned?: { advance: string; food?: number; shields?: number; trade?: number };
+  learned?: Learned | readonly Learned[];
   /** The save version that brought it (second specials): worlds of older saves have none (`MapGenOptions.resources`). */
   since?: number;
   /** Found only this many squares from land or nearer (fish keep to coastal waters). */
@@ -207,10 +211,16 @@ export function grassShieldAt(x: number, y: number): boolean {
 /** The special on a square, if it has one: its deposit's, else its terrain's second kind where the square says so, else the first. */
 export function specialOf(tile: { terrain: Terrain; special: boolean; secondSpecial?: boolean; deposit?: string }): SpecialRule | undefined {
   if (!tile.special) return undefined;
-  // A strategic resource's deposit is its special whatever the terrain (rules/resources.ts).
-  if (tile.deposit) return RESOURCE_BY_ID[tile.deposit]?.special;
+  // A deposit is its resource's special whatever the terrain (rules/resources.ts: strategic resources and herds).
+  if (tile.deposit) return DEPOSIT_BY_ID[tile.deposit]?.special;
   const r = TERRAIN_RULES[tile.terrain];
   return (tile.secondSpecial ? r.second : undefined) ?? r.special;
+}
+
+/** What advances add to a special (`SpecialRule.learned`), each. */
+export function learnedOf(sp: SpecialRule): readonly Learned[] {
+  const l = sp.learned;
+  return !l ? [] : "advance" in l ? [l] : l;
 }
 
 /** Movement points are stored in thirds so roads (1/3) stay integral. */

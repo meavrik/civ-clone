@@ -1,11 +1,12 @@
-// Converts the user's resource sheet (resources.png, 2026-10-27: 8x3 icons of pixel art, 256 pixels a
-// cell, each on a soft glow, in the order of NAMES; redrawn 2026-11-01 with Elephants and Oil at sea, all 24 cells
-// full) into packages/renderer-retro/src/art/resources.art.ts.
+// Converts the user's resource sheet (resources.png, 2026-11-03: 26 icons of pixel art on a soft glow, rows of 8 in
+// cells 256 pixels wide and 192 tall, in the order of SHEET's names; Sheep and Camels new, the cell where Ivory stood
+// left empty) into packages/renderer-retro/src/art/resources.art.ts. Ivory comes from the sheet before it
+// (resources-2026-11-01.png, kept as supplied: 8x3 cells of 256, all 24 full).
 // Run from the repo root:
 //   npx vite-node --script tools/sprites/draw/resources.ts [preview.png]
-// Each cell becomes a 32x32 sprite, a cell's 8x8 pixels to one of the sprite's (the sheet's art pixel
+// Each icon becomes a 32x32 sprite, 8x8 of the sheet's pixels to one of the sprite's (the sheet's art pixel
 // is about 16/3 of its pixels, so three of the art's pixels to two of ours; half that, two to one, was
-// muddy), the icon centred:
+// muddy), the icon centred (the sheets draw the icons at one scale, a 256-pixel cell the map's square):
 // 1. the icons are the sheet's solid pixels (alpha over 128; the glow behind them is fainter), each piece going to
 //    the cell its middle lies in, so an icon reaching over its cell's edge comes whole (the 2026-11-01 stag's hooves),
 //    and specks of the glow's noise are left out;
@@ -18,53 +19,70 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { C, PALETTE, shade } from "../../../packages/renderer-retro/src/palette.js";
-import { decodePng, encodePng } from "../src/png.js";
+import { decodePng, encodePng, type Image } from "../src/png.js";
 
 const here = (p: string) => resolve(fileURLToPath(new URL(p, import.meta.url)));
-const img = decodePng(new Uint8Array(readFileSync(here("./resources.png"))));
-const NAMES = [
-  "fish", "whales", "resources", "cotton", "horses", "wheat", "game", "silk",
-  "coal", "wine", "gold", "iron", "oasis", "oil", "furs", "seals",
-  "ivory", "peat", "spices", "gems", "fruit", "saltpeter", "elephants", "offshore_oil",
-];
-const CELL = 256;
-const N = 32;
-/** The sheet's pixels across one of the sprite's: the cell is the map's square. */
-const BLOCK = CELL / N;
 
-const W = img.width;
-const H = img.height;
-const rgbAt = (i: number): [number, number, number] => [img.data[i * 4]!, img.data[i * 4 + 1]!, img.data[i * 4 + 2]!];
+/** A sheet: its file, its cells' size, and the names of its cells, row by row, eight to a row (null: an empty cell). */
+interface SheetSpec { file: string; cellW: number; cellH: number; names: (string | null)[] }
+const SHEET: SheetSpec = {
+  file: "./resources.png", cellW: 256, cellH: 192,
+  names: [
+    "fish", "whales", "bison", "cotton", "horses", "wheat", "game", "silk",
+    "coal", "wine", "gold", "iron", "oasis", "offshore_oil", "furs", "seals",
+    null, "peat", "spices", "gems", "fruit", "saltpeter", "elephants", "oil",
+    "sheep", "camels",
+  ],
+};
+/** The sheet before it, for the icon the new one leaves out. */
+const EARLIER: SheetSpec = {
+  file: "./resources-2026-11-01.png", cellW: 256, cellH: 256,
+  names: [
+    null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null,
+    "ivory", null, null, null, null, null, null, null,
+  ],
+};
+const COLUMNS = 8;
+const N = 32;
+/** The sheet's pixels across one of the sprite's. */
+const BLOCK = 8;
 
 /** Alpha over which a pixel is an icon's: the glow behind the icons is fainter. */
 const SOLID = 128;
 /** Pieces of solid pixels smaller than this are the glow's noise. */
 const SPECK = 40;
 
-/** Each solid pixel's piece, and each piece's cell (by its middle; -1 for a speck). */
-const owner = new Int32Array(W * H).fill(-1);
-const pieceCell: number[] = [];
-for (let s = 0; s < W * H; s++) {
-  if (img.data[s * 4 + 3]! <= SOLID || owner[s]! >= 0) continue;
-  const id = pieceCell.length;
-  const stack = [s];
-  owner[s] = id;
-  let n = 0, sx = 0, sy = 0;
-  while (stack.length) {
-    const i = stack.pop()!;
-    const x = i % W, y = Math.floor(i / W);
-    n++; sx += x; sy += y;
-    for (let dy = -1; dy <= 1; dy++)
-      for (let dx = -1; dx <= 1; dx++) {
-        const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-        const j = ny * W + nx;
-        if (img.data[j * 4 + 3]! > SOLID && owner[j]! < 0) { owner[j] = id; stack.push(j); }
-      }
+/** A sheet's pixels, each solid pixel's piece, and each piece's cell (by its middle; -1 for a speck). */
+interface Loaded { img: Image; owner: Int32Array; pieceCell: number[] }
+
+function load(spec: SheetSpec): Loaded {
+  const img = decodePng(new Uint8Array(readFileSync(here(spec.file))));
+  const W = img.width, H = img.height;
+  const owner = new Int32Array(W * H).fill(-1);
+  const pieceCell: number[] = [];
+  for (let s = 0; s < W * H; s++) {
+    if (img.data[s * 4 + 3]! <= SOLID || owner[s]! >= 0) continue;
+    const id = pieceCell.length;
+    const stack = [s];
+    owner[s] = id;
+    let n = 0, sx = 0, sy = 0;
+    while (stack.length) {
+      const i = stack.pop()!;
+      const x = i % W, y = Math.floor(i / W);
+      n++; sx += x; sy += y;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const j = ny * W + nx;
+          if (img.data[j * 4 + 3]! > SOLID && owner[j]! < 0) { owner[j] = id; stack.push(j); }
+        }
+    }
+    pieceCell.push(n < SPECK ? -1 : Math.floor(sy / n / spec.cellH) * COLUMNS + Math.floor(sx / n / spec.cellW));
   }
-  pieceCell.push(n < SPECK ? -1 : Math.floor(sy / n / CELL) * 8 + Math.floor(sx / n / CELL));
+  return { img, owner, pieceCell };
 }
-const ofIcon = (i: number, cell: number) => owner[i]! >= 0 && pieceCell[owner[i]!] === cell;
 
 // OKLab, for nearest colours.
 const lin = (c: number) => { const v = c / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
@@ -116,13 +134,17 @@ function pickRamps(labs: [number, number, number][]): string[] {
 
 interface Converted { name: string; ramps: string[]; rows: string[]; pixels: Int16Array }
 
-function convert(name: string, cell: number): Converted {
+function convert(sheet: Loaded, name: string, cell: number): Converted {
+  const { img, owner, pieceCell } = sheet;
+  const W = img.width, H = img.height;
+  const rgbAt = (i: number): [number, number, number] => [img.data[i * 4]!, img.data[i * 4 + 1]!, img.data[i * 4 + 2]!];
+  const ofIcon = (i: number) => owner[i]! >= 0 && pieceCell[owner[i]!] === cell;
   // The icon's pixels, in the sheet's own coordinates (it may reach over its cell's edge).
   let minX = W, minY = H, maxX = -1, maxY = -1;
   const samples: [number, number, number][] = [];
   const colour = new Map<number, [number, number, number]>();
   for (let i = 0; i < W * H; i++) {
-    if (!ofIcon(i, cell)) continue;
+    if (!ofIcon(i)) continue;
     const x = i % W, y = Math.floor(i / W);
     minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
     const lab = oklab(rgbAt(i));
@@ -194,7 +216,10 @@ const COVER = 0.45;
 /** Share of an edge block a darker colour needs to become its outline. */
 const OUTLINE_SHARE = 0.2;
 
-const sprites = NAMES.map((name, cell) => convert(name, cell));
+const sprites = [SHEET, EARLIER].flatMap((spec) => {
+  const sheet = load(spec);
+  return spec.names.flatMap((name, cell) => (name ? [convert(sheet, name, cell)] : []));
+});
 
 // A preview, 8 sprites across, each 6x on mid grey, if asked for.
 const preview = process.argv[2];
@@ -218,9 +243,9 @@ const header = [
   "# Special resources, 32x32: two pixels to each screen pixel, drawn over the terrain.",
   "# Legend: . clear  k black  w white  r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey;",
   "#   0-7, a-h, A-H, JKLMOQST, jloqstvx the shades of the ramps each sprite names (jewel has six).",
-  "# The user's resource sheet of 2026-11-01 (24 icons), converted by tools/sprites/draw/resources.ts",
-  "# from resources.png: each icon at two thirds of its art's pixels, in the palette's nearest colours.",
-  "# Grassland's resources are a buffalo.",
+  "# The user's resource sheet of 2026-11-03 (26 icons; Ivory from the sheet of 2026-11-01), converted by",
+  "# tools/sprites/draw/resources.ts from resources.png: each icon at two thirds of its art's pixels, in the",
+  "# palette's nearest colours. Grassland's resources (games before save version 26) are the bison.",
 ];
 const file = `// resources sprites for the retro renderer. Edit the grids by hand, or export/import a PNG with \`npm run sprites\`.
 // Every character must be in the legend described in the comment lines below.

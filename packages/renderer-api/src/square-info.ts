@@ -1,5 +1,6 @@
 import {
   advance,
+  advancesFor,
   attrition,
   attritionCure,
   building,
@@ -11,6 +12,7 @@ import {
   fisheryYield,
   inCatalogue,
   claimant,
+  learnedOf,
   influenceSpecials,
   maxHp,
   nextRank,
@@ -163,11 +165,20 @@ export function terrainInfo(state: GameState, x: number, y: number): SquareInfo 
   const here: SquareFact[] = [];
   if (sp) {
     // A strategic resource adds no shields since save version 52 (`yieldingSpecial`); Fish feed no one until a Fishing
-    // Boat lays a fishery, since 54 (the Improve group says what one would bring).
-    const gain = yieldGain(yieldingSpecial(state, sp));
+    // Boat lays a fishery, since 54 (the Improve group says what one would bring). What our advances add is counted in
+    // (Animal Husbandry's pastures), and what those still to come would add follows ("Weaving +1 {trade}").
+    const yielding = yieldingSpecial(state, sp);
+    const learned = learnedOf(yielding);
+    const ours = (a: string) => me.advances.includes(a);
+    const total = learned.filter((l) => ours(l.advance)).reduce((g, l) => ({ food: g.food + (l.food ?? 0), shields: g.shields + (l.shields ?? 0), trade: g.trade + (l.trade ?? 0) }),
+      { food: yielding.food ?? 0, shields: yielding.shields ?? 0, trade: yielding.trade ?? 0 });
+    const gain = yieldGain(total);
+    const tree = advancesFor(state);
+    const later = learned.filter((l) => !ours(l.advance) && tree.some((a) => a.id === l.advance)).map((l) => `${advance(l.advance).name} ${yieldGain(l)}`).join(", ");
     if (strategic) here.push({ icon: "star", name: sp.name, note: `${gain ? `${gain}, for` : "For"} ${shortList(resourceUnits(strategic), gain ? 2 : 3)}` });
     else if (specialLocked(state, t, sp)) here.push({ icon: "star", name: sp.name, note: "Unfished: feeds no one yet", tone: "quiet" });
-    else here.push({ icon: "star", name: sp.name, ...(gain ? { note: gain } : {}) });
+    else if (gain || later) here.push({ icon: "star", name: sp.name, note: [gain, later].filter(Boolean).join("; ") });
+    else here.push({ icon: "star", name: sp.name });
     // A strategic resource serves its civilization only with a road on it (save version 43; a river serves as one since
     // 48), or at sea an oil rig (55).
     if (strategic && !resourceRoaded(state, t)) here.push(sea

@@ -12,6 +12,9 @@ import {
   SPACE_PARTS,
   Terrain,
   TERRAIN_NAMES,
+  herdsIn,
+  learnedOf,
+  resourcesIn,
   secondKind,
   TERRAIN_RULES,
   UNIT_TYPES,
@@ -156,9 +159,12 @@ export function techDetails(state: GameState, id: string): TechDetails {
   add(id === "railroad" ? "railroad" : "fortress", "Settlers", SETTLER_WORK[id] ? [SETTLER_WORK[id]!] : []);
   // What it does to the land: what it adds to specials (pastures, whalers, refineries), wear it ends.
   const terrains = Object.entries(TERRAIN_RULES).map(([t, r]) => ({ name: TERRAIN_NAMES[Number(t) as Terrain], r }));
-  // As they yield: a strategic resource gains no shields since save version 52 (core `yieldingSpecial`).
-  const boosted = terrains.flatMap(({ r }) => [r.special, secondKind(r, state.resources)]).map((sp) => sp && yieldingSpecial(state, sp)).filter((sp) => sp?.learned?.advance === id);
-  const gains = (kind: "food" | "shields" | "trade") => [...new Set(boosted.filter((sp) => sp!.learned![kind]).map((sp) => `${sp!.name} +${sp!.learned![kind]}`))];
+  // The terrains' specials and the deposits' (strategic resources, herds), as they yield: a strategic resource gains no
+  // shields since save version 52 (core `yieldingSpecial`).
+  const deposits = state.noResources ? [] : [...resourcesIn(state), ...herdsIn(state)].map((d) => d.special);
+  const specials = [...new Set([...terrains.flatMap(({ r }) => [r.special, secondKind(r, state.resources)]), ...deposits])];
+  const boosted = specials.flatMap((sp) => (sp ? learnedOf(yieldingSpecial(state, sp)).filter((l) => l.advance === id).map((l) => ({ name: sp.name, l })) : []));
+  const gains = (kind: "food" | "shields" | "trade") => [...new Set(boosted.filter(({ l }) => l[kind]).map(({ name, l }) => `${name} +${l[kind]}`))];
   add("food", "Food", gains("food"));
   add("shield", "Shields", gains("shields"));
   add("trade", "Trade", gains("trade"));

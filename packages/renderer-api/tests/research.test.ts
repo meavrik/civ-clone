@@ -56,7 +56,11 @@ describe("research panel: where each advance stands", () => {
 
   it("says what Weaving and Animal Husbandry do to the land", () => {
     const state = newGame(2026);
-    expect(techDetails(state, "animal_husbandry").rows.find((r) => r.label === "Food")?.items).toEqual(["Horses +1", "Game +1", "Seals +1"]);
+    // The terrains' own specials, then the deposits': Elephants and the herds (since save version 61).
+    expect(techDetails(state, "animal_husbandry").rows.find((r) => r.label === "Food")?.items).toEqual(["Horses +1", "Game +1", "Seals +1", "Elephants +1", "Sheep +1", "Camels +1", "Bison +1"]);
+    expect(techDetails(state, "weaving").rows.find((r) => r.label === "Shields")?.items).toEqual(["Cotton +1"]);
+    expect(techDetails(state, "weaving").rows.find((r) => r.label === "Trade")?.items).toEqual(["Silk +1", "Sheep +1"]);
+    expect(techDetails(newGame(2026, { catalogue: 60 }), "animal_husbandry").rows.find((r) => r.label === "Food")?.items).toEqual(["Horses +1", "Game +1", "Seals +1", "Elephants +1"]);
     expect(techDetails(state, "weaving").rows.find((r) => r.label === "Ends wear")?.items).toEqual(["Arctic"]);
     expect(techDetails(state, "medicine").rows.find((r) => r.label === "Ends wear")).toBeUndefined();
     expect(techDetails(newGame(2026, { classicAdvances: true }), "medicine").rows.find((r) => r.label === "Ends wear")?.items).toEqual(["Arctic"]);

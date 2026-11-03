@@ -1,6 +1,6 @@
 import { atWar, hasContact } from "./diplomacy.js";
 import { RESOURCES, RESOURCE_BY_ID, resourcesIn } from "./rules/resources.js";
-import { specialOf, type SpecialRule } from "./rules/terrain.js";
+import { learnedOf, specialOf, type SpecialRule } from "./rules/terrain.js";
 import { UNIT_TYPES, unitType } from "./rules/units.js";
 import { borderRadius, claimant, withinBorder } from "./territory.js";
 import { getTile, Terrain, wrapX, type GameState, type ResourceTrade, type Tile } from "./types.js";
@@ -268,10 +268,9 @@ export function settleTrades(state: GameState): { trade: ResourceTrade; by: numb
  */
 export function yieldingSpecial(state: Pick<GameState, "resourceShields">, sp: SpecialRule): SpecialRule {
   if (state.resourceShields || !RESOURCE_BY_ID[sp.name]) return sp;
-  const { shields: _shields, learned, ...rest } = sp;
-  if (!learned) return rest;
-  const { shields: _more, ...kept } = learned;
-  return kept.food || kept.trade ? { ...rest, learned: kept } : rest;
+  const { shields: _shields, learned: _learned, ...rest } = sp;
+  const kept = learnedOf(sp).map(({ shields: _more, ...l }) => l).filter((l) => l.food || l.trade);
+  return kept.length ? { ...rest, learned: kept } : rest;
 }
 
 /** A tile's strategic resource, if its special is one (and `viewer`, when given, has revealed it). */
