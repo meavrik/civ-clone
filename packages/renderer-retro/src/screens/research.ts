@@ -1,4 +1,4 @@
-import { advance, advancesFor, type GameState } from "@civ/core";
+import { advance, advancesFor, BUILDINGS, UNIT_TYPES, WONDERS, type GameState } from "@civ/core";
 import {
   researchBand,
   researchHint,
@@ -13,26 +13,25 @@ import {
   type ResearchView,
   type TechLink,
   type TechStatus,
+  artLot,
+  PICTURES,
 } from "@civ/renderer-api";
 import { drawText, drawTextWrapped, FONT_HEIGHT, textWidth, wrapText } from "../font.js";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth } from "../icons.js";
-import { C, shade } from "../palette.js";
+import { drawUnitFigure } from "../overlays.js";
+import { drawBuilding } from "../pictures.js";
+import { TILE } from "../tiles.js";
+import { C, shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { DIM, dimScreen, hideArtUnder, drawBox, drawButton, drawCloseBox, drawStone, drawTitleStrip, FADED, GOLD, GOOD, INK, NOTE, TITLE_H } from "../widgets.js";
-import { drawGiftFrame, giftFrames, GIFT_FRAME_H } from "./gift-frames.js";
-import { drawResearchChoice, researchChoiceHit } from "./research-choice.js";
 
 /**
  * The research panel, built round the choice: under the title a band with the
  * research under way (or what the advance just found brings); on the left the
  * list of what can be researched now, what comes later and what is
  * discovered; on the right a card for the selected advance (what it brings,
- * its government, wonders, buildings and units framed, what it needs, what it
- * opens the way to, each of those a link to its own card); along the bottom
- * what to do next and the buttons. Since 2026-11-03 only the New Technology
- * window's View Tech Tree opens it: research is picked in the short window
- * (`ResearchView.brief`, research-choice.ts), which `drawResearch` and
- * `researchHit` hand on to.
+ * what it needs, what it opens the way to, each of those a link to its own
+ * card); along the bottom what to do next and the buttons.
  */
 
 type Box = { x: number; y: number; w: number; h: number };
@@ -194,15 +193,9 @@ function card(s: Surface | null, state: GameState, view: ResearchView, L: Layout
   };
   groove();
 
-  // What it brings: its government, wonders, buildings and units framed, then the rest a line each.
-  const frames = giftFrames(d.gifts, x0, y, w, true);
-  if (frames.length) {
-    if (s) for (const f of frames) drawGiftFrame(s, state, f);
-    y += GIFT_FRAME_H + 3;
-  }
-  const others = d.rows.filter((r) => !r.pictured);
-  const labelW = Math.max(0, ...others.map((r) => textWidth(r.label))) + 4;
-  for (const row of others) {
+  // What it brings.
+  const labelW = Math.max(0, ...d.rows.map((r) => textWidth(r.label))) + 4;
+  for (const row of d.rows) {
     if (y > bottom - 3 * ROW) break;
     if (s) {
       drawIcon(s, row.icon, x0, y);
@@ -250,7 +243,44 @@ function card(s: Surface | null, state: GameState, view: ResearchView, L: Layout
       y += ROW;
     }
   }
+  if (s) showcase(s, state, view.selected, y, bottom, L);
   return links;
+}
+
+/**
+ * What the advance brings, as the city view draws it, standing on a strip of
+ * grass along the bottom of the card where there is room: its wonders, then
+ * its buildings, then its units.
+ */
+function showcase(s: Surface, state: GameState, id: string, top: number, bottom: number, L: Layout): void {
+  const owner = state.players[state.currentPlayer]!.color;
+  type Item = { w: number; h: number; draw: (x: number, ground: number) => void };
+  const items: Item[] = [];
+  for (const b of [...WONDERS.filter((w) => w.requires === id), ...BUILDINGS.filter((b) => b.requires === id)]) {
+    const pic = PICTURES[b.id];
+    if (!pic) continue;
+    const { w, h } = artLot(b.id, pic);
+    items.push({ w, h, draw: (x, ground) => drawBuilding(s, b.id, pic, x, ground, w, h, slotColor(owner)) });
+  }
+  for (const u of UNIT_TYPES.filter((t) => t.requires === id)) {
+    items.push({ w: TILE, h: TILE, draw: (x, ground) => drawUnitFigure(s, u.id, x, ground - TILE, slotColor(owner)) });
+  }
+  const gap = 8;
+  const room = L.card.w - 16;
+  const shown: Item[] = [];
+  let w = 0;
+  for (const it of items) {
+    if (w + it.w + (shown.length ? gap : 0) > room) break;
+    w += it.w + (shown.length ? gap : 0);
+    shown.push(it);
+  }
+  if (!shown.length) return;
+  const h = Math.max(...shown.map((it) => it.h));
+  const ground = bottom - 2;
+  if (ground - h - 4 < top) return; // no room under the links
+  s.rect(L.card.x + 6, ground, L.card.w - 12, 2, shade("grass", 4));
+  let x = L.card.x + Math.floor((L.card.w - w) / 2);
+  for (const it of shown) { it.draw(x, ground); x += it.w + gap; }
 }
 
 // ---- the band, buttons and the whole panel ----------------------------------------------
@@ -289,7 +319,6 @@ function buttons(state: GameState, view: ResearchView, L: Layout): Button[] {
 
 /** The panel: a window over the game it opened on (darkened), centred on the screen it is drawn on. */
 export function drawResearch(s: Surface, state: GameState, view: ResearchView): void {
-  if (view.brief) { drawResearchChoice(s, state, view); return; }
   const rows = researchRows(state, view);
   const L = layout(s.width);
   const o = L.o;
@@ -324,7 +353,6 @@ function closeBox(view: ResearchView, L: Layout): Box | null {
 
 /** What lies under a point of the research panel, on a screen `screenW` wide. */
 export function researchHit(state: GameState, view: ResearchView, px: number, py: number, screenW = SCREEN_W): ResearchHit | null {
-  if (view.brief) return researchChoiceHit(state, view, px, py, screenW);
   const L = layout(screenW);
   const close = closeBox(view, L);
   if (close && px >= close.x - 3 && px < close.x + close.w + 3 && py >= L.o.y + 2 && py < L.o.y + 2 + TITLE_H) return { kind: "close" };

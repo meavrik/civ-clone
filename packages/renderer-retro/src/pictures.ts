@@ -101,18 +101,6 @@ function inside(pts: number[], x: number, y: number): boolean {
   return hit;
 }
 
-/** A drawn picture's pixels (`rasterize`, `gw` by `gh`, -1 clear) as large as whole blocks fit in the box `b`, in its middle. */
-export function drawEnlarged(s: Surface, b: { x: number; y: number; w: number; h: number }, px: Int16Array, gw: number, gh: number): void {
-  const k = Math.max(1, Math.floor(Math.min(b.w / gw, b.h / gh)));
-  const x0 = b.x + Math.floor((b.w - gw * k) / 2);
-  const y0 = b.y + Math.floor((b.h - gh * k) / 2);
-  for (let j = 0; j < gh; j++)
-    for (let i = 0; i < gw; i++) {
-      const c = px[j * gw + i]!;
-      if (c >= 0) s.rect(x0 + i * k, y0 + j * k, k, k, c);
-    }
-}
-
 /** A picture as palette indices on a grid one pixel larger all round (for its outline); -1 is clear. */
 export function rasterize(pic: Picture, owner: number): Int16Array {
   const gw = pic.w + 2;

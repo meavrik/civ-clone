@@ -1274,49 +1274,6 @@ describe("advisor screens", () => {
     expect(kinds.has("research")).toBe(false);
   });
 
-  it("renders the research window: a few rows, each with what it brings framed and its own Research button", () => {
-    const state = newGame(2026);
-    const p = state.players[0]!;
-    p.advances.push("alphabet", "bronze_working", "ceremonial_burial", "code_of_laws");
-    const s = Surface.screen();
-    const view = openResearch(state, RESEARCH_LIST_ROWS, { discovered: ["code_of_laws"], choosing: true, closable: false, brief: true });
-    drawResearch(s, state, view);
-    writeFileSync(new URL("./out/research-choice.png", import.meta.url), encodePng(s, 3));
-    const listed = researchRows(state, view).flatMap((r) => (r.kind === "advance" ? [r.id] : []));
-    expect(listed.length).toBe(3); // a short list, nothing more to open
-    expect(view.selected).toBe(listed[0]);
-    const hits = new Map<string, ResearchHit>();
-    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
-      const h = researchHit(state, view, x, y);
-      if (h) hits.set(h.kind === "row" || h.kind === "link" || h.kind === "research" ? `${h.kind}:${"id" in h ? h.id : ""}` : h.kind, h);
-    }
-    for (const id of listed) {
-      expect(hits.has(`row:${id}`)).toBe(true);
-      expect(hits.has(`research:${id}`)).toBe(true); // each row its own button
-    }
-    expect([...hits.keys()].some((k) => k.startsWith("link:") || k === "scroll" || k === "close")).toBe(false);
-    // The pictures stand small in their frames (the bed 22 high).
-    expect(s.art.filter((a) => !a.unit).every((a) => a.h <= 20)).toBe(true);
-    expect(s.art.length).toBeGreaterThan(0);
-    // Under way, opened from the status panel: its row first, its beakers in place of a button, a close box.
-    applyCommand(state, { type: "research", advance: "writing" });
-    p.science = 30;
-    const browsing = openResearch(state, RESEARCH_LIST_ROWS, { choosing: true, closable: true, brief: true });
-    expect(researchRows(state, browsing).find((r) => r.kind === "advance")).toMatchObject({ id: "writing" });
-    drawResearch(s, state, browsing);
-    writeFileSync(new URL("./out/research-choice-under-way.png", import.meta.url), encodePng(s, 3));
-    const kinds = new Set<string>();
-    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) { const h = researchHit(state, browsing, x, y); if (h) kinds.add(h.kind === "research" ? `research:${h.id}` : h.kind); }
-    expect(kinds.has("close")).toBe(true);
-    expect(kinds.has("research:writing")).toBe(false);
-    // Masonry's four things: three framed and one counting the rest; a government framed with its crown.
-    p.advances = ["alphabet", "bronze_working", "code_of_laws", "ceremonial_burial", "pottery", "writing", "currency", "the_wheel", "horseback_riding", "animal_husbandry", "warrior_code", "archery", "iron_working", "map_making", "mysticism"];
-    p.researching = null;
-    const late = openResearch(state, RESEARCH_LIST_ROWS, { choosing: true, closable: false, brief: true });
-    drawResearch(s, state, late);
-    writeFileSync(new URL("./out/research-choice-later.png", import.meta.url), encodePng(s, 3));
-  });
-
   it("opens the research panel from the status panel's research row", () => {
     const state = newGame(2026);
     applyCommand(state, { type: "found", unit: state.units.find((u) => u.type === "settlers")!.id });
