@@ -18,6 +18,8 @@ export interface MapGenOptions {
   age?: 0 | 1 | 2;
   /** Second specials only of those a save of this version knew (`SpecialRule.since`). Old saves load with it. */
   resources?: number;
+  /** A game of an older version (`GameState.catalogue`) keeps the second specials taken out since (`SpecialRule.until`: Ivory). */
+  catalogue?: number;
   /**
    * The first generator: every land square's terrain rolled on its own within
    * latitude bands. Saves from before version 6 rebuild their world with it.
@@ -87,7 +89,7 @@ export function generateMap(rng: RngState, opts: MapGenOptions = {}): WorldMap {
   const map = opts.scatteredTerrain ? scatteredWorld(rng, elev, opts) : climateWorld(rng, elev, opts);
 
   // ---- 4. specials and villages --------------------------------------------
-  scatterSpecials(map, rng, opts.resources);
+  scatterSpecials(map, rng, opts.resources, opts.catalogue);
 
   labelContinents(map);
   map.geography = findGeography(map);
@@ -457,9 +459,10 @@ export function blankTile(terrain: Terrain): Tile {
  * picked by a hash of the square (no more RNG, so every seed keeps its world);
  * a kind with a reach (`within`, `beyond`: fish near land, whales in deep water)
  * is found only that far from land, the other kind taking its squares. An old
- * save's `resources` leaves out the kinds and reaches that came after it.
+ * save's `resources` leaves out the kinds and reaches that came after it, and a game's `catalogue` keeps the kinds taken
+ * out since (Ivory, `SpecialRule.until`), which new worlds no longer hold.
  */
-export function scatterSpecials(map: WorldMap, rng: RngState, resources?: number): void {
+export function scatterSpecials(map: WorldMap, rng: RngState, resources?: number, catalogue?: number): void {
   const { width: w, height: h, tiles } = map;
   const sx = nextInt(rng, 4);
   const sy = nextInt(rng, 4);
@@ -471,7 +474,7 @@ export function scatterSpecials(map: WorldMap, rng: RngState, resources?: number
       else if (t.terrain === Terrain.Ocean && (x * 7 + y * 3 + sx) % 29 === 0) t.special = true;
       if (!t.special) continue;
       const rule = TERRAIN_RULES[t.terrain];
-      const second = secondKind(rule, resources);
+      const second = secondKind(rule, resources, catalogue);
       if (!second) continue;
       if (resources === undefined || resources >= SPECIAL_REACH_SINCE) {
         const d = landDistance(map, x, y, 3);

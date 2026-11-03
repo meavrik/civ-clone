@@ -293,7 +293,9 @@ describe("tile yields", () => {
     const now = count();
     const old = count(16);
     const five = count(17);
-    for (const n of ["Whales", "Wheat", "Cotton", "Iron", "Oil", "Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(now.names.get(n) ?? 0, n).toBeGreaterThan(0);
+    for (const n of ["Whales", "Wheat", "Cotton", "Iron", "Oil", "Silk", "Wine", "Furs", "Spices", "Fruit"]) expect(now.names.get(n) ?? 0, n).toBeGreaterThan(0);
+    // Ivory is gone from new worlds (since save version 62).
+    expect(now.names.has("Ivory")).toBe(false);
     for (const n of ["Whales", "Wheat", "Cotton", "Oil", "Iron", "Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(old.names.has(n), n).toBe(false);
     for (const n of ["Silk", "Wine", "Furs", "Ivory", "Spices", "Fruit"]) expect(five.names.has(n), n).toBe(false);
     // Whales lay where they did until version 19 placed them by their reach.

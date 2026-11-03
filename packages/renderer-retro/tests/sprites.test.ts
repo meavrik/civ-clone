@@ -43,7 +43,8 @@ describe("sprite sheets", () => {
     for (const id of ["archers", "elephants", "explorer", "fishing_boat"]) expect(unitArt(id), id).toBe(true);
     // Elephants (since save version 53) and Oil at sea (since 55) have icons of their own (the user's sheet of 2026-11-01).
     expect(specialSprite("Elephants")).not.toBeNull();
-    expect(specialSprite("Elephants")).not.toBe(specialSprite("Ivory"));
+    // Ivory is gone from the game (2026-11-03), its sprite with it.
+    expect(specialSprite("Ivory")).toBeNull();
     expect(specialSprite("Offshore Oil")).not.toBeNull();
     expect(specialSprite("Offshore Oil")).not.toBe(specialSprite("Oil"));
     for (const name of ["ocean", "grassland", "plains", "forest", "hills", "mountains", "desert", "tundra", "arctic", "swamp", "jungle"])
@@ -52,7 +53,7 @@ describe("sprite sheets", () => {
     for (const name of ["forest_pine", "forest_birch", "forest_autumn", "forest_mixed", "mountains_snow", "mountains_red", "mountains_ice", "deep_ocean"])
       expect(TERRAIN_SHEET.byName.has(name), name).toBe(true);
     for (const rule of Object.values(TERRAIN_RULES))
-      for (const sp of [rule.special, rule.second]) if (sp) expect(specialSprite(sp.name), sp.name).not.toBeNull();
+      for (const sp of [rule.special, rule.second]) if (sp && sp.until === undefined) expect(specialSprite(sp.name), sp.name).not.toBeNull();
     for (const name of ["walls", "walls_front", "hut", "mine"]) expect(FEATURE_SHEET.byName.has(name), name).toBe(true);
     // A city for every age and size, flying its owner's flag.
     for (const era of ["ancient", "medieval", "industrial"])

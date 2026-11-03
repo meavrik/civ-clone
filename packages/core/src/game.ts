@@ -134,7 +134,7 @@ export interface NewGameOptions extends MapGenOptions {
   plainGifts?: boolean;
   /** Strategic resources' squares add the shields of their specials, as before version 52 (see `GameState.resourceShields`). Old saves load with it. */
   resourceShields?: boolean;
-  /** Only the units, improvements, advances and resources a save of this version knew (see `GameState.catalogue`). Saves before version 61 load with their version. */
+  /** Only the units, improvements, advances and resources a save of this version knew (see `GameState.catalogue`). Saves before version 62 load with their version. */
   catalogue?: number;
   /** Fish feed a city without a fishery, as before version 54 (see `GameState.freeFish`). Old saves load with it. */
   freeFish?: boolean;
@@ -251,7 +251,7 @@ function homelandStart(map: WorldMap, home: readonly [number, number], starts: [
 export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const rng = createRng(seed);
   const world = opts.world ? premadeWorld(opts.world) : undefined;
-  const map = opts.world ? premadeMap(rng, opts.world, opts.size, opts.joinedIslands, opts.resources) : generateMap(rng, opts);
+  const map = opts.world ? premadeMap(rng, opts.world, opts.size, opts.joinedIslands, opts.resources, opts.catalogue) : generateMap(rng, opts);
   const homes = world && opts.historical ? premadeStarts(world, opts.size, opts.joinedIslands) : undefined;
   // The original's yields: shield grassland on its diagonal bands, and no other first special on grassland.
   if (!opts.freecivYields)

@@ -119,7 +119,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --eager-city-states a city-state asks for tribute as each raid sets out, of anyone, every turn its band is held
                       at home (saves before version 50)
   --resource-shields  a strategic resource's square adds its special's shields (saves before version 52)
-  --catalogue N       only the units, improvements, advances and resources save version N knew (52: no Archery, Seafaring or Elephants; 54: no oil at sea; 60: no herds)
+  --catalogue N       only the units, improvements, advances and resources save version N knew (52: no Archery, Seafaring or Elephants; 54: no oil at sea; 60: no herds; 61: Ivory in the arctic)
   --free-fish         Fish feed a city without a fishery (saves before version 54)
   --quick-improvements roads, irrigation and mines in the original's turns, not twice them (saves before version 56)
   --clustered-resources specials of a kind may lie side by side, not 3 squares apart (saves before version 57)

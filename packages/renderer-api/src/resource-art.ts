@@ -1,6 +1,5 @@
-// Written by tools/sprites/resources/cut.ts from the user's sheet of resources (tools/sprites/resources/resources.png;
-// Ivory from tools/sprites/draw/resources-2026-11-01.png): each resource's picture (apps/web/src/resources/<id>.png),
-// its width and height in the sheet's pixels.
+// Written by tools/sprites/resources/cut.ts from the user's sheet of resources (tools/sprites/resources/resources.png):
+// each resource's picture (apps/web/src/resources/<id>.png), its width and height in the sheet's pixels.
 export const RESOURCE_ART: Record<string, readonly [w: number, h: number]> = {
   fish: [148, 140],
   whales: [215, 197],
@@ -27,5 +26,4 @@ export const RESOURCE_ART: Record<string, readonly [w: number, h: number]> = {
   oil: [205, 164],
   sheep: [195, 146],
   camels: [207, 147],
-  ivory: [207, 196],
 };

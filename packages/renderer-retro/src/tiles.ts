@@ -488,7 +488,8 @@ export function drawSpecial(s: Surface, dx: number, dy: number, state: GameState
     pics.laid.push({ spot, copy: fineCopy(s, dx, dy, t, t) });
     return;
   }
-  if (!icon) { s.rect(dx + 10, dy + 10, 3, 3, C.YELLOW!); return; }
+  // Ivory, which only games saved before version 62 still hold, has no picture any more: nothing is drawn.
+  if (!icon) return;
   if (fine === icon.fw) s.blit(icon, dx + off, dy + off, SPRITE_CLEAR);
   else s.blitScaled(icon, dx + off, dy + off, fine / k, fine / k, SPRITE_CLEAR);
 }

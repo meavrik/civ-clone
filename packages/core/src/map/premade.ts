@@ -96,10 +96,10 @@ export function decodeWorld(world: PremadeWorld, size: WorldSize = "small", join
 }
 
 /** A premade world ready to play: its terrain and real places, plus specials and villages from the game's RNG. */
-export function premadeMap(rng: RngState, id: string, size: WorldSize = "small", joinedIslands = false, resources?: number): WorldMap {
+export function premadeMap(rng: RngState, id: string, size: WorldSize = "small", joinedIslands = false, resources?: number, catalogue?: number): WorldMap {
   const world = premadeWorld(id);
   const map = decodeWorld(world, size, joinedIslands);
-  scatterSpecials(map, rng, resources);
+  scatterSpecials(map, rng, resources, catalogue);
   labelContinents(map);
   const grid = world.sizes[size];
   // The squares an old grid drew otherwise lie in no place.

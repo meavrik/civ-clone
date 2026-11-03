@@ -10,11 +10,13 @@ const iconName = (name: string) => name.toLowerCase().replace(/ /g, "_");
 describe("the user's pictures of the resources (2026-11-03, as is)", () => {
   it("has one for every special of the rules, on land and at sea, each a picture in the app", () => {
     const names = new Set<string>();
-    for (const r of Object.values(TERRAIN_RULES)) for (const sp of [r.special, r.second]) if (sp && sp.name !== "Resources") names.add(iconName(sp.name));
+    for (const r of Object.values(TERRAIN_RULES)) for (const sp of [r.special, r.second]) if (sp && sp.name !== "Resources" && sp.until === undefined) names.add(iconName(sp.name));
     for (const d of Object.values(DEPOSIT_BY_ID)) names.add(iconName(d.special.name));
     names.add("offshore_oil");
     for (const n of names) expect(RESOURCE_ART[n], n).toBeDefined();
     for (const id of Object.keys(RESOURCE_ART)) expect(existsSync(new URL(`../../../apps/web/src/resources/${id}.png`, import.meta.url)), id).toBe(true);
+    // Ivory is gone (2026-11-03): no picture, no sprite, no mark.
+    expect(RESOURCE_ART.ivory).toBeUndefined();
   });
 
   it("lays the picture in the room its icon takes, centred, the sheet's cell to that room; the canvas left as it was", () => {

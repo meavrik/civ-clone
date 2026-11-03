@@ -57,8 +57,11 @@ Never ship the original's sprites, palette art, fonts or text.
   none unfit for a city (3 of 350). Saves before version 25 load with `randomStarts` (the squares drawn).
   Specials (`SpecialRule`; read a square's with `specialOf(tile)`, never `TERRAIN_RULES[t].special`): every
   land terrain and the sea has a second kind (our departure, asked for 2026-10-21, after Civilization II:
-  Whales, Cotton, Wheat, Silk, Wine, Iron, Oil, Furs, Ivory, Spices, Fruit; tundra's Game is forest's),
-  on about half their lattice squares (`Tile.secondSpecial`, a hash of the square, no RNG, so seeds keep
+  Whales, Cotton, Wheat, Silk, Wine, Iron, Oil, Furs, Spices, Fruit; tundra's Game is forest's; the arctic's Ivory
+  is gone since save version 62, asked for 2026-11-03: "remove ivory completly", its lattice all Seals as the
+  original's: `SpecialRule.until` 61, `secondKind`'s `catalogue`, so only games saved before lay it, for their logs to
+  replay, and nothing draws it, its picture, sprite and mark gone; headless `--catalogue 61`; planner vs v2, 16 x 300,
+  unchanged: 8-8, score 111 vs 97, all replaying exactly), on about half their lattice squares (`Tile.secondSpecial`, a hash of the square, no RNG, so seeds keep
   their worlds); `learned` may add food, shields or trade with an advance, or with each of several (read it with
   `learnedOf`: Sheep's two, see Herds below; a strategic resource no shields since save version 52, see Strategic
   resources below; Navigation, Weaving, Pottery, Iron Working, Refining, Animal Husbandry). Each carries `since` (the save version that brought it); old saves load with
@@ -1452,9 +1455,9 @@ Never ship the original's sprites, palette art, fonts or text.
   Resource pictures (2026-11-03, asked for with the user's updated sheet: "updates resources sprite-sheet - USE AS IS!! do
   not regenerate assets"; their earlier sheets, and that morning's, had been drawn into the palette, see renderer-retro
   below): `tools/sprites/resources/resources.png` (kept byte for byte as supplied: 26 icons in rows of eight, cells 256
-  wide and 192 tall, on a clear background whose soft colours have no alpha; the cell where Ivory stood empty) is cut by
+  wide and 192 tall, on a clear background whose soft colours have no alpha; the cell where Ivory stood empty: Ivory is gone, see Specials above) is cut by
   `tools/sprites/resources/cut.ts` (pieces of alpha over 64 to the cell their middle lies in, cut by their bounds two
-  pixels out, every pixel the sheet's; Ivory from the sheet before, `tools/sprites/draw/resources-2026-11-01.png`) into
+  pixels out, every pixel the sheet's) into
   `apps/web/src/resources/<id>.png` (the icon's name: horses, offshore_oil) and the cuts' sizes into renderer-api
   `resource-art.ts` (`RESOURCE_ART`). Retro `drawSpecial`, given the screen's pictures (`SquarePictures`: the map, the
   city screen's map, the square's window), leaves a spot (`ArtSpot.resource`) in the room the icon took (`SPECIAL_SHARE`
@@ -1551,8 +1554,8 @@ Never ship the original's sprites, palette art, fonts or text.
   see Resource pictures above; named after the special: the user's sheet of 22 icons of
   2026-10-27, "replace ... resources on terrain tiles", redrawn 2026-11-01 with 24 ("implement attached updated resources
   sprite-sheet": Elephants and Oil at sea added, `offshore_oil`) and 2026-11-03 with 26 ("updated resources sprite-sheet":
-  Sheep and Camels added, rows of eight in cells 256 wide and 192 tall, the cell where Ivory stood left empty, so Ivory
-  comes from the sheet before, kept as supplied in `resources-2026-11-01.png`; the bison stands for the Bison herds and
+  Sheep and Camels added, rows of eight in cells 256 wide and 192 tall, the cell where Ivory stood left empty, Ivory
+  being gone; the bison stands for the Bison herds and
   for grassland's Resources of games before save version 26, `iconName`), converted by `tools/sprites/draw/resources.ts`
   from `resources.png`: each icon its solid pixels (alpha over 128; the glow behind them fainter, left out), each piece going
   to the cell its middle lies in so an icon reaching over its cell's edge comes whole (the stag's hooves; a flood of the
@@ -1909,7 +1912,8 @@ pictures, bridges in its woods, roads thin and muted (2026-11-02, asked for). Wa
 as settlers and explorers do (2026-11-02, asked for; save version 59). A fishery on Fish adds a shield as well as its food
 (2026-11-02, asked for; save version 60). Herds: Sheep, Camels and Bison as bonus resources that Animal Husbandry tames
 and, Sheep's wool, Weaving spins, with the user's updated sheet of resources (2026-11-03, asked for; save version 61);
-the same day the resources became the user's pictures as they are, laid over the canvas (asked for: "USE AS IS!!").
+the same day the resources became the user's pictures as they are, laid over the canvas (asked for: "USE AS IS!!"), and
+Ivory left the game (asked for; save version 62).
 
 ## Known gaps / next steps
 

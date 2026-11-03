@@ -1,7 +1,7 @@
 // Cuts the user's sheet of resources (resources.png, 2026-11-03: "updates resources sprite-sheet - USE AS IS!! do not
 // regenerate assets"; 26 icons of pixel art in rows of eight, cells 256 pixels wide and 192 tall, on a clear background
-// whose soft colours have no alpha; the cell where Ivory stood left empty) into one picture a resource, as it is. Ivory
-// comes from the sheet before it (../draw/resources-2026-11-01.png, 8x3 cells of 256), as it is too. Run from the repo root:
+// whose soft colours have no alpha; the cell where Ivory stood left empty: Ivory is gone from the game) into one picture
+// a resource, as it is. Run from the repo root:
 //   npx vite-node --script tools/sprites/resources/cut.ts
 // A piece is a run of a sheet's opaque pixels (alpha over 64), and each goes to the cell its middle lies in, so an icon of
 // several pieces (two fish, three nuggets, oil's bubbles) comes whole. Each is cut by its pieces' bounds a few pixels
@@ -26,10 +26,6 @@ const SHEETS: SheetSpec[] = [
       null, "peat", "spices", "gems", "fruit", "saltpeter", "elephants", "oil",
       "sheep", "camels",
     ],
-  },
-  {
-    file: "../draw/resources-2026-11-01.png", cellW: 256, cellH: 256,
-    names: [...Array<null>(16).fill(null), "ivory"],
   },
 ];
 const COLUMNS = 8;
@@ -92,9 +88,8 @@ for (const spec of SHEETS) {
 
 writeFileSync(
   here("../../../packages/renderer-api/src/resource-art.ts"),
-  `// Written by tools/sprites/resources/cut.ts from the user's sheet of resources (tools/sprites/resources/resources.png;
-// Ivory from tools/sprites/draw/resources-2026-11-01.png): each resource's picture (apps/web/src/resources/<id>.png),
-// its width and height in the sheet's pixels.
+  `// Written by tools/sprites/resources/cut.ts from the user's sheet of resources (tools/sprites/resources/resources.png):
+// each resource's picture (apps/web/src/resources/<id>.png), its width and height in the sheet's pixels.
 export const RESOURCE_ART: Record<string, readonly [w: number, h: number]> = {
 ${Object.entries(sizes).map(([id, [w, h]]) => `  ${id}: [${w}, ${h}],`).join("\n")}
 };

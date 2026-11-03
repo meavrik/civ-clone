@@ -1,7 +1,7 @@
 // Converts the user's resource sheet (resources.png, 2026-11-03: 26 icons of pixel art on a soft glow, rows of 8 in
 // cells 256 pixels wide and 192 tall, in the order of SHEET's names; Sheep and Camels new, the cell where Ivory stood
-// left empty) into packages/renderer-retro/src/art/resources.art.ts. Ivory comes from the sheet before it
-// (resources-2026-11-01.png, kept as supplied: 8x3 cells of 256, all 24 full).
+// left empty: Ivory is gone from the game) into packages/renderer-retro/src/art/resources.art.ts. Since the same day
+// the game lays the user's pictures as they are (tools/sprites/resources/cut.ts); these sprites are only the fallback.
 // Run from the repo root:
 //   npx vite-node --script tools/sprites/draw/resources.ts [preview.png]
 // Each icon becomes a 32x32 sprite, 8x8 of the sheet's pixels to one of the sprite's (the sheet's art pixel
@@ -32,15 +32,6 @@ const SHEET: SheetSpec = {
     "coal", "wine", "gold", "iron", "oasis", "offshore_oil", "furs", "seals",
     null, "peat", "spices", "gems", "fruit", "saltpeter", "elephants", "oil",
     "sheep", "camels",
-  ],
-};
-/** The sheet before it, for the icon the new one leaves out. */
-const EARLIER: SheetSpec = {
-  file: "./resources-2026-11-01.png", cellW: 256, cellH: 256,
-  names: [
-    null, null, null, null, null, null, null, null,
-    null, null, null, null, null, null, null, null,
-    "ivory", null, null, null, null, null, null, null,
   ],
 };
 const COLUMNS = 8;
@@ -216,7 +207,7 @@ const COVER = 0.45;
 /** Share of an edge block a darker colour needs to become its outline. */
 const OUTLINE_SHARE = 0.2;
 
-const sprites = [SHEET, EARLIER].flatMap((spec) => {
+const sprites = [SHEET].flatMap((spec) => {
   const sheet = load(spec);
   return spec.names.flatMap((name, cell) => (name ? [convert(sheet, name, cell)] : []));
 });
@@ -243,7 +234,7 @@ const header = [
   "# Special resources, 32x32: two pixels to each screen pixel, drawn over the terrain.",
   "# Legend: . clear  k black  w white  r/R red  y yellow  Y brown  u/U blue  n/N green  i/I cyan  z/Z grey;",
   "#   0-7, a-h, A-H, JKLMOQST, jloqstvx the shades of the ramps each sprite names (jewel has six).",
-  "# The user's resource sheet of 2026-11-03 (26 icons; Ivory from the sheet of 2026-11-01), converted by",
+  "# The user's resource sheet of 2026-11-03 (25 icons in its cells), converted by",
   "# tools/sprites/draw/resources.ts from resources.png: each icon at two thirds of its art's pixels, in the",
   "# palette's nearest colours. Grassland's resources (games before save version 26) are the bison.",
 ];

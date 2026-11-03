@@ -236,8 +236,8 @@ export function hutArtPlace(spot: ArtSpot): ArtBox | null {
 /**
  * The user's pictures of the resources (2026-11-03, their updated sheet: "USE AS IS!! do not regenerate assets"; before,
  * their sheets were drawn into the palette), shown as they are wherever a resource lies (`apps/web/src/resources/<id>.png`,
- * cut from the sheet pixel for pixel by tools/sprites/resources/cut.ts; Ivory from the sheet before, whose cell the new
- * one left empty). One scale for all, the sheet's cell (`RESOURCE_CELL` of its pixels across) to the room an icon takes
+ * cut from the sheet pixel for pixel by tools/sprites/resources/cut.ts; Ivory, whose cell it left empty, is gone from the
+ * game). One scale for all, the sheet's cell (`RESOURCE_CELL` of its pixels across) to the room an icon takes
  * on its square (the spot's box: `SPECIAL_SHARE` of the square in renderer-retro, at least the original's square), so
  * they keep the sizes the sheet gives them; each centred in it.
  */

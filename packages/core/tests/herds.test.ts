@@ -50,7 +50,9 @@ describe("herds (save version 61)", () => {
           // A square that held nothing before.
           expect(old.map.tiles[i]!.special, `${seed}:${i}`).toBe(false);
           at.set(name, [...(at.get(name) ?? []), [i % s.map.width, Math.floor(i / s.map.width)]]);
-        } else expect([t.special, t.deposit, t.secondSpecial], `${seed}:${i}`).toEqual([old.map.tiles[i]!.special, old.map.tiles[i]!.deposit, old.map.tiles[i]!.secondSpecial]);
+        }
+        // Off the arctic, whose lattice is all Seals since Ivory went (save version 62), which an older catalogue still lays.
+        else if (t.terrain !== Terrain.Arctic) expect([t.special, t.deposit, t.secondSpecial], `${seed}:${i}`).toEqual([old.map.tiles[i]!.special, old.map.tiles[i]!.deposit, old.map.tiles[i]!.secondSpecial]);
       });
       // None of a kind within two squares of another.
       for (const squares of at.values())
@@ -100,5 +102,21 @@ describe("herds (save version 61)", () => {
     expect(specialOf(s.map.tiles[i]!)?.name).toBe("Sheep");
     expect(resourceSquares(s, 0, true).has("Sheep")).toBe(false);
     expect(heldResources(s, 0).has("Sheep")).toBe(false);
+  });
+});
+
+describe("Ivory (gone since save version 62)", () => {
+  it("lies in no new world, the arctic holding only its Seals, and stays in games saved before", () => {
+    const ivory = (s: GameState) => s.map.tiles.filter((t) => specialOf(t)?.name === "Ivory").length;
+    let before = 0;
+    for (const seed of [2, 6, 10]) {
+      const s = newGame(seed, { opponents: 2 });
+      expect(ivory(s), `${seed}`).toBe(0);
+      for (const t of s.map.tiles) if (t.terrain === Terrain.Arctic && t.special && !t.deposit) expect(specialOf(t)?.name).toBe("Seals");
+      const old = loadSave({ ...makeSave(s, { opponents: 2 }, []), version: 61 as const }, () => {}).state;
+      expect(old.catalogue).toBe(61);
+      before += ivory(old);
+    }
+    expect(before).toBeGreaterThan(0);
   });
 });

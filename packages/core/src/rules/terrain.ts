@@ -26,6 +26,11 @@ export interface SpecialRule {
   learned?: Learned | readonly Learned[];
   /** The save version that brought it (second specials): worlds of older saves have none (`MapGenOptions.resources`). */
   since?: number;
+  /**
+   * The last save version whose worlds held it (Ivory, taken out since 62; asked for 2026-11-03: "remove ivory
+   * completly"): only games saved before (`GameState.catalogue` up to it) lay it, so their logs replay as played.
+   */
+  until?: number;
   /** Found only this many squares from land or nearer (fish keep to coastal waters). */
   within?: number;
   /** Found only this many squares from land or farther (whales keep to deep water: no land beside them). */
@@ -166,7 +171,8 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   [Terrain.Arctic]: {
     food: 0, shields: 0, trade: 0, moveCost: 2, defense: 1,
     special: { name: "Seals", food: 2, learned: { advance: "animal_husbandry", food: 1 } },
-    second: { name: "Ivory", food: 1, shields: 1, trade: 4, since: 18 },
+    // Gone from new worlds since save version 62: the arctic has only its Seals, as the original's had.
+    second: { name: "Ivory", food: 1, shields: 1, trade: 4, since: 18, until: 61 },
     road: { trade: 0, turns: 4 },
     rough: true,
     noBarbarians: true,
@@ -193,10 +199,14 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
   },
 };
 
-/** A terrain's second kind of special, if worlds of a save of version `resources` have it (all do when absent). */
-export function secondKind(rule: TerrainRule, resources?: number): SpecialRule | undefined {
+/**
+ * A terrain's second kind of special, if worlds of a save of version `resources` have it (all do when absent), and of a
+ * game of `catalogue` (`GameState.catalogue`): a kind taken out (`until`) lies only in games saved while it was in.
+ */
+export function secondKind(rule: TerrainRule, resources?: number, catalogue?: number): SpecialRule | undefined {
   const s = rule.second;
-  return s && (resources === undefined || (s.since ?? 0) <= resources) ? s : undefined;
+  if (!s || (resources !== undefined && (s.since ?? 0) > resources)) return undefined;
+  return s.until === undefined || (catalogue !== undefined && catalogue <= s.until) ? s : undefined;
 }
 
 /**

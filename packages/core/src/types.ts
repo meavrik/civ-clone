@@ -346,7 +346,8 @@ export interface GameState {
    * Only the units, improvements, advances and resources a save of this version knew (each rule's `since`,
    * `inCatalogue`): Archery, Seafaring, the Harbour, Archers, War Elephants, the Explorer, the Fishing Boat and the
    * Elephants' deposits came with version 53, Oil at sea and its oil rigs (`ResourceRule.offshore`) with 55, the herds
-   * (`HERDS`: Sheep, Camels, Bison) with 61. Set for saves before version 61. Missing: all of them.
+   * (`HERDS`: Sheep, Camels, Bison) with 61; Ivory (`SpecialRule.until`) lay in the arctic until 61. Set for saves before
+   * version 62. Missing: all of them, and nothing taken out since.
    */
   catalogue?: number;
   /** Fish feed a city whether or not a fishery was laid on them (`specialLocked`), as before version 54. */
