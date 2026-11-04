@@ -63,6 +63,7 @@ interface Options {
   freeFish: boolean;
   quickImprovements: boolean;
   clusteredResources: boolean;
+  crowdedResources: boolean;
   richSea: boolean;
   groundedElephants: boolean;
   foodOnlyFishery: boolean;
@@ -129,6 +130,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --free-fish         Fish feed a city without a fishery (saves before version 54)
   --quick-improvements roads, irrigation and mines in the original's turns, not twice them (saves before version 56)
   --clustered-resources specials of a kind may lie side by side, not 3 squares apart (saves before version 57)
+  --crowded-resources  only specials of a kind stay 3 squares apart, not any two (saves before version 69)
   --rich-sea           the sea yields 2 trade and a Harbour only food (saves before version 58)
   --grounded-elephants war elephants keep off mountains without a road (saves before version 59)
   --food-only-fishery  a fishery on fish adds no shield (saves before version 60)
@@ -142,7 +144,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, pickAfterUnits: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false, meekCityStates: false, noReplacements: false, barredCaravans: false, fedOnly: false, noTribes: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, pickAfterUnits: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, crowdedResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false, meekCityStates: false, noReplacements: false, barredCaravans: false, fedOnly: false, noTribes: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -209,6 +211,7 @@ function parseArgs(argv: string[]): Options {
       case "free-fish": o.freeFish = true; break;
       case "quick-improvements": o.quickImprovements = true; break;
       case "clustered-resources": o.clusteredResources = true; break;
+      case "crowded-resources": o.crowdedResources = true; break;
       case "rich-sea": o.richSea = true; break;
       case "grounded-elephants": o.groundedElephants = true; break;
       case "food-only-fishery": o.foodOnlyFishery = true; break;
@@ -370,6 +373,7 @@ function main(argv: string[]): number {
       ...(o.freeFish ? { freeFish: true } : {}),
       ...(o.quickImprovements ? { quickImprovements: true } : {}),
       ...(o.clusteredResources ? { clusteredResources: true } : {}),
+      ...(o.crowdedResources ? { crowdedResources: true } : {}),
       ...(o.richSea ? { richSea: true } : {}),
       ...(o.groundedElephants ? { groundedElephants: true } : {}),
       ...(o.foodOnlyFishery ? { foodOnlyFishery: true } : {}),

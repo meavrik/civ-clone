@@ -163,6 +163,8 @@ export interface NewGameOptions extends MapGenOptions {
    * version 57 (since, `spreadSpecials` keeps them `SPECIAL_SPACING` apart). Old saves load with it.
    */
   clusteredResources?: boolean;
+  /** Only specials of one kind are kept apart, as before version 69 (since, any two: `spreadSpecials`). Old saves load with it. */
+  crowdedResources?: boolean;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
@@ -273,8 +275,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     });
   // Strategic resources lie in deposits besides the lattice's specials (rules/resources.ts).
   if (!opts.noResources) scatterDeposits(map, seed, opts.catalogue);
-  // None of a kind near another (since version 57).
-  if (!opts.clusteredResources) spreadSpecials(map, seed);
+  // None of a kind near another (since version 57), no two of any kind near each other (since version 69).
+  if (!opts.clusteredResources) spreadSpecials(map, seed, opts.crowdedResources);
   const humanCiv = opts.civ ?? "romans";
   const roster = opts.roster;
   const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians" && (!homes || homes[c.id] !== undefined) && (roster === undefined || (c.since ?? 0) <= roster));

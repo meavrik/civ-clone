@@ -38,8 +38,9 @@ describe("herds (save version 61)", () => {
   it("graze their own land on new worlds only, apart from their kind, every other special where it was", () => {
     const seen: Record<string, number> = {};
     for (const seed of [3, 8, 13]) {
-      const s = newGame(seed, { opponents: 3 });
-      const old = newGame(seed, { opponents: 3, catalogue: 60 });
+      // The worlds as version 68 spread them: since version 69 no special keeps its place for a herd's sake.
+      const s = newGame(seed, { opponents: 3, crowdedResources: true });
+      const old = newGame(seed, { opponents: 3, catalogue: 60, crowdedResources: true });
       const at = new Map<string, [number, number][]>();
       s.map.tiles.forEach((t, i) => {
         const name = specialOf(t)?.name;

@@ -1,7 +1,7 @@
 import { nextFloat, nextInt, type RngState } from "../rng.js";
 import { inCatalogue } from "../rules/catalogue.js";
 import { DEPOSIT_BY_ID, HERDS, RESOURCE_BY_ID, RESOURCES, type DepositRule } from "../rules/resources.js";
-import { secondKind, SPECIAL_REACH_SINCE, SPECIAL_SPACING, specialOf, SPREAD_REACH, TERRAIN_RULES, type SpecialRule } from "../rules/terrain.js";
+import { CROWDED_REACH, secondKind, SPECIAL_REACH_SINCE, SPECIAL_SPACING, specialOf, SPREAD_REACH, TERRAIN_RULES, type SpecialRule } from "../rules/terrain.js";
 import { MAP_WIDTH, NEIGHBOURS, Terrain, worldSize, wrapX, type Tile, type WorldMap, type WorldSize } from "../types.js";
 import { findGeography } from "./geography.js";
 
@@ -540,40 +540,61 @@ export function scatterDeposits(map: WorldMap, seed: number, catalogue?: number)
 }
 
 /**
- * Specials of one kind kept `SPECIAL_SPACING` squares apart (worlds since save version 57): the lattice's first, then
- * the deposits, then the herds (since save version 61, so every other special lies where it did), each in an order
- * hashed from the square and the seed (no RNG, so the seed's draws stay as they were).
- * One with another of its kind too near moves to the nearest square that suits it and is clear of its kind, ring by
- * ring up to `SPREAD_REACH` out (a deposit to a terrain its resource may lie on, and beside the terrain it must be
- * beside; a lattice special to its own terrain, within its reach of land), so a world keeps about as many of each;
- * with no such square it is left out.
+ * Specials kept `SPECIAL_SPACING` squares apart, whatever their kind (worlds since save version 69), each in an order
+ * hashed from the square and the seed (no RNG, so the seed's draws stay as they were). There is not room for all of
+ * them, so who claims room first decides who stays: the land's lattice specials and oil at sea (both few), then the
+ * land's deposits, the kinds taking turns so those on crowded land (Camels, Reindeer) are not squeezed out, and last the
+ * sea's Fish and Whales, plenty of which can give way to the land. With `crowded` (worlds of versions 57 to 68) only
+ * specials of one kind are kept apart: the lattice's first, then the deposits, then the herds.
+ * One with another too near moves to the nearest square that suits it and is clear, ring by ring up to `SPREAD_REACH`
+ * out (`CROWDED_REACH` if crowded; a deposit to a terrain its resource may lie on, and beside the terrain it must be
+ * beside; a lattice special to its own terrain, within its reach of land); with no such square it is left out.
  */
-export function spreadSpecials(map: WorldMap, seed: number): void {
+export function spreadSpecials(map: WorldMap, seed: number, crowded = false): void {
   const { width: w, height: h, tiles } = map;
   const at = (x: number, y: number) => tiles[y * w + wrapX(map, x)]!;
-  interface Item { x: number; y: number; name: string; terrain: Terrain; second: boolean; deposit?: string; order: number }
+  interface Item { x: number; y: number; name: string; terrain: Terrain; second: boolean; deposit?: string; tier: number; turn: number; hash: number }
   const items: Item[] = [];
+  const tierOf = (t: Tile): number => {
+    if (crowded) return !t.deposit ? 0 : HERD_IDS.has(t.deposit) ? 2 : 1;
+    if (t.terrain === Terrain.Ocean) return t.deposit ? 0 : 2;
+    return t.deposit ? 1 : 0;
+  };
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
       const t = tiles[y * w + x]!;
       const name = specialOf(t)?.name;
       if (name === undefined) continue;
-      const order = (!t.deposit ? 0 : HERD_IDS.has(t.deposit) ? 2 : 1) + squareHash(x * 3 + (seed % 499), y * 17 + (seed % 101));
-      items.push({ x, y, name, terrain: t.terrain, second: !!t.secondSpecial, ...(t.deposit ? { deposit: t.deposit } : {}), order });
+      const hash = squareHash(x * 3 + (seed % 499), y * 17 + (seed % 101));
+      items.push({ x, y, name, terrain: t.terrain, second: !!t.secondSpecial, ...(t.deposit ? { deposit: t.deposit } : {}), tier: tierOf(t), turn: 0, hash });
       t.special = false;
       delete t.secondSpecial;
       delete t.deposit;
     }
-  items.sort((a, b) => a.order - b.order);
+  const claimOrder = (a: Item, b: Item) => a.tier - b.tier || a.turn - b.turn || a.hash - b.hash;
+  items.sort(claimOrder);
+  if (!crowded) {
+    const turns = new Map<string, number>();
+    for (const it of items) {
+      if (it.tier !== 1) continue;
+      it.turn = turns.get(it.name) ?? 0;
+      turns.set(it.name, it.turn + 1);
+    }
+    items.sort(claimOrder);
+  }
   const kept: (string | undefined)[] = new Array(w * h);
   const clear = (x: number, y: number, name: string) => {
     for (let dy = 1 - SPECIAL_SPACING; dy < SPECIAL_SPACING; dy++) {
       const ny = y + dy;
       if (ny < 0 || ny >= h) continue;
-      for (let dx = 1 - SPECIAL_SPACING; dx < SPECIAL_SPACING; dx++) if (kept[ny * w + wrapX(map, x + dx)] === name) return false;
+      for (let dx = 1 - SPECIAL_SPACING; dx < SPECIAL_SPACING; dx++) {
+        const near = kept[ny * w + wrapX(map, x + dx)];
+        if (near !== undefined && (!crowded || near === name)) return false;
+      }
     }
     return true;
   };
+  const reach = crowded ? CROWDED_REACH : SPREAD_REACH;
   const suits = (it: Item, x: number, y: number): boolean => {
     if (y < 1 || y >= h - 1) return false;
     const t = at(x, y);
@@ -608,7 +629,7 @@ export function spreadSpecials(map: WorldMap, seed: number): void {
       place(it, it.x, it.y);
       continue;
     }
-    search: for (let r = 1; r <= SPREAD_REACH; r++)
+    search: for (let r = 1; r <= reach; r++)
       for (let dy = -r; dy <= r; dy++)
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;

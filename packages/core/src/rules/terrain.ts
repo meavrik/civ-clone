@@ -51,13 +51,15 @@ export const SPECIAL_REACH_SINCE = 19;
 export const HIDDEN_WEAR_SINCE = 68;
 
 /**
- * Specials of one kind lie at least this many squares apart, counting diagonals as one (worlds since save version 57;
- * asked for 2026-11-01: "sometimes many resources are near each other - set minimum distance between resources of the
- * same type"): none of a kind in the 5x5 round another. One that falls nearer moves up to `SPREAD_REACH` squares to a
- * square that suits it (`spreadSpecials`), else it is left out.
+ * Any two specials lie at least this many squares apart, whatever their kind, counting diagonals as one (worlds since
+ * save version 69; asked for 2026-11-04: "avoid too many resources near each other - set a minimum distance between
+ * resources"): none in the 5x5 round another. One that falls nearer moves up to `SPREAD_REACH` squares to a square that
+ * suits it (`spreadSpecials`), else it is left out. Worlds of save versions 57 to 68 kept only specials of one kind
+ * apart (asked for 2026-11-01), moving them up to `CROWDED_REACH` squares (`NewGameOptions.crowdedResources`).
  */
 export const SPECIAL_SPACING = 3;
-export const SPREAD_REACH = 4;
+export const SPREAD_REACH = 6;
+export const CROWDED_REACH = 4;
 
 export interface TerrainRule {
   food: number;

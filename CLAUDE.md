@@ -96,7 +96,26 @@ Never ship the original's sprites, palette art, fonts or text.
   planner vs v2, 16 x 300, seeds 1-16 and 17-32: spread 7-9 and 6-10, score 108 vs 99 and 101 vs 100, pop 44 vs 29
   and 43 vs 35; clustered (as version 56) 11-5 and 9-7, 108 vs 94 and 118 vs 99, pop 42 vs 30 and 49 vs 33; all replaying
   exactly. The planner loses its edge on the spread worlds (13-19 over the 32 seeds, against 20-12): not tuned for them
-  yet (its swaps of spare resources may count for less with fewer of a kind on one civ's land). Since save version 52 (asked for
+  yet (its swaps of spare resources may count for less with fewer of a kind on one civ's land). Since save version 69 (asked
+  for 2026-11-04, with a picture of bison, elephants, horses and sheep side by side: "avoid too many resources near each
+  other - set a minimum distance between resources") any two specials, of any kind, land or sea, lie that far apart, none in
+  the 5x5 round another (`spreadSpecials`). There is no room for them all: a square of land in 8.5 held one, the most this
+  leaves is about 1 in 13, and desert (1 in 3.8) and tundra (1 in 4.8) were fullest. So who claims room first decides who
+  stays: the land's lattice specials and oil at sea (both few), then the land's deposits, the kinds taking turns (`Item.turn`:
+  in one hashed order Camels kept 23%, with herds last almost none), last the sea's Fish and Whales, plenty of which give
+  way to the land (claiming before it, they cost it a sixth of what it keeps), a moved one looking `SPREAD_REACH` (6) squares
+  out (`CROWDED_REACH`, 4, before). A medium world, kept of what it had: Horses 34 of 51, Iron 26 of 48, Saltpeter 19 of 49,
+  Coal 33 of 38, Elephants 19 of 28, land Oil 32 of 50, Bison 19 of 26, Camels 9 of 22, Sheep 14 of 26, Reindeer 8 of 13, Fish
+  123 of 143, Whales 201 of 208, sea Oil and the lattice's land specials all (284 specials on land, 425 before; the counts
+  given elsewhere here are from before). A land square's 21 hold 1.5 on average, 2.4 before; 4 or more 0.1% of the time, 21%
+  before; 2 squares apart was no cure (73% still had one within two), 4 left under a third of what stood on land. Starts
+  score 132 on average over 50 seeds, 136 before, none of 300 unfit; 127 of the 300 stand elsewhere. Saves before 69 load
+  with `crowdedResources` (headless `--crowded-resources`). Planner vs v2, 16 x 300: seeds 1-16 7-9, score 85 vs 108, pop 33
+  vs 37; seeds 17-32 11-5, 118 vs 80, pop 49 vs 31; crowded 11-5, 111 vs 89 (as version 68) and 8-8, 112 vs 111, so over the 32
+  seeds 18-14, 102 vs 94, pop 41 vs 34, cities 7.9 vs 6.8, against 19-13, 111 vs 100, pop 49 vs 37, cities 9.3 vs 6.8; all
+  replaying exactly (one seed set alone misleads: every world changes). Held at turn 150 (planner in every seat, 6 seeds):
+  Horses 54% of civs (57% before), Iron 13% (35%), Coal 17% (26%), Elephants 8% (22%); at 200 Iron 29% (43%). Iron feels it
+  most, on narrow hills and mountains shared with Coal and Saltpeter. Since save version 52 (asked for
   2026-10-31: "resources on tiles, like horses, should not give extra shields to the city") a strategic resource's
   square adds no shields, neither its own (Horses 2, Iron 3, Coal 2, Oil 1, Saltpeter 1) nor an advance's (Iron
   Working, Gunpowder, Refining): core `yieldingSpecial`, read by `tileYield`, the square's window and the research
@@ -2023,7 +2042,8 @@ automatically keep a city growing and making something where its land allows (20
 A tribe in a fifth of the villages joins its finder as a city on good land, else Settlers, as the original had it and
 Civilization II after it (2026-11-04, asked for; save version 67). Tundra wears units down until Weaving, at the desert's
 10%, and Reindeer roam it, its only shields, drawn as the Game's deer until their own picture comes; a resource still hidden
-from a civilization no longer spares its units wear (2026-11-04, asked for; save version 68). The 27 improvements drawn as the user's sheet, the Harbour's picture with them (2026-11-04, asked for; no save version).
+from a civilization no longer spares its units wear (2026-11-04, asked for; save version 68). Any two specials lie three
+squares apart, whatever their kind, the land's kinds taking turns for the room (2026-11-04, asked for; save version 69). The 27 improvements drawn as the user's sheet, the Harbour's picture with them (2026-11-04, asked for; no save version).
 
 ## Known gaps / next steps
 

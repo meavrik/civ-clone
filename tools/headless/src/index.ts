@@ -144,6 +144,8 @@ export interface GameConfig {
   quickImprovements?: boolean;
   /** Specials of a kind as their placement put them, however near each other (`NewGameOptions.clusteredResources`). */
   clusteredResources?: boolean;
+  /** Only specials of one kind kept apart, as before version 69 (`NewGameOptions.crowdedResources`). */
+  crowdedResources?: boolean;
   /** The sea's 2 trade and a Harbour of food only (`GameState.richSea`). */
   richSea?: boolean;
   /** War Elephants keep off roadless mountains (`GameState.groundedElephants`). */
@@ -282,6 +284,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.freeFish ? { freeFish: true } : {}),
     ...(config.quickImprovements ? { quickImprovements: true } : {}),
     ...(config.clusteredResources ? { clusteredResources: true } : {}),
+    ...(config.crowdedResources ? { crowdedResources: true } : {}),
     ...(config.richSea ? { richSea: true } : {}),
     ...(config.groundedElephants ? { groundedElephants: true } : {}),
     ...(config.foodOnlyFishery ? { foodOnlyFishery: true } : {}),
