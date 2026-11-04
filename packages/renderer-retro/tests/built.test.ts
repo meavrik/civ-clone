@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { applyCommand, BUILDINGS, newGame, SPACE_PARTS, WONDERS, type GameState, type Production } from "@civ/core";
-import { ART_SIZE, artPlace, BUILDING_ART, BUILDING_PICTURES_WANTED, builtCard, type BuiltView, type MainScreenView } from "@civ/renderer-api";
+import { ART_SIZE, artPlace, BUILDING_ART, BUILDING_CUTS, BUILDING_PICTURES_WANTED, builtCard, type BuiltView, type MainScreenView } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
 import { builtHit, builtPicture, builtPlace, builtRect, drawBuilt, drawMainScreen, tileToScreen, TILE, VIEW_Y } from "../src/index.js";
 import { Surface } from "../src/surface.js";
@@ -16,32 +16,48 @@ function withCity(): { state: GameState; city: number } {
 }
 
 describe("the user's pictures of buildings", () => {
-  it("are a picture for each id the table names, and nothing else, each drawing inside its square", () => {
+  it("are a picture for each id the tables name, and nothing else, each drawing inside its square", () => {
     const ids = new Set([...BUILDINGS.map((b) => b.id), ...WONDERS.map((w) => w.id), ...SPACE_PARTS.map((p) => p.id)].filter((id) => !BUILDING_PICTURES_WANTED.includes(id)));
-    const files = readdirSync(dir).filter((f) => f.endsWith(".webp")).map((f) => f.slice(0, -5));
-    expect(files.sort()).toEqual(Object.keys(BUILDING_ART).sort());
+    const of = (ext: string) => readdirSync(dir).filter((f) => f.endsWith(ext)).map((f) => f.slice(0, -ext.length)).sort();
+    expect(of(".webp")).toEqual(Object.keys(BUILDING_ART).sort());
+    expect(of(".png")).toEqual(Object.keys(BUILDING_CUTS).sort());
     for (const [id, [x, y, w, h]] of Object.entries(BUILDING_ART)) {
       expect(ids.has(id), id).toBe(true);
+      expect(id in BUILDING_CUTS, id).toBe(false);
       expect(existsSync(new URL(`${id}.webp`, dir)), id).toBe(true);
       expect(x >= 0 && y >= 0 && w > 100 && h > 100 && x + w <= ART_SIZE && y + h <= ART_SIZE, id).toBe(true);
     }
-    // Every one of the 50 has one; the Harbour's is still to come.
-    expect(Object.keys(BUILDING_ART).length).toBe(ids.size);
+    // The sheet holds every improvement; the wonders and the spaceship parts keep their squares.
+    expect(Object.keys(BUILDING_CUTS).sort()).toEqual(BUILDINGS.map((b) => b.id).sort());
+    expect(Object.keys(BUILDING_ART).length + Object.keys(BUILDING_CUTS).length).toBe(ids.size);
   });
 
   it("lay a picture so its drawing fills a box, shape kept, on the box's foot or in its middle", () => {
-    const box = { id: "cell_tower", x: 100, y: 40, w: 60, h: 60 };
-    const [ax, ay, aw, ah] = BUILDING_ART.cell_tower!;
+    const box = { id: "apollo_program", x: 100, y: 40, w: 60, h: 60 };
+    const [ax, ay, aw, ah] = BUILDING_ART.apollo_program!;
     for (const middle of [false, true]) {
       const p = artPlace({ ...box, middle })!;
       const k = p.w / ART_SIZE;
       const drawn = { x: p.x + ax * k, y: p.y + ay * k, w: aw * k, h: ah * k };
-      expect(drawn.h).toBeCloseTo(60); // a tall tower fills the box's height
+      expect(drawn.h).toBeCloseTo(60); // a tall rocket fills the box's height
       expect(drawn.x + drawn.w / 2).toBeCloseTo(130);
       if (middle) expect(drawn.y + drawn.h / 2).toBeCloseTo(70);
       else expect(drawn.y + drawn.h).toBeCloseTo(100);
     }
     expect(artPlace({ ...box, id: "hut" })).toBeNull();
+  });
+
+  it("lay a cut of the sheet whole, in its own shape", () => {
+    const box = { id: "cell_tower", x: 100, y: 40, w: 60, h: 60 };
+    const [w, h] = BUILDING_CUTS.cell_tower!;
+    const foot = artPlace(box)!;
+    expect(foot.h).toBeCloseTo(60); // taller than wide, so it fills the box's height...
+    expect(foot.w / foot.h).toBeCloseTo(w / h); // ...shape kept
+    expect(foot.x + foot.w / 2).toBeCloseTo(130);
+    expect(foot.y + foot.h).toBeCloseTo(100);
+    const wide = artPlace({ ...box, id: "city_walls", middle: true })!;
+    expect(wide.w).toBeCloseTo(60);
+    expect(wide.y + wide.h / 2).toBeCloseTo(70);
   });
 });
 
@@ -90,7 +106,7 @@ describe("Building Completed window", () => {
       expect(o.x).toBeGreaterThan(0);
       expect(o.x + o.w).toBeLessThan(320);
     }
-    // The Harbour's two lines, its picture still to come (`BUILDING_PICTURES_WANTED`).
+    // The Harbour's two lines.
     const harbour: BuiltView = { city, production: { kind: "building", id: "harbour" } };
     drawBuilt(s, state, harbour);
     writeFileSync(new URL("./out/built-harbour.png", import.meta.url), encodePng(s, 3));

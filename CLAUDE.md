@@ -528,8 +528,8 @@ Never ship the original's sprites, palette art, fonts or text.
   turns: 26 Archers, 2 War Elephants, 4 Fishing Boats and their fisheries, 1 Harbour, no Explorer (the planner
   reaches Seafaring late, most of the game on its war goals against the city-states). Pictures: the four units' are the
   user's (see Unit pictures; `UNIT_PICTURES_WANTED` is empty, retro `UNIT_ABBR`'s letters stand in only where no
-  picture is laid); the rest wait for theirs (renderer-api `BUILDING_PICTURES_WANTED`, `TECH_PICTURES_WANTED`): the Harbour its
-  drawn city-view picture (`PICTURES.harbour`), Archery and Seafaring the New Technology frame's bed (Elephants
+  picture is laid); the Harbour's too since the sheet of improvements (see Improvement pictures; `BUILDING_PICTURES_WANTED`
+  is empty, `PICTURES.harbour` the fallback); the advances wait for theirs (`TECH_PICTURES_WANTED`): Archery and Seafaring the New Technology frame's bed (Elephants
   have the user's icon since their resource sheet of the same day); a fishery is the user's net since 2026-11-02 (see Tile improvement pictures; before, drawn in code, retro `fishery.ts`: two stakes, a sagging net, red and
   white floats). The Resources advisor's bands close up to fit six (`TRADES_ROOM`). The loader took versions 1-48 and
   the current one only, so saves of 49 to 51 had been refused since; it now takes every version up to `SAVE_VERSION`.
@@ -853,9 +853,11 @@ Never ship the original's sprites, palette art, fonts or text.
   fills the shapes pixel by pixel (`pictures.ts`: lit left, shaded right, outlined in black); modern paints
   them as paths three times larger. The user's pictures of buildings (2026-10-24, asked for: "use the attached
   images for game buildings ... replace buildings also in the city view"; all 50 since Barracks, Granary and
-  the Great Library came later that day; the drawn ones stay as the fallback for an id without a picture)
+  the Great Library came later that day; the 27 improvements cuts of the user's sheet since 2026-11-04, see Improvement
+  pictures; the drawn ones stay as the fallback for an id without a picture)
   stand in their place: `BUILDING_ART` (`art.ts`)
-  gives the box each one's drawing fills in its 1254 square, `artLot` the room it takes in the city view
+  gives the box each wonder's or spaceship part's drawing fills in its 1254 square, `buildingArt` the box whichever a
+  picture is, `artLot` the room it takes in the city view
   (the drawn picture's area in the picture's own shape, at most 46 high; `SceneItem.w`/`h`), and the walls'
   picture stands as their gatehouse over the drawn run (`kind: "gate"`). Retro draws buildings through
   `drawBuilding`, which leaves an `ArtSpot` in `Surface.art` (back to front) where a picture exists; the
@@ -1555,6 +1557,16 @@ Never ship the original's sprites, palette art, fonts or text.
   (`drawResourceIcon`). The corner marks (`drawResourceMark`) stay our pictograms. `preloadCities` fetches the 26. Reindeer
   are on no sheet yet and borrow the Game's deer (`BORROWED_ICONS` in retro `tiles.ts`). The
   palette sprites (`resources.art.ts`) stay for anything without a picture (tests, `npm run sprites`).
+  Improvement pictures (2026-11-04, asked for with the user's sheet: "replace all building images with attached
+  sprite-sheet"): `tools/sprites/buildings/buildings.png` (kept byte for byte as supplied, 1659x948: the 27 improvements,
+  the Harbour's first picture among them, in the rules' order in rows of seven, no even grid, a clear background; nearly
+  every pixel soft, 346 of them whole, a red and olive fringe of its background's removal at alpha 1 to 8, unseen) is cut by
+  `tools/sprites/buildings/cut.ts` (each a piece of alpha over 64, by its bounds two pixels out, every pixel the sheet's)
+  into `apps/web/src/buildings/<id>.png` and renderer-api `building-art.ts` (`BUILDING_CUTS`, the cuts' sizes), in place of
+  their WebPs; a cut is its own drawing's box (`buildingArt`, x and y 0), and `artPlace` lays it at its own size where a
+  wonder's lays the 1254 square. PNGs, as every other sheet's, so a test can hold each to the sheet (no WebP reader here)
+  and the phone precaches them (2 MB, where the wonders' WebPs still come as first shown). Wonders and spaceship parts are
+  not on it: their 24 WebPs stay, smoother and larger than the sheet beside them in the city view.
   Village pictures (2026-11-02, asked for with the user's sheet of five huts: "replace huts in game with attached veriety
   of huts"): `tools/sprites/huts/huts.png` (kept as supplied: a straw-thatched round hut, a timber hall, a mud-brick
   house, a hide tent, a stone cottage with a chimney, on a clear background) is cut by `tools/sprites/huts/cut.ts` into
@@ -1821,8 +1833,8 @@ Never ship the original's sprites, palette art, fonts or text.
   `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits
   and the advances' pictures (`techs/<advance>.webp`, 1254 square, WebP quality 92; `techPicture`: all but
   the 1991 tree's Future Tech., which shows the frame's bed; each adapter's `main` fetches the picture
-  of the research under way, `preloadTech`) and the buildings' (`buildings/<id>.webp`, 1254 square, WebP quality
-  92; laid at the screen's `Surface.art` spots; `preloadBuildings` fetches what our cities are building), and the
+  of the research under way, `preloadTech`) and the wonders' and spaceship parts' (`buildings/<id>.webp`, 1254 square, WebP quality
+  92; laid at the screen's `Surface.art` spots with the improvements' PNGs; `preloadBuildings` fetches what our cities are building), and the
   units' (`units/<id>.png`, see Unit pictures below), the only things the retro look does not draw through the palette. The phone app caches each picture when first shown,
   not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
   into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
@@ -2011,7 +2023,7 @@ automatically keep a city growing and making something where its land allows (20
 A tribe in a fifth of the villages joins its finder as a city on good land, else Settlers, as the original had it and
 Civilization II after it (2026-11-04, asked for; save version 67). Tundra wears units down until Weaving, at the desert's
 10%, and Reindeer roam it, its only shields, drawn as the Game's deer until their own picture comes; a resource still hidden
-from a civilization no longer spares its units wear (2026-11-04, asked for; save version 68).
+from a civilization no longer spares its units wear (2026-11-04, asked for; save version 68). The 27 improvements drawn as the user's sheet, the Harbour's picture with them (2026-11-04, asked for; no save version).
 
 ## Known gaps / next steps
 
@@ -2309,8 +2321,8 @@ from a civilization no longer spares its units wear (2026-11-04, asked for; save
   image generators or the original game's files for shipped art. Exception the user made (2026-10-21):
   the terrain, unit and resource sheets were supplied by the user as reference images and copied in
   pixel for pixel. The user's portraits (2026-10-22: the five difficulty rulers, the twenty leaders, the
-  twenty audience scenes; 2026-10-23: the 74 advances; 2026-10-24: all 50 improvements, wonders and spaceship
-  parts; 2026-10-28: the unit sheet, see Unit pictures) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
+  twenty audience scenes; 2026-10-23: the 74 advances; 2026-10-24: the wonders and spaceship
+  parts; 2026-10-28: the unit sheet, see Unit pictures; 2026-11-04: the improvements' sheet, see Improvement pictures) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
   (asked for, twice, emphatically: conversions into the palette looked "bad and distorted", and new
   images must not be generated); see the setup cards and the audience screen above; new art drawn here follows their manner (see `packages/renderer-retro` above) and
   the user's pixel-art rules: even chunky strokes, one-pixel outlines in dark shades of the thing's own

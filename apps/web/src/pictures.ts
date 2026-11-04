@@ -1,5 +1,5 @@
 import { civ, UNIT_TYPES, type GameState } from "@civ/core";
-import { artPlace, buildingArt, CITY_ART, HUT_ART, LEADER_PORTRAITS, RESOURCE_ART, WORK_ART, techPicture, unitAnim, unitArt, type ArtBox, type ArtSpot } from "@civ/renderer-api";
+import { artPlace, buildingArt, BUILDING_CUTS, CITY_ART, HUT_ART, LEADER_PORTRAITS, RESOURCE_ART, WORK_ART, techPicture, unitAnim, unitArt, type ArtBox, type ArtSpot } from "@civ/renderer-api";
 import { slotColor } from "@civ/renderer-retro";
 import { prepareUnitFrames, unitFrameUrl } from "./unit-frames.js";
 
@@ -18,7 +18,9 @@ import { prepareUnitFrames, unitFrameUrl } from "./unit-frames.js";
  * map and the square's window, and the tile improvements (works/<id>.png, 2026-11-02, cut from the user's sheet of
  * them pixel for pixel: fields, mines, rigs, nets, piers) on the map, the city screen and the square's window, and the
  * resources (resources/<id>.png, 2026-11-03, cut from the user's sheet of them pixel for pixel: "USE AS IS") wherever
- * one is drawn: the map, the city screen, the square's window, the New Technology window, Advisors > Resources. Each is
+ * one is drawn: the map, the city screen, the square's window, the New Technology window, Advisors > Resources; and the
+ * improvements (buildings/<id>.png, 2026-11-04, cut from the user's sheet of them pixel for pixel), in place of their
+ * WebPs, the wonders and spaceship parts keeping theirs. Each is
  * an image laid over the canvas where the screen leaves room for
  * it; they let clicks through to the canvas.
  */
@@ -26,7 +28,7 @@ import { prepareUnitFrames, unitFrameUrl } from "./unit-frames.js";
 const sceneUrl = (name: string): string => new URL(`./scenes/${name}.webp`, import.meta.url).href;
 const portraitUrl = (name: string): string => new URL(`./portraits/${name}.webp`, import.meta.url).href;
 const techUrl = (id: string): string => new URL(`./techs/${id}.webp`, import.meta.url).href;
-const buildingUrl = (id: string): string => new URL(`./buildings/${id}.webp`, import.meta.url).href;
+const buildingUrl = (id: string): string => (id in BUILDING_CUTS ? new URL(`./buildings/${id}.png`, import.meta.url) : new URL(`./buildings/${id}.webp`, import.meta.url)).href;
 const unitUrl = (id: string): string => new URL(`./units/${id}.png`, import.meta.url).href;
 const cityUrl = (id: string): string => new URL(`./cities/${id}.png`, import.meta.url).href;
 const hutUrl = (id: string): string => new URL(`./huts/${id}.png`, import.meta.url).href;

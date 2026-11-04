@@ -1,3 +1,4 @@
+import { BUILDING_CUTS } from "./building-art.js";
 import { CITY_ART } from "./city-art.js";
 import { HUT_ART } from "./hut-art.js";
 import { RESOURCE_ART } from "./resource-art.js";
@@ -12,10 +13,13 @@ import type { UnitAtlas } from "./unit-atlas.js";
  * over the canvas (`apps/web/src/buildings/<id>.webp`, the PNGs as supplied, WebP quality 92, alpha exact).
  * Each is `ART_SIZE` square, the building standing in it on clear ground; `BUILDING_ART` gives the box its
  * drawing fills (x, y, w, h, measured from the PNGs), so a screen fits the building, not its empty margin,
- * to a place. Every one of the 50 has one (Barracks, Granary and the Great Library came last, 2026-10-24);
- * the drawn pictures stay as the fallback for an id without one.
+ * to a place. Every one of the 51 has one; the drawn pictures stay as the fallback for an id without one.
+ * The 27 improvements are cuts of the user's sheet of them since 2026-11-04 (asked for: "replace all building images
+ * with attached sprite-sheet"): `apps/web/src/buildings/<id>.png`, every pixel the sheet's, cut to their bounds by
+ * tools/sprites/buildings/cut.ts, their sizes in `BUILDING_CUTS`. The wonders and spaceship parts are not on the sheet.
  */
 export const ART_SIZE = 1254;
+export { BUILDING_CUTS };
 
 /**
  * Units still waiting for the user's pictures (added 2026-11-01, save version 53): the map shows each as its letters
@@ -24,59 +28,33 @@ export const ART_SIZE = 1254;
  */
 export const UNIT_PICTURES_WANTED: readonly string[] = [];
 
-/** Improvements still waiting for the user's picture (added 2026-11-01, save version 53): their drawn one (`PICTURES`) stands in. */
-export const BUILDING_PICTURES_WANTED: readonly string[] = ["harbour"];
+/** Improvements still waiting for the user's picture: their drawn one (`PICTURES`) stands in. The Harbour's came with the sheet of 2026-11-04, so none waits now. */
+export const BUILDING_PICTURES_WANTED: readonly string[] = [];
 
 export const BUILDING_ART: Readonly<Record<string, readonly [number, number, number, number]>> = {
   apollo_program: [359, 70, 555, 1087],
-  aqueduct: [39, 353, 1176, 627],
-  automated_office: [272, 232, 711, 816],
-  bank: [142, 186, 972, 889],
-  barracks: [105, 334, 1044, 668],
-  cathedral: [151, 155, 953, 980],
-  cell_tower: [438, 115, 382, 1044],
-  city_walls: [67, 371, 1121, 591],
-  colosseum: [90, 334, 1075, 646],
   colossus: [422, 70, 399, 1113],
   component: [268, 181, 718, 898],
   copernicus: [233, 258, 789, 764],
-  courthouse: [231, 244, 792, 807],
   cure_for_cancer: [180, 293, 894, 710],
   darwins_voyage: [191, 123, 873, 1015],
-  data_center: [168, 223, 918, 782],
-  factory: [176, 238, 902, 836],
-  granary: [169, 261, 988, 818],
   great_library: [99, 130, 1057, 998],
   great_wall: [76, 342, 1102, 529],
   hanging_gardens: [148, 269, 981, 716],
   hoover_dam: [51, 370, 1153, 569],
-  hydro_plant: [88, 379, 1115, 572],
   isaac_newtons: [147, 235, 1033, 810],
   js_bachs: [206, 185, 842, 884],
-  library: [199, 295, 856, 666],
   lighthouse: [336, 107, 582, 1004],
   magellans: [293, 74, 669, 1104],
   manhattan_project: [224, 318, 861, 680],
-  marketplace: [130, 403, 995, 547],
-  mass_transit: [232, 253, 792, 732],
-  mfg_plant: [95, 377, 1064, 547],
   michelangelos: [100, 336, 1054, 630],
   module: [69, 351, 1117, 613],
-  nuclear_plant: [97, 365, 1087, 582],
   oracle: [321, 297, 713, 671],
-  palace: [77, 313, 1100, 679],
-  power_plant: [173, 252, 906, 808],
   pyramids: [51, 342, 1151, 603],
-  quantum_lab: [138, 241, 979, 796],
-  recycling_center: [68, 289, 1121, 695],
-  sdi_defense: [211, 275, 834, 756],
   seti_program: [130, 96, 994, 1087],
   shakespeares: [65, 213, 1123, 946],
-  solar_plant: [100, 491, 1055, 392],
   structural: [41, 104, 1172, 1048],
-  temple: [135, 234, 985, 773],
   united_nations: [177, 237, 921, 820],
-  university: [101, 58, 1052, 1105],
   womens_suffrage: [221, 298, 812, 658],
 };
 
@@ -264,8 +242,10 @@ export function moveArt(a: ArtSpot, fromX: number, fromY: number, toX: number, t
   return { ...a, ...at(a), ...(a.clip ? { clip: at(a.clip) } : {}), ...(a.holes ? { holes: a.holes.map(at) } : {}) };
 }
 
-/** The box the drawing of building `id`'s picture fills within its square, or null when it has no picture. */
+/** The box the drawing of building `id`'s picture fills within it (a sheet's cut: all of it), or null when it has no picture. */
 export function buildingArt(id: string): ArtBox | null {
+  const cut = BUILDING_CUTS[id];
+  if (cut) return { x: 0, y: 0, w: cut[0], h: cut[1] };
   const b = BUILDING_ART[id];
   return b ? { x: b[0], y: b[1], w: b[2], h: b[3] } : null;
 }
@@ -286,8 +266,8 @@ export function artLot(id: string, pic: { w: number; h: number }): { w: number; 
 }
 
 /**
- * Where to lay the whole picture of building `spot.id` (its square) so that its drawing fills the
- * spot's box as large as it fits, shape kept: centred across, on the box's foot (or its middle).
+ * Where to lay the whole picture of building `spot.id` (its square, or a sheet's cut) so that its drawing fills
+ * the spot's box as large as it fits, shape kept: centred across, on the box's foot (or its middle).
  */
 export function artPlace(spot: ArtSpot): ArtBox | null {
   if (spot.unit) return unitArtPlace(spot);
@@ -300,5 +280,6 @@ export function artPlace(spot: ArtSpot): ArtBox | null {
   const k = Math.min(spot.w / art.w, spot.h / art.h);
   const left = spot.x + (spot.w - art.w * k) / 2;
   const top = spot.middle ? spot.y + (spot.h - art.h * k) / 2 : spot.y + spot.h - art.h * k;
-  return { x: left - art.x * k, y: top - art.y * k, w: ART_SIZE * k, h: ART_SIZE * k };
+  const [w, h] = BUILDING_CUTS[spot.id] ?? [ART_SIZE, ART_SIZE];
+  return { x: left - art.x * k, y: top - art.y * k, w: w * k, h: h * k };
 }
