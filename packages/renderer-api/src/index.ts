@@ -605,7 +605,7 @@ export interface Renderer {
   minimapAt(state: GameState, px: number, py: number): { x: number; y: number } | null;
   /** What lies under a point of the research panel: an advance in the list or on the card, a button, the scroll bar. */
   researchHit(state: GameState, view: ResearchView, px: number, py: number): ResearchHit | null;
-  /** What the main screen's status panel holds under a point: the research row opens the research panel, the rates their window. */
+  /** What the main screen's status panel holds under a point: the research row opens the research panel, the treasury the rates window. */
   statusAt(state: GameState, view: MainScreenView, px: number, py: number): "research" | "endTurn" | "rates" | null;
   /** The part of the status panel under a point, for its tip (`panelTip`), or null off the panel's parts. */
   statusPartAt(state: GameState, view: MainScreenView, px: number, py: number): PanelSpot | null;

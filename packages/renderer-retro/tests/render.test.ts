@@ -1324,21 +1324,20 @@ describe("advisor screens", () => {
     };
     // A settler in play: every row of the panel answers, each with words.
     const parts = partsAt(view);
-    for (const part of ["population", "year", "gold", "tax", "lux", "sci", "government", "research", "unit", "moves", "terrain", "yield", "orders"])
+    for (const part of ["population", "year", "gold", "government", "research", "unit", "moves", "terrain", "yield", "orders"])
       expect(parts.has(part), part).toBe(true);
     for (const part of parts.keys()) expect(panelTip(state, part as PanelPart, settlers.id), part).not.toBeNull();
     expect(statusPartAt(state, 100, parts.get("gold")!, view)).toBeNull();
     // The minimap tells of nothing (asked for 2026-10-26).
     expect(parts.has("minimap")).toBe(false);
     expect(statusPartAt(state, 40, VIEW_Y + 20, view)).toBeNull();
-    // Tax, luxuries and science stand side by side on one row; a click on any opens the rates.
-    expect(parts.get("tax")).toBe(parts.get("lux"));
-    let rates = 0;
-    for (let x = 0; x < 80; x++) if (statusPanelAt(state, x, parts.get("tax")!, view) === "rates") rates++;
-    expect(rates).toBeGreaterThan(10);
-    // The treasury's tip reckons the turn's gold as the rates window does.
+    // A click anywhere on the treasury's row opens the rates, and the government comes straight under it.
+    expect(parts.get("government")).toBe(parts.get("gold")! + 9);
+    for (let x = 0; x < 80; x++) expect(statusPanelAt(state, x, parts.get("gold")!, view)).toBe("rates");
+    // The treasury's tip reckons the turn's gold as the rates window does, and gives the rates.
     const gold = panelTip(state, "gold", null)!;
     expect(gold.lines[0]).toMatch(new RegExp(`^\\+?${empireIncome(state, 0).gold} gold a turn`));
+    expect(gold.lines.at(-1)).toBe(`Tax ${me.taxRate * 10}%, luxuries ${me.luxRate * 10}%, science ${me.sciRate * 10}%: click to set the rates (T).`);
     // Nothing awaiting orders: End of Turn in the unit's place, and no unit parts.
     state.activeUnit = null;
     const ended = partsAt(view);
@@ -1349,7 +1348,7 @@ describe("advisor screens", () => {
     // Drawn: a stone box right of the panel, its point at the part, the panel itself untouched.
     const plain = Surface.screen();
     drawMainScreen(plain, state, view);
-    for (const part of ["gold", "tax", "government", "research", "unit", "moves", "yield", "orders"] as PanelPart[]) {
+    for (const part of ["gold", "government", "research", "unit", "moves", "yield", "orders"] as PanelPart[]) {
       const spot = statusPartAt(state, 10, parts.get(part)!, view)!;
       const s = Surface.screen();
       drawMainScreen(s, state, { ...view, tip: { ...spot, ...panelTip(state, part, settlers.id)! } });

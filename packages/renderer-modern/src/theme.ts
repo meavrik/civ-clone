@@ -82,6 +82,8 @@ export const ICON = {
   goldDark: "#a8791f",
   gem: "#6fe3ff",
   gemDark: "#2a9fc0",
+  note: "#7fc97a",
+  noteDark: "#3f8f4c",
   bulb: "#ffe27a",
   metal: "#9aa8b8",
   wheat: "#ecc15c",

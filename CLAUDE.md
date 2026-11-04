@@ -998,14 +998,14 @@ Never ship the original's sprites, palette art, fonts or text.
   (`researchOutlook`: advance, beakers, turns to go), and nothing while none is picked. Panel tips
   (asked for 2026-10-26: "add tooltips for each relevant element - not clear now. money, taxes, science,
   governance type etc"): every part of the status panel but the minimap (`PanelPart`: population, year, treasury,
-  tax, luxuries and science each, government, research, the unit's name, moves, home, rank, terrain,
+  government, research, the unit's name, moves, home, rank, terrain,
   yields and orders, End of Turn, the wars) is told of in words (`panelTip` in renderer-api `panel.ts`,
-  numbers from the rules: the treasury's taxes and upkeep, a rate's yield and the government's cap, the
+  numbers from the rules: the treasury's taxes, upkeep and rates, the
   government's rules read from its `GovernmentRule` and the save's older rules, the unit's stats and upkeep)
   in a stone box right of the panel pointing at the part (retro `drawPanelTip`, `MainScreenView.tip`),
   shown when the mouse rests on it 350 ms (the next part at once while one shows) or a click or tap on a
   part with no action (4 s); retro's `panelLayout` places the panel's rows for drawing and hit tests alike
-  (`statusPartAt`, `Renderer.statusPartAt`). A click on tax, luxuries or science opens the rates. Disbanding
+  (`statusPartAt`, `Renderer.statusPartAt`). A click on the treasury opens the rates. Disbanding
   (Shift+D, Orders > Disband) asks "Are you sure?" first, No by default (`confirmDisband`).
   A unit of ours stepping aboard a ship wakes the ship (asked for 2026-10-31: "when unit go into the transport unit -
   activate it from sleep, ready to move"; the web app's `wakeShip` after `tryMove`): sentry or camp dropped by the
@@ -1958,7 +1958,8 @@ and, Sheep's wool, Weaving spins, with the user's updated sheet of resources (20
 the same day the resources became the user's pictures as they are, laid over the canvas (asked for: "USE AS IS!!"), and
 Ivory left the game (asked for; save version 62). City-states' raiders pillage, hunt units in the open and lay waste a
 city they cannot storm, never fortifying in the field, and what a city-state is is told once a game (2026-11-03, asked
-for; save version 63).
+for; save version 63). The status panel shows only the treasury, not the rates, its money a shell, a coin with Currency,
+paper with The Corporation (2026-11-04, asked for; no save version).
 
 ## Known gaps / next steps
 
@@ -2108,7 +2109,14 @@ for; save version 63).
    buildings stopped into one window ("Buildings Unsupported": city by city, the upkeep cut, how the books stand
    now). The status panel's treasury row shows the turn's gain or loss in brackets beside the gold, "120 (+5)", green,
    red, or dim at nought (nothing before a city), the gold itself red while the warning stands; its tip says when the
-   gold runs out. Head to head (planner vs v2, 16 x 300, seeds 1-16): selling 10-6, score 208 vs 179, pop 74 vs 73;
+   gold runs out. Tax, luxuries and science left the panel (asked for 2026-11-04: "remove tax, luxury and sience. keep
+   only treasury"; they had stood beside the treasury, or under it where they did not fit): the treasury's tip gives the
+   rates, and a click on its row opens the rates window (the phone's tap too, so there its tip no longer shows), the
+   government coming straight under it. The row's picture is what money is to the people (`moneyIcon` in renderer-api
+   `treasury.ts`, in the tip's title too, retro and modern alike; only the picture, the game's money is gold throughout): a shell
+   (a scallop) before Currency, the gold coin with it, a banknote with The Corporation (the "advanced modern" tech: the
+   tree has no Economics and Banking comes in the Renaissance), `shell` and `banknote` in the icon sheet. The purse
+   stays everywhere else (upkeep lines, the rates window's foot). Head to head (planner vs v2, 16 x 300, seeds 1-16): selling 10-6, score 208 vs 179, pop 74 vs 73;
    stopping support 10-6, 212 vs 180, pop 75 vs 74, all replaying exactly (an AI civ runs dry a few times a game).
    Growth (asked for 2026-10-23: young cities grew too slowly and could not support settlers; two of four
    measured proposals picked; our departures): the city's own square is spared Despotism's and Anarchy's

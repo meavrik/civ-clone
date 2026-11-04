@@ -4,7 +4,6 @@ import {
   canFoundCity,
   cityAt,
   cityById,
-  computeCity,
   EXPERIENCE,
   firepower,
   formatYear,
@@ -33,7 +32,7 @@ import { unitAbilities } from "./production-info.js";
 import { rankLine, rankProgress } from "./ranks.js";
 import { researchOutlook, sciencePerTurn } from "./research.js";
 import { TERRAIN_TEXT } from "./terrain-text.js";
-import { treasuryOutlook } from "./treasury.js";
+import { moneyIcon, treasuryOutlook } from "./treasury.js";
 
 /**
  * Tips on the main screen's status panel (asked for 2026-10-26: "add tooltips for each relevant
@@ -43,7 +42,7 @@ import { treasuryOutlook } from "./treasury.js";
  * `panelTip` puts that part in words, and the renderer draws the tip beside the panel (`MainScreenView.tip`).
  */
 export type PanelPart =
-  | "population" | "year" | "gold" | "tax" | "lux" | "sci" | "government" | "research"
+  | "population" | "year" | "gold" | "government" | "research"
   | "unit" | "moves" | "home" | "rank" | "terrain" | "yield" | "orders" | "endTurn" | "war"
   | "minimapNames" | "minimapBorders";
 
@@ -100,20 +99,6 @@ function moves(thirds: number): string {
   return part ? `${whole ? `${whole} ` : ""}${part}/3` : String(whole);
 }
 
-/** Everything a civilization's cities bring in and pay out in gold a turn, and what they put to luxuries and research. */
-function treasury(state: GameState, player: number): { tax: number; upkeep: number; lux: number; science: number } {
-  const out = { tax: 0, upkeep: 0, lux: 0, science: 0 };
-  for (const c of state.cities) {
-    if (c.owner !== player) continue;
-    const r = computeCity(state, c);
-    out.tax += r.tax;
-    out.upkeep += r.buildingUpkeep;
-    out.lux += r.lux;
-    out.science += r.science;
-  }
-  return out;
-}
-
 /** What a government means for the empire, a line a rule, read from its `GovernmentRule` (and the save's older rules). */
 function governmentLines(state: GameState, gov: GovernmentRule): string[] {
   const lines: string[] = [];
@@ -155,7 +140,6 @@ const FEATURE_WORDS: Partial<Record<IconName, string>> = {
 export function panelTip(state: GameState, part: PanelPart, unitId: number | null, shows: MinimapShows = {}): PanelTipWords | null {
   const me = state.players[state.currentPlayer]!;
   const gov = government(me.government);
-  const rates = (): string[] => [`${gov.name} allows ${gov.maxRate * 10}% at most.`, "Click to set the rates (T)."];
   switch (part) {
     case "population": {
       const mine = state.cities.filter((c) => c.owner === me.id);
@@ -177,14 +161,9 @@ export function panelTip(state: GameState, part: PanelPart, unitId: number | nul
       const follows = state.sellWhenBroke ? "a city sells a building to pay" : "buildings stop being supported until the books balance";
       if (t.dryIn !== null) lines.push(t.dryIn === 1 ? `This turn's upkeep empties it: ${follows}.` : `It runs out in ${plural(t.dryIn, "turn")}: then ${follows}.`);
       else if (t.net < 0) lines.push(`When the gold runs out, ${follows}.`);
-      return { title: `{purse}Treasury: ${me.gold} gold`, lines };
+      lines.push(`Tax ${me.taxRate * 10}%, luxuries ${me.luxRate * 10}%, science ${me.sciRate * 10}%: click to set the rates (T).`);
+      return { title: `{${moneyIcon(state, me.id)}}Treasury: ${me.gold} gold`, lines };
     }
-    case "tax":
-      return { title: `{coin}Tax ${me.taxRate * 10}%`, lines: [`The share of our trade taken as gold: ${treasury(state, me.id).tax} a turn.`, ...rates()] };
-    case "lux":
-      return { title: `{gem}Luxuries ${me.luxRate * 10}%`, lines: [`The share of our trade spent on luxuries: ${treasury(state, me.id).lux} a turn.`, "Every two make a citizen a step happier.", ...rates()] };
-    case "sci":
-      return { title: `{bulb}Science ${me.sciRate * 10}%`, lines: [`The share of our trade put to research: ${treasury(state, me.id).science} beakers a turn.`, ...rates()] };
     case "government":
       return { title: `{crown}${gov.name}`, lines: [...governmentLines(state, gov), changeLine(state, me.id)].filter(Boolean) };
     case "research": {

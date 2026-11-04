@@ -94,6 +94,12 @@ const DRAW: Record<IconName, (ctx: Context2D) => void> = {
   },
   purse: (c) => { disc(c, 8, 10.5, 5, ICON.gold); poly(c, [[5.5, 2], [10.5, 2], [9.5, 5.5], [6.5, 5.5]], ICON.goldDark); line(c, [[5.5, 6], [10.5, 6]], ICON.wood, 1.5); disc(c, 6.5, 9, 1.2, ICON.wall); },
   coin: (c) => { disc(c, 8, 8, 6, ICON.goldDark); disc(c, 8, 8, 4.8, ICON.gold); line(c, [[8, 5], [8, 11]], ICON.goldDark, 1.4); },
+  shell: (c) => {
+    poly(c, [[8, 13], [2, 8], [3, 4.5], [6, 2.5], [10, 2.5], [13, 4.5], [14, 8]], ICON.wall);
+    for (const x of [3.5, 6, 8, 10, 12.5]) line(c, [[8, 12.5], [x, 3.5 + Math.abs(x - 8) * 0.5]], ICON.wheatDark, 0.8);
+    box(c, 5.5, 12.5, 5, 1.5, ICON.wheat);
+  },
+  banknote: (c) => { box(c, 1, 4, 14, 8, ICON.note); box(c, 2, 5, 12, 6, ICON.noteDark); disc(c, 8, 8, 2.4, ICON.wall); },
   gem: (c) => { poly(c, [[3, 6], [6, 3], [10, 3], [13, 6], [8, 13.5]], ICON.gem); line(c, [[3, 6], [13, 6]], ICON.gemDark, 1); poly(c, [[6, 6], [10, 6], [8, 13]], ICON.gemDark); },
   bulb: (c) => { disc(c, 8, 6.5, 5, ICON.bulb); box(c, 5.8, 10.5, 4.4, 3.5, ICON.metal); line(c, [[6, 12.3], [10, 12.3]], ICON.stoneDark, 0.8); },
   crown: (c) => { poly(c, [[2, 12.5], [2, 5], [5, 8.5], [8, 3], [11, 8.5], [14, 5], [14, 12.5]], ICON.gold); box(c, 2, 12, 12, 2, ICON.goldDark); disc(c, 8, 9.5, 1.2, ICON.roof); },

@@ -1,4 +1,5 @@
 import { building, computeCity, type CityTurnEvent, type GameState } from "@civ/core";
+import type { IconName } from "./icons.js";
 
 /**
  * The treasury's outlook (asked for 2026-10-29: "show a message/notification when going to run out of money",
@@ -33,6 +34,23 @@ export function treasuryOutlook(state: GameState, player: number): TreasuryOutlo
   // After k turns' ends the treasury holds gold + k * net: the first k that leaves it short.
   const dryIn = net >= 0 ? (gold < 0 ? 1 : null) : gold < 0 ? 1 : Math.floor(gold / -net) + 1;
   return { gold, tax, upkeep, net, dryIn };
+}
+
+/**
+ * What money looks like to a people, on the panel's treasury (asked for 2026-11-04: "before currency tech - show shell
+ * or some other ancient symbol for money, after currency - show gold coin, and with advanced modern related tech - show
+ * paper currency"): the first of these it knows, else a shell. The Corporation stands for the modern tech: the tree has
+ * no Economics, and Banking comes in the Renaissance. Only the picture: the game's money is gold throughout.
+ */
+const MONEY: readonly { advance: string; icon: IconName }[] = [
+  { advance: "the_corporation", icon: "banknote" },
+  { advance: "currency", icon: "coin" },
+];
+
+/** The picture of `player`'s money. */
+export function moneyIcon(state: GameState, player: number): IconName {
+  const known = state.players[player]?.advances ?? [];
+  return MONEY.find((m) => known.includes(m.advance))?.icon ?? "shell";
 }
 
 /** How many turns ahead the player hears that the gold is running out. */

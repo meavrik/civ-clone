@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { applyCommand, lastTurnEvents, newGame, type GameState } from "@civ/core";
-import { treasuryOutlook, treasuryWarning, unsupportedNotice, type MainScreenView, type MenuState } from "@civ/renderer-api";
+import { moneyIcon, panelTip, treasuryOutlook, treasuryWarning, unsupportedNotice, type MainScreenView, type MenuState } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
 import { BAD, drawMainScreen, drawMenu, GOOD, statusPartAt, Surface } from "../src/index.js";
 import { encodePng } from "./png.js";
@@ -30,6 +30,38 @@ function rowInks(s: Surface, state: GameState): Set<number> {
 }
 
 describe("the treasury on the panel", () => {
+  it("shows a people's money as a shell, then a coin with Currency, then paper with The Corporation", () => {
+    mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+    const state = spending(120);
+    const me = state.players[0]!;
+    me.advances = me.advances.filter((a) => a !== "currency" && a !== "the_corporation");
+    const row = (name: string): Uint8Array => {
+      const s = Surface.screen();
+      drawMainScreen(s, state, around(state));
+      writeFileSync(new URL(`./out/treasury-${name}.png`, import.meta.url), encodePng(s, 3));
+      const spot = [...Array(200).keys()].map((y) => statusPartAt(state, 20, y)).find((p) => p?.part === "gold")!;
+      const out = new Uint8Array(80 * spot.h);
+      for (let y = 0; y < spot.h; y++) for (let x = 0; x < 80; x++) out[y * 80 + x] = s.get(x, spot.y + y);
+      return out;
+    };
+    expect(moneyIcon(state, 0)).toBe("shell");
+    expect(panelTip(state, "gold", null)!.title).toBe("{shell}Treasury: 120 gold");
+    const shell = row("shell");
+    me.advances.push("currency");
+    expect(moneyIcon(state, 0)).toBe("coin");
+    const coin = row("coin");
+    me.advances.push("the_corporation");
+    expect(moneyIcon(state, 0)).toBe("banknote");
+    expect(panelTip(state, "gold", null)!.title).toBe("{banknote}Treasury: 120 gold");
+    const note = row("banknote");
+    // The row is drawn differently at each stage.
+    expect(shell).not.toEqual(coin);
+    expect(coin).not.toEqual(note);
+    // Paper won in a trade counts without coin behind it.
+    me.advances = me.advances.filter((a) => a !== "currency");
+    expect(moneyIcon(state, 0)).toBe("banknote");
+  });
+
   it("shows what the gold gains or loses a turn beside it, in green or red, and the gold red once it runs dry soon", () => {
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
     const state = spending(3);

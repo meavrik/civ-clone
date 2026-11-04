@@ -20,7 +20,7 @@ import {
   type GameState,
   specialFor,
 } from "@civ/core";
-import { cityMood, coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, ownerAt, rankIcon, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
+import { cityMood, coastPatch, DEEP, fieldSides, fogPatch, isDeepWater, MENU_BAR, moneyIcon, ownerAt, rankIcon, researchOutlook, riverShape, territory, shownActive, type Callout, tileIcons, WORK_ICON, type IconName, type MainScreenView } from "@civ/renderer-api";
 import { paintCoast } from "../coast.js";
 import { Clouds } from "../fog.js";
 import { paintBorders } from "../borders.js";
@@ -432,15 +432,14 @@ function drawPanel(ctx: Context2D, state: GameState, view: MainScreenView): void
   ctx.strokeRect(MINIMAP_X + vx * MINIMAP_SCALE + 0.5, MINIMAP_Y + vy * MINIMAP_SCALE + 0.5, rw, Math.min(VIEW_TILES_Y, map.height - vy) * MINIMAP_SCALE);
   if (vx + VIEW_TILES_X > map.width) ctx.strokeRect(MINIMAP_X + 0.5, MINIMAP_Y + vy * MINIMAP_SCALE + 0.5, (vx + VIEW_TILES_X - map.width) * MINIMAP_SCALE, Math.min(VIEW_TILES_Y, map.height - vy) * MINIMAP_SCALE);
 
-  // Empire: population and year, treasury and tax/luxury/science, government and research, as icons.
+  // Empire: population and year, treasury, government and research, as icons.
   let y = MINIMAP_Y + mh + 14;
   const pop = state.cities.filter((c) => c.owner === state.currentPlayer).reduce((n, c) => n + c.size * (c.size + 1) * 5000, 0);
   const half = PANEL_W / 2 + 4;
   drawIconLine(ctx, TEXT_X, y, `{people} ${pop >= 1000000 ? `${(pop / 1000000).toFixed(1)}M` : pop.toLocaleString("en-US")}`, { size: 14 });
   drawIconLine(ctx, half, y, `{calendar} ${formatYear(turnToYear(state.turn))}`, { size: 14, weight: "600" });
   y += LINE + 4;
-  drawIconLine(ctx, TEXT_X, y, `{purse} ${me.gold}`, { size: 14 });
-  drawIconLine(ctx, half - 26, y, `{coin}${me.taxRate * 10}  {gem}${me.luxRate * 10}  {bulb}${me.sciRate * 10}`, { size: 12, color: UI.dim });
+  drawIconLine(ctx, TEXT_X, y, `{${moneyIcon(state, me.id)}} ${me.gold}`, { size: 14 });
   y += LINE + 4;
   drawIconLine(ctx, TEXT_X, y, `{crown} ${GOVERNMENTS[me.government]?.name ?? me.government}`, { size: 13, color: UI.accent });
   y += LINE + 4;

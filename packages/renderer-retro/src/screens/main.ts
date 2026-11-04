@@ -108,7 +108,7 @@ export function drawMenuBar(s: Surface, open?: number): void {
   });
 }
 
-import { borderSides, cityLook, cityMood, civNameSpots, fieldsPicture, hutKind, minePicture, pierSquare, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type ZoomButton, type Territory, rankLine, researchOutlook, sackAside, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
+import { borderSides, cityLook, cityMood, civNameSpots, fieldsPicture, hutKind, minePicture, pierSquare, continentLabels, empirePopulation, fieldSides, isDeepWater, landWord, moneyIcon, placeLabel, placeLabelText, populationShort, treasuryOutlook, DRY_WARNING_TURNS, territoryLabels, type MinimapButton, type ZoomButton, type Territory, rankLine, researchOutlook, sackAside, showsRank, type Callout, MENU_BAR, ownerAt, settlerSites, moveArt, shownActive, territory, tileIcons, unitArt, WORK_ICON, type MainScreenView, type ArtSpot, type CityMood, type PanelPart, type PanelSpot, type PanelTip } from "@civ/renderer-api";
 import { drawIcon, drawIconLine, drawIconsWrapped, drawMark, ICON, iconLineWidth, wrapIcons } from "../icons.js";
 
 export { PLAYER_COLORS, slotColor } from "../palette.js";
@@ -751,11 +751,6 @@ export function drawTileInfo(s: Surface, state: GameState, tx: number, ty: numbe
   return y;
 }
 
-function ratesLine(state: GameState): string {
-  const me = state.players[state.currentPlayer]!;
-  return `{coin}${me.taxRate}{gem}${me.luxRate}{bulb}${me.sciRate}`;
-}
-
 /** The orders the unit can take where it stands, as keys and pictures: "B{city}  I{irrigate}  R{road}". */
 function orderKeys(state: GameState, unit: Unit): string {
   const w = workOptions(state, unit);
@@ -779,11 +774,8 @@ interface PanelRow {
 /** Where the status panel lays out its parts: `drawStatusPanel` draws by it, `statusPartAt` and `statusPanelAt` hit-test it. */
 interface PanelLayout {
   rows: PanelRow[];
-  /** The treasury's row: the gold (red once it runs dry within `DRY_WARNING_TURNS`), then what it gains or loses a turn. */
-  treasury: { ink: number; delta: string; deltaX: number; deltaInk: number };
-  /** Where tax, luxuries and science start: beside the treasury, or under it when they would not fit. */
-  ratesX: number;
-  ratesY: number;
+  /** The treasury's row: the money's picture and the gold (red once it runs dry within `DRY_WARNING_TURNS`), then what it gains or loses a turn. */
+  treasury: { line: string; ink: number; delta: string; deltaX: number; deltaInk: number };
   /** The top of the research row (drawn only while research is under way). */
   researchY: number;
   /** The unit box's top, and the y after what it holds. */
@@ -802,8 +794,7 @@ function panelLayout(state: GameState, view?: MainScreenView): PanelLayout {
   const add = (part: PanelPart, x: number, y: number, w: number, h: number) => { rows.push({ part, x, y, w, h }); };
   // The minimap has no tip (asked for 2026-10-26); the empire's rows start under it.
   const mm = minimapSize(state.map);
-  // Empire: population, year, the treasury with tax, luxuries and science beside it (under it when they
-  // do not fit), the government, then the research while one is under way.
+  // Empire: population, year, the treasury, the government, then the research while one is under way.
   let y = VIEW_Y + 2 + mm.h + 4;
   add("population", 0, y, PANEL_W, 9);
   add("year", 0, y + 9, PANEL_W, 9);
@@ -811,25 +802,18 @@ function panelLayout(state: GameState, view?: MainScreenView): PanelLayout {
   // The treasury, then in brackets what it gains (green) or loses (red) a turn (asked for 2026-10-29); nothing beside it before a city.
   const outlook = treasuryOutlook(state, me.id);
   const delta = state.cities.some((c) => c.owner === me.id) ? `(${outlook.net > 0 ? "+" : ""}${outlook.net})` : "";
-  const deltaX = TEXT_X + iconLineWidth(`{purse}${me.gold}`) + 2;
+  const line = `{${moneyIcon(state, me.id)}}${me.gold}`;
+  const deltaX = TEXT_X + iconLineWidth(line) + 2;
   const treasury = {
+    line,
     ink: outlook.dryIn !== null && outlook.dryIn <= DRY_WARNING_TURNS ? BAD : INK,
     delta,
     deltaX,
     deltaInk: outlook.net > 0 ? GOOD : outlook.net < 0 ? BAD : DIM,
   };
-  const beside = delta ? deltaX + textWidth(delta) + 3 : deltaX;
-  const wrapRates = beside + iconLineWidth(ratesLine(state)) > PANEL_W - 2;
-  add("gold", 0, y, wrapRates ? PANEL_W : beside, 9);
-  const ratesX = wrapRates ? TEXT_X : beside;
-  const ratesY = wrapRates ? y + 9 : y;
-  const taxEnd = ratesX + iconLineWidth(`{coin}${me.taxRate}`);
-  const luxEnd = taxEnd + iconLineWidth(`{gem}${me.luxRate}`);
-  add("tax", wrapRates ? 0 : ratesX, ratesY, wrapRates ? taxEnd : taxEnd - ratesX, 9);
-  add("lux", taxEnd, ratesY, luxEnd - taxEnd, 9);
-  add("sci", luxEnd, ratesY, PANEL_W - luxEnd, 9);
-  add("government", 0, ratesY + 9, PANEL_W, 9);
-  const researchY = ratesY + 18;
+  add("gold", 0, y, PANEL_W, 9);
+  add("government", 0, y + 9, PANEL_W, 9);
+  const researchY = y + 18;
   const researching = !!me.researching;
   if (researching) add("research", 0, researchY - 1, PANEL_W, 15);
   // The unit box, under a groove: the unit awaiting orders, a row for each thing told of it; else End of Turn.
@@ -870,7 +854,7 @@ function panelLayout(state: GameState, view?: MainScreenView): PanelLayout {
   war.splice(2);
   const bottom = war.length ? PANEL_BOTTOM - war.length * FONT_HEIGHT - 2 : PANEL_BOTTOM;
   if (war.length) add("war", 0, bottom + 1, PANEL_W, war.length * FONT_HEIGHT + 2);
-  return { rows, treasury, ratesX, ratesY, researchY, boxY, boxEnd, keys, war, bottom };
+  return { rows, treasury, researchY, boxY, boxEnd, keys, war, bottom };
 }
 
 /**
@@ -891,13 +875,13 @@ export function statusPartAt(state: GameState, px: number, py: number, view?: Ma
 
 /**
  * What a click on the status panel asks: the research row (when research is under way) opens the
- * research panel, tax, luxuries or science the rates window, and the End of Turn box (nothing awaiting
- * orders) ends the turn, as Enter does.
+ * research panel, the treasury the rates window, and the End of Turn box (nothing awaiting orders)
+ * ends the turn, as Enter does.
  */
 export function statusPanelAt(state: GameState, px: number, py: number, view?: MainScreenView): "research" | "endTurn" | "rates" | null {
   const part = statusPartAt(state, px, py, view)?.part;
   if (part === "research" || part === "endTurn") return part;
-  return part === "tax" || part === "lux" || part === "sci" ? "rates" : null;
+  return part === "gold" ? "rates" : null;
 }
 
 /**
@@ -1220,7 +1204,7 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   // Its switches, over everything on it.
   drawMinimapButtons(s, view, mmY, map);
 
-  // Empire: population, year, treasury and tax/luxury/science, government and research, as icons
+  // Empire: population, year, treasury, government and research, as icons
   // (each told of in words by its tip, `panelTip`), where `panelLayout` puts them.
   const L = panelLayout(state, view);
   const row = (part: PanelPart): PanelRow | undefined => L.rows.find((r) => r.part === part);
@@ -1229,9 +1213,8 @@ export function drawStatusPanel(s: Surface, state: GameState, view: MainScreenVi
   drawIconLine(s, TEXT_X, row("population")!.y, `{people}${populationShort(empirePopulation(state, me.id))}`, ink);
   // The year counting on as a turn passes (`view.year`), lit blue while it counts.
   drawIconLine(s, TEXT_X, row("year")!.y, `{calendar} ${formatYear(view.year ?? turnToYear(state.turn))}`, view.year !== undefined ? NOTE : ink);
-  drawIconLine(s, TEXT_X, row("gold")!.y, `{purse}${me.gold}`, L.treasury.ink);
+  drawIconLine(s, TEXT_X, row("gold")!.y, L.treasury.line, L.treasury.ink);
   if (L.treasury.delta) drawText(s, L.treasury.deltaX, row("gold")!.y, L.treasury.delta, L.treasury.deltaInk);
-  drawIconLine(s, L.ratesX, L.ratesY, ratesLine(state), dim);
   drawIconLine(s, TEXT_X, row("government")!.y, `{crown}${GOVERNMENTS[me.government]?.name ?? me.government}`, dim);
   groove(s, drawResearch(s, state, L.researchY));
   let y = L.boxY;
