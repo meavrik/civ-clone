@@ -70,6 +70,7 @@ interface Options {
   noReplacements: boolean;
   barredCaravans: boolean;
   fedOnly: boolean;
+  noTribes: boolean;
 }
 
 const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
@@ -135,12 +136,13 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --no-replacements    no unit gives way to its successor, Militia and Archers retiring with Gunpowder (saves before version 65)
   --barred-caravans    only an empty foreign city takes a caravan in (saves before version 65)
   --fed-only           the squares picked for a city only keep it from starving (saves before version 66)
+  --no-tribes          villages hold no tribe, so no city or Settlers (saves before version 67)
   --verify        replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, pickAfterUnits: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false, meekCityStates: false, noReplacements: false, barredCaravans: false, fedOnly: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, pickAfterUnits: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false, meekCityStates: false, noReplacements: false, barredCaravans: false, fedOnly: false, noTribes: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -214,6 +216,7 @@ function parseArgs(argv: string[]): Options {
       case "no-replacements": o.noReplacements = true; break;
       case "barred-caravans": o.barredCaravans = true; break;
       case "fed-only": o.fedOnly = true; break;
+      case "no-tribes": o.noTribes = true; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
       default: throw new Error(`unknown option --${key}\n\n${HELP}`);
@@ -374,6 +377,7 @@ function main(argv: string[]): number {
       ...(o.noReplacements ? { noReplacements: true } : {}),
       ...(o.barredCaravans ? { barredCaravans: true } : {}),
       ...(o.fedOnly ? { fedOnly: true } : {}),
+      ...(o.noTribes ? { noTribes: true } : {}),
     });
     if (!o.quiet && o.every > 0) {
       console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).map((a, i) => seatLabel(config, i) === "human" ? "human" : a).join(", ")}`);

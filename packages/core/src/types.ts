@@ -491,6 +491,11 @@ export interface GameState {
    */
   fedOnly?: boolean;
   /**
+   * Villages as before version 67: gold in two of every five and no tribe in any. Since 67 a tribe lives in some of them
+   * (`VILLAGES`), and joins whoever finds it as a city or Settlers, or sends mercenaries from near a city.
+   */
+  noTribes?: boolean;
+  /**
    * Settlers' jobs as before version 46: a job taken up by a settler that had spent its moves (walked onto the square
    * that turn) counted that turn as one of its turns, and pollution cleared in three. Since 46 such a job starts the
    * next turn (one turn more, as the 1991 game, where a unit without moves takes no orders, and FreeCiv, which counts

@@ -21,6 +21,7 @@ export * from "./cities.js";
 export * from "./chronicle.js";
 export * from "./city-states.js";
 export * from "./rules/city-states.js";
+export * from "./rules/villages.js";
 export * from "./sites.js";
 export * from "./diplomacy.js";
 export * from "./territory.js";

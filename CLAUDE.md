@@ -258,6 +258,23 @@ Never ship the original's sprites, palette art, fonts or text.
   them 8-8, 158 vs 124, cities 10.7 vs 6.8, pop 58 vs 38 (the planner takes 1.4 cities a seat, v2 never fights them),
   all replaying exactly. At turn 200 (planner in every seat, 3 seeds) cities a civ 7.4 without, 4.9 with (5.8 with
   raids off: two thirds of it the land they hold).
+  Tribal villages (`openHut` in commands.ts, numbers in `rules/villages.ts`; asked for 2026-11-04: "what about settler and
+  new settlement like in the original civ"; save version 67): a land unit stepping into a village (1 land square in 60)
+  opens it, one roll deciding, of every hundred: a tribe 20, gold 20 (25 to 100; it was 40), an advance 20, mercenaries 20,
+  two barbarian Legions 10, nothing 10. A tribe 4 squares or more from any city joins its finder (`joinTribe`): a city on
+  the village's square where `siteScore` reaches `VILLAGES.goodLand` (100: 37% of villages, 48% standing on land fit for a
+  city at all, starts as drawn averaging 109), size 1, the capital if its civilization had no city, as the original's
+  tribe; else Settlers with no home city, so they eat nothing (our departure, after Civilization II's nomads: the original
+  gave 50 gold there). Under 4 squares from a city it sends mercenaries, as the original's did; barbarians never find one.
+  The 1991 game's roll, from the CivFanatics thread "Civ1 explained: tribal huts visit outcomes" (reverse-engineered; it
+  gives no odds): one of four: a city (50 gold on land value under 13, mercenaries near a city); an advance (50 gold on
+  the first turn or after 1000 AD); 50 gold; barbarians (mercenaries near a city or with no city yet). It has no Settlers.
+  Still ours: gold of 25 to 100, mercenaries by what the finder knows (the original's Legion or Cavalry), the empty
+  village, advances at any date, and the city's size (the sources do not say). Over 6 all-planner games of 300 turns, 16
+  villages opened a game, 0.7 cities and 1.3 Settlers from tribes. Saves before 67 load with `noTribes` (headless
+  `--no-tribes`). Head to head (planner vs v2, 16 x 300, seeds 1-16): 7-9, score 99 vs 100, cities 7.9 vs 7.5, pop 40 vs
+  38, techs 18.9 vs 19.0; without tribes 7-9, 103 vs 99, cities 8.5 vs 7.0, pop 43 vs 38, techs 19.8 vs 18.9; all
+  replaying exactly. No more cities a seat all told; v2 gains what the planner gives up.
   Civilization traits (our departure, asked for: the original's civs were alike): each `CivRule.trait`
   in `rules/civs.ts` has a name, a few words for the tribe choice (`short`), a line of text, an
   advance it starts with (a root advance) and `TraitEffect`s (cheaper builds, faster settler jobs,
@@ -1549,7 +1566,9 @@ Never ship the original's sprites, palette art, fonts or text.
   `sack.ts`: `sackHut` moves the hut's picture and clips it at its foot, `drawSack` draws the rest on the fine grid
   after the units (loot over the dust and smoke), the hut holed where they cross it. Sounds: a hit each blow, the
   `gift` jingle for coins, a `crash` as it falls. Core's `hut` event names the unit (`unit`). Then the village goes
-  and its window opens (`hutModal`).
+  and its window opens (`hutModal`). A tribe's city (see Tribal villages above) stays off the map through the walk, the sack
+  and the window (`tribeCities`, read by `mapState`), then goes up as a city our settlers found (`raiseTribeCity`: the
+  founding show, then the city with "Rome: build what first?").
 - `packages/renderer-retro` — indexed 320x200 `Surface`, 256-colour `palette.ts`, bitmap
   `font.ts`, `widgets.ts` (panel/menu/box), one file per screen in `src/screens/*`.
   Fine art (merged from branch terrain-tiles-test, 2026-10-21, asked for): the screen keeps its 320x200
@@ -1970,6 +1989,8 @@ paper with The Corporation (2026-11-04, asked for; no save version). A city goes
 asking (2026-11-04, asked for; save version 64). Old units give way to their successors once those can be built, resources
 and all, and caravans trade at garrisoned foreign cities (2026-11-04, asked for; save version 65). Citizens placed
 automatically keep a city growing and making something where its land allows (2026-11-04, asked for; save version 66).
+A tribe in a fifth of the villages joins its finder as a city on good land, else Settlers, as the original had it and
+Civilization II after it (2026-11-04, asked for; save version 67).
 
 ## Known gaps / next steps
 

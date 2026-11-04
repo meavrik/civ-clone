@@ -64,6 +64,8 @@ import { advanceWorth, applyExchange, payTrades, resourceWorth, whyNoExchange } 
 import { ADVANCE_BY_ID, advance, advancesFor, availableAdvances, knows } from "./rules/advances.js";
 import { inCatalogue } from "./rules/catalogue.js";
 import { RESOURCE_BY_ID } from "./rules/resources.js";
+import { VILLAGES } from "./rules/villages.js";
+import { siteScore } from "./sites.js";
 import { researchCostFor } from "./levels.js";
 import { building } from "./rules/buildings.js";
 import { government, GOVERNMENTS } from "./rules/governments.js";
@@ -199,6 +201,7 @@ export type HutResult =
   | { kind: "gold"; amount: number }
   | { kind: "advance"; advance: string }
   | { kind: "unit"; unit: string }
+  | { kind: "city"; city: number; name: string }
   | { kind: "barbarians" }
   | { kind: "empty" };
 
@@ -1012,11 +1015,30 @@ function enterHut(state: GameState, u: Unit): void {
   lastTurnEvents.push({ kind: "hut", result, player: u.owner, x: u.x, y: u.y, unit: u.id, units });
 }
 
-/** Enter a minor tribe's village: gold, an advance, a mercenary unit, or an ambush. */
+/** Mercenaries from a village, the best its finder would know how to raise. */
+function hireMercenaries(state: GameState, u: Unit): HutResult {
+  const p = state.players[u.owner]!;
+  const type = p.advances.includes("horseback_riding") ? "cavalry" : p.advances.includes("bronze_working") ? "phalanx" : "militia";
+  createUnit(state, type, u.owner, u.x, u.y, u.homeCity);
+  return { kind: "unit", unit: type };
+}
+
+/** A tribe joins the unit that found it: a city on good land, the village's square its own, else Settlers with no home to feed them. */
+function joinTribe(state: GameState, u: Unit): HutResult {
+  if ((siteScore(state, u.x, u.y) ?? 0) >= VILLAGES.goodLand && canFoundCity(state, u.x, u.y) === null) {
+    const city = foundCity(state, u.owner, u.x, u.y);
+    return { kind: "city", city: city.id, name: city.name };
+  }
+  createUnit(state, "settlers", u.owner, u.x, u.y);
+  return { kind: "unit", unit: "settlers" };
+}
+
+/** Enter a minor tribe's village: gold, an advance, a mercenary unit, a tribe that joins us (`VILLAGES`), or an ambush. */
 function openHut(state: GameState, u: Unit): HutResult {
   const p = state.players[u.owner]!;
   const roll = nextInt(state.rng, 100);
   const nearCity = state.cities.some((c) => Math.abs(c.y - u.y) <= 3 && Math.min(Math.abs(c.x - u.x), state.map.width - Math.abs(c.x - u.x)) <= 3);
+  if (roll < VILLAGES.tribes && !state.noTribes && u.owner !== state.barbarians) return nearCity ? hireMercenaries(state, u) : joinTribe(state, u);
   if (roll < 40) {
     const amount = (25 + nextInt(state.rng, 4) * 25) * (traitFriendlyVillages(state, u.owner) ? 2 : 1);
     p.gold += amount;
@@ -1030,11 +1052,7 @@ function openHut(state: GameState, u: Unit): HutResult {
       return { kind: "advance", advance: a };
     }
   }
-  if (roll < 80) {
-    const type = p.advances.includes("horseback_riding") ? "cavalry" : p.advances.includes("bronze_working") ? "phalanx" : "militia";
-    createUnit(state, type, u.owner, u.x, u.y, u.homeCity);
-    return { kind: "unit", unit: type };
-  }
+  if (roll < 80) return hireMercenaries(state, u);
   if (roll < 90 && !nearCity && u.owner !== state.barbarians && !traitFriendlyVillages(state, u.owner)) {
     for (const [dx, dy] of NEIGHBOURS) {
       const t = getTile(state.map, u.x + dx, u.y + dy);

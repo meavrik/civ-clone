@@ -519,9 +519,9 @@ function releaseSight(t: number): void {
 
 /** The state the map draws: the real one, or during the playback a copy with the cities `staging` shows, and our sight as held. */
 function mapState(): GameState {
-  if (!staging && !sightHold.holding) return state;
+  if (!staging && !sightHold.holding && !tribeCities.size) return state;
   const cities = staging ? stagedCities(staging.before, state.cities, staging.changes, (a) => motion.playing(a, frameNow)) : state.cities;
-  const staged: GameState = { ...state, cities };
+  const staged: GameState = { ...state, cities: tribeCities.size ? cities.filter((c) => !tribeCities.has(c.id)) : cities };
   const visible = sightHold.shown(state.players[0]!.visible, frameNow);
   staged.players = state.players.map((p, i) => (i === 0 ? { ...p, visible } : p));
   return staged;
@@ -549,6 +549,7 @@ function resetMotion(): void {
   handoff = null;
   view.focus = undefined;
   view.villages = undefined;
+  tribeCities.clear();
 }
 
 /**
@@ -889,6 +890,9 @@ function payCityState(cityId: number): void {
   if (ev?.kind === "cityStateTribute" && ev.until !== undefined) say(`${ev.name} takes our ${ev.gold} gold and leaves us be until ${formatYear(turnToYear(ev.until))}.`, 4000);
 }
 
+/** Cities a village's tribe brought us, off the map until they go up (`raiseTribeCity`). */
+const tribeCities = new Set<number>();
+
 /**
  * Villages our units entered stand on the map, and what they brought stays out of sight, until the unit has walked in
  * (asked for 2026-11-02: "first the unit need to visibly enter the hut and only then show the hut result"): the rules
@@ -897,6 +901,7 @@ function payCityState(cityId: number): void {
 function holdVillages(events: readonly News[]): void {
   const entered = events.filter((ev): ev is Extract<TurnEvent, { kind: "hut" }> => ev.kind === "hut" && ev.player === 0);
   if (entered.length) view.villages = [...(view.villages ?? []), ...entered.map(({ x, y, units }) => ({ x, y, units }))];
+  for (const { result } of entered) if (result.kind === "city") tribeCities.add(result.city);
 }
 
 type SackScreen = Extract<Screen, { kind: "sack" }>;
@@ -1772,11 +1777,21 @@ function hutModal(r: HutResult, then: () => void): void {
   const body = r.kind === "gold" ? [`The elders give us ${r.amount} gold.`]
     : r.kind === "advance" ? [`Old scrolls teach us ${advance(r.advance).name}!`]
     : r.kind === "unit" ? [`${unitType(r.unit).name} from the village join us.`]
+    : r.kind === "city" ? [`The people here swear loyalty to us: ${r.name} is ours.`]
     : r.kind === "barbarians" ? ["A trap! Barbarians pour out."]
     : ["The village is empty."];
-  // Scrolls found go on to the tech tree, like any advance found.
-  const after = r.kind === "advance" ? () => showFound([r.advance], then) : then;
+  // Scrolls found go on to the tech tree, like any advance found; a tribe's city goes up as any city of ours.
+  const after = r.kind === "advance" ? () => showFound([r.advance], then) : r.kind === "city" ? () => raiseTribeCity(r.city, then) : then;
   modal("A Tribal Village", body, ["OK"], () => after(), 0, after);
+}
+
+/** The city a tribe brought us goes up on the map, made a moment as one our settlers found (`showFounding`), and opens asking what it builds first. */
+function raiseTribeCity(id: number, then: () => void): void {
+  tribeCities.delete(id);
+  const c = state.cities.find((o) => o.id === id);
+  if (!c) { then(); return; }
+  sound.play("found");
+  showFounding("settlers", c, () => { openCity(c.id, then); if (c.choosing) openProductionMenu(c.id, undefined, `${c.name}: build what first?`); });
 }
 
 /** Send a unit to a square on its route there (`goto`). */
@@ -3118,6 +3133,7 @@ function eventMessage(ev: TurnEvent): string | null {
         return r.kind === "gold" ? `The tribe gives you ${r.amount} gold.`
           : r.kind === "advance" ? `Scrolls of ancient wisdom: ${advance(r.advance).name}!`
           : r.kind === "unit" ? `A band of ${unitType(r.unit).name} joins you.`
+          : r.kind === "city" ? `A tribe joins you: ${r.name} is yours.`
           : r.kind === "barbarians" ? "You have unleashed a horde of barbarians!"
           : "The village is deserted.";
       }

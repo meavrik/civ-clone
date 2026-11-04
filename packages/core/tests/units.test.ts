@@ -346,4 +346,68 @@ describe("tribal villages", () => {
     expect(brought.every((id) => s.units.some((o) => o.id === id && o.id !== u.id))).toBe(true);
     expect(brought.length > 0).toBe(ev?.kind === "hut" && (ev.result.kind === "unit" || ev.result.kind === "barbarians"));
   });
+
+  /** Walk a fresh militia into a village on (x, 10), `seed` picking the roll; what it found. */
+  const enter = (seed: number, terrain: Terrain, setup: (s: GameState) => void = () => {}) => {
+    const s = newGame(seed, { opponents: 1 });
+    for (const t of s.map.tiles) { t.terrain = terrain; t.hut = false; t.special = false; delete t.deposit; t.river = false; }
+    s.units = [];
+    s.cities = [];
+    setup(s);
+    const u = createUnit(s, "militia", 0, 10, 10);
+    getTile(s.map, 11, 10)!.hut = true;
+    lastTurnEvents.length = 0;
+    applyCommand(s, { type: "move", unit: u.id, dx: 1, dy: 0 });
+    const ev = lastTurnEvents.find((e) => e.kind === "hut");
+    if (ev?.kind !== "hut") throw new Error("no village entered");
+    return { s, u, ev, result: ev.result };
+  };
+  const SEEDS = Array.from({ length: 120 }, (_, i) => i + 1);
+
+  it("hold a tribe that raises a city on good land, as the original's did", () => {
+    const found = SEEDS.map((seed) => enter(seed, Terrain.Grassland)).filter((v) => v.result.kind === "city");
+    expect(found.length / SEEDS.length).toBeGreaterThan(0.1);
+    expect(found.length / SEEDS.length).toBeLessThan(0.3);
+    const { s, u, ev, result } = found[0]!;
+    expect(s.cities).toHaveLength(1);
+    const city = s.cities[0]!;
+    expect(result).toEqual({ kind: "city", city: city.id, name: city.name });
+    expect([city.x, city.y, city.owner, city.size]).toEqual([11, 10, 0, 1]);
+    // The first city of a civilization that had none is its capital, and the unit stands in it.
+    expect(city.buildings).toEqual(["palace"]);
+    expect([u.x, u.y]).toEqual([11, 10]);
+    expect(ev.units).toEqual([]);
+    expect(city.choosing).toBe(true);
+    expect(s.players[0]!.visible[10 * s.map.width + 13]).toBe(1);
+  });
+
+  it("hold a tribe of Settlers with no home city where the land will not bear one", () => {
+    const home = (s: GameState) => { foundCity(s, 0, 40, 30); };
+    const found = SEEDS.map((seed) => enter(seed, Terrain.Tundra, home)).filter((v) => v.result.kind === "unit" && v.result.unit === "settlers");
+    expect(found.length / SEEDS.length).toBeGreaterThan(0.1);
+    const { s, ev, result } = found[0]!;
+    expect(result).toEqual({ kind: "unit", unit: "settlers" });
+    expect(s.cities).toHaveLength(1);
+    expect(ev.units).toHaveLength(1);
+    const settlers = s.units.find((o) => o.id === ev.units[0])!;
+    expect([settlers.type, settlers.owner, settlers.homeCity, settlers.x, settlers.y]).toEqual(["settlers", 0, null, 11, 10]);
+  });
+
+  it("near a city send mercenaries instead of a tribe", () => {
+    const near = (s: GameState) => { foundCity(s, 0, 8, 10); };
+    const results = SEEDS.map((seed) => enter(seed, Terrain.Grassland, near));
+    expect(results.every(({ result }) => result.kind !== "city" && !(result.kind === "unit" && result.unit === "settlers"))).toBe(true);
+    expect(results.filter(({ result }) => result.kind === "unit").length / SEEDS.length).toBeGreaterThan(0.3);
+    expect(results.every(({ s }) => s.cities.length === 1)).toBe(true);
+  });
+
+  it("hold no tribe in games saved before version 67, and gold as often as they did", () => {
+    const old = (s: GameState) => { s.noTribes = true; };
+    const results = SEEDS.map((seed) => enter(seed, Terrain.Grassland, old).result);
+    expect(results.every((r) => r.kind !== "city" && !(r.kind === "unit" && r.unit === "settlers"))).toBe(true);
+    expect(results.filter((r) => r.kind === "gold").length / SEEDS.length).toBeGreaterThan(0.3);
+    const opts = { opponents: 1 as const };
+    expect(loadSave({ ...makeSave(newGame(3, opts), opts, []), version: 66 }, () => {}).state.noTribes).toBe(true);
+    expect(loadSave(makeSave(newGame(3, opts), opts, []), () => {}).state.noTribes).toBeUndefined();
+  });
 });

@@ -120,6 +120,8 @@ export interface GameConfig {
   barredCaravans?: boolean;
   /** The squares picked for a city only keep it from starving (`GameState.fedOnly`). */
   fedOnly?: boolean;
+  /** Villages hold no tribe (`GameState.noTribes`). */
+  noTribes?: boolean;
   /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
   cityStates?: boolean;
   /**
@@ -287,6 +289,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.noReplacements ? { noReplacements: true } : {}),
     ...(config.barredCaravans ? { barredCaravans: true } : {}),
     ...(config.fedOnly ? { fedOnly: true } : {}),
+    ...(config.noTribes ? { noTribes: true } : {}),
   };
 }
 

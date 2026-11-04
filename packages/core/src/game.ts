@@ -132,6 +132,8 @@ export interface NewGameOptions extends MapGenOptions {
   barredCaravans?: boolean;
   /** The squares picked for a city only keep it from starving (see `GameState.fedOnly`). Old saves load with it. */
   fedOnly?: boolean;
+  /** Villages hold no tribe (see `GameState.noTribes`). Old saves load with it. */
+  noTribes?: boolean;
   /** Settlers start a job the turn they walk onto its square, and clean up in three turns (see `GameState.quickWork`). Old saves load with it. */
   quickWork?: boolean;
   /** The computer players under the human's rules of the level, as before version 47 (see `GameState.evenDifficulty`). Old saves load with it. */
@@ -360,6 +362,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.noReplacements ? { noReplacements: true } : {}),
     ...(opts.barredCaravans ? { barredCaravans: true } : {}),
     ...(opts.fedOnly ? { fedOnly: true } : {}),
+    ...(opts.noTribes ? { noTribes: true } : {}),
     ...(opts.quickWork ? { quickWork: true } : {}),
     ...(opts.evenDifficulty ? { evenDifficulty: true } : {}),
     ...(opts.eagerCityStates ? { eagerCityStates: true } : {}),
