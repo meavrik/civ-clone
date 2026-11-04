@@ -1,5 +1,6 @@
 import { BUILDING_CUTS } from "./building-art.js";
 import { CITY_ART } from "./city-art.js";
+import { wonderStages } from "./wonder-stages.js";
 import { HUT_ART } from "./hut-art.js";
 import { RESOURCE_ART } from "./resource-art.js";
 import { workArtPlace } from "./work-pictures.js";
@@ -16,7 +17,8 @@ import type { UnitAtlas } from "./unit-atlas.js";
  * to a place. Every one of the 51 has one; the drawn pictures stay as the fallback for an id without one.
  * The 27 improvements are cuts of the user's sheet of them since 2026-11-04 (asked for: "replace all building images
  * with attached sprite-sheet"): `apps/web/src/buildings/<id>.png`, every pixel the sheet's, cut to their bounds by
- * tools/sprites/buildings/cut.ts, their sizes in `BUILDING_CUTS`. The wonders and spaceship parts are not on the sheet.
+ * tools/sprites/buildings/cut.ts, their sizes in `BUILDING_CUTS`. So are the wonders that have come on sheets of their own,
+ * with the stages of their construction (`wonderStages`); the other wonders and the spaceship parts keep their squares.
  */
 export const ART_SIZE = 1254;
 export { BUILDING_CUTS };
@@ -33,14 +35,12 @@ export const BUILDING_PICTURES_WANTED: readonly string[] = [];
 
 export const BUILDING_ART: Readonly<Record<string, readonly [number, number, number, number]>> = {
   apollo_program: [359, 70, 555, 1087],
-  colossus: [422, 70, 399, 1113],
   component: [268, 181, 718, 898],
   copernicus: [233, 258, 789, 764],
   cure_for_cancer: [180, 293, 894, 710],
   darwins_voyage: [191, 123, 873, 1015],
   great_library: [99, 130, 1057, 998],
   great_wall: [76, 342, 1102, 529],
-  hanging_gardens: [148, 269, 981, 716],
   hoover_dam: [51, 370, 1153, 569],
   isaac_newtons: [147, 235, 1033, 810],
   js_bachs: [206, 185, 842, 884],
@@ -50,7 +50,6 @@ export const BUILDING_ART: Readonly<Record<string, readonly [number, number, num
   michelangelos: [100, 336, 1054, 630],
   module: [69, 351, 1117, 613],
   oracle: [321, 297, 713, 671],
-  pyramids: [51, 342, 1151, 603],
   seti_program: [130, 96, 994, 1087],
   shakespeares: [65, 213, 1123, 946],
   structural: [41, 104, 1172, 1048],
@@ -252,14 +251,19 @@ export function buildingArt(id: string): ArtBox | null {
 
 /** No building's picture stands taller than this in the city view (the tallest drawn ones are 46). */
 const LOT_MAX_H = 46;
+/** The cell of the user's sheets of wonders with stages, whose whole height stands `LOT_MAX_H` high. */
+const WONDER_CELL = 418;
 
 /**
  * The room the picture of building `id` takes where its drawn picture (`pic`) would stand: the same
  * area, in the picture's own shape, never taller than the tallest drawn picture. Without a picture, `pic`'s.
+ * A wonder with stages stands at one scale for all, keeping the sizes its sheet gives it (a drawn picture's area
+ * brought the Colossus down from 44 high to 33, about the size of a temple).
  */
 export function artLot(id: string, pic: { w: number; h: number }): { w: number; h: number } {
   const art = buildingArt(id);
   if (!art) return { w: pic.w, h: pic.h };
+  if (wonderStages(id).length) return { w: Math.round((art.w * LOT_MAX_H) / WONDER_CELL), h: Math.round((art.h * LOT_MAX_H) / WONDER_CELL) };
   const aspect = art.w / art.h;
   const h = Math.min(LOT_MAX_H, Math.sqrt((pic.w * pic.h) / aspect));
   return { w: Math.round(h * aspect), h: Math.round(h) };

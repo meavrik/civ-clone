@@ -55,7 +55,7 @@ export declare function buildingPlaces(spots: ArtSpot[], screen: {
     logicalW: number;
     logicalH: number;
 }): PicturePlace[];
-/** Fetch the pictures of what the player's cities are building, so a Building Completed window never waits for one. */
+/** Fetch the pictures of what the player's cities are building, a wonder's stages too, so a Building Completed window or a wonder's show never waits for one. */
 export declare function preloadBuildings(state: GameState): void;
 /** Fetch the picture of the advance under research before it is found, so its window never waits for it. */
 export declare function preloadTech(id: string | null | undefined): void;

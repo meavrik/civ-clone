@@ -51,6 +51,7 @@ export * from "./audience.js";
 export * from "./newtech.js";
 export * from "./advance-info.js";
 export * from "./art.js";
+export * from "./wonder-stages.js";
 export * from "./unit-atlas.js";
 export * from "./unit-anim.js";
 export * from "./shot.js";

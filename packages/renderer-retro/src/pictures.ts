@@ -158,10 +158,11 @@ export function drawPicture(s: Surface, pic: Picture, x: number, y: number, owne
 /**
  * A building standing in a box `w` by `h` with its left edge at `x` and its ground line at `y`: the
  * spot for the user's picture of it when it has one (the apps lay the picture there, `Surface.art`),
- * else its drawn picture in the middle of the box. `lit` rings the user's picture in light.
+ * else its drawn picture in the middle of the box. `lit` rings the user's picture in light. `cleared` of the user's
+ * picture is gone from the ground up (a wonder's stage, as the next rises in its place).
  */
-export function drawBuilding(s: Surface, id: string, pic: Picture, x: number, y: number, w: number, h: number, owner: number, lit = false, reveal = 1): void {
-  if (buildingArt(id)) { s.art.push({ id, x, y: y - h, w, h, ...(lit ? { lit } : {}), ...(reveal < 1 ? { reveal } : {}) }); return; }
+export function drawBuilding(s: Surface, id: string, pic: Picture, x: number, y: number, w: number, h: number, owner: number, lit = false, reveal = 1, cleared = 0): void {
+  if (buildingArt(id)) { s.art.push({ id, x, y: y - h, w, h, ...(lit ? { lit } : {}), ...(reveal < 1 ? { reveal } : {}), ...(cleared > 0 ? { clip: { x, y: y - h, w, h: h * (1 - cleared) } } : {}) }); return; }
   const px = x + Math.floor((w - pic.w) / 2);
   if (reveal >= 1) { drawPicture(s, pic, px, y, owner); return; }
   // Rising (a wonder just completed): only the bottom `reveal` of the drawn picture stands, drawn whole

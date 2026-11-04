@@ -1,5 +1,5 @@
 import { BUILDINGS, formatYear, Terrain, turnToYear, WONDERS, type GameState } from "@civ/core";
-import { buildingArt, cityScene, CLOUD_PUFFS, hash, sceneItemAt, type CityScene, type CityViewState } from "@civ/renderer-api";
+import { buildingArt, cityScene, CLOUD_PUFFS, hash, sceneItemAt, wonderRise, type CityScene, type CityViewState } from "@civ/renderer-api";
 import { drawSpaced, drawText, drawTextCentered, textWidth } from "../font.js";
 import { C, shade } from "../palette.js";
 import { drawBuilding, drawPicture } from "../pictures.js";
@@ -151,9 +151,12 @@ export function drawCityView(s: Surface, state: GameState, view: CityViewState):
   const color = playerColor(state, city.owner);
   for (const it of scene.items) {
     const at = [SCENE_X + it.x, SCENE_Y + it.y] as const;
-    // A wonder just completed rises from the ground (`rising.reveal`); everything else stands whole.
+    // A wonder just completed rises from the ground (`rising.reveal`), through its stages where it has them
+    // (`wonderRise`); everything else stands whole, a wonder going up at its stage (`it.site`).
     const reveal = view.rising && it.id === view.rising.id ? view.rising.reveal : 1;
-    if (it.kind === "wonder" || it.kind === "building" || it.kind === "gate") drawBuilding(s, it.id, it.pic, ...at, it.w, it.h, color, it.id === view.picked, reveal);
+    const stages = reveal < 1 ? wonderRise(it.id, reveal) : null;
+    if (stages) for (const l of stages) drawBuilding(s, l.art, it.pic, ...at, it.w, it.h, color, false, l.reveal, l.cleared);
+    else if (it.kind === "wonder" || it.kind === "building" || it.kind === "gate") drawBuilding(s, it.site ?? it.id, it.pic, ...at, it.w, it.h, color, it.id === view.picked, reveal);
     else drawPicture(s, it.pic, ...at, color);
   }
   // Sparkles burst round the wonder once it stands whole.
@@ -178,7 +181,8 @@ export function drawCityView(s: Surface, state: GameState, view: CityViewState):
     drawSpaced(s, SCREEN_W / 2, BAR_Y + 3, view.banner.toUpperCase(), shade("wheat", 1));
     return;
   }
-  const line = info ? (textWidth(`${info.name}: ${info.text}`) <= BACK.x - 8 ? `${info.name}: ${info.text}` : info.name) : "Click a building to name it   Esc Back";
+  const said = info && (picked?.site ? `${info.name}: under construction` : `${info.name}: ${info.text}`);
+  const line = said && info ? (textWidth(said) <= BACK.x - 8 ? said : info.name) : "Click a building to name it   Esc Back";
   drawText(s, 4, BAR_Y + 3, line, info ? INK : DIM);
   s.rect(BACK.x, BACK.y, BACK.w, BACK.h, C.RED!);
   s.hline(BACK.x, BACK.y, BACK.w, C.LRED!);

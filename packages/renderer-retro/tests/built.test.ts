@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { applyCommand, BUILDINGS, newGame, SPACE_PARTS, WONDERS, type GameState, type Production } from "@civ/core";
-import { ART_SIZE, artPlace, BUILDING_ART, BUILDING_CUTS, BUILDING_PICTURES_WANTED, builtCard, type BuiltView, type MainScreenView } from "@civ/renderer-api";
+import { ART_SIZE, artPlace, BUILDING_ART, BUILDING_CUTS, BUILDING_PICTURES_WANTED, builtCard, wonderStages, type BuiltView, type MainScreenView } from "@civ/renderer-api";
 import { describe, expect, it } from "vitest";
 import { builtHit, builtPicture, builtPlace, builtRect, drawBuilt, drawMainScreen, tileToScreen, TILE, VIEW_Y } from "../src/index.js";
 import { Surface } from "../src/surface.js";
@@ -27,9 +27,12 @@ describe("the user's pictures of buildings", () => {
       expect(existsSync(new URL(`${id}.webp`, dir)), id).toBe(true);
       expect(x >= 0 && y >= 0 && w > 100 && h > 100 && x + w <= ART_SIZE && y + h <= ART_SIZE, id).toBe(true);
     }
-    // The sheet holds every improvement; the wonders and the spaceship parts keep their squares.
-    expect(Object.keys(BUILDING_CUTS).sort()).toEqual(BUILDINGS.map((b) => b.id).sort());
-    expect(Object.keys(BUILDING_ART).length + Object.keys(BUILDING_CUTS).length).toBe(ids.size);
+    // The sheets hold every improvement and some wonders, with their stages; the rest keep their squares.
+    const stages = WONDERS.flatMap((w) => wonderStages(w.id));
+    const cut = Object.keys(BUILDING_CUTS).filter((id) => !stages.includes(id));
+    for (const id of cut) expect(ids.has(id), id).toBe(true);
+    for (const b of BUILDINGS) expect(cut, b.id).toContain(b.id);
+    expect(Object.keys(BUILDING_ART).length + cut.length).toBe(ids.size);
   });
 
   it("lay a picture so its drawing fills a box, shape kept, on the box's foot or in its middle", () => {

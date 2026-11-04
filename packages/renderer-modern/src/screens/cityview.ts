@@ -126,7 +126,7 @@ export function paintCityScene(ctx: Context2D, scene: CityScene, ox: number, oy:
     }
   }
   // A building drawn in the middle of its lot (sized for the user's picture, which this renderer does not show).
-  for (const it of scene.items) paintPicture(ctx, it.pic, at(it.x + (it.w - it.pic.w) / 2), aty(it.y), k, owner);
+  for (const it of scene.items) if (!it.site) paintPicture(ctx, it.pic, at(it.x + (it.w - it.pic.w) / 2), aty(it.y), k, owner);
   ctx.restore();
 }
 

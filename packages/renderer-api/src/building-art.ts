@@ -1,5 +1,6 @@
-// Written by tools/sprites/buildings/cut.ts from the user's sheet of improvements (tools/sprites/buildings/buildings.png):
-// each improvement's picture (apps/web/src/buildings/<id>.png), its width and height in the sheet's pixels.
+// Written by tools/sprites/buildings/cut.ts from the user's sheets of buildings (tools/sprites/buildings/*.png): each
+// improvement's and wonder's picture (apps/web/src/buildings/<id>.png), and the stages of a wonder's construction
+// (<id>-start, <id>-construction, the size of the finished picture), their width and height in the sheet's pixels.
 export const BUILDING_CUTS: Readonly<Record<string, readonly [w: number, h: number]>> = {
   palace: [230, 196],
   barracks: [214, 211],
@@ -28,4 +29,13 @@ export const BUILDING_CUTS: Readonly<Record<string, readonly [w: number, h: numb
   solar_plant: [227, 162],
   automated_office: [228, 216],
   quantum_lab: [238, 179],
+  "pyramids-start": [393, 314],
+  "pyramids-construction": [393, 314],
+  pyramids: [393, 314],
+  "hanging_gardens-start": [406, 362],
+  "hanging_gardens-construction": [406, 362],
+  hanging_gardens: [406, 362],
+  "colossus-start": [364, 408],
+  "colossus-construction": [364, 408],
+  colossus: [364, 408],
 };

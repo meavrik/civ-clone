@@ -1,5 +1,5 @@
 import { civ, UNIT_TYPES, type GameState } from "@civ/core";
-import { artPlace, buildingArt, BUILDING_CUTS, CITY_ART, HUT_ART, LEADER_PORTRAITS, RESOURCE_ART, WORK_ART, techPicture, unitAnim, unitArt, type ArtBox, type ArtSpot } from "@civ/renderer-api";
+import { artPlace, buildingArt, BUILDING_CUTS, CITY_ART, HUT_ART, LEADER_PORTRAITS, RESOURCE_ART, WORK_ART, techPicture, unitAnim, unitArt, wonderStages, type ArtBox, type ArtSpot } from "@civ/renderer-api";
 import { slotColor } from "@civ/renderer-retro";
 import { prepareUnitFrames, unitFrameUrl } from "./unit-frames.js";
 
@@ -20,7 +20,8 @@ import { prepareUnitFrames, unitFrameUrl } from "./unit-frames.js";
  * resources (resources/<id>.png, 2026-11-03, cut from the user's sheet of them pixel for pixel: "USE AS IS") wherever
  * one is drawn: the map, the city screen, the square's window, the New Technology window, Advisors > Resources; and the
  * improvements (buildings/<id>.png, 2026-11-04, cut from the user's sheet of them pixel for pixel), in place of their
- * WebPs, the wonders and spaceship parts keeping theirs. Each is
+ * WebPs, and the wonders on the user's sheets of them, with the stages of their construction (<id>-start, <id>-construction),
+ * the other wonders and the spaceship parts keeping theirs. Each is
  * an image laid over the canvas where the screen leaves room for
  * it; they let clicks through to the canvas.
  */
@@ -107,13 +108,16 @@ export function buildingPlaces(spots: ArtSpot[], screen: { dx: number; logicalW:
 
 const fetched = new Set<string>();
 
-/** Fetch the pictures of what the player's cities are building, so a Building Completed window never waits for one. */
+/** Fetch the pictures of what the player's cities are building, a wonder's stages too, so a Building Completed window or a wonder's show never waits for one. */
 export function preloadBuildings(state: GameState): void {
   for (const c of state.cities) {
     const id = c.owner === state.currentPlayer && c.production.kind !== "unit" ? c.production.id : null;
-    if (!id || !buildingArt(id) || fetched.has(buildingUrl(id))) continue;
-    fetched.add(buildingUrl(id));
-    imageFor(buildingUrl(id));
+    if (!id || !buildingArt(id)) continue;
+    for (const url of [id, ...wonderStages(id)].map(buildingUrl)) {
+      if (fetched.has(url)) continue;
+      fetched.add(url);
+      imageFor(url);
+    }
   }
 }
 

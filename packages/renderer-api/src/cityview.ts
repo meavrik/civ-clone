@@ -1,5 +1,6 @@
 import { CITY_RADIUS, getTile, knows, Terrain, type City, type GameState } from "@civ/core";
 import { artLot, buildingArt } from "./art.js";
+import { wonderSite } from "./wonder-stages.js";
 import { hash } from "./hash.js";
 
 /**
@@ -457,6 +458,8 @@ export interface SceneItem {
   /** The room it takes: its picture's size, or its lot (`artLot`) when it has a picture of the user's. */
   w: number;
   h: number;
+  /** A wonder still going up: the picture of its stage (`wonderSite`), on the lot it will take finished. */
+  site?: string;
 }
 
 export interface CityScene {
@@ -528,7 +531,7 @@ export function cityScene(state: GameState, city: City): CityScene {
   }
 
   // What stands in the city, row by row: a row takes lots up to the town's width, then the next.
-  type Lot = { id: string; kind: SceneItem["kind"]; pic: Picture; key: number; w: number; h: number };
+  type Lot = { id: string; kind: SceneItem["kind"]; pic: Picture; key: number; w: number; h: number; site?: string };
   const cap = w - 2 * MARGIN;
   const width = Math.min(cap, 60 + city.size * 26);
   const rows: Lot[][] = STREETS.map(() => []);
@@ -543,13 +546,17 @@ export function cityScene(state: GameState, city: City): CityScene {
   };
   const least = () => used.indexOf(Math.min(...used));
 
-  city.wonders.forEach((id, i) => {
+  const raise = (id: string, i: number, site?: string) => {
     const p = PICTURES[id];
     if (p) {
-      const l = lot(id, "wonder", p, 1 + hash(i, 1, salt));
+      const l = { ...lot(id, "wonder", p, 1 + hash(i, 1, salt)), ...(site ? { site } : {}) };
       if (!place(l, [0, 1, 2, 3], cap)) put(least(), l);
     }
-  });
+  };
+  city.wonders.forEach((id, i) => raise(id, i));
+  // The wonder going up, where it will stand: the next of the city's wonders.
+  const site = wonderSite(state, city);
+  if (site) raise(site.id, city.wonders.length, site.art);
   // Buildings no longer supported (`City.idle`) still stand in the picture.
   const standing = city.idle ? [...city.buildings, ...city.idle] : city.buildings;
   const buildings = standing.filter((b) => b !== "city_walls" && PICTURES[b]);
@@ -586,7 +593,7 @@ export function cityScene(state: GameState, city: City): CityScene {
     const out: SceneItem[] = [];
     let x = start;
     for (const l of placed) {
-      out.push({ id: l.id, kind: l.kind, pic: l.pic, x: Math.round(x), y, w: l.w, h: l.h });
+      out.push({ id: l.id, kind: l.kind, pic: l.pic, x: Math.round(x), y, w: l.w, h: l.h, ...(l.site ? { site: l.site } : {}) });
       x += l.w + gap;
     }
     const spans: [number, number][] = placed.length ? [[MARGIN, start - 4], [Math.round(start + span) + 4, w - MARGIN]] : [[MARGIN, w - MARGIN]];

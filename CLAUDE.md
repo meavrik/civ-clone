@@ -811,7 +811,7 @@ Never ship the original's sprites, palette art, fonts or text.
   and the window stands above it, else below, else beside it, a point of its stone reaching to a gold ring
   round the square, which `dimScreen`'s `keep` leaves lit; it grows out of that point (`drawEntering`'s
   `from`) and a click on the city is View City; elsewhere it is centred; a wonder first rises in its city's picture (the web app's
-  `wonderShow` screen: the city view with `CityViewState.rising`, the user's picture clipped from the
+  `wonderShow` screen: the city view with `CityViewState.rising`, its stages in turn (see Wonder stages), or the user's picture clipped from the
   top (`ArtSpot.reveal`, `PicturePlace.reveal`) or the drawn one copied from its ground line up, over
   1.8 s, then sparkles round it for 1.6 s (`drawSparkles`) with the news along the bar (`banner`), a key or
   click after 0.4 s ending it; "a new wonder build WOW effect, the construction in fast forward") and
@@ -1585,7 +1585,28 @@ Never ship the original's sprites, palette art, fonts or text.
   their WebPs; a cut is its own drawing's box (`buildingArt`, x and y 0), and `artPlace` lays it at its own size where a
   wonder's lays the 1254 square. PNGs, as every other sheet's, so a test can hold each to the sheet (no WebP reader here)
   and the phone precaches them (2 MB, where the wonders' WebPs still come as first shown). Wonders and spaceship parts are
-  not on it: their 24 WebPs stay, smoother and larger than the sheet beside them in the city view.
+  not on it: their WebPs stay (21 of them now, see Wonder stages), smoother than the sheets' beside them in the city view.
+  Wonder stages (2026-11-04, asked for with the user's sheet: "implement thoose 3 wonders images - each wonder contain 3
+  stages of construction to show in the city view while constructed - start, in-construction and finished wonder", "all
+  other woders would be provideded later on the same logic"): `tools/sprites/buildings/wonders-1.png` (kept byte for byte
+  as supplied, 1254 square, cells of 418: the Pyramids, Hanging Gardens and Colossus a row each, their stages left to
+  right, nearly in register) is cut by the same `cut.ts` (`WONDER_SHEETS`), all three of a wonder by one box, the bounds of
+  all three within their cells, so what stands still in the sheet stands still between them, into `<id>-start.png`,
+  `<id>-construction.png` and the finished `<id>.png`, all in `BUILDING_CUTS`. The finished picture stands wherever the
+  wonder's WebP did (the build menu, the Improvements list, the Building Completed window). A wonder has stages when the
+  cuts do (renderer-api `wonder-stages.ts`, `wonderStages`), so another comes as a line in `WONDER_SHEETS` and nothing
+  more than taking its wonders out of `BUILDING_ART` and deleting their WebPs (built.test fails while both stand). In the
+  city view the wonder a city is building stands on the lot it will take finished, the next of its wonders
+  (`wonderSite`, `SceneItem.site`): the start from its first shield, the construction from half its cost (`costFor`); not
+  a wonder standing already (its own, kept as production while it waits for a choice, or another city's), nor one without
+  stages; a click on it says "Pyramids: under construction". Completed, the show (`CityViewState.rising`) plays them in
+  fast forward: each picture rises from the ground in the place of the one before over the 1.8 s (`wonderRise`,
+  `drawBuilding`'s `cleared`: the stage going under clipped to what lies above the line the next has reached), where a
+  wonder without stages rises whole. `artLot` stands them at one scale for all, a sheet's cell `LOT_MAX_H` high, so they
+  keep the sizes the sheet gives them (Pyramids 43x35, Gardens 45x40, Colossus 40x45): a drawn picture's area, the rule
+  for the rest, brought the Colossus down from 44 high to 33, a temple's size. `preloadBuildings` fetches the stages of
+  what our cities are building. Only the picture: no save version. Modern leaves a site out. The other 18 wonders wait
+  for their sheets.
   Village pictures (2026-11-02, asked for with the user's sheet of five huts: "replace huts in game with attached veriety
   of huts"): `tools/sprites/huts/huts.png` (kept as supplied: a straw-thatched round hut, a timber hall, a mud-brick
   house, a hide tent, a stone cottage with a chimney, on a clear background) is cut by `tools/sprites/huts/cut.ts` into
@@ -1852,8 +1873,8 @@ Never ship the original's sprites, palette art, fonts or text.
   `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits
   and the advances' pictures (`techs/<advance>.webp`, 1254 square, WebP quality 92; `techPicture`: all but
   the 1991 tree's Future Tech., which shows the frame's bed; each adapter's `main` fetches the picture
-  of the research under way, `preloadTech`) and the wonders' and spaceship parts' (`buildings/<id>.webp`, 1254 square, WebP quality
-  92; laid at the screen's `Surface.art` spots with the improvements' PNGs; `preloadBuildings` fetches what our cities are building), and the
+  of the research under way, `preloadTech`) and the wonders' and spaceship parts' not yet on a sheet (`buildings/<id>.webp`, 1254 square, WebP quality
+  92; laid at the screen's `Surface.art` spots with the sheets' PNGs; `preloadBuildings` fetches what our cities are building), and the
   units' (`units/<id>.png`, see Unit pictures below), the only things the retro look does not draw through the palette. The phone app caches each picture when first shown,
   not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
   into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
@@ -2044,6 +2065,8 @@ Civilization II after it (2026-11-04, asked for; save version 67). Tundra wears 
 10%, and Reindeer roam it, its only shields, drawn as the Game's deer until their own picture comes; a resource still hidden
 from a civilization no longer spares its units wear (2026-11-04, asked for; save version 68). Any two specials lie three
 squares apart, whatever their kind, the land's kinds taking turns for the room (2026-11-04, asked for; save version 69). The 27 improvements drawn as the user's sheet, the Harbour's picture with them (2026-11-04, asked for; no save version).
+The Pyramids, Hanging Gardens and Colossus drawn as the user's sheet, each with its stages of construction in the city view
+and going up through them in fast forward as it is completed (2026-11-04, asked for; no save version).
 
 ## Known gaps / next steps
 
