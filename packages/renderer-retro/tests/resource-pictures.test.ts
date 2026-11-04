@@ -4,8 +4,8 @@ import { RESOURCE_ART, RESOURCE_CELL, resourceArtPlace } from "@civ/renderer-api
 import { describe, expect, it } from "vitest";
 import { C, drawMainScreen, drawSpecial, MAP_TILE, Surface, tileToScreen } from "../src/index.js";
 
-/** A special's icon's name, as the resources sheet names it. */
-const iconName = (name: string) => name.toLowerCase().replace(/ /g, "_");
+/** A special's icon's name, as the resources sheet names it (Reindeer borrow the Game's deer for now). */
+const iconName = (name: string) => (name === "Reindeer" ? "game" : name.toLowerCase().replace(/ /g, "_"));
 
 describe("the user's pictures of the resources (2026-11-03, as is)", () => {
   it("has one for every special of the rules, on land and at sea, each a picture in the app", () => {
@@ -40,6 +40,18 @@ describe("the user's pictures of the resources (2026-11-03, as is)", () => {
       expect(box.x + box.w / 2).toBeCloseTo(off + side / 2);
       expect(box.y + box.h / 2).toBeCloseTo(off + side / 2);
     }
+  });
+
+  it("shows Reindeer as the Game's deer, in the square and as a corner mark", () => {
+    const state = newGame(7);
+    const tile = { ...state.map.tiles[0]!, terrain: Terrain.Tundra, special: true, deposit: "Reindeer" };
+    const s = Surface.fine(20, 20);
+    drawSpecial(s, 0, 0, state, tile, 0, 20, { room: { x: 0, y: 0, w: 20, h: 20 }, laid: [] });
+    expect(s.art.map((a) => a.id)).toEqual(["game"]);
+    const corner = Surface.fine(20, 20);
+    corner.fill(C.MAGENTA!);
+    drawSpecial(corner, 0, 0, state, tile, 0, 20, undefined, true);
+    expect(corner.data.some((c) => c !== C.MAGENTA!)).toBe(true);
   });
 
   it("stands on the map, shaded whole out of sight as the square under it is", () => {

@@ -13,6 +13,7 @@ import {
   Terrain,
   TERRAIN_NAMES,
   herdsIn,
+  inCatalogue,
   learnedOf,
   resourcesIn,
   secondKind,
@@ -170,7 +171,7 @@ export function techDetails(state: GameState, id: string): TechDetails {
   add("trade", "Trade", gains("trade"));
   // The strategic resources it shows on the map (`ResourceRule.revealedBy`; saves before version 40 show them all).
   add("gem", "Reveals", revealedBy(state, p.id, [id]));
-  add("heart", "Ends wear", terrains.filter(({ r }) => r.attrition && attritionCure(state, r.attrition) === id).map(({ name }) => name));
+  add("heart", "Ends wear", terrains.filter(({ r }) => r.attrition && inCatalogue(state, r.attrition) && attritionCure(state, r.attrition) === id).map(({ name }) => name));
   add("hourglass", "Ends", WONDERS.filter((w) => w.obsolete === id).map((w) => w.name));
   const link = (x: string, also: string[] = []): TechLink => ({ id: x, name: advance(x).name, status: techStatus(state, x), also });
   const needs = a.requires.map((r) => link(r));

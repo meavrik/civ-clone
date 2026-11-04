@@ -93,6 +93,8 @@ export const SHEEP: SpecialRule = { name: "Sheep", food: 1, learned: [{ advance:
 export const CAMELS: SpecialRule = { name: "Camels", food: 1, trade: 2, learned: { advance: "animal_husbandry", food: 1 }, since: 61 };
 // Hides and meat, as grassland's Resources gave a shield; tamed, more meat.
 export const BISON: SpecialRule = { name: "Bison", shields: 1, learned: { advance: "animal_husbandry", food: 1 }, since: 61 };
+// Meat, and hides and sledges to work with: the one thing on the tundra that makes a shield.
+export const REINDEER: SpecialRule = { name: "Reindeer", food: 1, shields: 1, learned: { advance: "animal_husbandry", food: 1 }, since: 68 };
 
 /**
  * Herds (asked for 2026-11-03, with the user's sheet of resources: "sheep, bison, dear camel, seal - would get food bonus
@@ -100,12 +102,15 @@ export const BISON: SpecialRule = { name: "Bison", shields: 1, learned: { advanc
  * that lie in deposits as the strategic ones do, after their slices of the roll, so every other deposit lies where it
  * did, but only yield: no unit needs them, no one holds or trades them. Sheep graze the plains, camels the desert, bison
  * the grassland (the bison was the picture of grassland's Resources, gone from the land since save version 26). All seen
- * from the start, and Animal Husbandry tames each for a food more, as it does Horses, Game, Seals and Elephants.
+ * from the start, and Animal Husbandry tames each for a food more, as it does Horses, Game, Seals and Elephants. Reindeer
+ * roam the tundra since save version 68 (asked for 2026-11-04: "need to place a resource that could provide some food and
+ * production"): it can be neither irrigated nor mined, and nine squares in ten of it held nothing.
  */
 export const HERDS: readonly DepositRule[] = [
   { id: "Sheep", special: SHEEP, deposits: { [Terrain.Plains]: 0.06 }, since: 61 },
   { id: "Camels", special: CAMELS, deposits: { [Terrain.Desert]: 0.1 }, since: 61 },
   { id: "Bison", special: BISON, deposits: { [Terrain.Grassland]: 0.04 }, since: 61 },
+  { id: "Reindeer", special: REINDEER, deposits: { [Terrain.Tundra]: 0.1 }, since: 68 },
 ];
 
 /** Every special that lies in deposits, strategic resources and herds, by id. */

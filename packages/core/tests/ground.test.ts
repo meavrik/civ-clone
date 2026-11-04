@@ -224,13 +224,55 @@ describe("harsh ground", () => {
     return u.hp;
   }
 
-  it("wears down units in the desert and the arctic instead of healing them, never to death", () => {
+  it("wears down units in the desert, the tundra and the arctic instead of healing them, never to death", () => {
     expect(rest(flatWorld(Terrain.Desert), "militia")).toBe(9);
     expect(rest(flatWorld(Terrain.Desert), "militia", 5)).toBe(4);
     expect(rest(flatWorld(Terrain.Desert), "militia", 1)).toBe(1);
     expect(rest(flatWorld(Terrain.Arctic), "militia")).toBe(8);
     expect(rest(flatWorld(Terrain.Arctic), "musketeers")).toBe(16);
-    expect(rest(flatWorld(Terrain.Tundra), "militia", 5)).toBe(6);
+    expect(rest(flatWorld(Terrain.Tundra), "militia")).toBe(9);
+    expect(rest(flatWorld(Terrain.Tundra), "militia", 5)).toBe(4);
+    expect(rest(flatWorld(Terrain.Grassland), "militia", 5)).toBe(6);
+  });
+
+  it("wears units on the tundra until Weaving (Medicine on the 1991 tree), a herd or a river sparing them", () => {
+    const tundra = flatWorld(Terrain.Tundra);
+    expect(attrition(tundra, 0, 30, 10)).toBe(0.1);
+    tundra.players[0]!.advances.push("medicine");
+    expect(attrition(tundra, 0, 30, 10)).toBe(0.1);
+    tundra.players[0]!.advances.push("weaving");
+    expect(rest(tundra, "militia", 5)).toBe(6);
+    const old = flatWorld(Terrain.Tundra, { classicAdvances: true });
+    expect(attrition(old, 0, 30, 10)).toBe(0.1);
+    old.players[0]!.advances.push("medicine");
+    expect(attrition(old, 0, 30, 10)).toBe(0);
+
+    const herd = flatWorld(Terrain.Tundra);
+    Object.assign(getTile(herd.map, 30, 10)!, { special: true, deposit: "Reindeer" });
+    expect(rest(herd, "militia", 5)).toBe(6);
+    const river = flatWorld(Terrain.Tundra);
+    getTile(river.map, 30, 10)!.river = true;
+    expect(rest(river, "militia", 5)).toBe(6);
+  });
+
+  it("spares no one on a resource still hidden from them, which would give it away", () => {
+    const hidden = flatWorld(Terrain.Tundra);
+    Object.assign(getTile(hidden.map, 30, 10)!, { special: true, deposit: "Saltpeter" });
+    expect(attrition(hidden, 0, 30, 10)).toBe(0.1);
+    hidden.players[0]!.advances.push("gunpowder");
+    expect(attrition(hidden, 0, 30, 10)).toBe(0);
+    // Games before save version 68 went by the square as it lies, and their logs replay so.
+    const old = flatWorld(Terrain.Desert, { catalogue: 67 });
+    Object.assign(getTile(old.map, 30, 10)!, { special: true, deposit: "Saltpeter" });
+    expect(attrition(old, 0, 30, 10)).toBe(0);
+  });
+
+  it("leaves the tundra alone in games saved before version 68, the desert and the arctic as they were", () => {
+    const opts = { opponents: 1 as const };
+    expect(loadSave({ ...makeSave(newGame(321, opts), opts, []), version: 67 as const }, () => {}).state.catalogue).toBe(67);
+    expect(rest(flatWorld(Terrain.Tundra, { catalogue: 67 }), "militia", 5)).toBe(6);
+    expect(attrition(flatWorld(Terrain.Desert, { catalogue: 67 }), 0, 30, 10)).toBe(0.1);
+    expect(attrition(flatWorld(Terrain.Arctic, { catalogue: 67 }), 0, 30, 10)).toBe(0.2);
   });
 
   it("spares units near their own cities, on water or a special, and once the cure is known", () => {

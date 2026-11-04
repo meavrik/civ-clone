@@ -88,6 +88,20 @@ describe("herds (save version 61)", () => {
     // Grassland 2/0/0: Bison a shield, Animal Husbandry a food.
     expect(yields(herd("Bison", Terrain.Grassland, []))).toEqual([2, 1, 0]);
     expect(yields(herd("Bison", Terrain.Grassland, ["animal_husbandry"]))).toEqual([3, 1, 0]);
+    // Tundra 1/0/0: Reindeer a food and a shield, Animal Husbandry a food more.
+    expect(yields(herd("Reindeer", Terrain.Tundra, []))).toEqual([2, 1, 0]);
+    expect(yields(herd("Reindeer", Terrain.Tundra, ["animal_husbandry"]))).toEqual([3, 1, 0]);
+  });
+
+  it("put Reindeer on the tundra since save version 68, and in no game saved before", () => {
+    const opts = { opponents: 2 as const };
+    const s = newGame(3, opts);
+    const reindeer = (g: GameState) => g.map.tiles.filter((t) => t.deposit === "Reindeer");
+    expect(reindeer(s).length).toBeGreaterThan(0);
+    for (const t of reindeer(s)) expect(t.terrain).toBe(Terrain.Tundra);
+    const old = loadSave({ ...makeSave(s, opts, []), version: 67 as const }, () => {}).state;
+    expect(old.catalogue).toBe(67);
+    expect(reindeer(old)).toEqual([]);
   });
 
   it("are not strategic: no unit needs them, no one holds or trades them", () => {

@@ -591,6 +591,25 @@ Never ship the original's sprites, palette art, fonts or text.
   worlds). Saves before 61 load with `catalogue` (their version; headless `--catalogue 60`). Head to head (planner vs v2,
   16 x 300, seeds 1-16): 8-8, score 111 vs 97, pop 46 vs 35, techs 21.6 vs 19.9; catalogue 60 10-6, 95 vs 75, pop 41 vs 24
   (as version 60); all replaying exactly. The herds feed everyone; v2, working whatever its cities hold, gains more.
+  Tundra (asked for 2026-11-04: "on tundra tile: also should reduce HP for units until have weaving tech", "need to place a
+  resource that could provide some food and production"; save version 68): it wears units down as the arctic does, at the
+  desert's 10% (`TerrainRule.attrition`, its `since` 68; Weaving ends both, Medicine on the 1991 tree; told by the square's
+  window and the research card as the others are), and Reindeer roam it (`HERDS`: +1 food +1 shield, Animal Husbandry +1
+  food: 2/1/0, 3/1/0, as Bison on grassland; seen from the start), the only shields on land that can be neither irrigated
+  nor mined. 10% of tundra without a special (at 12% `spreadSpecials` lost up to a fifth of them on tundra's thin bands),
+  rolled last: about 5 a small world, 13 medium, 34 large, 7 and 15 on Earth; tundra with a resource 12% before, about 20%
+  now, and each such square spares units the wear. No picture of their own yet: the Game's deer stands in, picture and mark
+  (retro `BORROWED_ICONS`; asked for: "use for now the regular dear we already have"). Since the same version a resource
+  still hidden from a civilization spares its units nothing (`HIDDEN_WEAR_SINCE`: `attrition` asks `specialFor`, not
+  `t.special`): the square's window saying no Harsh gave the resource away, on desert and arctic too, and tundra holds them
+  on 11% of its squares. Sites count Reindeer (`siteScore`): over 20 seeds 1 of 120 players start elsewhere, small or
+  medium, and 40 of 160 city-states stand elsewhere (115 of 240 medium). Saves before 68 load with `catalogue` (their
+  version; headless `--catalogue 67`). The wear hardly touches the computers: about 0.1% of their land units' turns end on
+  wearing tundra, and few learn the cure (2 to 8 of 64 civs by turn 300: Weaving comes after Medicine in the planner's
+  goals), so it is the player's explorers and long marches that feel it. Head to head (planner vs v2, 16 x 300, seeds
+  1-16): 11-5, score 111 vs 89, pop 47 vs 34, cities 8.9 vs 6.4, techs 20.5 vs 17.1; catalogue 67 7-9, 99 vs 100, pop 40 vs
+  38 (as version 67); all replaying exactly. Before the hidden resources' fix, which changes almost nothing, the same games
+  came out 9-7, 107 vs 98, so read the gap as much for noise as for an edge.
 - `packages/ai` — opponents, speaking only `Command`s: `planner.ts` (AI v3, shipped as `aiTurn`),
   `planner-v2.ts` (frozen copy of v2, the head-to-head yardstick: do not tune it), `baseline.ts`
   (v1) and `barbarian.ts` (the barbarians, reached through `baselineTurn` so every AI seat shares it:
@@ -1533,7 +1552,8 @@ Never ship the original's sprites, palette art, fonts or text.
   marks; `resourceArtPlace` stands the picture centred in that room at one scale, the sheet's cell across to the room's
   width (`RESOURCE_CELL` 256), so the icons keep the sizes the sheet gives them. Out of sight the picture is shaded whole
   (by the square it was laid on). The New Technology window's box and Advisors > Resources lay theirs too
-  (`drawResourceIcon`). The corner marks (`drawResourceMark`) stay our pictograms. `preloadCities` fetches the 26. The
+  (`drawResourceIcon`). The corner marks (`drawResourceMark`) stay our pictograms. `preloadCities` fetches the 26. Reindeer
+  are on no sheet yet and borrow the Game's deer (`BORROWED_ICONS` in retro `tiles.ts`). The
   palette sprites (`resources.art.ts`) stay for anything without a picture (tests, `npm run sprites`).
   Village pictures (2026-11-02, asked for with the user's sheet of five huts: "replace huts in game with attached veriety
   of huts"): `tools/sprites/huts/huts.png` (kept as supplied: a straw-thatched round hut, a timber hall, a mud-brick
@@ -1934,8 +1954,7 @@ grid)). A civ added later carries `since` (the save version that brought it); sa
 load with `roster: 10`, so their rivals come from the 18 they were drawn from. Barbarians done (2026-10-17): uprisings and
 sea raids with leaders and ransom, barbarian-held cities, pillage. Civilization traits done (2026-10-17):
 one ability and one starting advance per civ, shown at the tribe choice, the opening window (with the
-leader's portrait and a sentence on the people since 2026-10-26) and World > Civilizations. Extended tech tree done (2026-10-18, asked for): Weaving (after Pottery; ends arctic wear in
-place of Medicine), Animal Husbandry (a root; Horseback Riding needs it; +1 food from Horses, Game and
+leader's portrait and a sentence on the people since 2026-10-26) and World > Civilizations. Extended tech tree done (2026-10-18, asked for): Weaving (after Pottery; ends arctic wear, and tundra's since save version 68, in place of Medicine), Animal Husbandry (a root; Horseback Riding needs it; +1 food from Horses, Game and
 Seals for its owner, `special.learned`), and five modern advances in place of Future Tech. (The Internet,
 Mobile Phones, Renewable Energy, Artificial Intelligence, Quantum Computing), each unlocking an
 improvement built from existing effects (Data Center, Cell Tower, Solar Plant, Automated Office,
@@ -1990,7 +2009,9 @@ asking (2026-11-04, asked for; save version 64). Old units give way to their suc
 and all, and caravans trade at garrisoned foreign cities (2026-11-04, asked for; save version 65). Citizens placed
 automatically keep a city growing and making something where its land allows (2026-11-04, asked for; save version 66).
 A tribe in a fifth of the villages joins its finder as a city on good land, else Settlers, as the original had it and
-Civilization II after it (2026-11-04, asked for; save version 67).
+Civilization II after it (2026-11-04, asked for; save version 67). Tundra wears units down until Weaving, at the desert's
+10%, and Reindeer roam it, its only shields, drawn as the Game's deer until their own picture comes; a resource still hidden
+from a civilization no longer spares its units wear (2026-11-04, asked for; save version 68).
 
 ## Known gaps / next steps
 
@@ -2072,8 +2093,8 @@ Civilization II after it (2026-11-04, asked for; save version 67).
    attacking onto such ground is fine. One rule, `canEnter`, serves `checkMove`, `findPath`, barbarians
    and the planner (camp squares, scouting to the edge of ground it cannot enter). `openMountains`
    (saves before version 7, `?mountains=open`, headless `--open-mountains`) lets every unit climb. Terrain
-   `attrition` (desert 10% until Trade, arctic 20% until Medicine) takes hp instead of healing from land
-   units ending a turn outside their own cities' radius, never the last one; rivers and specials spare
+   `attrition` (desert 10% until Trade, tundra 10% since save version 68 and arctic 20% until Weaving, Medicine on the 1991 tree) takes hp instead of healing from land
+   units ending a turn outside their own cities' radius, never the last one; rivers and specials the owner knows of spare
    them. `classicTerrain` (saves before version 3, `?terrain=classic`) turns both off.
    Deep water (asked for 2026-10-27: "trireme should sink in deep water"): a `coastal` ship (the Trireme)
    left on `deepWater` (sea with no land beside it, corner to corner too: the map's darker blue, which the

@@ -142,6 +142,9 @@ describe("terrain info", () => {
     expect(warnings()).toEqual([]);
     t.terrain = Terrain.Desert;
     expect(warnings()).toEqual([{ icon: "heart", name: "Harsh", note: "10% hp a turn, until Trade", tone: "bad" }]);
+    t.terrain = Terrain.Tundra;
+    expect(warnings()).toEqual([{ icon: "heart", name: "Harsh", note: "10% hp a turn, until Weaving", tone: "bad" }]);
+    t.terrain = Terrain.Desert;
     applyCommand(s, { type: "found", unit: u.id });
     expect(warnings()).toEqual([]);
   });

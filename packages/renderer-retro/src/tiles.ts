@@ -413,9 +413,11 @@ export function shadeUnseen(s: Surface, dx: number, dy: number, mask: Uint8Array
 
 /**
  * A special's icon's name in the resources sheet (lower case, words joined: "Offshore Oil" is offshore_oil). Grassland's
- * Resources (games before save version 26) are the bison, as the Bison herds since 61.
+ * Resources (games before save version 26) are the bison, as the Bison herds since 61; Reindeer are the Game's deer for
+ * now, until they have a picture of their own (asked for 2026-11-04: "use for now the regular dear we already have").
  */
-const iconName = (name: string) => (name === "Resources" ? "bison" : name.toLowerCase().replace(/ /g, "_"));
+const BORROWED_ICONS: Readonly<Record<string, string>> = { Resources: "bison", Reindeer: "game" };
+const iconName = (name: string) => BORROWED_ICONS[name] ?? name.toLowerCase().replace(/ /g, "_");
 
 /** A special's picture by its name (`iconName`). */
 export function specialSprite(name: string): Surface | null {

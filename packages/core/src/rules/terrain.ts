@@ -47,6 +47,9 @@ export interface SpecialRule {
 /** The save version from which `within` and `beyond` place specials; older worlds ignore them. */
 export const SPECIAL_REACH_SINCE = 19;
 
+/** The save version from which a resource still hidden from a civilization no longer spares its units wear (`attrition`). */
+export const HIDDEN_WEAR_SINCE = 68;
+
 /**
  * Specials of one kind lie at least this many squares apart, counting diagonals as one (worlds since save version 57;
  * asked for 2026-11-01: "sometimes many resources are near each other - set minimum distance between resources of the
@@ -88,9 +91,10 @@ export interface TerrainRule {
    * Harsh ground: a land unit ending its turn here loses this share of its
    * full hit points instead of healing (never its last one), until its owner
    * knows `until` (`classicUntil` in games on the 1991 tech tree). Squares near the
-   * owner's cities, a river or a special (water, food) spare it.
+   * owner's cities, a river or a special its owner knows of (water, food) spare it. `since`: the save
+   * version that brought it, so older games (`GameState.catalogue`) play on without it.
    */
-  attrition?: { share: number; until: string; classicUntil?: string };
+  attrition?: { share: number; until: string; classicUntil?: string; since?: number };
   /** No barbarian uprising or raid starts here (FreeCiv civ1: tundra and arctic). */
   noBarbarians?: boolean;
 }
@@ -167,6 +171,8 @@ export const TERRAIN_RULES: Record<Terrain, TerrainRule> = {
     second: { name: "Furs", food: 1, trade: 3, since: 18 },
     road: { trade: 0, turns: 2 },
     noBarbarians: true,
+    // Cold as the ice, if half as bitter (asked for 2026-11-04: "also should reduce HP for units until have weaving tech").
+    attrition: { share: 0.1, until: "weaving", classicUntil: "medicine", since: 68 },
   },
   [Terrain.Arctic]: {
     food: 0, shields: 0, trade: 0, moveCost: 2, defense: 1,

@@ -144,7 +144,7 @@ export interface NewGameOptions extends MapGenOptions {
   plainGifts?: boolean;
   /** Strategic resources' squares add the shields of their specials, as before version 52 (see `GameState.resourceShields`). Old saves load with it. */
   resourceShields?: boolean;
-  /** Only the units, improvements, advances and resources a save of this version knew (see `GameState.catalogue`). Saves before version 62 load with their version. */
+  /** Only the units, improvements, advances and resources a save of this version knew (see `GameState.catalogue`). Saves before version 68 load with their version. */
   catalogue?: number;
   /** Fish feed a city without a fishery, as before version 54 (see `GameState.freeFish`). Old saves load with it. */
   freeFish?: boolean;

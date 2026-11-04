@@ -1,6 +1,8 @@
 import { knows } from "./rules/advances.js";
+import { inCatalogue } from "./rules/catalogue.js";
 import { traitFastWork } from "./traits.js";
-import { CLEAN_TURNS, FORTRESS_TURNS, IMPROVEMENT_WORK_FACTOR, MOVE_FRAC, QUICK_CLEAN_TURNS, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
+import { specialFor } from "./resources.js";
+import { CLEAN_TURNS, FORTRESS_TURNS, HIDDEN_WEAR_SINCE, IMPROVEMENT_WORK_FACTOR, MOVE_FRAC, QUICK_CLEAN_TURNS, RAILROAD_TURNS_FACTOR, TERRAIN_RULES } from "./rules/terrain.js";
 import type { RankId } from "./rules/experience.js";
 import { CLASSIC_FIREPOWER, CLASSIC_HP, unitType, type UnitTypeRule } from "./rules/units.js";
 import { getTile, NEIGHBOURS, Terrain, wrapX, type GameState, type Tile, type Unit, type WorkKind } from "./types.js";
@@ -129,8 +131,8 @@ export function climbsMountains(state: GameState, type: UnitTypeRule): boolean {
 /**
  * Share of full hit points a land unit of `owner` loses ending its turn on
  * (x, y): harsh ground wears units down, except within reach of the owner's
- * cities (the 21 squares a city works), on a river or a special, or once the
- * owner knows the advance that ends it. 0 when the square is safe.
+ * cities (the 21 squares a city works), on a river or a special it knows of, or
+ * once the owner knows the advance that ends it. 0 when the square is safe.
  */
 /** The advance that ends a harsh terrain's wear in this game (the 1991 tree keeps its own). */
 export function attritionCure(state: GameState, harsh: { until: string; classicUntil?: string }): string {
@@ -141,7 +143,10 @@ export function attrition(state: GameState, owner: number, x: number, y: number)
   if (state.classicTerrain) return 0;
   const t = getTile(state.map, x, y);
   const harsh = t && TERRAIN_RULES[t.terrain].attrition;
-  if (!t || !harsh || t.river || t.special || knows(state.players[owner]!.advances, attritionCure(state, harsh))) return 0;
+  if (!t || !harsh || !inCatalogue(state, harsh) || t.river || knows(state.players[owner]!.advances, attritionCure(state, harsh))) return 0;
+  // A resource still hidden from its civilization is plain ground to it: sparing its units would give it away. Games
+  // before save version 68 went by the square as it lies.
+  if (inCatalogue(state, { since: HIDDEN_WEAR_SINCE }) ? specialFor(state, t, owner) : t.special) return 0;
   const w = state.map.width;
   const supplied = state.cities.some((c) => {
     if (c.owner !== owner) return false;

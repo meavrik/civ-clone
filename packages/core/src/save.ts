@@ -83,8 +83,9 @@ export interface SaveGame {
    * 60: saved before the herds (Sheep, Camels, Bison: `HERDS`); catalogue 60.
    * 61: saved while the arctic held Ivory (`SpecialRule.until`); catalogue 61.
    * 62: saved while city-states' raiders neither hunted nor pillaged and fortified where they stopped; meek city-states.
+   * 67: saved before tundra wore units down and Reindeer roamed it; catalogue 67 (and every older save its own version).
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 59 | 60 | 61 | 62 | 63 | 64 | 65 | 66 | 67;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 59 | 60 | 61 | 62 | 63 | 64 | 65 | 66 | 67 | 68;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -107,7 +108,7 @@ export interface SaveGame {
   state?: GameState;
 }
 
-export const SAVE_VERSION = 67;
+export const SAVE_VERSION = 68;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -261,7 +262,7 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
   if (save.version < 50) options.eagerCityStates = true;
   if (save.version < 51) options.plainGifts = true;
   if (save.version < 52) options.resourceShields = true;
-  if (save.version < 62) options.catalogue = save.version;
+  if (save.version < 68) options.catalogue = save.version;
   if (save.version < 54) options.freeFish = true;
   if (save.version < 56) options.quickImprovements = true;
   if (save.version < 57) options.clusteredResources = true;
