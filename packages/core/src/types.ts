@@ -486,6 +486,11 @@ export interface GameState {
    */
   barredCaravans?: boolean;
   /**
+   * Citizens as before version 66: the squares picked for a city with a focus only kept it from starving. Since 66 they
+   * keep it growing and making something where its land allows (`keepGoing`), as the city screen's warnings ask.
+   */
+  fedOnly?: boolean;
+  /**
    * Settlers' jobs as before version 46: a job taken up by a settler that had spent its moves (walked onto the square
    * that turn) counted that turn as one of its turns, and pollution cleared in three. Since 46 such a job starts the
    * next turn (one turn more, as the 1991 game, where a unit without moves takes no orders, and FreeCiv, which counts

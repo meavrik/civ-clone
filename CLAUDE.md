@@ -1968,7 +1968,8 @@ city they cannot storm, never fortifying in the field, and what a city-state is 
 for; save version 63). The status panel shows only the treasury, not the rates, its money a shell, a coin with Currency,
 paper with The Corporation (2026-11-04, asked for; no save version). A city goes on with a finished fighting unit without
 asking (2026-11-04, asked for; save version 64). Old units give way to their successors once those can be built, resources
-and all, and caravans trade at garrisoned foreign cities (2026-11-04, asked for; save version 65).
+and all, and caravans trade at garrisoned foreign cities (2026-11-04, asked for; save version 65). Citizens placed
+automatically keep a city growing and making something where its land allows (2026-11-04, asked for; save version 66).
 
 ## Known gaps / next steps
 
@@ -2166,6 +2167,22 @@ and all, and caravans trade at garrisoned foreign cities (2026-11-04, asked for;
    F picks one from a menu): their weights added (`combinedFocus`), none picked the old balance, science
    and trade putting spare citizens to study and tax in turn (`FocusRule.spares`); `setFocus` and
    `City.focus` stay for the logs that hold them. Saves before version 23 load with `balancedWorkers` (no focus).
+   Since save version 66 (asked for 2026-11-04: "if no growth or no production. place tiles that would be prefered to keep
+   city growth and production") the squares picked for a city with a focus hold the line the city screen's warnings
+   draw, NO GROWTH and NO PRODUCTION, where its land allows: `keepGoing`, after `autoAssignWorkers` and `dropLostSquares`
+   (so as a city grows or shrinks, a click on its square, a focus changed, a border drawn back). While a city is short
+   (`shortfall`: a point a food or shield short of one to spare, two more a food or shield owed, so STARVING and upkeep
+   past its shields are mended first; a city at its size limit, `sizeLimit`, wants no food to spare; shields as its
+   squares make them, riots or not) a worked square gives way to a free one, the swap that mends the most at the least
+   cost to the focus, none bringing on disorder; where the land cannot give both, the focus's squares stand.
+   `bestFreeSlot` and `weakestWorked` (a citizen clicked back to work or off it, and the entertainers `arrangeCity` takes
+   for order) read the same line. Squares the player sets by hand stay until the next growth or arrangement. Computer
+   players' cities have no focus and pass it by (the planner's `governCity` minds its own), so all-AI games come out
+   digit for digit as before. Saves before 66 load with `fedOnly` (headless `--fed-only`): `keepFed`, from starving
+   only. Hands-off cities, 40 seeds x 120 turns (share of city turns with no growth, then no production; size; shields
+   gathered), old then new: Growth 6.8%, 0.2%; 6.8; 204 and 6.6%, 0%; 6.8; 204. Production 27.3%, 0%; 5.0; 420 and 5.6%,
+   0%; 5.3; 391. Science 37.2%, 13.5%; 4.5; 185 and 5.4%, 0%; 5.2; 244. One swap at a time matched a search of every set
+   of squares on all 2880 cities checked over 120 turns of all four foci (113 still short, by their land).
 2. AI v3 done (2026-10-17) on top of the Phase 7 harness and planner. New in v3: colonies (sites
    settlers cannot walk to, `landReach` 18 steps and never through a rival city, are "overseas":
    ferries berth beside a port, take settlers and an escort, land them on the site; Map Making then

@@ -118,6 +118,8 @@ export interface GameConfig {
   noReplacements?: boolean;
   /** Only an empty foreign city takes a caravan in (`GameState.barredCaravans`). */
   barredCaravans?: boolean;
+  /** The squares picked for a city only keep it from starving (`GameState.fedOnly`). */
+  fedOnly?: boolean;
   /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
   cityStates?: boolean;
   /**
@@ -284,6 +286,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.meekCityStates ? { meekCityStates: true } : {}),
     ...(config.noReplacements ? { noReplacements: true } : {}),
     ...(config.barredCaravans ? { barredCaravans: true } : {}),
+    ...(config.fedOnly ? { fedOnly: true } : {}),
   };
 }
 

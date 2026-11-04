@@ -3,8 +3,8 @@ import type { CityFocus, Specialist } from "../types.js";
 /**
  * What a city puts its citizens to work for, chosen on the city screen (our departure: the
  * original weighed every city alike). The squares a city works automatically (`autoAssignWorkers`,
- * `arrangeCity`) are ranked by these weights; a focus never starves its city when another square
- * would feed it. Growth is the player's default.
+ * `arrangeCity`) are ranked by these weights; a focus never leaves its city without growth or shields
+ * when other squares would give them (`keepGoing`). Growth is the player's default.
  */
 export interface FocusRule {
   id: CityFocus;

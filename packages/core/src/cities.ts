@@ -317,7 +317,7 @@ export function slotScore(state: GameState, city: City, slot: number): number {
   return y.food * w.food + y.shields * w.shields + y.trade * w.trade;
 }
 
-/** Greedy worker placement on the squares worth most to the city's focus; a focus keeps the city fed. */
+/** Greedy worker placement on the squares worth most to the city's focus; a focus keeps the city growing and making something where it can (fed, before version 66). */
 export function autoAssignWorkers(state: GameState, city: City): void {
   city.worked = [];
   const wanted = city.size - city.specialists.length;
@@ -330,11 +330,71 @@ export function autoAssignWorkers(state: GameState, city: City): void {
   city.worked = scored.slice(0, Math.max(0, wanted)).map((s) => s.slot);
   // Not enough tiles: surplus citizens become entertainers.
   while (city.worked.length + city.specialists.length < city.size) city.specialists.push("entertainer");
-  if (cityFocus(state, city)) keepFed(state, city);
+  if (state.fedOnly && cityFocus(state, city)) keepFed(state, city);
+  else if (keepsGoing(state, city)) keepGoing(state, city);
+}
+
+/** The most citizens a city can hold. */
+function sizeLimit(city: City): number {
+  return city.buildings.includes("aqueduct") ? 99 : 10;
+}
+
+/** Whether the squares picked for a city hold to `keepGoing`: the player's cities, or any with a focus picked, since version 66. */
+function keepsGoing(state: GameState, city: City): boolean {
+  return !state.fedOnly && cityFocus(state, city) !== null;
 }
 
 /**
- * A city working for shields or trade may pick squares that leave it short of food: while it is,
+ * How far a city falls short of what its city screen warns of: a point a food or shield short of one to spare (NO
+ * GROWTH, NO PRODUCTION) and two more a food or shield owed (STARVING, upkeep past its shields), so those are mended
+ * first. A city at its size limit has no use for food to spare. Shields are what its squares make, riots or not.
+ */
+function shortfall(city: City, r: CityReport, food = 0, shields = 0): number {
+  const short = (spare: number, want: number) => Math.max(0, want - spare) + 2 * Math.max(0, -spare);
+  return short(r.foodSurplus + food, city.size < sizeLimit(city) ? 1 : 0) + short(r.shields - r.unitShields + shields, 1);
+}
+
+/** The squares a city could put a worker on but does not. */
+function freeSlots(state: GameState, city: City): number[] {
+  const free: number[] = [];
+  for (let slot = 1; slot < CITY_RADIUS.length; slot++) if (!city.worked.includes(slot) && slotAvailable(state, city, slot)) free.push(slot);
+  return free;
+}
+
+/**
+ * A city's focus may pick squares that leave it no food or shields to spare (asked for 2026-11-04: "if no growth or no
+ * production. place tiles that would be prefered to keep city growth and production"): while it falls short
+ * (`shortfall`), a worked square gives way to a free one, the swap that mends the most at the least cost to the focus.
+ * Where the land cannot give both, the focus's squares stand. No swap brings on disorder.
+ */
+function keepGoing(state: GameState, city: City): void {
+  for (;;) {
+    const now = computeCity(state, city);
+    const short = shortfall(city, now);
+    if (short === 0) return;
+    let best: { at: number; slot: number; short: number; cost: number } | undefined;
+    for (const slot of freeSlots(state, city)) {
+      const y = slotYield(state, city, slot)!;
+      for (let at = 0; at < city.worked.length; at++) {
+        const out = city.worked[at]!;
+        const was = slotYield(state, city, out)!;
+        if (y.food <= was.food && y.shields <= was.shields) continue;
+        city.worked[at] = slot;
+        const r = computeCity(state, city);
+        city.worked[at] = out;
+        const after = shortfall(city, r);
+        if (after >= short || (r.disorder && !now.disorder)) continue;
+        const cost = slotScore(state, city, out) - slotScore(state, city, slot);
+        if (!best || after < best.short || (after === best.short && cost < best.cost)) best = { at, slot, short: after, cost };
+      }
+    }
+    if (!best) return;
+    city.worked[best.at] = best.slot;
+  }
+}
+
+/**
+ * Before version 66 (`GameState.fedOnly`): a city working for shields or trade may pick squares that leave it short of food: while it is,
  * the worked square with least food (and least worth) gives way to the free one with most, as long
  * as that one feeds it better.
  */
@@ -343,9 +403,7 @@ function keepFed(state: GameState, city: City): void {
     const food = (slot: number) => slotYield(state, city, slot)?.food ?? 0;
     const pick = (slots: number[], better: (a: number, b: number) => boolean) => slots.reduce((b, s) => (b < 0 || better(s, b) ? s : b), -1);
     const worst = pick(city.worked, (a, b) => food(a) < food(b) || (food(a) === food(b) && slotScore(state, city, a) < slotScore(state, city, b)));
-    const free: number[] = [];
-    for (let slot = 1; slot < CITY_RADIUS.length; slot++) if (!city.worked.includes(slot) && slotAvailable(state, city, slot)) free.push(slot);
-    const best = pick(free, (a, b) => food(a) > food(b) || (food(a) === food(b) && slotScore(state, city, a) > slotScore(state, city, b)));
+    const best = pick(freeSlots(state, city), (a, b) => food(a) > food(b) || (food(a) === food(b) && slotScore(state, city, a) > slotScore(state, city, b)));
     if (worst < 0 || best < 0 || food(best) <= food(worst)) return;
     city.worked[city.worked.indexOf(worst)] = best;
   }
@@ -370,23 +428,36 @@ export function dropLostSquares(state: GameState, city: City): void {
     if (best < 0) city.specialists.push("entertainer");
     else city.worked.push(best);
   }
+  if (keepsGoing(state, city)) keepGoing(state, city);
 }
 
-/** The worked square a city would give up first: the one worth least. */
+/** The worked square a city would give up first: the one it misses least (`shortfall`), then the one worth least. */
 export function weakestWorked(state: GameState, city: City): number | undefined {
+  const r = keepsGoing(state, city) ? computeCity(state, city) : undefined;
   let worst: number | undefined;
-  for (const s of city.worked) if (worst === undefined || slotScore(state, city, s) < slotScore(state, city, worst)) worst = s;
+  let worstShort = Infinity;
+  for (const s of city.worked) {
+    const y = slotYield(state, city, s);
+    const short = r && y ? shortfall(city, r, -y.food, -y.shields) : 0;
+    if (short < worstShort || (short === worstShort && slotScore(state, city, s) < slotScore(state, city, worst!))) {
+      worst = s;
+      worstShort = short;
+    }
+  }
   return worst;
 }
 
-/** The free square (unworked, in the city's land, nobody else's) worth most to the city, or undefined when none is left. */
+/** The free square (unworked, in the city's land, nobody else's) that leaves the city least short (`shortfall`), then is worth most to it, or undefined when none is left. */
 export function bestFreeSlot(state: GameState, city: City): number | undefined {
+  const r = keepsGoing(state, city) ? computeCity(state, city) : undefined;
   let best: number | undefined;
+  let bestShort = Infinity;
   let bestScore = -Infinity;
-  for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
-    if (city.worked.includes(slot) || !slotAvailable(state, city, slot)) continue;
+  for (const slot of freeSlots(state, city)) {
+    const y = slotYield(state, city, slot);
+    const short = r && y ? shortfall(city, r, y.food, y.shields) : 0;
     const score = slotScore(state, city, slot);
-    if (score > bestScore) { best = slot; bestScore = score; }
+    if (short < bestShort || (short === bestShort && score > bestScore)) { best = slot; bestShort = short; bestScore = score; }
   }
   return best;
 }
@@ -1099,8 +1170,7 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
     city.food = 0;
     autoAssignWorkers(state, city);
   } else if (city.food >= r.foodBox || festivalGrowth) {
-    const cap = city.buildings.includes("aqueduct") ? 99 : 10;
-    if (city.size < cap) {
+    if (city.size < sizeLimit(city)) {
       city.size++;
       // A full granary empties into the new citizen (a Granary keeps half); a festival's growth leaves the store be.
       if (city.food >= r.foodBox) {
