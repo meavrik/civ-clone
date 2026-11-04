@@ -53,6 +53,7 @@ interface Options {
   riverNeedsRoad: boolean;
   leftoverShields: boolean;
   defaultBuilds: boolean;
+  pickAfterUnits: boolean;
   cityStates: boolean;
   human: boolean;
   evenDifficulty: boolean;
@@ -133,7 +134,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false, meekCityStates: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, pickAfterUnits: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false, meekCityStates: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -190,6 +191,7 @@ function parseArgs(argv: string[]): Options {
       case "river-needs-road": o.riverNeedsRoad = true; break;
       case "leftover-shields": o.leftoverShields = true; break;
       case "default-builds": o.defaultBuilds = true; break;
+      case "pick-after-units": o.pickAfterUnits = true; break;
       case "no-city-states": o.cityStates = false; break;
       case "human": o.human = true; break;
       case "even-difficulty": o.evenDifficulty = true; break;
@@ -346,6 +348,7 @@ function main(argv: string[]): number {
       ...(o.riverNeedsRoad ? { riverNeedsRoad: true } : {}),
       ...(o.leftoverShields ? { leftoverShields: true } : {}),
       ...(o.defaultBuilds ? { defaultBuilds: true } : {}),
+      ...(o.pickAfterUnits ? { pickAfterUnits: true } : {}),
       ...(o.cityStates ? { cityStates: true } : {}),
       ...(o.human ? { human: true } : {}),
       ...(o.evenDifficulty ? { evenDifficulty: true } : {}),

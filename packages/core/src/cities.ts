@@ -1179,8 +1179,8 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
         autoAssignWorkers(state, city);
       }
       spend(cost);
-      // A human player picks again; a computer player's city goes on with the unit.
-      if (choosesNext(state, city.owner)) city.choosing = true;
+      // A human player picks again after anything but a fighting unit; a computer player's city goes on with the unit.
+      if (choosesNext(state, city.owner) && !goesOn(state, p.id)) city.choosing = true;
       chronicleOf(player).units++;
       const ev: CityTurnEvent = { city: city.id, kind: "built", detail: unitType(p.id).name, production: { ...p } };
       if (was) {
@@ -1253,6 +1253,16 @@ export function retireProduction(state: GameState, player: number): void {
  */
 export function choosesNext(state: GameState, owner: number): boolean {
   return !state.defaultBuilds && state.players[owner]?.isAi === false;
+}
+
+/**
+ * Whether a city goes on with a unit it has finished rather than wait for its owner's choice: a fighting unit, as the
+ * original's cities did (since save version 64, asked for 2026-11-04: "when generating regular combat units (not settlers) -
+ * no need to enter city view or choose another city improvement/unit"; `pickAfterUnits` before), so an army needs no window a
+ * turn. Settlers, which cost a citizen, and the other units with no attack, each made for a purpose, still ask.
+ */
+function goesOn(state: GameState, id: string): boolean {
+  return !state.pickAfterUnits && unitType(id).attack > 0;
 }
 
 /** A city whose production is done with (finished, or given way): its owner chooses again (`choosesNext`), or it turns to its default. */

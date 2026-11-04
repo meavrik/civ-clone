@@ -124,6 +124,8 @@ export interface NewGameOptions extends MapGenOptions {
   leftoverShields?: boolean;
   /** A human player's city turns to its default production by itself (see `GameState.defaultBuilds`). Old saves load with it. */
   defaultBuilds?: boolean;
+  /** A human player's city waits for a choice after any finished unit, a fighting one too (see `GameState.pickAfterUnits`). Old saves load with it. */
+  pickAfterUnits?: boolean;
   /** Settlers start a job the turn they walk onto its square, and clean up in three turns (see `GameState.quickWork`). Old saves load with it. */
   quickWork?: boolean;
   /** The computer players under the human's rules of the level, as before version 47 (see `GameState.evenDifficulty`). Old saves load with it. */
@@ -348,6 +350,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.riverNeedsRoad ? { riverNeedsRoad: true } : {}),
     ...(opts.leftoverShields ? { leftoverShields: true } : {}),
     ...(opts.defaultBuilds ? { defaultBuilds: true } : {}),
+    ...(opts.pickAfterUnits ? { pickAfterUnits: true } : {}),
     ...(opts.quickWork ? { quickWork: true } : {}),
     ...(opts.evenDifficulty ? { evenDifficulty: true } : {}),
     ...(opts.eagerCityStates ? { eagerCityStates: true } : {}),

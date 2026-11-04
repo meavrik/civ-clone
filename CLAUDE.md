@@ -717,7 +717,7 @@ Never ship the original's sprites, palette art, fonts or text.
   headless `--leftover-shields`). And a human player's city never turns to a default by itself (asked for the same day:
   "do not select automatically the militia or any other default unit - always let the player select the next
   production"; core `choosesNext`, `City.choosing`, saves before load with `defaultBuilds`, headless
-  `--default-builds`): founded, taken, having finished anything (a unit too), or its wonder built elsewhere or its unit
+  `--default-builds`): founded, taken, having finished anything but a fighting unit (see below), or its wonder built elsewhere or its unit
   retired, it waits for its owner's pick, its shields gathering whole for it, nothing finished or bought meanwhile
   (`buy` refused, "nothing chosen"); `production` stays a placeholder. Computer players' cities turn to their default
   and go on with a finished unit as ever (the planner, seated for a human by headless `--human`, picks at once). The
@@ -773,7 +773,14 @@ Never ship the original's sprites, palette art, fonts or text.
   it, Enter, V, Esc, the close box and a click on the city all open the city screen with its build menu up
   (`leaveBuilt`); the rule's `text` is the modern renderer's body only. Leaving the city, the
   turn's news goes on (`then`).
-  `Renderer.built`/`builtHit`. Finished units have no window of their own (the city then waits for a choice, asked after
+  `Renderer.built`/`builtHit`. Since save version 64 (asked for 2026-11-04: "when generating regular combat units (not settlers) - no need to
+  enter city view or choose another city improvement/unit") a city that finishes a fighting unit (`attack` above 0: core
+  `goesOn`, Triremes and Nuclear too) goes on with it, as the original's did, its box empty, nothing asked, the status
+  line saying "Rome builds Phalanx"; a unit retired or wanting a resource still stops it and asks; units with no attack
+  (Settlers, Caravan, Diplomat, Explorer, Fishing Boat, Transport) ask as before. Computer players are unchanged, so
+  all-AI games are too. Saves before 64 load with `pickAfterUnits` (headless `--pick-after-units`): their logs hold cities
+  waiting after every unit, so a game in progress keeps asking.
+  Finished units have no window of their own (the city then waits for a choice if it must, asked after
   the news, see above), except Settlers: they cost a citizen, so their window asks what to build next (Build next...) over its city screen: "New Settlers in Rome",
   the user's picture of them on a slate in the square's window's frame (`MenuState.unit`, twice the map's size)
   beside one sentence on them and what they can do (asked for 2026-10-29: "add settler image. less technical";
@@ -1959,7 +1966,8 @@ the same day the resources became the user's pictures as they are, laid over the
 Ivory left the game (asked for; save version 62). City-states' raiders pillage, hunt units in the open and lay waste a
 city they cannot storm, never fortifying in the field, and what a city-state is is told once a game (2026-11-03, asked
 for; save version 63). The status panel shows only the treasury, not the rates, its money a shell, a coin with Currency,
-paper with The Corporation (2026-11-04, asked for; no save version).
+paper with The Corporation (2026-11-04, asked for; no save version). A city goes on with a finished fighting unit without
+asking (2026-11-04, asked for; save version 64).
 
 ## Known gaps / next steps
 

@@ -468,6 +468,51 @@ describe("cities", () => {
     expect(d.shields).toBe(10);
   });
 
+  it("goes on with a finished fighting unit without asking, and asks after any other (save version 64)", () => {
+    const s = flatWorld();
+    s.players[0]!.advances.push("bronze_working", "trade");
+    applyCommand(s, { type: "found", unit: createUnit(s, "settlers", 0, 10, 10).id });
+    const c = s.cities[0]!;
+    c.size = 5;
+    const finish = (id: string, cost: number): void => {
+      applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id } });
+      c.shields = cost;
+      processCityTurn(s, c);
+      expect(s.units.filter((u) => u.type === id && u.homeCity === c.id).length, id).toBeGreaterThan(0);
+    };
+    // A soldier: the box empties and the city builds another, nothing to choose.
+    finish("phalanx", 20);
+    expect(c.shields).toBe(0);
+    expect(c.choosing).toBeUndefined();
+    expect(c.production).toEqual({ kind: "unit", id: "phalanx" });
+    c.shields = 20;
+    // It still says so: the news's status line, which needs the event.
+    expect(processCityTurn(s, c)).toContainEqual(expect.objectContaining({ kind: "built", detail: "Phalanx" }));
+    expect(s.units.filter((u) => u.type === "phalanx")).toHaveLength(2);
+    // Settlers cost a citizen, and a unit with no attack is made for a purpose: the city asks.
+    finish("settlers", 40);
+    expect(c.choosing).toBe(true);
+    delete c.choosing;
+    finish("caravan", 50);
+    expect(c.choosing).toBe(true);
+    delete c.choosing;
+    // A soldier its civilization has retired since gives way, and the city asks after all.
+    finish("militia", 10);
+    expect(c.choosing).toBeUndefined();
+    s.players[0]!.advances.push("gunpowder");
+    processCityTurn(s, c);
+    expect(c.choosing).toBe(true);
+    // Saves before version 64 waited after every unit, so their logs replay as they were.
+    const opts = { opponents: 1 as const };
+    const old = loadSave({ ...makeSave(newGame(3, opts), opts, []), version: 63 as const }, () => {}).state;
+    expect(old.pickAfterUnits).toBe(true);
+    expect(loadSave(makeSave(newGame(3, opts), opts, []), () => {}).state.pickAfterUnits).toBeUndefined();
+    s.pickAfterUnits = true;
+    delete c.choosing;
+    finish("phalanx", 20);
+    expect(c.choosing).toBe(true);
+  });
+
   it("starts the box afresh as anything is finished, and lets a human player choose every next production (save version 49)", () => {
     const s = flatWorld();
     s.players[0]!.advances.push("pottery", "bronze_working");
@@ -490,10 +535,11 @@ describe("cities", () => {
     expect(c.shields).toBe(box);
     applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "unit", id: "phalanx" } });
     expect(c.shields).toBe(Math.floor(box / 2));
-    // Finished, the unit leaves an empty box and the city waits again.
-    c.shields = 25;
+    // Finished, a building leaves an empty box and the city waits again.
+    applyCommand(s, { type: "setProduction", city: c.id, production: { kind: "building", id: "granary" } });
+    c.shields = 70;
     processCityTurn(s, c);
-    expect(s.units.filter((u) => u.type === "phalanx")).toHaveLength(1);
+    expect(c.buildings).toContain("granary");
     expect(c.shields).toBe(0);
     expect(c.choosing).toBe(true);
     // A computer player's city empties its box too, and goes on with the unit; after a building, its default.

@@ -112,6 +112,8 @@ export interface GameConfig {
   leftoverShields?: boolean;
   /** A human seat's city turns to its default production by itself (`GameState.defaultBuilds`). */
   defaultBuilds?: boolean;
+  /** A human seat's city waits for a choice after any finished unit (`GameState.pickAfterUnits`). */
+  pickAfterUnits?: boolean;
   /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
   cityStates?: boolean;
   /**
@@ -263,6 +265,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.riverNeedsRoad ? { riverNeedsRoad: true } : {}),
     ...(config.leftoverShields ? { leftoverShields: true } : {}),
     ...(config.defaultBuilds ? { defaultBuilds: true } : {}),
+    ...(config.pickAfterUnits ? { pickAfterUnits: true } : {}),
     ...(config.cityStates ? { cityStates: true } : {}),
     ...(config.evenDifficulty ? { evenDifficulty: true } : {}),
     ...(config.eagerCityStates ? { eagerCityStates: true } : {}),

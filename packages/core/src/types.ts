@@ -172,8 +172,8 @@ export interface City {
   turnKind?: Production["kind"];
   /**
    * Its owner, a human player, has yet to choose what it builds (since save version 49, `choosesNext`): set as it is
-   * founded or taken, finishes something, or what it was building gives way (a wonder finished elsewhere, a unit
-   * retired). `production` is then only a placeholder (what it last built, or the default), shown as nothing chosen;
+   * founded or taken, finishes something but a fighting unit, or what it was building gives way (a wonder finished
+   * elsewhere, a unit retired). `production` is then only a placeholder (what it last built, or the default), shown as nothing chosen;
    * its shields gather in the box, nothing is finished or bought, until `setProduction`.
    */
   choosing?: boolean;
@@ -469,6 +469,11 @@ export interface GameState {
    * waits for its owner's choice (`City.choosing`).
    */
   defaultBuilds?: boolean;
+  /**
+   * Production as before version 64: a human player's city waited for its owner's choice after any finished unit. Since
+   * 64 it goes on with a fighting unit (one with an attack), as a computer player's does.
+   */
+  pickAfterUnits?: boolean;
   /**
    * Settlers' jobs as before version 46: a job taken up by a settler that had spent its moves (walked onto the square
    * that turn) counted that turn as one of its turns, and pollution cleared in three. Since 46 such a job starts the
