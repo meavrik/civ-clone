@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createUnit, foundCity, getTile, newGame, Terrain, type GameState } from "@civ/core";
-import { planMove, routeTurns, type MovePlan } from "../src/index.js";
+import { createUnit, foundCity, getTile, newGame, setRelation, Terrain, type GameState } from "@civ/core";
+import { moveRefusal, planMove, routeTurns, type MovePlan } from "../src/index.js";
 
 /** A strip of open grassland east of a militia, with mountains to its west. */
 function field(): { s: GameState; id: number; x: number; y: number } {
@@ -33,6 +33,29 @@ describe("planned moves", () => {
     expect(fight.route).toEqual([[x + 1, y]]);
     const city = foundCity(s, 1, x, y + 1);
     expect((planMove(s, id, x, y + 1) as MovePlan).text).toBe(`Take ${city.name}`);
+  });
+
+  it("show what a caravan opens at a foreign city, garrisoned or not, and leave a refused one to say why", () => {
+    const { s, x, y } = field();
+    setRelation(s, 0, 1, "peace");
+    const home = foundCity(s, 0, x - 12, y + 12);
+    const theirs = foundCity(s, 1, x + 2, y);
+    createUnit(s, "phalanx", 1, theirs.x, theirs.y, theirs.id);
+    const cv = createUnit(s, "caravan", 0, x + 1, y, home.id);
+    const next = planMove(s, cv.id, x + 2, y) as MovePlan;
+    expect(next.text).toMatch(/^Trade route \+\d+$/);
+    expect(next.route).toEqual([[x + 2, y]]);
+    cv.x = x; // further off: the note says when too
+    expect((planMove(s, cv.id, x + 2, y) as MovePlan).text).toMatch(/^Trade route \+\d+: (this turn|\d+ turns)$/);
+    // Too close to its home: a step, which the rules refuse with a note.
+    cv.x = x + 1;
+    cv.homeCity = foundCity(s, 0, x - 1, y + 3).id;
+    expect(planMove(s, cv.id, x + 2, y)).toBe("step");
+    expect(moveRefusal(s, cv.id, 1, 0, "too close to home")).toBe("Too close to home: a trade route needs 9 squares.");
+    // At war there is no route to open, and no attack to show: a caravan cannot fight.
+    cv.homeCity = home.id;
+    setRelation(s, 0, 1, "war");
+    expect(planMove(s, cv.id, x + 2, y)).toBe("step");
   });
 
   it("show the route and the turns before going further, and nothing where there is no route", () => {

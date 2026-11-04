@@ -1145,7 +1145,7 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
   }
   // Nothing chosen yet (`City.choosing`): the shields gather in the box for whatever its owner picks.
   if (city.choosing) return events;
-  // A unit its civilization has retired since it was set (an advance traded or granted) gives way to the default.
+  // A unit its civilization has retired since it was set (an advance traded or granted, a resource come to hand) gives way to the default.
   if (city.production.kind === "unit" && unitRetired(state, city.owner, city.production.id)) {
     chooseAgain(state, city);
     if (city.choosing) return events;
@@ -1216,10 +1216,20 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
   return events;
 }
 
-/** A unit `owner` has retired: it knows the advance that ends it (`UnitTypeRule.obsolete`; never in saves before version 39). */
-export function unitRetired(state: GameState, owner: number, id: string): boolean {
-  const end = unitType(id).obsolete;
-  return end !== undefined && !state.lastingUnits && knows(state.players[owner]?.advances ?? [], end);
+/**
+ * A unit `owner` has retired: it can build what replaces it, knowing that unit's advance and holding the resources it
+ * needs (`UnitTypeRule.replacedBy`). Lacking them it keeps the old unit, which comes back should a resource go. In saves
+ * before version 65 it knows the advance that ends it (`UnitTypeRule.obsolete`), and before 39 nothing retires. `held`
+ * saves reckoning the resources again.
+ */
+export function unitRetired(state: GameState, owner: number, id: string, held?: Set<string>): boolean {
+  if (state.lastingUnits) return false;
+  const known = state.players[owner]?.advances ?? [];
+  const t = unitType(id);
+  if (state.noReplacements) return t.obsolete !== undefined && knows(known, t.obsolete);
+  if (t.replacedBy === undefined) return false;
+  const next = unitType(t.replacedBy);
+  return (next.requires === undefined || knows(known, next.requires)) && missingResources(state, owner, next.id, held).length === 0;
 }
 
 /**
@@ -1283,7 +1293,7 @@ export function unitChoices(state: GameState, city: City): { id: string; missing
   for (const t of UNIT_TYPES) {
     if (t.flags?.includes("leader") || !inCatalogue(state, t)) continue;
     if (t.requires && !knows(p.advances, t.requires)) continue;
-    if (unitRetired(state, city.owner, t.id)) continue;
+    if (unitRetired(state, city.owner, t.id, held)) continue;
     if (t.domain === "sea" && !coastal(state, city)) continue;
     if (t.flags?.includes("nuclear") && !hasWonder(state, city.owner, "manhattan_project")) continue;
     out.push({ id: t.id, missing: held ? missingResources(state, city.owner, t.id, held) : [] });

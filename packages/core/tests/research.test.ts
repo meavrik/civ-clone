@@ -139,8 +139,9 @@ describe("research", () => {
     expect(ids()).not.toContain("colossus");
   });
 
-  it("retires Militia with Gunpowder: off the list, a city building them turns to its stoutest defender; old saves keep them", () => {
+  it("retired Militia with Gunpowder before save version 65: off the list, a city building them turns to its stoutest defender; older saves keep them", () => {
     const s = flatWorld();
+    s.noReplacements = true;
     // As a computer player's city does (a human player's waits for its choice, `City.choosing`, since save version 49).
     s.defaultBuilds = true;
     const p = s.players[0]!;

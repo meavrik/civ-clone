@@ -936,7 +936,7 @@ Never ship the original's sprites, palette art, fonts or text.
   (asked for the same day: with the right button moving units, "cant see tile terrain info"). Right-click with a unit in play moves it (`moveClick`):
   `planMove` (renderer-api `plan.ts`) decides: a step next door goes at once (a refused one says why),
   into our city or onto our units' square too; a fight ("Attack: 62%", `attackOdds`), an empty enemy city
-  ("Take Rome") or a square further off (the `findPath` route, "This turn"/"3 turns" by `routeTurns`)
+  ("Take Rome"), a caravan's route ("Trade route +34") or a square further off (the `findPath` route, "This turn"/"3 turns" by `routeTurns`)
   becomes `view.plan`, drawn as dots on the way, corners round the end and the note, and goes only on a
   second right-click on the same square; any other click or key drops it. A right-click on the unit's own
   square opens its orders; where it has no way, a note says "No way there.".
@@ -1967,7 +1967,8 @@ Ivory left the game (asked for; save version 62). City-states' raiders pillage, 
 city they cannot storm, never fortifying in the field, and what a city-state is is told once a game (2026-11-03, asked
 for; save version 63). The status panel shows only the treasury, not the rates, its money a shell, a coin with Currency,
 paper with The Corporation (2026-11-04, asked for; no save version). A city goes on with a finished fighting unit without
-asking (2026-11-04, asked for; save version 64).
+asking (2026-11-04, asked for; save version 64). Old units give way to their successors once those can be built, resources
+and all, and caravans trade at garrisoned foreign cities (2026-11-04, asked for; save version 65).
 
 ## Known gaps / next steps
 
@@ -2074,7 +2075,8 @@ asking (2026-11-04, asked for; save version 64).
    (0-16, 121 vs 246 before), overseas cities 1.1 a planner seat, all replaying exactly.
    Legion 3/1, Musketeers 2/3, Riflemen 3/5 follow the ruleset even though the 1991 manual is often
    quoted as 4/2, 3/3, 5/4.
-   Retired units (`UnitTypeRule.obsolete`, the advance that ends one; asked for 2026-10-27: "when get
+   Retired units (`UnitTypeRule.obsolete`, the advance that ends one, read only in saves of versions 39 to 64 since
+   Replaced units below; asked for 2026-10-27: "when get
    gunpowder - remove militia from the options"): Militia retire with Gunpowder. No city of that civ builds
    them (`unitRetired`, read by `unitChoices`, so the build menu and `setProduction`), and a city building
    them as the advance comes (`discover`, a trade, the Debug grant; else at its turn) turns to its default
@@ -2083,6 +2085,23 @@ asking (2026-11-04, asked for; save version 64).
    wonder), a human player's waiting for its pick instead since save version 49 (`City.choosing`); Militia in the
    field stay. Saves before version 39 load with `lastingUnits` (headless
    `--lasting-units`).
+   Replaced units (asked for 2026-11-04: "muskeeters should remove phalnex units also", "also knight - replace cavalery
+   and chariot", "yes make the replacement - but only if the player have the resources for it. if not he still should be
+   able to build the old units"; save version 65, after FreeCiv's civ1 `obsolete_by`): a unit gives way to its successor
+   (`UnitTypeRule.replacedBy`) once its civilization can build that unit, knowing its advance and holding all it `needs`,
+   the road to the square included (`unitRetired`, read by `unitChoices`), and comes back should a resource go: Militia,
+   Phalanx and Archers to Musketeers, Musketeers to Riflemen, Chariot and Cavalry to Knights (Horses alone keeps them),
+   Catapult to Cannon, Cannon to Artillery, Trireme to Sail, Sail to Frigate, Ironclad to Cruiser. FreeCiv's rule for
+   Cavalry is Musketeers; the user's is Knights. Left out on purpose: Frigate to Ironclad (Ironclads carry nothing, and a
+   test refuses a ship giving way to one carrying less), Militia to Phalanx (the Romans start with Bronze Working),
+   Riflemen to Mech. Inf., Cruiser to Battleship, War Elephants to Knights. Offered and not yet picked: Legion to Riflemen,
+   Knights to Armor, Frigate to Transport. Saltpeter is why it waits on resources: it shows only with Gunpowder and wants
+   a road, the Phalanx is the only real defender that needs none, and in 8 all-planner games 5 of the 24 civs that learned
+   Gunpowder held Saltpeter that round, 21 by turn 300 (25 of the 27 that knew Chivalry could build Knights). Units in the
+   field stay; a human player's city building a replaced unit waits at its turn ("Phalanx replaced: build what?", the web
+   app's `askChoices`), a computer player's turns to its default; the build menu's info says "No longer built once we can
+   build Musketeers." Saves before 65 load with `noReplacements` (headless `--no-replacements`): only Militia and Archers
+   retire, by the advance alone.
    Unit upkeep (`unitSupport`, `freeUnits` in `cities.ts`, `freeUnits` per government in
    `rules/governments.ts`; since save version 29, asked for 2026-10-24: "units should take resources
    from the city, otherwise can generate infinite units and fast"): a city supports a fixed number of
@@ -2190,7 +2209,19 @@ asking (2026-11-04, asked for; save version 64).
    original charged (save version 31, asked for 2026-10-24: "wonders are now too easy to build"; saves
    before load with `cheapWonderBuy`, headless `--cheap-wonder-buy`).
    Caravans done (help wonder, trade routes: mutual `City.routes`, bonus on opening, route trade in
-   `computeCity`). Pollution (per-city chance from shields and industrial population, halved tile output, settler
+   `computeCity`). Since save version 65 (asked for 2026-11-04: "caravan - cant make trade routes. when try to move to
+   another civ city - it trit it like an attack") a caravan calls at any foreign city not at war with its civilization,
+   garrisoned or not (`callsAt`, asked before `checkMove`, which calls any foreign unit on a square an attack; until then
+   only an empty city took one in, a garrison brought up the war menu, and the planner's caravans stood at the gate for
+   good), by a step or as a goto arrives (`runGoto`; turned away, it waits at the gate). The map shows it first, as it does
+   a fight: "Trade route +34" beside the city, "Trade route +34: 3 turns" from further off (`planMove`'s `tradeNote`), a
+   second click going; a refused one says why ("Too close to home: a trade route needs 9 squares."), a foreign unit in its
+   way is "Someone is in the way.", never the war menu, and a city at war "Can't attack.". The `tradeRoute` event carries
+   its `player`: ours is told in the status line, in the news when a goto arrives as our turn begins. Saves before 65 load
+   with `barredCaravans` (headless `--barred-caravans`). Over 6 all-planner games of 300 turns, routes abroad 0, now 23
+   (at home 16, now 14), caravans standing about at the end 36, now 23. Head to head with Replaced units above (planner vs
+   v2, 16 x 300, seeds 1-16): 7-9, score 103 vs 99, pop 43 vs 38, techs 19.8 vs 18.9; with neither 7-9, 103 vs 101, pop 43
+   vs 38, techs 19.4 vs 18.5 (version 63's result to the digit); all replaying exactly. Pollution (per-city chance from shields and industrial population, halved tile output, settler
    clean-up, global warming when it spreads), railroads (free moves, +50% shields) and fortresses
    (x2 defence, no stack loss) done. Spaceship done (`rules/spaceship.ts`: parts after Apollo, launch,
    flight, landing wins; lost with the capital; F6 screen; the planner races once it knows Space

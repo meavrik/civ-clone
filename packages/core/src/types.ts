@@ -475,6 +475,17 @@ export interface GameState {
    */
   pickAfterUnits?: boolean;
   /**
+   * Units as before version 65: none gave way to its successor (`UnitTypeRule.replacedBy`), Militia and Archers alone
+   * retiring, as their civilization learned Gunpowder (`UnitTypeRule.obsolete`), whether it held Saltpeter or not.
+   */
+  noReplacements?: boolean;
+  /**
+   * Caravans as before version 65: only an empty foreign city took one in. A garrison turned it away as an attack on a
+   * civilization at peace, so routes abroad were all but never opened. Since 65 a caravan calls at any foreign city at
+   * peace with its civilization (`callsAt`), by a step or at the end of a goto.
+   */
+  barredCaravans?: boolean;
+  /**
    * Settlers' jobs as before version 46: a job taken up by a settler that had spent its moves (walked onto the square
    * that turn) counted that turn as one of its turns, and pollution cleared in three. Since 46 such a job starts the
    * next turn (one turn more, as the 1991 game, where a unit without moves takes no orders, and FreeCiv, which counts

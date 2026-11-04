@@ -158,13 +158,15 @@ describe("Seafaring (save version 53)", () => {
     expect(trespassOn(s, legion)).toBe(1);
   });
 
-  it("brings Archers with Archery, retired by Gunpowder", () => {
+  it("brings Archers with Archery, replaced by Musketeers once they can be built", () => {
     const s = world();
     const rome = foundCity(s, 0, 10, 10);
     expect(ids(s, rome)).toContain("archers");
     s.players[0]!.advances = s.players[0]!.advances.filter((a) => a !== "archery");
     expect(ids(s, rome)).not.toContain("archers");
     s.players[0]!.advances.push("archery", "gunpowder");
+    expect(unitRetired(s, 0, "archers")).toBe(false); // Saltpeter wanting
+    s.noResources = true;
     expect(unitRetired(s, 0, "archers")).toBe(true);
     expect(ids(s, rome)).not.toContain("archers");
   });

@@ -114,6 +114,10 @@ export interface GameConfig {
   defaultBuilds?: boolean;
   /** A human seat's city waits for a choice after any finished unit (`GameState.pickAfterUnits`). */
   pickAfterUnits?: boolean;
+  /** No unit gives way to its successor (`GameState.noReplacements`). */
+  noReplacements?: boolean;
+  /** Only an empty foreign city takes a caravan in (`GameState.barredCaravans`). */
+  barredCaravans?: boolean;
   /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
   cityStates?: boolean;
   /**
@@ -278,6 +282,8 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.groundedElephants ? { groundedElephants: true } : {}),
     ...(config.foodOnlyFishery ? { foodOnlyFishery: true } : {}),
     ...(config.meekCityStates ? { meekCityStates: true } : {}),
+    ...(config.noReplacements ? { noReplacements: true } : {}),
+    ...(config.barredCaravans ? { barredCaravans: true } : {}),
   };
 }
 

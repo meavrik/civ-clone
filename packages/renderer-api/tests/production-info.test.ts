@@ -21,7 +21,11 @@ describe("the build menu's info", () => {
     const settlers = productionInfo(state, 0, { kind: "unit", id: "settlers" }, city);
     expect(settlers.lines).toContain("Founds cities, and builds roads, farms and mines.");
     expect(settlers.lines.some((l) => l.endsWith("eats 1 food a turn."))).toBe(true);
+    expect(productionInfo(state, 0, { kind: "unit", id: "militia" }, city).lines).toContain("{hourglass}No longer built once we can build Musketeers.");
+    expect(productionInfo(state, 0, { kind: "unit", id: "chariot" }, city).lines).toContain("{hourglass}No longer built once we can build Knights.");
+    state.noReplacements = true; // saves before version 65
     expect(productionInfo(state, 0, { kind: "unit", id: "militia" }, city).lines).toContain("{hourglass}No longer built once we know Gunpowder.");
+    delete state.noReplacements;
     expect(productionInfo(state, 0, { kind: "unit", id: "trireme" }, city).lines).toContain("Must end its turn beside land, or it sinks in deep water.");
     // A city with Barracks trains its land units as veterans.
     city.buildings.push("barracks");

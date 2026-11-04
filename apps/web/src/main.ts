@@ -65,6 +65,7 @@ import {
   turnToYear,
   unitAt,
   unitById,
+  unitRetired,
   unitType,
   wonder,
   weakestWorked,
@@ -1782,7 +1783,12 @@ function hutModal(r: HutResult, then: () => void): void {
 function sendTo(unit: number, tx: number, ty: number): void {
   const before = state.activeUnit;
   const mark = lastActions.length;
-  if (dispatch({ type: "goto", unit, x: tx, y: ty })) say("Going to...", 1500);
+  if (dispatch({ type: "goto", unit, x: tx, y: ty })) {
+    // A caravan may arrive at once and open its route (`callsAt`).
+    const route = lastTurnEvents.find((e) => e.kind === "tradeRoute");
+    if (route) { say(eventMessage(route) ?? "", 4000); lastTurnEvents.length = 0; }
+    else say("Going to...", 1500);
+  }
   afterUnitOrder(before, mark);
   // A diplomat that reaches the gate of the foreign city it was sent to asks what to do there.
   const d = unitById(state, unit);
@@ -3187,8 +3193,9 @@ function askChoices(then: () => void): void {
     if (id === undefined) { screenState = { kind: "map" }; followActive(true); then(); return; }
     if (!city?.choosing) { next(); return; }
     const done = finishedNow.get(id);
+    const gone = city.production.kind === "unit" && unitRetired(state, 0, city.production.id) ? unitType(city.production.id).name : null;
     openCity(id, next);
-    openProductionMenu(id, undefined, done ? `${done} completed: build what next?` : `${city.name}: build what?`);
+    openProductionMenu(id, undefined, done ? `${done} completed: build what next?` : gone ? `${gone} replaced: build what?` : `${city.name}: build what?`);
   };
   next();
 }
@@ -3331,6 +3338,7 @@ function concernsUs(ev: TurnEvent): boolean {
   if (ev.kind === "proposal" || ev.kind === "gift") return ev.to === 0;
   if (ev.kind === "trespass") return ev.intruder === 0; // our gotos, walked as our turn began
   if (ev.kind === "tradeEnded") return ev.a === 0 || ev.b === 0;
+  if (ev.kind === "tradeRoute") return ev.player === 0; // our caravans' gotos, walked as our turn began
   if (ev.kind === "pactEnded" || ev.kind === "allianceEnded") return ev.a === 0 || ev.b === 0;
   return ev.kind === "eliminated" || ev.kind === "globalWarming" || ev.kind === "nuked"
     || ev.kind === "spaceLaunched" || ev.kind === "spaceArrived" || ev.kind === "spaceLost";
@@ -3477,7 +3485,8 @@ function tryMove(unit: number, dx: number, dy: number): void {
     } else if (ev) { const m = eventMessage(ev); if (m) say(m, 4000); lastTurnEvents.length = 0; }
     else warnDeepWater(unit);
     wakeShip(unit, wasAboard);
-  } else if (r.reason === "treaty") {
+  } else if (r.reason === "treaty" && !unitType(unitById(state, unit)!.type).flags?.includes("caravan")) {
+    // A caravan never fights: a foreign unit in its way is no cause for war.
     const u = unitById(state, unit)!;
     const target = unitAt(state, u.x + dx, u.y + dy)[0] ?? cityAt(state, u.x + dx, u.y + dy);
     if (target) openWarMenu(target.owner, () => tryMove(unit, dx, dy));

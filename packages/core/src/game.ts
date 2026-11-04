@@ -126,6 +126,10 @@ export interface NewGameOptions extends MapGenOptions {
   defaultBuilds?: boolean;
   /** A human player's city waits for a choice after any finished unit, a fighting one too (see `GameState.pickAfterUnits`). Old saves load with it. */
   pickAfterUnits?: boolean;
+  /** No unit gives way to its successor (see `GameState.noReplacements`). Old saves load with it. */
+  noReplacements?: boolean;
+  /** Only an empty foreign city takes a caravan in (see `GameState.barredCaravans`). Old saves load with it. */
+  barredCaravans?: boolean;
   /** Settlers start a job the turn they walk onto its square, and clean up in three turns (see `GameState.quickWork`). Old saves load with it. */
   quickWork?: boolean;
   /** The computer players under the human's rules of the level, as before version 47 (see `GameState.evenDifficulty`). Old saves load with it. */
@@ -351,6 +355,8 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.leftoverShields ? { leftoverShields: true } : {}),
     ...(opts.defaultBuilds ? { defaultBuilds: true } : {}),
     ...(opts.pickAfterUnits ? { pickAfterUnits: true } : {}),
+    ...(opts.noReplacements ? { noReplacements: true } : {}),
+    ...(opts.barredCaravans ? { barredCaravans: true } : {}),
     ...(opts.quickWork ? { quickWork: true } : {}),
     ...(opts.evenDifficulty ? { evenDifficulty: true } : {}),
     ...(opts.eagerCityStates ? { eagerCityStates: true } : {}),

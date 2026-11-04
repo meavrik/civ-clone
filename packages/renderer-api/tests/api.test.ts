@@ -432,7 +432,7 @@ describe("refused moves", () => {
     expect(moveRefusal(s, u.id, 0, 1, "no-moves")).toBe("No moves left.");
     expect(moveRefusal(s, u.id, 0, 1, "zoc")).toBe("Enemy too close.");
     // A reason without its own words still reads as a sentence.
-    expect(moveRefusal(s, u.id, 0, 1, "too close to home")).toBe("Too close to home.");
+    expect(moveRefusal(s, u.id, 0, 1, "a route already exists")).toBe("A route already exists.");
   });
 
   it("say why a settler cannot take up a job", () => {

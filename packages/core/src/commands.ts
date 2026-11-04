@@ -185,7 +185,7 @@ export type TurnEvent =
   | { kind: "eliminated"; player: number }
   /** A village entered at (x, y) by `unit`; `units` those it brought (mercenaries joining, an ambush), for the UI to show once the village opens. */
   | { kind: "hut"; result: HutResult; player: number; x: number; y: number; unit: number; units: number[] }
-  | { kind: "tradeRoute"; from: string; to: string; bonus: number }
+  | { kind: "tradeRoute"; player: number; from: string; to: string; bonus: number }
   | { kind: "globalWarming" }
   | { kind: "spaceLaunched"; player: number }
   | { kind: "spaceArrived"; player: number }
@@ -663,6 +663,9 @@ function moveUnit(state: GameState, u: Unit, dx: number, dy: number): CommandRes
     const gate = cityAt(state, wrapX(state.map, u.x + dx), u.y + dy);
     if (gate && gate.owner !== u.owner) return { ok: false, reason: gate.owner === state.barbarians ? "barbarian city" : "diplomat" };
   }
+  // A caravan at the gate of a foreign city at peace calls there, garrisoned or not: it opens a route and never fights.
+  const port = u.movesLeft > 0 ? cityAt(state, wrapX(state.map, u.x + dx), u.y + dy) : undefined;
+  if (port && callsAt(state, u, port)) return establishRoute(state, u, port);
   const r = checkMove(state, u, dx, dy);
   if (!r.ok && r.reason === "attack") {
     const defenderOwner = state.units.find((o) => o.owner !== u.owner && o.x === wrapX(state.map, u.x + dx) && o.y === u.y + dy)!.owner;
@@ -742,6 +745,11 @@ function noteEntry(state: GameState, u: Unit, wasOn: number): void {
   lastTurnEvents.push({ kind: "trespass", player: on, intruder: u.owner, unit: u.id, x: u.x, y: u.y, warnings: rec.warnings });
 }
 
+/** Whether caravan `u` calls at `city` rather than fight or walk in: a foreign city at peace with its civilization, garrisoned or not (since save version 65). */
+export function callsAt(state: GameState, u: Unit, city: City): boolean {
+  return !state.barredCaravans && unitType(u.type).flags?.includes("caravan") === true && city.owner !== u.owner && !atWar(state, u.owner, city.owner);
+}
+
 /** Open a route from the caravan's home city to `city`, paying the one-off bonus; the caravan is spent. */
 function establishRoute(state: GameState, u: Unit, city: City): CommandResult {
   const why = canTradeRoute(state, u, city);
@@ -753,7 +761,7 @@ function establishRoute(state: GameState, u: Unit, city: City): CommandResult {
   const p = state.players[u.owner]!;
   p.gold += bonus;
   p.science += bonus;
-  lastTurnEvents.push({ kind: "tradeRoute", from: home.name, to: city.name, bonus });
+  lastTurnEvents.push({ kind: "tradeRoute", player: u.owner, from: home.name, to: city.name, bonus });
   removeUnit(state, u);
   return { ok: true };
 }
@@ -966,6 +974,13 @@ export function runGoto(state: GameState, u: Unit, planned?: [number, number][])
   for (const step of path) {
     if (u.order.kind !== "goto" || u.movesLeft <= 0) break;
     const [dx, dy] = stepDir(state, u, step);
+    // A caravan sent to a foreign city calls there as it arrives; turned away (too close to home, say), it waits at the gate.
+    const port = cityAt(state, step[0], step[1]);
+    if (port && callsAt(state, u, port)) {
+      u.order = { kind: "none" };
+      establishRoute(state, u, port);
+      break;
+    }
     const r = checkMove(state, u, dx, dy);
     // An enemy unit or a foreign city in the way: stop and ask the player (an attack or a capture is their call).
     if (!r.ok || r.enemyCity) { u.order = { kind: "none" }; return; }

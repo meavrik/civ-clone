@@ -73,7 +73,8 @@ function unitInfo(state: GameState, owner: number, id: string, city?: City): Men
     const have = !lacking.length ? (one ? "we hold it" : "we hold them") : lacking.length === t.needs.length ? (one ? "we have none" : "we have none of them") : `we lack ${names(lacking)}`;
     lines.push(`Needs ${names(t.needs)}: ${have}.`);
   }
-  if (t.obsolete && !unitRetired(state, owner, id)) lines.push(`{hourglass}No longer built once we know ${advance(t.obsolete).name}.`);
+  const ends = state.noReplacements ? t.obsolete && `know ${advance(t.obsolete).name}` : t.replacedBy && `can build ${unitType(t.replacedBy).name}`;
+  if (ends && !unitRetired(state, owner, id)) lines.push(`{hourglass}No longer built once we ${ends}.`);
   return { title: t.name, lines };
 }
 

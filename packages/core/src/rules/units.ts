@@ -33,9 +33,18 @@ export interface UnitTypeRule {
   /**
    * The advance that retires it (since save version 39, asked for 2026-10-27: "when get gunpowder - remove
    * militia from the options"): once its civilization knows it, no city of theirs builds it, and one building
-   * it turns to the city's default (`unitRetired`, `defaultProduction`). Units already in the field stay.
+   * it turns to the city's default (`unitRetired`, `defaultProduction`). Units already in the field stay. Read only
+   * in saves of versions 39 to 64 (`GameState.noReplacements`): since then `replacedBy` decides.
    */
   obsolete?: string;
+  /**
+   * The unit that takes its place (since save version 65, after FreeCiv's civ1 `obsolete_by`; asked for 2026-11-04:
+   * "muskeeters should remove phalnex units also", "knight - replace cavalery and chariot", "only if the player have the
+   * resources for it. if not he still should be able to build the old units"): once its civilization can build that
+   * unit, knowing its advance and holding what it `needs`, no city of theirs builds this one (`unitRetired`), and should
+   * the resource go, this one comes back. Units already in the field stay.
+   */
+  replacedBy?: string;
   /**
    * The resource whose units it frightens (asked for 2026-11-01: war elephants): a defender built from it (one that
    * `needs` it: riders, chariots, knights) defends at two thirds against this unit, horses shying from elephants.
@@ -100,17 +109,17 @@ const U = (
  */
 export const UNIT_TYPES: UnitTypeRule[] = [
   U("settlers", "Settlers", 0, 1, 1, 40, "land", { flags: ["settler"] }),
-  U("militia", "Militia", 1, 1, 1, 10, "land", { obsolete: "gunpowder" }),
-  U("phalanx", "Phalanx", 1, 2, 1, 20, "land", { requires: "bronze_working" }),
-  U("archers", "Archers", 3, 2, 1, 30, "land", { requires: "archery", obsolete: "gunpowder", since: 53 }),
+  U("militia", "Militia", 1, 1, 1, 10, "land", { obsolete: "gunpowder", replacedBy: "musketeers" }),
+  U("phalanx", "Phalanx", 1, 2, 1, 20, "land", { requires: "bronze_working", replacedBy: "musketeers" }),
+  U("archers", "Archers", 3, 2, 1, 30, "land", { requires: "archery", obsolete: "gunpowder", replacedBy: "musketeers", since: 53 }),
   U("legion", "Legion", 3, 1, 1, 20, "land", { requires: "iron_working", needs: ["Iron"], barbarian: { as: ["sea", "build"] } }),
-  U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding", needs: ["Horses"], sight: 2, sightSince: 30, barbarian: { as: ["land"] } }),
-  U("chariot", "Chariot", 4, 1, 2, 40, "land", { requires: "the_wheel", needs: ["Horses"], wheeled: true }),
+  U("cavalry", "Cavalry", 2, 1, 2, 20, "land", { requires: "horseback_riding", needs: ["Horses"], replacedBy: "knights", sight: 2, sightSince: 30, barbarian: { as: ["land"] } }),
+  U("chariot", "Chariot", 4, 1, 2, 40, "land", { requires: "the_wheel", needs: ["Horses"], replacedBy: "knights", wheeled: true }),
   U("elephants", "War Elephants", 4, 1, 1, 40, "land", { requires: "horseback_riding", needs: ["Elephants"], frightens: "Horses", anyGround: true, since: 53 }),
-  U("catapult", "Catapult", 6, 1, 1, 40, "land", { requires: "mathematics", wheeled: true }),
+  U("catapult", "Catapult", 6, 1, 1, 40, "land", { requires: "mathematics", replacedBy: "cannon", wheeled: true }),
   U("knights", "Knights", 4, 2, 2, 40, "land", { requires: "chivalry", needs: ["Horses", "Iron"], barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
-  U("musketeers", "Musketeers", 2, 3, 1, 30, "land", { requires: "gunpowder", needs: ["Saltpeter"], hp: 20, barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
-  U("cannon", "Cannon", 8, 1, 1, 40, "land", { requires: "metallurgy", needs: ["Iron", "Saltpeter"], hp: 20, wheeled: true, barbarian: { as: ["land", "build"], needsTech: true } }),
+  U("musketeers", "Musketeers", 2, 3, 1, 30, "land", { requires: "gunpowder", needs: ["Saltpeter"], replacedBy: "riflemen", hp: 20, barbarian: { as: ["land", "sea", "build"], needsTech: true } }),
+  U("cannon", "Cannon", 8, 1, 1, 40, "land", { requires: "metallurgy", needs: ["Iron", "Saltpeter"], replacedBy: "artillery", hp: 20, wheeled: true, barbarian: { as: ["land", "build"], needsTech: true } }),
   U("riflemen", "Riflemen", 3, 5, 1, 30, "land", { requires: "conscription", needs: ["Saltpeter"], hp: 20 }),
   U("mech_inf", "Mech. Inf.", 6, 6, 3, 50, "land", { requires: "labor_union", needs: ["Oil"], hp: 30, wheeled: true }),
   U("armor", "Armor", 10, 5, 3, 80, "land", { requires: "automobile", needs: ["Oil", "Iron"], hp: 30, wheeled: true }),
@@ -120,10 +129,10 @@ export const UNIT_TYPES: UnitTypeRule[] = [
   U("explorer", "Explorer", 0, 1, 1, 30, "land", { requires: "seafaring", sight: 2, flags: ["explorer", "ignoreZoc"], since: 53 }),
   U("barbarian_leader", "Barbarian Leader", 0, 0, 2, 40, "land", { flags: ["leader", "ignoreZoc"] }),
   U("fishing_boat", "Fishing Boat", 0, 1, 2, 30, "sea", { requires: "seafaring", flags: ["fishing"], since: 53 }),
-  U("trireme", "Trireme", 1, 0, 3, 40, "sea", { requires: "map_making", capacity: 2, flags: ["coastal"] }),
-  U("sail", "Sail", 1, 1, 3, 40, "sea", { requires: "navigation", capacity: 3, barbarian: { as: ["boat"] } }),
+  U("trireme", "Trireme", 1, 0, 3, 40, "sea", { requires: "map_making", replacedBy: "sail", capacity: 2, flags: ["coastal"] }),
+  U("sail", "Sail", 1, 1, 3, 40, "sea", { requires: "navigation", replacedBy: "frigate", capacity: 3, barbarian: { as: ["boat"] } }),
   U("frigate", "Frigate", 2, 2, 3, 40, "sea", { requires: "magnetism", capacity: 4, hp: 20 }),
-  U("ironclad", "Ironclad", 4, 4, 4, 60, "sea", { requires: "steam_engine", needs: ["Iron", "Coal"], hp: 30 }),
+  U("ironclad", "Ironclad", 4, 4, 4, 60, "sea", { requires: "steam_engine", needs: ["Iron", "Coal"], replacedBy: "cruiser", hp: 30 }),
   U("cruiser", "Cruiser", 6, 6, 6, 80, "sea", { requires: "combustion", needs: ["Oil"], sight: 2, hp: 30, firepower: 2 }),
   U("battleship", "Battleship", 18, 12, 4, 160, "sea", { requires: "steel", needs: ["Oil", "Iron"], sight: 2, hp: 40, firepower: 2 }),
   U("submarine", "Submarine", 8, 2, 3, 50, "sea", { requires: "mass_production", needs: ["Oil"], sight: 2, hp: 30, firepower: 2 }),

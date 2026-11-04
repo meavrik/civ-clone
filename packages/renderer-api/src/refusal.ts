@@ -1,4 +1,4 @@
-import { advance, unitById, unitType, type GameState } from "@civ/core";
+import { advance, TRADE_ROUTE_MIN_DIST, unitById, unitType, type GameState } from "@civ/core";
 
 /** What a note on the map says and which square it points at (the unit that was refused). */
 export interface Callout {
@@ -39,6 +39,10 @@ export function moveRefusal(state: GameState, unitId: number, _dx: number, _dy: 
       return "Can't take cities.";
     case "barbarian city":
       return "Nothing to do there.";
+    case "treaty":
+      return "Someone is in the way.";
+    case "too close to home":
+      return `Too close to home: a trade route needs ${TRADE_ROUTE_MIN_DIST} squares.`;
     default:
       return `${capitalise(reason)}.`;
   }

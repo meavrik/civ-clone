@@ -500,8 +500,10 @@ describe("cities", () => {
     finish("militia", 10);
     expect(c.choosing).toBeUndefined();
     s.players[0]!.advances.push("gunpowder");
+    s.noResources = true; // Musketeers can be built
     processCityTurn(s, c);
     expect(c.choosing).toBe(true);
+    delete s.noResources;
     // Saves before version 64 waited after every unit, so their logs replay as they were.
     const opts = { opponents: 1 as const };
     const old = loadSave({ ...makeSave(newGame(3, opts), opts, []), version: 63 as const }, () => {}).state;
