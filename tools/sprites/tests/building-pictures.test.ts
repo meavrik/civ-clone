@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { WONDERS } from "../../../packages/core/src/rules/wonders.js";
 import { BUILDING_CUTS } from "../../../packages/renderer-api/src/building-art.js";
+import { wonderCuts, WONDER_SHEETS } from "../buildings/sheets.js";
+import { piecesOf } from "../src/pieces.js";
 import { decodePng } from "../src/png.js";
 
 const read = (p: string) => decodePng(new Uint8Array(readFileSync(new URL(p, import.meta.url))));
@@ -56,35 +59,39 @@ describe("the improvements' pictures", () => {
     expect(lost).toBe(0);
   });
 
-  it("are the wonders' three stages, each wonder's in one box, every pixel as supplied, nothing of them left out", () => {
-    const { width: W, height: H, data } = read("../buildings/wonders-1.png");
-    const CELL = 418, MARGIN = 2;
-    const solid = (x: number, y: number) => data[(y * W + x) * 4 + 3]! > 64;
-    const covered = new Uint8Array(W * H);
-    ["pyramids", "hanging_gardens", "colossus"].forEach((id, r) => {
-      let x0 = CELL * 2, y0 = CELL * 2, x1 = -CELL, y1 = -CELL;
-      for (let c = 0; c < 3; c++)
-        for (let y = r * CELL; y < (r + 1) * CELL; y++)
-          for (let x = c * CELL; x < Math.min(W, (c + 1) * CELL); x++)
-            if (solid(x, y)) { x0 = Math.min(x0, x - c * CELL); x1 = Math.max(x1, x - c * CELL); y0 = Math.min(y0, y - r * CELL); y1 = Math.max(y1, y - r * CELL); }
-      const w = x1 - x0 + 1 + 2 * MARGIN, h = y1 - y0 + 1 + 2 * MARGIN;
-      [`${id}-start`, `${id}-construction`, id].forEach((name, c) => {
-        const cut = read(`../../../apps/web/src/buildings/${name}.png`);
-        expect(BUILDING_CUTS[name]).toEqual([w, h]);
-        expect([cut.width, cut.height], name).toEqual([w, h]);
-        const ox = c * CELL + x0 - MARGIN, oy = r * CELL + y0 - MARGIN;
-        const changed: string[] = [];
-        for (let y = 0; y < h; y++)
-          for (let x = 0; x < w; x++) {
-            const i = ((oy + y) * W + ox + x) * 4, j = (y * w + x) * 4;
-            covered[(oy + y) * W + ox + x] = 1;
-            for (let k = 0; k < 4; k++) if (data[i + k] !== cut.data[j + k]) { changed.push(`${ox + x},${oy + y}`); break; }
-          }
-        expect(changed.slice(0, 5), name).toEqual([]);
-      });
-    });
-    let lost = 0;
-    for (let i = 0; i < W * H; i++) if (data[i * 4 + 3]! > 64 && !covered[i]) lost++;
-    expect(lost).toBe(0);
+  it("are the wonders' three stages on one canvas, in register, every pixel as supplied, nothing of them left out", () => {
+    const seen: string[] = [];
+    for (const { file, cell, wonders } of WONDER_SHEETS) {
+      const sheet = read(`../buildings/${file}`);
+      const { width: W, height: H, data } = sheet;
+      const covered = new Uint8Array(W * H);
+      for (const { id, w, h, stages } of wonderCuts(sheet, piecesOf(sheet).pieces, cell, wonders)) {
+        seen.push(id);
+        expect(stages.map((s) => s.name)).toEqual([`${id}-start`, `${id}-construction`, id]);
+        // Their feet on the canvas, as the sheet draws them: within a few pixels, so the base stands still as it goes up.
+        const feet = stages.map((s) => s.at[1] + s.h);
+        expect(Math.max(...feet) - Math.min(...feet), id).toBeLessThanOrEqual(3);
+        for (const s of stages) {
+          const cut = read(`../../../apps/web/src/buildings/${s.name}.png`);
+          expect([cut.width, cut.height], s.name).toEqual([w, h]);
+          expect(BUILDING_CUTS[s.name], s.name).toEqual([w, h]);
+          const changed: string[] = [];
+          for (let y = 0; y < h; y++)
+            for (let x = 0; x < w; x++) {
+              const j = (y * w + x) * 4;
+              const sx = x - s.at[0], sy = y - s.at[1];
+              if (sx < 0 || sy < 0 || sx >= s.w || sy >= s.h) { if (cut.data[j + 3] !== 0) changed.push(`${x},${y} past its box`); continue; }
+              const at = (s.y0 + sy) * W + s.x0 + sx;
+              covered[at] = 1;
+              for (let k = 0; k < 4; k++) if (data[at * 4 + k] !== cut.data[j + k]) { changed.push(`${x},${y}`); break; }
+            }
+          expect(changed.slice(0, 5), s.name).toEqual([]);
+        }
+      }
+      let lost = 0;
+      for (let i = 0; i < W * H; i++) if (data[i * 4 + 3]! > 64 && !covered[i]) lost++;
+      expect(lost, file).toBe(0);
+    }
+    expect(seen.sort()).toEqual(WONDERS.map((w) => w.id).sort());
   });
 });

@@ -153,12 +153,12 @@ describe("a wonder going up", () => {
     return { ...made, city };
   };
 
-  it("has a start and a construction picture the size of the finished one, for the wonders on the sheets", () => {
-    for (const id of ["pyramids", "hanging_gardens", "colossus"]) {
+  it("has a start and a construction picture the size of the finished one, for every wonder", () => {
+    for (const { id } of WONDERS) {
       expect(wonderStages(id)).toEqual([`${id}-start`, `${id}-construction`]);
       for (const stage of wonderStages(id)) expect(BUILDING_CUTS[stage], stage).toEqual(BUILDING_CUTS[id]);
     }
-    expect(wonderStages("oracle")).toEqual([]);
+    expect(wonderStages("structural")).toEqual([]);
   });
 
   it("shows the start until half its shields are in, then the construction, whatever the owner pays", () => {
@@ -205,13 +205,13 @@ describe("a wonder going up", () => {
     expect(wonderSite(state, city)).toBeNull();
     expect(cityScene(state, city).items.some((it) => it.id === "pyramids")).toBe(false);
     state.cities.pop();
-    city.production = { kind: "wonder", id: "oracle" };
+    city.production = { kind: "wonder", id: "yet_to_come" }; // one added later, its sheet still to come
     expect(wonderSite(state, city)).toBeNull();
-    expect(cityScene(state, city).items.some((it) => it.id === "oracle")).toBe(false);
+    expect(cityScene(state, city).items.some((it) => it.id === "yet_to_come")).toBe(false);
   });
 
   it("goes up in fast forward as it is completed, each stage rising in the place of the one before", () => {
-    expect(wonderRise("oracle", 0.5)).toBeNull();
+    expect(wonderRise("yet_to_come", 0.5)).toBeNull();
     expect(wonderRise("colossus", 0)).toEqual([{ art: "colossus-start", reveal: 0, cleared: 0 }]);
     expect(wonderRise("colossus", 1 / 6)![0]).toMatchObject({ art: "colossus-start", cleared: 0 });
     const mid = wonderRise("colossus", 0.5)!;
@@ -232,12 +232,14 @@ describe("a wonder going up", () => {
     expect(over).toMatchObject({ id: "colossus-construction", reveal: 0.5 });
   });
 
-  it("keeps the wonders on a sheet at one scale, none past the tallest building", () => {
-    const lots = ["pyramids", "hanging_gardens", "colossus"].map((id) => ({ id, ...artLot(id, PICTURES[id]!), cut: BUILDING_CUTS[id]! }));
+  it("keeps the wonders at one scale, none past the tallest building", () => {
+    const lots = WONDERS.map(({ id }) => ({ id, ...artLot(id, PICTURES[id]!), cut: BUILDING_CUTS[id]! }));
+    const scale = Math.max(...lots.map((l) => l.h / l.cut[1]));
     for (const l of lots) {
       expect(l.h, l.id).toBeLessThanOrEqual(46);
-      expect(l.h / l.cut[1]).toBeCloseTo(lots[0]!.h / lots[0]!.cut[1], 2);
+      expect(Math.abs(l.h - l.cut[1] * scale), l.id).toBeLessThan(1); // rounded to whole pixels
     }
+    expect(Math.max(...lots.map((l) => l.h))).toBe(46);
     expect(lots.find((l) => l.id === "colossus")!.h).toBeGreaterThan(40); // not brought down to a temple's size
   });
 });

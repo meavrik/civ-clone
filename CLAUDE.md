@@ -872,10 +872,10 @@ Never ship the original's sprites, palette art, fonts or text.
   fills the shapes pixel by pixel (`pictures.ts`: lit left, shaded right, outlined in black); modern paints
   them as paths three times larger. The user's pictures of buildings (2026-10-24, asked for: "use the attached
   images for game buildings ... replace buildings also in the city view"; all 50 since Barracks, Granary and
-  the Great Library came later that day; the 27 improvements cuts of the user's sheet since 2026-11-04, see Improvement
-  pictures; the drawn ones stay as the fallback for an id without a picture)
+  the Great Library came later that day; the 27 improvements and 21 wonders cuts of the user's sheets since 2026-11-04, see Improvement
+  pictures and Wonder stages; the drawn ones stay as the fallback for an id without a picture)
   stand in their place: `BUILDING_ART` (`art.ts`)
-  gives the box each wonder's or spaceship part's drawing fills in its 1254 square, `buildingArt` the box whichever a
+  gives the box each spaceship part's drawing fills in its 1254 square, `buildingArt` the box whichever a
   picture is, `artLot` the room it takes in the city view
   (the drawn picture's area in the picture's own shape, at most 46 high; `SceneItem.w`/`h`), and the walls'
   picture stands as their gatehouse over the drawn run (`kind: "gate"`). Retro draws buildings through
@@ -1584,29 +1584,33 @@ Never ship the original's sprites, palette art, fonts or text.
   into `apps/web/src/buildings/<id>.png` and renderer-api `building-art.ts` (`BUILDING_CUTS`, the cuts' sizes), in place of
   their WebPs; a cut is its own drawing's box (`buildingArt`, x and y 0), and `artPlace` lays it at its own size where a
   wonder's lays the 1254 square. PNGs, as every other sheet's, so a test can hold each to the sheet (no WebP reader here)
-  and the phone precaches them (2 MB, where the wonders' WebPs still come as first shown). Wonders and spaceship parts are
-  not on it: their WebPs stay (21 of them now, see Wonder stages), smoother than the sheets' beside them in the city view.
+  and the phone precaches them (the improvements' and wonders' 13.7 MB of its 36.8 MB, 6.5 of them the stages; the WebPs
+  still come as first shown). The wonders came on sheets of their own (see Wonder stages); the three spaceship parts are
+  on none, their WebPs staying, smoother than the sheets' pictures.
   Wonder stages (2026-11-04, asked for with the user's sheet: "implement thoose 3 wonders images - each wonder contain 3
   stages of construction to show in the city view while constructed - start, in-construction and finished wonder", "all
-  other woders would be provideded later on the same logic"): `tools/sprites/buildings/wonders-1.png` (kept byte for byte
-  as supplied, 1254 square, cells of 418: the Pyramids, Hanging Gardens and Colossus a row each, their stages left to
-  right, nearly in register) is cut by the same `cut.ts` (`WONDER_SHEETS`), all three of a wonder by one box, the bounds of
-  all three within their cells, so what stands still in the sheet stands still between them, into `<id>-start.png`,
-  `<id>-construction.png` and the finished `<id>.png`, all in `BUILDING_CUTS`. The finished picture stands wherever the
-  wonder's WebP did (the build menu, the Improvements list, the Building Completed window). A wonder has stages when the
-  cuts do (renderer-api `wonder-stages.ts`, `wonderStages`), so another comes as a line in `WONDER_SHEETS` and nothing
-  more than taking its wonders out of `BUILDING_ART` and deleting their WebPs (built.test fails while both stand). In the
+  other woders would be provideded later on the same logic", then the same day "implement all attached rest of wonders"):
+  `tools/sprites/buildings/wonders-1.png` to `wonders-7.png` (kept byte for byte as supplied, each 1254 square, cells of
+  418, three wonders a row each, their stages left to right, feet within 2 pixels; `WONDER_SHEETS` in `sheets.ts` says
+  which) are cut by the same `cut.ts` into `<id>-start.png`, `<id>-construction.png` and the finished `<id>.png`, all in
+  `BUILDING_CUTS`. A stage is the pieces whose middle lies in its cell, as a picture may run past its cell (Women's
+  Suffrage, 16 pixels past the sheet's first column, off the sheet if its neighbours' box were used), and is cut by its
+  own bounds; the three of a wonder share a canvas as big as they need, each where the sheet puts it in its cell
+  (`wonderCuts`), clear past its own box, so they lie in register and no stage holds a slice of the one beside it. The
+  finished picture stands wherever the wonder's WebP did (the build menu, the Improvements list, the Building Completed
+  window). A wonder has stages when the cuts do (renderer-api `wonder-stages.ts`, `wonderStages`), so a wonder added
+  later comes as a line in `WONDER_SHEETS`; until then it rises whole (built.test fails while a cut and a square both stand). In the
   city view the wonder a city is building stands on the lot it will take finished, the next of its wonders
   (`wonderSite`, `SceneItem.site`): the start from its first shield, the construction from half its cost (`costFor`); not
   a wonder standing already (its own, kept as production while it waits for a choice, or another city's), nor one without
   stages; a click on it says "Pyramids: under construction". Completed, the show (`CityViewState.rising`) plays them in
   fast forward: each picture rises from the ground in the place of the one before over the 1.8 s (`wonderRise`,
   `drawBuilding`'s `cleared`: the stage going under clipped to what lies above the line the next has reached), where a
-  wonder without stages rises whole. `artLot` stands them at one scale for all, a sheet's cell `LOT_MAX_H` high, so they
-  keep the sizes the sheet gives them (Pyramids 43x35, Gardens 45x40, Colossus 40x45): a drawn picture's area, the rule
-  for the rest, brought the Colossus down from 44 high to 33, a temple's size. `preloadBuildings` fetches the stages of
-  what our cities are building. Only the picture: no save version. Modern leaves a site out. The other 18 wonders wait
-  for their sheets.
+  wonder without stages rises whole. `artLot` stands them at one scale for all, the tallest (`WONDER_TALLEST`, the
+  Lighthouse) `LOT_MAX_H` high, so they keep the sizes the sheets give them (Pyramids 42x34, Gardens 43x39, Colossus
+  39x44, Lighthouse 41x46): a drawn picture's area, the rule for the rest, brought the Colossus down from 44 high to 33, a
+  temple's size. A row holds six or seven; all 21 in one city overlap row on row, the streets being 26 apart. `preloadBuildings` fetches the stages of
+  what our cities are building. Only the picture: no save version. Modern leaves a site out.
   Village pictures (2026-11-02, asked for with the user's sheet of five huts: "replace huts in game with attached veriety
   of huts"): `tools/sprites/huts/huts.png` (kept as supplied: a straw-thatched round hut, a timber hall, a mud-brick
   house, a hide tent, a stone cottage with a chimney, on a clear background) is cut by `tools/sprites/huts/cut.ts` into
@@ -1873,7 +1877,7 @@ Never ship the original's sprites, palette art, fonts or text.
   `Renderer.prepare` preloads a game's leaders as it starts or loads. With the setup's portraits
   and the advances' pictures (`techs/<advance>.webp`, 1254 square, WebP quality 92; `techPicture`: all but
   the 1991 tree's Future Tech., which shows the frame's bed; each adapter's `main` fetches the picture
-  of the research under way, `preloadTech`) and the wonders' and spaceship parts' not yet on a sheet (`buildings/<id>.webp`, 1254 square, WebP quality
+  of the research under way, `preloadTech`) and the spaceship parts' (`buildings/<id>.webp`, 1254 square, WebP quality
   92; laid at the screen's `Surface.art` spots with the sheets' PNGs; `preloadBuildings` fetches what our cities are building), and the
   units' (`units/<id>.png`, see Unit pictures below), the only things the retro look does not draw through the palette. The phone app caches each picture when first shown,
   not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
@@ -2065,8 +2069,8 @@ Civilization II after it (2026-11-04, asked for; save version 67). Tundra wears 
 10%, and Reindeer roam it, its only shields, drawn as the Game's deer until their own picture comes; a resource still hidden
 from a civilization no longer spares its units wear (2026-11-04, asked for; save version 68). Any two specials lie three
 squares apart, whatever their kind, the land's kinds taking turns for the room (2026-11-04, asked for; save version 69). The 27 improvements drawn as the user's sheet, the Harbour's picture with them (2026-11-04, asked for; no save version).
-The Pyramids, Hanging Gardens and Colossus drawn as the user's sheet, each with its stages of construction in the city view
-and going up through them in fast forward as it is completed (2026-11-04, asked for; no save version).
+The 21 wonders drawn as the user's sheets, each with its stages of construction in the city view and going up through them
+in fast forward as it is completed (2026-11-04, asked for; no save version).
 
 ## Known gaps / next steps
 
@@ -2364,8 +2368,8 @@ and going up through them in fast forward as it is completed (2026-11-04, asked 
   image generators or the original game's files for shipped art. Exception the user made (2026-10-21):
   the terrain, unit and resource sheets were supplied by the user as reference images and copied in
   pixel for pixel. The user's portraits (2026-10-22: the five difficulty rulers, the twenty leaders, the
-  twenty audience scenes; 2026-10-23: the 74 advances; 2026-10-24: the wonders and spaceship
-  parts; 2026-10-28: the unit sheet, see Unit pictures; 2026-11-04: the improvements' sheet, see Improvement pictures) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
+  twenty audience scenes; 2026-10-23: the 74 advances; 2026-10-24: the spaceship
+  parts; 2026-10-28: the unit sheet, see Unit pictures; 2026-11-04: the improvements' and wonders' sheets, see Improvement pictures) are shown exactly as supplied, never converted, redrawn, cropped or recoloured
   (asked for, twice, emphatically: conversions into the palette looked "bad and distorted", and new
   images must not be generated); see the setup cards and the audience screen above; new art drawn here follows their manner (see `packages/renderer-retro` above) and
   the user's pixel-art rules: even chunky strokes, one-pixel outlines in dark shades of the thing's own

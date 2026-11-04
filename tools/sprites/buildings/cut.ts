@@ -3,93 +3,52 @@
 // buildings.png (2026-11-04: "replace all building images with attached sprite-sheet"): the 27 improvements of pixel art
 // in the rules' order, in rows of seven, on a clear background, no even grid. Each is one piece of the sheet's opaque
 // pixels (alpha over 64; the soft edge and the faint noise round it come with it), cut by its bounds a few pixels out.
-// wonders-1.png (2026-11-04: "each wonder contain 3 stages of construction to show in the city view while constructed"):
-// a wonder a row on an even grid, its stages left to right: start, in construction, finished. A wonder's three are cut by
-// one box, the bounds of all three within their cells a few pixels out, so they lie in register as the sheet draws them.
-// Every pixel of a cut is the sheet's, unchanged.
-// A new sheet of wonders is a line in WONDER_SHEETS: run this, then take its wonders out of `BUILDING_ART` (art.ts) and
-// delete their WebPs. Nothing else knows which wonders have stages: `wonderStages` reads the cuts.
+// wonders-*.png (2026-11-04: "each wonder contain 3 stages of construction to show in the city view while constructed"):
+// a wonder a row on an even grid, its stages left to right: start, in construction, finished. The three of a wonder lie
+// on one canvas, in register as the sheet draws them (`wonderCuts`). The sheets and what is on them are in sheets.ts.
+// Every pixel of a cut is the sheet's, unchanged; a stage's canvas is clear past its own box.
+// A wonder added later is a line in WONDER_SHEETS: run this, then take it out of `BUILDING_ART` (art.ts) if it was there
+// and delete its WebP. Nothing else knows which wonders have stages: `wonderStages` reads the cuts.
 // Writes apps/web/src/buildings/<id>.png (a stage <id>-start.png, <id>-construction.png) and the cuts' sizes to
 // packages/renderer-api/src/building-art.ts, from which `artPlace` lays each picture.
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { decodePng, encodePng, type Image } from "../src/png.js";
+import { piecesOf } from "../src/pieces.js";
+import { decodePng, encodePng } from "../src/png.js";
+import { IMPROVEMENT_ROWS, MARGIN, WONDER_SHEETS, wonderCuts } from "./sheets.js";
 
 const here = (p: string) => resolve(fileURLToPath(new URL(p, import.meta.url)));
-/** The improvements on buildings.png, row by row, left to right. */
-const ROWS = [
-  ["palace", "barracks", "granary", "harbour", "temple", "marketplace", "library"],
-  ["courthouse", "city_walls", "aqueduct", "bank", "cathedral", "university", "mass_transit"],
-  ["colosseum", "factory", "mfg_plant", "sdi_defense", "recycling_center", "power_plant", "hydro_plant"],
-  ["nuclear_plant", "data_center", "cell_tower", "solar_plant", "automated_office", "quantum_lab"],
-];
-/** The sheets of wonders: each file, its cells' size, and the wonder of each row. */
-const WONDER_SHEETS = [
-  { file: "./wonders-1.png", cell: 418, wonders: ["pyramids", "hanging_gardens", "colossus"] },
-];
-/** What each column of a sheet of wonders is called after the wonder's id (renderer-api `wonderStages`); finished, the id alone. */
-const COLUMNS = ["-start", "-construction", ""];
-/** Alpha over which a pixel is the picture's own (under it: soft edges and the sheet's faint noise). */
+/** Alpha over which a pixel of buildings.png is the picture's own (under it: soft edges and the sheet's faint noise). */
 const SOLID = 64;
 /** Pieces smaller than this are specks, not pictures. */
 const SPECK = 500;
-/** Pixels kept round each picture's bounds. */
-const MARGIN = 2;
-
-interface Piece { id: number; x0: number; y0: number; x1: number; y1: number; n: number; sx: number; sy: number }
-
-/** The sheet's pieces of solid pixels, and the piece each pixel belongs to (-1: none). */
-function piecesOf({ width: W, height: H, data }: Image): { owner: Int32Array; pieces: Piece[] } {
-  const solid = (i: number) => data[i * 4 + 3]! > SOLID;
-  const owner = new Int32Array(W * H).fill(-1);
-  const pieces: Piece[] = [];
-  for (let s = 0; s < W * H; s++) {
-    if (!solid(s) || owner[s]! >= 0) continue;
-    const p = { id: pieces.length, x0: W, y0: H, x1: -1, y1: -1, n: 0, sx: 0, sy: 0 };
-    pieces.push(p);
-    const stack = [s];
-    owner[s] = p.id;
-    while (stack.length) {
-      const i = stack.pop()!;
-      const x = i % W, y = Math.floor(i / W);
-      p.n++; p.sx += x; p.sy += y;
-      p.x0 = Math.min(p.x0, x); p.x1 = Math.max(p.x1, x); p.y0 = Math.min(p.y0, y); p.y1 = Math.max(p.y1, y);
-      for (let dy = -1; dy <= 1; dy++)
-        for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx, ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-          const j = ny * W + nx;
-          if (solid(j) && owner[j]! < 0) { owner[j] = p.id; stack.push(j); }
-        }
-    }
-  }
-  return { owner, pieces };
-}
 
 const sizes: Record<string, [number, number]> = {};
 
-/** Writes the box of the sheet as picture `name`, none of it another's (`mine`: the pieces it may hold). */
-function cut({ width: W, height: H, data }: Image, owner: Int32Array, name: string, x0: number, y0: number, w: number, h: number, mine: (piece: number) => boolean): void {
-  if (x0 < 0 || y0 < 0 || x0 + w > W || y0 + h > H) throw new Error(`${name}'s cut leaves the sheet`);
+/** Writes a box of the sheet as picture `name`, on a clear canvas `w` by `h` at `at`; none of it another picture's (`mine`). */
+function cut({ width: W, height: H, data }: ReturnType<typeof decodePng>, owner: Int32Array, name: string, box: { x0: number; y0: number; w: number; h: number }, canvas: { w: number; h: number; at: [number, number] }, mine: (piece: number) => boolean): void {
+  const { x0, y0 } = box;
+  if (x0 < 0 || y0 < 0 || x0 + box.w > W || y0 + box.h > H) throw new Error(`${name}'s cut leaves the sheet`);
+  const { w, h, at: [ax, ay] } = canvas;
   const out = new Uint8Array(w * h * 4);
-  for (let y = 0; y < h; y++) {
+  for (let y = 0; y < box.h; y++) {
     const i = (y0 + y) * W + x0;
-    for (let x = 0; x < w; x++) {
+    for (let x = 0; x < box.w; x++) {
       const o = owner[i + x]!;
       if (o >= 0 && !mine(o)) throw new Error(`${name}'s cut holds part of another picture at ${x0 + x},${y0 + y}`);
     }
-    out.set(data.subarray(i * 4, (i + w) * 4), y * w * 4);
+    out.set(data.subarray(i * 4, (i + box.w) * 4), ((ay + y) * w + ax) * 4);
   }
   writeFileSync(here(`../../../apps/web/src/buildings/${name}.png`), encodePng({ width: w, height: h, data: out }, 4));
   sizes[name] = [w, h];
-  console.log(`${name.padEnd(24)} ${w}x${h} from ${x0},${y0}`);
+  console.log(`${name.padEnd(30)} ${w}x${h} from ${x0},${y0}`);
 }
 
 {
   const sheet = decodePng(new Uint8Array(readFileSync(here("./buildings.png"))));
   const { width: W, height: H, data } = sheet;
-  const { owner, pieces } = piecesOf(sheet);
+  const { owner, pieces } = piecesOf(sheet, SOLID);
   // The sheet's rows stand apart: each is a run of lines holding solid pixels.
   const bands: [number, number][] = [];
   for (let y = 0; y < H; y++) {
@@ -99,34 +58,24 @@ function cut({ width: W, height: H, data }: Image, owner: Int32Array, name: stri
     if (any && last && last[1] === y - 1) last[1] = y;
     else if (any) bands.push([y, y]);
   }
-  if (bands.length !== ROWS.length) throw new Error(`the sheet has ${bands.length} rows, not ${ROWS.length}`);
-  ROWS.forEach((names, r) => {
+  if (bands.length !== IMPROVEMENT_ROWS.length) throw new Error(`the sheet has ${bands.length} rows, not ${IMPROVEMENT_ROWS.length}`);
+  IMPROVEMENT_ROWS.forEach((names, r) => {
     const [top, bottom] = bands[r]!;
     const row = pieces.filter((p) => p.n >= SPECK && p.y0 >= top && p.y1 <= bottom).sort((a, b) => a.x0 - b.x0);
     if (row.length !== names.length) throw new Error(`row ${r} has ${row.length} pictures, not ${names.length}`);
     row.forEach((c, n) => {
       const x0 = Math.max(0, c.x0 - MARGIN), y0 = Math.max(0, c.y0 - MARGIN);
-      const x1 = Math.min(W - 1, c.x1 + MARGIN), y1 = Math.min(H - 1, c.y1 + MARGIN);
-      cut(sheet, owner, names[n]!, x0, y0, x1 - x0 + 1, y1 - y0 + 1, (o) => o === c.id || pieces[o]!.n < SPECK);
+      const w = Math.min(W - 1, c.x1 + MARGIN) - x0 + 1, h = Math.min(H - 1, c.y1 + MARGIN) - y0 + 1;
+      cut(sheet, owner, names[n]!, { x0, y0, w, h }, { w, h, at: [0, 0] }, (o) => o === c.id || pieces[o]!.n < SPECK);
     });
   });
 }
 
 for (const { file, cell, wonders } of WONDER_SHEETS) {
-  const sheet = decodePng(new Uint8Array(readFileSync(here(file))));
-  const { owner, pieces } = piecesOf(sheet);
-  /** The pieces whose middle lies in a cell. */
-  const inCell = (r: number, c: number) => pieces.filter((p) => Math.floor(p.sy / p.n / cell) === r && Math.floor(p.sx / p.n / cell) === c);
-  wonders.forEach((id, r) => {
-    const cells = COLUMNS.map((_, c) => inCell(r, c));
-    if (cells.some((own) => !own.length)) throw new Error(`${id}: a stage's cell is empty`);
-    // One box for all three, in cell coordinates, so what stands still in the sheet stands still between them.
-    const across = cells.flatMap((own, c) => own.flatMap((p) => [p.x0 - c * cell, p.x1 - c * cell]));
-    const down = cells.flat().flatMap((p) => [p.y0 - r * cell, p.y1 - r * cell]);
-    const x0 = Math.min(...across) - MARGIN, x1 = Math.max(...across) + MARGIN;
-    const y0 = Math.min(...down) - MARGIN, y1 = Math.max(...down) + MARGIN;
-    COLUMNS.forEach((suffix, c) => cut(sheet, owner, id + suffix, c * cell + x0, r * cell + y0, x1 - x0 + 1, y1 - y0 + 1, (o) => cells[c]!.some((p) => p.id === o)));
-  });
+  const sheet = decodePng(new Uint8Array(readFileSync(here(`./${file}`))));
+  const { owner, pieces } = piecesOf(sheet, SOLID);
+  for (const { w, h, stages } of wonderCuts(sheet, pieces, cell, wonders))
+    for (const s of stages) cut(sheet, owner, s.name, s, { w, h, at: s.at }, (o) => s.own.some((p) => p.id === o));
 }
 
 writeFileSync(

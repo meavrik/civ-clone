@@ -27,22 +27,23 @@ describe("the user's pictures of buildings", () => {
       expect(existsSync(new URL(`${id}.webp`, dir)), id).toBe(true);
       expect(x >= 0 && y >= 0 && w > 100 && h > 100 && x + w <= ART_SIZE && y + h <= ART_SIZE, id).toBe(true);
     }
-    // The sheets hold every improvement and some wonders, with their stages; the rest keep their squares.
+    // The sheets hold every improvement and wonder, the wonders with their stages; the spaceship parts keep their squares.
     const stages = WONDERS.flatMap((w) => wonderStages(w.id));
     const cut = Object.keys(BUILDING_CUTS).filter((id) => !stages.includes(id));
     for (const id of cut) expect(ids.has(id), id).toBe(true);
-    for (const b of BUILDINGS) expect(cut, b.id).toContain(b.id);
+    for (const b of [...BUILDINGS, ...WONDERS]) expect(cut, b.id).toContain(b.id);
+    expect(Object.keys(BUILDING_ART).sort()).toEqual(SPACE_PARTS.map((p) => p.id).sort());
     expect(Object.keys(BUILDING_ART).length + cut.length).toBe(ids.size);
   });
 
   it("lay a picture so its drawing fills a box, shape kept, on the box's foot or in its middle", () => {
-    const box = { id: "apollo_program", x: 100, y: 40, w: 60, h: 60 };
-    const [ax, ay, aw, ah] = BUILDING_ART.apollo_program!;
+    const box = { id: "component", x: 100, y: 40, w: 60, h: 60 };
+    const [ax, ay, aw, ah] = BUILDING_ART.component!;
     for (const middle of [false, true]) {
       const p = artPlace({ ...box, middle })!;
       const k = p.w / ART_SIZE;
       const drawn = { x: p.x + ax * k, y: p.y + ay * k, w: aw * k, h: ah * k };
-      expect(drawn.h).toBeCloseTo(60); // a tall rocket fills the box's height
+      expect(drawn.h).toBeCloseTo(60); // taller than wide, so it fills the box's height
       expect(drawn.x + drawn.w / 2).toBeCloseTo(130);
       if (middle) expect(drawn.y + drawn.h / 2).toBeCloseTo(70);
       else expect(drawn.y + drawn.h).toBeCloseTo(100);

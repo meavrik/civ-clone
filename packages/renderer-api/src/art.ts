@@ -9,16 +9,15 @@ import { animSheet, unitAnim } from "./unit-anim.js";
 import type { UnitAtlas } from "./unit-atlas.js";
 
 /**
- * The user's pictures of the improvements, wonders and spaceship parts (2026-10-24, asked for: "use the
- * attached images for game buildings"), shown as they are, never drawn into the palette: the apps lay each
- * over the canvas (`apps/web/src/buildings/<id>.webp`, the PNGs as supplied, WebP quality 92, alpha exact).
- * Each is `ART_SIZE` square, the building standing in it on clear ground; `BUILDING_ART` gives the box its
- * drawing fills (x, y, w, h, measured from the PNGs), so a screen fits the building, not its empty margin,
- * to a place. Every one of the 51 has one; the drawn pictures stay as the fallback for an id without one.
- * The 27 improvements are cuts of the user's sheet of them since 2026-11-04 (asked for: "replace all building images
- * with attached sprite-sheet"): `apps/web/src/buildings/<id>.png`, every pixel the sheet's, cut to their bounds by
- * tools/sprites/buildings/cut.ts, their sizes in `BUILDING_CUTS`. So are the wonders that have come on sheets of their own,
- * with the stages of their construction (`wonderStages`); the other wonders and the spaceship parts keep their squares.
+ * The user's pictures of the improvements, wonders and spaceship parts, shown as they are, never drawn into the palette:
+ * the apps lay each over the canvas. Every one of the 51 has one; the drawn pictures stay as the fallback for an id
+ * without one. The 27 improvements and 21 wonders are cuts of the user's sheets of them since 2026-11-04 (asked for:
+ * "replace all building images with attached sprite-sheet"): `apps/web/src/buildings/<id>.png`, every pixel the sheet's,
+ * cut by tools/sprites/buildings/cut.ts, their sizes in `BUILDING_CUTS`, the wonders with the stages of their construction
+ * (`wonderStages`). The spaceship parts keep the first pictures (2026-10-24: "use the attached images for game buildings"):
+ * `apps/web/src/buildings/<id>.webp`, the PNGs as supplied, WebP quality 92, alpha exact, each `ART_SIZE` square, the
+ * part standing in it on clear ground; `BUILDING_ART` gives the box its drawing fills (x, y, w, h, measured from the
+ * PNGs), so a screen fits the part, not its empty margin, to a place.
  */
 export const ART_SIZE = 1254;
 export { BUILDING_CUTS };
@@ -34,27 +33,9 @@ export const UNIT_PICTURES_WANTED: readonly string[] = [];
 export const BUILDING_PICTURES_WANTED: readonly string[] = [];
 
 export const BUILDING_ART: Readonly<Record<string, readonly [number, number, number, number]>> = {
-  apollo_program: [359, 70, 555, 1087],
   component: [268, 181, 718, 898],
-  copernicus: [233, 258, 789, 764],
-  cure_for_cancer: [180, 293, 894, 710],
-  darwins_voyage: [191, 123, 873, 1015],
-  great_library: [99, 130, 1057, 998],
-  great_wall: [76, 342, 1102, 529],
-  hoover_dam: [51, 370, 1153, 569],
-  isaac_newtons: [147, 235, 1033, 810],
-  js_bachs: [206, 185, 842, 884],
-  lighthouse: [336, 107, 582, 1004],
-  magellans: [293, 74, 669, 1104],
-  manhattan_project: [224, 318, 861, 680],
-  michelangelos: [100, 336, 1054, 630],
   module: [69, 351, 1117, 613],
-  oracle: [321, 297, 713, 671],
-  seti_program: [130, 96, 994, 1087],
-  shakespeares: [65, 213, 1123, 946],
   structural: [41, 104, 1172, 1048],
-  united_nations: [177, 237, 921, 820],
-  womens_suffrage: [221, 298, 812, 658],
 };
 
 export interface ArtBox { x: number; y: number; w: number; h: number }
@@ -251,8 +232,8 @@ export function buildingArt(id: string): ArtBox | null {
 
 /** No building's picture stands taller than this in the city view (the tallest drawn ones are 46). */
 const LOT_MAX_H = 46;
-/** The cell of the user's sheets of wonders with stages, whose whole height stands `LOT_MAX_H` high. */
-const WONDER_CELL = 418;
+/** The tallest picture of a wonder with stages (the Lighthouse's), which stands `LOT_MAX_H` high. */
+const WONDER_TALLEST = Math.max(...Object.keys(BUILDING_CUTS).filter((id) => wonderStages(id).length).map((id) => BUILDING_CUTS[id]![1]));
 
 /**
  * The room the picture of building `id` takes where its drawn picture (`pic`) would stand: the same
@@ -263,7 +244,7 @@ const WONDER_CELL = 418;
 export function artLot(id: string, pic: { w: number; h: number }): { w: number; h: number } {
   const art = buildingArt(id);
   if (!art) return { w: pic.w, h: pic.h };
-  if (wonderStages(id).length) return { w: Math.round((art.w * LOT_MAX_H) / WONDER_CELL), h: Math.round((art.h * LOT_MAX_H) / WONDER_CELL) };
+  if (wonderStages(id).length) return { w: Math.round((art.w * LOT_MAX_H) / WONDER_TALLEST), h: Math.round((art.h * LOT_MAX_H) / WONDER_TALLEST) };
   const aspect = art.w / art.h;
   const h = Math.min(LOT_MAX_H, Math.sqrt((pic.w * pic.h) / aspect));
   return { w: Math.round(h * aspect), h: Math.round(h) };
