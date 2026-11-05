@@ -89,3 +89,5 @@ longer roaming round the player's cities, and a band's moves play together (2026
 A river runs behind the trees of forests, the palms of jungles, hills and mountains (2026-11-05, asked for; no save version).
 The square's window: the yields in the words' size, and what is built on a square shown by its map token in every panel, moves, defence and land on the same
 token, an arrow, a rook and a pennant (2026-11-05, asked for; no save version).
+Up to ten civilizations (2026-11-05, asked for; save version 72): each premade world seats what it can hold, custom maps by size, two new colours with
+their shields, homelands kept apart, the Foreign Minister and the race for space fit nine rivals, and the other civilizations move a slice of each frame so the page never freezes.

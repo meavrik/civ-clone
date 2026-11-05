@@ -14,7 +14,7 @@ Web app, phone app, headless harness, maps tool. Moved word for word from CLAUDE
   stays the save's truth: `loadSave` always replays it (headless `--verify`), `rewindSave` and `serializeSave`
   (JSON) drop the snapshot, and a snapshot played on matches the game and its replay exactly
   (`packages/ai/tests/ai.test.ts`). A save without a snapshot (older ones, or of another version) replays
-  its whole log, every computer player's turn included (about 2.5 s at turn 150 with seven civs, growing with
+  its whole log, every computer player's turn included (about 2.5 s at turn 150 with seven civs when measured, growing with
   the game), then is saved again with one; that replay goes a slice of each
   frame under a Loading window (asked for 2026-10-28: Continue froze the page for seconds): core's
   `replaySave` is `loadSave` as a generator yielding after each command (`ReplayProgress`: the turn reached),
@@ -139,7 +139,8 @@ Web app, phone app, headless harness, maps tool. Moved word for word from CLAUDE
   92; laid at the screen's `Surface.art` spots with the sheets' PNGs; `preloadBuildings` fetches what our cities are building), and the
   units' (`units/<id>.png`, see Unit pictures below), the only things the retro look does not draw through the palette. The phone app caches each picture when first shown,
   not at install (`.webp` left out of sw.js's list). An envoy's offer (`peaceOfferAudience`) is signed or refused; signing goes on
-  into an audience. The Foreign Minister shows the standing (`standing`), each civ's influence and
+  into an audience. Past six rivals (up to nine, since 2026-11-05) the Foreign Minister gives each a line, leader and regard left to their
+  cards, and the race for space on the Spaceship page takes two columns. The Foreign Minister shows the standing (`standing`), each civ's influence and
   whether they admire or scorn us (`regardWords`); Enter there opens a civilization's card. Stepping onto land that minds us puts a
   note beside the unit ("Babylonian land: leave by next turn", `landNote`); once a demand stands, a step in
   (once a civ a turn, later steps get a callout) and the AI's demands after its turn show our unit, then the

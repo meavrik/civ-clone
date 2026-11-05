@@ -72,6 +72,11 @@ export function drawMilitaryAdvisor(s: Surface, state: GameState): void {
   if (counts.size === 0) drawText(s, 12, y, "No units.", DIM);
 }
 
+/** Rivals the Foreign Minister's page holds on two lines each; more, up to nine, take a line each (leader and regard on their cards). */
+const FOREIGN_FULL_ROWS = 6;
+const FOREIGN_TIGHT_ROW = 13;
+const FOREIGN_TIGHT_STATS = 82;
+
 /** F3: known civilizations, how we stand with each, and their influence (the culture of their cities) against ours. */
 export function drawForeignAdvisor(s: Surface, state: GameState): void {
   frame(s, "Foreign Minister");
@@ -81,25 +86,33 @@ export function drawForeignAdvisor(s: Surface, state: GameState): void {
   let y = 26;
   drawIconLine(s, 12, y, `Our influence {culture}${civInfluence(state, me)}`, dim);
   y += 12;
-  let any = false;
-  for (const p of state.players) {
-    if (p.id === me || p.id === state.barbarians) continue;
-    if (!hasContact(state, me, p.id)) continue;
-    any = true;
+  const known = state.players.filter((p) => p.id !== me && p.id !== state.barbarians && hasContact(state, me, p.id));
+  const tight = known.length > FOREIGN_FULL_ROWS;
+  for (const p of known) {
     const c = civ(p.civ);
     const st = standing(state, p.id);
     const color = PLAYER_COLORS[p.color % PLAYER_COLORS.length]!;
-    drawSwatch(s, 12, y - 1, color);
-    drawText(s, 22, y, `${c.leader} of the ${c.name}`, p.alive ? ink : dim);
-    drawText(s, 200, y, p.alive ? st.text : "destroyed", p.alive && st.tone === "war" ? BAD : dim);
-    y += 9;
     const cities = state.cities.filter((x) => x.owner === p.id).length;
-    drawIconLine(s, 22, y, `${GOVERNMENTS[p.government]?.name ?? p.government}  {city}${cities} {bulb}${p.advances.length} {purse}${p.gold} {culture}${civInfluence(state, p.id)}`, dim);
+    const stats = `${GOVERNMENTS[p.government]?.name ?? p.government}  {city}${cities} {bulb}${p.advances.length} {purse}${p.gold} {culture}${civInfluence(state, p.id)}`;
+    const treaty = p.alive ? st.text : "destroyed";
+    const treatyInk = p.alive && st.tone === "war" ? BAD : dim;
+    drawSwatch(s, 12, y - 1, color);
+    if (tight) {
+      drawText(s, 22, y, c.name, p.alive ? ink : dim);
+      drawIconLine(s, FOREIGN_TIGHT_STATS, y, stats, dim);
+      drawText(s, SCREEN_W - 10 - textWidth(treaty), y, treaty, treatyInk);
+      y += FOREIGN_TIGHT_ROW;
+      continue;
+    }
+    drawText(s, 22, y, `${c.leader} of the ${c.name}`, p.alive ? ink : dim);
+    drawText(s, 200, y, treaty, treatyInk);
+    y += 9;
+    drawIconLine(s, 22, y, stats, dim);
     const regard = p.alive ? regardWords(state, p.id) : "";
     if (regard) drawText(s, 200, y, `They ${regard}`, regard === "admire us" ? GOOD : BAD);
     y += 12;
   }
-  if (!any) drawText(s, 12, y, "We have not met any other civilizations.", dim);
+  if (!known.length) drawText(s, 12, y, "We have not met any other civilizations.", dim);
   drawText(s, 12, SCREEN_H - 30, "Enter: talk to a civilization", dim);
 }
 
@@ -130,6 +143,5 @@ export function drawScoreScreen(s: Surface, state: GameState): void {
     drawText(s, 120, y, String(score), ink);
     y += 9;
   }
-  void textWidth;
   void advance;
 }

@@ -4,6 +4,10 @@ import { C, shade } from "../palette.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { BAD, DIM, drawBox, drawPage, drawSwatch, GOLD, GOOD, INK } from "../widgets.js";
 import { PLAYER_COLORS } from "./main.js";
+import { fitText } from "./newtech.js";
+
+const RACE_ROW = 9;
+const RACE_COLUMN = 152;
 
 /**
  * F6: the spaceship. Parts on hand against the maximum, how many the
@@ -49,13 +53,16 @@ export function drawSpaceshipScreen(s: Surface, state: GameState): void {
 
   drawText(s, 12, y, "The race", dim);
   y += 10;
-  for (const p of state.players) {
-    if (p.id === me.id || p.id === state.barbarians || !p.alive) continue;
+  // A second column past what one holds: nine rivals, in the largest games (asked for 2026-11-05).
+  const rivals = state.players.filter((p) => p.id !== me.id && p.id !== state.barbarians && p.alive);
+  const rows = Math.floor((SCREEN_H - 20 - y) / RACE_ROW);
+  const wide = rivals.length > rows;
+  rivals.forEach((p, i) => {
     const o = p.spaceship;
     const line = o.arrived ? "have landed" : o.launched !== null ? `launched ${formatYear(turnToYear(o.launched))}` : o.structurals + o.components + o.modules > 0 ? "building a ship" : "no ship";
-    drawSwatch(s, 12, y, PLAYER_COLORS[p.color % PLAYER_COLORS.length]!);
-    drawText(s, 22, y, `${p.name}: ${line}`, ink);
-    y += 9;
-    if (y > SCREEN_H - 26) break;
-  }
+    const x = 12 + Math.floor(i / rows) * RACE_COLUMN;
+    const rowY = y + (i % rows) * RACE_ROW;
+    drawSwatch(s, x, rowY, PLAYER_COLORS[p.color % PLAYER_COLORS.length]!);
+    drawText(s, x + 10, rowY, wide ? fitText(`${p.name}: ${line}`, RACE_COLUMN - 14) : `${p.name}: ${line}`, ink);
+  });
 }
