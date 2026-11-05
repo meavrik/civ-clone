@@ -341,6 +341,12 @@ export interface MenuState {
   /** Rows that undo something for good (a unit's Disband): drawn in warning red, as a row or a button. Modern ignores it. */
   danger?: number[];
   /**
+   * The window stands over another window (a leader's answer over the audience, asked for 2026-11-05): it darkens that
+   * one as well, and the leader's picture with it, a hole cut where the window stands (a picture lies over the canvas,
+   * so it would cover the window). Modern ignores it.
+   */
+  overWindow?: boolean;
+  /**
    * A picture before each row (null: none): a unit's, its type and its owner's colour slot (the stack chooser,
    * asked for 2026-10-24: a click on a square holding several of our units lists them to pick from), or a
    * building's, wonder's or spaceship part's (the build menu, asked for 2026-10-30: "show unit/building image next

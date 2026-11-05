@@ -36,6 +36,7 @@ import {
   drawForeignAdvisor,
   drawMainScreen,
   drawMenu,
+  menuBox,
   squarePainter,
   drawMilitaryAdvisor,
   drawRatesScreen,
@@ -84,7 +85,7 @@ import {
   DETAIL,
 } from "@civ/renderer-retro";
 import { civ, wrapX, type GameState } from "@civ/core";
-import { buildingPlaces, portraitPlace, preloadBuildings, preloadCities, preloadScenes, preloadTech, preloadUnits, scenePlace, showPictures, techPlace, type PicturePlace } from "./pictures.js";
+import { buildingPlaces, portraitPlace, preloadBuildings, preloadCities, preloadScenes, preloadTech, preloadUnits, scenePlace, showPictures, techPlace, underWindow, type PicturePlace } from "./pictures.js";
 
 /**
  * The 1991-style renderer behind the screen API: an indexed framebuffer laid out on 320x200,
@@ -200,7 +201,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     loading: (view) => drawLoading(screen, view),
     end: (card) => drawEndScreen(screen, card),
     spaceship: (state) => drawSpaceshipScreen(screen, state),
-    menu: (menu: MenuState, state) => drawMenu(screen, menu, squarePainter(menu, state)),
+    menu: (menu: MenuState, state) => {
+      drawMenu(screen, menu, squarePainter(menu, state));
+      if (menu.overWindow) pictures = underWindow(pictures, menuBox(menu));
+    },
     textInput: (input: TextInputState, cursorOn) => drawTextInput(screen, input, cursorOn),
     statusLine: (text) => drawStatusLine(screen, text),
     menuHit: (menu, px, py) => menuHit(menu, px, py),

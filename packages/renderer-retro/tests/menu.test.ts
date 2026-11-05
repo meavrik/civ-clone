@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { keepInView, roadNote, type MenuState } from "@civ/renderer-api";
-import { C, DESK_MENU, drawMenu, menuHit, menuRect, menuRowRect, menuRows, menuScrollAt, Surface, TOUCH_MENU, TOUCH_MENU_SMALL } from "../src/index.js";
+import { C, DESK_MENU, DIMMED, dimScreen, drawMenu, menuBox, menuHit, menuRect, menuRowRect, menuRows, menuScrollAt, Surface, TOUCH_MENU, TOUCH_MENU_SMALL } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 /** A city late in the game: more to build than the screen holds. */
@@ -11,6 +11,41 @@ function longList(selected: number): MenuState {
 }
 
 describe("menus", () => {
+  it("over a window (a leader's answer over the audience) darken that one too, where stacked windows share one backdrop", () => {
+    const answer: MenuState = { title: "Caesar of the Romans", body: ["Let there be peace."], items: ["Continue", "Close all"], selected: 0, close: true };
+    const s = Surface.screen();
+    s.fill(C.WHITE!);
+    dimScreen(s); // the audience's own, over the game
+    const once = s.get(2, 2);
+    drawMenu(s, answer);
+    expect(s.get(2, 2)).toBe(once);
+    drawMenu(s, { ...answer, overWindow: true });
+    expect(s.get(2, 2)).toBe(DIMMED[once]);
+    expect(DIMMED[once]).not.toBe(once);
+    // The picture under it is cut round the window where it stands, growing as it opens.
+    const r = menuRect(answer);
+    expect(menuBox(answer)).toEqual(r);
+    const opening = menuBox({ ...answer, enter: 0 });
+    expect(opening.w).toBeCloseTo(r.w * 0.4);
+    expect(opening.h).toBeCloseTo(r.h * 0.4);
+    expect(opening.x).toBeGreaterThan(r.x);
+    expect(opening.x + opening.w).toBeLessThan(r.x + r.w);
+    // The longest answer, with its three buttons, stays on a phone's screen, each button answering a finger.
+    const asks: MenuState = { title: "Elizabeth of the English", body: ["For 120 gold our armies will march with yours against the Babylonians. It means war for you too."], items: ["Pay 120 gold", "No", "Close all"], selected: 0, close: true, overWindow: true };
+    for (const width of [320, 447]) {
+      const box = menuRect(asks, width, TOUCH_MENU);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.h).toBeLessThanOrEqual(200);
+      const hit = new Set<number>();
+      for (let y = box.y; y < box.y + box.h; y++) hit.add(menuHit(asks, width / 2, y, width, TOUCH_MENU));
+      expect([...hit].sort()).toEqual([-1, 0, 1, 2]);
+    }
+    const phone = new Surface(447, 200, undefined, 2);
+    phone.fill(C.BLACK!);
+    drawMenu(phone, asks, undefined, TOUCH_MENU);
+    writeFileSync(new URL("./out/menu-leader-answer.png", import.meta.url), encodePng(phone, 2));
+  });
+
   it("scroll a list too long for the screen, keeping the choice on view and hits on the rows shown", () => {
     const m = longList(30);
     const rows = menuRows(m);

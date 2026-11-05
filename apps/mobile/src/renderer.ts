@@ -64,6 +64,7 @@ import {
   menuBarAnchor,
   menuBarHit,
   menuHit,
+  menuBox,
   menuRect,
   menuRows,
   menuScrollAt,
@@ -104,7 +105,7 @@ import {
 } from "@civ/renderer-retro";
 import type * as WebRenderer from "../../web/src/retro-renderer.js";
 import { screenW } from "./display.js";
-import { buildingPlaces, portraitPlace, preloadBuildings, preloadCities, preloadScenes, preloadTech, preloadUnits, scenePlace, showPictures, techPlace, type PicturePlace } from "../../web/src/pictures.js";
+import { buildingPlaces, portraitPlace, preloadBuildings, preloadCities, preloadScenes, preloadTech, preloadUnits, scenePlace, showPictures, techPlace, underWindow, type PicturePlace } from "../../web/src/pictures.js";
 import { MapPan } from "./pan.js";
 
 /**
@@ -528,6 +529,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
         else drawMenu(wide, at, squarePainter(m, state), menuSize());
       } else if (titleFrame && fingers() && choicesFit(m, SCREEN_W, SETUP_CHOICES)) drawChoices(narrow, m, SETUP_CHOICES);
       else drawMenu(narrow, m, squarePainter(m, state), menuSize());
+      if (m.overWindow) {
+        const box = menuBox(m, surface().width, menuSize());
+        pictures = underWindow(pictures, wideFrame ? box : { ...box, x: box.x + inset() });
+      }
     },
     textInput(input, cursorOn) {
       shown.input = input;

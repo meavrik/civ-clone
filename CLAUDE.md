@@ -1901,6 +1901,23 @@ Never ship the original's sprites, palette art, fonts or text.
   thread. A question that wants our yes (their price, war: `warWarning`) has a button saying it ("Pay 50 gold",
   "Declare war!") and one saying no ("No", "Keep the peace"); the close box or Esc is no too. A declaration of war
   ends the talk on the leader's words and Farewell.
+  A leader's answer stands in a window of its own over the audience (asked for 2026-11-05: "when leader answer - show it
+  on a new modal on top of the original, with option to close all"; the web app's `leaderAnswer`): every reply to
+  something we said, in a talk, on a civilization's card, at an exchange's table or to a leader's own demand, as the
+  game's modal (a `menu` screen over the `diplomacy` one), titled with the leader (`leaderTitle`): their words, Continue
+  and Close all. Continue (Enter, Esc, the close box, a click off it) goes back to the talk, the answer now the audience's
+  line and the next buttons under it; Close all leaves the talk at once, as Farewell does (the audience's `done`), so the
+  turn's news goes on. An answer that asks something has its buttons in place of Continue ("Pay 50 gold" and "No", war's
+  red "Declare war!" and "Keep the peace", the table's "Add 70 gold" and "Continue"), Close all still last, and one that
+  ends the talk (war declared, our answer to a leader's demand) only Farewell. What a leader says opening a list ("Against
+  whom...?", "How much?", the table's "What do you offer?") is no answer and stays in the audience window, which holds
+  its choices. Under the window the audience stands as it was, the buttons just used drawn and dead (`spent` on the
+  screen, `spendTalk`), darkened again (`MenuState.overWindow`: `dimScreen` runs once a frame, stacked windows sharing a
+  backdrop, but here the window under must step back, the game behind it going darker still), and the leader's picture,
+  which lies over the canvas and would cover the window, darkened with a hole where the window stands (`underWindow` in
+  pictures.ts, `menuBox`, which grows with the window as it opens). An audience is new when the last frame drew none
+  (`audienceFrame`): the top screen's kind told it before (`lastTop`), which restarted its opening every frame under
+  any window, as it did under a New Technology window from an exchange. No save version: the rules are untouched.
   Greetings name admiration or scorn; after the envoy's treaty the talk starts friendly. The audience screen (redone
   2026-10-22 after the user's mock-up "Caesar Welcomes You to Rome", asked for; a window over the
   darkened map since 2026-10-24, "not 100% of the screen": `audienceRect` 264x186 centred, growing into
@@ -2127,6 +2144,8 @@ The 21 wonders drawn as the user's sheets, each with its stages of construction 
 in fast forward as it is completed (2026-11-04, asked for; no save version).
 The city view is an isometric town on the real land round the city: streets, a town square, walls and a gatehouse, fields, shores
 and rivers, and the user's 24 houses standing by the people's age, size and advances (2026-11-05, asked for; no save version).
+A leader's answer stands in a window of its own over the audience, with Continue and Close all (2026-11-05, asked for; no save
+version).
 
 ## Known gaps / next steps
 

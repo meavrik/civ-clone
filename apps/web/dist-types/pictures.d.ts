@@ -41,6 +41,8 @@ export interface PicturePlace {
 }
 /** The audience picture of civilization `player`'s leader, at a box of the canvas; null if it has none. */
 export declare function scenePlace(state: GameState, player: number, box: Omit<PicturePlace, "url" | "fit">): PicturePlace | null;
+/** Pictures with a window opened over them (`MenuState.overWindow`): darkened with what they stand on, cut round the window so they do not cover it. */
+export declare function underWindow(places: PicturePlace[], window: ArtBox): PicturePlace[];
 /** A setup portrait (a ruler or a leader, by name) in a box of the canvas, whole and standing on its foot. */
 export declare function portraitPlace(name: string, box: Omit<PicturePlace, "url" | "fit">): PicturePlace;
 /** The picture of an advance for the New Technology window, whole in a box of the canvas; null if it has none. */

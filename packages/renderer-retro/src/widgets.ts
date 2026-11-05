@@ -79,8 +79,9 @@ export function drawSwatch(s: Surface, x: number, y: number, color: number): voi
 
 /**
  * Darken everything drawn so far, the backdrop behind a window (asked for 2026-10-24): each pixel to its
- * colour's darkened twin (`DIMMED`). Once a frame: stacked windows share one backdrop. `keep`, in screen
- * pixels, stays lit (the city a Building Completed window points at).
+ * colour's darkened twin (`DIMMED`). Once a frame: stacked windows share one backdrop, but for a window that
+ * asks to darken the one under it (`MenuState.overWindow`). `keep`, in screen pixels, stays lit (the city a
+ * Building Completed window points at).
  */
 export function dimScreen(s: Surface, keep?: { x: number; y: number; w: number; h: number }): void {
   if (s.dimmed) return;
@@ -241,6 +242,10 @@ interface MenuLayout {
   cardY: number;
 }
 
+/** The arrow at the foot of a list with more rows below (`moreArrow`): the most its height takes of the room the rows leave, and its button's width. */
+const MORE_ROOM = 4;
+const MORE_W = 44;
+
 /** The gap between a tabbed list's tabs, and under them before the rows. */
 const TAB_GAP = 2;
 const TAB_FOOT = 4;
@@ -384,7 +389,9 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   const row = pictured ? unitRow : trailed ? trailRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, count)))) : size.row;
   const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
   const itemsH = buttons ? m.items.length * (size.button + size.buttonGap) + 1 : (fits ? count : rows) * row;
-  const h = head + bodyH + secH + tabsH + itemsH + foot;
+  // A list that scrolls, on any tab, keeps its foot deeper for the arrow there, from the room the rows leave, so it never costs a row.
+  const footH = foot + (buttons || fits ? 0 : Math.max(0, Math.min(MORE_ROOM, room - rows * row)));
+  const h = head + bodyH + secH + tabsH + itemsH + footH;
   let x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
   let y = m.anchor ? m.anchor.y : keep ? Math.max(0, floor - h) : Math.max(0, Math.floor((SCREEN_H - h) / 2));
   // By the square it tells of, pointing at it (`MenuState.point`), clear of the menu bar; else clear of the click.
@@ -440,10 +447,31 @@ function scrollBar(m: MenuState, l: MenuLayout): ScrollTrack {
   return scrollTrack(l.x + l.w - 4 - w, l.itemsY - 1, l.rows * l.row, m.items.length, l.rows, l.top, w);
 }
 
-/** Where a point lies on a scrolling menu's bar: -1 above its thumb (the up arrow too), 1 below, 0 on it; null off the bar. */
+/**
+ * The arrow at a list's foot while it has more rows below those on view (asked for 2026-11-05: the bar's small arrow was
+ * "not clear enough"): a lit button across the middle of the foot, from under the last row to the window's edge; null when
+ * the list ends on view.
+ */
+function moreArrow(m: MenuState, l: MenuLayout): { x: number; y: number; w: number; h: number } | null {
+  if (l.buttons || l.top + l.rows >= m.items.length) return null;
+  const y = l.itemsY + l.rows * l.row;
+  return { x: l.x + Math.floor((l.w - MORE_W) / 2), y, w: MORE_W, h: l.y + l.h - 2 - y };
+}
+
+/** The arrow itself on its button: a triangle pointing down, as tall as the button allows. */
+function drawMoreArrow(s: Surface, b: { x: number; y: number; w: number; h: number }): void {
+  const ink = buttonFace(s, b.x, b.y, b.w, b.h, "lit");
+  const steps = b.h - 2;
+  const mid = b.x + Math.floor(b.w / 2);
+  for (let k = 0; k < steps; k++) s.hline(mid - (steps - 1 - k), b.y + 1 + k, 2 * (steps - 1 - k) + 1, ink);
+}
+
+/** Where a point lies on a scrolling menu's bar: -1 above its thumb (the up arrow too), 1 below or on the arrow at the list's foot, 0 on the thumb; null off them. */
 export function menuScrollAt(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): number | null {
   const l = menuLayout(m, screenW, size);
   if (l.rows >= m.items.length) return null;
+  const more = moreArrow(m, l);
+  if (more && px >= more.x && px < more.x + more.w && py >= more.y && py < more.y + more.h) return 1;
   const b = scrollBar(m, l);
   if (px < b.x - 1 || px > b.x + b.w || py < b.y || py >= b.y + b.h) return null;
   return py < b.thumbY ? -1 : py >= b.thumbY + b.thumbH ? 1 : 0;
@@ -470,6 +498,12 @@ export function enteringBox(enter: number, rect: { x: number; y: number; w: numb
   const cx = rect.x + (rect.w + 2) / 2;
   const cy = rect.y + (rect.h + 2) / 2;
   return { x: cx + (box.x - cx) * f, y: cy + (box.y - cy) * f, w: box.w * f, h: box.h * f };
+}
+
+/** Where a window stands this frame, growing as it opens (`enter`): what it covers of a picture laid under it. */
+export function menuBox(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x: number; y: number; w: number; h: number } {
+  const r = menuRect(m, screenW, size);
+  return enteringBox(m.enter ?? 1, r, r);
 }
 
 export function drawEntering(s: Surface, enter: number, rect: { x: number; y: number; w: number; h: number }, draw: (s: Surface) => void, from?: { x: number; y: number }): void {
@@ -499,6 +533,8 @@ export function drawEntering(s: Surface, enter: number, rect: { x: number; y: nu
 
 export function drawMenu(s: Surface, m: MenuState, square?: (s: Surface, x: number, y: number) => void, size = DESK_MENU): void {
   const { place } = menuLayout(m, s.width, size);
+  // A window over a window (`overWindow`) darkens that one too, the game behind it having been darkened once this frame.
+  if (m.overWindow) s.dimmed = false;
   // A titled window (not a dropdown, not the title screen's plain list) darkens what it opens over; the square it points at stays lit, ringed.
   if (m.title && !m.anchor) dimScreen(s, menuLayout(m, s.width, size).keep ?? (place && m.point) ?? undefined);
   if (place && m.point) drawSquareRing(s, m.point);
@@ -581,6 +617,8 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     if (r) write((info ? info.x - 2 : x + 4 + rowW - 6) - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("town", 7) : shade("azure", 7)) : danger ? BAD : DIM);
   });
   if (scrolls) drawScrollBar(s, m, l);
+  const more = moreArrow(m, l);
+  if (more) drawMoreArrow(s, more);
   // The tip of the row whose info shows, over the window, pointing at its mark.
   const shown = m.infoShown !== undefined ? m.info?.[m.infoShown] : null;
   const at = shown ? infoMarkRect(l, m, m.infoShown!) : null;
