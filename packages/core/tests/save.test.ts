@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCommand, checkGameEnd, computeScore, loadSave, loadSnapshot, makeSave, newGame, parseSave, rankTitle, replaySave, rewindSave, SAVE_VERSION, serializeSave, turnStarts, withSnapshot, type Command, type GameState, type ReplayProgress } from "../src/index.js";
+import { applyCommand, checkGameEnd, computeScore, loadSave, loadSnapshot, makeSave, newGame, parseSave, rankTitle, replaySave, rewindSave, SAVE_VERSION, serializeSave, stillOf, turnStarts, withSnapshot, type Command, type GameState, type ReplayProgress } from "../src/index.js";
 
 /** Trivial stand-in for the AI: skip every unit. */
 function skipAll(state: Parameters<typeof applyCommand>[0]): void {
@@ -196,5 +196,22 @@ describe("score and end", () => {
     expect(checkGameEnd(state, 1000)).toEqual({ kind: "time" });
     state.players[0]!.alive = false;
     expect(checkGameEnd(state, 1000)).toEqual({ kind: "defeat" });
+  });
+});
+
+describe("stillOf", () => {
+  it("copies the game but for its map, so a renderer still knows the world and the live game moves on unseen", () => {
+    const live = newGame(9, { opponents: 2 });
+    const still = stillOf(live);
+    expect(still.map).toBe(live.map);
+    expect(still.units).not.toBe(live.units);
+    expect(still.players[0]!.explored).not.toBe(live.players[0]!.explored);
+    const before = still.units[0]!.x;
+    live.units[0]!.x += 1;
+    live.players[0]!.gold += 7;
+    live.currentPlayer = 1;
+    expect(still.units[0]!.x).toBe(before);
+    expect(still.players[0]!.gold).toBe(live.players[0]!.gold - 7);
+    expect(still.currentPlayer).toBe(0);
   });
 });

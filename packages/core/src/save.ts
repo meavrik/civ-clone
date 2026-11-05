@@ -160,6 +160,16 @@ export function copyState(state: GameState): GameState {
   return copyData(state);
 }
 
+/**
+ * The game to draw while its live copy moves on (the computer players' turns, a frame at a time): a copy of all but
+ * the map, which it shares, as a renderer knows a world by its map (the fog, `FogLifter`). Only to look at: a save
+ * of it would carry whatever those turns have done to the map so far.
+ */
+export function stillOf(state: GameState): GameState {
+  const { map, ...rest } = state;
+  return { ...copyData(rest), map };
+}
+
 function copyData<T>(v: T): T {
   if (v === null || typeof v !== "object") return v;
   if (ArrayBuffer.isView(v)) return (v as unknown as Uint8Array).slice() as unknown as T;

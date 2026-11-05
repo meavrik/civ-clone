@@ -45,7 +45,7 @@ import {
   landOwner,
   replaySave,
   loadSnapshot,
-  withSnapshot,
+  stillOf, withSnapshot,
   makeSave,
   mapDistance,
   mindsTrespass,
@@ -415,6 +415,7 @@ type Screen =
   | { kind: "advisor"; which: AdvisorKind }
   | { kind: "diplomacy"; player: number; line: string; talk?: Talk; spent?: Talk; card?: CardSection[] } // an audience, or (`card`) a civilization's card from the Diplomacy tab; `spent`: the buttons just answered, still drawn under a leader's answer
   | { kind: "beat"; until: number; then: () => void } // the map, held a moment on something about to be talked of
+  | { kind: "others"; back: Screen; live: GameState; actions: UnitAction[]; events: TurnEvent[]; sawBefore: Uint8Array; seen: number; moved: number; start: number } // the map, holding still as the other civilizations move
   | { kind: "end"; card: EndCard }
   | { kind: "spaceship" }
   | { kind: "input"; input: TextInputState; onSubmit: (text: string) => void; under: Screen }
@@ -3441,7 +3442,20 @@ function endTurn(): void {
   passTurn();
 }
 
-/** The turn passes: ours ends, the other civilizations move, and what happened is shown. */
+/**
+ * The other civilizations moving (asked for 2026-11-05: ten of them late in a large world took seconds, the page
+ * frozen meanwhile): `stepOthers` moves as many as fit a slice of each frame, at least one, on the game itself (`live`),
+ * while `state` holds still as our turn left it (`stillOf`) for all the frame reads and draws: seen from a computer
+ * player's turn the map would show that player's fog. Nothing changes hands but the frames between them, so a turn
+ * comes out as it would at one go.
+ */
+type OthersScreen = Extract<Screen, { kind: "others" }>;
+const OTHERS_SLICE_MS = 12;
+/** A wait longer than this says what the player is waiting for; shorter ones pass unremarked. */
+const OTHERS_NOTE_MS = 400;
+const OTHERS_NOTE = "Other civilizations are moving...";
+
+/** The turn passes: ours ends, the other civilizations move (`stepOthers`), and what happened is shown (`othersDone`). */
 function passTurn(): void {
   sound.play("turn");
   skipWatch();
@@ -3449,11 +3463,13 @@ function passTurn(): void {
   view.focus = undefined;
   actedThisTurn = false;
   autoEndAt = null;
-  const actions: UnitAction[] = [];
   askedLeave.clear();
   askedChoice.clear();
+  // Our turn is safe however long theirs take: a phone may close a game put away meanwhile.
+  autosave();
   // What we can see now; a unit lost in the turns to come takes its sight with it.
   const sawBefore = state.players[0]!.visible.slice();
+  const still = stillOf(state);
   dispatch({ type: "endTurn" });
   // The map keeps the cities as they stand now until the playback shows them changing (`staging`), and what we saw
   // seen till the fighting and its news are over (`sightHold`).
@@ -3464,16 +3480,31 @@ function passTurn(): void {
   const events: TurnEvent[] = lastTurnEvents.filter((ev) => ev.kind !== "contact" && !(ev.kind === "hut" && ev.player !== 0) && ev.kind !== "lostAtSea");
   finishedNow.clear();
   for (const ev of events) if ((ev.kind === "built" || ev.kind === "wonder") && ev.detail) finishedNow.set(ev.city, ev.detail);
-  // Other civilizations move now. Each one's moves are read before its own end of turn clears them.
-  let seen = lastTurnEvents.length;
-  let guard = 0;
-  while (state.players[state.currentPlayer]!.isAi && guard++ < 16) {
-    aiTurn(state);
-    for (const ev of lastTurnEvents.slice(seen)) if (concernsUs(ev)) events.push(ev);
-    actions.push(...lastActions);
-    applyCommand(state, { type: "endTurn" });
-    seen = 0;
-  }
+  screenState = { kind: "others", back: screenState, live: state, actions: [], events, sawBefore, seen: lastTurnEvents.length, moved: 0, start: performance.now() };
+  state = still;
+}
+
+/** This frame's share of the other civilizations. Each one's moves are read before its own end of turn clears them. */
+function stepOthers(sc: OthersScreen): void {
+  const { live } = sc;
+  const until = performance.now() + OTHERS_SLICE_MS;
+  do {
+    if (!live.players[live.currentPlayer]!.isAi || sc.moved++ >= 16) { othersDone(sc); return; }
+    aiTurn(live);
+    for (const ev of lastTurnEvents.slice(sc.seen)) if (concernsUs(ev)) sc.events.push(ev);
+    sc.actions.push(...lastActions);
+    applyCommand(live, { type: "endTurn" });
+    sc.seen = 0;
+  } while (performance.now() < until);
+  if (performance.now() - sc.start >= OTHERS_NOTE_MS) say(OTHERS_NOTE, 1000);
+}
+
+/** They have all moved: the game goes on from where they left it, and what they did is shown. */
+function othersDone(sc: OthersScreen): void {
+  const { actions, events, sawBefore } = sc;
+  state = sc.live;
+  screenState = sc.back;
+  if (status === OTHERS_NOTE) status = undefined;
   // The last civ's end of turn and the start of ours (a goto may have reached a village).
   for (const ev of lastTurnEvents) if (concernsUs(ev) || (ev.kind === "hut" && ev.player === 0)) events.push(ev);
   actions.push(...lastActions);
@@ -3909,6 +3940,7 @@ addEventListener("keydown", (e) => {
     case "reign": reignKey(e, sc); break;
     case "diplomacy": diplomacyKey(e, sc); break;
     case "beat": e.preventDefault(); endBeat(sc); break;
+    case "others": e.preventDefault(); break;
     case "end": screenState = { kind: "title" }; break;
     case "spaceship":
       if (e.code === "Escape" || e.code === "F6") screenState = { kind: "map" };
@@ -4137,6 +4169,7 @@ function mouseDown(e: MouseEvent): void {
       return;
     }
     case "beat": endBeat(sc); return;
+    case "others": return;
     case "wonderShow": skipWonderShow(sc); return;
     case "triumph": skipTriumph(sc); return;
     case "sinking": skipSinking(sc); return;
@@ -4326,7 +4359,7 @@ function draw(sc: Screen): void {
       renderer.menu({ ...m, selected: setupSelection });
       break;
     }
-    case "map": case "beat": case "triumph": case "sinking": case "founding": case "sack": view.message = status; renderer.main(mapState(), view); break;
+    case "map": case "beat": case "others": case "triumph": case "sinking": case "founding": case "sack": view.message = status; renderer.main(mapState(), view); break;
     case "report": renderer.report(sc.page); break;
     case "worldMap": renderer.worldMap(state); break;
     case "city": sc.view.message = status; renderer.city(state, sc.view); break;
@@ -4410,6 +4443,7 @@ function frame(t: number): void {
   if (view.callout && t > calloutUntil) view.callout = undefined;
   if (view.plan && view.plan.unit !== state.activeUnit) view.plan = undefined;
   if (screenState.kind === "beat" && t >= screenState.until) endBeat(screenState);
+  if (screenState.kind === "others") stepOthers(screenState);
   if (view.revealed) view.revealed.at = Math.min(1, (t - revealStart) / REVEAL_MS);
   if (screenState.kind === "wonderShow") stepWonderShow(screenState, t);
   if (screenState.kind === "triumph") stepTriumph(screenState, t);
@@ -4452,6 +4486,7 @@ function frame(t: number): void {
     autoEndAt ??= t + AUTO_END_MS;
     if (t >= autoEndAt) { autoEndAt = null; endTurn(); }
   } else autoEndAt = null;
+  if (screenState.kind === "others") view.blink = false; // no "Press Enter" while they move
   renderer.beginFrame();
   draw(screenState);
   frames++;
@@ -4460,4 +4495,4 @@ function frame(t: number): void {
 }
 requestAnimationFrame(frame);
 
-(window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return log; }, get moving() { return view.moving; }, get battle() { return view.battle; }, get view() { return view; }, get screen() { return screenState.kind; }, get menu() { return screenState.kind === "menu" ? screenState.menu : undefined; }, dispatch, atWar, DIFFICULTIES };
+(window as unknown as { civ: unknown }).civ = { get state() { return state; }, get log() { return screenState.kind === "others" ? log.slice(0, -1) : log; }, get moving() { return view.moving; }, get battle() { return view.battle; }, get view() { return view; }, get screen() { return screenState.kind; }, get menu() { return screenState.kind === "menu" ? screenState.menu : undefined; }, dispatch, atWar, DIFFICULTIES };

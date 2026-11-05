@@ -160,6 +160,14 @@ Map clicks, scrolling, panel, zoom, square size, other civs' turns, coast, fog, 
   in the first beat, its second in the second), and a band's fights after the first there go quicker (`WATCH_PACE.raid`,
   `RAID_ANNOUNCE_MS`, `RAID_OUTCOME_MS`; the outcome before them shortened too). A civilization's army at war with us still
   moves one unit at a time, as asked for below.
+  The other civilizations move a slice of each frame (asked for 2026-11-05 with ten civilizations, a large world's
+  late rounds taking over a second, the page frozen): `passTurn` leaves a `kind: "others"` screen, `stepOthers` moves as
+  many as fit `OTHERS_SLICE_MS` (12), at least one, on the live game, while `state` holds still as our turn left it
+  (`stillOf`, a copy of all but the map, which it shares: `FogLifter` knows a world by its map, and seen from a computer
+  player's turn the map would be that player's fog), keys and clicks going unanswered. `othersDone` takes the game back and
+  goes on as before; only frames pass between them, so a round comes out as at one go. A wait past `OTHERS_NOTE_MS` (400)
+  says "Other civilizations are moving..." in the panel. Saving meanwhile: `passTurn` autosaves first, and `window.civ.log`
+  answers without the End Turn while they move, so the phone's save on leaving the screen finds nothing new.
   The other civilizations' turns (asked for 2026-10-22: enemies "come as a surprise, too swift"):
   `watchTurn` (`renderer-api/src/watch.ts`) plans the playback from their actions and the squares we
   see (`seen`, the web app's `watchOthers`: squares we see now, so a unit shown stays in sight or is seen
