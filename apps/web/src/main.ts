@@ -183,6 +183,7 @@ import {
   type PanelSpot,
   setupCards,
   setupChoose,
+  homeTrip,
   planMove,
   type MovePlan,
   setupMenu,
@@ -1795,14 +1796,14 @@ function raiseTribeCity(id: number, then: () => void): void {
 }
 
 /** Send a unit to a square on its route there (`goto`). */
-function sendTo(unit: number, tx: number, ty: number): void {
+function sendTo(unit: number, tx: number, ty: number, words = "Going to..."): void {
   const before = state.activeUnit;
   const mark = lastActions.length;
   if (dispatch({ type: "goto", unit, x: tx, y: ty })) {
     // A caravan may arrive at once and open its route (`callsAt`).
     const route = lastTurnEvents.find((e) => e.kind === "tradeRoute");
     if (route) { say(eventMessage(route) ?? "", 4000); lastTurnEvents.length = 0; }
-    else say("Going to...", 1500);
+    else say(words, 1500);
   }
   afterUnitOrder(before, mark);
   // A diplomat that reaches the gate of the foreign city it was sent to asks what to do there.
@@ -2276,6 +2277,10 @@ function unitOrders(unit: number): MenuEntry[] {
   if (whyNoCamp(state, u) === null) items.push([`${type.domain === "sea" ? "Rest and repair" : "Camp and heal"} (${u.hp}/${maxHp(state, u.type)})`, "K", () => dispatch({ type: "camp", unit })]);
   const here = cityAt(state, u.x, u.y);
   if (here && here.owner === u.owner && u.homeCity !== here.id) items.push([`Home city: ${here.name}`, "H", () => setHome(unit)]);
+  // Back to the city that supports it (asked for 2026-11-05); with no way there it stands faded and says so, as Found city does.
+  const trip = homeTrip(state, u);
+  if (trip?.turns === null) items.push([`Go home to ${trip.city.name}: no way there`, "Shift+H", () => {}, true]);
+  else if (trip) items.push([`Go home to ${trip.city.name} (${trip.turns === 1 ? "this turn" : `${trip.turns} turns`})`, "Shift+H", () => goHome(unit)]);
   items.push(["Wait", "W", () => dispatch({ type: "wait", unit })]);
   items.push(["Skip turn", "Space", () => dispatch({ type: "skip", unit })]);
   items.push(["Disband", "Shift+D", () => confirmDisband(unit), false, true]);
@@ -2302,6 +2307,20 @@ function setHome(unit: number): void {
   const u = unitById(state, unit);
   const c = u && cityAt(state, u.x, u.y);
   if (u && c && dispatch({ type: "home", unit })) say(`${unitType(u.type).name} now supported by ${c.name}`);
+}
+
+/** Back to the city that supports the unit (Shift+H, the orders' Go home): a goto as any, walked on turn by turn. */
+function goHome(unit: number): void {
+  const u = unitById(state, unit);
+  if (!u) return;
+  const trip = homeTrip(state, u);
+  if (!trip) { say(u.homeCity === null ? "It has no home city" : "Already home"); return; }
+  if (trip.turns === null) {
+    view.callout = { x: u.x, y: u.y, text: "No way there." };
+    calloutUntil = performance.now() + CALLOUT_MS;
+    return;
+  }
+  sendTo(unit, trip.city.x, trip.city.y, `Going home to ${trip.city.name}`);
 }
 
 function openActionMenu(unit: number): void {
@@ -3575,7 +3594,9 @@ function mapKey(e: KeyboardEvent): void {
     }
     case "KeyB": if (active !== null) foundWithName(active); break;
     case "KeyD": if (e.shiftKey && active !== null) confirmDisband(active); break;
-    case "KeyH": if (active !== null) setHome(active); break;
+    case "KeyH":
+      if (active !== null) { if (e.shiftKey) goHome(active); else setHome(active); }
+      break;
     case "KeyC": followActive(true); break;
     case "Equal": case "NumpadAdd": zoomBy(1); break;
     case "Minus": case "NumpadSubtract": zoomBy(-1); break;

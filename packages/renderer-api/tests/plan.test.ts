@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createUnit, foundCity, getTile, newGame, setRelation, Terrain, type GameState } from "@civ/core";
-import { moveRefusal, planMove, routeTurns, type MovePlan } from "../src/index.js";
+import { applyCommand, createUnit, foundCity, getTile, newGame, setRelation, Terrain, type GameState } from "@civ/core";
+import { homeTrip, moveRefusal, planMove, routeTurns, type MovePlan } from "../src/index.js";
 
 /** A strip of open grassland east of a militia, with mountains to its west. */
 function field(): { s: GameState; id: number; x: number; y: number } {
@@ -73,5 +73,46 @@ describe("planned moves", () => {
     // The sea, for a land unit: no route, so the click is not the unit's.
     getTile(s.map, x + 8, y + 3)!.terrain = Terrain.Ocean;
     expect(planMove(s, id, x + 8, y + 3)).toBeNull();
+  });
+});
+
+describe("the way home", () => {
+  it("names the unit's home city and the turns there, a goto's way, and nothing once it stands in it", () => {
+    const { s, id, x, y } = field();
+    const u = s.units.find((o) => o.id === id)!;
+    const home = foundCity(s, 0, x + 6, y);
+    u.homeCity = home.id;
+    expect(homeTrip(s, u)).toEqual({ city: home, turns: 6 });
+    u.x = x + 5;
+    expect(homeTrip(s, u)!.turns).toBe(1);
+    u.movesLeft = 0; // spent: the trip starts next turn
+    expect(homeTrip(s, u)!.turns).toBe(2);
+    u.x = x + 6;
+    expect(homeTrip(s, u)).toBeNull();
+    // Walked: a goto gets it there, however many turns it takes.
+    u.x = x;
+    u.movesLeft = 3;
+    expect(applyCommand(s, { type: "goto", unit: id, x: home.x, y: home.y }).ok).toBe(true);
+    expect([u.x, u.order.kind]).toEqual([x + 1, "goto"]);
+  });
+
+  it("is none for a unit with no home city, or one no longer its owner's", () => {
+    const { s, id, x, y } = field();
+    const u = s.units.find((o) => o.id === id)!;
+    expect(homeTrip(s, u)).toBeNull();
+    u.homeCity = foundCity(s, 1, x + 2, y).id;
+    expect(homeTrip(s, u)).toBeNull();
+  });
+
+  it("says when no route leads there: walled off from it, or over the sea", () => {
+    const { s, id, x, y } = field();
+    const u = s.units.find((o) => o.id === id)!;
+    const home = foundCity(s, 0, x - 2, y);
+    u.homeCity = home.id;
+    expect(homeTrip(s, u)).toEqual({ city: home, turns: null }); // the mountains between
+    getTile(s.map, x + 3, y)!.terrain = Terrain.Ocean;
+    u.homeCity = foundCity(s, 0, x + 3, y + 3).id;
+    const ship = createUnit(s, "trireme", 0, x + 3, y, u.homeCity);
+    expect(homeTrip(s, ship)).toEqual({ city: expect.objectContaining({ id: u.homeCity }), turns: null }); // a city inland
   });
 });

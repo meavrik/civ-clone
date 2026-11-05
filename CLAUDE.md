@@ -1079,6 +1079,10 @@ Never ship the original's sprites, palette art, fonts or text.
   city (B says which city, beside the settlers); a job that changes the land says so ("Plant forest", "Clear to
   plains": mining grassland, plains, swamp or jungle grows forest, as in the original; nothing mines forest,
   tundra or arctic, so no Mine there).
+  A unit away from its home city can go back (asked for 2026-11-05: "add go back to home town option to unit actions"):
+  "Go home to Rome (3 turns)" after Home city in its orders, or Shift+H (renderer-api `homeTrip`, the web app's `goHome`), a
+  `goto` as any, walked on turn by turn, so no save version. With no route it stands faded, "Go home to Rome: no way there"
+  (Shift+H says "No way there." beside the unit); a unit with no home city, or standing in it, has no such order.
   Width: the retro main screen draws as wide as its surface (`viewAcross`: the panel and bar as ever, the
   map's viewport taking the rest), menus, prompts and the status line centre on the surface they are
   drawn on, and the menu hit tests take the width (default 320); the web game draws 320 wide, the mobile

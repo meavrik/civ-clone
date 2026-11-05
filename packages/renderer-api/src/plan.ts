@@ -1,4 +1,4 @@
-import { attackOdds, bestDefender, callsAt, canTradeRoute, checkMove, cityAt, cityById, findPath, moveAllowance, routeBonus, Terrain, unitAt, unitById, unitType, wrapX, type GameState, type Unit } from "@civ/core";
+import { attackOdds, bestDefender, callsAt, canTradeRoute, checkMove, cityAt, cityById, findPath, moveAllowance, routeBonus, Terrain, unitAt, unitById, unitType, wrapX, type City, type GameState, type Unit } from "@civ/core";
 
 /**
  * A move that waits for a second right-click on its square: what the map shows first, so that no single
@@ -38,6 +38,20 @@ export function routeTurns(state: GameState, u: Unit, route: readonly [number, n
     at = { x: wrapX(state.map, x), y };
   }
   return turns;
+}
+
+/** The way back to the city that supports a unit: the turns it takes, null where no route leads there. */
+export interface HomeTrip {
+  city: City;
+  turns: number | null;
+}
+
+/** Unit `u`'s way home (the orders' Go home): null with no home city of its owner's to go to, or standing in it already. */
+export function homeTrip(state: GameState, u: Unit): HomeTrip | null {
+  const city = u.homeCity === null ? undefined : cityById(state, u.homeCity);
+  if (!city || city.owner !== u.owner || (city.x === u.x && city.y === u.y)) return null;
+  const route = findPath(state, u, city.x, city.y);
+  return { city, turns: route && routeTurns(state, u, route) };
 }
 
 /** What caravan `u` would open by calling at the foreign city on (x, y), for the note ("Trade route +34"); null where it would open nothing. */
