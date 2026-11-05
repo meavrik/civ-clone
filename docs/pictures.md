@@ -30,7 +30,11 @@ How the user's sheets are cut and laid: tile improvements, units, cities, resour
   wears the mark of its job on the same token in the same corner (asked for the same day: "also change settler icons
   when working on something. maybe also same style silluette"; `drawJobMark`, `JOB_MARKS`: a receding road, rails on
   sleepers, a drop over furrows, a pickaxe, battlements over a gate, a broom, and for a unit camped to heal a heart;
-  its picture cut round the disc, `markHoles`), where a black square held the panel's icon of the job before; the shade out of sight shades the picture whole, as a city's; fields let the square's
+  its picture cut round the disc, `markHoles`), where a black square held the panel's icon of the job before; the same
+  tokens are the icons of what is built on a square (`road`, `railroad`, `irrigate`, `mine`, `fortress`, `clean`, and `fishery`,
+  `rig`, `harbour`, an anchor, which borrowed wheat, a shield and a house before; `icons.art.ts`, line for line as `marks.ts` draws
+  them, `square-card.test.ts` holds them to it; asked for 2026-11-05 of the square's window: "improvements icons - change to the
+  tiles silluete icon - better"), so the panels, orders and tooltips show them too; the shade out of sight shades the picture whole, as a city's; fields let the square's
   own water show (`waterHoles`: a river through them, a shore). The villages are laid so too. The logging camp is not
   cut (no work for forests in the rules). The code-drawn fields (`drawIrrigation`, `fieldLayout`: plots in rows either
   side of a canal, running on into irrigated neighbours), mine, fishery (`fishery.ts`) and rig (`rig.ts`) stay for

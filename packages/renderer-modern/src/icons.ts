@@ -162,6 +162,9 @@ const DRAW: Record<IconName, (ctx: Context2D) => void> = {
   river: (c) => {
     for (const y of [5, 11]) { c.beginPath(); c.moveTo(1.5, y); c.quadraticCurveTo(4.5, y - 3, 8, y); c.quadraticCurveTo(11.5, y + 3, 14.5, y); c.strokeStyle = ICON.water; c.lineWidth = 2; c.lineCap = "round"; c.stroke(); }
   },
+  fishery: (c) => DRAW.food(c),
+  rig: (c) => DRAW.shield(c),
+  harbour: (c) => DRAW.house(c),
   road: (c) => { poly(c, [[6, 2], [10, 2], [14.5, 15], [1.5, 15]], ICON.road); for (const y of [3.5, 7.5, 11.5]) box(c, 7.4, y, 1.4, 2.4, ICON.gold); },
   railroad: (c) => {
     for (const y of [3, 7, 11, 15]) line(c, [[2.5, y - 1], [13.5, y - 1]], ICON.wood, 1.8);

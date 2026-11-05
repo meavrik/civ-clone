@@ -7,7 +7,7 @@ import type { Tile, WorkKind } from "@civ/core";
 export const ICONS = [
   "people", "calendar", "purse", "coin", "gem", "bulb", "crown", "hourglass",
   "food", "shield", "trade", "boot", "tower", "heart", "star", "house",
-  "river", "road", "railroad", "irrigate", "mine", "fortress", "pollution", "clean", "hut", "city", "swords", "culture",
+  "river", "road", "railroad", "irrigate", "mine", "fortress", "fishery", "rig", "harbour", "pollution", "clean", "hut", "city", "swords", "culture",
   "happy", "unhappy", "regular", "veteran", "hardened", "elite", "label", "borders", "shell", "banknote",
 ] as const;
 export type IconName = (typeof ICONS)[number];

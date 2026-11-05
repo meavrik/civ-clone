@@ -54,7 +54,7 @@ export function roadNote(ids: string[]): string | null {
 /** What the build menu says of resources at sea an oil rig would bring into use (since save version 55): "Our Oil lies unused at sea: a Fishing Boat builds a rig". */
 export function rigNote(ids: string[]): string | null {
   if (!ids.length) return null;
-  return `{shield} Our ${ids.join(" and ")} ${ids.length === 1 ? "lies" : "lie"} unused at sea: a Fishing Boat builds a rig`;
+  return `{rig} Our ${ids.join(" and ")} ${ids.length === 1 ? "lies" : "lie"} unused at sea: a Fishing Boat builds a rig`;
 }
 
 /**

@@ -29,10 +29,10 @@ Map clicks, scrolling, panel, zoom, square size, other civs' turns, coast, fog, 
   2026-10-23: "more stylish, add the terrain image, more details"). Since 2026-11-02 a card (asked for: "too messy.
   arrange with clear sections. clean design", then of a table of labels and lines, "still not good. rethink this modal
   window layout"; renderer-api `square-info.ts`: `SquareInfo.card`, a `SquareCard`, `MenuState.card`; retro
-  `square-card.ts`, `drawSquareCard`, laid by widgets.ts in place of a body): beside the picture the yields in large
-  figures, a nought faded, the moves and defence ("{boot} 1 move  {tower} +50% defence"), whose it is (`owner`: "Rome,
+  `square-card.ts`, `drawSquareCard`, laid by widgets.ts in place of a body): beside the picture the yields in the
+  words' size (large figures until 2026-11-05, "huge"), a nought faded, the moves and defence ("{boot} 1 move  {tower} +50% defence"), whose it is (`owner`: "Rome,
   ours, size 4", "Our land, worked by Rome", "Land of Tyre") and a few words on the terrain (`TERRAIN_TEXT`, our own)
-  in dim ink; under them one parchment panel, as the Building Completed window's, of facts (`SquareFact`: an icon or
+  in dim ink; under them one parchment panel, as the Building Completed window's, of facts (`SquareFact`: an icon, what is built on the square its map token (below), or
   a unit's owner's shield, a name in black, a short note in a column of its own, grey, green for good news, red for a
   warning) in groups, each under a small brown heading in small capitals with a rule running on, each only when it has
   something to say: Here (the resource, what it adds or the units that need it, the road or rig it waits for; river,

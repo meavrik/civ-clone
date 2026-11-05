@@ -182,7 +182,7 @@ export function terrainInfo(state: GameState, x: number, y: number): SquareInfo 
     // A strategic resource serves its civilization only with a road on it (save version 43; a river serves as one since
     // 48), or at sea an oil rig (55).
     if (strategic && !resourceRoaded(state, t)) here.push(sea
-      ? { icon: "shield", name: "No oil rig", note: `${sp.name} unused until a Fishing Boat builds one`, tone: "bad" }
+      ? { icon: "rig", name: "No oil rig", note: `${sp.name} unused until a Fishing Boat builds one`, tone: "bad" }
       : { icon: "road", name: "No road", note: `${sp.name} unused until one is built`, tone: "bad" });
   }
   if (t.grassShield && t.terrain === Terrain.Grassland) here.push({ icon: "shield", name: "Shield", note: "+1 {shield}" });
@@ -201,8 +201,8 @@ export function terrainInfo(state: GameState, x: number, y: number): SquareInfo 
   if (t.mine && r.mine?.shields) here.push({ icon: "mine", name: "Mine", note: `+${r.mine.shields} {shield}` });
   if (t.fortress) here.push({ icon: "fortress", name: "Fortress", note: "Doubles defence" });
   // A fishery (since save version 53) adds what its special's `fishery` says (`fisheryYield`); an oil rig (since 55) its own shields.
-  if (t.fishery && sp?.fishery) here.push({ icon: "food", name: "Fishery", note: yieldGain(fisheryYield(state, sp)) });
-  if (t.rig) here.push({ icon: "shield", name: "Oil rig", note: yieldGain({ shields: RESOURCE_BY_ID[t.deposit ?? ""]?.offshore?.rig.shields ?? 0 }) });
+  if (t.fishery && sp?.fishery) here.push({ icon: "fishery", name: "Fishery", note: yieldGain(fisheryYield(state, sp)) });
+  if (t.rig) here.push({ icon: "rig", name: "Oil rig", note: yieldGain({ shields: RESOURCE_BY_ID[t.deposit ?? ""]?.offshore?.rig.shields ?? 0 }) });
   if (t.hut) here.push({ icon: "hut", name: "Village", note: "Visit it with a unit", tone: "quiet" });
   if (t.pollution) here.push({ icon: "pollution", name: "Pollution", note: "Output halved", tone: "bad" });
   if (roadOnly(state, t) && !t.road) here.push({ icon: "boot", name: "Steep", note: `Only ${climbers(state)} without a road`, tone: "bad" });
@@ -275,10 +275,10 @@ export function terrainInfo(state: GameState, x: number, y: number): SquareInfo 
     if (sp?.fishery && !t.fishery) {
       const f = fisheryYield(state, sp);
       const gain = specialLocked(state, t, sp) ? { food: (sp.food ?? 0) + f.food, shields: (sp.shields ?? 0) + f.shields, trade: (sp.trade ?? 0) + f.trade } : f;
-      improve.push({ icon: "food", name: "Fishing Boat", note: yieldGain(gain) });
+      improve.push({ icon: "fishery", name: "Fishing Boat", note: yieldGain(gain) });
     }
     const harbour = building("harbour");
-    if (!state.richSea && !worker?.buildings.includes("harbour")) improve.push({ icon: "house", name: harbour.name, note: yieldGain({ food: harbour.oceanFood ?? 0, trade: harbour.oceanTrade ?? 0 }) });
+    if (!state.richSea && !worker?.buildings.includes("harbour")) improve.push({ icon: "harbour", name: harbour.name, note: yieldGain({ food: harbour.oceanFood ?? 0, trade: harbour.oceanTrade ?? 0 }) });
   }
 
   const groups = [

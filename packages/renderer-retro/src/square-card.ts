@@ -1,5 +1,5 @@
 import { ownerLine, type SquareCard, type SquareFact } from "@civ/renderer-api";
-import { drawSmallCaps, drawText, drawTextLarge, FONT_HEIGHT, smallCapsWidth, SMALL_CAPS_HEIGHT, textWidth, textWidthLarge } from "./font.js";
+import { drawSmallCaps, drawText, FONT_HEIGHT, smallCapsWidth, SMALL_CAPS_HEIGHT, textWidth } from "./font.js";
 import { drawIcon, drawIconLine, ICON, iconLineWidth, wrapIcons } from "./icons.js";
 import { drawShield } from "./overlays.js";
 import { shade, slotColor } from "./palette.js";
@@ -10,8 +10,7 @@ import type { Surface } from "./surface.js";
 /**
  * The square's window's card (`MenuState.card`, `terrainInfo`; redone 2026-11-02, asked for: "still not good. rethink
  * this modal window layout", after a labelled table): under the title strip, the square as the map draws it in a sunk
- * frame, beside it what it yields in large figures, a line of its moves and defence and a few words on the terrain in
- * dim ink; under that one parchment panel, as the Building Completed window's, holding the facts in groups, each group
+ * frame, beside it what it yields, a line of its moves and defence and a few words on the terrain in dim ink; under that one parchment panel, as the Building Completed window's, holding the facts in groups, each group
  * under a small heading in brown capitals with a rule running on from it, each fact a line of its own: its icon (a
  * unit's owner's shield), its name in black, and in a column of their own what it means, in grey, green for good news,
  * red for a warning. Laid at the font's size on every screen (the phone's large words would not fit it).
@@ -24,8 +23,8 @@ const FRAME = CARD_PIC + 4;
 const PAD = 6;
 /** Where the yields and the lines beside the picture start, from the card's left. */
 const STATS_X = PAD + FRAME + 7;
-/** The yields' row (large figures), then the moves' line and the terrain's words under it. */
-const YIELD_H = 14;
+/** The yields' row, then the moves' line and the terrain's words under it. */
+const YIELD_H = 10;
 const LINE = FONT_HEIGHT;
 /** The panel: its margin from the card's sides, its padding inside, a fact's row, a group's heading and the gap after a group. */
 const PANEL_IN = 5;
@@ -56,11 +55,11 @@ function toneInk(tone: SquareFact["tone"]): number {
 }
 
 const yieldCells = (card: SquareCard): [Parameters<typeof drawIcon>[1], number][] => [["food", card.yields.food], ["shield", card.yields.shields], ["trade", card.yields.trade]];
-const YIELD_STEP = ICON + 3;
-const YIELD_GAP = 10;
-/** The yields' row: each its icon and its figure, large. */
+const YIELD_STEP = ICON + 2;
+const YIELD_GAP = 9;
+/** The yields' row: each its icon and its figure. */
 function yieldsWidth(card: SquareCard): number {
-  return yieldCells(card).reduce((w, [, n], i) => w + YIELD_STEP + textWidthLarge(String(n)) + (i ? YIELD_GAP : 0), 0);
+  return yieldCells(card).reduce((w, [, n], i) => w + YIELD_STEP + textWidth(String(n)) + (i ? YIELD_GAP : 0), 0);
 }
 
 function movesLine(card: SquareCard): string {
@@ -131,14 +130,14 @@ export function drawSquareCard(s: Surface, card: SquareCard, x: number, y: numbe
   if (square) square(s, fx + 2, fy + 2);
   else s.rect(fx + 2, fy + 2, CARD_PIC, CARD_PIC, INK);
 
-  // Beside it: the yields large, each icon level with the middle of its figure; the moves and defence, whose it is, and
-  // the terrain's words in dim ink.
+  // Beside it: the yields, the moves and defence, whose it is, and the terrain's words in dim ink.
   let cx = x + STATS_X;
   yieldCells(card).forEach(([icon, n], i) => {
     if (i) cx += YIELD_GAP;
-    drawIcon(s, icon, cx, y + 3);
+    drawIcon(s, icon, cx, y);
     // A yield of nothing fades, so the ones that count stand out.
-    cx = drawTextLarge(s, cx + YIELD_STEP, y + 1, String(n), n ? INK : QUIET_INK());
+    drawText(s, cx + YIELD_STEP, y, String(n), n ? INK : QUIET_INK());
+    cx += YIELD_STEP + textWidth(String(n));
   });
   let ly = y + YIELD_H;
   drawIconLine(s, x + STATS_X, ly, movesLine(card), INK);
