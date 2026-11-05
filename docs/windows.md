@@ -40,9 +40,11 @@ Tax rates, windows and buttons, title and opening, setup cards. Moved word for w
   screen; keep modal text to a line or two. A list longer than the screen (what to build late in the game) scrolls:
   `MenuState.top` kept by `keepInView`, `Renderer.menuRows` and `menuScrollAt` (retro draws a bar with
   arrows); arrows, PgUp/PgDn, Home/End, the wheel and clicks on the bar move through it. While rows lie below those on view
-  a lit button with a white arrow pointing down stands in the middle of the window's foot (asked for 2026-11-05: "show arrow
-  indication in the bottom when have more options in the list - not clear engouh now that can scroll down"; retro
-  `drawMoreArrow`, `listFoot`, `MORE_ROOM`): a list that scrolls keeps its foot 4 pixels deeper for it, the build menu from
+  a small dark chevron pointing down stands in the middle of the window's foot, bobbing down and back up (asked for 2026-11-05:
+  "show arrow indication in the bottom when have more options in the list - not clear engouh now that can scroll down", then
+  of the lit button with a white arrow it was at first, "too bulcky - subtle and add small cycle down-up animation"; retro
+  `drawMoreArrow`, `listFoot`, `MORE_ROOM`; renderer-api `MORE_BOB`, `moreArrowDrop`, 3 fine pixels over 1.2 s, read off
+  `MenuState.clock`, which the web app sets each frame): the same size on the phone. A list that scrolls keeps its foot 4 pixels deeper for it, the build menu from
   the room its rows leave so it loses none (`keep`; the phone's picture rows close up from 19 to 18 for that), any other
   list giving up a row. All of the foot answers a click (`menuScrollAt`), and a click on the bar or the arrow pages the rows
   themselves (`scrollRows` in renderer-api, the phone's drag too; it had moved the choice, which on a first click stayed on

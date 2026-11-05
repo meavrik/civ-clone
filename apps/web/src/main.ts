@@ -4376,6 +4376,7 @@ function draw(sc: Screen): void {
       draw(sc.under);
       view.menuOpen = undefined;
       if (sc.bar === undefined && !sc.sub) sc.menu.enter = enterOf(sc.menu);
+      sc.menu.clock = frameNow;
       // The square's window over the map (or a city-state's) stands by its square, pointing at it, wherever the camera has it.
       const pointTo = sc.menu.square ?? sc.pointTo;
       if (pointTo && sc.under.kind === "map") {

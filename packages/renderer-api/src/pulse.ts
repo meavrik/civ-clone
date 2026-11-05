@@ -11,6 +11,19 @@ export const ACTIVE_BLINK = { onMs: 380, fadeMs: 220, offMs: 180 };
 /** How faint the gold glow round the unit in play is, 0..1 (`MainScreenView.glow`). */
 export const ACTIVE_GLOW = 0.5;
 
+/**
+ * The arrow at the foot of a long list bobs down and back up (asked for 2026-11-05: "arrow is too bulcky - subtle and add
+ * small cycle down-up animation"), the movement catching the eye now that it is small: `fine` fine pixels down at the
+ * bottom of a cycle of `ms`. The one place to tune it.
+ */
+export const MORE_BOB = { ms: 1200, fine: 3 };
+
+/** How many fine pixels below its place the arrow stands at time `ms`: 0 at the top of its cycle, easing down and back. */
+export function moreArrowDrop(ms: number): number {
+  const at = (Math.max(0, ms) % MORE_BOB.ms) / MORE_BOB.ms;
+  return Math.round((0.5 - 0.5 * Math.cos(2 * Math.PI * at)) * MORE_BOB.fine);
+}
+
 /** How much of the unit in play shows `ms` after it came into play (or last acted), 0..1: whole then, gone half a blink on. */
 export function activeOpacity(ms: number): number {
   const { onMs, fadeMs, offMs } = ACTIVE_BLINK;

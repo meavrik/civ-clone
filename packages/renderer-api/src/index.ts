@@ -342,6 +342,8 @@ export interface MenuState {
   portrait?: string;
   /** How far a window has grown on opening, 0..1 (`WINDOW_ENTER_MS`); absent or 1, it stands whole. Dropdowns ignore it. */
   enter?: number | undefined;
+  /** The time, in ms, for what moves on the window as it stands (the arrow at a long list's foot, `moreArrowDrop`); absent, it rests. */
+  clock?: number;
   /** Rows that cannot be picked now (Revolution! with no government to turn to): drawn faded, never hit. */
   disabled?: number[];
   /** Rows that undo something for good (a unit's Disband): drawn in warning red, as a row or a button. Modern ignores it. */

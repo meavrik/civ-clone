@@ -193,7 +193,7 @@ export function drawBox(s: Surface, x: number, y: number, w: number, h: number, 
     }
 }
 
-import { buildingArt, keepInView, menuButtons, MODAL_MAX_SHARE, unitArt, type MenuPicture, type MenuState, type TextInputState } from "@civ/renderer-api";
+import { buildingArt, keepInView, menuButtons, MODAL_MAX_SHARE, MORE_BOB, moreArrowDrop, unitArt, type MenuPicture, type MenuState, type TextInputState } from "@civ/renderer-api";
 
 export const MENU_ROW = FONT_HEIGHT + 1;
 /** A titled window is at least this wide; its text wraps rather than widen it past MODAL_MAX_SHARE of the screen. */
@@ -256,9 +256,9 @@ interface MenuLayout {
   cardY: number;
 }
 
-/** The arrow at the foot of a list with more rows below (`drawMoreArrow`): how much a scrolling list's foot deepens for it, and its button's width at the font's size. */
+/** The arrow at the foot of a list with more rows below (`drawMoreArrow`): how much a scrolling list's foot deepens for it, and how many fine pixels tall it is. */
 const MORE_ROOM = 4;
-const MORE_W = 44;
+const MORE_H = 5;
 
 /** The gap between a tabbed list's tabs, and under them before the rows. */
 const TAB_GAP = 2;
@@ -478,18 +478,20 @@ function listFoot(l: MenuLayout): { x: number; y: number; w: number; h: number }
 
 /**
  * The arrow at a list's foot while it has more rows below those on view (asked for 2026-11-05: the bar's small arrow left
- * it "not clear enough that can scroll down"): a lit button in the middle of the foot with a triangle pointing down, as
- * tall as the button allows.
+ * it "not clear enough that can scroll down", then of a lit button with a triangle on it, "too bulcky - subtle and add small
+ * cycle down-up animation"): a small dark chevron on the stone in the middle of the foot, two fine pixels thick, bobbing
+ * down and up (`moreArrowDrop`, read off `clock`); the same size on the phone, where all of the foot answers a finger.
  */
-function drawMoreArrow(s: Surface, l: MenuLayout): void {
+function drawMoreArrow(s: Surface, l: MenuLayout, clock = 0): void {
   const foot = listFoot(l);
-  const w = MORE_W * l.size.text;
-  const h = foot.h - 2;
-  const x = foot.x + Math.floor((foot.w - w) / 2);
-  const ink = buttonFace(s, x, foot.y, w, h, "lit");
-  const steps = h - 2;
-  const mid = x + Math.floor(w / 2);
-  for (let k = 0; k < steps; k++) s.hline(mid - (steps - 1 - k), foot.y + 1 + k, 2 * (steps - 1 - k) + 1, ink);
+  const k = s.k;
+  const mid = Math.floor((foot.x + foot.w / 2) * k);
+  const top = foot.y * k + Math.floor((foot.h * k - MORE_H - MORE_BOB.fine) / 2) + moreArrowDrop(clock);
+  for (let i = 0; i < MORE_H; i++) {
+    const out = MORE_H - 1 - i;
+    s.frect(mid - out - 2, top + i, 2, 1, INK);
+    s.frect(mid + out, top + i, 2, 1, INK);
+  }
 }
 
 /**
@@ -659,7 +661,7 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     if (r) write((info ? info.x - 2 : x + 4 + rowW - 6) - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("town", 7) : shade("azure", 7)) : danger ? BAD : DIM);
   });
   if (scrolls) drawScrollBar(s, m, l);
-  if (scrolls && top + rows < m.items.length) drawMoreArrow(s, l);
+  if (scrolls && top + rows < m.items.length) drawMoreArrow(s, l, m.clock);
   // The tip of the row whose info shows, over the window, pointing at its mark.
   const shown = m.infoShown !== undefined ? m.info?.[m.infoShown] : null;
   const at = shown ? infoMarkRect(l, m, m.infoShown!) : null;
