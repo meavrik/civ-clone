@@ -4,9 +4,8 @@ import { drawText, FONT_HEIGHT, wrapText } from "../font.js";
 import { drawIcon, ICON } from "../icons.js";
 import { shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { dimScreen, drawEntering, hideArtUnder } from "../widgets.js";
+import { dimScreen, drawEntering, drawPortraitSky, hideArtUnder } from "../widgets.js";
 import { drawModalFrame, drawModalName, drawModalPanel, drawModalTitle, drawWindowButton, fitText } from "./newtech.js";
-import { drawPortraitSky } from "./setup.js";
 
 /**
  * The window a new game opens with over the map (asked for 2026-10-26, in place of a plain message with

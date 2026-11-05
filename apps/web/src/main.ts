@@ -138,6 +138,7 @@ import {
   researchOutlook,
   techPictures,
   DIFFICULTIES,
+  LEADER_PORTRAITS,
   leaderLine,
   leaderTitle,
   AUDIENCE_CHOICES,
@@ -2578,8 +2579,8 @@ type Respond = (words: string, goOn: (() => void) | null, asks?: LeaderAsks) => 
 
 /**
  * A leader's answer to what we said (asked for 2026-11-05: "when leader answer - show it on a new modal on top of the
- * original, with option to close all"): their words in a window of their own over the audience, which stands darkened
- * under it as it was. Continue (Enter, Esc, the close box, a click off it) runs `goOn`, back to the talk; Close all runs
+ * original, with option to close all", then "show it with the leader image"): their portrait and their words in a window
+ * of their own over the audience, which stands darkened under it as it was. Continue (Enter, Esc, the close box, a click off it) runs `goOn`, back to the talk; Close all runs
  * `done`, leaving the talk at once with no Farewell to find. An answer that `asks` something has its buttons in place of
  * Continue; `goOn` null means the talk is over: one button, Farewell. The lists a leader opens ("Against whom...", "How
  * much?") are no answers: they stay in the audience window, which holds their choices.
@@ -2591,7 +2592,7 @@ function leaderAnswer(player: number, words: string, goOn: (() => void) | null, 
   screenState = {
     kind: "menu",
     under,
-    menu: { title: leaderTitle(state, player), body: [words], items, selected: 0, close: true, overWindow: true, ...(asks?.danger ? { danger: asks.danger } : {}) },
+    menu: { title: leaderTitle(state, player), body: [words], items, selected: 0, close: true, overWindow: true, portrait: LEADER_PORTRAITS[civ(state.players[player]!.civ).id] ?? "king", ...(asks?.danger ? { danger: asks.danger } : {}) },
     onPick: (i) => {
       if (i < yes.length) asks!.onPick(i);
       else if (i === items.length - 1) done();

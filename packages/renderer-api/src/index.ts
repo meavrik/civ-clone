@@ -334,6 +334,12 @@ export interface MenuState {
    * Modern ignores it.
    */
   unit?: { type: string; color: number };
+  /**
+   * A leader's portrait at the head of the window beside its words (a leader's answer, asked for 2026-11-05: "show it with
+   * the leader image"), by name as `LEADER_PORTRAITS` gives it: the user's picture, which the apps lay over the canvas where
+   * `menuPortrait` says, on the setup cards' sky in the square's frame. Modern ignores it.
+   */
+  portrait?: string;
   /** How far a window has grown on opening, 0..1 (`WINDOW_ENTER_MS`); absent or 1, it stands whole. Dropdowns ignore it. */
   enter?: number | undefined;
   /** Rows that cannot be picked now (Revolution! with no government to turn to): drawn faded, never hit. */

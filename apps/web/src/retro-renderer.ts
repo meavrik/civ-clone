@@ -37,6 +37,7 @@ import {
   drawMainScreen,
   drawMenu,
   menuBox,
+  menuPortrait,
   squarePainter,
   drawMilitaryAdvisor,
   drawRatesScreen,
@@ -204,6 +205,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     menu: (menu: MenuState, state) => {
       drawMenu(screen, menu, squarePainter(menu, state));
       if (menu.overWindow) pictures = underWindow(pictures, menuBox(menu));
+      const portrait = menuPortrait(menu);
+      if (portrait) pictures.push(portraitPlace(menu.portrait!, { ...portrait, ...screenBox }));
     },
     textInput: (input: TextInputState, cursorOn) => drawTextInput(screen, input, cursorOn),
     statusLine: (text) => drawStatusLine(screen, text),

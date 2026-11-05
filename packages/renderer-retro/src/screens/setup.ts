@@ -3,7 +3,7 @@ import { drawTextCentered, FONT_HEIGHT, wrapText } from "../font.js";
 import { drawIconLine, wrapIcons } from "../icons.js";
 import { C, shade, slotColor } from "../palette.js";
 import { SCREEN_H, SCREEN_W, type Surface } from "../surface.js";
-import { DIM, drawButton, drawStone, drawWindow, INK, NOTE } from "../widgets.js";
+import { DIM, drawButton, drawPortraitSky, drawStone, drawWindow, INK, NOTE } from "../widgets.js";
 import { drawStars } from "./title.js";
 
 /**
@@ -130,20 +130,6 @@ function drawCard(s: Surface, card: SetupCard, b: Box, inset: Box, large: boolea
 function drawPortrait(s: Surface, card: SetupCard, b: Box): void {
   s.frame(b.x - 1, b.y - 1, b.w + 2, b.h + 2, card.band !== undefined ? slotColor(card.band) : C.BLACK!);
   drawPortraitSky(s, b);
-}
-
-/** A sky-blue ground behind a portrait, lighter toward the foot, dithered between its bands. */
-export function drawPortraitSky(s: Surface, b: Box): void {
-  const k = s.k;
-  const tones = [shade("sky", 2), shade("sky", 3), shade("sky", 4), shade("sky", 5)];
-  for (let fy = 0; fy < b.h * k; fy++) {
-    const f = (fy / (b.h * k)) * (tones.length - 1);
-    const a = Math.floor(f);
-    for (let fx = 0; fx < b.w * k; fx++) {
-      const up = f - a > ((fx + fy * 2) % 4) / 4 + 0.125;
-      s.fset(b.x * k + fx, b.y * k + fy, tones[Math.min(tones.length - 1, a + (up ? 1 : 0))]!);
-    }
-  }
 }
 
 /** Under difficulty's cards: the level's name, then what it changes. */

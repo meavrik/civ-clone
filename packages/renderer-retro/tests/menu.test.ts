@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { keepInView, roadNote, type MenuState } from "@civ/renderer-api";
-import { C, DESK_MENU, DIMMED, dimScreen, drawMenu, menuBox, menuHit, menuRect, menuRowRect, menuRows, menuScrollAt, Surface, TOUCH_MENU, TOUCH_MENU_SMALL } from "../src/index.js";
+import { C, DESK_MENU, DIMMED, dimScreen, drawMenu, menuBox, menuHit, menuPortrait, menuRect, menuRowRect, menuRows, menuScrollAt, PORTRAIT_PIC, shade, Surface, TOUCH_MENU, TOUCH_MENU_SMALL } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 /** A city late in the game: more to build than the screen holds. */
@@ -31,7 +31,7 @@ describe("menus", () => {
     expect(opening.x).toBeGreaterThan(r.x);
     expect(opening.x + opening.w).toBeLessThan(r.x + r.w);
     // The longest answer, with its three buttons, stays on a phone's screen, each button answering a finger.
-    const asks: MenuState = { title: "Elizabeth of the English", body: ["For 120 gold our armies will march with yours against the Babylonians. It means war for you too."], items: ["Pay 120 gold", "No", "Close all"], selected: 0, close: true, overWindow: true };
+    const asks: MenuState = { title: "Elizabeth of the English", body: ["For 120 gold our armies will march with yours against the Babylonians. It means war for you too."], items: ["Pay 120 gold", "No", "Close all"], selected: 0, close: true, overWindow: true, portrait: "elizabeth" };
     for (const width of [320, 447]) {
       const box = menuRect(asks, width, TOUCH_MENU);
       expect(box.y).toBeGreaterThanOrEqual(0);
@@ -44,6 +44,44 @@ describe("menus", () => {
     phone.fill(C.BLACK!);
     drawMenu(phone, asks, undefined, TOUCH_MENU);
     writeFileSync(new URL("./out/menu-leader-answer.png", import.meta.url), encodePng(phone, 2));
+  });
+
+  it("head a window with a leader's portrait, whole and square, on a sky beside their words", () => {
+    const answer: MenuState = { title: "Caesar of the Romans", body: ["Let there be peace between our peoples."], items: ["Continue", "Close all"], selected: 0, close: true, overWindow: true, portrait: "caesar" };
+    const r = menuRect(answer);
+    const p = menuPortrait(answer)!;
+    expect([p.w, p.h]).toEqual([PORTRAIT_PIC, PORTRAIT_PIC]);
+    expect(p.x).toBeGreaterThan(r.x);
+    expect(p.x + p.w).toBeLessThan(r.x + r.w);
+    expect(p.y).toBeGreaterThan(r.y);
+    expect(p.y + p.h).toBeLessThan(r.y + r.h);
+    // Its words have room beside it: the window is no narrow strip, and the first button stands under the picture.
+    expect(r.w).toBeGreaterThanOrEqual(240);
+    const button = Array.from({ length: 200 }, (_, y) => y).find((y) => menuHit(answer, 160, y) === 0)!;
+    expect(button).toBeGreaterThanOrEqual(p.y + p.h);
+    // The sky stands under the picture, in its frame; a window without a portrait has none.
+    const s = Surface.screen();
+    s.fill(C.BLACK!);
+    drawMenu(s, answer);
+    const sky = [2, 3, 4, 5].map((n) => shade("sky", n));
+    expect(sky).toContain(s.get(p.x + 4, p.y + 4));
+    expect(sky).toContain(s.get(p.x + p.w - 5, p.y + p.h - 5));
+    const { portrait: _, ...plain } = answer;
+    expect(menuPortrait(plain)).toBeNull();
+    writeFileSync(new URL("./out/menu-leader-portrait.png", import.meta.url), encodePng(s, 3));
+    // It grows with the window as it opens, about the window's middle.
+    const opening = menuPortrait({ ...answer, enter: 0 })!;
+    expect(opening.w).toBeCloseTo(PORTRAIT_PIC * 0.4);
+    expect(opening.x).toBeGreaterThan(p.x);
+    // On a phone the window stays on the screen, at whichever size it fits, and the picture in it.
+    for (const width of [320, 447]) {
+      const box = menuRect(answer, width, TOUCH_MENU);
+      const at = menuPortrait(answer, width, TOUCH_MENU)!;
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.h).toBeLessThanOrEqual(200);
+      expect(at.y + at.h).toBeLessThan(box.y + box.h);
+      expect(at.x + at.w).toBeLessThan(box.x + box.w);
+    }
   });
 
   it("scroll a list too long for the screen, keeping the choice on view and hits on the rows shown", () => {

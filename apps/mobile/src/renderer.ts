@@ -64,6 +64,7 @@ import {
   menuBarHit,
   menuHit,
   menuBox,
+  menuPortrait,
   menuRect,
   menuRows,
   menuScrollAt,
@@ -532,6 +533,8 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
         const box = menuBox(m, surface().width, menuSize());
         pictures = underWindow(pictures, wideFrame ? box : { ...box, x: box.x + inset() });
       }
+      const portrait = menuPortrait(m, surface().width, menuSize());
+      if (portrait) pictures.push(portraitPlace(m.portrait!, wideFrame ? { ...portrait, logicalW: screenW(), logicalH: SCREEN_H } : onScreen(portrait)));
     },
     textInput(input, cursorOn) {
       shown.input = input;

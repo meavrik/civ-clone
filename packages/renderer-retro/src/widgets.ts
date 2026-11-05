@@ -64,6 +64,20 @@ export function drawWindow(s: Surface, x: number, y: number, w: number, h: numbe
   if (title || opts.right) drawTitleStrip(s, x + 2, y + 2, w - 4, title, opts);
 }
 
+/** A sky-blue ground behind a portrait, lighter toward the foot, dithered between its bands. */
+export function drawPortraitSky(s: Surface, b: { x: number; y: number; w: number; h: number }): void {
+  const k = s.k;
+  const tones = [shade("sky", 2), shade("sky", 3), shade("sky", 4), shade("sky", 5)];
+  for (let fy = 0; fy < b.h * k; fy++) {
+    const f = (fy / (b.h * k)) * (tones.length - 1);
+    const a = Math.floor(f);
+    for (let fx = 0; fx < b.w * k; fx++) {
+      const up = f - a > ((fx + fy * 2) % 4) / 4 + 0.125;
+      s.fset(b.x * k + fx, b.y * k + fy, tones[Math.min(tones.length - 1, a + (up ? 1 : 0))]!);
+    }
+  }
+}
+
 /** A full-screen page (advisors, reports): one window on black, its title centred, a key hint along the bottom. */
 export function drawPage(s: Surface, title: string, hint = ""): void {
   s.fill(C.BLACK!);
@@ -250,12 +264,17 @@ const MORE_W = 44;
 const TAB_GAP = 2;
 const TAB_FOOT = 4;
 
-/** A window's map square (`MenuState.square`): its picture's side in screen pixels (twice a map square), framed, and the gap after it. */
+/** A window's map square (`MenuState.square`): its picture's side in screen pixels (twice a map square). */
 export const SQUARE_PIC = 32;
-const SQUARE_FRAME = SQUARE_PIC + 4;
-const SQUARE_SIDE = SQUARE_FRAME + 6;
 /** A window with a map square is at least this wide, so the lines beside the picture have room. */
 const SQUARE_WINDOW_W = 236;
+/** A leader's portrait heading a window (`MenuState.portrait`): square, as the portraits are, large enough to know the face. */
+export const PORTRAIT_PIC = 64;
+/** A window with a portrait is at least this wide, so the words beside it have room. */
+const PORTRAIT_WINDOW_W = 240;
+/** The frame round the picture heading a window, a side; the lines beside it start this and `FRAME_GAP` in. */
+const frameOf = (m: MenuState): number => (m.portrait ? PORTRAIT_PIC : SQUARE_PIC) + 4;
+const FRAME_GAP = 6;
 
 /** A row with a picture before it (`MenuState.pictures`): the picture's side, and the row tall enough to hold it with a pixel either side. */
 const UNIT_PIC = 16;
@@ -365,23 +384,25 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   const need = Math.max(tw(m.title) + 16 + (m.close ? titleH : 0), buttons ? bw + 24 : itemW + 24 + (scrolls ? size.scroll + 4 : 0), tabsW);
   // Measured as the lines wrap (the font's widths, `t` times), so a line that sets the window's width keeps to one line.
   const bodyW = m.body?.length ? Math.max(...m.body.map((l) => iconLineWidth(l) * t)) + 20 : 0;
-  // A map square or a unit's picture heads the window, in the same frame.
-  const framed = !m.card && !!(m.square || m.unit);
+  // A map square, a unit's picture or a leader's portrait heads the window, in the same frame.
+  const framed = !m.card && !!(m.square || m.unit || m.portrait);
+  const frame = frameOf(m);
+  const side = frame + FRAME_GAP;
   // Lines that must stay whole (`oneLine`) widen the window as far as the screen lets them.
-  const bodyRoom = m.oneLine ? bodyW + (framed ? SQUARE_SIDE : 0) : Math.min(bodyW + (framed ? SQUARE_SIDE : 0), Math.round(SCREEN_W * size.share));
+  const bodyRoom = m.oneLine ? bodyW + (framed ? side : 0) : Math.min(bodyW + (framed ? side : 0), Math.round(SCREEN_W * size.share));
   // The square's card is as wide as its facts need, within its bounds.
   const cardW = m.card ? Math.min(CARD_MAX_W, Math.max(CARD_MIN_W, cardNeed(m.card))) : 0;
-  const w = Math.min(cap ?? (m.card ? CARD_MAX_W : size.maxW), screenW - 8, Math.max(need, m.card ? cardW : bodyRoom, m.title ? size.minW : 0, m.square && !m.card ? SQUARE_WINDOW_W : 0));
+  const w = Math.min(cap ?? (m.card ? CARD_MAX_W : size.maxW), screenW - 8, Math.max(need, m.card ? cardW : bodyRoom, m.title ? size.minW : 0, m.square && !m.card ? SQUARE_WINDOW_W : 0, m.portrait && !m.card ? PORTRAIT_WINDOW_W : 0));
   // The paragraphs that begin beside the picture wrap to the room left of it.
   const lines: string[] = [];
   const indents: number[] = [];
   for (const l of m.card ? [] : m.body ?? []) {
-    const indent = framed && lines.length * lineH < SQUARE_FRAME ? SQUARE_SIDE : 0;
+    const indent = framed && lines.length * lineH < frame ? side : 0;
     for (const piece of wrapIcons(l, Math.floor((w - 20 - indent) / t))) { lines.push(piece); indents.push(indent); }
   }
   // The card in place of the body, air under it, more where a rule and the choices follow.
   const card = m.card ? cardLayout(m.card, w) : null;
-  const bodyH = card ? card.h + (m.items.length || m.tabs ? 9 : 3) : lines.length || framed ? Math.max(lines.length * lineH, framed ? SQUARE_FRAME + 2 : 0) + 5 : 0;
+  const bodyH = card ? card.h + (m.items.length || m.tabs ? 9 : 3) : lines.length || framed ? Math.max(lines.length * lineH, framed ? frame + 2 : 0) + 5 : 0;
   const secH = 0;
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
   const room = floor - (m.anchor?.y ?? 0) - head - bodyH - secH - tabsH - foot;
@@ -515,6 +536,13 @@ export function menuBox(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x
   return enteringBox(m.enter ?? 1, r, r);
 }
 
+/** Where a window's leader portrait stands this frame (`MenuState.portrait`), growing with the window as it opens; null without one. The apps lay the picture there. */
+export function menuPortrait(m: MenuState, screenW = SCREEN_W, size = DESK_MENU): { x: number; y: number; w: number; h: number } | null {
+  if (!m.portrait || m.card) return null;
+  const { x, y, w, h, cardY } = menuLayout(m, screenW, size);
+  return enteringBox(m.enter ?? 1, { x, y, w, h }, { x: x + 12, y: cardY + 3, w: PORTRAIT_PIC, h: PORTRAIT_PIC });
+}
+
 export function drawEntering(s: Surface, enter: number, rect: { x: number; y: number; w: number; h: number }, draw: (s: Surface) => void, from?: { x: number; y: number }): void {
   if (enter >= 1) { draw(s); return; }
   const scratch = new Surface(s.width, s.height, undefined, s.k);
@@ -571,15 +599,18 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
   if (m.close && m.title) drawCloseBox(s, x + w - 3 - (titleH - 2), y + 3, titleH - 2);
   const bodyY = y + (m.title ? titleH + 6 : 4);
   if (l.card && m.card) drawSquareCard(s, m.card, x, l.cardY, w, square);
-  else if (m.square || m.unit) {
+  else if (m.square || m.unit || m.portrait) {
     // The square in a dark frame, sunk into the stone: shade along the top and left, light along the foot and right.
+    const frame = frameOf(m);
     const fx = x + 10;
     const fy = bodyY + 1;
-    s.frame(fx, fy, SQUARE_FRAME, SQUARE_FRAME, shade("panel", 2));
-    s.hline(fx, fy + SQUARE_FRAME, SQUARE_FRAME + 1, shade("panel", 7));
-    s.rect(fx + SQUARE_FRAME, fy, 1, SQUARE_FRAME + 1, shade("panel", 7));
-    s.frame(fx + 1, fy + 1, SQUARE_FRAME - 2, SQUARE_FRAME - 2, C.BLACK!);
-    if (m.unit) {
+    s.frame(fx, fy, frame, frame, shade("panel", 2));
+    s.hline(fx, fy + frame, frame + 1, shade("panel", 7));
+    s.rect(fx + frame, fy, 1, frame + 1, shade("panel", 7));
+    s.frame(fx + 1, fy + 1, frame - 2, frame - 2, C.BLACK!);
+    // The portrait, a figure cut out, stands on the setup cards' sky; the apps lay it there.
+    if (m.portrait) drawPortraitSky(s, { x: fx + 2, y: fy + 2, w: PORTRAIT_PIC, h: PORTRAIT_PIC });
+    else if (m.unit) {
       // The unit on the Building Completed window's slate, twice its size on the map: the user's picture
       // laid over it, else its sprite in the middle.
       speckle(s, fx + 2, fy + 2, SQUARE_PIC, SQUARE_PIC, shade("steel", 3), shade("steel", 4), shade("steel", 4));
@@ -589,7 +620,9 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     } else if (square) square(s, fx + 2, fy + 2);
     else s.rect(fx + 2, fy + 2, SQUARE_PIC, SQUARE_PIC, C.BLACK!);
   }
-  lines.forEach((line, i) => drawIconLine(s, x + 10 + (indents[i] ?? 0), bodyY + i * lineH, line, C.BLACK!, t));
+  // A leader's words stand in the middle of their portrait's height, where they fit beside it.
+  const wordsY = m.portrait && !m.card ? bodyY + Math.max(0, Math.floor((frameOf(m) + 2 - lines.length * lineH) / 2)) : bodyY;
+  lines.forEach((line, i) => drawIconLine(s, x + 10 + (indents[i] ?? 0), wordsY + i * lineH, line, C.BLACK!, t));
   if ((lines.length || l.card) && (m.items.length || m.tabs)) {
     s.hline(x + 4, l.tabsY - 4, w - 8, shade("panel", 2));
     s.hline(x + 4, l.tabsY - 3, w - 8, shade("panel", 7));

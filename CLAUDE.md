@@ -1923,8 +1923,12 @@ Never ship the original's sprites, palette art, fonts or text.
   A leader's answer stands in a window of its own over the audience (asked for 2026-11-05: "when leader answer - show it
   on a new modal on top of the original, with option to close all"; the web app's `leaderAnswer`): every reply to
   something we said, in a talk, on a civilization's card, at an exchange's table or to a leader's own demand, as the
-  game's modal (a `menu` screen over the `diplomacy` one), titled with the leader (`leaderTitle`): their words, Continue
-  and Close all. Continue (Enter, Esc, the close box, a click off it) goes back to the talk, the answer now the audience's
+  game's modal (a `menu` screen over the `diplomacy` one), titled with the leader (`leaderTitle`): their portrait and words,
+  Continue and Close all. The portrait (asked for the same day: "show it with the leader image"; `MenuState.portrait`, by the
+  name `LEADER_PORTRAITS` gives) is the user's picture as it is, whole, 64 pixels square (`PORTRAIT_PIC`) in the frame the
+  square's window uses, sized now by what it holds (`frameOf`), on the setup cards' sky (`drawPortraitSky`, moved to widgets.ts
+  for it); the apps lay it where `menuPortrait` says, growing with the window as it opens. The words stand beside it, in the
+  middle of its height, in a window at least `PORTRAIT_WINDOW_W` (240) wide. Continue (Enter, Esc, the close box, a click off it) goes back to the talk, the answer now the audience's
   line and the next buttons under it; Close all leaves the talk at once, as Farewell does (the audience's `done`), so the
   turn's news goes on. An answer that asks something has its buttons in place of Continue ("Pay 50 gold" and "No", war's
   red "Declare war!" and "Keep the peace", the table's "Add 70 gold" and "Continue"), Close all still last, and one that
@@ -2163,8 +2167,8 @@ The 21 wonders drawn as the user's sheets, each with its stages of construction 
 in fast forward as it is completed (2026-11-04, asked for; no save version).
 The city view is an isometric town on the real land round the city: streets, a town square, walls and a gatehouse, fields, shores
 and rivers, and the user's 24 houses standing by the people's age, size and advances (2026-11-05, asked for; no save version).
-A leader's answer stands in a window of its own over the audience, with Continue and Close all (2026-11-05, asked for; no save
-version). Coal stays off the map until Steam Engine, the Ironclad's advance (2026-11-05, asked for; save version 70).
+A leader's answer stands in a window of its own over the audience, with their portrait, Continue and Close all (2026-11-05, asked
+for; no save version). Coal stays off the map until Steam Engine, the Ironclad's advance (2026-11-05, asked for; save version 70).
 
 ## Known gaps / next steps
 
