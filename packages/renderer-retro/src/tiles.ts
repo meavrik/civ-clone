@@ -250,6 +250,28 @@ export function terrainPieces(sprite: string): { base: number; pieces: TerrainPi
   return out;
 }
 
+/** Sprites of woods, whose trees stand over a river running through them (`terrainSquare`). */
+const WOODS = new Set<string>(["forest", "forest_pine", "forest_birch", "forest_autumn", "forest_mixed", "jungle"]);
+/** How light a jungle pixel must be to stand over a river: its fronds; the river shows through the darker leaves, or it would be lost among them. */
+const FROND_LIGHT = 200;
+const palmCache = new Map<string, Uint8Array>();
+
+/** 1 on a sprite of woods' trees: what stands on a forest's ground (`layers`); the jungle being all texture, the palms' lit fronds and warm trunks. */
+function treesOf(sprite: string): Uint8Array {
+  if (!SOLID.has(sprite)) return layers(sprite).objects;
+  let palms = palmCache.get(sprite);
+  if (!palms) {
+    const src = terrainSprite(sprite).data;
+    palms = new Uint8Array(FINE * FINE);
+    for (let i = 0; i < palms.length; i++) {
+      const [r, g, b] = PALETTE[src[i]!]!;
+      palms[i] = r + g + b >= FROND_LIGHT || r > g ? 1 : 0;
+    }
+    palmCache.set(sprite, palms);
+  }
+  return palms;
+}
+
 /** The sprite's own pixels, for a ground that is all texture (the jungle's): FINE by FINE. */
 export function terrainTexture(sprite: string): Uint8Array {
   return terrainSprite(sprite).data;
@@ -325,7 +347,8 @@ const RIVER_GLINT = 0.07;
  * `groundOwner`): the neighbour's ground reaches in, under whatever stands on
  * this square's (trees, peaks, dunes). Land that spills into a water square
  * shows its ground; next to the shore runs a line of surf, then a band of
- * shallows. Rivers show on land only, so a mouth runs on until it meets water.
+ * shallows. Rivers show on land only, so a mouth runs on until it meets water,
+ * and run under the trees of woods (`treesOf`).
  * Squares the player has not explored (`explored`) are left out of the blend.
  * Every fine pixel is worked out on its own (FINE x FINE), so shores and rivers
  * are as fine as the terrain art.
@@ -348,6 +371,7 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
   const sea = getTile(Terrain.Ocean, x, y).data;
   const deep = deepTile(x, y).data;
   const { surf, shallow, river: water, glint, bank } = WATER;
+  const trees = river && WOODS.has(own) ? treesOf(own) : null;
   for (let j = 0; j < F; j++)
     for (let i = 0; i < F; i++) {
       const u = (i + 0.5) / F;
@@ -370,7 +394,8 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
       else if (g < DEEP_EDGE - 0.06) c = sea[at]!;
       else if (g < DEEP_EDGE + 0.06) c = (i + j) & 1 ? sea[at]! : deep[at]!;
       else c = deep[at]!;
-      if (river && k >= 0)
+      // A river runs under the trees of its square, wherever they still stand (a neighbour's ground can reach over a palm).
+      if (river && k >= 0 && !(trees?.[at] && c === plain.data[at]))
         // Distances in screen pixels of the original's square (dist * TILE), so a river is as wide as it was before
         // the fine grain, and as much of a larger square.
         for (const st of river.strokes) {
