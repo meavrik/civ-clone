@@ -150,9 +150,9 @@ export const COMBAT = {
   smoke: "rgba(80, 84, 92, 0.75)",
 };
 
-/** Colour slots in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red. */
-export const PLAYER_COLORS = ["#f4f6f8", "#4cd964", "#3a5ff0", "#f5e642", "#36d6e7", "#e15bd8", "#9aa5ad", "#ff8c00", "#d92b3a"];
-export const PLAYER_DARK = ["#9aa3ad", "#24944a", "#1f3ba8", "#b3a51a", "#168f9c", "#9b2f95", "#5e676e", "#b35f00", "#8f1520"];
+/** Colour slots in CIV_COLORS order: white, green, blue, yellow, cyan, magenta, grey, orange, red, brown, sky (a deep blue here, this palette's cyan being light). */
+export const PLAYER_COLORS = ["#f4f6f8", "#4cd964", "#3a5ff0", "#f5e642", "#36d6e7", "#e15bd8", "#9aa5ad", "#ff8c00", "#d92b3a", "#6b3f1d", "#123a7a"];
+export const PLAYER_DARK = ["#9aa3ad", "#24944a", "#1f3ba8", "#b3a51a", "#168f9c", "#9b2f95", "#5e676e", "#b35f00", "#8f1520", "#452812", "#0a2450"];
 
 export interface TerrainLook {
   base: string;

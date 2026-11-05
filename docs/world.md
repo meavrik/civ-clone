@@ -34,6 +34,24 @@ The world: engine overview, map sizes, premade and generated worlds, starts, wha
   `START_NUDGE` (2) squares on the same land (asked for 2026-10-23; no randomness, so a seed keeps its
   world and its draws; historical homelands stay). Starts score 126 on average over 50 seeds (109 as drawn),
   none unfit for a city (3 of 350). Saves before version 25 load with `randomStarts` (the squares drawn).
+  How many civilizations (asked for 2026-11-05: "up to 10 civs ... each premade map would get the maximum civs it can
+  have, custom maps would get maximum by map size"): `MAX_CIVS` (10) is one for each colour but the barbarians' red;
+  `maxCivsOn(world, size)` is what the land holds, `WORLD_SIZES[].maxCivs` for a generated world (Small 8, Medium and
+  Large 10) and on a premade world 10 but for Earth at Small, 8, as it has less land than a generated Small (1,319
+  squares against about 1,450, arctic left out); `setupMaxCivs` takes that and one per colour among the civs offered,
+  so with homelands Europe seats 9 and the Middle East 8, and started anywhere those worlds seat 10. The menu stays 7
+  by default, as in the original. Measured before choosing, 84 headless games to turn 400, 7 civilizations against 10
+  on Small, Medium and Large: land a civ 208/145, 451/316, 806/565 squares; first rival met turn 80/33, 191/112,
+  171/184; cities a civ at turn 300 6.5/5.4, 12.2/10.2, 15.4/14.5; the leader's advances at 300 32/37, 35/40, 37/43;
+  wonders built by 300 7/9.5, 7.3/9.8, 7.7/9.3. City-states stay 8, 12 and 16 by size however many civilizations play.
+  Homelands (since version 72; `crowdedHomelands` for older saves, which drew rivals whatever room they left and kept
+  starts 3 squares apart): each rival is drawn from the `HOMELAND_CHOICE` (3) left with the most room from those already
+  in, so games still differ, and a start nearer another than `HOMELAND_SPACING` (6 at Small, in proportion at bigger sizes)
+  is nudged up to `HOMELAND_REACH` (8, in proportion) off its homeland, on its own land if it can be (the English in
+  Britain, French and English homelands lying 3 squares apart at Small), as far from the others as that land allows;
+  the player, seated first, always has the true homeland. Closest pair of starts over seeds, worst and median, before
+  and after: Earth Small with 7 civs 3 and 5, 6 and 7; Earth Medium with 10 civs 4 and 5, 5 and 9; Europe Small with 9
+  civs 3 and 3, 6 and 6; the Middle East has room and does not change.
   Sight (`visibility.ts`; asked for 2026-10-24: "an area of observability: one tile beyond the empire's
   influence and borders + surrounding each unit outside the borders; some units can have a bigger
   observability; in this area the player should see every other civ's activity and units"): `Player.visible`

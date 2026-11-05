@@ -3,7 +3,7 @@ import { generateMap, scatterDeposits, spreadSpecials, type MapGenOptions } from
 import { premadeMap, premadeStarts, premadeWorld, type PremadeWorld } from "./map/premade.js";
 import { createRng, nextInt } from "./rng.js";
 import { advancesFor } from "./rules/advances.js";
-import { civ, CIVS, colorSlot } from "./rules/civs.js";
+import { civ, CIVS, colorSlot, type CivRule } from "./rules/civs.js";
 import { difficultyRule } from "./rules/difficulty.js";
 import { computerRule } from "./levels.js";
 import { newSpaceship } from "./rules/spaceship.js";
@@ -19,7 +19,7 @@ export interface NewGameOptions extends MapGenOptions {
   difficulty?: number;
   /** Civ id for the human player. */
   civ?: string;
-  /** Number of AI opponents (0..6). */
+  /** Number of AI opponents (0..9). */
   opponents?: number;
   /** Premade world to play on (see PREMADE_WORLDS); a generated one when absent. */
   world?: string;
@@ -169,13 +169,22 @@ export interface NewGameOptions extends MapGenOptions {
   clusteredResources?: boolean;
   /** Only specials of one kind are kept apart, as before version 69 (since, any two: `spreadSpecials`). Old saves load with it. */
   crowdedResources?: boolean;
+  /** Civilizations in the colours they had before version 72, eight to share (`CivRule.earlyColor`). Old saves load with it. */
+  eightColors?: boolean;
+  /** Rivals drawn whatever room their homelands leave, and starts kept only three squares apart, as before version 72. Old saves load with it. */
+  crowdedHomelands?: boolean;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
 
+/** A civilization's colour slot; a game of before version 72 has it in its colour of then. */
+function civColorSlot(c: CivRule, eightColors = false): number {
+  return colorSlot((eightColors ? c.earlyColor : undefined) ?? c.color);
+}
+
 /** A player for a civilization; its colour slot comes from the civilization, never the seat. */
-function makePlayer(map: WorldMap, id: number, civId: string, isAi: boolean): Player {
-  const color = colorSlot(civ(civId).color);
+function makePlayer(map: WorldMap, id: number, civId: string, isAi: boolean, eightColors = false): Player {
+  const color = civColorSlot(civ(civId), eightColors);
   return {
     id,
     civ: civId,
@@ -200,10 +209,16 @@ function makePlayer(map: WorldMap, id: number, civId: string, isAi: boolean): Pl
   };
 }
 
-/** Homelands closer than this overlap: rivals are drawn from roomier ones first. */
+/** Homelands closer than this overlap: rivals were drawn from roomier ones first, before version 72. */
 const HOMELAND_ROOM = 3;
+/** Each rival is drawn from this many of those left with the most room from the homelands already in, so games still differ. */
+const HOMELAND_CHOICE = 3;
 /** Starts nudged off a crowded homeland keep at least this far apart. */
 const START_SPACING = 3;
+/** Starts nudged off a homeland too near another try for this far apart at Small, and as far again in proportion on a bigger world. */
+const HOMELAND_SPACING = 6;
+/** How far a start may be nudged off its homeland at Small, and in proportion on a bigger world. */
+const HOMELAND_REACH = 8;
 /** A start drawn at random moves up to this far onto the best city site near it (asked for 2026-10-23). */
 const START_NUDGE = 2;
 
@@ -246,23 +261,31 @@ export function nativeCivs(world: PremadeWorld): string[] {
  * The square nearest a homeland that can take a city and is not crowding an
  * earlier start; the homeland itself unless a neighbour already sits there.
  */
-function homelandStart(map: WorldMap, home: readonly [number, number], starts: [number, number][]): [number, number] {
-  const fits = (x: number, y: number, strict: boolean) => {
+function homelandStart(map: WorldMap, home: readonly [number, number], starts: [number, number][], crowded = false): [number, number] {
+  const k = map.width / MAP_WIDTH;
+  const spacing = crowded ? START_SPACING : Math.round(HOMELAND_SPACING * k);
+  const reach = crowded ? HOMELAND_REACH : Math.round(HOMELAND_REACH * k);
+  const fits = (x: number, y: number, strict: boolean, apart: number, land: number | null) => {
     if (y < 0 || y >= map.height) return false;
     const t = map.tiles[y * map.width + x]!;
     if (t.terrain === Terrain.Ocean || t.terrain === Terrain.Arctic || t.terrain === Terrain.Mountains) return false;
+    if (land !== null && t.continent !== land) return false;
     if (strict && !(t.terrain === Terrain.Grassland || t.terrain === Terrain.Plains || t.terrain === Terrain.Hills || t.river)) return false;
-    return starts.every((s) => squareDist(map, s, [x, y]) >= START_SPACING);
+    return starts.every((s) => squareDist(map, s, [x, y]) >= apart);
   };
-  for (const strict of [true, false])
-    for (let r = 0; r <= 8; r++)
-      for (let dy = -r; dy <= r; dy++)
-        for (let dx = -r; dx <= r; dx++) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          const x = (((home[0] + dx) % map.width) + map.width) % map.width;
-          const y = home[1] + dy;
-          if (fits(x, y, strict)) return [x, y];
-        }
+  // A people stays on its own land if it can (the English in Britain), as far from the others as that land allows.
+  const land = map.tiles[home[1] * map.width + home[0]]!.continent;
+  for (const on of crowded || !land ? [null] : [land, null])
+    for (let apart = spacing; apart >= START_SPACING; apart--)
+      for (const strict of [true, false])
+        for (let r = 0; r <= reach; r++)
+          for (let dy = -r; dy <= r; dy++)
+            for (let dx = -r; dx <= r; dx++) {
+              if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+              const x = (((home[0] + dx) % map.width) + map.width) % map.width;
+              const y = home[1] + dy;
+              if (fits(x, y, strict, apart, on)) return [x, y];
+            }
   return [home[0], home[1]];
 }
 
@@ -285,21 +308,26 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const roster = opts.roster;
   const others = CIVS.filter((c) => c.id !== humanCiv && c.id !== "barbarians" && (!homes || homes[c.id] !== undefined) && (roster === undefined || (c.since ?? 0) <= roster));
   const opponents = Math.max(0, Math.min(others.length, opts.opponents ?? 2));
-  const players: Player[] = [makePlayer(map, 0, humanCiv, opts.allAi === true)];
+  const players: Player[] = [makePlayer(map, 0, humanCiv, opts.allAi === true, opts.eightColors)];
   for (let i = 0; i < opponents; i++) {
     // Every civilization in the game keeps its own colour: skip civs whose colour is taken.
     const takenColors = new Set(players.map((p) => p.color));
-    let pool = others.filter((c) => !takenColors.has(colorSlot(c.color)));
+    let pool = others.filter((c) => !takenColors.has(civColorSlot(c, opts.eightColors)));
     if (!pool.length) break;
     // With homelands, prefer rivals that are not crowding a civilization already in.
     if (homes) {
       const taken = players.map((p) => homes[p.civ]).filter((h) => h !== undefined);
-      const roomy = pool.filter((c) => taken.every((h) => squareDist(map, h, homes[c.id]!) >= HOMELAND_ROOM));
-      if (roomy.length) pool = roomy;
+      if (opts.crowdedHomelands) {
+        const roomy = pool.filter((c) => taken.every((h) => squareDist(map, h, homes[c.id]!) >= HOMELAND_ROOM));
+        if (roomy.length) pool = roomy;
+      } else {
+        const room = (c: CivRule) => Math.min(...taken.map((h) => squareDist(map, h, homes[c.id]!)));
+        pool = [...pool].sort((a, b) => room(b) - room(a)).slice(0, HOMELAND_CHOICE);
+      }
     }
     const pick = pool[nextInt(rng, pool.length)]!;
     others.splice(others.indexOf(pick), 1);
-    players.push(makePlayer(map, players.length, pick.id, true));
+    players.push(makePlayer(map, players.length, pick.id, true, opts.eightColors));
   }
   const barbarians = players.length;
   players.push(makePlayer(map, barbarians, "barbarians", true));
@@ -422,7 +450,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     let sx = 0;
     let sy = map.height >> 1;
     const home = homes?.[p.civ];
-    if (home) [sx, sy] = homelandStart(map, home, starts);
+    if (home) [sx, sy] = homelandStart(map, home, starts, opts.crowdedHomelands);
     else
       for (let tries = 0; tries < 200 && candidates.length; tries++) {
         const pick = candidates[nextInt(rng, candidates.length)]!;

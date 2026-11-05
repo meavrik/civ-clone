@@ -33,7 +33,7 @@ export const SHEETS: Record<string, Sheet> = { units: UNIT_SHEET, terrain: TERRA
 const DARKER: Record<number, number> = {
   [C.WHITE!]: C.LGREY!, [C.LGREEN!]: C.GREEN!, [C.LBLUE!]: C.BLUE!, [C.YELLOW!]: C.BROWN!,
   [C.LCYAN!]: C.CYAN!, [C.LRED!]: C.RED!, [C.LMAGENTA!]: C.MAGENTA!, [C.LGREY!]: C.DGREY!, [C.ORANGE!]: C.BROWN!,
-  [C.CYAN!]: C.SEA! + 1, [C.STONE! + 3]: C.STONE! + 1,
+  [C.CYAN!]: C.SEA! + 1, [C.STONE! + 3]: C.STONE! + 1, [C.HIDE! + 2]: C.HIDE!, [C.ICE! + 4]: C.ICE! + 1,
 };
 export function darker(fill: number): number {
   return DARKER[fill] ?? fill;

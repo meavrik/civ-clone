@@ -1,17 +1,39 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand, building, BUILDINGS, createUnit, getTile, landAt, newGame, revealAround, SPACE_PARTS, Terrain, wonder, WONDERS, type UnitBattle } from "@civ/core";
 import { rankedName, rankLine, rankProgress, showsRank } from "../src/index.js";
-import { builtNotice, cityUnits, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, moveRefusal, workRefusal, NUDGE_MS, researchOutlook, opponentsForChoice, wrapIconLine, setupChoose, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
+import { builtNotice, cityUnits, DEATH_MS, hasIcons, ICONS, iconSegments, LUNGE_MS, MENU_BAR, MotionPlayer, moveRefusal, workRefusal, NUDGE_MS, researchOutlook, opponentsForChoice, wrapIconLine, setupChoose, setupMaxCivs, setupMenu, setupOptions, terrainInfo, topCitiesReport, wondersReport, type SetupState } from "../src/index.js";
 
 const fresh = (step: SetupState["step"]): SetupState => ({ step, world: null, historical: true, custom: null, difficulty: 2, opponents: 6, civ: "romans" });
 
 describe("setup", () => {
-  it("asks for 3 to 7 civilizations in total and defaults to 7", () => {
+  it("asks from 3 civilizations in total up to what the map holds, and defaults to 7", () => {
     const m = setupMenu(fresh("opponents"));
     expect(m.title).toBe("How many civilizations?");
-    expect(m.items).toEqual(["3 civilizations", "4 civilizations", "5 civilizations", "6 civilizations", "7 civilizations"]);
+    expect(m.items).toEqual(["3 civilizations", "4 civilizations", "5 civilizations", "6 civilizations", "7 civilizations", "8 civilizations"]);
     expect(m.selected).toBe(4);
-    expect([0, 1, 2, 3, 4].map(opponentsForChoice)).toEqual([2, 3, 4, 5, 6]);
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map(opponentsForChoice)).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it("seats as many as a custom map's size allows", () => {
+    const most = (size: "small" | "medium" | "large") => setupMaxCivs({ ...fresh("opponents"), size });
+    expect([most("small"), most("medium"), most("large")]).toEqual([8, 10, 10]);
+    expect(setupMenu({ ...fresh("opponents"), size: "large" }).items.at(-1)).toBe("10 civilizations");
+  });
+
+  it("seats as many as a premade world's land and homelands allow", () => {
+    const most = (world: string, size: "small" | "medium" | "large", historical = true) => setupMaxCivs({ ...fresh("opponents"), world, size, historical });
+    expect([most("earth", "small"), most("earth", "medium"), most("earth", "large")]).toEqual([8, 10, 10]);
+    expect([most("europe", "small"), most("europe", "large")]).toEqual([9, 9]);
+    expect([most("middle-east", "small"), most("middle-east", "large")]).toEqual([8, 8]);
+    // Starting anywhere, a world is not held to the peoples native to it.
+    expect([most("europe", "small", false), most("earth", "small", false)]).toEqual([10, 8]);
+  });
+
+  it("starts the game with the number chosen", () => {
+    const setup = { ...fresh("opponents"), size: "large" as const };
+    setupChoose(setup, 7);
+    expect(setup.opponents).toBe(9);
+    expect(setupOptions(setup).opponents).toBe(9);
   });
 
   it("plays a premade world with historical homelands, offering only its native tribes", () => {

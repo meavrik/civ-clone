@@ -6,12 +6,13 @@ import type { UnitDomain } from "./units.js";
  * Colour slots, in this order everywhere. Each civilization has a fixed one,
  * as in the original: civilizations that share a colour are never in the same
  * game (the opponent draw skips a taken colour), so every civ on the map has
- * its own. The barbarians are always red. Pairs are chosen so each premade
- * world can still field seven civilizations: the Middle East's eight natives
- * all differ, and Europe's nine cover eight colours. Each renderer maps a slot
- * to its palette.
+ * its own. The barbarians are always red. The ten others take two civilizations
+ * each, so a game can seat ten (`MAX_CIVS`), and the natives of every premade
+ * world all differ: the Middle East's eight, Europe's nine. Brown and sky came
+ * last (save version 72) and stand after red, so a slot keeps its meaning. Each
+ * renderer maps a slot to its palette.
  */
-export const CIV_COLORS = ["white", "green", "blue", "yellow", "cyan", "magenta", "grey", "orange", "red"] as const;
+export const CIV_COLORS = ["white", "green", "blue", "yellow", "cyan", "magenta", "grey", "orange", "red", "brown", "sky"] as const;
 export type CivColor = (typeof CIV_COLORS)[number];
 
 export function colorSlot(color: CivColor): number {
@@ -67,6 +68,8 @@ export interface CivRule {
   leader: string;
   /** Colour of its units and cities; civilizations sharing one never meet in a game. */
   color: CivColor;
+  /** Its colour in saves before version 72, when there were eight to share (`NewGameOptions.eightColors`). */
+  earlyColor?: CivColor;
   cities: string[];
   /** Absent only for the barbarians. */
   trait?: CivTrait;
@@ -137,16 +140,16 @@ export const CIVS: CivRule[] = [
   { id: "chinese", name: "Chinese", adjective: "Chinese", leader: "Qin Shi Huang", color: "cyan", cities: ["Xianyang", "Luoyang", "Chengdu", "Hangzhou", "Nanjing", "Kaifeng", "Guangzhou", "Xi'an"] },
   { id: "indians", name: "Indians", adjective: "Indian", leader: "Ashoka", color: "grey", cities: ["Pataliputra", "Delhi", "Varanasi", "Ujjain", "Mathura", "Taxila", "Madurai", "Kanchi"] },
   { id: "aztecs", name: "Aztecs", adjective: "Aztec", leader: "Montezuma", color: "orange", cities: ["Tenochtitlan", "Texcoco", "Tlacopan", "Tlaxcala", "Cholula", "Xochimilco", "Tula", "Teotihuacan"] },
-  { id: "zulus", name: "Zulus", adjective: "Zulu", leader: "Shaka", color: "green", cities: ["Ulundi", "Bulawayo", "Hlobane", "Isandlwana", "Mgungundlovu", "Nongoma", "Eshowe", "Zungeni"] },
+  { id: "zulus", name: "Zulus", adjective: "Zulu", leader: "Shaka", color: "brown", earlyColor: "green", cities: ["Ulundi", "Bulawayo", "Hlobane", "Isandlwana", "Mgungundlovu", "Nongoma", "Eshowe", "Zungeni"] },
   { id: "germans", name: "Germans", adjective: "German", leader: "Otto", color: "blue", cities: ["Berlin", "Aachen", "Hamburg", "Cologne", "Frankfurt", "Munich", "Leipzig", "Nuremberg"] },
   { id: "americans", name: "Americans", adjective: "American", leader: "Washington", color: "magenta", cities: ["Washington", "Philadelphia", "Boston", "New York", "Baltimore", "Charleston", "Richmond", "Albany"] },
-  { id: "russians", name: "Russians", adjective: "Russian", leader: "Peter", color: "white", cities: ["Moscow", "Novgorod", "Kiev", "Vladimir", "Smolensk", "Tver", "Pskov", "Kazan"] },
+  { id: "russians", name: "Russians", adjective: "Russian", leader: "Peter", color: "sky", earlyColor: "white", cities: ["Moscow", "Novgorod", "Kiev", "Vladimir", "Smolensk", "Tver", "Pskov", "Kazan"] },
   { id: "french", name: "French", adjective: "French", leader: "Charlemagne", color: "cyan", cities: ["Paris", "Orleans", "Reims", "Lyon", "Tours", "Rouen", "Bordeaux", "Marseille"] },
   { id: "english", name: "English", adjective: "English", leader: "Elizabeth", color: "green", cities: ["London", "York", "Winchester", "Canterbury", "Bristol", "Oxford", "Norwich", "Nottingham"] },
-  { id: "mongols", name: "Mongols", adjective: "Mongol", leader: "Genghis Khan", color: "cyan", cities: ["Karakorum", "Samarkand", "Bukhara", "Khanbaliq", "Kashgar", "Otrar", "Sarai", "Tabriz"] },
+  { id: "mongols", name: "Mongols", adjective: "Mongol", leader: "Genghis Khan", color: "sky", earlyColor: "cyan", cities: ["Karakorum", "Samarkand", "Bukhara", "Khanbaliq", "Kashgar", "Otrar", "Sarai", "Tabriz"] },
   { id: "spanish", name: "Spanish", adjective: "Spanish", leader: "Isabella", color: "yellow", cities: ["Toledo", "Madrid", "Seville", "Cordoba", "Barcelona", "Valencia", "Granada", "Salamanca"] },
   { id: "vikings", name: "Vikings", adjective: "Viking", leader: "Harald", color: "grey", cities: ["Trondheim", "Uppsala", "Roskilde", "Bergen", "Birka", "Hedeby", "Kaupang", "Ribe"] },
-  { id: "hittites", name: "Hittites", adjective: "Hittite", leader: "Suppiluliuma", color: "orange", cities: ["Hattusa", "Kanesh", "Carchemish", "Kussara", "Sapinuwa", "Nerik", "Arinna", "Tarsus"] },
+  { id: "hittites", name: "Hittites", adjective: "Hittite", leader: "Suppiluliuma", color: "brown", earlyColor: "orange", cities: ["Hattusa", "Kanesh", "Carchemish", "Kussara", "Sapinuwa", "Nerik", "Arinna", "Tarsus"] },
   { id: "persians", name: "Persians", adjective: "Persian", leader: "Cyrus", color: "blue", cities: ["Persepolis", "Pasargadae", "Susa", "Ecbatana", "Rhagae", "Bactra", "Hecatompylos", "Arbela"] },
   { id: "hebrews", name: "Hebrews", adjective: "Hebrew", leader: "David", color: "white", cities: ["Jerusalem", "Hebron", "Shiloh", "Shechem", "Bethel", "Samaria", "Megiddo", "Jericho"], since: 11 },
   { id: "japanese", name: "Japanese", adjective: "Japanese", leader: "Tokugawa", color: "orange", cities: ["Kyoto", "Edo", "Osaka", "Nara", "Kamakura", "Nagoya", "Sendai", "Hakata"], since: 11 },

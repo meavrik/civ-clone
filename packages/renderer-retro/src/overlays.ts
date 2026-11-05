@@ -384,6 +384,10 @@ export const DEVICES: readonly (readonly string[])[] = [
   ["", "", "", "", "", ".DDDDDDD.", ".DDDDDDD."],
   // red (the barbarians): a saltire
   ["", "", ".D.....D.", "..D...D..", "...D.D...", "....D....", "...D.D...", "..D...D..", ".D.....D."],
+  // brown: two pales, nothing like red's saltire, orange's fess or green's half, the colours it nears for the red-green blind
+  ["", "..D..D...", "..D..D...", "..D..D...", "..D..D...", "..D..D...", "..D..D...", "..D..D..."],
+  // sky: a bend, nothing like magenta's base, the colour it nears for the green-blind
+  ["", ".DD......", "..DD.....", "...DD....", "....DD...", ".....DD..", "......D.."],
 ];
 
 /** The device a shield of this colour bears (an index into DEVICES), or -1 for a colour no civilization has. */

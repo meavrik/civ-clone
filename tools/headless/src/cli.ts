@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { PREMADE_WORLDS, WORLD_SIZES, type WorldSize } from "@civ/core";
+import { MAX_CIVS, PREMADE_WORLDS, WORLD_SIZES, type WorldSize } from "@civ/core";
 import { AIS, defaultConfig, replayMatches, runGame, seatAis, seatLabel, type GameConfig, type GameResult, type PlayerStats, type Sample } from "./index.js";
 
 /**
@@ -74,6 +74,8 @@ interface Options {
   barredCaravans: boolean;
   fedOnly: boolean;
   noTribes: boolean;
+  eightColors: boolean;
+  crowdedHomelands: boolean;
 }
 
 const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
@@ -81,7 +83,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --games N        games to play (default 1); game i uses seed+i
   --seed S         first seed (default 1)
   --turns T        rounds per game (default 200)
-  --civs C         civilizations per game, 2..8 (default 4)
+  --civs C         civilizations per game, 2..${MAX_CIVS} (default 4)
   --difficulty D   0 Chieftain .. 4 Emperor (default 2)
   --every K        print a stats row for every civ every K turns (default 0: final only)
   --ai a,b,...     AI per seat, cycled (default planner; known: ${Object.keys(AIS).join(", ")})
@@ -143,12 +145,14 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --barred-caravans    only an empty foreign city takes a caravan in (saves before version 65)
   --fed-only           the squares picked for a city only keep it from starving (saves before version 66)
   --no-tribes          villages hold no tribe, so no city or Settlers (saves before version 67)
+  --eight-colors       civilizations in the colours they had with eight to share (saves before version 72)
+  --crowded-homelands  rivals drawn whatever room their homelands leave, starts three squares apart (saves before version 72)
   --verify        replay each game from its save and check the state matches
   --quiet          only the aggregate summary
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, visibleCoal: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, pickAfterUnits: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, crowdedResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false, meekCityStates: false, swarmingCityStates: false, noReplacements: false, barredCaravans: false, fedOnly: false, noTribes: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, visibleCoal: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, pickAfterUnits: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, crowdedResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false, meekCityStates: false, swarmingCityStates: false, noReplacements: false, barredCaravans: false, fedOnly: false, noTribes: false, eightColors: false, crowdedHomelands: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -226,12 +230,14 @@ function parseArgs(argv: string[]): Options {
       case "barred-caravans": o.barredCaravans = true; break;
       case "fed-only": o.fedOnly = true; break;
       case "no-tribes": o.noTribes = true; break;
+      case "eight-colors": o.eightColors = true; break;
+      case "crowded-homelands": o.crowdedHomelands = true; break;
       case "quiet": o.quiet = true; break;
       case "help": console.log(HELP); process.exit(0);
       default: throw new Error(`unknown option --${key}\n\n${HELP}`);
     }
   }
-  if (o.civs < 2 || o.civs > 8) throw new Error("--civs must be 2..8");
+  if (o.civs < 2 || o.civs > MAX_CIVS) throw new Error(`--civs must be 2..${MAX_CIVS}`);
   if (o.difficulty < 0 || o.difficulty > 4) throw new Error("--difficulty must be 0..4");
   if (o.human && o.verify) throw new Error("--human games cannot be verified: the stand-in's moves are not logged");
   if (o.world && !PREMADE_WORLDS.some((w) => w.id === o.world)) throw new Error(`unknown world "${o.world}"`);
@@ -390,6 +396,8 @@ function main(argv: string[]): number {
       ...(o.barredCaravans ? { barredCaravans: true } : {}),
       ...(o.fedOnly ? { fedOnly: true } : {}),
       ...(o.noTribes ? { noTribes: true } : {}),
+      ...(o.eightColors ? { eightColors: true } : {}),
+      ...(o.crowdedHomelands ? { crowdedHomelands: true } : {}),
     });
     if (!o.quiet && o.every > 0) {
       console.log(`game ${g + 1}  seed ${config.seed}  seats: ${seatAis(config).map((a, i) => seatLabel(config, i) === "human" ? "human" : a).join(", ")}`);

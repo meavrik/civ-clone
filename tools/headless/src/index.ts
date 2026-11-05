@@ -6,6 +6,7 @@ import {
   lastTurnEvents,
   loadSave,
   makeSave,
+  MAX_CIVS,
   newGame,
   relation,
   runAiPlayers,
@@ -34,7 +35,7 @@ export const AIS: Record<string, AiFn> = {
 
 export interface GameConfig {
   seed: number;
-  /** Civilizations in the game, all AI-driven (2..8). */
+  /** Civilizations in the game, all AI-driven (2..10). */
   civs: number;
   /** 0 Chieftain .. 4 Emperor. */
   difficulty: number;
@@ -124,6 +125,10 @@ export interface GameConfig {
   fedOnly?: boolean;
   /** Villages hold no tribe (`GameState.noTribes`). */
   noTribes?: boolean;
+  /** Civilizations in their colours of before version 72, eight to share (`CivRule.earlyColor`). */
+  eightColors?: boolean;
+  /** Rivals drawn whatever room their homelands leave, starts three squares apart (saves before version 72). */
+  crowdedHomelands?: boolean;
   /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
   cityStates?: boolean;
   /**
@@ -244,7 +249,7 @@ export function makeRouter(config: GameConfig): AiFn {
 export function gameOptions(config: GameConfig): NewGameOptions {
   return {
     allAi: !config.human,
-    opponents: Math.max(1, Math.min(7, config.civs - 1)),
+    opponents: Math.max(1, Math.min(MAX_CIVS - 1, config.civs - 1)),
     difficulty: config.difficulty,
     ...(config.world ? { world: config.world, historical: config.historical === true } : {}),
     ...(config.size ? { size: config.size } : {}),
@@ -299,6 +304,8 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.barredCaravans ? { barredCaravans: true } : {}),
     ...(config.fedOnly ? { fedOnly: true } : {}),
     ...(config.noTribes ? { noTribes: true } : {}),
+    ...(config.eightColors ? { eightColors: true } : {}),
+    ...(config.crowdedHomelands ? { crowdedHomelands: true } : {}),
   };
 }
 

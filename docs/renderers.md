@@ -32,7 +32,10 @@ Retro renderer, palette, font, sprite tools, modern renderer. Moved word for wor
   bearing its colour slot's device (`DEVICES` in `overlays.ts`, in the colour's darker partner: white a pale,
   green per pale, blue a cross, yellow plain, cyan a chevron, magenta a base, grey a roundel, orange a fess,
   the barbarians' red a saltire; asked for 2026-10-26: civs "same color ... maybe a color blind issue". No
-  nine colours stay apart for the colour blind (green, yellow, orange and red look alike to the red-green
+  eleven colours stay apart for the colour blind (brown and sky came with ten civilizations, 2026-11-05, save version 72: the
+  palette's pair that clears the tests' 110 in RGB and 35 in L*a*b* from every colour and each other that the land does
+  not swallow, as a dark green would, itself all but brown to the green-blind (7); sky is 38 from white to the red-blind,
+  where light cyan was 8; brown bears two pales, sky a bend; green, yellow, orange and red look alike to the red-green
   blind whatever their shades: measured in CIEDE2000 under Machado's simulations, the best palette pick kept
   pairs near 10), so the colours alike get devices least alike, each still its own below a wounded unit's
   hp strip; cyan became the EGA's deep cyan and grey `stone` 3, light cyan and light grey having looked

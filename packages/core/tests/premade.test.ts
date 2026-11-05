@@ -7,6 +7,8 @@ import {
   makeSave,
   MAP_HEIGHT,
   MAP_WIDTH,
+  mapDistance,
+  maxCivsOn,
   nativeCivs,
   newGame,
   PLACE_CHARS,
@@ -205,5 +207,44 @@ describe("historical starts", () => {
         }
       }
     expect(bad).toEqual([]);
+  });
+});
+
+describe("homelands", () => {
+  const starts = (s: GameState) => s.players.filter((p) => p.id !== s.barbarians).map((p) => s.units.find((u) => u.owner === p.id)!);
+  const closest = (s: GameState) => {
+    const us = starts(s);
+    return Math.min(...us.flatMap((a, i) => us.slice(i + 1).map((b) => mapDistance(s.map, a.x, a.y, b.x, b.y))));
+  };
+
+  it("seats civilizations clear of each other, and of the homelands a smaller game could skip", () => {
+    for (const human of nativeCivs(premadeWorld("earth")).slice(0, 8)) expect(closest(newGame(4, { world: "earth", historical: true, opponents: 6, civ: human })), human).toBeGreaterThanOrEqual(6);
+    expect(closest(newGame(4, { world: "earth", historical: true, opponents: 6, civ: "french", crowdedHomelands: true }))).toBeLessThan(6);
+  });
+
+  it("parts the French and the English when all of Europe plays, each on its own land", () => {
+    for (const human of ["french", "english", "romans"]) {
+      const s = newGame(2, { world: "europe", historical: true, opponents: 8, civ: human });
+      expect(s.players.length).toBe(10);
+      expect(closest(s), human).toBeGreaterThanOrEqual(6);
+      const landOf = (civId: string) => { const [x, y] = premadeWorld("europe").sizes.small.starts[civId]!; return s.map.tiles[y * s.map.width + x]!.continent; };
+      for (const p of s.players.filter((q) => q.id !== s.barbarians)) {
+        const u = s.units.find((v) => v.owner === p.id)!;
+        expect(s.map.tiles[u.y * s.map.width + u.x]!.continent, p.civ).toBe(landOf(p.civ));
+      }
+    }
+  });
+
+  it("leaves the human on the true homeland", () => {
+    const s = newGame(2, { world: "europe", historical: true, opponents: 8, civ: "english" });
+    const [hx, hy] = premadeWorld("europe").sizes.small.starts.english!;
+    expect(starts(s)[0]).toMatchObject({ x: hx, y: hy });
+  });
+
+  it("holds as many civilizations as a map's land allows", () => {
+    expect(["small", "medium", "large"].map((size) => maxCivsOn("earth", size as WorldSize))).toEqual([8, 10, 10]);
+    expect(["small", "medium", "large"].map((size) => maxCivsOn("europe", size as WorldSize))).toEqual([10, 10, 10]);
+    expect(["small", "medium", "large"].map((size) => maxCivsOn(null, size as WorldSize))).toEqual([8, 10, 10]);
+    expect(maxCivsOn(undefined)).toBe(8);
   });
 });

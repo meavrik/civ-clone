@@ -90,6 +90,8 @@ import {
   CULTURE,
   esteem,
   hasContact,
+  MAX_CIVS,
+  maxCivsOn,
   WONDERS,
   nativeCivs,
   partCount,
@@ -679,9 +681,9 @@ export function setupCivs(setup: SetupState): string[] {
   return CIVS.filter((c) => c.id !== "barbarians").map((c) => c.id);
 }
 
-/** Most civilizations the setup can seat, ours included: one per colour among those offered, at most 7 as in the original. */
+/** Most civilizations the setup can seat, ours included: what the map holds, and one per colour among those offered. */
 export function setupMaxCivs(setup: SetupState): number {
-  return Math.max(3, Math.min(7, new Set(setupCivs(setup).map((id) => civ(id).color)).size));
+  return Math.max(3, Math.min(maxCivsOn(setup.world, setup.size), new Set(setupCivs(setup).map((id) => civ(id).color)).size));
 }
 
 export function setupMenu(setup: SetupState): { title: string; items: string[]; selected: number; right?: string[] } {
@@ -699,7 +701,7 @@ export function setupMenu(setup: SetupState): { title: string; items: string[]; 
     case "difficulty":
       return { title: "Choose your difficulty level", items: DIFFICULTIES, selected: setup.difficulty };
     case "opponents": {
-      // Civilizations in play, ours included, as in the original: 3 to 7.
+      // Civilizations in play, ours included: from 3 as in the original, up to what the map holds.
       const counts: number[] = [];
       for (let n = 3; n <= setupMaxCivs(setup); n++) counts.push(n);
       return {
@@ -940,7 +942,7 @@ export function builtNotice(state: GameState, cityId: number, p: Production): { 
 
 /** Rival civilizations for the n-th choice of the "How many civilizations?" menu. */
 export function opponentsForChoice(index: number): number {
-  return Math.max(2, Math.min(6, index + 2));
+  return Math.max(2, Math.min(MAX_CIVS - 1, index + 2));
 }
 
 /** Colour slots (see CIV_COLORS in core); renderers map each slot to their own palette. */

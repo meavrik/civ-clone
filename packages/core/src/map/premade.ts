@@ -1,5 +1,5 @@
 import type { RngState } from "../rng.js";
-import { Terrain, worldSize, type WorldMap, type WorldSize } from "../types.js";
+import { MAX_CIVS, Terrain, worldSize, type WorldMap, type WorldSize } from "../types.js";
 import { blankTile, labelContinents, scatterSpecials } from "./generate.js";
 import { findGeography, premadeGeography, type PlaceTable } from "./geography.js";
 import { EARTH } from "./worlds/earth.js";
@@ -60,6 +60,18 @@ export function premadeWorld(id: string): PremadeWorld {
   const world = PREMADE_WORLDS.find((w) => w.id === id);
   if (!world) throw new Error(`unknown world ${id}`);
   return world;
+}
+
+/** Sizes of a premade world whose land holds fewer than `MAX_CIVS`. Earth at Small has less land than a generated Small world. */
+const WORLD_CIV_LIMITS: Readonly<Record<string, Partial<Record<WorldSize, number>>>> = { earth: { small: 8 } };
+
+/**
+ * Most civilizations a map's land holds (asked for 2026-11-05: premade worlds as many as they can have, custom maps
+ * by size): a generated world's by its size, a premade world's by its own land. Homelands can limit a world further.
+ */
+export function maxCivsOn(world: string | null | undefined, size: WorldSize = "small"): number {
+  if (!world) return worldSize(size).maxCivs;
+  return WORLD_CIV_LIMITS[world]?.[size] ?? MAX_CIVS;
 }
 
 /** Each civilization's homeland square on the world at that size (as saves before version 13 drew it, with `joinedIslands`). */
