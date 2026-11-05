@@ -250,26 +250,37 @@ export function terrainPieces(sprite: string): { base: number; pieces: TerrainPi
   return out;
 }
 
-/** Sprites of woods, whose trees stand over a river running through them (`terrainSquare`). */
-const WOODS = new Set<string>(["forest", "forest_pine", "forest_birch", "forest_autumn", "forest_mixed", "jungle"]);
+/** Sprites of what stands tall, trees, hills and peaks, over a river running through it (`terrainSquare`). */
+const TALL = new Set<string>(["forest", "forest_pine", "forest_birch", "forest_autumn", "forest_mixed", "jungle", "hills", "mountains", "mountains_snow", "mountains_red", "mountains_ice"]);
 /** How light a jungle pixel must be to stand over a river: its fronds; the river shows through the darker leaves, or it would be lost among them. */
 const FROND_LIGHT = 200;
-const palmCache = new Map<string, Uint8Array>();
+const tallCache = new Map<string, Uint8Array>();
 
-/** 1 on a sprite of woods' trees: what stands on a forest's ground (`layers`); the jungle being all texture, the palms' lit fronds and warm trunks. */
-function treesOf(sprite: string): Uint8Array {
-  if (!SOLID.has(sprite)) return layers(sprite).objects;
-  let palms = palmCache.get(sprite);
-  if (!palms) {
+/**
+ * 1 on what stands tall on a sprite (`TALL`): what stands on its ground (`layers`). The jungle being all texture, that
+ * is its palms' lit fronds and warm trunks; a hill being an outline round the grass of its slopes, its whole shape.
+ */
+export function tallOf(sprite: string): Uint8Array {
+  const hit = tallCache.get(sprite);
+  if (hit) return hit;
+  let tall = layers(sprite).objects;
+  if (SOLID.has(sprite)) {
     const src = terrainSprite(sprite).data;
-    palms = new Uint8Array(FINE * FINE);
-    for (let i = 0; i < palms.length; i++) {
+    tall = new Uint8Array(FINE * FINE);
+    for (let i = 0; i < tall.length; i++) {
       const [r, g, b] = PALETTE[src[i]!]!;
-      palms[i] = r + g + b >= FROND_LIGHT || r > g ? 1 : 0;
+      tall[i] = r + g + b >= FROND_LIGHT || r > g ? 1 : 0;
     }
-    palmCache.set(sprite, palms);
+  } else if (sprite === "hills") {
+    tall = tall.slice();
+    for (let y = 0; y < FINE; y++) {
+      const row = tall.subarray(y * FINE, (y + 1) * FINE);
+      const first = row.indexOf(1);
+      if (first >= 0) row.fill(1, first, row.lastIndexOf(1));
+    }
   }
-  return palms;
+  tallCache.set(sprite, tall);
+  return tall;
 }
 
 /** The sprite's own pixels, for a ground that is all texture (the jungle's): FINE by FINE. */
@@ -348,7 +359,7 @@ const RIVER_GLINT = 0.07;
  * this square's (trees, peaks, dunes). Land that spills into a water square
  * shows its ground; next to the shore runs a line of surf, then a band of
  * shallows. Rivers show on land only, so a mouth runs on until it meets water,
- * and run under the trees of woods (`treesOf`).
+ * and run behind trees, hills and peaks (`tallOf`).
  * Squares the player has not explored (`explored`) are left out of the blend.
  * Every fine pixel is worked out on its own (FINE x FINE), so shores and rivers
  * are as fine as the terrain art.
@@ -371,7 +382,7 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
   const sea = getTile(Terrain.Ocean, x, y).data;
   const deep = deepTile(x, y).data;
   const { surf, shallow, river: water, glint, bank } = WATER;
-  const trees = river && WOODS.has(own) ? treesOf(own) : null;
+  const tall = river && TALL.has(own) ? tallOf(own) : null;
   for (let j = 0; j < F; j++)
     for (let i = 0; i < F; i++) {
       const u = (i + 0.5) / F;
@@ -394,8 +405,8 @@ export function terrainSquare(map: WorldMap, x: number, y: number, explored?: Ex
       else if (g < DEEP_EDGE - 0.06) c = sea[at]!;
       else if (g < DEEP_EDGE + 0.06) c = (i + j) & 1 ? sea[at]! : deep[at]!;
       else c = deep[at]!;
-      // A river runs under the trees of its square, wherever they still stand (a neighbour's ground can reach over a palm).
-      if (river && k >= 0 && !(trees?.[at] && c === plain.data[at]))
+      // A river runs behind what stands tall on its square, wherever that still shows (a neighbour's ground can reach over a palm).
+      if (river && k >= 0 && !(tall?.[at] && c === plain.data[at]))
         // Distances in screen pixels of the original's square (dist * TILE), so a river is as wide as it was before
         // the fine grain, and as much of a larger square.
         for (const st of river.strokes) {

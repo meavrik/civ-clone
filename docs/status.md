@@ -86,4 +86,4 @@ A leader's answer stands in a window of its own over the audience, with their po
 for; no save version). Coal stays off the map until Steam Engine, the Ironclad's advance (2026-11-05, asked for; save version 70).
 City-states keep a garrison and one band of three, which sets out whole, marches on the nearest city and attacks at any odds, no
 longer roaming round the player's cities, and a band's moves play together (2026-11-05, asked for; save version 71).
-A river runs under the trees of forests and the palms of jungles (2026-11-05, asked for; no save version).
+A river runs behind the trees of forests, the palms of jungles, hills and mountains (2026-11-05, asked for; no save version).

@@ -192,10 +192,12 @@ Map clicks, scrolling, panel, zoom, square size, other civs' turns, coast, fog, 
   Rivers (`river.ts`): curves from a meeting point near each square's centre to a crossing point
   picked per border (both squares agree, the curve leaves square to the border), meandering between,
   widening toward the sea; the sea square carries the mouth on through spilled shore. Strokes show on
-  land only. In retro a river runs under the trees of its square (`treesOf`, `WOODS` in `tiles.ts`; asked for 2026-11-05,
-  no save version): a forest's whole trees (the sprite's `objects`) and a jungle's trunks and lit fronds (`FROND_LIGHT`; the
-  jungle is all texture, and with every leaf over the water the river broke into specks), the rest of the line drawn as
-  ever, so a river stays readable through thick woods; a tree cut off by a neighbour's ground reaching in gives way to it. Retro blends coast and river per pixel (`terrainSquare` in `tiles.ts`, cached by
+  land only. In retro a river runs behind what stands tall on its square (`tallOf`, `TALL` in `tiles.ts`; asked for
+  2026-11-05, no save version): a forest's trees and a mountain's peaks (the sprite's `objects`), a hill's whole shape (the sheet
+  draws a hill as an outline round plain grass, so `objects` alone let the river through its slopes), a jungle's trunks and lit
+  fronds (`FROND_LIGHT`; the jungle is all texture, and with every leaf over the water the river broke into specks). What of the
+  line shows, the median square of ten worlds: jungle 66%, forest and hills 45%, mountains 21% (worst 3%, but 15 squares in the ten
+  worlds). A tree cut off by a neighbour's ground reaching in gives way to the river. Retro blends coast and river per pixel (`terrainSquare` in `tiles.ts`, cached by
   neighbourhood); modern fills marching-squares paths (`renderer-modern/src/coast.ts`) and strokes rivers.
   Fog of war (`fog.ts`): unexplored squares are fog, and fog drifts into explored squares beside them
   (solid at the border, clear before the centre, a ragged edge). `FogLifter` (a UI side channel run by

@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { newGame, Terrain } from "@civ/core";
 import { FINE, isWater, spriteSurface, squareSprite, Surface, TERRAIN_SHEET, terrainSquare } from "../src/index.js";
+import { tallOf } from "../src/tiles.js";
 import { encodePng } from "./png.js";
 
 const X = 30, Y = 24;
@@ -16,11 +17,17 @@ function valley(terrain: Terrain, river = true, east?: Terrain) {
   return map;
 }
 
-describe("rivers through woods", () => {
+describe("rivers behind what stands tall", () => {
   // The river's line is the same on any land, so open grass shows all of it.
   const line = terrainSquare(valley(Terrain.Grassland), X, Y).data;
 
-  it.each([["a forest", Terrain.Forest, undefined], ["a jungle", Terrain.Jungle, undefined], ["a jungle beside the desert", Terrain.Jungle, Terrain.Desert]])("runs under the trees of %s, and nowhere else", (_, terrain, east) => {
+  it.each([
+    ["a forest", Terrain.Forest, undefined],
+    ["a jungle", Terrain.Jungle, undefined],
+    ["a jungle beside the desert", Terrain.Jungle, Terrain.Desert],
+    ["hills", Terrain.Hills, undefined],
+    ["mountains", Terrain.Mountains, undefined],
+  ])("runs behind %s, and shows round them", (_, terrain, east) => {
     const map = valley(terrain, true, east);
     const drawn = terrainSquare(map, X, Y).data;
     const sprite = spriteSurface(TERRAIN_SHEET, squareSprite(map, X, Y, terrain))!.data;
@@ -30,7 +37,7 @@ describe("rivers through woods", () => {
       if (isWater(drawn[i]!)) shown++;
       else {
         under++;
-        // Only a tree of the square's own: no gap where a neighbour's ground reaches in.
+        // Only what stands on the square itself: no gap where a neighbour's ground reaches in.
         expect(drawn[i]).toBe(sprite[i]);
       }
     }
@@ -40,17 +47,27 @@ describe("rivers through woods", () => {
     if (terrain === Terrain.Jungle) expect(shown).toBeGreaterThan(under);
   });
 
+  it("hides behind the whole of a hill, the grass of its slopes too", () => {
+    const hill = tallOf("hills");
+    for (let y = 0; y < FINE; y++) {
+      const row = [...hill.subarray(y * FINE, (y + 1) * FINE)].join("");
+      expect(row).toMatch(/^0*1*0*$/);
+    }
+    expect(hill.indexOf(1)).toBeGreaterThanOrEqual(0);
+  });
+
   it("leaves other land to the river", () => {
-    const map = valley(Terrain.Hills);
+    const map = valley(Terrain.Desert);
     const drawn = terrainSquare(map, X, Y).data;
     for (let i = 0; i < FINE * FINE; i++) if (isWater(line[i]!)) expect(isWater(drawn[i]!)).toBe(true);
   });
 
   it("draws at every zoom", () => {
     const sizes = [16, 20, 24];
-    const s = Surface.fine(6 * 24, 2 * 3 * sizes.reduce((a, b) => a + b, 0));
+    const kinds = [Terrain.Forest, Terrain.Jungle, Terrain.Hills, Terrain.Mountains];
+    const s = Surface.fine(6 * 24, kinds.length * 3 * sizes.reduce((a, b) => a + b, 0));
     let dy = 0;
-    for (const terrain of [Terrain.Forest, Terrain.Jungle])
+    for (const terrain of kinds)
       for (const t of sizes) {
         const map = valley(terrain);
         for (let j = 0; j < 3; j++) for (let i = 0; i < 6; i++) s.blit(terrainSquare(map, X + i - 3, Y + j - 1, undefined, t), i * t, dy + j * t);
@@ -58,6 +75,6 @@ describe("rivers through woods", () => {
       }
     expect(s.data.some(isWater)).toBe(true);
     mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
-    writeFileSync(new URL("./out/river-trees.png", import.meta.url), encodePng(s, 3));
+    writeFileSync(new URL("./out/river-tall.png", import.meta.url), encodePng(s, 3));
   });
 });
