@@ -150,10 +150,10 @@ Never ship the original's sprites, palette art, fonts or text.
   more cities onto the richer land, gains.
   Hidden resources (asked for 2026-10-28: "showing terrain resources only when relevant to the civ - when got the
   resource related tech"; save version 40): Iron, Saltpeter and Oil carry `ResourceRule.revealedBy` (Bronze Working,
-  Gunpowder, Refining), and a civ sees one once it knows that advance or the advance of any unit that needs it
-  (`resourceRevealers`, `seesResource`: Chivalry's Knights want Iron without Bronze Working), whichever comes first;
-  Horses and Coal, the 1991 game's own plains and hills specials, are seen from the start, as are all the other
-  specials. Until then a square of it is plain terrain to that civ (`specialFor(state, tile, player)`, `tileAsKnown`;
+  Gunpowder, Refining), as Coal does since save version 70 (Steam Engine, below), and a civ sees one once it knows that
+  advance or the advance of any unit that needs it (`resourceRevealers`, `seesResource`: Chivalry's Knights want Iron
+  without Bronze Working), whichever comes first; Horses, the 1991 game's own plains special, Elephants and all the other
+  specials are seen from the start. Until then a square of it is plain terrain to that civ (`specialFor(state, tile, player)`, `tileAsKnown`;
   `specialOf` stays the square as it lies): not drawn (retro `drawSpecial` takes the viewer), no yield from it
   (`tileYield`'s `owner`, `influenceSpecials`), not held or tradeable (`resourceSquares`), not counted in a site's
   worth (`siteScore`'s `player`, the planner's and the settler pins'), absent from the square's window, the panel
@@ -173,6 +173,17 @@ Never ship the original's sprites, palette art, fonts or text.
   resource"; `foundKinds`, the kinds of which a square is known, so a loaded game tells none it knew). Saves before version 40 load with `visibleResources`
   (headless `--visible-resources`). Head to head (planner vs v2, 16 x 300, seeds 1-16): hidden 10-6, score 208 vs
   179, pop 74 vs 73; visible 10-6, 213 vs 184, pop 77 vs 74; all replaying exactly.
+  Coal joined them in save version 70 (asked for 2026-11-05: "why i see coal resource from the start - resources should be
+  shown only when relevant - like iron", and of a list offering Horses, Elephants, Fish and Iron too, "change only the coal
+  resource apperance"): left in view on 2026-10-28 as the 1991 game's special of the hills, it had done nothing at all since
+  version 52 until the Ironclad wants it, 19 advances in. It shows with Steam Engine, or Industrialization's Transport; the
+  Ironclad wants Iron as well, so Steam Engine shows that too to a civ yet to see it. A civ cannot trade it before. Starts,
+  city-states and tribes stand where they did (`siteScore` with no player reads what lies there); only the planner's own
+  sites feel it. Saves before 70 load with `visibleCoal` (headless `--visible-coal`; core `inPlainView`, which `revealedBy`
+  reads too, so Steam Engine reveals no Coal there). Head to head (planner vs v2, 16 x 300): seeds 1-16 6-10, score 83 vs 103,
+  pop 33 vs 35; seeds 17-32 11-5, 113 vs 74, pop 46 vs 29; so over the 32 seeds 17-15, 98 vs 89, pop 40 vs 32, cities 8.0 vs 6.6;
+  Coal in view 7-9 and 11-5, 18-14, 102 vs 94, pop 41 vs 34, cities 7.9 vs 6.8, version 69's figures to the digit; all replaying
+  exactly.
   Roads to resources (asked for 2026-10-29: "make roads for resources mandatory for them to be available"; save
   version 43): a square of a strategic resource serves its civilization only with a road or railroad on it
   (`resourceRoaded`; a city's own square has one), so held, traded and counted for builds only then
@@ -2153,7 +2164,7 @@ in fast forward as it is completed (2026-11-04, asked for; no save version).
 The city view is an isometric town on the real land round the city: streets, a town square, walls and a gatehouse, fields, shores
 and rivers, and the user's 24 houses standing by the people's age, size and advances (2026-11-05, asked for; no save version).
 A leader's answer stands in a window of its own over the audience, with Continue and Close all (2026-11-05, asked for; no save
-version).
+version). Coal stays off the map until Steam Engine, the Ironclad's advance (2026-11-05, asked for; save version 70).
 
 ## Known gaps / next steps
 

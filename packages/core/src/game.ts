@@ -114,6 +114,8 @@ export interface NewGameOptions extends MapGenOptions {
   lastingUnits?: boolean;
   /** Every strategic resource seen from the start (see `GameState.visibleResources`). Old saves load with it. */
   visibleResources?: boolean;
+  /** Coal seen from the start (see `GameState.visibleCoal`). Old saves load with it. */
+  visibleCoal?: boolean;
   /** A dry treasury sells a building (see `GameState.sellWhenBroke`). Old saves load with it. */
   sellWhenBroke?: boolean;
   /** A strategic resource serves without a road (see `GameState.roadlessResources`). Old saves load with it. */
@@ -355,6 +357,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.oldPlanner ? { oldPlanner: true } : {}),
     ...(opts.lastingUnits ? { lastingUnits: true } : {}),
     ...(opts.visibleResources ? { visibleResources: true } : {}),
+    ...(opts.visibleCoal ? { visibleCoal: true } : {}),
     ...(opts.sellWhenBroke ? { sellWhenBroke: true } : {}),
     ...(opts.roadlessResources ? { roadlessResources: true } : {}),
     ...(opts.riverNeedsRoad ? { riverNeedsRoad: true } : {}),

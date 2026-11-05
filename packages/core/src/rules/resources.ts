@@ -23,8 +23,10 @@ export interface ResourceRule extends DepositRule {
    * The advance that shows it to a civilization (asked for 2026-10-28: "showing terrain resources only when relevant
    * to the civ - when got the resource related tech"), or the advance of any unit that needs it, whichever comes first
    * (`resourceRevealers`: Chivalry's Knights want Iron without Bronze Working). Until then its squares are plain
-   * terrain to that civ: not drawn, yielding nothing of the special, not held. None for Horses and Coal, the 1991
-   * game's own specials of plains and hills, seen from the start.
+   * terrain to that civ: not drawn, yielding nothing of the special, not held. None for Horses, the 1991 game's own
+   * special of the plains, and Elephants, seen from the start. Coal, the same game's special of the hills, has had one
+   * since save version 70 (asked for 2026-11-05: "why i see coal resource from the start - resources should be shown only
+   * when relevant"): it has done nothing since version 52 until the Ironclad wants it (`GameState.visibleCoal` before).
    */
   revealedBy?: string;
   /**
@@ -75,7 +77,7 @@ export const RESOURCES: readonly ResourceRule[] = [
   { id: "Horses", special: HORSES, deposits: { [Terrain.Grassland]: 0.03, [Terrain.Plains]: 0.05 }, text: "Mounts for riders and chariots." },
   { id: "Iron", special: IRON, deposits: { [Terrain.Hills]: 0.08, [Terrain.Mountains]: 0.08 }, text: "Blades, armour and guns.", revealedBy: "bronze_working" },
   { id: "Saltpeter", special: SALTPETER, deposits: { [Terrain.Desert]: 0.08, [Terrain.Tundra]: 0.06, [Terrain.Plains]: 0.02, [Terrain.Hills]: 0.025 }, text: "The makings of gunpowder.", revealedBy: "gunpowder" },
-  { id: "Coal", special: COAL, deposits: { [Terrain.Hills]: 0.04, [Terrain.Forest]: 0.025, [Terrain.Swamp]: 0.04 }, text: "Fuel for steamships." },
+  { id: "Coal", special: COAL, deposits: { [Terrain.Hills]: 0.04, [Terrain.Forest]: 0.025, [Terrain.Swamp]: 0.04 }, text: "Fuel for steamships.", revealedBy: "steam_engine" },
   {
     id: "Oil", special: OIL, deposits: { [Terrain.Desert]: 0.06, [Terrain.Swamp]: 0.06, [Terrain.Tundra]: 0.05, [Terrain.Arctic]: 0.05, [Terrain.Jungle]: 0.02 },
     offshore: { share: 0.01, within: 2, since: 55, rig: { advance: "refining", shields: 1 } },

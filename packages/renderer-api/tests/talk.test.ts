@@ -111,7 +111,7 @@ describe("a talk with a foreign leader", () => {
     expect(report.lines.at(-1)).toMatchObject({ text: "Trade: our Iron, a gift" });
     // The Resources window (redone 2026-10-31): a badge for each, where it stands, the units needing it, our trades.
     const view = resourcesView(s, 0);
-    expect(view.entries.map((e) => [e.id, e.status])).toEqual([["Horses", "none"], ["Iron", "away"], ["Saltpeter", "unseen"], ["Coal", "none"], ["Oil", "unseen"], ["Elephants", "none"]]);
+    expect(view.entries.map((e) => [e.id, e.status])).toEqual([["Horses", "none"], ["Iron", "away"], ["Saltpeter", "unseen"], ["Coal", "unseen"], ["Oil", "unseen"], ["Elephants", "none"]]);
     expect(view.entries[1]).toMatchObject({ badge: "Traded away", detail: `All traded to the ${s.players[1]!.name}` });
     expect(view.entries[1]!.units).toContain("legion");
     expect(view.entries[2]!.detail).toBe("Shows on the map with Gunpowder");

@@ -20,6 +20,7 @@ import {
   resourceAt,
   resourceHoldings,
   resourceKnown,
+  resourceRevealers,
   DEPOSIT_BY_ID,
   RESOURCE_BY_ID,
   RESOURCES,
@@ -258,9 +259,8 @@ describe("strategic resources", () => {
     expect(specialFor(s, t)?.name).toBe("Iron");
     expect(resourceAt(s, 11, 11)).toBe("Iron");
     expect(specialFor(s, t, 1)?.name).toBe("Iron");
-    // Horses and Coal, the 1991 game's own specials, are seen from the start.
+    // Horses, the 1991 game's own special, are seen from the start.
     expect(resourceKnown(s, 0, "Horses")).toBe(true);
-    expect(resourceKnown(s, 0, "Coal")).toBe(true);
     expect(hasResource(s, 0, "Horses")).toBe(true);
     // A site's worth counts what its civilization knows.
     expect(siteScore(s, 12, 12, undefined, 0)).toBeLessThan(siteScore(s, 12, 12, undefined, 1)!);
@@ -276,7 +276,7 @@ describe("strategic resources", () => {
     expect(siteScore(s, 12, 12, undefined, 0)).toBe(siteScore(s, 12, 12, undefined, 1));
     // Each revealing advance is in both trees, and every unit that needs a resource reveals it too: Chivalry's
     // Knights want Iron, and Chivalry needs no Bronze Working.
-    expect(RESOURCES.filter((r) => r.revealedBy).map((r) => r.id)).toEqual(["Iron", "Saltpeter", "Oil"]);
+    expect(RESOURCES.filter((r) => r.revealedBy).map((r) => r.id)).toEqual(["Iron", "Saltpeter", "Coal", "Oil"]);
     for (const r of RESOURCES) {
       if (r.revealedBy) for (const tree of [ADVANCES, CLASSIC_ADVANCES]) expect(tree.some((a) => a.id === r.revealedBy), r.revealedBy).toBe(true);
       for (const u of UNIT_TYPES.filter((x) => x.needs?.includes(r.id) && x.requires)) expect(seesResource([u.requires!], r.id), `${u.id} sees ${r.id}`).toBe(true);
@@ -298,6 +298,35 @@ describe("strategic resources", () => {
     const old = loadSave({ ...makeSave(newGame(7), {}, []), version: 39 as const }, () => {}).state;
     expect(old.visibleResources).toBe(true);
     expect(loadSave(makeSave(newGame(7), {}, []), () => {}).state.visibleResources).toBeUndefined();
+  });
+
+  it("hides Coal until Steam Engine, the Ironclad's advance, as it does nothing before; older saves see it from the start", () => {
+    const s = world();
+    s.players[0]!.advances = [];
+    foundCity(s, 0, 10, 10);
+    deposit(s, 11, 11, "Coal");
+    const t = s.map.tiles[11 * s.map.width + 11]!;
+    expect(specialOf(t)?.name).toBe("Coal");
+    expect(resourceKnown(s, 0, "Coal")).toBe(false);
+    expect(specialFor(s, t, 0)).toBeUndefined();
+    expect(resourceAt(s, 11, 11, 0)).toBeNull();
+    expect(hasResource(s, 0, "Coal")).toBe(false);
+    // It shows with Steam Engine, or with Industrialization's Transport, and the research card says so; the Ironclad wants Iron too.
+    expect(resourceRevealers("Coal")).toEqual(["steam_engine", "industrialization"]);
+    expect(revealedBy(s, 0, ["steam_engine"])).toEqual(["Iron", "Coal"]);
+    s.players[0]!.advances.push("steam_engine");
+    expect(specialFor(s, t, 0)?.name).toBe("Coal");
+    expect(resourceKnown(s, 0, "Coal")).toBe(true);
+    expect(hasResource(s, 0, "Coal")).toBe(true);
+    // Saves before version 70 see Coal from the start, so Steam Engine reveals none there; Iron still hides.
+    s.players[0]!.advances = [];
+    s.visibleCoal = true;
+    expect(specialFor(s, t, 0)?.name).toBe("Coal");
+    expect(resourceKnown(s, 0, "Iron")).toBe(false);
+    expect(revealedBy(s, 0, ["steam_engine"])).toEqual(["Iron"]);
+    const old = loadSave({ ...makeSave(newGame(7), {}, []), version: 69 as const }, () => {}).state;
+    expect(old.visibleCoal).toBe(true);
+    expect(loadSave(makeSave(newGame(7), {}, []), () => {}).state.visibleCoal).toBeUndefined();
   });
 
   it("names only resources that exist, and barbarians build from nothing", () => {

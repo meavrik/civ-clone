@@ -31,6 +31,7 @@ import {
   slotInLand,
   slotAvailable,
   slotScore,
+  specialFor,
   specialOf,
   Terrain,
   TERRAIN_RULES,
@@ -176,9 +177,11 @@ describe("tile yields", () => {
     const pasture = tileYield(s, t, false, "monarchy", 0);
     expect(pasture.food).toBe(tileYield(s, plains, false, "monarchy", 0).food + 1);
     expect(pasture.shields).toBe(tileYield(s, plains, false, "monarchy", 0).shields);
-    // Coal on hills, the 1991 game's +2: none now, and in older saves (`resourceShields`) the two.
+    // Coal on hills, the 1991 game's +2: none now, and in older saves (`resourceShields`) the two. Steam Engine shows it.
     t.terrain = Terrain.Hills;
+    s.players[0]!.advances.push("steam_engine");
     expect(specialOf(t)?.name).toBe("Coal");
+    expect(specialFor(s, t, 0)?.name).toBe("Coal");
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(0);
     s.resourceShields = true;
     expect(tileYield(s, t, false, "monarchy", 0).shields).toBe(2);

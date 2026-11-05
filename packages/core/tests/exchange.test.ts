@@ -93,6 +93,9 @@ describe("an exchange between two civilizations", () => {
   it("shares gold a turn among the resources it pays for", () => {
     const s = world();
     Object.assign(s.map.tiles[9 * s.map.width + 10]!, { special: true, deposit: "Coal", road: true });
+    // Hidden until Steam Engine, it is not ours to give before.
+    expect(applyCommand(s, { type: "exchange", player: 1, give: { resources: ["Iron", "Coal"] }, take: { perTurn: 5 } }).ok).toBe(false);
+    s.players[0]!.advances.push("steam_engine");
     expect(applyCommand(s, { type: "exchange", player: 1, give: { resources: ["Iron", "Coal"] }, take: { perTurn: 5 } }).ok).toBe(true);
     expect((s.resourceTrades ?? []).map((t) => t.pay)).toEqual([3, 2]);
   });

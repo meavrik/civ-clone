@@ -1,5 +1,5 @@
 import { atWar, hasContact } from "./diplomacy.js";
-import { RESOURCES, RESOURCE_BY_ID, resourcesIn } from "./rules/resources.js";
+import { COAL, RESOURCES, RESOURCE_BY_ID, resourcesIn } from "./rules/resources.js";
 import { learnedOf, specialOf, type SpecialRule } from "./rules/terrain.js";
 import { UNIT_TYPES, unitType } from "./rules/units.js";
 import { borderRadius, claimant, withinBorder } from "./territory.js";
@@ -34,22 +34,27 @@ export function seesResource(advances: readonly string[], id: string): boolean {
   return !by.length || by.some((a) => advances.includes(a));
 }
 
-/** Whether `player` sees resource `id` (`seesResource`); every one in saves before version 40 (`visibleResources`), and to nobody in particular. */
+/** Whether resource `id` hides from nobody in this game: all of them in saves before version 40 (`visibleResources`), Coal before 70 (`visibleCoal`). */
+function inPlainView(state: GameState, id: string): boolean {
+  return state.visibleResources === true || (state.visibleCoal === true && id === COAL.name);
+}
+
+/** Whether `player` sees resource `id` (`seesResource`); always where it lies in plain view (`inPlainView`), and to nobody in particular. */
 export function resourceKnown(state: GameState, player: number | undefined, id: string): boolean {
-  return player === undefined || state.visibleResources === true || seesResource(state.players[player]?.advances ?? [], id);
+  return player === undefined || inPlainView(state, id) || seesResource(state.players[player]?.advances ?? [], id);
 }
 
 /**
  * The resources advances `found` show `player`, which it sees with them and would not without them: what the
  * New Technology window and the research card say an advance reveals (for one not yet known, what it would).
- * None in saves before version 40 (`visibleResources`) or 33 (`noResources`).
+ * None that lies in plain view (`inPlainView`), and none in saves before version 33 (`noResources`).
  */
 export function revealedBy(state: GameState, player: number, found: readonly string[]): string[] {
-  if (state.visibleResources || state.noResources) return [];
+  if (state.noResources) return [];
   const known = state.players[player]?.advances ?? [];
   const without = known.filter((a) => !found.includes(a));
   const withThem = [...without, ...found];
-  return RESOURCES.filter((r) => seesResource(withThem, r.id) && !seesResource(without, r.id)).map((r) => r.id);
+  return RESOURCES.filter((r) => !inPlainView(state, r.id) && seesResource(withThem, r.id) && !seesResource(without, r.id)).map((r) => r.id);
 }
 
 /**

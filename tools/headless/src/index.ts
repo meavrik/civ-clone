@@ -100,6 +100,8 @@ export interface GameConfig {
   lastingUnits?: boolean;
   /** Every civ sees every strategic resource from the start (`GameState.visibleResources`). */
   visibleResources?: boolean;
+  /** Every civ sees Coal from the start (`GameState.visibleCoal`). */
+  visibleCoal?: boolean;
   /** A dry treasury sells a city's costliest building (`GameState.sellWhenBroke`). */
   sellWhenBroke?: boolean;
   /** A strategic resource serves without a road on its square (`GameState.roadlessResources`). */
@@ -269,6 +271,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.oldPlanner ? { oldPlanner: true } : {}),
     ...(config.lastingUnits ? { lastingUnits: true } : {}),
     ...(config.visibleResources ? { visibleResources: true } : {}),
+    ...(config.visibleCoal ? { visibleCoal: true } : {}),
     ...(config.sellWhenBroke ? { sellWhenBroke: true } : {}),
     ...(config.roadlessResources ? { roadlessResources: true } : {}),
     ...(config.quickWork ? { quickWork: true } : {}),

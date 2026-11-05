@@ -443,6 +443,8 @@ export interface GameState {
   lastingUnits?: boolean;
   /** Every civilization sees every strategic resource from the start (no `ResourceRule.revealedBy`), as before version 40. */
   visibleResources?: boolean;
+  /** Every civilization sees Coal from the start, as before version 70; the other hidden resources hide as ever. */
+  visibleCoal?: boolean;
   /**
    * A treasury that runs dry as before version 42: a city whose upkeep it could not meet sold its costliest
    * building for the building's cost. Since 42 (`balanceTreasury`) buildings across the empire stop being
