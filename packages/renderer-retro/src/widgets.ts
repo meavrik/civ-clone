@@ -242,7 +242,7 @@ interface MenuLayout {
   cardY: number;
 }
 
-/** The arrow at the foot of a list with more rows below (`moreArrow`): the most its height takes of the room the rows leave, and its button's width. */
+/** The arrow at the foot of a list with more rows below (`moreArrow`): how much a scrolling list's foot deepens for it, and its button's width at the font's size. */
 const MORE_ROOM = 4;
 const MORE_W = 44;
 
@@ -386,10 +386,12 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   // Long lists (every tribe) close up their rows to stay on screen; longer ones still scroll.
   const room = floor - (m.anchor?.y ?? 0) - head - bodyH - secH - tabsH - foot;
   const fits = count * least <= room;
-  const row = pictured ? unitRow : trailed ? trailRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, count)))) : size.row;
-  const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor(room / row));
+  // Pictured rows close up to their least to leave the arrow at the foot its room (the phone's build menu had a pixel to spare).
+  const row = pictured ? (fits ? unitRow : Math.max(UNIT_ROW, size.least)) : trailed ? trailRow : fits ? Math.max(size.least, Math.min(size.row, Math.floor(room / Math.max(1, count)))) : size.row;
+  // A list that scrolls gives up a row for that arrow, but for a window short of room (`keep`), which keeps its rows.
+  const rows = buttons || fits ? m.items.length : Math.max(1, Math.floor((room - (keep ? 0 : MORE_ROOM)) / row));
   const itemsH = buttons ? m.items.length * (size.button + size.buttonGap) + 1 : (fits ? count : rows) * row;
-  // A list that scrolls, on any tab, keeps its foot deeper for the arrow there, from the room the rows leave, so it never costs a row.
+  // A list that scrolls, on any tab, keeps its foot deeper for the arrow there.
   const footH = foot + (buttons || fits ? 0 : Math.max(0, Math.min(MORE_ROOM, room - rows * row)));
   const h = head + bodyH + secH + tabsH + itemsH + footH;
   let x = m.anchor ? Math.max(0, Math.min(screenW - w, m.anchor.x)) : Math.floor((screenW - w) / 2);
@@ -447,31 +449,38 @@ function scrollBar(m: MenuState, l: MenuLayout): ScrollTrack {
   return scrollTrack(l.x + l.w - 4 - w, l.itemsY - 1, l.rows * l.row, m.items.length, l.rows, l.top, w);
 }
 
-/**
- * The arrow at a list's foot while it has more rows below those on view (asked for 2026-11-05: the bar's small arrow was
- * "not clear enough"): a lit button across the middle of the foot, from under the last row to the window's edge; null when
- * the list ends on view.
- */
-function moreArrow(m: MenuState, l: MenuLayout): { x: number; y: number; w: number; h: number } | null {
-  if (l.buttons || l.top + l.rows >= m.items.length) return null;
+/** The foot of a window of rows: all of it under the last row on view. */
+function listFoot(l: MenuLayout): { x: number; y: number; w: number; h: number } {
   const y = l.itemsY + l.rows * l.row;
-  return { x: l.x + Math.floor((l.w - MORE_W) / 2), y, w: MORE_W, h: l.y + l.h - 2 - y };
+  return { x: l.x, y, w: l.w, h: l.y + l.h - y };
 }
 
-/** The arrow itself on its button: a triangle pointing down, as tall as the button allows. */
-function drawMoreArrow(s: Surface, b: { x: number; y: number; w: number; h: number }): void {
-  const ink = buttonFace(s, b.x, b.y, b.w, b.h, "lit");
-  const steps = b.h - 2;
-  const mid = b.x + Math.floor(b.w / 2);
-  for (let k = 0; k < steps; k++) s.hline(mid - (steps - 1 - k), b.y + 1 + k, 2 * (steps - 1 - k) + 1, ink);
+/**
+ * The arrow at a list's foot while it has more rows below those on view (asked for 2026-11-05: the bar's small arrow left
+ * it "not clear enough that can scroll down"): a lit button in the middle of the foot with a triangle pointing down, as
+ * tall as the button allows.
+ */
+function drawMoreArrow(s: Surface, l: MenuLayout): void {
+  const foot = listFoot(l);
+  const w = MORE_W * l.size.text;
+  const h = foot.h - 2;
+  const x = foot.x + Math.floor((foot.w - w) / 2);
+  const ink = buttonFace(s, x, foot.y, w, h, "lit");
+  const steps = h - 2;
+  const mid = x + Math.floor(w / 2);
+  for (let k = 0; k < steps; k++) s.hline(mid - (steps - 1 - k), foot.y + 1 + k, 2 * (steps - 1 - k) + 1, ink);
 }
 
-/** Where a point lies on a scrolling menu's bar: -1 above its thumb (the up arrow too), 1 below or on the arrow at the list's foot, 0 on the thumb; null off them. */
+/**
+ * Where a point lies on a scrolling menu's bar: -1 above its thumb (the up arrow too), 1 below it, 0 on it; null off the bar.
+ * The window's foot counts as below while the arrow stands there, and as the thumb once the list has come to its end, so a
+ * click too many on the arrow does not close the window.
+ */
 export function menuScrollAt(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): number | null {
   const l = menuLayout(m, screenW, size);
   if (l.rows >= m.items.length) return null;
-  const more = moreArrow(m, l);
-  if (more && px >= more.x && px < more.x + more.w && py >= more.y && py < more.y + more.h) return 1;
+  const foot = listFoot(l);
+  if (px >= foot.x && px < foot.x + foot.w && py >= foot.y && py < foot.y + foot.h) return l.top + l.rows < m.items.length ? 1 : 0;
   const b = scrollBar(m, l);
   if (px < b.x - 1 || px > b.x + b.w || py < b.y || py >= b.y + b.h) return null;
   return py < b.thumbY ? -1 : py >= b.thumbY + b.thumbH ? 1 : 0;
@@ -617,8 +626,7 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     if (r) write((info ? info.x - 2 : x + 4 + rowW - 6) - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("town", 7) : shade("azure", 7)) : danger ? BAD : DIM);
   });
   if (scrolls) drawScrollBar(s, m, l);
-  const more = moreArrow(m, l);
-  if (more) drawMoreArrow(s, more);
+  if (scrolls && top + rows < m.items.length) drawMoreArrow(s, l);
   // The tip of the row whose info shows, over the window, pointing at its mark.
   const shown = m.infoShown !== undefined ? m.info?.[m.infoShown] : null;
   const at = shown ? infoMarkRect(l, m, m.infoShown!) : null;

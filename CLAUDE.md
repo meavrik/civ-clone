@@ -943,7 +943,15 @@ Never ship the original's sprites, palette art, fonts or text.
   longest label and centred, and its text wraps rather than widen it past `MODAL_MAX_SHARE` of the
   screen; keep modal text to a line or two. A list longer than the screen (what to build late in the game) scrolls:
   `MenuState.top` kept by `keepInView`, `Renderer.menuRows` and `menuScrollAt` (retro draws a bar with
-  arrows); arrows, PgUp/PgDn, Home/End, the wheel and clicks on the bar move through it.
+  arrows); arrows, PgUp/PgDn, Home/End, the wheel and clicks on the bar move through it. While rows lie below those on view
+  a lit button with a white arrow pointing down stands in the middle of the window's foot (asked for 2026-11-05: "show arrow
+  indication in the bottom when have more options in the list - not clear engouh now that can scroll down"; retro
+  `drawMoreArrow`, `listFoot`, `MORE_ROOM`): a list that scrolls keeps its foot 4 pixels deeper for it, the build menu from
+  the room its rows leave so it loses none (`keep`; the phone's picture rows close up from 19 to 18 for that), any other
+  list giving up a row. All of the foot answers a click (`menuScrollAt`), and a click on the bar or the arrow pages the rows
+  themselves (`scrollRows` in renderer-api, the phone's drag too; it had moved the choice, which on a first click stayed on
+  view, so nothing scrolled). At the list's end the arrow goes and a click on the foot does nothing, so a click too many
+  does not close the window.
   Debug's entries (reveal map, gold, research, production, moves, contact) are the core `cheat` command, logged and replayed like any order.
   Opening and title (`intro.ts`; asked for 2026-10-22, after the original's intro, in place of the old
   sunrise and its "an empire game" line): one timeline, `introAt(ms)`, `INTRO_MS` (27.5 s) long: stars,
@@ -1993,7 +2001,7 @@ Never ship the original's sprites, palette art, fonts or text.
   (`TITLE_H_LARGE`, `drawWindow`'s `scale`), rows 19, buttons 22 tall and 80 wide, windows up to 92% of
   the screen; a window that would run off the screen so falls back to `TOUCH_MENU_SMALL` (the font's
   size, rows 15, buttons 19, a scroll bar 10 wide either way);
-  a drag over a list too long for its window scrolls its rows (`scrollRows` in `menus.ts`, the choice
+  a drag over a list too long for its window scrolls its rows (`scrollRows` in renderer-api, the choice
   staying on view). Where they fit, menus are stone buttons instead (renderer-retro `screens/choices.ts`,
   `drawChoices`/`choiceAt`/`choicesRect`; asked for the same day, "more on the starting game options"):
   every menu over the title screen (the title menu and the setup questions: civilizations, world, size,

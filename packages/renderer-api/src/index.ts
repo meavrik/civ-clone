@@ -436,6 +436,17 @@ export function keepInView(m: MenuState, rows: number): number {
   return top;
 }
 
+/**
+ * A menu's rows moved `by` (down the list when positive), `rows` of them on view: never past either end, the choice
+ * going along to stay on view, as `keepInView` keeps it. A finger dragging the list, a page of the bar or its foot's arrow.
+ */
+export function scrollRows(m: MenuState, by: number, rows: number): void {
+  if (rows >= m.items.length || by === 0) return;
+  const top = Math.max(0, Math.min(m.items.length - rows, (m.top ?? 0) + by));
+  m.top = top;
+  m.selected = Math.max(top, Math.min(top + rows - 1, m.selected));
+}
+
 /** A modal window grows with its text only up to about this share of the screen's width, then wraps. */
 export const MODAL_MAX_SHARE = 0.55;
 

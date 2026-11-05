@@ -1,6 +1,5 @@
 import { civ, wrapX, type GameState } from "@civ/core";
-import { scrollRows } from "./menus.js";
-import { reignCard, type AdvanceInfoView, type AdvisorKind, type CityScreenView, type DiplomacyView, type MainScreenView, type MenuState, type NewTechView, type ReignView, type Renderer, type ResearchView, type SetupCards, type TextInputState } from "@civ/renderer-api";
+import { reignCard, scrollRows, type AdvanceInfoView, type AdvisorKind, type CityScreenView, type DiplomacyView, type MainScreenView, type MenuState, type NewTechView, type ReignView, type Renderer, type ResearchView, type SetupCards, type TextInputState } from "@civ/renderer-api";
 import {
   BAR_H,
   cityButtonAt,

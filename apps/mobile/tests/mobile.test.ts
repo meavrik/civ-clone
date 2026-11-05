@@ -7,7 +7,7 @@ import { Pinch, Recognizer } from "../src/gestures.js";
 import { layoutFor, MAX_SCREEN_W, screenWidth } from "../src/layout.js";
 import { MapPan, RELEASE_MS } from "../src/pan.js";
 import { rateKeys } from "../src/rates.js";
-import { scrollRows } from "../src/menus.js";
+import { scrollRows } from "@civ/renderer-api";
 
 describe("layout", () => {
   it("lays the game out as wide as a phone held sideways, from the original's 320 up to a limit", () => {

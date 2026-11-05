@@ -230,6 +230,7 @@ import {
   type Renderer,
   type ReportPage,
   keepInView,
+  scrollRows,
   showTab,
   MENU_BAR,
   topCitiesReport,
@@ -4077,9 +4078,13 @@ function mouseDown(e: MouseEvent): void {
         const t = renderer.menuBarHit(px, py);
         if (t >= 0) { if (t === sc.bar) screenState = sc.under; else openBarMenu(t); return; }
       }
-      // The bar of a long list pages through it, above or below its thumb; the thumb itself does nothing.
+      // The bar of a long list pages through it, above or below its thumb, and so does the arrow at its foot; the thumb itself does nothing.
       const way = renderer.menuScrollAt(sc.menu, px, py);
-      if (way !== null) { if (way) moveSelection(sc.menu, way * Math.max(1, renderer.menuRows(sc.menu) - 1)); return; }
+      if (way !== null) {
+        const rows = renderer.menuRows(sc.menu);
+        if (way) scrollRows(sc.menu, way * Math.max(1, rows - 1), rows);
+        return;
+      }
       // A window still opening answers no click (a double click through the playback would close it).
       if (sc.bar === undefined && !sc.sub && !settled(sc.menu)) return;
       // A tab of a tabbed list shows its rows.
