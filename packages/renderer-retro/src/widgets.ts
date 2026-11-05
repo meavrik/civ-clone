@@ -242,7 +242,7 @@ interface MenuLayout {
   cardY: number;
 }
 
-/** The arrow at the foot of a list with more rows below (`moreArrow`): how much a scrolling list's foot deepens for it, and its button's width at the font's size. */
+/** The arrow at the foot of a list with more rows below (`drawMoreArrow`): how much a scrolling list's foot deepens for it, and its button's width at the font's size. */
 const MORE_ROOM = 4;
 const MORE_W = 44;
 
