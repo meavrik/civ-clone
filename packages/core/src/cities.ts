@@ -11,6 +11,7 @@ import { levelContent, levelPct } from "./levels.js";
 import { BALANCED_WEIGHTS, combinedFocus, focusRule, type FocusRule } from "./rules/focus.js";
 import { nextCityName } from "./rules/names.js";
 import { RESOURCE_BY_ID } from "./rules/resources.js";
+import { CITY_STATE } from "./rules/city-states.js";
 import { learnedOf, TERRAIN_RULES, type SpecialRule } from "./rules/terrain.js";
 import { INFLUENCE_YIELD } from "./rules/culture.js";
 import { VETERAN_XP } from "./rules/experience.js";
@@ -1109,6 +1110,12 @@ export interface CityTurnEvent {
 }
 
 /** End-of-turn pass for one city. Returns events for the UI. */
+/** Whether a city-state has all the soldiers it keeps (`CITY_STATE.garrison` and `band`), wherever they are. */
+function cityStateManned(state: GameState, city: City): boolean {
+  if (city.cityState === undefined || state.swarmingCityStates) return false;
+  return state.units.filter((u) => u.homeCity === city.id).length >= CITY_STATE.garrison + CITY_STATE.band;
+}
+
 export function processCityTurn(state: GameState, city: City): CityTurnEvent[] {
   // The border reaches further as the city grows and builds (fixed in old saves).
   const reach = borderRadius(state, city);
@@ -1225,6 +1232,8 @@ function cityTurn(state: GameState, city: City): CityTurnEvent[] {
   const cost = costFor(state, city.owner, city.production);
   if (city.shields >= cost) {
     const p = city.production;
+    // A city-state with its garrison and its band raises no more (since save version 71): the box waits for one to fall.
+    if (cityStateManned(state, city)) return events;
     // A unit whose strategic resource is gone (a city lost, a trade ended) waits, its shields kept, until
     // the resource comes back or the city builds something else; told once, as the box fills.
     const missing = p.kind === "unit" ? missingResources(state, city.owner, p.id) : [];

@@ -84,4 +84,5 @@ square, walls and a gatehouse, patchwork fields, faceted mountains, shores and r
 people's age, size and advances (2026-11-05, asked for; no save version).
 A leader's answer stands in a window of its own over the audience, with their portrait, Continue and Close all (2026-11-05, asked
 for; no save version). Coal stays off the map until Steam Engine, the Ironclad's advance (2026-11-05, asked for; save version 70).
-
+City-states keep a garrison and one band of three, which sets out whole, marches on the nearest city and attacks at any odds, no
+longer roaming round the player's cities, and a band's moves play together (2026-11-05, asked for; save version 71).

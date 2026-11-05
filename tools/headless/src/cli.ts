@@ -69,6 +69,7 @@ interface Options {
   groundedElephants: boolean;
   foodOnlyFishery: boolean;
   meekCityStates: boolean;
+  swarmingCityStates: boolean;
   noReplacements: boolean;
   barredCaravans: boolean;
   fedOnly: boolean;
@@ -137,6 +138,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --grounded-elephants war elephants keep off mountains without a road (saves before version 59)
   --food-only-fishery  a fishery on fish adds no shield (saves before version 60)
   --meek-city-states   city-states' raiders neither hunt nor pillage and fortify where they stop (saves before version 63)
+  --swarming-city-states  city-states raise soldiers without end and send them out as they come (saves before version 71)
   --no-replacements    no unit gives way to its successor, Militia and Archers retiring with Gunpowder (saves before version 65)
   --barred-caravans    only an empty foreign city takes a caravan in (saves before version 65)
   --fed-only           the squares picked for a city only keep it from starving (saves before version 66)
@@ -146,7 +148,7 @@ const HELP = `headless: seeded AI-vs-AI games for the Epochs engine
   --help`;
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, visibleCoal: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, pickAfterUnits: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, crowdedResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false, meekCityStates: false, noReplacements: false, barredCaravans: false, fedOnly: false, noTribes: false };
+  const o: Options = { games: 1, seed: 1, turns: 200, civs: 4, difficulty: 2, every: 0, ais: ["planner"], json: null, verify: false, quiet: false, world: null, size: null, historical: false, classicTerrain: false, classicCivs: false, openMountains: false, looseUpkeep: false, workBeyondBorders: false, simpleMoods: false, packedCities: false, oldSupport: false, randomStarts: false, freecivYields: false, oceanColossus: false, halvedCarryOver: false, slowCulture: false, noInfluenceYields: false, sizeFreeUnits: false, narrowSight: false, cheapWonderBuy: false, simpleVeterans: false, noResources: false, looseSettlers: false, safeTriremes: false, wideCapital: false, oldPlanner: false, lastingUnits: false, visibleResources: false, visibleCoal: false, sellWhenBroke: false, roadlessResources: false, quickWork: false, riverNeedsRoad: false, leftoverShields: false, defaultBuilds: false, pickAfterUnits: false, cityStates: true, human: false, evenDifficulty: false, eagerCityStates: false, resourceShields: false, catalogue: null, freeFish: false, quickImprovements: false, clusteredResources: false, crowdedResources: false, richSea: false, groundedElephants: false, foodOnlyFishery: false, meekCityStates: false, swarmingCityStates: false, noReplacements: false, barredCaravans: false, fedOnly: false, noTribes: false };
   const num = (v: string | undefined, name: string): number => {
     const n = Number(v);
     if (v === undefined || !Number.isFinite(n)) throw new Error(`--${name} needs a number`);
@@ -219,6 +221,7 @@ function parseArgs(argv: string[]): Options {
       case "grounded-elephants": o.groundedElephants = true; break;
       case "food-only-fishery": o.foodOnlyFishery = true; break;
       case "meek-city-states": o.meekCityStates = true; break;
+      case "swarming-city-states": o.swarmingCityStates = true; break;
       case "no-replacements": o.noReplacements = true; break;
       case "barred-caravans": o.barredCaravans = true; break;
       case "fed-only": o.fedOnly = true; break;
@@ -382,6 +385,7 @@ function main(argv: string[]): number {
       ...(o.groundedElephants ? { groundedElephants: true } : {}),
       ...(o.foodOnlyFishery ? { foodOnlyFishery: true } : {}),
       ...(o.meekCityStates ? { meekCityStates: true } : {}),
+      ...(o.swarmingCityStates ? { swarmingCityStates: true } : {}),
       ...(o.noReplacements ? { noReplacements: true } : {}),
       ...(o.barredCaravans ? { barredCaravans: true } : {}),
       ...(o.fedOnly ? { fedOnly: true } : {}),

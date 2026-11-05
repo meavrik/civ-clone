@@ -72,8 +72,13 @@ export const CITY_STATE = {
   apart: 6,
   /** Soldiers each keeps home, fortified. */
   garrison: 2,
-  /** Soldiers beyond the garrison it gathers before it sets out. */
+  /** Soldiers beyond the garrison it gathers before it sets out, before save version 71 (`GameState.swarmingCityStates`). */
   raid: 2,
+  /**
+   * Since save version 71 the soldiers of its one band: it raises no more than these and its garrison, they set out
+   * together once all stand, and no others leave until the last of them has fallen or come home.
+   */
+  band: 3,
   /** No raid before this turn (3400 BC): the civilizations found their first cities in peace. */
   grace: 30,
   /** A raid goes for the nearest city of a civilization this far off at most, on its own land. */

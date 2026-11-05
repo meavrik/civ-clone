@@ -543,6 +543,13 @@ export interface GameState {
    */
   meekCityStates?: boolean;
   /**
+   * City-states' soldiers as before version 71: raised without end, joining a raid one by one as they were finished,
+   * hunting and laying waste round a city they could not storm, the target chosen anew each turn. Since 71 a city-state
+   * keeps its garrison and one band (`CITY_STATE.band`), which sets out whole, marches on the nearest city and attacks
+   * what it comes next to at any odds (the AI's `bandTurn`).
+   */
+  swarmingCityStates?: boolean;
+  /**
    * The palace's culture as before version 36 (`CULTURE.widePalace`, 3): the capital's border took its
    * 21 squares the day it was founded. Since 36 the palace adds 1, so the capital reaches them at size three.
    */

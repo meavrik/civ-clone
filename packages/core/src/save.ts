@@ -87,7 +87,7 @@ export interface SaveGame {
    * 68: saved while specials of different kinds could lie side by side (`spreadSpecials` minded only their own kind);
    *     crowded resources.
    */
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 59 | 60 | 61 | 62 | 63 | 64 | 65 | 66 | 67 | 68 | 69 | 70;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 59 | 60 | 61 | 62 | 63 | 64 | 65 | 66 | 67 | 68 | 69 | 70 | 71;
   seed: number;
   options: NewGameOptions;
   log: Command[];
@@ -110,7 +110,7 @@ export interface SaveGame {
   state?: GameState;
 }
 
-export const SAVE_VERSION = 70;
+export const SAVE_VERSION = 71;
 
 export function makeSave(state: GameState, options: NewGameOptions, log: Command[], label?: string): SaveGame {
   const s: SaveGame = {
@@ -280,6 +280,7 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
   if (save.version < 66) options.fedOnly = true;
   if (save.version < 67) options.noTribes = true;
   if (save.version < 69) options.crowdedResources = true;
+  if (save.version < 71) options.swarmingCityStates = true;
   if (save.version < 70) options.visibleCoal = true;
   const state = newGame(save.seed, options);
   const from = state.turn;

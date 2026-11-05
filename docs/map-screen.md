@@ -155,6 +155,11 @@ Map clicks, scrolling, panel, zoom, square size, other civs' turns, coast, fog, 
   `lastActions` (a UI side channel like `lastTurnEvents`, emptied by `endTurn`, never read by replays or
   AI); `MotionPlayer` (`renderer-api/src/motion.ts`) times them into `view.moving` (slides) and
   `view.battle` (lunge, blows, hp draining, the loser's burst), and renderers draw from those.
+  Barbarians and city-states are bands, not armies (asked for 2026-11-05: "make them move at batches"): their steps in one
+  view go together under one glide of the camera (`watchTurn`'s `moveBand`, `MotionTiming.together`: each unit's first step
+  in the first beat, its second in the second), and a band's fights after the first there go quicker (`WATCH_PACE.raid`,
+  `RAID_ANNOUNCE_MS`, `RAID_OUTCOME_MS`; the outcome before them shortened too). A civilization's army at war with us still
+  moves one unit at a time, as asked for below.
   The other civilizations' turns (asked for 2026-10-22: enemies "come as a surprise, too swift"):
   `watchTurn` (`renderer-api/src/watch.ts`) plans the playback from their actions and the squares we
   see (`seen`, the web app's `watchOthers`: squares we see now, so a unit shown stays in sight or is seen

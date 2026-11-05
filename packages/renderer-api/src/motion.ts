@@ -75,6 +75,11 @@ export interface MotionTiming {
   maxMs: number;
   /** Map width, to slide the short way across the seam. */
   width: number;
+  /**
+   * The units set off together: each one's first step in the first beat, its second in the second, and so on, rather than
+   * one unit after another (a band of raiders, `watchTurn`). For steps only: fights keep their order.
+   */
+  together?: boolean;
   /** Longest a single fight takes; many fights share `battleTotalMs` and are sped up to fit. */
   battleMs?: number;
   battleTotalMs?: number;
@@ -183,9 +188,19 @@ type Paced =
 function paced(actions: readonly UnitAction[], timing: MotionTiming): Paced[] {
   type Group = { kind: "slide"; slides: Slide[] } | { kind: "battle"; battle: UnitBattle };
   const groups: Group[] = [];
+  /** How many steps each unit has taken so far, when they go together. */
+  const taken = new Map<number, number>();
   for (const act of actions) {
     if (act.kind === "battle") { groups.push({ kind: "battle", battle: act }); continue; }
     const slide = { step: act, dx: seamDx(act.toX - act.fromX, timing.width), dy: act.toY - act.fromY };
+    if (timing.together) {
+      const k = taken.get(act.unit) ?? 0;
+      taken.set(act.unit, k + 1);
+      const beat = groups[k];
+      if (beat?.kind === "slide") beat.slides.push(slide);
+      else groups.push({ kind: "slide", slides: [slide] });
+      continue;
+    }
     const last = groups.at(-1);
     if (act.aboard !== undefined && last?.kind === "slide" && last.slides[0]!.step.unit === act.aboard) last.slides.push(slide);
     else groups.push({ kind: "slide", slides: [slide] });
@@ -198,7 +213,11 @@ function paced(actions: readonly UnitAction[], timing: MotionTiming): Paced[] {
   return groups.map((g): Paced => {
     // A unit that walks takes a whole step of its walk to cross a square (its cargo goes with it).
     const walk = (type: string) => Math.min(timing.walkMs?.(type) ?? 0, WALK_CHAIN_MS / slides);
-    if (g.kind === "slide") return { kind: "slide", slides: g.slides, ms: Math.max(stepMs, walk(g.slides[0]!.step.type)) };
+    if (g.kind === "slide") {
+      // Units going together wait for the slowest walker of the beat.
+      const walkers = g.slides.filter((s) => s.step.aboard === undefined);
+      return { kind: "slide", slides: g.slides, ms: Math.max(stepMs, ...(walkers.length ? walkers : g.slides.slice(0, 1)).map((s) => walk(s.step.type))) };
+    }
     const n = Math.max(1, g.battle.rounds.length);
     const roundMs = Math.max(ROUND_MS.min, Math.min(roundMax, (fightMs - LUNGE_MS - DEATH_MS) / n));
     // The first blow waits for the attacker's wind-up.

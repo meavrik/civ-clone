@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { foundCity, newGame, type GameState, type UnitAction, type UnitBattle, type UnitStep } from "@civ/core";
-import { ANNOUNCE_MS, fightReport, MotionPlayer, OUTCOME_MS, SETTLE_MS, shotOf, strikeMs, travelMs, WATCH_BUDGET_MS, WATCH_PACE, watchMs, watchTurn, type WatchOptions } from "../src/index.js";
+import { foundCity, newGame, setRelation, type GameState, type UnitAction, type UnitBattle, type UnitStep } from "@civ/core";
+import { ANNOUNCE_MS, fightReport, MotionPlayer, OUTCOME_MS, RAID_ANNOUNCE_MS, RAID_OUTCOME_MS, SETTLE_MS, shotOf, strikeMs, travelMs, WATCH_BUDGET_MS, WATCH_PACE, watchMs, watchTurn, type WatchOptions } from "../src/index.js";
 
 const step = (unit: number, owner: number, fromX: number, fromY: number, toX: number, toY: number): UnitStep =>
   ({ kind: "step", unit, type: "legion", owner, fromX, fromY, toX, toY });
@@ -38,6 +38,45 @@ describe("watching the other civilizations' turns", () => {
     const beats = watchTurn(s, [step(1, s.barbarians, 5, 5, 6, 5), step(1, s.barbarians, 6, 5, 7, 5), step(1, s.barbarians, 8, 5, 9, 5), step(1, s.barbarians, 9, 5, 10, 5)], { ...o, seen });
     expect(beats).toHaveLength(1);
     expect(beats[0]!.kind === "play" && beats[0]!.actions.map((a) => (a as UnitStep).toX)).toEqual([6, 7]);
+  });
+
+  it("moves a band of barbarians together, under one glide of the camera (asked for 2026-11-05: \"make them move at batches\")", () => {
+    const { s, o } = setup();
+    const band = [step(1, s.barbarians, 30, 20, 31, 20), step(1, s.barbarians, 31, 20, 32, 20), step(2, s.barbarians, 30, 21, 31, 21), step(2, s.barbarians, 31, 21, 32, 21), step(3, s.barbarians, 29, 21, 30, 21), step(3, s.barbarians, 30, 21, 31, 21)];
+    const beats = watchTurn(s, band, o);
+    expect(beats.map((b) => b.kind)).toEqual(["hold", "play"]);
+    const play = beats[1]!;
+    expect(play.kind === "play" && play.timing.together).toBe(true);
+    expect(play.kind === "play" && play.actions).toEqual(band);
+    // Two squares' time, for all three.
+    const walked = watchMs(beats) - (280 + SETTLE_MS);
+    const one = watchMs(watchTurn(s, band.slice(0, 2), { ...o, camera: { originX: 24, originY: 14, tilesX: 15, tilesY: 11 } }));
+    expect(walked).toBe(one);
+    // As far apart as two views, two batches, each with its own glide.
+    const far = [step(1, s.barbarians, 30, 20, 31, 20), step(2, s.barbarians, 60, 20, 61, 20)];
+    expect(watchTurn(s, far, o).map((b) => b.kind)).toEqual(["hold", "play", "hold", "play"]);
+  });
+
+  it("still plays a civilization's army at war with us one unit at a time, as asked for", () => {
+    const { s, o } = setup();
+    setRelation(s, 0, 1, "war");
+    const army = [step(1, 1, 5, 5, 6, 5), step(2, 1, 5, 6, 6, 6)];
+    const beats = watchTurn(s, army, o);
+    expect(beats.map((b) => b.kind)).toEqual(["play", "play"]);
+    expect(beats.every((b) => b.kind === "play" && !b.timing.together)).toBe(true);
+  });
+
+  it("goes through a band's attack quicker after its first blow, and stands long only on the last outcome", () => {
+    const { s, o } = setup();
+    const attack = [fight(s, false, [6, 6]), fight(s, false, [6, 6]), fight(s, false, [6, 6])];
+    const beats = watchTurn(s, attack, o);
+    const holds = beats.flatMap((b) => (b.kind === "hold" ? [b.ms] : []));
+    expect(holds).toEqual([ANNOUNCE_MS, RAID_OUTCOME_MS, RAID_ANNOUNCE_MS, RAID_OUTCOME_MS, RAID_ANNOUNCE_MS, OUTCOME_MS]);
+    const blows = beats.flatMap((b) => (b.kind === "play" ? [b.timing.battleMs] : []));
+    expect(blows).toEqual([WATCH_PACE.threat.battleMs, WATCH_PACE.raid.battleMs, WATCH_PACE.raid.battleMs]);
+    // A civilization's attacks keep their pace.
+    const theirs = attack.map((b) => ({ ...b, attacker: { ...b.attacker, owner: 1 } }));
+    expect(watchTurn(s, theirs, o).flatMap((b) => (b.kind === "hold" ? [b.ms] : []))).toEqual([ANNOUNCE_MS, OUTCOME_MS, ANNOUNCE_MS, OUTCOME_MS, ANNOUNCE_MS, OUTCOME_MS]);
   });
 
   it("announces a fight with our unit beside the attacker, then says beside ours what came of it", () => {
@@ -90,6 +129,32 @@ describe("watching the other civilizations' turns", () => {
     const ms = watchMs(watchTurn(s, busy, o));
     expect(ms).toBeLessThanOrEqual(WATCH_BUDGET_MS + 30 * 280);
     expect(ms).toBeGreaterThan(WATCH_BUDGET_MS / 2);
+  });
+});
+
+describe("units moving together", () => {
+  const timing = { stepMs: 200, maxMs: 2000, width: 80, together: true };
+
+  it("set off at once, each its own steps, and take as long as the longest walk", () => {
+    const p = new MotionPlayer();
+    p.play([step(1, 1, 5, 5, 6, 5), step(1, 1, 6, 5, 7, 5), step(2, 1, 9, 9, 10, 9)], 0, timing);
+    const early = p.at(100).moving;
+    expect(early.map((m) => m.unit).sort()).toEqual([1, 2]);
+    expect(early.find((m) => m.unit === 1)!.x).toBeGreaterThan(5);
+    expect(early.find((m) => m.unit === 2)!.x).toBeGreaterThan(9);
+    // The first unit goes on to its second square, the other has arrived.
+    const late = p.at(300).moving;
+    expect(late.map((m) => m.unit)).toEqual([1]);
+    expect(late[0]!.x).toBeGreaterThan(6);
+    expect(p.busy(399)).toBe(true);
+    expect(p.busy(401)).toBe(false);
+  });
+
+  it("go one after another without it", () => {
+    const p = new MotionPlayer();
+    const { together: _, ...single } = timing;
+    p.play([step(1, 1, 5, 5, 6, 5), step(2, 1, 9, 9, 10, 9)], 0, single);
+    expect(p.at(100).moving.find((m) => m.unit === 2)!.x).toBe(9);
   });
 });
 

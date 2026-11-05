@@ -156,6 +156,8 @@ export interface GameConfig {
   foodOnlyFishery?: boolean;
   /** City-states' raiders neither hunt nor pillage and fortify where they stop (`GameState.meekCityStates`). */
   meekCityStates?: boolean;
+  /** City-states raise soldiers without end and send them out as they come (`GameState.swarmingCityStates`). */
+  swarmingCityStates?: boolean;
 }
 
 export interface PlayerStats {
@@ -292,6 +294,7 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.groundedElephants ? { groundedElephants: true } : {}),
     ...(config.foodOnlyFishery ? { foodOnlyFishery: true } : {}),
     ...(config.meekCityStates ? { meekCityStates: true } : {}),
+    ...(config.swarmingCityStates ? { swarmingCityStates: true } : {}),
     ...(config.noReplacements ? { noReplacements: true } : {}),
     ...(config.barredCaravans ? { barredCaravans: true } : {}),
     ...(config.fedOnly ? { fedOnly: true } : {}),

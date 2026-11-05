@@ -160,6 +160,8 @@ export interface NewGameOptions extends MapGenOptions {
   foodOnlyFishery?: boolean;
   /** City-states' raiders neither hunt nor pillage and fortify where they stop, as before version 63 (see `GameState.meekCityStates`). Old saves load with it. */
   meekCityStates?: boolean;
+  /** City-states raise soldiers without end and send them out as they come, as before version 71 (see `GameState.swarmingCityStates`). Old saves load with it. */
+  swarmingCityStates?: boolean;
   /**
    * Specials of a kind lie where the lattice and the deposits' rolls put them, however near each other, as before
    * version 57 (since, `spreadSpecials` keeps them `SPECIAL_SPACING` apart). Old saves load with it.
@@ -380,6 +382,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
     ...(opts.groundedElephants ? { groundedElephants: true } : {}),
     ...(opts.foodOnlyFishery ? { foodOnlyFishery: true } : {}),
     ...(opts.meekCityStates ? { meekCityStates: true } : {}),
+    ...(opts.swarmingCityStates ? { swarmingCityStates: true } : {}),
   };
   const difficulty = opts.difficulty ?? 2;
   for (const p of players) {

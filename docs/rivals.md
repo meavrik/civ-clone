@@ -55,6 +55,31 @@ Barbarians, city-states, tribal villages. Moved word for word from CLAUDE.md, so
   1-16): 7-9, score 103 vs 101, pop 43 vs 38, cities 8.5 vs 7.1, cities lost 1.2 vs 0.9 a seat; meek 8-8, 111 vs 97, pop
   46 vs 35 (as version 62); all replaying exactly. The planner, its settlers and soldiers more often in the open near
   the city-states, loses the most: not tuned for the bolder raiders yet.
+  Since save version 71 (asked for 2026-11-05: "city states unit come in massive units - and just walk arownd my cities -
+  make no sense and make each turn very long, waiting for all those units to move forward and backward - FIX this. if you
+  need to attack just attack, or reduce the units amount or make them move at batches") a city-state raises only its
+  garrison and one band of `CITY_STATE.band` (3), its box waiting once all stand (core `cityStateManned`; up to 14 a city
+  before), and the AI is `bandTurn`, not `swarmTurn`. The band sets out whole, past the grace, and no one follows until the
+  last of it has fallen or come home (a new soldier used to set off alone). It marches on the nearest city it can reach,
+  chosen from its home so it holds (`raidTarget`; the old choice moved as the farms went), and goes straight there (`press`):
+  it attacks what it comes next to at any odds (a field fight at `RAID_ODDS`, a city at `STORM_ODDS` before), the city above
+  all, passing by whoever paid it off (`strike`), and wrecks what it stands on, but hunts nothing, looks for no loot and
+  does not wait at the gates, so a raid ends in a fight. With nothing to raid it goes home and stays. A goto left standing
+  walks first as the turn begins, spending the moves, so `press` replaces one for elsewhere at once: before, a band sent home
+  took that step forward each turn and never turned round, and raiders stepping out of a zone of control and back were the
+  rest of the "forward and backward". Saves before 71 load with `swarmingCityStates` (headless `--swarming-city-states`).
+  About 34 of 48 city-states at turn 100 hold all five, the rest rebuilding, or (2 of 48, at 2 shields or fewer) short of a
+  band for good, their upkeep taking the shields, so those never raid; raids set out 2.8 times a city-state per 100 turns.
+  Measured from a human seat refusing every demand, 7 civs on a small world, 6 x 250 (the planner stand-in sees little and
+  hunts raiders, so sight widened to 8 squares round its cities and units; at turns 60-100, version 70 then 71, batched
+  playback included, see docs/map-screen.md): the city-states' playback 2.2 s a round then 1.1 s, of it walking 2.1 s then
+  0.6 s, fights 0.1 s then 0.5 s; rounds over 3 s 29% then 10%, over 5 s 14% then 7%; the longest of the game 15.5 s then 10.3 s; soldiers
+  at most 57 then 40, of one city-state 14 then 5, abroad 17 then 8; the barbarians' turn 10.7 then 2.2 ms. Left alone from turn 120 on a
+  medium world, 5 civs: at our gates at most 13 then 6, 2.5 then 0.4 at a time. Head to head (planner vs v2, 16 x 300, seeds
+  1-16 and 17-32): 6-10 and 6-10, score 107 vs 140 and 126 vs 125, pop 46 vs 48 and 51 vs 47, cities 8.7 vs 8.2 and 9.2 vs
+  8.6; swarming 6-10 and 11-5, 83 vs 103 and 113 vs 74, pop 33 vs 35 and 46 vs 29, cities 7.0 vs 6.8 and 8.9 vs 6.4; all
+  replaying exactly. Over the 32 seeds the planner gains (score 98 to 117, pop 40 to 48) and v2 gains more (89 to 133, pop 32
+  to 47): the swarm held back whoever would not fight it, so the rivals are stronger now and the planner's edge on v2 is gone.
   Paid (`cityStateTribute`), that city-state leaves the payer be for 20 turns (`state.cityStatePeace`,
   `peaceUntil`/`boughtOff`: its units may not strike the payer's), until the payer strikes it (`breakPeace`). Taken,
   it is a city-state no more (`endCityState`); its soldiers fight on as barbarians. The planner pays while its

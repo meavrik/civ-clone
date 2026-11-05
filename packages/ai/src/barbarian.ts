@@ -174,7 +174,7 @@ function landRaiders(state: GameState, boat: Unit, target: City, anywhere: boole
 function strike(state: GameState, u: Unit, odds: number, storm: number): boolean {
   if (u.movesLeft <= 0) return false;
   let best: [number, number] | null = null;
-  let bestP = 0;
+  let bestP = -1;
   for (const [dx, dy] of NEIGHBOURS) {
     const x = wrapX(state.map, u.x + dx);
     const y = u.y + dy;
@@ -182,6 +182,9 @@ function strike(state: GameState, u: Unit, odds: number, storm: number): boolean
     if (!t) continue;
     const city = cityAt(state, x, y);
     const foes = state.units.filter((o) => o.x === x && o.y === y && o.owner !== u.owner);
+    // Whoever has paid a city-state off is passed by (a band now strikes at any odds, and the refused move cost it the turn's fight).
+    const owner = foes[0]?.owner ?? city?.owner;
+    if (!state.swarmingCityStates && owner !== undefined && boughtOff(state, u, owner)) continue;
     if (foes.length === 0) {
       if (city && city.owner !== u.owner && t.terrain !== Terrain.Ocean) return applyCommand(state, { type: "move", unit: u.id, dx, dy }).ok;
       continue;
@@ -254,15 +257,77 @@ function cityStateProduce(state: GameState, c: City): void {
   if (c.production.kind !== "unit" || c.production.id !== best) applyCommand(state, { type: "setProduction", city: c.id, production: { kind: "unit", id: best } });
 }
 
+/** A city-state's soldiers' turn. */
+function cityStateTurn(state: GameState, c: City): void {
+  if (state.swarmingCityStates) swarmTurn(state, c);
+  else bandTurn(state, c);
+}
+
 /**
- * A city-state's soldiers (asked for 2026-10-29: "only produce war units to attack occasionally"): its best
- * defenders hold the city, sallying only at good odds. The rest wait at home until there are `CITY_STATE.raid` of
+ * A city-state's soldiers since save version 71 (asked for 2026-11-05: "city states unit come in massive units - and just
+ * walk arownd my cities - make no sense and make each turn very long ... if you need to attack just attack, or reduce the
+ * units amount or make them move at batches"). It raises only its garrison and one band (core `cityStateManned`). The
+ * garrison holds the city, sallying only at good odds; the band waits there too until all of it stands and the turn is
+ * past `grace`, then sets out together for the nearest civilization's city it can reach (`raidTarget`), its owner asked
+ * for tribute (`cityStateDemand`), and no other soldier leaves until the last of it has fallen or come home. On the march
+ * nothing turns it aside (`press`), and with no city left to raid it goes home and stays. So few soldiers are ever
+ * abroad, each going one way, and a raid ends in a fight.
+ */
+function bandTurn(state: GameState, c: City): void {
+  const units = state.units.filter((u) => u.homeCity === c.id && u.owner === c.owner && isSoldier(u) && u.aboard === null);
+  const home = units.filter((u) => u.x === c.x && u.y === c.y).sort((a, b) => unitType(b.type).defense - unitType(a.type).defense || a.id - b.id);
+  const garrison = new Set(home.slice(0, CITY_STATE.garrison).map((u) => u.id));
+  const band = units.filter((u) => !garrison.has(u.id));
+  const out = band.filter((u) => u.x !== c.x || u.y !== c.y);
+  const ready = state.turn >= CITY_STATE.grace && (out.length > 0 || band.length >= CITY_STATE.band);
+  const target = ready ? raidTarget(state, c, out[0] ?? band[0]!) : null;
+  const marching = out.length ? out : target ? band : [];
+  for (const g of home) {
+    if (marching.includes(g)) continue;
+    if (!strike(state, g, SALLY_ODDS, SALLY_ODDS) && g.order.kind !== "fortified") applyCommand(state, { type: "fortify", unit: g.id });
+  }
+  if (!target) {
+    for (const u of marching) press(state, u, c, false);
+    return;
+  }
+  const victim = target.owner;
+  const demand = () => applyCommand(state, { type: "cityStateDemand", city: c.id, player: victim, target: target.id });
+  demand();
+  for (const u of marching) press(state, u, target, true);
+  if (target.owner === victim && marching.some((u) => state.units.includes(u))) demand();
+}
+
+/**
+ * A band's soldier on its way to `dest`, the city it raids or (`raiding` false) its home. Raiding it attacks what it comes
+ * next to at any odds, the city above all: "if you need to attack just attack". It wrecks the farms, mines, railroads and
+ * fortresses it stands on, on the land of whoever has not paid it off, and otherwise walks on. It chases nothing and
+ * waits for nothing: what `prowl` did round a city it could not storm kept a band walking there for good.
+ */
+function press(state: GameState, u: Unit, dest: City, raiding: boolean): void {
+  // A goto left standing walks first as the turn begins, spending the moves: one for somewhere else goes now, or a band
+  // sent home takes that step forward every turn and never turns round.
+  if (u.order.kind === "goto" && (u.order.x !== dest.x || u.order.y !== dest.y)) applyCommand(state, { type: "goto", unit: u.id, x: dest.x, y: dest.y });
+  for (let guard = 0; guard < 4 && state.units.includes(u) && u.movesLeft > 0; guard++) {
+    if (strike(state, u, raiding ? 0 : RAID_ODDS, raiding ? 0 : STORM_ODDS)) continue;
+    if (plunder(state, u, false)) return;
+    if (u.x === dest.x && u.y === dest.y) {
+      if (u.order.kind !== "fortified") applyCommand(state, { type: "fortify", unit: u.id });
+      return;
+    }
+    const before = u.movesLeft;
+    if (!applyCommand(state, { type: "goto", unit: u.id, x: dest.x, y: dest.y }).ok || u.movesLeft === before) return;
+  }
+}
+
+/**
+ * A city-state's soldiers before save version 71 (asked for 2026-10-29: "only produce war units to attack occasionally"):
+ * its best defenders hold the city, sallying only at good odds. The rest wait at home until there are `CITY_STATE.raid` of
  * them (and the turn is past `grace`), then set out together for the nearest civilization's city within reach on
  * their land whose owner has not paid them off, its owner first asked for tribute (`cityStateDemand`); on the way
  * they strike what they meet. With no city to raid they go home. Since save version 63 they hunt, pillage and lay waste
  * on the way and at home alike, fortifying only there (`prowl`).
  */
-function cityStateTurn(state: GameState, c: City): void {
+function swarmTurn(state: GameState, c: City): void {
   const units = state.units.filter((u) => u.homeCity === c.id && u.owner === c.owner && isSoldier(u) && u.aboard === null);
   const home = units.filter((u) => u.x === c.x && u.y === c.y).sort((a, b) => unitType(b.type).defense - unitType(a.type).defense || a.id - b.id);
   const garrison = new Set(home.slice(0, CITY_STATE.garrison).map((u) => u.id));
@@ -291,14 +356,14 @@ function cityStateTurn(state: GameState, c: City): void {
 
 /**
  * The city of a civilization a city-state raids: of the three nearest within `CITY_STATE.reach` on its land, not paid
- * off, that `u` can walk to, the nearest; since save version 63 the nearest of those it could storm or has something
- * to wreck round (`lootNear`), else the nearest.
+ * off, that `u` can walk to, the nearest, so a band keeps to one target. From save version 63 until 71 the nearest of
+ * those it could storm or has something to wreck round (`lootNear`), else the nearest, which moved as the farms went.
  */
 function raidTarget(state: GameState, c: City, u: Unit): City | null {
   const land = getTile(state.map, c.x, c.y)!.continent;
   const near = citiesByDistance(state, c.x, c.y).filter((t) =>
     mapDistance(state.map, c.x, c.y, t.x, t.y) <= CITY_STATE.reach && getTile(state.map, t.x, t.y)!.continent === land && peaceUntil(state, c.id, t.owner) === undefined);
-  if (state.meekCityStates) {
+  if (state.meekCityStates || !state.swarmingCityStates) {
     for (const t of near.slice(0, 3)) if (findPath(state, u, t.x, t.y)) return t;
     return null;
   }

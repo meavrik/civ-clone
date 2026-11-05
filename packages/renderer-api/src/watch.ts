@@ -10,8 +10,11 @@ import type { Callout } from "./refusal.js";
  * barbarians) on squares we could see, one unit at a time, the map gliding to
  * each before it moves; each fight with our units announced beside the
  * attacker and its outcome said beside our square. Other civilizations' moves
- * play only where the map already looks. Pure: the web app queues the beats on
- * its `MotionPlayer` and moves its camera at each hold's `centre`.
+ * play only where the map already looks. The barbarians' and city-states' are
+ * bands, not armies (asked for 2026-11-05: "make them move at batches"): those
+ * in one view move together under one glide of the camera, and their fights
+ * after the first there go quicker. Pure: the web app queues the beats on its
+ * `MotionPlayer` and moves its camera at each hold's `centre`.
  */
 export type WatchBeat =
   | { kind: "hold"; ms: number; centre?: { x: number; y: number }; note?: Callout }
@@ -34,9 +37,10 @@ export interface WatchOptions {
   glideMs: number;
 }
 
-/** Paces per kind of move: an enemy's slow enough to follow, anyone else's brisk, our gotos as our own orders. */
+/** Paces per kind of move: an enemy's slow enough to follow, anyone else's brisk, our gotos as our own orders; `raid` a band's fights after the first in view. */
 export const WATCH_PACE = {
   threat: { stepMs: 220, maxMs: 1800, battleMs: 2400, battleTotalMs: 2400, roundMaxMs: 170 },
+  raid: { stepMs: 220, maxMs: 1800, battleMs: 1100, battleTotalMs: 1100, roundMaxMs: 90 },
   other: { stepMs: 140, maxMs: 1200, battleMs: 1400, battleTotalMs: 1400 },
   own: { stepMs: 120, maxMs: 1000, battleMs: 1600, battleTotalMs: 1600 },
 };
@@ -45,6 +49,9 @@ export const SETTLE_MS = 150;
 /** How long a fight's announcement stands before the blows, and its outcome after. */
 export const ANNOUNCE_MS = 650;
 export const OUTCOME_MS = 1100;
+/** The same for a band's fights after the first in view: it is one attack, not the player's to read blow by blow each time. */
+export const RAID_ANNOUNCE_MS = 250;
+export const RAID_OUTCOME_MS = 450;
 /** A turn's playback longer than this is sped up (to no more than a little under three times as fast). */
 export const WATCH_BUDGET_MS = 20000;
 const MIN_SPEED = 0.35;
@@ -160,8 +167,8 @@ export function watchTurn(state: GameState, actions: readonly UnitAction[], o: W
     const ry = y - cam.originY;
     return rx >= margin && rx <= cam.tilesX - 1 - margin && ry >= margin && ry <= cam.tilesY - 1 - margin;
   };
-  const centreOn = (squares: readonly (readonly [number, number])[]): { x: number; y: number } => {
-    // The middle of their bounds, measured from the first square the short way round the seam.
+  /** Their bounds, measured from the first square the short way round the seam. */
+  const bounds = (squares: readonly (readonly [number, number])[]) => {
     const [x0, y0] = squares[0]!;
     let lo = 0, hi = 0, top = y0, bottom = y0;
     for (const [x, y] of squares) {
@@ -170,6 +177,15 @@ export function watchTurn(state: GameState, actions: readonly UnitAction[], o: W
       lo = Math.min(lo, dx); hi = Math.max(hi, dx);
       top = Math.min(top, y); bottom = Math.max(bottom, y);
     }
+    return { x0, lo, hi, top, bottom };
+  };
+  /** Whether these squares can all stand well on screen at once. */
+  const fit = (squares: readonly (readonly [number, number])[]): boolean => {
+    const { lo, hi, top, bottom } = bounds(squares);
+    return hi - lo <= cam.tilesX - 3 && bottom - top <= cam.tilesY - 3;
+  };
+  const centreOn = (squares: readonly (readonly [number, number])[]): { x: number; y: number } => {
+    const { x0, lo, hi, top, bottom } = bounds(squares);
     const x = (((x0 + Math.round((lo + hi) / 2)) % w) + w) % w;
     const y = Math.round((top + bottom) / 2);
     // Where the web app's camera will stand once it has centred there.
@@ -187,30 +203,60 @@ export function watchTurn(state: GameState, actions: readonly UnitAction[], o: W
   const beats: WatchBeat[] = [];
   // An animated unit walks a whole step of its walk a square (`travelMs`), and winds up whole before its first blow
   // (`strikeMs`), a catapult's stone flying to its foe (`shotOf`).
-  const play = (acts: UnitAction[], kind: Kind) => beats.push({ kind: "play", actions: acts, timing: { ...WATCH_PACE[kind], width: w, walkMs: travelMs, strikeMs, shot: shotOf } });
+  const play = (acts: UnitAction[], kind: Kind, together = false) => beats.push({ kind: "play", actions: acts, timing: { ...WATCH_PACE[kind], width: w, walkMs: travelMs, strikeMs, shot: shotOf, ...(together ? { together } : {}) } });
+  /** The barbarian steps gathered so far, to go together, and the squares they cross. */
+  let band: { steps: UnitStep[]; squares: [number, number][] } | null = null;
+  const moveBand = () => {
+    if (!band) return;
+    follow(band.squares, beats);
+    play(band.steps, "threat", true);
+    band = null;
+  };
+  /** The last fight shown was a band's, so one more where the map stands goes quicker: this is what that one's outcome holds. */
+  let assault: (WatchBeat & { kind: "hold" }) | null = null;
   for (const leg of legs(actions)) {
     if (leg.kind === "fight") {
       const b = leg.battle;
       const squares = [[b.defender.x, b.defender.y], [b.attacker.x, b.attacker.y]] as const;
       if (b.attacker.owner === o.viewer || b.defender.owner === o.viewer) {
+        moveBand();
         // Always shown: the map goes there, says who attacks, plays the blows and says what came of it.
         const glide = follow(squares, beats);
         const hold = beats.at(-1);
+        const raider = b.attacker.owner === state.barbarians;
+        const quick = raider && assault !== null && !glide;
+        // Another blow is on its way: the last one's outcome need not stand long.
+        if (quick) assault!.ms = RAID_OUTCOME_MS;
         const note = { x: b.attacker.x, y: b.attacker.y, text: attackNote(state, b, o.viewer) };
         if (glide && hold?.kind === "hold") { hold.ms += ANNOUNCE_MS; hold.note = note; }
-        else beats.push({ kind: "hold", ms: ANNOUNCE_MS, note });
-        play([b], "threat");
-        beats.push({ kind: "hold", ms: OUTCOME_MS, note: { x: b.defender.x, y: b.defender.y, text: outcomeNote(b, o.viewer) } });
-      } else if ((o.seen(b.attacker.x, b.attacker.y) || o.seen(b.defender.x, b.defender.y)) && squares.some(([x, y]) => inView(x, y, 0))) play([b], "other");
+        else beats.push({ kind: "hold", ms: quick ? RAID_ANNOUNCE_MS : ANNOUNCE_MS, note });
+        play([b], quick ? "raid" : "threat");
+        const outcome: WatchBeat & { kind: "hold" } = { kind: "hold", ms: OUTCOME_MS, note: { x: b.defender.x, y: b.defender.y, text: outcomeNote(b, o.viewer) } };
+        beats.push(outcome);
+        assault = raider ? outcome : null;
+      } else if ((o.seen(b.attacker.x, b.attacker.y) || o.seen(b.defender.x, b.defender.y)) && squares.some(([x, y]) => inView(x, y, 0))) {
+        moveBand();
+        play([b], "other");
+      }
       continue;
     }
     const steps = leg.steps.filter((s) => o.seen(s.fromX, s.fromY) || o.seen(s.toX, s.toY));
     if (!steps.length) continue;
     const squares: [number, number][] = [[steps[0]!.fromX, steps[0]!.fromY], ...steps.map((s) => [s.toX, s.toY] as [number, number])];
     const kind: Kind = leg.owner === o.viewer ? "own" : hostile(leg.owner) ? "threat" : "other";
+    if (kind === "threat" && leg.owner === state.barbarians) {
+      // A step of the band that will not share the view with the rest starts the next batch.
+      const all: [number, number][] = band ? [...band.squares, ...squares] : squares;
+      if (band && !fit(all)) moveBand();
+      band = band ? { steps: [...band.steps, ...steps], squares: all } : { steps, squares };
+      continue;
+    }
+    moveBand();
+    assault = null;
     if (kind === "threat") { follow(squares, beats); play(steps, kind); }
     else if (squares.some(([x, y]) => inView(x, y, 0))) play(steps, kind);
   }
+  moveBand();
   return fitBudget(beats, o.glideMs);
 }
 
