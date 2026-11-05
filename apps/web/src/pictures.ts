@@ -1,5 +1,5 @@
 import { civ, UNIT_TYPES, type GameState } from "@civ/core";
-import { artPlace, buildingArt, BUILDING_CUTS, CITY_ART, HUT_ART, LEADER_PORTRAITS, RESOURCE_ART, WORK_ART, techPicture, unitAnim, unitArt, wonderStages, type ArtBox, type ArtSpot } from "@civ/renderer-api";
+import { artPlace, buildingArt, BUILDING_CUTS, CITY_ART, HOUSE_ART, HUT_ART, LEADER_PORTRAITS, RESOURCE_ART, WORK_ART, techPicture, unitAnim, unitArt, wonderStages, type ArtBox, type ArtSpot } from "@civ/renderer-api";
 import { slotColor } from "@civ/renderer-retro";
 import { prepareUnitFrames, unitFrameUrl } from "./unit-frames.js";
 
@@ -21,7 +21,8 @@ import { prepareUnitFrames, unitFrameUrl } from "./unit-frames.js";
  * one is drawn: the map, the city screen, the square's window, the New Technology window, Advisors > Resources; and the
  * improvements (buildings/<id>.png, 2026-11-04, cut from the user's sheet of them pixel for pixel), in place of their
  * WebPs, and the wonders on the user's sheets of them, with the stages of their construction (<id>-start, <id>-construction),
- * the other wonders and the spaceship parts keeping theirs. Each is
+ * the other wonders and the spaceship parts keeping theirs; and the houses of the city view (houses/<id>.png, 2026-11-05, cut
+ * from the user's sheet of them pixel for pixel). Each is
  * an image laid over the canvas where the screen leaves room for
  * it; they let clicks through to the canvas.
  */
@@ -33,6 +34,7 @@ const buildingUrl = (id: string): string => (id in BUILDING_CUTS ? new URL(`./bu
 const unitUrl = (id: string): string => new URL(`./units/${id}.png`, import.meta.url).href;
 const cityUrl = (id: string): string => new URL(`./cities/${id}.png`, import.meta.url).href;
 const hutUrl = (id: string): string => new URL(`./huts/${id}.png`, import.meta.url).href;
+const houseUrl = (id: string): string => new URL(`./houses/${id}.png`, import.meta.url).href;
 const workUrl = (id: string): string => new URL(`./works/${id}.png`, import.meta.url).href;
 const resourceUrl = (id: string): string => new URL(`./resources/${id}.png`, import.meta.url).href;
 
@@ -100,7 +102,7 @@ export function buildingPlaces(spots: ArtSpot[], screen: { dx: number; logicalW:
     const box = artPlace(spot);
     // An animated unit shows its frame in its owner's colour (none until its atlas is in).
     const anim = spot.unit ? unitAnim(spot.id) : null;
-    const url = anim ? unitFrameUrl(spot.id, spot.frame ?? anim.rule.idle, spot.owner) : spot.unit ? unitUrl(spot.id) : spot.city ? cityUrl(spot.id) : spot.hut ? hutUrl(spot.id) : spot.work ? workUrl(spot.id) : spot.resource ? resourceUrl(spot.id) : buildingUrl(spot.id);
+    const url = anim ? unitFrameUrl(spot.id, spot.frame ?? anim.rule.idle, spot.owner) : spot.unit ? unitUrl(spot.id) : spot.city ? cityUrl(spot.id) : spot.hut ? hutUrl(spot.id) : spot.house ? houseUrl(spot.id) : spot.work ? workUrl(spot.id) : spot.resource ? resourceUrl(spot.id) : buildingUrl(spot.id);
     if (box && url) out.push({ url, fit: "fill", ...(anim?.rule.pixelated ? { pixelated: true } : {}), ...box, x: box.x + screen.dx, logicalW: screen.logicalW, logicalH: screen.logicalH, z, ...(spot.lit ? { glow: true } : {}), ...(spot.reveal !== undefined ? { reveal: spot.reveal } : {}), ...(spot.dim ? { dim: true } : {}), ...(spot.unseen ? { unseen: true } : {}), clip: spot.clip ? { ...spot.clip, x: spot.clip.x + screen.dx } : { x: screen.dx, y: 0, w: screen.logicalW - 2 * screen.dx, h: screen.logicalH }, ...(spot.holes ? { holes: spot.holes.map((h) => ({ ...h, x: h.x + screen.dx })) } : {}), ...(spot.turn !== undefined ? { turn: spot.turn } : {}), ...(spot.water !== undefined ? { water: spot.water } : {}), ...(spot.flip ? { flip: true } : {}), ...(spot.contour ? { contour: spot.contour } : {}), ...(spot.opacity !== undefined ? { opacity: spot.opacity } : {}), ...(spot.dark !== undefined ? { dark: spot.dark } : {}) });
   });
   return out;
@@ -139,12 +141,13 @@ export function preloadUnits(state: GameState): void {
 }
 
 /**
- * Fetch and decode the pictures of the cities (twelve: three ages by four sizes), the villages (five), the tile
- * improvements and the resources as a game starts or loads.
+ * Fetch and decode the pictures of the cities (twelve: three ages by four sizes), the villages (five), the houses of
+ * the city view (24), the tile improvements and the resources as a game starts or loads.
  */
 export function preloadCities(): void {
   for (const id of Object.keys(CITY_ART)) imageFor(cityUrl(id));
   for (const id of Object.keys(HUT_ART)) imageFor(hutUrl(id));
+  for (const id of Object.keys(HOUSE_ART)) imageFor(houseUrl(id));
   for (const id of Object.keys(WORK_ART)) imageFor(workUrl(id));
   for (const id of Object.keys(RESOURCE_ART)) imageFor(resourceUrl(id));
 }

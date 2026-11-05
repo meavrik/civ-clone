@@ -65,8 +65,8 @@ export declare function preloadTech(id: string | null | undefined): void;
  */
 export declare function preloadUnits(state: GameState): void;
 /**
- * Fetch and decode the pictures of the cities (twelve: three ages by four sizes), the villages (five), the tile
- * improvements and the resources as a game starts or loads.
+ * Fetch and decode the pictures of the cities (twelve: three ages by four sizes), the villages (five), the houses of
+ * the city view (24), the tile improvements and the resources as a game starts or loads.
  */
 export declare function preloadCities(): void;
 /**

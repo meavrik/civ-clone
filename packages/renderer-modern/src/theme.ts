@@ -223,7 +223,7 @@ export const MINE = {
 
 /**
  * The city view: each building material as a face, a lit edge and a shaded edge (the owner's
- * colour stands in for "owner"), the sky from overhead to the horizon, streets, the far country.
+ * colour stands in for "owner"), the hills, the river and the streets.
  */
 export const CITY_VIEW = {
   materials: {
@@ -253,14 +253,9 @@ export const CITY_VIEW = {
   /** Materials drawn in one colour, without light and shade. */
   flat: ["dark", "light", "owner"] as Material[],
   outline: "rgba(18, 20, 26, 0.8)",
-  sky: ["#4a82d4", "#9fc2ec", "#e3eef9"] as const,
-  cloud: "#ffffff",
-  cloudShade: "#d3e0ef",
-  haze: ["rgba(227, 238, 249, 0.55)", "rgba(227, 238, 249, 0)"] as const,
-  mountain: { lit: "#9aa2ae", shade: "#686f7c", snow: "#f4f8fb" },
-  hill: { lit: "#78b25c", shade: "#5a9142" },
-  wood: { lit: "#3f8549", shade: "#2a5f33" },
+  mountain: { lit: "#9aa2ae", shade: "#686f7c" },
+  hill: { lit: "#78b25c" },
   river: "#4b98e6",
-  street: { dirt: "#a07f50", stone: "#aeb2b9", asphalt: "#3d4249", line: "#e9eef4", edge: "rgba(0, 0, 0, 0.22)" },
+  street: { dirt: "#a07f50", stone: "#aeb2b9", asphalt: "#3d4249" },
   tag: { fill: "rgba(13, 17, 23, 0.88)", ink: "#f1c54f" },
 };

@@ -1,124 +1,25 @@
-import { BUILDINGS, formatYear, Terrain, turnToYear, WONDERS, type GameState } from "@civ/core";
-import { buildingArt, cityScene, CLOUD_PUFFS, hash, sceneItemAt, wonderRise, type CityScene, type CityViewState } from "@civ/renderer-api";
+import { BUILDINGS, formatYear, turnToYear, WONDERS, type GameState } from "@civ/core";
+import { buildingArt, cityScene, hash, HOUSE_BY_ID, sceneItemAt, wonderRise, type ArtBox, type ArtSpot, type CityScene, type CityViewState, type SceneItem } from "@civ/renderer-api";
+import { fineCopy, sealPictures, type Laid } from "../art-holes.js";
 import { drawSpaced, drawText, drawTextCentered, textWidth } from "../font.js";
 import { C, shade } from "../palette.js";
-import { drawBuilding, drawPicture } from "../pictures.js";
+import { drawBuilding } from "../pictures.js";
 import { SCREEN_H, SCREEN_W, Surface } from "../surface.js";
 import { DIM, drawStone, drawWindow, INK } from "../widgets.js";
 import { playerColor } from "./main.js";
+import { drawMound, drawPeak, drawTownGround, drawTree, drawWallPiece, drawWell } from "./town.js";
 
 /**
- * The city view (320x200): the city as a picture under a day sky, inside a stone window, with
- * a bar along the bottom that names the building last clicked. Any other click, or a key, goes
- * back to the city screen. Buildings with a picture of the user's leave a spot for it
- * (`drawBuilding`); homes, trees and the run of the walls are drawn.
+ * The city view (320x200): the town from above and to one side (`cityScene`), inside a stone window,
+ * with a bar along the bottom that names the building or house last clicked. Any other click, or a key,
+ * goes back to the city screen. Buildings, houses and fields leave a spot for the user's picture of them
+ * (the apps lay it over the canvas); the ground, trees, hills and walls are drawn, and what is drawn in
+ * front of a picture shows through it (`sealPictures`).
  */
 export const SCENE_X = 2;
 export const SCENE_Y = 13;
 const BAR_Y = 188;
 const BACK = { x: SCREEN_W - 34, y: BAR_Y + 1, w: 33, h: 11 };
-
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-const bayer = (x: number, y: number) => BAYER[(y & 3) * 4 + (x & 3)]! / 16;
-
-/** Each kind of ground as a ramp and a shade. */
-const GROUND: Record<Terrain, [string, number]> = {
-  [Terrain.Ocean]: ["ocean", 4],
-  [Terrain.Grassland]: ["grass", 4],
-  [Terrain.Plains]: ["plains", 4],
-  [Terrain.Forest]: ["forest", 5],
-  [Terrain.Hills]: ["earth", 5],
-  [Terrain.Mountains]: ["stone", 4],
-  [Terrain.Desert]: ["sand", 5],
-  [Terrain.Tundra]: ["earth", 4],
-  [Terrain.Arctic]: ["ice", 6],
-  [Terrain.Swamp]: ["grass", 2],
-  [Terrain.Jungle]: ["forest", 4],
-};
-
-function inside(pts: number[], x: number, y: number): boolean {
-  let hit = false;
-  for (let i = 0, j = pts.length - 2; i < pts.length; j = i, i += 2) {
-    const xi = pts[i]!, yi = pts[i + 1]!, xj = pts[j]!, yj = pts[j + 1]!;
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
-  }
-  return hit;
-}
-
-/** Fills a polygon of the scene, colouring each pixel with `paint(x, y)` (scene coordinates). */
-function fillPoly(s: Surface, pts: number[], paint: (x: number, y: number) => number): void {
-  const xs = pts.filter((_, i) => i % 2 === 0);
-  const ys = pts.filter((_, i) => i % 2 === 1);
-  for (let y = Math.floor(Math.min(...ys)); y <= Math.ceil(Math.max(...ys)); y++)
-    for (let x = Math.floor(Math.min(...xs)); x <= Math.ceil(Math.max(...xs)); x++)
-      if (inside(pts, x + 0.5, y + 0.5)) s.set(SCENE_X + x, SCENE_Y + y, paint(x, y));
-}
-
-function fillOval(s: Surface, cx: number, cy: number, rx: number, ry: number, paint: (x: number, y: number) => number, top = false): void {
-  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
-    for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
-      const dx = (x + 0.5 - cx) / rx;
-      const dy = (y + 0.5 - cy) / ry;
-      if (dx * dx + dy * dy <= 1 && (!top || y + 0.5 <= cy)) s.set(SCENE_X + x, SCENE_Y + y, paint(x, y));
-    }
-}
-
-/** Sky, land, the far country, the river and the streets: everything but the buildings. */
-function drawLand(s: Surface, scene: CityScene, salt: number): void {
-  const { w, h, horizon } = scene;
-  // A day sky, deeper overhead, dithered toward the pale horizon, and a few clouds.
-  for (let y = 0; y < horizon; y++)
-    for (let x = 0; x < w; x++) s.set(SCENE_X + x, SCENE_Y + y, shade("sky", Math.min(7, Math.floor(2 + (5 * y) / horizon + bayer(x, y)))));
-  for (const { x: cx, y: cy } of scene.clouds)
-    for (const [ox, oy, r] of CLOUD_PUFFS) fillOval(s, cx + ox, cy + oy, r * 1.4, r * 0.8, (_, y) => (y > cy + 1 ? shade("sky", 6) : shade("marble", 7)));
-  // The ground, hazy toward the horizon, speckled.
-  const [ramp, base] = GROUND[scene.ground];
-  for (let y = horizon; y < h; y++)
-    for (let x = 0; x < w; x++) {
-      const haze = y - horizon < 8 + bayer(x, y) * 6 ? 1 : 0;
-      const r = hash(x, y, salt);
-      s.set(SCENE_X + x, SCENE_Y + y, shade(ramp, base + haze + (r < 0.07 ? -1 : r > 0.95 ? 1 : 0)));
-    }
-  // Other country out to the horizon: the sea, sand, snow, marsh.
-  for (const p of scene.patches) {
-    const [pr, pb] = GROUND[p.terrain];
-    fillPoly(s, p.pts, (x, y) => {
-      if (p.terrain === Terrain.Ocean) return shade("ocean", (x + y * 3) % 11 === 0 ? 6 : y - horizon < 3 ? 5 : 4);
-      return shade(pr, pb + (hash(x, y, salt) < 0.08 ? -1 : 0) + (y - horizon < 5 ? 1 : 0));
-    });
-  }
-  for (const k of scene.knolls) {
-    if (k.kind === "mountain") {
-      const peak = horizon - k.h;
-      fillPoly(s, [k.x - k.w / 2, horizon, k.x, peak, k.x + k.w / 2, horizon], (x, y) =>
-        y < peak + k.h * 0.3 + bayer(x, y) * 2 ? shade("rock", x < k.x ? 7 : 5) : shade("stone", x < k.x ? 4 : 2));
-    } else if (k.kind === "hill") {
-      fillOval(s, k.x, horizon + 1, k.w / 2, k.h, (x) => shade("grass", x < k.x - k.w / 6 ? 4 : 3), true);
-    } else {
-      fillOval(s, k.x, horizon - k.h / 2 + 1, k.w / 2, k.h / 2 + 0.5, (x, y) => shade("forest", x < k.x && y < horizon - k.h / 2 ? 5 : 3));
-    }
-  }
-  if (scene.river) {
-    const pts = scene.river;
-    for (let i = 0; i + 3 < pts.length; i += 2) {
-      const [x0, y0, x1, y1] = [pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!];
-      for (let t = 0; t <= 1; t += 0.05) {
-        const x = Math.round(x0 + (x1 - x0) * t);
-        const y = Math.round(y0 + (y1 - y0) * t);
-        for (let dy = -1; dy <= 2; dy++) for (let dx = 0; dx < 2; dx++) s.set(SCENE_X + x + dx, SCENE_Y + y + dy, shade("ocean", dy === -1 ? 3 : dy === 0 ? 6 : 4));
-      }
-    }
-  }
-  for (const st of scene.streets)
-    for (let dy = 0; dy < 3; dy++)
-      for (let x = st.x0; x < st.x1; x++) {
-        const y = st.y + dy;
-        const c = st.surface === "asphalt" ? (dy === 1 && x % 8 < 4 ? shade("grey", 6) : shade("grey", 2))
-          : st.surface === "stone" ? shade("stone", (x + dy * 2) % 4 === 0 ? 3 : 5)
-          : shade("earth", hash(x, y, salt) < 0.15 ? 3 : dy === 0 ? 5 : 4);
-        s.set(SCENE_X + x, SCENE_Y + y, c);
-      }
-}
 
 /**
  * Sparkles round a wonder just raised: small bright crosses scattered over and about its lot, each
@@ -136,9 +37,51 @@ function drawSparkles(s: Surface, x: number, ground: number, w: number, h: numbe
   }
 }
 
-/** The name and line of text of an improvement or wonder. */
-function about(id: string): { name: string; text: string } | null {
-  return BUILDINGS.find((b) => b.id === id) ?? WONDERS.find((w) => w.id === id) ?? null;
+/** The name and line of text of an improvement, wonder or house. */
+function about(item: SceneItem | undefined, id: string): { name: string; text: string } | null {
+  return (item?.house && HOUSE_BY_ID[item.house]) || BUILDINGS.find((b) => b.id === id) || WONDERS.find((w) => w.id === id) || null;
+}
+
+/** What a scene comes to once drawn: the scene's fine pixels, and the holes in each item's picture for what stands before it. */
+interface DrawnTown { pixels: Uint8Array; holes: Map<SceneItem, ArtBox[]>; fieldHoles: (ArtBox[] | undefined)[] }
+const drawnTowns = new WeakMap<CityScene, DrawnTown>();
+
+const hasPicture = (it: SceneItem) => it.kind === "wonder" || it.kind === "building" || it.kind === "gate" || it.kind === "home" || it.kind === "work";
+
+/** A field's place on the screen, cut off at the scene's edge. */
+function fieldSpot(scene: CityScene, f: CityScene["fields"][number]): ArtSpot {
+  return { id: f.id, work: true, x: SCENE_X + f.x, y: SCENE_Y + f.y, w: f.w, h: f.h, clip: { x: SCENE_X, y: SCENE_Y, w: scene.w, h: scene.h } };
+}
+
+/** Draws a scene's ground and what stands on it, back to front, and notes what lies over each picture; once for a scene. */
+function drawTown(s: Surface, scene: CityScene): DrawnTown {
+  const fine = s.k;
+  drawTownGround(s, scene, SCENE_X, SCENE_Y);
+  const room = (x: number, y: number, w: number, h: number) => {
+    const x0 = Math.max(SCENE_X, x), y0 = Math.max(SCENE_Y, y);
+    return fineCopy(s, x0, y0, Math.max(1, Math.min(SCENE_X + scene.w, x + w) - x0), Math.max(1, Math.min(SCENE_Y + scene.h, y + h) - y0));
+  };
+  const laid: Laid[] = [];
+  const fieldLaid = scene.fields.map((f) => { const spot = fieldSpot(scene, f); laid.push({ spot, copy: room(spot.x, spot.y, spot.w, spot.h) }); return spot; });
+  const itemLaid = new Map<SceneItem, ArtSpot>();
+  for (const it of scene.items) {
+    const x = SCENE_X + it.x, y = SCENE_Y + it.y;
+    if (hasPicture(it)) {
+      const spot: ArtSpot = { id: it.id, x, y: y - it.h, w: it.w, h: it.h };
+      itemLaid.set(it, spot);
+      laid.push({ spot, copy: room(x, y - it.h, it.w, it.h) });
+    } else if (it.kind === "tree") drawTree(s, SCENE_X, SCENE_Y, it, scene.w, scene.h, scene.salt);
+    else if (it.kind === "walls") drawWallPiece(s, SCENE_X, SCENE_Y, it.wall!, scene.w, scene.h);
+    else if (it.kind === "peak") drawPeak(s, SCENE_X, SCENE_Y, it, scene.w, scene.h, scene.salt);
+    else if (it.kind === "mound") drawMound(s, SCENE_X, SCENE_Y, it, scene.w, scene.h, scene.salt);
+    else if (it.kind === "well") drawWell(s, SCENE_X, SCENE_Y, it, scene.age);
+  }
+  sealPictures(s, laid);
+  const pixels = new Uint8Array(scene.w * fine * scene.h * fine);
+  for (let j = 0; j < scene.h * fine; j++) pixels.set(s.data.subarray((SCENE_Y * fine + j) * s.fw + SCENE_X * fine, (SCENE_Y * fine + j) * s.fw + (SCENE_X + scene.w) * fine), j * scene.w * fine);
+  const holes = new Map<SceneItem, ArtBox[]>();
+  for (const [it, spot] of itemLaid) if (spot.holes) holes.set(it, spot.holes);
+  return { pixels, holes, fieldHoles: fieldLaid.map((f) => f.holes) };
 }
 
 export function drawCityView(s: Surface, state: GameState, view: CityViewState): void {
@@ -147,27 +90,38 @@ export function drawCityView(s: Surface, state: GameState, view: CityViewState):
   s.fill(C.BLACK!);
   drawWindow(s, 0, 0, SCREEN_W, BAR_Y, `${city.name} (Pop ${city.size})   ${formatYear(turnToYear(state.turn))}`, { centred: true });
   const scene = cityScene(state, city);
-  drawLand(s, scene, city.id * 7919);
   const color = playerColor(state, city.owner);
+  let town = drawnTowns.get(scene);
+  if (!town) drawnTowns.set(scene, (town = drawTown(s, scene)));
+  const k = s.k;
+  for (let j = 0; j < scene.h * k; j++) s.data.set(town.pixels.subarray(j * scene.w * k, (j + 1) * scene.w * k), (SCENE_Y * k + j) * s.fw + SCENE_X * k);
+  const through = (spot: ArtSpot, holes: ArtBox[] | undefined) => { if (holes) spot.holes = holes; };
+  scene.fields.forEach((f, i) => { const spot = fieldSpot(scene, f); through(spot, town.fieldHoles[i]); s.art.push(spot); });
   for (const it of scene.items) {
+    if (!hasPicture(it)) continue;
     const at = [SCENE_X + it.x, SCENE_Y + it.y] as const;
-    // A wonder just completed rises from the ground (`rising.reveal`), through its stages where it has them
-    // (`wonderRise`); everything else stands whole, a wonder going up at its stage (`it.site`).
-    const reveal = view.rising && it.id === view.rising.id ? view.rising.reveal : 1;
-    const stages = reveal < 1 ? wonderRise(it.id, reveal) : null;
-    if (stages) for (const l of stages) drawBuilding(s, l.art, it.pic, ...at, it.w, it.h, color, false, l.reveal, l.cleared);
-    else if (it.kind === "wonder" || it.kind === "building" || it.kind === "gate") drawBuilding(s, it.site ?? it.id, it.pic, ...at, it.w, it.h, color, it.id === view.picked, reveal);
-    else drawPicture(s, it.pic, ...at, color);
+    const before = s.art.length;
+    if (it.work) s.art.push({ id: it.work, work: true, x: at[0], y: at[1] - it.h, w: it.w, h: it.h });
+    else if (it.house) s.art.push({ id: it.house, house: true, x: at[0], y: at[1] - it.h, w: it.w, h: it.h, ...(it.id === view.picked ? { lit: true } : {}) });
+    else {
+      // A wonder just completed rises from the ground (`rising.reveal`), through its stages where it has them
+      // (`wonderRise`); everything else stands whole, a wonder going up at its stage (`it.site`).
+      const reveal = view.rising && it.id === view.rising.id ? view.rising.reveal : 1;
+      const stages = reveal < 1 ? wonderRise(it.id, reveal) : null;
+      if (stages) for (const l of stages) drawBuilding(s, l.art, it.pic, ...at, it.w, it.h, color, false, l.reveal, l.cleared);
+      else drawBuilding(s, it.site ?? it.id, it.pic, ...at, it.w, it.h, color, it.id === view.picked, reveal);
+    }
+    const holes = town.holes.get(it);
+    if (holes) for (let i = before; i < s.art.length; i++) s.art[i]!.holes = holes;
   }
   // Sparkles burst round the wonder once it stands whole.
   const risen = view.rising && view.rising.reveal >= 1 && view.rising.sparkle > 0 ? scene.items.find((it) => it.id === view.rising!.id) : undefined;
   if (risen && view.rising) drawSparkles(s, SCENE_X + risen.x, SCENE_Y + risen.y, risen.w, risen.h, view.rising.sparkle);
 
-  // The building last clicked: its text along the bar, and its name on a stone tag above a drawn one
-  // (the user's pictures, laid over the screen, would hide a tag; theirs is ringed in light instead).
+  // The building last clicked: its text along the bar (its picture ringed in light); a drawn one its name on a stone tag above it.
   const picked = view.picked ? scene.items.find((it) => it.id === view.picked) : undefined;
-  const info = view.picked ? about(view.picked) : null;
-  if (picked && info && !buildingArt(picked.id)) {
+  const info = view.picked ? about(picked, view.picked) : null;
+  if (picked && info && !picked.house && !buildingArt(picked.id)) {
     const tw = textWidth(info.name) + 6;
     const tx = Math.max(SCENE_X, Math.min(SCENE_X + scene.w - tw, SCENE_X + picked.x + Math.round((picked.w - tw) / 2)));
     const ty = Math.max(SCENE_Y, SCENE_Y + picked.y - picked.h - 13);
@@ -190,7 +144,7 @@ export function drawCityView(s: Surface, state: GameState, view: CityViewState):
   drawTextCentered(s, BACK.x + BACK.w / 2, BACK.y + 2, "Back", C.WHITE!);
 }
 
-/** The improvement or wonder under a point of the city view, or null (anywhere else goes back). */
+/** The improvement, wonder or house under a point of the city view, or null (anywhere else goes back). */
 export function cityViewAt(state: GameState, view: CityViewState, px: number, py: number): string | null {
   const city = state.cities.find((c) => c.id === view.city);
   if (!city || py >= BAR_Y) return null;

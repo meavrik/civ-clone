@@ -1,16 +1,11 @@
-import { CITY_RADIUS, getTile, knows, Terrain, type City, type GameState } from "@civ/core";
-import { artLot, buildingArt } from "./art.js";
-import { wonderSite } from "./wonder-stages.js";
-import { hash } from "./hash.js";
+import { knows, type City, type GameState } from "@civ/core";
 
 /**
- * The city view, the original's View: the city as a picture. Every improvement and wonder has a
- * picture made of a few shapes (`Part`s) on a grid of retro pixels, its ground along the bottom;
- * the retro renderer fills them pixel by pixel, the modern one paints them as paths three times
- * larger. `cityScene` lays out what a city has (wonders on the skyline, the palace in the middle,
- * improvements and homes along the streets, walls across the front) for both. A building with a
- * picture of the user's (`BUILDING_ART`) takes room in that picture's shape (`artLot`), where the
- * apps lay the picture itself; the walls get it as their gatehouse.
+ * The drawn pictures of the city view, the original's View: every improvement and wonder has a picture
+ * made of a few shapes (`Part`s) on a grid of retro pixels, its ground along the bottom; the retro renderer
+ * fills them pixel by pixel, the modern one paints them as paths three times larger. They stand in for the
+ * user's pictures, which every building has now, wherever those are not shown, and take the room those get
+ * (`artLot`); the town itself is laid out by `cityScene` (town.ts).
  */
 
 /** What a shape is made of; each renderer gives it colours (a face, a lit edge, a shaded edge). */
@@ -124,19 +119,6 @@ const lattice = (x0: number, x1: number, top: number, base: number): Part[] => {
 
 // ---- the pictures ------------------------------------------------------------------
 
-/** A run of city wall `w` pixels long: crenellated stone, towers at the ends and between, a gate in the middle. */
-export function wallRun(w: number): Picture {
-  const parts: Part[] = [box(0, 6, w, 10, "stone")];
-  for (let x = 0; x + 2 <= w; x += 4) parts.push(box(x, 4, 2, 2, "stone"));
-  const towers = Math.max(2, Math.round(w / 56) + 1);
-  for (let i = 0; i < towers; i++) {
-    const tx = Math.round((i * (w - 8)) / (towers - 1));
-    parts.push(box(tx, 2, 8, 14, "stone", 1), box(tx, 0, 2, 2, "stone", 1), box(tx + 3, 0, 2, 2, "stone", 1), box(tx + 6, 0, 2, 2, "stone", 1), box(tx + 3, 6, 2, 3, "dark"));
-  }
-  parts.push(...door(w / 2, 16, 8, 8));
-  return pic(w, 16, parts);
-}
-
 /** One picture per improvement and per wonder, by id. */
 export const PICTURES: Record<string, Picture> = {
   palace: pic(32, 32,
@@ -183,7 +165,12 @@ export const PICTURES: Record<string, Picture> = {
     box(4, 14, 16, 9, "dark"), cols(4, 14, 16, 9, 4),
     box(1, 12, 22, 2, "marble"), gable(1, 8, 22, 4, "marble"),
     box(0, 23, 24, 3, "stone")),
-  city_walls: wallRun(32),
+  city_walls: pic(32, 16,
+    box(0, 6, 32, 10, "stone"), box(0, 2, 8, 14, "stone", 1), box(24, 2, 8, 14, "stone", 1),
+    box(0, 0, 2, 2, "stone", 1), box(3, 0, 2, 2, "stone", 1), box(6, 0, 2, 2, "stone", 1),
+    box(24, 0, 2, 2, "stone", 1), box(27, 0, 2, 2, "stone", 1), box(30, 0, 2, 2, "stone", 1),
+    box(11, 4, 2, 2, "stone"), box(15, 4, 2, 2, "stone"), box(19, 4, 2, 2, "stone"),
+    box(3, 6, 2, 3, "dark"), box(27, 6, 2, 3, "dark"), door(16, 16, 8, 8)),
   aqueduct: pic(36, 18,
     box(0, 1, 36, 2, "water"), box(0, 3, 36, 3, "stone"),
     box(0, 6, 36, 12, "stone"), arches(0, 7, 36, 11, 4)),
@@ -380,7 +367,7 @@ export const PICTURES: Record<string, Picture> = {
 };
 
 /** Homes, by the age the city lives in: huts, then cottages, town houses and blocks of flats. */
-const HOMES: Picture[][] = [
+export const HOMES: Picture[][] = [
   [
     pic(10, 9, box(1, 5, 8, 4, "sandstone"), poly("thatch", 0, 6, 5, 0, 10, 6), box(4, 6, 2, 3, "dark")),
     pic(13, 8, box(1, 4, 11, 4, "wood"), slope(0, 1, 13, 3, 2, "thatch"), box(5, 5, 2, 3, "dark")),
@@ -402,7 +389,7 @@ const HOMES: Picture[][] = [
   ],
 ];
 
-const TREES: Picture[] = [
+export const TREES: Picture[] = [
   pic(7, 10, line(3.5, 6, 3.5, 10, "wood"), disc(3.5, 4, 3.2, "leaf")),
   pic(7, 11, line(3.5, 8, 3.5, 11, "wood"), poly("leaf", 0, 9, 3.5, 0, 7, 9)),
   pic(9, 9, line(4.5, 6, 4.5, 9, "wood"), disc(3, 4.5, 2.6, "leaf"), disc(6, 3.5, 3, "leaf")),
@@ -430,213 +417,4 @@ export function cityLook(state: GameState, city: City): { era: CityEra; tier: Ci
   const tier: CityTier = city.buildings.includes("palace") ? "capital"
     : city.size >= CITY_TIER_SIZES.city ? "city" : city.size >= CITY_TIER_SIZES.town ? "town" : "village";
   return { era, tier };
-}
-
-// ---- the scene ----------------------------------------------------------------------
-
-/** The city view's size in retro pixels; the modern renderer paints it three times larger. */
-export const SCENE_W = 316;
-export const SCENE_H = 174;
-const HORIZON = 46;
-const STREETS = [74, 100, 126, 152];
-/** The rows improvements and homes fill, in turn: the middle, the front, the one before it, the back. */
-const ROW_ORDER = [1, 2, 3, 0];
-const MARGIN = 4;
-const GAP = 3;
-/** How tall the walls' gatehouse stands (the user's picture of them), over a run 16 high. */
-const GATE_H = 24;
-
-export interface SceneItem {
-  /** The improvement or wonder shown ("city_walls" for the walls and their gate), or "" for homes and trees. */
-  id: string;
-  kind: "wonder" | "building" | "home" | "tree" | "walls" | "gate";
-  /** Its drawn picture (the gate, always the user's picture, has none of its own: no parts). */
-  pic: Picture;
-  /** Left edge and ground line. */
-  x: number;
-  y: number;
-  /** The room it takes: its picture's size, or its lot (`artLot`) when it has a picture of the user's. */
-  w: number;
-  h: number;
-  /** A wonder still going up: the picture of its stage (`wonderSite`), on the lot it will take finished. */
-  site?: string;
-}
-
-export interface CityScene {
-  w: number;
-  h: number;
-  horizon: number;
-  /** Clouds: each a few puffs around its middle. */
-  clouds: { x: number; y: number }[];
-  /** The city's own ground. */
-  ground: Terrain;
-  /** Land of other kinds (and the sea) out to the horizon, from the far edge of the city's reach. */
-  patches: { terrain: Terrain; pts: number[] }[];
-  /** Mountains, hills and woods along the horizon (their middle, width and height). */
-  knolls: { kind: "mountain" | "hill" | "tree"; x: number; w: number; h: number }[];
-  /** A river winding across, when the city stands on one. */
-  river: number[] | null;
-  /** The streets the rows stand along, as far as the row is built: dirt, then cobbles, then asphalt. */
-  streets: { y: number; x0: number; x1: number; surface: "dirt" | "stone" | "asphalt" }[];
-  /** Back to front, left to right: the order to draw them. */
-  items: SceneItem[];
-}
-
-/**
- * Lays out a city's view. Wonders stand along the back row against the sky, the palace in the
- * middle of the next; improvements and homes (more for a bigger city) fill the middle row
- * outward and then the rows before and behind it, so a small town keeps together. Each row is
- * built from its middle out, with a street along what is built and trees scattered beyond.
- * The land beyond is what the city reaches to the north; walls run across the front.
- * Variety comes from `hash`, never the game's RNG.
- */
-export function cityScene(state: GameState, city: City): CityScene {
-  const w = SCENE_W;
-  const h = SCENE_H;
-  const known = state.players[city.owner]!.advances;
-  const tile = getTile(state.map, city.x, city.y);
-  const ground = tile?.terrain ?? Terrain.Grassland;
-  const salt = city.id * 7919;
-
-  // The far land: five strips across, west to east, each the farthest square north in reach.
-  const patches: CityScene["patches"] = [];
-  const knolls: CityScene["knolls"] = [];
-  const strip = w / 5;
-  for (let i = 0; i < 5; i++) {
-    const dx = i - 2;
-    const dy = Math.min(...CITY_RADIUS.filter(([ox]) => ox === dx).map(([, oy]) => oy));
-    const t = getTile(state.map, city.x + dx, city.y + dy)?.terrain ?? ground;
-    const x0 = i * strip;
-    const x1 = x0 + strip;
-    if (t !== ground && t !== Terrain.Mountains && t !== Terrain.Hills && t !== Terrain.Forest && t !== Terrain.Jungle) {
-      const deep = t === Terrain.Ocean ? 14 : 10;
-      patches.push({ terrain: t, pts: [Math.max(0, x0 - 8), HORIZON, Math.min(w, x1 + 8), HORIZON, Math.min(w, x1 + 2), HORIZON + deep, Math.max(0, x0 - 2), HORIZON + deep] });
-    }
-    if (t === Terrain.Mountains || t === Terrain.Hills) {
-      for (let k = 0; k < 2; k++) {
-        const r = hash(i, k, salt);
-        const mountain = t === Terrain.Mountains;
-        knolls.push({ kind: mountain ? "mountain" : "hill", x: x0 + (k + 0.5) * (strip / 2) + (r - 0.5) * 12, w: mountain ? 34 + r * 12 : 40 + r * 10, h: mountain ? 15 + r * 8 : 6 + r * 4 });
-      }
-    }
-    if (t === Terrain.Forest || t === Terrain.Jungle)
-      for (let x = x0 + 3; x < x1; x += 6 + hash(i, Math.round(x), salt) * 3) knolls.push({ kind: "tree", x, w: 7, h: 4 + hash(Math.round(x), i, salt) * 3 });
-  }
-  knolls.sort((a, b) => (a.kind === "tree" ? 1 : 0) - (b.kind === "tree" ? 1 : 0) || b.h - a.h);
-
-  let river: number[] | null = null;
-  if (tile?.river) {
-    river = [];
-    for (let x = -4; x <= w + 4; x += 16) river.push(x, HORIZON + 18 + Math.sin(x / 23 + city.id) * 3 + (hash(x, 0, salt) - 0.5) * 2);
-  }
-
-  // What stands in the city, row by row: a row takes lots up to the town's width, then the next.
-  type Lot = { id: string; kind: SceneItem["kind"]; pic: Picture; key: number; w: number; h: number; site?: string };
-  const cap = w - 2 * MARGIN;
-  const width = Math.min(cap, 60 + city.size * 26);
-  const rows: Lot[][] = STREETS.map(() => []);
-  const used = STREETS.map(() => 0);
-  const lot = (id: string, kind: Lot["kind"], pic: Picture, key: number): Lot => ({ id, kind, pic, key, ...artLot(id, pic) });
-  const put = (r: number, lot: Lot) => { rows[r]!.push(lot); used[r]! += lot.w + GAP; };
-  const place = (lot: Lot, order: number[], max: number): boolean => {
-    const r = order.find((k) => used[k]! + lot.w <= max);
-    if (r === undefined) return false;
-    put(r, lot);
-    return true;
-  };
-  const least = () => used.indexOf(Math.min(...used));
-
-  const raise = (id: string, i: number, site?: string) => {
-    const p = PICTURES[id];
-    if (p) {
-      const l = { ...lot(id, "wonder", p, 1 + hash(i, 1, salt)), ...(site ? { site } : {}) };
-      if (!place(l, [0, 1, 2, 3], cap)) put(least(), l);
-    }
-  };
-  city.wonders.forEach((id, i) => raise(id, i));
-  // The wonder going up, where it will stand: the next of the city's wonders.
-  const site = wonderSite(state, city);
-  if (site) raise(site.id, city.wonders.length, site.art);
-  // Buildings no longer supported (`City.idle`) still stand in the picture.
-  const standing = city.idle ? [...city.buildings, ...city.idle] : city.buildings;
-  const buildings = standing.filter((b) => b !== "city_walls" && PICTURES[b]);
-  if (buildings.includes("palace")) put(1, lot("palace", "building", PICTURES.palace!, 0));
-  buildings.filter((b) => b !== "palace").forEach((id, i) => {
-    const l = lot(id, "building", PICTURES[id]!, 1 + hash(i, 2, salt));
-    if (!place(l, ROW_ORDER, width) && !place(l, ROW_ORDER, cap)) put(least(), l);
-  });
-  const homes = HOMES[homeAge(known)]!;
-  for (let i = 0; i < 1 + city.size * 2; i++) {
-    const l = lot("", "home", homes[Math.floor(hash(i, 3, salt) * homes.length)]!, 1.2 + hash(i, 4, salt));
-    if (!place(l, ROW_ORDER, width) && !place(l, ROW_ORDER, cap)) break;
-  }
-
-  // Each row from the middle outward in order of its keys (the palace first), a street along it, trees beyond.
-  const front = Math.max(0, ...rows.map((row, r) => (row.length ? r : 0)));
-  const walls = standing.includes("city_walls");
-  const surface = knows(known, "automobile") ? "asphalt" : knows(known, "construction") ? "stone" : "dirt";
-  const streets: CityScene["streets"] = [];
-  const items: SceneItem[] = [];
-  rows.forEach((row, r) => {
-    const y = STREETS[r]!;
-    // The first lot in the middle, then each on the lighter side, so the palace keeps to the middle.
-    const [first, ...rest] = [...row].sort((a, b) => a.key - b.key);
-    const placed: Lot[] = first ? [first] : [];
-    let lean = 0;
-    for (const l of rest) {
-      if (lean > 0) { placed.unshift(l); lean -= l.w; } else { placed.push(l); lean += l.w; }
-    }
-    const total = placed.reduce((n, l) => n + l.w, 0);
-    const gap = placed.length > 1 ? Math.min(GAP, (cap - total) / (placed.length - 1)) : 0;
-    const span = total + gap * Math.max(0, placed.length - 1);
-    const start = Math.round(MARGIN + (cap - span) / 2);
-    const out: SceneItem[] = [];
-    let x = start;
-    for (const l of placed) {
-      out.push({ id: l.id, kind: l.kind, pic: l.pic, x: Math.round(x), y, w: l.w, h: l.h, ...(l.site ? { site: l.site } : {}) });
-      x += l.w + gap;
-    }
-    const spans: [number, number][] = placed.length ? [[MARGIN, start - 4], [Math.round(start + span) + 4, w - MARGIN]] : [[MARGIN, w - MARGIN]];
-    if (placed.length) streets.push({ y, x0: Math.max(0, start - 6), x1: Math.min(w, Math.round(start + span) + 6), surface });
-    // Rows outside the walls stay open ground.
-    if (!(walls && r > front)) spans.forEach(([a, b], side) => {
-      const n = Math.floor((b - a) / 18);
-      for (let k = 0; k < n; k++) {
-        const pick = hash(k, r * 2 + side, salt);
-        if (pick < 0.3) continue;
-        const tree = TREES[Math.floor(hash(r, k + side * 50, salt) * TREES.length)]!;
-        const tx = a + ((k + 0.2 + hash(k, r, salt + 1) * 0.6) * (b - a)) / n - tree.w / 2;
-        out.push({ id: "", kind: "tree", pic: tree, x: Math.round(Math.max(a, Math.min(b - tree.w, tx))), y: y - Math.floor(pick * 4), w: tree.w, h: tree.h });
-      }
-    });
-    items.push(...out);
-  });
-  // Walls just before the frontmost row that is built; the user's picture of them stands in the middle as their gatehouse.
-  if (walls) {
-    const run = wallRun(w - 2 * MARGIN);
-    const y = Math.min(h - 1, STREETS[front]! + 24);
-    items.push({ id: "city_walls", kind: "walls", pic: run, x: MARGIN, y, w: run.w, h: run.h });
-    const art = buildingArt("city_walls");
-    if (art) {
-      const gh = GATE_H;
-      const gw = Math.round((gh * art.w) / art.h);
-      items.push({ id: "city_walls", kind: "gate", pic: { w: gw, h: gh, parts: [] }, x: Math.round(w / 2 - gw / 2), y: y + 1, w: gw, h: gh });
-    }
-  }
-  items.sort((a, b) => a.y - b.y || a.x - b.x);
-
-  const clouds = [0, 1, 2].map((i) => ({ x: (i + 0.3 + hash(i, 5, salt) * 0.5) * (w / 3), y: 8 + hash(i, 6, salt) * 16 }));
-  return { w, h, horizon: HORIZON, clouds, ground, patches, knolls, river, streets, items };
-}
-
-/** The puffs of a cloud: offsets from its middle and radii. */
-export const CLOUD_PUFFS = [[0, 0, 5], [5, -2, 6], [11, 0, 5], [6, 2, 4]] as const;
-
-/** The improvement or wonder whose picture covers a point of the scene (front-most first), or null. */
-export function sceneItemAt(scene: CityScene, x: number, y: number): SceneItem | null {
-  for (let i = scene.items.length - 1; i >= 0; i--) {
-    const it = scene.items[i]!;
-    if (x >= it.x && x < it.x + it.w && y >= it.y - it.h && y < it.y) return it.id ? it : null;
-  }
-  return null;
 }

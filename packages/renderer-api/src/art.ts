@@ -1,6 +1,7 @@
 import { BUILDING_CUTS } from "./building-art.js";
 import { CITY_ART } from "./city-art.js";
 import { wonderStages } from "./wonder-stages.js";
+import { HOUSE_ART } from "./house-art.js";
 import { HUT_ART } from "./hut-art.js";
 import { RESOURCE_ART } from "./resource-art.js";
 import { workArtPlace } from "./work-pictures.js";
@@ -53,6 +54,8 @@ export interface ArtSpot extends ArtBox {
   city?: boolean;
   /** A tribal village's picture on its square (`hutArt`, the id its kind, "thatch"), standing as `hutArtPlace` puts it. */
   hut?: boolean;
+  /** A house's picture on its lot in the city view (`HOUSE_ART`, the id its kind, "bakery"); it fills the box. */
+  house?: boolean;
   /** A tile improvement's picture on its square (`workArt`, the id a `WorkPicture`, "mine"), as `workArtPlace` puts it. */
   work?: boolean;
   /** A resource's picture (`resourceArt`, the id its icon's name, "horses"), the box the room its icon takes, as `resourceArtPlace` puts it. */
@@ -191,6 +194,13 @@ export function hutArtPlace(spot: ArtSpot): ArtBox | null {
   return { x: spot.x + ((1 - fw) / 2) * spot.w, y: spot.y + (1 - UNIT_FOOT - fh) * spot.h, w: fw * spot.w, h: fh * spot.h };
 }
 
+export { HOUSE_ART };
+
+/** Where house picture `spot.id` goes on its lot: the room the town gave it, in the picture's own shape. */
+export function houseArtPlace(spot: ArtSpot): ArtBox | null {
+  return spot.id in HOUSE_ART ? { x: spot.x, y: spot.y, w: spot.w, h: spot.h } : null;
+}
+
 /**
  * The user's pictures of the resources (2026-11-03, their updated sheet: "USE AS IS!! do not regenerate assets"; before,
  * their sheets were drawn into the palette), shown as they are wherever a resource lies (`apps/web/src/resources/<id>.png`,
@@ -258,6 +268,7 @@ export function artPlace(spot: ArtSpot): ArtBox | null {
   if (spot.unit) return unitArtPlace(spot);
   if (spot.city) return cityArtPlace(spot);
   if (spot.hut) return hutArtPlace(spot);
+  if (spot.house) return houseArtPlace(spot);
   if (spot.work) return workArtPlace(spot);
   if (spot.resource) return resourceArtPlace(spot);
   const art = buildingArt(spot.id);

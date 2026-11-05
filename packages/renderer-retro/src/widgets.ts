@@ -109,7 +109,7 @@ export function dimScreen(s: Surface, keep?: { x: number; y: number; w: number; 
 export function hideArtUnder(s: Surface, r: { x: number; y: number; w: number; h: number }): void {
   s.art = s.art.flatMap((a) => {
     if (!(a.x < r.x + r.w && a.x + a.w > r.x && a.y < r.y + r.h && a.y + a.h > r.y)) return [a];
-    return (a.unit || a.city || a.hut || a.work) && a.water === undefined ? [{ ...a, holes: [...(a.holes ?? []), { x: r.x, y: r.y, w: r.w, h: r.h }] }] : [];
+    return a.water === undefined ? [{ ...a, holes: [...(a.holes ?? []), { x: r.x, y: r.y, w: r.w, h: r.h }] }] : [];
   });
 }
 

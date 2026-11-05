@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, BUILDINGS, costFor, getTile, newGame, Terrain, WONDERS, type GameState } from "@civ/core";
-import { artLot, buildingArt, BUILDING_CUTS, BUILDING_PICTURES_WANTED, cityScene, PICTURES, wonderRise, wonderSite, wonderStages } from "@civ/renderer-api";
-import { C, cityButtonAt, cityViewAt, drawCityView, drawPicture, rasterize, shade, Surface, SCENE_X, SCENE_Y } from "../src/index.js";
+import { artLot, artPlace, buildingArt, BUILDING_CUTS, BUILDING_PICTURES_WANTED, cityScene, HOUSE_ART, HOUSES, houseChoices, isoU, isoV, PICTURES, pickHouse, sceneItemAt, townTerrain, wonderRise, wonderSite, wonderStages, type CityScene } from "@civ/renderer-api";
+import { C, cityButtonAt, cityViewAt, drawCityView, drawPicture, hideArtUnder, rasterize, shade, Surface, SCENE_X, SCENE_Y } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("city view pictures", () => {
@@ -51,28 +51,51 @@ function town(size: number, buildings: string[], wonders: string[], advances: st
   return { state, id: city.id };
 }
 
+/** A city with these squares round it, plain grassland otherwise, all of it known. */
+function placed(size: number, buildings: string[], wonders: string[], squares: [number, number, Partial<{ terrain: Terrain; river: boolean; road: boolean; irrigation: boolean; mine: boolean }>][], advances: string[] = []) {
+  const made = town(size, buildings, wonders, advances);
+  const city = made.state.cities[0]!;
+  made.state.players[0]!.explored.fill(1);
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) Object.assign(getTile(made.state.map, city.x + dx, city.y + dy)!, { terrain: Terrain.Grassland, river: false, road: false, irrigation: false, mine: false });
+  for (const [dx, dy, p] of squares) Object.assign(getTile(made.state.map, city.x + dx, city.y + dy)!, p);
+  return { ...made, city };
+}
+
+/** A point of the picture of `id` that nothing stands in front of, to click on. */
+function openPoint(scene: CityScene, id: string): { x: number; y: number } {
+  const it = scene.items.find((i) => i.id === id)!;
+  for (let y = it.y - it.h; y < it.y; y++)
+    for (let x = it.x; x < it.x + it.w; x++) if (sceneItemAt(scene, x + 0.5, y + 0.5)?.id === id) return { x: x + 0.5, y: y + 0.5 };
+  throw new Error(`nowhere to click on ${id}`);
+}
+
 describe("city view", () => {
-  it("lays out wonders on the skyline, the palace in the middle, more homes for a bigger city", () => {
-    const { state, id } = town(12, ["palace", "temple", "granary", "library", "marketplace", "city_walls", "barracks"], ["pyramids", "colossus", "great_library"], ["construction"]);
-    const city = state.cities.find((c) => c.id === id)!;
+  it("lays out a town round its crossroads: the palace at its heart, wonders behind, walls round it, more homes for a bigger city", () => {
+    const { state, city } = placed(12, ["palace", "temple", "granary", "library", "marketplace", "city_walls", "barracks"], ["pyramids", "colossus", "great_library"], [], ["construction"]);
     const scene = cityScene(state, city);
     const wonders = scene.items.filter((it) => it.kind === "wonder");
     expect(wonders.map((w) => w.id).sort()).toEqual(["colossus", "great_library", "pyramids"]);
-    expect(new Set(wonders.map((w) => w.y))).toEqual(new Set([scene.streets[0]!.y]));
     const palace = scene.items.find((it) => it.id === "palace")!;
     expect(Math.abs(palace.x + palace.w / 2 - scene.w / 2)).toBeLessThan(scene.w / 6);
-    expect(scene.items.filter((it) => it.kind === "walls")).toHaveLength(1);
+    expect(Math.abs(palace.y - scene.h * 0.55)).toBeLessThan(scene.h / 6);
+    // The first wonders stand behind the palace, against the back of the town.
+    expect(Math.min(...wonders.map((w) => w.y))).toBeLessThan(palace.y);
+    expect(scene.items.filter((it) => it.kind === "gate")).toHaveLength(1);
+    expect(scene.items.filter((it) => it.kind === "walls").length).toBeGreaterThan(20);
     expect(scene.streets[0]!.surface).toBe("stone");
-    // Every item stands inside the scene, back rows before front ones.
+    // Everything built stands inside the scene, back to front.
     for (const it of scene.items) {
-      expect(it.x).toBeGreaterThanOrEqual(0);
-      expect(it.x + it.w).toBeLessThanOrEqual(scene.w);
+      if (it.kind === "tree" || it.kind === "peak" || it.kind === "mound" || it.kind === "walls") continue;
+      expect(it.x, it.id).toBeGreaterThanOrEqual(0);
+      expect(it.x + it.w, it.id).toBeLessThanOrEqual(scene.w);
+      expect(it.y - it.h, it.id).toBeGreaterThanOrEqual(0);
+      expect(it.y, it.id).toBeLessThan(scene.h);
     }
     expect(scene.items.map((it) => it.y)).toEqual([...scene.items.map((it) => it.y)].sort((a, b) => a - b));
     const homes = (size: number) => cityScene(state, { ...city, size }).items.filter((it) => it.kind === "home").length;
     expect(homes(8)).toBeGreaterThan(homes(1));
     // The same city lays out the same every time (no game RNG, no clock).
-    expect(cityScene(state, city)).toEqual(scene);
+    expect(cityScene(state, { ...city })).toEqual(scene);
   });
 
   it("draws a city on its land and names the building clicked (city-view.png)", () => {
@@ -85,9 +108,10 @@ describe("city view", () => {
     writeFileSync(new URL("./out/city-view.png", import.meta.url), encodePng(s, 3));
     const scene = cityScene(state, city);
     const temple = scene.items.find((it) => it.id === "temple")!;
-    const at = { x: SCENE_X + temple.x + temple.w / 2, y: SCENE_Y + temple.y - 3 };
-    expect(cityViewAt(state, { city: id }, at.x, at.y)).toBe("temple");
+    const at = openPoint(scene, "temple");
+    expect(cityViewAt(state, { city: id }, SCENE_X + at.x, SCENE_Y + at.y)).toBe("temple");
     expect(cityViewAt(state, { city: id }, 160, 195)).toBeNull();
+    expect(temple.kind).toBe("building");
     drawCityView(s, state, { city: id, picked: "temple" });
     writeFileSync(new URL("./out/city-view-picked.png", import.meta.url), encodePng(s, 3));
     // The city screen's View button is an icon in its title strip, beside the close box.
@@ -103,14 +127,14 @@ describe("city view", () => {
     const s = Surface.screen();
     drawCityView(s, state, { city: id, picked: "temple" });
     // Every building has a picture of the user's and gets a spot of its lot's size.
-    const spotted = s.art.map((a) => a.id);
+    const spotted = s.art.filter((a) => !a.house && !a.work).map((a) => a.id);
     expect(spotted.sort()).toEqual(["city_walls", "colossus", "granary", "library", "palace", "pyramids", "temple"].sort());
     const temple = scene.items.find((it) => it.id === "temple")!;
     expect(temple).toMatchObject(artLot("temple", PICTURES.temple!));
-    expect(s.art.find((a) => a.id === "temple")).toEqual({ id: "temple", x: SCENE_X + temple.x, y: SCENE_Y + temple.y - temple.h, w: temple.w, h: temple.h, lit: true });
+    expect(s.art.find((a) => a.id === "temple")).toMatchObject({ id: "temple", x: SCENE_X + temple.x, y: SCENE_Y + temple.y - temple.h, w: temple.w, h: temple.h, lit: true });
     expect(s.art.filter((a) => a.lit).map((a) => a.id)).toEqual(["temple"]);
-    // Back rows first, so the apps stack the front ones over them; the walls' gatehouse stands on the front.
-    const feet = s.art.map((a) => a.y + a.h);
+    // Back to front, so the apps stack the nearer ones over the rest; the walls' gatehouse stands nearest of all.
+    const feet = s.art.filter((a) => !a.work).map((a) => a.y + a.h);
     expect(feet).toEqual([...feet].sort((a, b) => a - b));
     expect(s.art.at(-1)!.id).toBe("city_walls");
     // A click on the gatehouse names the walls.
@@ -140,7 +164,6 @@ describe("city view", () => {
     drawCityView(s, hamlet.state, { city: hamlet.id });
     writeFileSync(new URL("./out/city-view-hamlet.png", import.meta.url), encodePng(s, 3));
     expect(cityScene(hamlet.state, hamlet.state.cities[0]!).items.some((it) => it.kind === "home")).toBe(true);
-    void Terrain;
   });
 });
 
@@ -180,10 +203,11 @@ describe("a wonder going up", () => {
     expect(site).toMatchObject({ kind: "wonder", site: "pyramids-start" });
     const s = Surface.screen();
     drawCityView(s, state, { city: id, picked: "pyramids" });
-    expect(s.art.find((a) => a.id === "pyramids-start")).toEqual({ id: "pyramids-start", x: SCENE_X + site.x, y: SCENE_Y + site.y - site.h, w: site.w, h: site.h, lit: true });
+    expect(s.art.find((a) => a.id === "pyramids-start")).toMatchObject({ id: "pyramids-start", x: SCENE_X + site.x, y: SCENE_Y + site.y - site.h, w: site.w, h: site.h, lit: true });
     expect(s.art.some((a) => a.id === "pyramids")).toBe(false);
     // Clicked, it is named as under way, not by what it will do.
-    expect(cityViewAt(state, { city: id }, SCENE_X + site.x + site.w / 2, SCENE_Y + site.y - 4)).toBe("pyramids");
+    const open = openPoint(scene, "pyramids");
+    expect(cityViewAt(state, { city: id }, SCENE_X + open.x, SCENE_Y + open.y)).toBe("pyramids");
     // Finished, nothing moves.
     city.wonders.push("pyramids");
     const done = cityScene(state, city).items.find((it) => it.id === "pyramids")!;
@@ -241,5 +265,229 @@ describe("a wonder going up", () => {
     }
     expect(Math.max(...lots.map((l) => l.h))).toBe(46);
     expect(lots.find((l) => l.id === "colossus")!.h).toBeGreaterThan(40); // not brought down to a temple's size
+  });
+});
+
+describe("the town's houses", () => {
+  const kinds = (known: string[], age: number, size: number, ground = Terrain.Grassland) => houseChoices(known, age, size, ground).map((c) => c.rule.id);
+
+  it("has a house's picture for every rule, and no rule without one", () => {
+    expect(Object.keys(HOUSE_ART).sort()).toEqual(HOUSES.map((h) => h.id).sort());
+    expect(HOUSES.filter((h) => h.age === 0).length + HOUSES.filter((h) => h.age === 3).length).toBe(12);
+    for (const h of HOUSES) expect(h.text.length, h.id).toBeLessThan(50); // it shares the bar with its name and Back
+  });
+
+  it("goes by the advances: a new one brings its house", () => {
+    expect(kinds([], 0, 12)).toEqual(["round_hut", "fishers_hut"]);
+    expect(kinds(["pottery"], 0, 12)).toEqual(expect.arrayContaining(["white_cottage", "potters_yard"]));
+    expect(kinds(["masonry"], 0, 12)).toContain("stone_cottage");
+    expect(kinds(["pottery"], 0, 12)).not.toContain("stone_cottage");
+  });
+
+  it("goes by the city's size: shops want customers, tenements a crowd", () => {
+    const known = ["trade", "industrialization", "pottery"];
+    expect(kinds(known, 2, 3)).not.toContain("bakery");
+    expect(kinds(known, 2, 4)).toContain("bakery");
+    expect(kinds(known, 2, 7)).not.toContain("tenement");
+    expect(kinds(known, 2, 8)).toContain("tenement");
+  });
+
+  it("goes by the time: each age back counts for less, and the oldest go", () => {
+    const weight = (age: number, id: string) => houseChoices([], age, 12, Terrain.Grassland).find((c) => c.rule.id === id)?.weight ?? 0;
+    expect(weight(1, "round_hut")).toBeLessThan(weight(0, "round_hut"));
+    expect(weight(2, "round_hut")).toBeLessThan(weight(1, "round_hut"));
+    expect(weight(3, "round_hut")).toBe(0);
+  });
+
+  it("goes by the land: adobe on dry ground, a mossy cottage on wet", () => {
+    const known = ["construction"];
+    expect(kinds(known, 1, 9, Terrain.Desert)).toContain("adobe_house");
+    expect(kinds(known, 1, 9, Terrain.Desert)).not.toContain("mossy_cottage");
+    expect(kinds(known, 1, 9, Terrain.Swamp)).toContain("mossy_cottage");
+    expect(kinds(known, 1, 9, Terrain.Swamp)).not.toContain("adobe_house");
+  });
+
+  it("keeps a fisher's hut to the water", () => {
+    const choices = houseChoices([], 0, 5, Terrain.Grassland);
+    const dry = Array.from({ length: 300 }, (_, lot) => pickHouse(choices, lot, 7, { heart: false, water: false }).id);
+    const wet = Array.from({ length: 300 }, (_, lot) => pickHouse(choices, lot, 7, { heart: false, water: true }).id);
+    expect(dry).not.toContain("fishers_hut");
+    expect(wet).toContain("fishers_hut");
+  });
+
+  it("changes house by house: a lot keeps its house when a new kind comes, unless the new kind takes it", () => {
+    const at = { heart: false, water: false };
+    const before = houseChoices(["pottery", "masonry"], 0, 6, Terrain.Grassland);
+    const after = houseChoices(["pottery", "masonry", "currency"], 0, 6, Terrain.Grassland);
+    let changed = 0;
+    for (let lot = 0; lot < 400; lot++) {
+      const a = pickHouse(before, lot, 11, at).id, b = pickHouse(after, lot, 11, at).id;
+      if (a !== b) { expect(b).toBe("courtyard_house"); changed++; }
+    }
+    expect(changed).toBeGreaterThan(0);
+    expect(changed).toBeLessThan(200);
+  });
+
+  it("mixes the ages in a town, and thins out the old as the people's means grow", () => {
+    const share = (age: number, known: string[]) => {
+      const choices = houseChoices(known, age, 12, Terrain.Grassland);
+      const picks = Array.from({ length: 600 }, (_, lot) => pickHouse(choices, lot, 3, { heart: false, water: false }));
+      return { old: picks.filter((h) => h.age === 0).length, kinds: new Set(picks.map((h) => h.id)).size };
+    };
+    const ancient = ["pottery", "masonry", "currency"];
+    const middle = share(1, [...ancient, "construction", "trade", "iron_working"]);
+    const late = share(2, [...ancient, "construction", "trade", "iron_working", "invention", "industrialization", "banking", "engineering", "railroad"]);
+    expect(middle.old).toBeLessThan(share(0, ancient).old);
+    expect(late.old).toBeLessThan(middle.old);
+    expect(late.old).toBeGreaterThan(0);
+    expect(late.kinds).toBeGreaterThan(8);
+  });
+
+  it("stands houses on the town's lots, and a click on one names it along the bar", () => {
+    const { state, id } = town(9, ["palace"], [], ["construction", "pottery", "masonry"]);
+    const city = state.cities.find((c) => c.id === id)!;
+    const scene = cityScene(state, city);
+    const houses = scene.items.filter((it) => it.kind === "home");
+    expect(houses.length).toBe(2 + 9 * 2);
+    expect(new Set(houses.map((h) => h.id)).size).toBe(houses.length); // each its own, by its lot
+    const s = Surface.screen();
+    drawCityView(s, state, { city: id });
+    const spots = s.art.filter((a) => a.house);
+    expect(spots.length).toBe(houses.length);
+    for (const a of spots) expect(artPlace(a)).toEqual({ x: a.x, y: a.y, w: a.w, h: a.h });
+    // Named when clicked, that house alone lit.
+    const front = houses.at(-1)!;
+    const at = openPoint(scene, front.id);
+    const picked = cityViewAt(state, { city: id }, SCENE_X + at.x, SCENE_Y + at.y)!;
+    expect(picked).toBe(front.id);
+    s.art = [];
+    drawCityView(s, state, { city: id, picked });
+    expect(s.art.filter((a) => a.lit).map((a) => a.id)).toEqual([front.house]);
+  });
+});
+
+describe("the town on its land", () => {
+  const groundOf = (scene: CityScene, x: number, y: number) => townTerrain(scene.land, scene.salt, isoU(x, y), isoV(x, y));
+
+  it("shows the squares round the city, and builds on neither the sea nor the mountains", () => {
+    const { state, city } = placed(20, ["temple", "granary", "harbour"], ["lighthouse"], [[0, -1, { terrain: Terrain.Ocean }], [1, -1, { terrain: Terrain.Ocean }], [-1, -1, { terrain: Terrain.Ocean }], [1, 0, { terrain: Terrain.Mountains }], [1, 1, { terrain: Terrain.Mountains }]]);
+    const scene = cityScene(state, city);
+    expect(scene.land[12]).toBe(Terrain.Grassland);
+    expect(scene.land[7]).toBe(Terrain.Ocean); // the square north of the city
+    for (const it of scene.items) {
+      if (it.kind !== "home" && it.id !== "temple" && it.id !== "granary") continue;
+      const t = groundOf(scene, it.x + it.w / 2, it.y - it.w / 4);
+      expect(t, it.id).not.toBe(Terrain.Ocean);
+      expect(t, it.id).not.toBe(Terrain.Mountains);
+    }
+    // No street runs out to sea.
+    for (const st of scene.streets)
+      for (let i = 0; i < st.pts.length; i += 2) expect(townTerrain(scene.land, scene.salt, st.pts[i]!, st.pts[i + 1]!)).not.toBe(Terrain.Ocean);
+    expect(scene.items.some((it) => it.kind === "peak")).toBe(true);
+  });
+
+  it("stands the harbour and the seafaring wonders by the sea, the harbour nearest it", () => {
+    const { state, city } = placed(9, ["harbour"], ["lighthouse"], [[0, -1, { terrain: Terrain.Ocean }], [1, -1, { terrain: Terrain.Ocean }], [-1, -1, { terrain: Terrain.Ocean }]]);
+    const scene = cityScene(state, city);
+    const north = (it: { x: number; y: number }) => it.y - it.x / 2; // up and to the right, on the screen
+    const harbour = scene.items.find((it) => it.id === "harbour")!, light = scene.items.find((it) => it.id === "lighthouse")!;
+    const homes = scene.items.filter((it) => it.kind === "home");
+    expect(north(harbour)).toBeLessThan(Math.min(...homes.map(north)) + 20);
+    expect(north(light)).toBeLessThan(Math.max(...homes.map(north)));
+  });
+
+  it("has a harbour built late move no wonder", () => {
+    const squares: [number, number, { terrain: Terrain }][] = [[0, -1, { terrain: Terrain.Ocean }], [1, -1, { terrain: Terrain.Ocean }]];
+    const a = placed(9, [], ["lighthouse"], squares);
+    const before = cityScene(a.state, a.city).items.find((it) => it.id === "lighthouse")!;
+    a.city.buildings = ["harbour"];
+    expect(cityScene(a.state, a.city).items.find((it) => it.id === "lighthouse")).toMatchObject({ x: before.x, y: before.y });
+  });
+
+  it("lets nothing move for a new building: what stood stands, on its lot", () => {
+    const { state, city } = placed(14, ["palace", "temple", "granary", "library"], [], []);
+    const where = () => Object.fromEntries(cityScene(state, city).items.filter((it) => it.kind === "building").map((it) => [it.id, [it.x, it.y]]));
+    const before = where();
+    city.buildings = [...city.buildings, "bank", "courthouse", "factory"];
+    const after = where();
+    for (const id of Object.keys(before)) expect(after[id], id).toEqual(before[id]);
+    // Nor for one that stops being supported, whatever order that leaves the city's lists in.
+    const standing = where();
+    city.idle = [city.buildings[1]!, city.buildings[3]!];
+    city.buildings = city.buildings.filter((b) => !city.idle!.includes(b));
+    expect(where()).toEqual(standing);
+    delete city.idle;
+    city.buildings = ["palace", "temple", "granary", "library", "bank", "courthouse", "factory"];
+    // Works that smoke keep to the edge of the town.
+    const factory = cityScene(state, city).items.find((it) => it.id === "factory")!;
+    expect(Math.abs(factory.x + factory.w / 2 - 158)).toBeGreaterThan(60);
+  });
+
+  it("lays out what its owner knows, and tells nothing of what lies unexplored", () => {
+    const { state, city } = placed(6, ["temple"], [], [[1, 0, { terrain: Terrain.Ocean }], [0, 1, { terrain: Terrain.Mountains, river: true }], [-1, 0, { irrigation: true }]]);
+    const known = cityScene(state, city);
+    expect(known.fields.length).toBeGreaterThan(0);
+    const explored = state.players[0]!.explored;
+    const hide = (dx: number, dy: number) => { explored[(city.y + dy) * state.map.width + city.x + dx] = 0; };
+    hide(1, 0); hide(0, 1); hide(-1, 0);
+    const hidden = cityScene(state, city);
+    expect(hidden.land[13]).toBe(hidden.ground);
+    expect(hidden.land[17]).toBe(hidden.ground);
+    expect(hidden.fields).toEqual([]);
+    // Rewrite what is hidden and the picture stays the same.
+    const before = Surface.screen();
+    drawCityView(before, state, { city: city.id });
+    Object.assign(getTile(state.map, city.x + 1, city.y)!, { terrain: Terrain.Desert, river: true, irrigation: true });
+    Object.assign(getTile(state.map, city.x, city.y + 1)!, { terrain: Terrain.Swamp, mine: true });
+    const after = Surface.screen();
+    drawCityView(after, state, { city: city.id });
+    expect(after.data).toEqual(before.data);
+  });
+
+  it("runs a river by the crossroads, a street crossing it on a bridge, no house in it", () => {
+    const { state, city } = placed(16, ["temple"], [], [[0, 0, { river: true }], [1, 0, { river: true }], [-1, 0, { river: true }], [2, 0, { river: true }], [-2, 0, { river: true }]]);
+    const scene = cityScene(state, city);
+    expect(scene.rivers.length).toBeGreaterThan(1);
+    const pts = scene.rivers.flat();
+    const near = (x: number, y: number, r: number) => { for (let i = 0; i < pts.length; i += 2) if (Math.hypot(pts[i]! - isoU(x, y), pts[i + 1]! - isoV(x, y)) < r) return true; return false; };
+    for (const it of scene.items) if (it.kind === "home") expect(near(it.x + it.w / 2, it.y - it.w / 4, 0.5), it.id).toBe(false);
+    expect(near(158, 100, 1)).toBe(false); // the crossroads stands dry
+  });
+
+  it("keeps every picture a window only partly covers, cut round the window", () => {
+    const { state, id } = town(12, ["palace", "temple", "granary", "library"], [], ["pottery"]);
+    const s = Surface.screen();
+    drawCityView(s, state, { city: id });
+    const before = s.art.length;
+    const middle = s.art.find((a) => a.house)!;
+    const window = { x: middle.x + 2, y: middle.y + 2, w: 60, h: 40 };
+    hideArtUnder(s, window);
+    expect(s.art.length).toBe(before);
+    expect(s.art.find((a) => a.id === middle.id && a.x === middle.x && a.y === middle.y)!.holes).toContainEqual(window);
+  });
+
+  it("moves the gate along the walls when the sea takes the corner it would stand on", () => {
+    const { state, city } = placed(9, ["city_walls"], [], [[0, 1, { terrain: Terrain.Ocean }], [1, 0, { terrain: Terrain.Ocean }], [1, 1, { terrain: Terrain.Ocean }], [0, 2, { terrain: Terrain.Ocean }], [2, 0, { terrain: Terrain.Ocean }]]);
+    const scene = cityScene(state, city);
+    const gate = scene.items.find((it) => it.kind === "gate")!;
+    expect(groundOf(scene, gate.x + gate.w / 2, gate.y - 3)).not.toBe(Terrain.Ocean);
+    // No wall stands in the sea, and no paving.
+    for (const it of scene.items) if (it.wall) expect(townTerrain(scene.land, scene.salt, (it.wall.u0 + it.wall.u1) / 2, (it.wall.v0 + it.wall.v1) / 2)).not.toBe(Terrain.Ocean);
+    for (const b of scene.squares) expect(townTerrain(scene.land, scene.salt, (b.u0 + b.u1) / 2, (b.v0 + b.v1) / 2)).not.toBe(Terrain.Ocean);
+  });
+
+  it("walls the town with a gate at its nearest corner, and shows what stands before a picture through it", () => {
+    const { state, city, id } = placed(9, ["palace", "city_walls", "temple", "library", "granary"], [], [], ["construction"]);
+    const scene = cityScene(state, city);
+    const gate = scene.items.find((it) => it.kind === "gate")!;
+    expect(Math.abs(gate.x + gate.w / 2 - scene.w / 2)).toBeLessThanOrEqual(1);
+    expect(gate.y).toBeGreaterThanOrEqual(Math.max(...scene.items.filter((it) => it.kind === "walls").map((it) => it.y)));
+    const s = Surface.screen();
+    drawCityView(s, state, { city: id });
+    // The second time round it comes from what was kept, the same to the pixel.
+    const again = Surface.screen();
+    drawCityView(again, state, { city: id });
+    expect(again.data).toEqual(s.data);
+    expect(again.art).toEqual(s.art);
   });
 });

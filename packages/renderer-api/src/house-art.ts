@@ -1,0 +1,28 @@
+// Written by tools/sprites/houses/cut.ts from the user's sheet of houses (tools/sprites/houses/houses.png): each house's
+// picture (apps/web/src/houses/<id>.png), its width and height in the sheet's pixels.
+export const HOUSE_ART: Readonly<Record<string, readonly [w: number, h: number]>> = {
+  round_hut: [223, 217],
+  adobe_house: [241, 182],
+  white_cottage: [240, 211],
+  courtyard_house: [248, 196],
+  fishers_hut: [246, 196],
+  stone_cottage: [242, 197],
+  timber_house: [224, 221],
+  mossy_cottage: [239, 203],
+  bakery: [248, 200],
+  potters_yard: [246, 183],
+  carpenters_shed: [247, 199],
+  inn: [252, 210],
+  town_house: [209, 239],
+  brick_terrace: [249, 227],
+  greengrocer: [247, 231],
+  stair_house: [239, 238],
+  warehouse: [254, 209],
+  tenement: [231, 238],
+  bungalow: [251, 178],
+  flats: [225, 203],
+  corner_cafe: [243, 194],
+  garage: [235, 158],
+  solar_house: [252, 188],
+  garden_house: [233, 182],
+};
