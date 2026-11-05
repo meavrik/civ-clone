@@ -87,5 +87,5 @@ for; no save version). Coal stays off the map until Steam Engine, the Ironclad's
 City-states keep a garrison and one band of three, which sets out whole, marches on the nearest city and attacks at any odds, no
 longer roaming round the player's cities, and a band's moves play together (2026-11-05, asked for; save version 71).
 A river runs behind the trees of forests, the palms of jungles, hills and mountains (2026-11-05, asked for; no save version).
-The square's window: the yields in the words' size, a walking figure for moves everywhere in place of the boot, and what is built on
-a square shown by its map token in every panel (2026-11-05, asked for; no save version).
+The square's window: the yields in the words' size, and what is built on a square shown by its map token in every panel, moves, defence and land on the same
+token, an arrow, a rook and a pennant (2026-11-05, asked for; no save version).

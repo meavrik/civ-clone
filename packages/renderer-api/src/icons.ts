@@ -8,7 +8,7 @@ export const ICONS = [
   "people", "calendar", "purse", "coin", "gem", "bulb", "crown", "hourglass",
   "food", "shield", "trade", "boot", "tower", "heart", "star", "house",
   "river", "road", "railroad", "irrigate", "mine", "fortress", "fishery", "rig", "harbour", "pollution", "clean", "hut", "city", "swords", "culture",
-  "happy", "unhappy", "regular", "veteran", "hardened", "elite", "label", "borders", "shell", "banknote",
+  "happy", "unhappy", "regular", "veteran", "hardened", "elite", "label", "borders", "land", "shell", "banknote",
 ] as const;
 export type IconName = (typeof ICONS)[number];
 

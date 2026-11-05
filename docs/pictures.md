@@ -34,7 +34,10 @@ How the user's sheets are cut and laid: tile improvements, units, cities, resour
   tokens are the icons of what is built on a square (`road`, `railroad`, `irrigate`, `mine`, `fortress`, `clean`, and `fishery`,
   `rig`, `harbour`, an anchor, which borrowed wheat, a shield and a house before; `icons.art.ts`, line for line as `marks.ts` draws
   them, `square-card.test.ts` holds them to it; asked for 2026-11-05 of the square's window: "improvements icons - change to the
-  tiles silluete icon - better"), so the panels, orders and tooltips show them too; the shade out of sight shades the picture whole, as a city's; fields let the square's
+  tiles silluete icon - better"), so the panels, orders and tooltips show them too, and on the same token (the same day:
+  "move, land and defence icons stll not good - try to replace also with silluate icons") `boot`, an arrow (a walking figure and
+  footprints before), `tower`, a rook (a plain shield is the game's production, and a blob at this size), and `land`, a pennant on a
+  mound, whose land a square is (`borders` stays the minimap's switch); the shade out of sight shades the picture whole, as a city's; fields let the square's
   own water show (`waterHoles`: a river through them, a shore). The villages are laid so too. The logging camp is not
   cut (no work for forests in the rules). The code-drawn fields (`drawIrrigation`, `fieldLayout`: plots in rows either
   side of a canal, running on into irrigated neighbours), mine, fishery (`fishery.ts`) and rig (`rig.ts`) stay for

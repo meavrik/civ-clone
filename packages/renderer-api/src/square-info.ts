@@ -219,7 +219,7 @@ export function terrainInfo(state: GameState, x: number, y: number): SquareInfo 
   } else if (owner >= 0) {
     const holder = owner === state.barbarians ? cityStateOf(claimant(state, x, y) ?? undefined) : undefined;
     const name = owner === me.id ? "Our land" : holder ? `Land of ${holder.name}` : `${adjectiveOf(state.players[owner])} land`;
-    ownerFact = { icon: "borders", name, ...(worker ? { note: `worked by ${worker.name}` } : owner === me.id ? { note: "not worked", tone: "quiet" as const } : {}) };
+    ownerFact = { icon: "land", name, ...(worker ? { note: `worked by ${worker.name}` } : owner === me.id ? { note: "not worked", tone: "quiet" as const } : {}) };
   }
   // What it brings a city of ours whose border holds it beyond the squares it works; the settlers' note on it as a site.
   if (sp && !city && owner === me.id && !worker) {
@@ -296,7 +296,7 @@ export function terrainInfo(state: GameState, x: number, y: number): SquareInfo 
 /** The most lines the units take: alike ones counted together, then by kind alone, the rest summed up in the last. */
 export const UNITS_LISTED = 4;
 
-/** Whose the square is, in a line: "{borders} Our land, worked by Rome". */
+/** Whose the square is, in a line: "{land} Our land, worked by Rome". */
 export function ownerLine(f: SquareFact): string {
   return `{${f.icon}} ${f.name}${f.note ? `, ${f.note}` : ""}`;
 }

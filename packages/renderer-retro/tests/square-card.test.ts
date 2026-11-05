@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { newGame, Terrain, type GameState } from "@civ/core";
+import { foundCity, newGame, Terrain, type GameState } from "@civ/core";
 import { terrainInfo, type MenuState } from "@civ/renderer-api";
 import { drawMenu, ICON_SHEET, spriteSurface, squarePainter, Surface } from "../src/index.js";
 import { ICON } from "../src/icons.js";
@@ -67,7 +67,23 @@ describe("the square's window", () => {
       for (let j = 0; j < MARK_SIZE; j++)
         for (let i = 0; i < MARK_SIZE; i++) expect(icon.fget(1 + i, 1 + j), `${name} at ${i},${j}`).toBe(mark.fget(2 + i, 1 + j));
     }
-    expect(spriteSurface(ICON_SHEET, "harbour")).toBeTruthy();
+  });
+
+  it("stands moves, defence, land and the Harbour on the same token, though the map has no mark of them", () => {
+    const disc = spriteSurface(ICON_SHEET, "road")!;
+    for (const name of ["boot", "tower", "land", "harbour"]) {
+      const icon = spriteSurface(ICON_SHEET, name)!;
+      for (let j = 0; j < icon.fh; j++)
+        for (let i = 0; i < icon.fw; i++) expect(icon.fget(i, j) === SPRITE_CLEAR, `${name} at ${i},${j}`).toBe(disc.fget(i, j) === SPRITE_CLEAR);
+    }
+  });
+
+  it("marks whose land a square is with a token of its own, the minimap's switch keeping its picture", () => {
+    const { state, x, y } = squareOf(Terrain.Grassland);
+    foundCity(state, state.currentPlayer, x, y, "Rome");
+    expect(terrainInfo(state, x + 1, y).card!.owner?.icon).toBe("land");
+    expect(spriteSurface(ICON_SHEET, "borders")!.data).not.toEqual(spriteSurface(ICON_SHEET, "land")!.data);
+    dump("square-card-land", state, x + 1, y);
   });
 
   it("gives works on the land their tokens, in both groups", () => {

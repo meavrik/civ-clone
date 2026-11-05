@@ -30,7 +30,7 @@ Map clicks, scrolling, panel, zoom, square size, other civs' turns, coast, fog, 
   arrange with clear sections. clean design", then of a table of labels and lines, "still not good. rethink this modal
   window layout"; renderer-api `square-info.ts`: `SquareInfo.card`, a `SquareCard`, `MenuState.card`; retro
   `square-card.ts`, `drawSquareCard`, laid by widgets.ts in place of a body): beside the picture the yields in the
-  words' size (large figures until 2026-11-05, "huge"), a nought faded, the moves and defence ("{boot} 1 move  {tower} +50% defence"), whose it is (`owner`: "Rome,
+  words' size (large figures until 2026-11-05, "huge"), a nought faded, the moves and defence ("{boot} 1 move  {tower} +50% defence", tokens since 2026-11-05: an arrow and a rook, the names kept), whose it is (`owner`, `land` a pennant on a mound: "Rome,
   ours, size 4", "Our land, worked by Rome", "Land of Tyre") and a few words on the terrain (`TERRAIN_TEXT`, our own)
   in dim ink; under them one parchment panel, as the Building Completed window's, of facts (`SquareFact`: an icon, what is built on the square its map token (below), or
   a unit's owner's shield, a name in black, a short note in a column of its own, grey, green for good news, red for a
