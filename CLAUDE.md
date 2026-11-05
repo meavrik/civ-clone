@@ -1636,38 +1636,56 @@ Never ship the original's sprites, palette art, fonts or text.
   isometric and as a real town look"; every picture of the user's is drawn from a corner, so they stand on one ground):
   renderer-api `town.ts`, retro `screens/town.ts`. The sky and the rows of the old view are gone. The scene (`SCENE_W` x
   `SCENE_H`, as before) is the map round the city in `u` (down and right, the map's east) and `v` (down and left, its
-  south), counted in lots, a lot's diamond `LOT_W` 20 x `LOT_H` 10 retro pixels (`isoX`, `isoY`, `isoU`, `isoV`),
-  `LOTS_A_SQUARE` 8 to a square of the map, so the view shows the city's square and all eight round it (`CityScene.land`,
+  south), counted in lots, a lot's diamond `LOT_W` 18 x `LOT_H` 9 retro pixels (`isoX`, `isoY`, `isoU`, `isoV`),
+  `LOTS_A_SQUARE` 9 to a square of the map, so the view shows the city's square and all eight round it (`CityScene.land`,
   5 x 5, the corners reaching two out; `townTerrain`, the borders wandering by noise). Only what its owner has explored:
   an unknown square is drawn as the city's own ground. So the sea, hills and forest beyond the houses are the city's
-  own, irrigated squares show their fields (`CityScene.fields`, the user's pictures of them, `fieldsPicture`, flat under
-  everything), mined ones their mine or quarry, and rivers their real course (`riverCourses`, bent off the crossroads);
+  own, irrigated squares show their fields (`CityScene.fields`, `FieldPlot`, see The town's land below), mined ones
+  their mine or quarry (the user's pictures), and rivers their real course (`riverCourses`, bent off the crossroads);
   a road on a square at the side runs on to it from the town (a walled town's leave only by the gate). Streets cross every
-  `PITCH` (2.4) lots, each block between them four lots: a street runs along a side only where a lot is built on it, every
+  `PITCH` (2.8) lots, each block between them four lots, one always left a garden (`Lot.garden`): a street runs along a side only where a lot is built on it, every
   street joined to the crossroads, so the net grows with the town; it wanders in a young town and runs straight in a
   modern one, dirt, then cobbles from Construction, asphalt from the Automobile, a bridge where it crosses a river, stopping at
   the sea. The palace stands behind the crossroads and the town square before it (from size 3, or with any building: a well,
   a fountain from Construction, or the Marketplace), and nothing is built on the sea or on mountains, so a coastal town
   follows its shore. Every improvement has its place in every town, built or not (`planned`: works that smoke or sprawl,
-  `OUTSKIRTS`, on one side beyond the second ring; the big ones, `WHOLE_BLOCK` wide, a block each, every other block of rings
-  1 and 2; the rest a lot each, in the rules' order, so the first stand nearest the crossroads), and homes stand there
+  `OUTSKIRTS`, on one side beyond the second ring; those over `WHOLE_BLOCK` (22) wide, wider than a lot, a block each, every other block of rings 1
+  and 2, then the blocks between, then further out; the rest a lot each, in the rules' order, so the first stand nearest the crossroads), and homes stand there
   until it comes: so nothing moves when one is built or stops being supported, whatever order `City.buildings` and
   `City.idle` hold them in (placing by walking those lists rearranged the town each time one went idle). Wonders take a
   block each in the order they rise, the second ring's back first; the block nearest the sea is the harbour's, built or
   not, its picture pushed out onto the shore so its water meets the sea, and `SEAFRONT` wonders take the next nearest. Walls
   (`SceneItem.wall`, a stretch or a tower, each a box of drawn stone, battlements on its outer edge) run round the rings the town
-  fills on the streets' lines, one ring out for a small town, two with wonders or more than 30 lots' worth; lots beyond are
+  fills on the streets' lines, one ring out for a small town, two with wonders or more than 40 lots' worth; lots beyond are
   suburbs, none of the wall standing in the sea; the gatehouse stands at the corner nearest the viewer, whose picture
-  faces us, or where the sea takes it at the nearest land along the walls. Trees (`drawTree`, on the fine grid, dark green
-  edges as the bushes in the user's pictures, the old drawn ones having black outlines), peaks and hills are items too, drawn back to
-  front among the pictures: what is drawn in front of a picture shows through it (`fineCopy`, `sealPictures`, as on the map).
-  The ground is worked out a fine pixel at a time in the world's coordinates, so speckle and paving run along the town's axes
-  (`drawTownGround`, with a shadow beside each lot). That takes 0.1 to 0.2 s, so it is done once for a scene (`drawnTowns`,
-  by the scene; `cityScene` keeps the last by a key of what it reads, `sceneKey`) and a frame after is about a millisecond;
-  60 frames a second in Chrome with 44 pictures. A click names a house as it names a building (`SceneItem.id` "bakery@12",
+  faces us, or where the sea takes it at the nearest land along the walls. Trees, peaks and hills are items too, drawn back to
+  front among the pictures, and none stands inside the walls or before anything built (a peak's body rises well above its foot): what is drawn in front of a picture shows through it (`fineCopy`, `sealPictures`, as on the map).
+  The ground is worked out a fine pixel at a time in the world's coordinates, so rows and paving run along the town's axes
+  (`drawTownGround`, with a shadow beside each lot). That takes about 0.1 s once warm, the land sounded on a coarse grid and
+  only the cells along a border worked out (`COARSE`; every pixel took half as long again), so it is done once for a scene
+  (`drawnTowns`, by the scene; `cityScene` keeps the last by a key of what it reads, `sceneKey`) and a frame after is about a
+  millisecond; 60 frames a second in Chrome with 32 to 44 pictures. A click names a house as it names a building (`SceneItem.id` "bakery@12",
   `house` its kind; `about`), the bottom corners of a picture's box not counting (`sceneItemAt`). Windows now cut a hole in
   every picture they partly cover (`hideArtUnder`; they used to drop a building's whole picture, which the dense town would have
   shown). Modern paints blocks of the same ground, strokes the streets and leaves the fields out. Only the picture: no save version.
+  The town's land and room (the same day, asked for: "houses are too cramed together", "fields and mountens dosnt look good -
+  improve. try to make same style as the 90's buildings look"; a first ground of dithered blotches, smooth grey triangles and
+  the user's field pictures stretched to a square, whose wheat stood taller than the houses, looked like nothing else in the
+  game). Room: houses 15 across on lots 18 wide, stood `LOT_OUT` apart (at 18 across each hid half the one behind it), improvements
+  at `BUILDING_SCALE` of their room, `HOMES_A_SIZE` 1.5 homes to a citizen, and `GARDENS` of the lots left open besides the one each
+  block keeps. Land: the user's terrain sheet (retro `screens/town.ts`, `GROUND_SPRITE`; tiles.ts `terrainPieces` lifts a sprite's
+  colour and each thing on it): each land its sprite's flat colour with the sprite's own tufts, stones and waves scattered on it
+  (`MARKS`), the jungle its texture, the woods' trees the sheet's, by the square's `forestKind`, single ones outside the forests
+  (a birch sprite's trees join into one clump). Fields are plots on the town's axes (`drawTownGround`'s `fieldInk`), three a
+  side with a track between (`PLOT`, `FARM_TRACK`), a crop to each by what suits the land (`fieldKinds`), rows along either axis, a bank
+  light on its far sides and dark on its near ones, some fallow; on a river a canal down the plot; running past the square's
+  wandering edge onto any `FARMLAND`. Our drawing, in the sheet's manner: the user's field pictures stay on the map, too coarse to
+  stand beside the houses here. Mountains (`drawPeak`, `SceneItem.rock`, the square's `mountainKind`, its four kinds as the sheet's) are
+  drawn on the fine grid as the sheet draws them: a lit face and a shaded one, each near one colour, parted by a crooked spine catching
+  the light, tapering gullies down the shaded face and cracks down the lit one, jagged snow, boulders at the foot, a dark
+  edge in the rock's own hue; flaked clusters of light and dark looked like camouflage. Hills (`drawMound`) a long pale slope breaking
+  into the grass, a short dark one, a dark crest. The sea is one blue, the sheet's coastal, with its waves: a deep band in the
+  sheet's navy cut dark wedges in along the chamfered distance.
   Houses (2026-11-05, asked for with the user's sheet: "for the city view add random houses to be scattered around by the
   civ time-frame, size and advances"): `tools/sprites/houses/houses.png` (kept byte for byte as supplied, 1536x1024, 24 houses
   in rows of six on a 256-pixel grid, a row an age, feet level, a clear background, every house one piece; nearly every
@@ -1681,8 +1699,7 @@ Never ship the original's sprites, palette art, fonts or text.
   the sea or a river), `heart` (tall ones thin out toward the town's edge), `share` (a workshop less common than a home).
   `pickHouse` lets each candidate draw by a hash of the lot and itself, its weight in its favour, the lowest standing, so a
   lot keeps its house when a new kind comes unless the new kind draws lower: a town changes house by house, never all at once.
-  A town has `2 + 2 * size` homes on the lots left, nearest the crossroads first by a hashed rank, one lot in eleven a
-  garden, and the old drawn homes (`HOMES`) stand in for them in the modern renderer. `HOUSE_SCALE` stands them at one scale for
+  A town has `2 + 1.5 * size` homes on the lots left, nearest the crossroads first by a hashed rank, and the old drawn homes (`HOMES`) stand in for them in the modern renderer. `HOUSE_SCALE` stands them at one scale for
   all, the sheet's sizes kept. Only the picture: the rules know a city's size.
   Village pictures (2026-11-02, asked for with the user's sheet of five huts: "replace huts in game with attached veriety
   of huts"): `tools/sprites/huts/huts.png` (kept as supplied: a straw-thatched round hut, a timber hall, a mud-brick
@@ -2165,8 +2182,9 @@ from a civilization no longer spares its units wear (2026-11-04, asked for; save
 squares apart, whatever their kind, the land's kinds taking turns for the room (2026-11-04, asked for; save version 69). The 27 improvements drawn as the user's sheet, the Harbour's picture with them (2026-11-04, asked for; no save version).
 The 21 wonders drawn as the user's sheets, each with its stages of construction in the city view and going up through them
 in fast forward as it is completed (2026-11-04, asked for; no save version).
-The city view is an isometric town on the real land round the city: streets, a town square, walls and a gatehouse, fields, shores
-and rivers, and the user's 24 houses standing by the people's age, size and advances (2026-11-05, asked for; no save version).
+The city view is an isometric town on the real land round the city, in the manner of the user's terrain sheet: streets, a town
+square, walls and a gatehouse, patchwork fields, faceted mountains, shores and rivers, and the user's 24 houses standing apart by the
+people's age, size and advances (2026-11-05, asked for; no save version).
 A leader's answer stands in a window of its own over the audience, with their portrait, Continue and Close all (2026-11-05, asked
 for; no save version). Coal stays off the map until Steam Engine, the Ironclad's advance (2026-11-05, asked for; save version 70).
 

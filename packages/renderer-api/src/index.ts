@@ -76,7 +76,7 @@ import type { LoadingView } from "./loading.js";
 export * from "./resources.js";
 export * from "./square-info.js";
 import type { SquareCard } from "./square-info.js";
-export { hash, valueNoise } from "./hash.js";
+export { hash } from "./hash.js";
 import type { IconName } from "./icons.js";
 import {
   ACCRUED_CULTURE,

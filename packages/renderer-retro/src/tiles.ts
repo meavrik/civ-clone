@@ -204,6 +204,57 @@ function layers(sprite: string): Layers {
   return out;
 }
 
+/** A thing standing on a terrain sprite, lifted off it: palette indices row by row, -1 where clear. */
+export interface TerrainPiece { w: number; h: number; px: Int16Array; n: number; edge: boolean }
+const pieceCache = new Map<string, { base: number; pieces: TerrainPiece[] }>();
+
+/**
+ * A terrain sprite's ground colour and each thing on it, tufts and specks too, joined corner to corner (`edge`: cut by
+ * the sprite's side), so a screen that is not a grid of squares can scatter the sheet's own marks (the city view).
+ */
+export function terrainPieces(sprite: string): { base: number; pieces: TerrainPiece[] } {
+  const hit = pieceCache.get(sprite);
+  if (hit) return hit;
+  const src = terrainSprite(sprite).data;
+  const n = FINE * FINE;
+  const count = new Map<number, number>();
+  for (let i = 0; i < n; i++) count.set(src[i]!, (count.get(src[i]!) ?? 0) + 1);
+  const base = [...count.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+  const [br, bg, bb] = PALETTE[base]!;
+  const near = (c: number) => { const [r, g, b] = PALETTE[c]!; return Math.abs(r - br) + Math.abs(g - bg) + Math.abs(b - bb) < 24; };
+  const seen = new Uint8Array(n);
+  const pieces: TerrainPiece[] = [];
+  for (let s = 0; s < n; s++) {
+    if (seen[s] || near(src[s]!)) continue;
+    const patch = [s];
+    seen[s] = 1;
+    for (let q = 0; q < patch.length; q++) {
+      const px = patch[q]! % FINE, py = (patch[q]! - px) / FINE;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = px + dx, ny = py + dy;
+          if (nx < 0 || ny < 0 || nx >= FINE || ny >= FINE) continue;
+          const t = ny * FINE + nx;
+          if (!seen[t] && !near(src[t]!)) { seen[t] = 1; patch.push(t); }
+        }
+    }
+    const xs = patch.map((a) => a % FINE), ys = patch.map((a) => Math.floor(a / FINE));
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const w = x1 - x0 + 1, h = y1 - y0 + 1;
+    const px = new Int16Array(w * h).fill(-1);
+    for (const a of patch) px[(Math.floor(a / FINE) - y0) * w + (a % FINE) - x0] = src[a]!;
+    pieces.push({ w, h, px, n: patch.length, edge: x0 === 0 || y0 === 0 || x1 === FINE - 1 || y1 === FINE - 1 });
+  }
+  const out = { base, pieces };
+  pieceCache.set(sprite, out);
+  return out;
+}
+
+/** The sprite's own pixels, for a ground that is all texture (the jungle's): FINE by FINE. */
+export function terrainTexture(sprite: string): Uint8Array {
+  return terrainSprite(sprite).data;
+}
+
 /** The ground a land square on `ground` (`groundAt`) lends its neighbours where it reaches over the border. */
 function groundOf(ground: Terrain): Uint8Array {
   return layers(TERRAIN_SPRITE[ground]).ground;

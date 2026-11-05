@@ -5,7 +5,8 @@ import { hash, valueNoise } from "./hash.js";
 import { HOUSE_ART } from "./house-art.js";
 import { houseChoices, pickHouse } from "./houses.js";
 import { wonderSite } from "./wonder-stages.js";
-import { fieldsPicture, minePicture, type WorkPicture } from "./work-pictures.js";
+import { forestKind, mountainKind, type ForestKind, type MountainKind } from "./terrain-variant.js";
+import { fieldKinds, minePicture, type WorkPicture } from "./work-pictures.js";
 
 /**
  * The city view as a town seen from above and to one side (2026-11-05, asked for: "redo the city view ... all together to
@@ -15,7 +16,7 @@ import { fieldsPicture, minePicture, type WorkPicture } from "./work-pictures.js
  * map, with the crossroads at the town's heart at 0, 0: so the sea, hills and woods beyond the houses are the city's
  * own, and the town stops at the shore.
  *
- * Streets cross every `PITCH` lots, and each block between them holds four lots. The palace stands behind the
+ * Streets cross every `PITCH` lots, and each block between them holds four lots, one always left a garden. The palace stands behind the
  * crossroads and the square before it, the marketplace on the square; each improvement has its own place round them,
  * built or not, and works that smoke or sprawl stand on one side beyond; wonders take a block each in the order they
  * rise, the back of the town first; and homes fill what is left outward. So nothing moves as a city grows: a lot keeps
@@ -26,34 +27,48 @@ import { fieldsPicture, minePicture, type WorkPicture } from "./work-pictures.js
 export const SCENE_W = 316;
 export const SCENE_H = 174;
 /** A lot's diamond on the screen, retro pixels across and down. */
-export const LOT_W = 20;
-export const LOT_H = 10;
+export const LOT_W = 18;
+export const LOT_H = 9;
 /** Where the crossroads stands in the scene: below the middle, room for the tall things at the back. */
 const TOWN_X = SCENE_W / 2;
-const TOWN_Y = 100;
+const TOWN_Y = 96;
 /** Lots to a square of the map, along each side. */
-export const LOTS_A_SQUARE = 8;
+export const LOTS_A_SQUARE = 9;
 /** How far the squares round the city are read: the city's own and two out, as far as the scene's corners reach. */
 const REACH = 2;
 const SIDE = 2 * REACH + 1;
 /** The width of a street, and of the main ones through the crossroads, in lots. */
 const STREET = 0.34;
 const MAIN_STREET = 0.46;
-/** A street to the next: two lots and the street's room. */
-const PITCH = 2.4;
+/** A street to the next: two lots with a garden's room between them, and the street's. */
+const PITCH = 2.8;
+/** How far a lot's middle stands from its block's, each way: a little more than half a lot, so neighbours stand apart. */
+const LOT_OUT = 0.62;
 /** Blocks either side of the crossroads. */
 const BLOCKS = 4;
-/** How much of a lot a house fills: its width in retro pixels for each of its sheet's pixels. */
-const HOUSE_SCALE = 0.076;
-/** From this wide a building takes a block of its own, not a lot. */
-const WHOLE_BLOCK = 26;
+/**
+ * A house's size in retro pixels for each of its sheet's pixels: about 15 across on a lot 18 wide, room round it (at 18
+ * across, 2026-11-05, "too cramed together": each hid half of the one behind it). A town's improvements stand at
+ * `BUILDING_SCALE` of their room, so they stay the bigger.
+ */
+const HOUSE_SCALE = 0.064;
+const BUILDING_SCALE = 0.9;
+/** The lots that lie open beside the one each block keeps: gardens between the houses, so a town is not a solid mass. */
+const GARDENS = 0.14;
+/** Homes to a citizen. */
+const HOMES_A_SIZE = 1.5;
+/** From this wide (`artLot`) a building takes a block of its own, not a lot: a lot is narrower, and it would lean on its neighbours. */
+const WHOLE_BLOCK = 22;
 /** The room left over a block for what stands on it: no picture stands taller (`artLot`). */
 const TALLEST = 46;
 const GATE_H = 26;
-/** A patch of fields beside the square that holds them, in retro pixels (the sheet's `WORK_SQUARE` to it). */
-const FIELD_SIZE = 46;
-const MINE_SIZE = 38;
+/** A square of fields is three plots across, each this many lots with a farm track between. */
+const PLOT = 2.5;
+const FARM_TRACK = 0.3;
+const MINE_SIZE = 34;
 
+/** Ground a plot may run onto past the wandering edge of its square: not the sea, rock or woods. */
+const FARMLAND = new Set([Terrain.Grassland, Terrain.Plains, Terrain.Desert, Terrain.Hills, Terrain.Tundra]);
 /** Works that smoke or sprawl: they keep to one side of the town. */
 const OUTSKIRTS = new Set(["factory", "mfg_plant", "power_plant", "hydro_plant", "nuclear_plant", "recycling_center", "solar_plant", "sdi_defense"]);
 /** What stands by the sea, where the land has one. */
@@ -83,8 +98,10 @@ export interface SceneItem {
   house?: string;
   /** A tile improvement's picture (`WorkPicture`). */
   work?: WorkPicture;
-  /** A tree's kind: 0 and 1 broad-leaved, 2 a pine, 3 a poplar. */
-  tree?: number;
+  /** A tree's kind (the terrain sheet's forests). */
+  tree?: ForestKind;
+  /** A mountain's rock (the terrain sheet's kinds). */
+  rock?: MountainKind;
   /** A stretch of wall or a tower: its foot in lots, how tall in retro pixels, and which way it faces. */
   wall?: WallPiece;
 }
@@ -109,6 +126,9 @@ export interface TownStreet {
 /** A box of the ground, in lots. */
 export interface GroundBox { u0: number; v0: number; u1: number; v1: number }
 
+/** A plot of a farm: what grows in it, its rows along `u` or (`turned`) `v`. */
+export interface FieldPlot extends GroundBox { id: WorkPicture; turned: boolean }
+
 export interface CityScene {
   w: number;
   h: number;
@@ -127,8 +147,8 @@ export interface CityScene {
   squares: GroundBox[];
   /** The ground worn round what stands on it; each casts its shadow down the screen to the right. */
   yards: GroundBox[];
-  /** Fields on the land round the town, flat on the ground, under everything else. */
-  fields: { id: WorkPicture; x: number; y: number; w: number; h: number }[];
+  /** Plots of fields on the land round the town, drawn on the ground. */
+  fields: FieldPlot[];
   /** Back to front, left to right: the order to draw them. */
   items: SceneItem[];
 }
@@ -222,17 +242,18 @@ class Taken {
   }
 }
 
-interface Lot { u: number; v: number; index: number; block: Block; fits: boolean; used: boolean; rank: number }
+interface Lot { u: number; v: number; index: number; block: Block; fits: boolean; used: boolean; rank: number; garden: boolean }
 interface Block { bu: number; bv: number; ring: number; u: number; v: number; lots: Lot[]; fits: boolean; held: boolean; rank: number }
 
-/** Trees to a candidate spot, by the ground (the spots stand 0.8 of a lot apart). */
+/** Trees to a candidate spot, by the ground (the spots stand `TREE_STEP` of a lot apart). */
 const TREE_SHARE: Record<Terrain, number> = {
-  [Terrain.Ocean]: 0, [Terrain.Grassland]: 0.05, [Terrain.Plains]: 0.025, [Terrain.Forest]: 0.72, [Terrain.Hills]: 0.07, [Terrain.Mountains]: 0.02,
-  [Terrain.Desert]: 0, [Terrain.Tundra]: 0.02, [Terrain.Arctic]: 0, [Terrain.Swamp]: 0.1, [Terrain.Jungle]: 0.8,
+  [Terrain.Ocean]: 0, [Terrain.Grassland]: 0.03, [Terrain.Plains]: 0.012, [Terrain.Forest]: 0.82, [Terrain.Hills]: 0.04, [Terrain.Mountains]: 0.01,
+  [Terrain.Desert]: 0, [Terrain.Tundra]: 0.01, [Terrain.Arctic]: 0, [Terrain.Swamp]: 0.03, [Terrain.Jungle]: 0,
 };
+const TREE_STEP = 0.56;
 /** Peaks and hills to a square of them, drawn up from the ground. */
-const PEAKS = 11;
-const MOUNDS = 9;
+const PEAKS = 6;
+const MOUNDS = 7;
 
 const sceneKey = (city: City, near: Near[], known: number, site: string): string =>
   [city.id, city.size, city.owner, city.buildings, city.idle ?? "", city.wonders, site, known,
@@ -258,6 +279,7 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
   const salt = city.id * 7919 + 13;
   const land = near.map((n) => n.terrain);
   const ground = land[(SIDE * SIDE - 1) / 2]!;
+  const explored = state.players[city.owner]!.explored;
   const terrainAt = (u: number, v: number) => townTerrain(land, salt, u, v);
   const buildable = (u: number, v: number) => { const t = terrainAt(u, v); return t !== Terrain.Ocean && t !== Terrain.Mountains; };
 
@@ -274,20 +296,21 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
     return x - across / 2 >= 1 && x + across / 2 <= w - 1 && y - tall >= 1 && y <= h - 1;
   };
   const fits = (u: number, v: number) =>
-    onScreen(u, v, 20, 22) && buildable(u, v) && [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]].every(([a, b]) => buildable(u + a!, v + b!) && !taken.has(u + a!, v + b!));
+    onScreen(u, v, 18, 20) && buildable(u, v) && [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]].every(([a, b]) => buildable(u + a!, v + b!) && !taken.has(u + a!, v + b!));
   for (let bu = -BLOCKS; bu < BLOCKS; bu++)
     for (let bv = -BLOCKS; bv < BLOCKS; bv++) {
       const u = (bu + 0.5) * PITCH, v = (bv + 0.5) * PITCH;
       const ring = Math.max(bu < 0 ? -bu - 1 : bu, bv < 0 ? -bv - 1 : bv);
       const block: Block = { bu, bv, ring, u, v, lots: [], fits: false, held: false, rank: Math.hypot(u, v) + hash(bu, bv, salt) * 1.6 };
-      for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]] as const) {
-        const lot: Lot = { u: u + a, v: v + b, index: lots.length, block, fits: false, used: false, rank: 0 };
+      for (const [a, b] of [[-LOT_OUT, -LOT_OUT], [LOT_OUT, -LOT_OUT], [-LOT_OUT, LOT_OUT], [LOT_OUT, LOT_OUT]] as const) {
+        // One lot of every block stays open, whatever else stands there.
+        const lot: Lot = { u: u + a, v: v + b, index: lots.length, block, fits: false, used: false, rank: 0, garden: block.lots.length === Math.floor(hash(bu, bv, salt + 9) * 4) };
         lot.fits = fits(lot.u, lot.v);
         lot.rank = block.rank + hash(lot.index, 1, salt) * 0.9;
         block.lots.push(lot);
         lots.push(lot);
       }
-      block.fits = block.lots.every((l) => l.fits) && onScreen(u, v, 40, TALLEST);
+      block.fits = block.lots.every((l) => l.fits) && onScreen(u, v, 36, TALLEST);
       blocks.push(block);
     }
   lots.sort((a, b) => a.rank - b.rank);
@@ -299,6 +322,11 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
   const yards: GroundBox[] = [];
   const built = new Set<Block>();
   const lit = new Set<Lot>();
+  // A wonder keeps its sheet's size, an improvement a little under its room, to stand clear of its neighbours.
+  const roomFor = (id: string, kind: SceneItem["kind"]) => {
+    const lot = artLot(id, PICTURES[id]!);
+    return kind === "wonder" ? lot : { w: Math.round(lot.w * BUILDING_SCALE), h: Math.round(lot.h * BUILDING_SCALE) };
+  };
   const stand = (id: string, kind: SceneItem["kind"], pic: Picture, u: number, v: number, lotW: number, lotH: number, more: Partial<SceneItem> = {}) => {
     items.push({ id, kind, pic, x: Math.round(isoX(u, v) - lotW / 2), y: Math.min(h - 1, Math.round(isoY(u, v) + lotW / 4)), w: lotW, h: lotH, ...more });
   };
@@ -306,8 +334,8 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
     hold(b);
     built.add(b);
     for (const l of b.lots) lit.add(l);
-    yards.push({ u0: b.u - 1.1, v0: b.v - 1.1, u1: b.u + 1.1, v1: b.v + 1.1 });
-    const lotted = artLot(id, PICTURES[id]!);
+    yards.push({ u0: b.u - 1.2, v0: b.v - 1.2, u1: b.u + 1.2, v1: b.v + 1.2 });
+    const lotted = roomFor(id, kind);
     stand(id, kind, PICTURES[id]!, b.u, b.v, lotted.w, lotted.h, more);
   };
   const onLot = (l: Lot, id: string, kind: SceneItem["kind"], lotW: number, lotH: number, pic: Picture, more: Partial<SceneItem> = {}) => {
@@ -322,10 +350,10 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
   const standing = city.idle ? [...city.buildings, ...city.idle] : city.buildings;
   const buildings = standing.filter((b) => b !== "city_walls" && PICTURES[b]);
   const walled = standing.includes("city_walls");
-  const homesWanted = 2 + city.size * 2;
+  const homesWanted = 2 + Math.round(city.size * HOMES_A_SIZE);
   const wonders = city.wonders.filter((id) => PICTURES[id]);
-  const room = homesWanted + buildings.reduce((n, id) => n + (artLot(id, PICTURES[id]!).w > WHOLE_BLOCK ? 4 : 1), 0);
-  const wallRing = wonders.length || site || room > 30 ? 2 : 1;
+  const room = Math.round(homesWanted / (0.75 * (1 - GARDENS))) + buildings.reduce((n, id) => n + (artLot(id, PICTURES[id]!).w > WHOLE_BLOCK ? 4 : 1), 0);
+  const wallRing = wonders.length || site || room > 40 ? 2 : 1;
 
   // The town's heart: the palace behind the crossroads, the square before it, and open ground inside the gate.
   const plaza = blockAt(0, 0);
@@ -360,13 +388,15 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
     const b = edge.find((k) => !kept.has(k));
     if (b) { kept.add(b); planned.set(id, b); }
   }
-  // Every other block for the big ones, homes between them.
+  // Every other block for the big ones, homes between them; then the blocks between, and only then past the walls' widest ring.
   const round = blocks.filter((b) => b.ring >= 1 && b.ring <= 2 && b.fits && !kept.has(b)).sort((a, b) => a.rank - b.rank);
+  const beyond = blocks.filter((b) => b.ring > 2 && b.fits && !kept.has(b)).sort((a, b) => a.rank - b.rank);
+  const spaced = [...round.filter((_, i) => i % 2 === 0), ...round.filter((_, i) => i % 2 === 1), ...beyond];
   civic.filter((c) => !OUTSKIRTS.has(c) && artLot(c, PICTURES[c]!).w > WHOLE_BLOCK).forEach((id, i) => {
-    const b = round[i * 2];
+    const b = spaced[i];
     if (b) { kept.add(b); planned.set(id, b); }
   });
-  const open = lots.filter((l) => l.fits && !kept.has(l.block));
+  const open = lots.filter((l) => l.fits && !l.garden && !kept.has(l.block));
   civic.filter((c) => !OUTSKIRTS.has(c) && artLot(c, PICTURES[c]!).w <= WHOLE_BLOCK).forEach((id, i) => { const l = open[i]; if (l) planned.set(id, l); });
   const held = new Set(planned.values());
 
@@ -383,7 +413,7 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
   for (const id of buildings) {
     if (id === "palace") continue;
     const p = PICTURES[id]!;
-    const lotted = artLot(id, p);
+    const lotted = roomFor(id, "building");
     if (id === "marketplace" && hasPlaza) { built.add(plaza); stand(id, "building", p, plaza.u, plaza.v, lotted.w, lotted.h); continue; }
     if (id === "harbour" && quay && free(quay.b)) {
       onBlock(quay.b, id, "building");
@@ -400,9 +430,9 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
     const place = planned.get(id);
     if (place && "lots" in place && free(place)) { onBlock(place, id, "building"); continue; }
     if (place && "block" in place && !place.used) { onLot(place, id, "building", lotted.w, lotted.h, p); continue; }
-    const big = lotted.w > WHOLE_BLOCK ? [...blocks].sort((a, b) => a.rank - b.rank).find(free) : undefined;
+    const big = artLot(id, p).w > WHOLE_BLOCK ? [...blocks].sort((a, b) => a.rank - b.rank).find(free) : undefined;
     if (big) { onBlock(big, id, "building"); continue; }
-    const l = lots.find((k) => k.fits && !k.used);
+    const l = lots.find((k) => k.fits && !k.used && !k.garden);
     if (l) onLot(l, id, "building", lotted.w, lotted.h, p);
   }
   if (quay && free(quay.b)) quay.b.held = true; // left for the harbour
@@ -414,7 +444,7 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
   const heartTo = 1 + city.size / 8;
   for (const l of lots) {
     if (homes >= homesWanted) break;
-    if (!l.fits || l.used || hash(l.index, 9, salt) < 0.09) continue;
+    if (!l.fits || l.used || l.garden || hash(l.index, 9, salt) < GARDENS) continue;
     const seaNear = coastal && [[2, 0], [-2, 0], [0, 2], [0, -2]].some(([a, b]) => terrainAt(l.u + a!, l.v + b!) === Terrain.Ocean);
     const rule = pickHouse(choices, l.index, salt, { heart: l.block.ring < heartTo, water: seaNear || riverside.has(l.u, l.v) });
     const [cw, ch] = HOUSE_ART[rule.id]!;
@@ -537,7 +567,7 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
     for (let i = 1; i <= steps; i++) gateSpots.push([out - i * run, out], [out, out - i * run]);
     for (let i = 1; i <= steps; i++) gateSpots.push([-out, out - i * run], [out - i * run, -out]);
     const gate = gateSpots.find(([u, v]) => buildable(u, v));
-    const byGate = (u: number, v: number) => !!gate && Math.hypot(u - gate[0], v - gate[1]) < 1.7;
+    const byGate = (u: number, v: number) => !!gate && Math.hypot(u - gate[0], v - gate[1]) < 2;
     const towerAt = (i: number) => i % 4 === 0;
     for (let i = 0; i * run < out * 2; i++) {
       const a = -out + i * run, b = a + run, m = (a + b) / 2;
@@ -577,16 +607,29 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
       if (!dx && !dy) continue;
       const cu = dx * LOTS_A_SQUARE, cv = dy * LOTS_A_SQUARE;
       if (n.irrigation) {
-        for (const [a, b] of [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]] as const) {
-          const u = cu + a, v = cv + b;
-          if (terrainAt(u, v) !== n.terrain || taken.has(u, v) || taken.has(u - 1.5, v) || taken.has(u + 1.5, v) || taken.has(u, v - 1.5) || taken.has(u, v + 1.5)) continue;
-          fields.push({ id: fieldsPicture(state.map, n.x, n.y, { terrain: n.terrain, river: n.river }), x: Math.round(isoX(u, v) - FIELD_SIZE / 2), y: Math.round(isoY(u, v) - FIELD_SIZE / 2), w: FIELD_SIZE, h: FIELD_SIZE });
-          taken.box(u - 1.8, v - 1.8, u + 1.8, v + 1.8);
-        }
+        // A patchwork of plots across the square, a track between them, wherever the land is free.
+        const kinds = fieldKinds({ terrain: n.terrain, river: n.river });
+        const from = -(3 * PLOT + 2 * FARM_TRACK) / 2;
+        for (let i = 0; i < 3; i++)
+          for (let j = 0; j < 3; j++) {
+            const u0 = cu + from + i * (PLOT + FARM_TRACK), v0 = cv + from + j * (PLOT + FARM_TRACK), u1 = u0 + PLOT, v1 = v0 + PLOT;
+            const corners = [[u0, v0], [u1, v0], [u0, v1], [u1, v1], [(u0 + u1) / 2, (v0 + v1) / 2]] as const;
+            if (corners.some(([a, b]) => !FARMLAND.has(terrainAt(a, b)) || taken.has(a, b))) continue;
+            const r = hash(i + dx * 5, j + dy * 5, salt + 21);
+            if (r < 0.12) continue; // left fallow
+            fields.push({ id: kinds[Math.floor(hash(j + dy * 5, i + dx * 5, salt + 22) * kinds.length)]!, u0, v0, u1, v1, turned: r > 0.55 });
+            taken.box(u0, v0, u1, v1);
+          }
       }
-      if (n.mine && !taken.has(cu, cv) && onScreen(cu, cv, MINE_SIZE, MINE_SIZE * 0.8)) {
-        items.push({ id: "", kind: "work", pic: NOTHING, x: Math.round(isoX(cu, cv) - MINE_SIZE / 2), y: Math.round(isoY(cu, cv) + MINE_SIZE / 2), w: MINE_SIZE, h: MINE_SIZE, work: minePicture(n.terrain) });
-        taken.box(cu - 1.5, cv - 1.5, cu + 1.5, cv + 1.5);
+      if (n.mine) {
+        // Toward the square's far side where the town has reached its middle.
+        const clear = (u: number, v: number) => onScreen(u, v, MINE_SIZE, MINE_SIZE * 0.8) && [[0, 0], [-1.6, 0], [1.6, 0], [0, -1.6], [0, 1.6]].every(([a, b]) => !taken.has(u + a!, v + b!));
+        const spot = [[cu, cv], [cu + dx * 2, cv + dy * 2], [cu + dx * 3.5, cv + dy * 3.5], [cu + 2.5, cv], [cu, cv + 2.5], [cu - 2.5, cv], [cu, cv - 2.5]].find(([u, v]) => clear(u!, v!));
+        if (spot) {
+          const [u, v] = spot as [number, number];
+          items.push({ id: "", kind: "work", pic: NOTHING, x: Math.round(isoX(u, v) - MINE_SIZE / 2), y: Math.round(isoY(u, v) + MINE_SIZE / 2), w: MINE_SIZE, h: MINE_SIZE, work: minePicture(n.terrain) });
+          taken.box(u - 1.5, v - 1.5, u + 1.5, v + 1.5);
+        }
       }
     }
 
@@ -599,24 +642,30 @@ function layOut(state: GameState, city: City, near: Near[], site: { id: string; 
       for (let k = 0; k < (peak ? PEAKS : MOUNDS); k++) {
         const u = (dx + (hash(k, dx + 7, salt + dy) - 0.5) * 0.95) * LOTS_A_SQUARE, v = (dy + (hash(dy + 7, k, salt - dx) - 0.5) * 0.95) * LOTS_A_SQUARE;
         const r = hash(k, 21, salt + dx * 3 + dy * 5);
-        const across = peak ? 30 + r * 18 : 28 + r * 18, tall = peak ? 22 + r * 14 : 8 + r * 6;
+        const across = peak ? 38 + r * 24 : 34 + r * 20, tall = peak ? 22 + r * 16 : 11 + r * 8;
         const x = isoX(u, v), y = isoY(u, v);
         if (x + across / 2 < 0 || x - across / 2 > w || y - tall > h || y < 2 || terrainAt(u, v) !== t || taken.has(u, v) || (peak ? false : Math.hypot(u, v) < 5)) continue;
-        items.push({ id: "", kind: peak ? "peak" : "mound", pic: NOTHING, x: Math.round(x - across / 2), y: Math.round(y), w: Math.round(across), h: Math.round(tall) });
+        // None inside the walls, and none where it would hide the town behind it.
+        if (walled && Math.abs(u) < wallAt + 1 && Math.abs(v) < wallAt + 1) continue;
+        if (items.some((it) => (it.kind === "home" || it.kind === "building" || it.kind === "wonder" || it.kind === "gate") && it.y <= y + 6 && it.x < x + across / 2 && it.x + it.w > x - across / 2 && it.y > y - tall)) continue;
+        const rock = peak ? mountainKind(state.map, near[(dy + REACH) * SIDE + dx + REACH]!.x, near[(dy + REACH) * SIDE + dx + REACH]!.y, explored) : undefined;
+        items.push({ id: "", kind: peak ? "peak" : "mound", pic: NOTHING, x: Math.round(x - across / 2), y: Math.round(y), w: Math.round(across), h: Math.round(tall), ...(rock ? { rock } : {}) });
       }
     }
   const townEdge = Math.max(3, ...[...lit].map((l) => Math.hypot(l.u, l.v)));
-  for (let a = -24; a <= 24; a++)
-    for (let b = -24; b <= 24; b++) {
-      const u = (a + hash(a, b, salt + 3) * 0.7) * 0.8, v = (b + hash(b, a, salt + 4) * 0.7) * 0.8;
+  for (let a = -36; a <= 36; a++)
+    for (let b = -36; b <= 36; b++) {
+      const u = (a + hash(a, b, salt + 3) * 0.7) * TREE_STEP, v = (b + hash(b, a, salt + 4) * 0.7) * TREE_STEP;
       const x = isoX(u, v), y = isoY(u, v);
       if (x < 6 || x > w - 6 || y < 12 || y > h - 1) continue;
       const t = terrainAt(u, v);
-      const share = Math.max(TREE_SHARE[t], t !== Terrain.Ocean && t !== Terrain.Desert && t !== Terrain.Arctic && Math.hypot(u, v) < townEdge ? 0.14 : 0);
+      const share = Math.max(TREE_SHARE[t], t !== Terrain.Ocean && t !== Terrain.Desert && t !== Terrain.Arctic && Math.hypot(u, v) < townEdge ? 0.1 : 0);
       if (hash(a, b, salt + 5) >= share || taken.has(u, v)) continue;
       const r = hash(b, a, salt + 6);
-      const kind = t === Terrain.Tundra || t === Terrain.Hills || t === Terrain.Mountains ? 2 : t === Terrain.Forest ? (r < 0.3 ? 2 : r < 0.65 ? 0 : 1) : r < 0.4 ? 0 : r < 0.7 ? 1 : r < 0.85 ? 2 : 3;
-      const tree = TREES[Math.min(kind, TREES.length - 1)]!;
+      const square = near[(Math.max(-REACH, Math.min(REACH, Math.round(v / LOTS_A_SQUARE))) + REACH) * SIDE + Math.max(-REACH, Math.min(REACH, Math.round(u / LOTS_A_SQUARE))) + REACH]!;
+      const wood = t === Terrain.Forest ? forestKind(state.map, square.x, square.y, explored) : t === Terrain.Tundra || t === Terrain.Hills || t === Terrain.Mountains || r < 0.2 ? "pine" : "broadleaf";
+      const kind: ForestKind = wood === "mixed" ? (r < 0.5 ? "broadleaf" : "pine") : wood;
+      const tree = TREES[0]!;
       items.push({ id: "", kind: "tree", pic: tree, x: Math.round(x - tree.w / 2), y: Math.round(y), w: tree.w, h: tree.h, tree: kind });
     }
 

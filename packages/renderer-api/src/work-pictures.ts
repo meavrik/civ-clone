@@ -25,6 +25,11 @@ const FIELDS_ON: Partial<Record<Terrain, readonly WorkPicture[]>> = {
   [Terrain.Tundra]: ["fields_ploughed"],
 };
 
+/** The kinds of field that suit a square, the likelier repeated; a river's has canals. */
+export function fieldKinds(tile: Pick<Tile, "terrain" | "river">): readonly WorkPicture[] {
+  return tile.river ? ["fields_irrigated", "fields_irrigated", ...(FIELDS_ON[tile.terrain] ?? ["fields_crops"])] : FIELDS_ON[tile.terrain] ?? ["fields_crops"];
+}
+
 /**
  * The fields of an irrigated square, by its land: green crops on grassland and hills, wheat on the plains, ploughed
  * earth in the desert and the tundra, one of a few for each land by a hash of the square; on a river, fields with

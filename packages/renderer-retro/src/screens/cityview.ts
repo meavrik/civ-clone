@@ -12,9 +12,9 @@ import { drawMound, drawPeak, drawTownGround, drawTree, drawWallPiece, drawWell 
 /**
  * The city view (320x200): the town from above and to one side (`cityScene`), inside a stone window,
  * with a bar along the bottom that names the building or house last clicked. Any other click, or a key,
- * goes back to the city screen. Buildings, houses and fields leave a spot for the user's picture of them
- * (the apps lay it over the canvas); the ground, trees, hills and walls are drawn, and what is drawn in
- * front of a picture shows through it (`sealPictures`).
+ * goes back to the city screen. Buildings and houses leave a spot for the user's picture of them (the apps
+ * lay it over the canvas); the ground, fields, trees, hills and walls are drawn, and what is drawn in front
+ * of a picture shows through it (`sealPictures`).
  */
 export const SCENE_X = 2;
 export const SCENE_Y = 13;
@@ -43,15 +43,10 @@ function about(item: SceneItem | undefined, id: string): { name: string; text: s
 }
 
 /** What a scene comes to once drawn: the scene's fine pixels, and the holes in each item's picture for what stands before it. */
-interface DrawnTown { pixels: Uint8Array; holes: Map<SceneItem, ArtBox[]>; fieldHoles: (ArtBox[] | undefined)[] }
+interface DrawnTown { pixels: Uint8Array; holes: Map<SceneItem, ArtBox[]> }
 const drawnTowns = new WeakMap<CityScene, DrawnTown>();
 
 const hasPicture = (it: SceneItem) => it.kind === "wonder" || it.kind === "building" || it.kind === "gate" || it.kind === "home" || it.kind === "work";
-
-/** A field's place on the screen, cut off at the scene's edge. */
-function fieldSpot(scene: CityScene, f: CityScene["fields"][number]): ArtSpot {
-  return { id: f.id, work: true, x: SCENE_X + f.x, y: SCENE_Y + f.y, w: f.w, h: f.h, clip: { x: SCENE_X, y: SCENE_Y, w: scene.w, h: scene.h } };
-}
 
 /** Draws a scene's ground and what stands on it, back to front, and notes what lies over each picture; once for a scene. */
 function drawTown(s: Surface, scene: CityScene): DrawnTown {
@@ -62,7 +57,6 @@ function drawTown(s: Surface, scene: CityScene): DrawnTown {
     return fineCopy(s, x0, y0, Math.max(1, Math.min(SCENE_X + scene.w, x + w) - x0), Math.max(1, Math.min(SCENE_Y + scene.h, y + h) - y0));
   };
   const laid: Laid[] = [];
-  const fieldLaid = scene.fields.map((f) => { const spot = fieldSpot(scene, f); laid.push({ spot, copy: room(spot.x, spot.y, spot.w, spot.h) }); return spot; });
   const itemLaid = new Map<SceneItem, ArtSpot>();
   for (const it of scene.items) {
     const x = SCENE_X + it.x, y = SCENE_Y + it.y;
@@ -81,7 +75,7 @@ function drawTown(s: Surface, scene: CityScene): DrawnTown {
   for (let j = 0; j < scene.h * fine; j++) pixels.set(s.data.subarray((SCENE_Y * fine + j) * s.fw + SCENE_X * fine, (SCENE_Y * fine + j) * s.fw + (SCENE_X + scene.w) * fine), j * scene.w * fine);
   const holes = new Map<SceneItem, ArtBox[]>();
   for (const [it, spot] of itemLaid) if (spot.holes) holes.set(it, spot.holes);
-  return { pixels, holes, fieldHoles: fieldLaid.map((f) => f.holes) };
+  return { pixels, holes };
 }
 
 export function drawCityView(s: Surface, state: GameState, view: CityViewState): void {
@@ -95,8 +89,6 @@ export function drawCityView(s: Surface, state: GameState, view: CityViewState):
   if (!town) drawnTowns.set(scene, (town = drawTown(s, scene)));
   const k = s.k;
   for (let j = 0; j < scene.h * k; j++) s.data.set(town.pixels.subarray(j * scene.w * k, (j + 1) * scene.w * k), (SCENE_Y * k + j) * s.fw + SCENE_X * k);
-  const through = (spot: ArtSpot, holes: ArtBox[] | undefined) => { if (holes) spot.holes = holes; };
-  scene.fields.forEach((f, i) => { const spot = fieldSpot(scene, f); through(spot, town.fieldHoles[i]); s.art.push(spot); });
   for (const it of scene.items) {
     if (!hasPicture(it)) continue;
     const at = [SCENE_X + it.x, SCENE_Y + it.y] as const;

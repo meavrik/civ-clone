@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, BUILDINGS, costFor, getTile, newGame, Terrain, WONDERS, type GameState } from "@civ/core";
-import { artLot, artPlace, buildingArt, BUILDING_CUTS, BUILDING_PICTURES_WANTED, cityScene, HOUSE_ART, HOUSES, houseChoices, isoU, isoV, PICTURES, pickHouse, sceneItemAt, townTerrain, wonderRise, wonderSite, wonderStages, type CityScene } from "@civ/renderer-api";
-import { C, cityButtonAt, cityViewAt, drawCityView, drawPicture, hideArtUnder, rasterize, shade, Surface, SCENE_X, SCENE_Y } from "../src/index.js";
+import { artLot, artPlace, buildingArt, BUILDING_CUTS, BUILDING_PICTURES_WANTED, cityScene, fieldKinds, HOUSE_ART, HOUSES, houseChoices, isoU, isoV, PICTURES, pickHouse, sceneItemAt, townTerrain, wonderRise, wonderSite, wonderStages, type CityScene } from "@civ/renderer-api";
+import { C, cityButtonAt, cityViewAt, drawCityView, drawPicture, hideArtUnder, rasterize, shade, Surface, SCENE_X, SCENE_Y, terrainPieces } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("city view pictures", () => {
@@ -130,7 +130,10 @@ describe("city view", () => {
     const spotted = s.art.filter((a) => !a.house && !a.work).map((a) => a.id);
     expect(spotted.sort()).toEqual(["city_walls", "colossus", "granary", "library", "palace", "pyramids", "temple"].sort());
     const temple = scene.items.find((it) => it.id === "temple")!;
-    expect(temple).toMatchObject(artLot("temple", PICTURES.temple!));
+    // An improvement stands a little under its room, a wonder at its sheet's size.
+    const room = artLot("temple", PICTURES.temple!);
+    expect(temple.w).toBe(Math.round(room.w * 0.9));
+    expect(temple.h).toBe(Math.round(room.h * 0.9));
     expect(s.art.find((a) => a.id === "temple")).toMatchObject({ id: "temple", x: SCENE_X + temple.x, y: SCENE_Y + temple.y - temple.h, w: temple.w, h: temple.h, lit: true });
     expect(s.art.filter((a) => a.lit).map((a) => a.id)).toEqual(["temple"]);
     // Back to front, so the apps stack the nearer ones over the rest; the walls' gatehouse stands nearest of all.
@@ -348,7 +351,7 @@ describe("the town's houses", () => {
     const city = state.cities.find((c) => c.id === id)!;
     const scene = cityScene(state, city);
     const houses = scene.items.filter((it) => it.kind === "home");
-    expect(houses.length).toBe(2 + 9 * 2);
+    expect(houses.length).toBe(2 + Math.round(9 * 1.5));
     expect(new Set(houses.map((h) => h.id)).size).toBe(houses.length); // each its own, by its lot
     const s = Surface.screen();
     drawCityView(s, state, { city: id });
@@ -363,6 +366,116 @@ describe("the town's houses", () => {
     s.art = [];
     drawCityView(s, state, { city: id, picked });
     expect(s.art.filter((a) => a.lit).map((a) => a.id)).toEqual([front.house]);
+  });
+});
+
+describe("the town's room", () => {
+  const foot = (it: { x: number; y: number; w: number }) => ({ u: isoU(it.x + it.w / 2, it.y - it.w / 4), v: isoV(it.x + it.w / 2, it.y - it.w / 4) });
+
+  it("stands its houses apart, each on a lot wider than it is, with gardens between them", () => {
+    const { state, city } = placed(24, ["palace", "temple", "library", "granary"], [], [], ["construction", "pottery", "masonry", "trade", "industrialization", "automobile"]);
+    const scene = cityScene(state, city);
+    const houses = scene.items.filter((it) => it.kind === "home");
+    expect(houses.length).toBe(2 + 24 * 1.5);
+    for (const h of houses) expect(h.w, h.id).toBeLessThanOrEqual(16); // a lot is 18 across
+    // No two nearer than a lot and a little, either way along the town's axes.
+    for (let i = 0; i < houses.length; i++)
+      for (let j = i + 1; j < houses.length; j++) {
+        const a = foot(houses[i]!), b = foot(houses[j]!);
+        expect(Math.max(Math.abs(a.u - b.u), Math.abs(a.v - b.v)), `${houses[i]!.id} ${houses[j]!.id}`).toBeGreaterThan(1.1);
+      }
+    // Gardens: no block is built on all four lots.
+    const perBlock = new Map<string, number>();
+    for (const it of scene.items.filter((i) => i.kind === "home" || (i.kind === "building" && i.w <= 20))) {
+      const f = foot(it);
+      const key = `${Math.floor(f.u / 2.8)},${Math.floor(f.v / 2.8)}`;
+      perBlock.set(key, (perBlock.get(key) ?? 0) + 1);
+    }
+    expect(Math.max(...perBlock.values())).toBeLessThanOrEqual(3);
+  });
+
+  it("walls a small town snugly, and leaves the mountains out of it", () => {
+    const { state, city } = placed(9, ["palace", "temple", "city_walls"], [], [[1, 0, { terrain: Terrain.Mountains }], [0, -1, { terrain: Terrain.Mountains }], [1, -1, { terrain: Terrain.Mountains }], [1, 1, { terrain: Terrain.Mountains }], [0, 1, { terrain: Terrain.Hills }]]);
+    const scene = cityScene(state, city);
+    const walls = scene.items.filter((it) => it.wall).map((it) => it.wall!);
+    const reach = Math.max(...walls.map((w) => w.u1));
+    expect(reach).toBeLessThan(6);
+    const peaks = scene.items.filter((it) => it.kind === "peak");
+    expect(peaks.length).toBeGreaterThan(1);
+    const built = scene.items.filter((it) => it.kind === "home" || it.kind === "building" || it.kind === "gate");
+    for (const p of peaks) {
+      const at = foot({ x: p.x, y: p.y + p.w / 4, w: p.w });
+      expect(Math.max(Math.abs(at.u), Math.abs(at.v)), "inside the walls").toBeGreaterThan(reach);
+      // No peak stands in front of anything built.
+      for (const b of built) if (b.y <= p.y) expect(b.x >= p.x + p.w || b.x + b.w <= p.x || b.y <= p.y - p.h, `${b.id} behind a peak`).toBe(true);
+    }
+  });
+
+  it("keeps a walled town's big buildings inside its walls while there is room", () => {
+    const { state, city } = placed(13, ["palace", "temple", "granary", "library", "marketplace", "city_walls", "colosseum", "courthouse", "barracks", "cathedral"], ["pyramids"], []);
+    const scene = cityScene(state, city);
+    const reach = Math.max(...scene.items.filter((it) => it.wall).map((it) => it.wall!.u1));
+    for (const it of scene.items.filter((i) => i.kind === "building" || i.kind === "wonder")) {
+      const at = foot(it);
+      expect(Math.max(Math.abs(at.u), Math.abs(at.v)), it.id).toBeLessThan(reach);
+    }
+  });
+
+  it("lays fields out as plots on the town's axes, clear of what is built, by what suits the land", () => {
+    const { state, city } = placed(6, ["temple"], [], [[-1, 0, { terrain: Terrain.Plains, irrigation: true }], [0, 1, { terrain: Terrain.Grassland, irrigation: true, river: true }], [1, 0, { terrain: Terrain.Desert }]]);
+    const scene = cityScene(state, city);
+    expect(scene.fields.length).toBeGreaterThan(9);
+    // Each plot grows what suits its square: a river's has canals among them, plains no canals.
+    const inSquare = (f: { u0: number; v0: number }, dx: number, dy: number) => Math.abs(f.u0 + 1.25 - dx * 9) < 4.5 && Math.abs(f.v0 + 1.25 - dy * 9) < 4.5;
+    const plains = scene.fields.filter((f) => inSquare(f, -1, 0)), wet = scene.fields.filter((f) => inSquare(f, 0, 1));
+    expect(plains.length).toBeGreaterThan(3);
+    for (const f of plains) expect(fieldKinds({ terrain: Terrain.Plains, river: false })).toContain(f.id);
+    expect(wet.some((f) => f.id === "fields_irrigated")).toBe(true);
+    for (const f of scene.fields) {
+      expect(f.u1 - f.u0).toBeCloseTo(2.5);
+      expect(f.v1 - f.v0).toBeCloseTo(2.5);
+    }
+    // No plot under a house, and none over another.
+    for (const it of scene.items.filter((i) => i.kind === "home")) {
+      const at = foot(it);
+      expect(scene.fields.some((f) => at.u > f.u0 && at.u < f.u1 && at.v > f.v0 && at.v < f.v1), it.id).toBe(false);
+    }
+    scene.fields.forEach((a, i) => scene.fields.slice(i + 1).forEach((b) => expect(a.u1 <= b.u0 || b.u1 <= a.u0 || a.v1 <= b.v0 || b.v1 <= a.v0).toBe(true)));
+    // They are the ground: no picture is laid for them.
+    const s = Surface.screen();
+    drawCityView(s, state, { city: city.id });
+    expect(s.art.some((a) => a.id.startsWith("fields_"))).toBe(false);
+  });
+
+  it("draws the land from the terrain sheet: its colour under foot, its own tufts and trees", () => {
+    const grass = terrainPieces("grassland");
+    expect(grass.pieces.some((p) => p.n <= 60 && !p.edge)).toBe(true);
+    const woods = terrainPieces("forest_pine").pieces.filter((p) => p.h >= 12 && p.w >= 8);
+    expect(woods.length).toBeGreaterThan(0);
+    // A piece is the sprite's own pixels: nothing of the ground's colour, each pixel in the sheet's palette.
+    for (const p of woods) { expect(p.px.length).toBe(p.w * p.h); expect([...p.px].filter((c) => c >= 0).length).toBe(p.n); }
+    const { state, city } = placed(2, [], [], []);
+    const s = Surface.screen();
+    drawCityView(s, state, { city: city.id });
+    const seen = new Map<number, number>();
+    for (let y = SCENE_Y * 2; y < (SCENE_Y + 174) * 2; y++) for (let x = SCENE_X * 2; x < (SCENE_X + 316) * 2; x++) { const c = s.fget(x, y); seen.set(c, (seen.get(c) ?? 0) + 1); }
+    expect([...seen.entries()].sort((a, b) => b[1] - a[1])[0]![0]).toBe(grass.base);
+  });
+
+  it("gives a mountain faces, gullies and a dark edge, and keeps it inside the scene", () => {
+    const { state, city } = placed(3, [], [], [[0, -1, { terrain: Terrain.Mountains }], [1, -1, { terrain: Terrain.Mountains }], [-1, -1, { terrain: Terrain.Mountains }], [1, 0, { terrain: Terrain.Mountains }], [-1, 0, { terrain: Terrain.Mountains }]]);
+    const s = Surface.screen();
+    drawCityView(s, state, { city: city.id });
+    const peak = cityScene(state, city).items.filter((it) => it.kind === "peak").find((it) => it.x > 10 && it.x + it.w < 300 && it.y - it.h > 2)!;
+    expect(peak).toBeDefined();
+    const colours = new Set<number>();
+    for (let y = (SCENE_Y + peak.y - peak.h) * 2; y < (SCENE_Y + peak.y) * 2; y++) for (let x = (SCENE_X + peak.x) * 2; x < (SCENE_X + peak.x + peak.w) * 2; x++) colours.add(s.fget(x, y));
+    expect(colours.has(shade("stone", 0))).toBe(true);
+    expect(colours.size).toBeGreaterThan(4);
+    // The frame round the scene is never drawn over.
+    const clean = Surface.screen();
+    drawCityView(clean, state, { city: city.id });
+    for (let x = 0; x < 640; x++) expect(clean.fget(x, 25)).toBe(s.fget(x, 25));
   });
 });
 
