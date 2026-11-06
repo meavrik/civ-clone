@@ -32,12 +32,22 @@ The world: engine overview, map sizes, premade and generated worlds, starts, wha
   the Middle East's Bab el Mandeb were shut too), and `Frame.land` down Central America, so the Americas are one continent at
   every size. Arabia still joins Asia in the north and Sinai still joins Africa to Asia, as in life, and the Bosporus stays
   shut, as Greeks and Hittites share a land. Japan (`Frame.enlarge`, `Enlargement`) keeps its real shape, stretched east and
-  south about Kyushu (2.75 by 1.62, a column past 150 degrees spanning seven degrees): land, regions, rivers and the Kyoto
-  homeland alike, so names follow it (the Japanese start on Honshu). It stops short of the 180th meridian, where the
-  build throws, since the data's longitudes end there and land past it would be clipped without a word. An enlarged group of
-  islands is one landmass and a square is land from `landFrom` (0.14) of it, not half: a ribbon like Honshu covers half of very
-  few squares, and the straits between the four islands are narrower than a square. Japan was 6, 14 and 29 squares at
-  Small, Medium and Large with no fit site; it is 27, 51 and 91, the main island 22, 43 and 73, with 2, 3 and 6 fit sites.
+  south about Kyushu, 1.7 by 1.2: land, regions, rivers and the Kyoto homeland alike, so names follow it (the Japanese
+  start on Honshu). It must stop short of the 180th meridian, where the build throws, since the data's longitudes end there and
+  land past it would be clipped without a word. An enlarged group of islands is one landmass and a square is land from
+  `landFrom` (0.1) of it, not half: a ribbon like Honshu covers half of very few squares, and the straits between the four
+  islands are narrower than a square. Its size is a judgement the user made by eye, and a test holds it both ways: as first
+  stretched, 2.75 by 1.62, the main island was 22, 43 and 73 squares at Small, Medium and Large, 3, 4 and 5 off Asia and its start
+  5, 7 and 9 off, "too huge now and far from the main land"; it is 16, 29 and 49, 2, 2 and 3 off, one or two squares of sea, the
+  start 3, 4 and 5 off, with 2, 3 and 3 fit city sites. The real islands were 6, 14 and 29 squares with no fit site.
+  Italy (asked for the same day: "improve italy land"), a boot thinner than a square, was three squares at Small and a broken
+  chain at Large: `APENNINES` runs down it to the toe and `APULIA` to the heel, west of the middle, as at Small the heel and
+  Albania fall in one column, and `ADRIATIC` keeps it off Dalmatia. Land is drawn after water, so those lines must not cross: at
+  first the heel ran into the Greek start at Small and row 25 joined Italy to Albania at Medium. Sicily (`SICILY`, an
+  `Enlargement`) is a fifth larger and a degree and a half south, as a square of strait is the least two landmasses may
+  have and the toe or Sicily sank otherwise. The Romans' site goes from 107, 107 and unfit to 120, 124, 124, with 9, 10 and 9
+  squares of land to the city against 9, 9 and 6. The Thames and the Po are drawn on Earth ("add river to england"), the
+  English standing on the Thames at every size; the data holds no other British river.
   Terrain: the desert zones outrank `green`, so the Natural Earth "ARABIAN PENINSULA" swallowed Canaan and Mesopotamia;
   `fertile` hand zones, ranked over mountains and desert, give back the Levant, the Fertile Crescent, the Nile valley, Elam and
   Fars, and the Valley of Mexico, wider than the green really runs as a small world's square is three degrees wide. The
@@ -48,7 +58,7 @@ The world: engine overview, map sizes, premade and generated worlds, starts, wha
   for the score: clearing hills for it stamped a disc of farmland the shape of a city's radius on Iberia, so hills go only for
   the 5 grassland, plains and forest only for food and grass, and good hilly sites stay under 110 (the lowest, 88, is the
   Vikings' Norway on Europe at Medium). Homelands' site scores, Small, Medium, Large, before and after: Earth's mean 97,
-  93, 92 to 118, 115, 113; Hebrews 108, 80, 82 to 125, 113, 110; Japanese unfit at all three to 125, 122, 119; Persians 72, 77,
+  93, 92 to 119, 116, 114; Hebrews 108, 80, 82 to 125, 113, 110; Japanese unfit at all three to 124, 119, 115; Persians 72, 77,
   59 to 110, 112, 106. What seats really began on, 40 seeds of 7 civs, nothing scattered: on unfit land 9, 9, 6% on Earth and
   11, 16, 12% on Europe, now none; the worst 5% of Earth's sites 72, 77, 59 to 110, 101, 99, their food 10, 12, 10 to 22, 20, 22.
   `homelandStart` is untouched, as it nudges at most 5% of seats. "Anywhere on the map" on a premade world draws only on land
@@ -70,7 +80,7 @@ The world: engine overview, map sizes, premade and generated worlds, starts, wha
   How many civilizations (asked for 2026-11-05: "up to 10 civs ... each premade map would get the maximum civs it can
   have, custom maps would get maximum by map size"): `MAX_CIVS` (10) is one for each colour but the barbarians' red;
   `maxCivsOn(world, size)` is what the land holds, `WORLD_SIZES[].maxCivs` for a generated world (Small 8, Medium and
-  Large 10) and on a premade world 10 but for Earth at Small, 8, as it has less land than a generated Small (1,330
+  Large 10) and on a premade world 10 but for Earth at Small, 8, as it has less land than a generated Small (1,322
   squares against about 1,450, arctic left out); `setupMaxCivs` takes that and one per colour among the civs offered,
   so with homelands Europe seats 9 and the Middle East 8, and started anywhere those worlds seat 10. The menu stays 7
   by default, as in the original. Measured before choosing, 84 headless games to turn 400, 7 civilizations against 10

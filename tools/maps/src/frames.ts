@@ -79,15 +79,30 @@ const RED_SEA: Pt[] = [[33.7, 28.8], [34.4, 27.2], [35.4, 25.8], [36.4, 24], [37
 const PERSIAN_GULF: Pt[] = [[48.7, 29.6], [50.4, 27.6], [53, 26.2], [56.3, 26.6], [57.1, 25.4], [59, 24.6], [62.5, 22.5]];
 const GIBRALTAR: Pt[] = [[-8, 36], [-5.5, 35.95], [-2.5, 36.2], [-1.6, 36.9]];
 
+/**
+ * Italy, a boot thinner than a square, which came out three squares at Small and a broken chain at Large (asked for
+ * 2026-11-06: "improve italy land"): down the Apennines to the toe, and along to the heel. The Adriatic line keeps the
+ * thicker boot off Dalmatia: land is drawn after water, so the two must not cross.
+ */
+const APENNINES: Pt[] = [[9.5, 44.3], [10.8, 43.6], [12.2, 42.4], [13.2, 41.2], [13.6, 40.6], [14.8, 40.2], [15.9, 39.6], [16.2, 38.9]];
+const APULIA: Pt[] = [[14.8, 40.2], [16, 40.6], [16.6, 40.6]];
+const ADRIATIC: Pt[] = [[14, 44.3], [15, 43.4], [15.9, 43], [16.2, 42.5], [17.8, 42], [18.6, 40.7], [19, 39.6]];
+
+/**
+ * Sicily, a little larger and a little south, with a strait off the toe: the grid has no room for the real three
+ * kilometres, and two landmasses never touch, so one or the other went under.
+ */
+const SICILY: Enlargement = { box: [12.2, 36.5, 15.8, 38.4], from: [14, 37.5], to: [14.5, 36.1], scale: [1.2, 1.2], landFrom: 0.2 };
+
 /** Down Central America, thinner than a square most of the way, so the Americas stay one land at every size (asked for 2026-11-06). */
 const CENTRAL_AMERICA: Pt[] = [[-94.6, 17.4], [-92, 15.6], [-89.2, 14.2], [-86.6, 12.9], [-84.6, 10.6], [-82.6, 8.9], [-80.6, 8.4], [-79, 9], [-77.6, 8.2], [-76, 7.4], [-74.6, 7]];
 
 /**
  * Japan, whose real islands are three columns wide on a small world and left the Japanese no room for a city
- * (asked for 2026-11-06: "make japan island bigger"). It grows east and south, where the sea is empty, more east than
- * south because a column past 150 degrees spans seven degrees, and stops short of Korea, Sakhalin and Kamchatka.
+ * (asked for 2026-11-06: "make japan island bigger", then "too huge now and far from the main land"). It grows east and
+ * south, where the sea is empty, only as far as a city or two needs, a square of sea off Korea on a small world.
  */
-const JAPAN: Enlargement = { box: [128.3, 29.8, 146.1, 46], from: [129.6, 38], to: [134.5, 35.45], scale: [2.75, 1.62], landFrom: 0.14 };
+const JAPAN: Enlargement = { box: [128.3, 29.8, 146.1, 46], from: [129.6, 38], to: [131, 37], scale: [1.7, 1.2], landFrom: 0.1 };
 
 export const FRAMES: Frame[] = [
   {
@@ -101,12 +116,12 @@ export const FRAMES: Frame[] = [
     polar: true,
     seam: false,
     riverRank: 2,
-    riverNames: ["Euphrates", "Firat", "Al Furat", "Tigris", "Dicle", "Indus", "Ganges", "Huang", "Volga", "Niger", "Rhine", "Rhein", "Murray", "Orinoco", "Jordan"],
+    riverNames: ["Euphrates", "Firat", "Al Furat", "Tigris", "Dicle", "Indus", "Ganges", "Huang", "Volga", "Niger", "Rhine", "Rhein", "Murray", "Orinoco", "Jordan", "Thames", "Po"],
     lakeRank: 1,
     seas: [ARAL],
-    water: [RED_SEA, PERSIAN_GULF, GIBRALTAR],
-    land: [CENTRAL_AMERICA],
-    enlarge: [JAPAN],
+    water: [RED_SEA, PERSIAN_GULF, GIBRALTAR, ADRIATIC],
+    land: [CENTRAL_AMERICA, APENNINES, APULIA],
+    enlarge: [JAPAN, SICILY],
     homes: {
       romans: ROME,
       babylonians: BABYLON,

@@ -70,6 +70,26 @@ describe("Earth's coasts", () => {
         expect(reaches(map, squareAt(size, [31.2, 30]), squareAt(size, [35.2, 31.8]), land, NEIGHBOURS), "Cairo to Jerusalem").toBe(true);
       });
 
+      it("draws Italy a boot with Sicily off its toe, the Adriatic open beside it", () => {
+        const rome = earth.sizes[size].starts.romans!;
+        const continent = (x: number, y: number) => map.tiles[y * map.width + x]!.continent;
+        const toe = squareAt(size, [16.2, 38.9]);
+        const north = squareAt(size, [0, 44.8])[1];
+        const boot = (x: number, y: number) => y >= north && land(x, y);
+        expect(reaches(map, rome, toe, boot, NEIGHBOURS), "Rome to the toe").toBe(true);
+        expect(reaches(map, squareAt(size, [14, 44.3]), squareAt(size, [19, 39.6]), sea, SIDES), "the Adriatic").toBe(true);
+        expect(reaches(map, rome, earth.sizes[size].starts.greeks!, boot, NEIGHBOURS), "Italy to Greece").toBe(false);
+        const [sx, sy] = squareAt(size, [14, 36.1]);
+        expect(terrain(sx, sy), "Sicily").not.toBe(Terrain.Ocean);
+        expect(continent(sx, sy), "Sicily off Italy").not.toBe(continent(rome[0], rome[1]));
+      });
+
+      it("runs the Thames through England, past the English", () => {
+        const [lx, ly] = earth.sizes[size].starts.english!;
+        const near = map.tiles.filter((t, i) => t.river && Math.abs(i % map.width - lx) <= 3 && Math.abs(Math.floor(i / map.width) - ly) <= 1);
+        expect(near.length).toBeGreaterThanOrEqual(2);
+      });
+
       it("joins the Americas by land", () => {
         const mexico = earth.sizes[size].starts.aztecs!;
         const [bx, by] = squareAt(size, [-74, 4.6]);
@@ -98,22 +118,28 @@ describe("the regional worlds' narrow seas", () => {
 });
 
 describe("Japan", () => {
-  it("is one island with room for several cities at every size, three times the land it was", () => {
-    const old = decodeWorld(earth, "small", "oldLands");
-    const pacific = (m: WorldMap) => m.tiles.filter((t, i) => t.terrain !== Terrain.Ocean && i % m.width >= m.width * 0.875 && i / m.width >= m.height * 0.26 && i / m.width < m.height * 0.5).length;
-    const small = decodeWorld(earth, "small");
-    expect(pacific(small)).toBeGreaterThanOrEqual(pacific(old) * 3);
-    for (const [size, squares, sites] of [["small", 20, 2], ["medium", 38, 3], ["large", 65, 5]] as const) {
+  it("is one island near Asia, only as big as a few cities need (asked for: first bigger, then not so huge and far)", () => {
+    for (const [size, least, most, reach, sites] of [["small", 14, 18, 2, 2], ["medium", 26, 33, 2, 3], ["large", 45, 55, 3, 3]] as const) {
       const state = newGame(1, { world: "earth", historical: true, civ: "japanese", opponents: 1, size });
       const { map } = state;
       for (const t of map.tiles) { t.special = false; t.secondSpecial = false; delete t.deposit; }
       const [hx, hy] = earth.sizes[size].starts.japanese!;
+      const [cx, cy] = earth.sizes[size].starts.chinese!;
       const home = map.tiles[hy * map.width + hx]!.continent;
-      expect(map.tiles.filter((t) => t.continent === home).length, size).toBeGreaterThanOrEqual(squares);
+      const asia = map.tiles[cy * map.width + cx]!.continent;
+      const where = (i: number): [number, number] => [i % map.width, Math.floor(i / map.width)];
+      const japan = map.tiles.flatMap((t, i) => (t.continent === home ? [where(i)] : []));
+      expect(japan.length, size).toBeGreaterThanOrEqual(least);
+      expect(japan.length, size).toBeLessThanOrEqual(most);
+      const mainland = map.tiles.flatMap((t, i) => (t.continent === asia ? [where(i)] : []));
+      let gap = Infinity;
+      for (const [x, y] of japan) for (const [a, b] of mainland) gap = Math.min(gap, Math.max(Math.abs(x - a), Math.abs(y - b)));
+      expect(gap, size).toBeGreaterThanOrEqual(2);
+      expect(gap, size).toBeLessThanOrEqual(reach);
       const fit: [number, number, number][] = [];
       map.tiles.forEach((t, i) => {
-        const s = t.continent === home ? siteScore(state, i % map.width, Math.floor(i / map.width)) : null;
-        if (s !== null) fit.push([i % map.width, Math.floor(i / map.width), s]);
+        const s = t.continent === home ? siteScore(state, ...where(i)) : null;
+        if (s !== null) fit.push([...where(i), s]);
       });
       const apart: [number, number, number][] = [];
       for (const p of fit.sort((a, b) => b[2] - a[2])) if (apart.every((q) => Math.max(Math.abs(q[0] - p[0]), Math.abs(q[1] - p[1])) >= 4)) apart.push(p);

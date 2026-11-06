@@ -247,7 +247,7 @@ describe("homelands", () => {
 
   it("seats civilizations clear of each other, and of the homelands a smaller game could skip", () => {
     for (const human of nativeCivs(premadeWorld("earth")).slice(0, 8)) expect(closest(newGame(4, { world: "earth", historical: true, opponents: 6, civ: human })), human).toBeGreaterThanOrEqual(6);
-    expect(closest(newGame(4, { world: "earth", historical: true, opponents: 6, civ: "french", crowdedHomelands: true }))).toBeLessThan(6);
+    expect(closest(newGame(4, { world: "earth", historical: true, opponents: 6, civ: "french", crowdedHomelands: true, oldLands: true }))).toBeLessThan(6);
   });
 
   it("parts the French and the English when all of Europe plays, each on its own land", () => {
