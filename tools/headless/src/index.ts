@@ -129,8 +129,6 @@ export interface GameConfig {
   eightColors?: boolean;
   /** Rivals drawn whatever room their homelands leave, starts three squares apart (saves before version 72). */
   crowdedHomelands?: boolean;
-  /** The premade worlds as drawn before version 73 (saves before version 73). */
-  oldLands?: boolean;
   /** City-states placed as the game begins (`NewGameOptions.cityStates`). */
   cityStates?: boolean;
   /**
@@ -308,7 +306,6 @@ export function gameOptions(config: GameConfig): NewGameOptions {
     ...(config.noTribes ? { noTribes: true } : {}),
     ...(config.eightColors ? { eightColors: true } : {}),
     ...(config.crowdedHomelands ? { crowdedHomelands: true } : {}),
-    ...(config.oldLands ? { oldLands: true } : {}),
   };
 }
 

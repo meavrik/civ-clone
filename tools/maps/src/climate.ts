@@ -180,6 +180,7 @@ export const HAND_ZONES: { zone: Zone; ring: Pt[]; name?: string }[] = [
   { zone: "desert", ring: [[32.3, 31.2], [34.9, 31.6], [35.1, 29.5], [34.2, 27.7], [32.6, 29.9]], name: "the Sinai Desert" }, // Sinai and Negev
   { zone: "desert", ring: [[31.5, 30], [34, 28], [36, 24], [37.5, 22], [36.5, 22], [33, 24], [31, 29.5]], name: "the Eastern Desert" }, // Eastern Desert
   { zone: "arid", ring: [[19, -31], [25, -31], [25, -33.5], [19, -33.5]], name: "the Karoo" }, // Karoo
+  { zone: "desert", ring: [[-118, 33], [-115, 33], [-112, 28], [-108, 23], [-110.5, 22.5], [-115, 26], [-117, 29]] }, // Baja California, painted wider than the data draws it
   // Wet lands
   { zone: "wetForest", ring: [[24, 51.3], [30, 51.3], [30.5, 52.4], [24, 52.4]], name: "the Pripyat Marshes" }, // Pripyat marshes
   { zone: "swamp", ring: [[46, 30.6], [47.8, 30.6], [47.8, 31.8], [46, 31.8]], name: "the Mesopotamian Marshes" }, // Mesopotamian marshes

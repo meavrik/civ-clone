@@ -68,8 +68,6 @@ export interface NewGameOptions extends MapGenOptions {
   simpleMoods?: boolean;
   /** Rivals come only from civilizations a save of this version knew (`CivRule.since`). Old saves load with it. */
   roster?: number;
-  /** Premade worlds as first drawn, some islands joined to their neighbours by land (Britain to France). Old saves load with it. */
-  joinedIslands?: boolean;
   /** Every change of production kind halves the box again, even a change back. Old saves load with it. */
   compoundingPenalty?: boolean;
   /** Computer civilizations found cities wherever the rules allow, not only well apart. Old saves load with it. */
@@ -173,8 +171,6 @@ export interface NewGameOptions extends MapGenOptions {
   eightColors?: boolean;
   /** Rivals drawn whatever room their homelands leave, and starts kept only three squares apart, as before version 72. Old saves load with it. */
   crowdedHomelands?: boolean;
-  /** The premade worlds as drawn before version 73 (`PremadeGrid.oldLands`). Old saves load with it. */
-  oldLands?: boolean;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
@@ -296,9 +292,8 @@ function homelandStart(map: WorldMap, home: readonly [number, number], starts: [
 export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const rng = createRng(seed);
   const world = opts.world ? premadeWorld(opts.world) : undefined;
-  const drawing = opts.joinedIslands ? "joinedIslands" : opts.oldLands ? "oldLands" : undefined;
-  const map = opts.world ? premadeMap(rng, opts.world, opts.size, drawing, opts.resources, opts.catalogue) : generateMap(rng, opts);
-  const homes = world && opts.historical ? premadeStarts(world, opts.size, drawing) : undefined;
+  const map = opts.world ? premadeMap(rng, opts.world, opts.size, opts.resources, opts.catalogue) : generateMap(rng, opts);
+  const homes = world && opts.historical ? premadeStarts(world, opts.size) : undefined;
   // The original's yields: shield grassland on its diagonal bands, and no other first special on grassland.
   if (!opts.freecivYields)
     map.tiles.forEach((t, i) => {
@@ -446,7 +441,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
         candidates.push(y * map.width + x);
     }
   // A premade world's deserts are as real as its farmland, and a lone plains square in the Empty Quarter is no place to begin.
-  if (opts.world && !opts.oldLands) {
+  if (opts.world) {
     const worth = candidates.filter((i) => (siteScore(state, i % map.width, Math.floor(i / map.width)) ?? 0) >= START_WORTH);
     if (worth.length) candidates = worth;
   }

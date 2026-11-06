@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { decodeWorld, labelContinents, Terrain, WORLD_SIZES, type WorldSize } from "@civ/core";
-import { buildWorld, enlarged, HOMELAND, homelandSite, joinedDiff, landmasses, mixedLandmasses, scaleFrame, siteWorth, tillHomeland, worldModule, type BuiltWorld, type LandGrid } from "../src/build.js";
-import { FRAMES, fromGrid, project, stretched, toGrid, type Enlargement, type Frame } from "../src/frames.js";
+import { buildWorld, HOMELAND, homelandSite, landmasses, mixedLandmasses, scaleFrame, siteWorth, tillHomeland, worldModule, type BuiltWorld, type LandGrid } from "../src/build.js";
+import { FRAMES, fromGrid, project, toGrid, type Frame, type Patch } from "../src/frames.js";
 import { ScanFill, supercover, type Pt } from "../src/geo.js";
 
 const square = (a: number, b: number, c: number, d: number): Pt[] => [[a, b], [c, b], [c, d], [a, d], [a, b]];
@@ -66,28 +66,37 @@ describe("map tool", () => {
     expect(c).not.toBe(a);
   });
 
-  it("draws an island bigger whole, its home with it, and leaves the rest of the world", () => {
-    const e: Enlargement = { box: [10, 10, 20, 20], from: [10, 10], to: [30, 40], scale: [2, 3], landFrom: 0.2 };
-    expect(stretched(e, [12, 11])).toEqual([34, 43]);
-    const inside = { props: {}, rings: [square(12, 12, 14, 14)], bbox: [12, 12, 14, 14] as [number, number, number, number] };
-    const across = { props: {}, rings: [square(15, 15, 25, 25)], bbox: [15, 15, 25, 25] as [number, number, number, number] };
-    const frame: Frame = { ...FRAMES.find((f) => f.id === "europe")!, enlarge: [e], homes: { romans: [12, 12], greeks: [50, 50] } };
-    const { frame: bigger, data } = enlarged(frame, { land: [inside, across], lakes: [], regions: [inside], rivers: [{ props: {}, points: [[12, 12], [13, 13]] }, { props: {}, points: [[12, 12], [40, 40]] }] });
-    expect(data.land[0]!.bbox).toEqual([34, 46, 38, 52]);
-    expect(data.regions[0]!.bbox).toEqual([34, 46, 38, 52]);
-    expect(data.land[1]).toBe(across);
-    expect(data.rivers[0]!.points[1]).toEqual([36, 49]);
-    expect(data.rivers[1]!.points[1]).toEqual([40, 40]);
-    expect(bigger.homes).toEqual({ romans: [34, 46], greeks: [50, 50] });
-    // The box moves with the land, so the build still finds what it enlarged.
-    expect(bigger.enlarge![0]!.box).toEqual([30, 40, 50, 70]);
-    const other = { props: {}, rings: [square(35, 50, 36, 51)], bbox: [35, 50, 36, 51] as [number, number, number, number] };
-    const [a, b, c] = landmasses([data.land[0]!, other, across], bigger.enlarge);
-    expect(a).toBe(b);
-    expect(c).not.toBe(a);
-    // Past the 180th meridian the data's longitudes end and the land would be clipped without a word.
-    const far: Frame = { ...frame, enlarge: [{ ...e, to: [175, 40] }] };
-    expect(() => enlarged(far, { land: [inside], lakes: [], regions: [], rivers: [] })).toThrow(/180th meridian/);
+  describe("painted squares", () => {
+    const frame: Frame = { ...FRAMES.find((f) => f.id === "europe")!, homes: { romans: [5, 50] }, riverNames: [], water: [] };
+    const big = { props: {}, rings: [square(0, 45, 10, 55)], bbox: [0, 45, 10, 55] as [number, number, number, number] };
+    const data = { land: [big], lakes: [], regions: [], rivers: [] };
+    const paint = (patch: Patch) => buildWorld({ ...frame, paint: { small: [patch] } }, data);
+
+    it("stand as painted, a space leaving the data's own", () => {
+      const before = buildWorld(frame, data);
+      const [x, y] = [30, 15];
+      const after = paint({ at: [x, y], rows: ["#.", " #"] });
+      expect(after.rows[y]![x]).not.toBe(".");
+      expect(after.rows[y]![x + 1]).toBe(".");
+      expect(after.rows[y + 1]![x]).toBe(before.rows[y + 1]![x]);
+      expect(after.rows[y + 1]![x + 1]).not.toBe(".");
+    });
+
+    it("join the land they touch, or stand as a landmass of their own with their straits as painted", () => {
+      const onLand = (world: BuiltWorld, x: number, y: number) => world.landmass[y * 80 + x]!;
+      const [x, y] = project(frame, [10, 50]).map(Math.floor) as [number, number];
+      const joined = paint({ at: [x + 1, y], rows: ["##"] });
+      expect(onLand(joined, x + 2, y)).toBe(onLand(joined, x - 2, y));
+      const island = paint({ at: [x + 6, y], own: true, rows: ["#.#"] });
+      expect(onLand(island, x + 6, y)).toBe(onLand(island, x + 8, y));
+      expect(onLand(island, x + 6, y)).not.toBe(onLand(island, x - 2, y));
+    });
+
+    it("never go under: painted land meeting another landmass says where", () => {
+      const [x, y] = project(frame, [10, 50]).map(Math.floor) as [number, number];
+      expect(() => buildWorld({ ...frame, paint: { small: [{ at: [x + 3, y], rows: ["#"] }, { at: [x + 4, y], own: true, rows: ["#"] }] } }, { ...data })).not.toThrow();
+      expect(() => buildWorld({ ...frame, paint: { small: [{ at: [x + 3, y], own: true, rows: ["#"] }, { at: [x + 4, y], own: true, rows: ["#"] }] } }, data)).toThrow(/meet at squares/);
+    });
   });
 
   describe("homelands", () => {
@@ -147,22 +156,6 @@ describe("map tool", () => {
       const sea = grid(() => O);
       expect(homelandSite(sea, owner(sea), 20, 20, true)).toBeNull();
     });
-  });
-
-  it("lists where an older grid differed, so its saves replay on the land they knew", () => {
-    const frame: Frame = { ...FRAMES.find((f) => f.id === "europe")!, homes: { romans: [5, 50] }, riverNames: [] };
-    const island = { props: {}, rings: [square(0, 45, 10, 55)], bbox: [0, 45, 10, 55] as [number, number, number, number] };
-    const world = buildWorld(frame, { land: [island], lakes: [], regions: [], rivers: [] });
-    expect(joinedDiff(world, world)).toBeNull();
-    const old = { rows: world.rows.map((r, y) => (y === 3 ? "g" + r.slice(1) : r)), starts: { romans: [1, 3] as const } };
-    const diff = joinedDiff(world, old)!;
-    expect(diff).toEqual({ squares: [[0, 3, "g"]], starts: { romans: [1, 3] } });
-    const grid = { ...world, joinedIslands: diff };
-    const sizes = { small: grid, medium: grid, large: grid };
-    expect(decodeWorld({ id: "test", name: "Test", sizes }).tiles[3 * 80]!.terrain).toBe(Terrain.Ocean);
-    expect(decodeWorld({ id: "test", name: "Test", sizes }, "small", "joinedIslands").tiles[3 * 80]!.terrain).toBe(Terrain.Grassland);
-    expect(worldModule(frame, { small: world, medium: world, large: world }, { small: old, medium: world, large: world })).toContain('joinedIslands: {\n        squares: [\n          [0, 3, "g"],');
-    expect(worldModule(frame, { small: world, medium: world, large: world }, undefined, { small: old, medium: world, large: world })).toContain('oldLands: {\n        squares: [\n          [0, 3, "g"],');
   });
 
   it("stretches a frame over a bigger world's grid, the same place in the same spot", () => {

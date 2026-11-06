@@ -28,7 +28,6 @@ export interface SaveGame {
    *    and minded foreign units on their land; far contact, no trespass.
    * 10: saved before the Hebrews and the Japanese; rivals drawn from the eighteen before them.
    * 11: saved before borders grew with culture; fixed borders (each city the 21 squares it works).
-   * 12: saved before premade worlds kept their landmasses apart; joined islands (Britain touching France).
    * 13: saved while a city's culture mounted every turn; accrued culture.
    * 14: saved while civilizations made peace the moment they met; peace on contact.
    * 15: saved while cities worked squares beyond their border; work beyond borders.
@@ -86,7 +85,6 @@ export interface SaveGame {
    * 67: saved before tundra wore units down and Reindeer roamed it; catalogue 67 (and every older save its own version).
    * 68: saved while specials of different kinds could lie side by side (`spreadSpecials` minded only their own kind);
    *     crowded resources.
-   * 72: saved while the premade worlds had closed straits, no Panama, a thin Japan and poor homelands; old lands.
    */
   version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 | 59 | 60 | 61 | 62 | 63 | 64 | 65 | 66 | 67 | 68 | 69 | 70 | 71 | 72 | 73;
   seed: number;
@@ -202,7 +200,8 @@ export function loadSave(save: SaveGame, aiTurn: (state: GameState) => void): Lo
 export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void): Generator<ReplayProgress, LoadedGame, void> {
   // Every version up to this one loads (a list of them had stopped at 48, so saves of 49 to 51 were refused).
   if (!Number.isInteger(save.version) || save.version < 1 || save.version > SAVE_VERSION) throw new Error(`unsupported save version ${save.version}`);
-  // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations) on older maps; they must replay the same way.
+  // Older games were played under older rules (one-roll fights, open terrain, simple barbarians, alike civilizations); they must replay the same way.
+  // Not on older maps (asked for 2026-11-06: "no need to save previous maps and games related to maps"): a game on a premade world redrawn since replays on today's land, and may not load.
   const options: NewGameOptions = { ...save.options };
   if (save.version < 2) options.classicCombat = true;
   if (save.version < 3) options.classicTerrain = true;
@@ -221,7 +220,6 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
   }
   if (save.version < 11) options.roster = 10;
   if (save.version < 12) options.fixedBorders = true;
-  if (save.version < 13 && options.world) options.joinedIslands = true;
   if (save.version < 14) options.accruedCulture = true;
   if (save.version < 15) options.peaceOnContact = true;
   if (save.version < 16) options.workBeyondBorders = true;
@@ -297,7 +295,6 @@ export function* replaySave(save: SaveGame, aiTurn: (state: GameState) => void):
     options.eightColors = true;
     options.crowdedHomelands = true;
   }
-  if (save.version < 73 && options.world) options.oldLands = true;
   const state = newGame(save.seed, options);
   const from = state.turn;
   const progress = (): ReplayProgress => ({ turn: state.turn, from, to: Math.max(from, save.turn) });

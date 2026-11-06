@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { decodeWorld, labelContinents, NEIGHBOURS, newGame, PREMADE_WORLDS, premadeWorld, siteScore, Terrain, WORLD_SIZES, type WorldDrawing, type WorldMap, type WorldSize } from "@civ/core";
+import { decodeWorld, labelContinents, NEIGHBOURS, newGame, PREMADE_WORLDS, premadeWorld, siteScore, Terrain, WORLD_SIZES, type WorldMap, type WorldSize } from "@civ/core";
 import { HOMELAND, scaleFrame, siteWorth, type LandGrid } from "../src/build.js";
 import { FRAMES, project } from "../src/frames.js";
+import { EARTH_PAINT } from "../src/paint.js";
 import type { Pt } from "../src/geo.js";
 
 const earthFrame = FRAMES.find((f) => f.id === "earth")!;
@@ -74,14 +74,23 @@ describe("Earth's coasts", () => {
         const rome = earth.sizes[size].starts.romans!;
         const continent = (x: number, y: number) => map.tiles[y * map.width + x]!.continent;
         const toe = squareAt(size, [16.2, 38.9]);
-        const north = squareAt(size, [0, 44.8])[1];
+        const north = squareAt(size, [0, 44])[1];
         const boot = (x: number, y: number) => y >= north && land(x, y);
         expect(reaches(map, rome, toe, boot, NEIGHBOURS), "Rome to the toe").toBe(true);
-        expect(reaches(map, squareAt(size, [14, 44.3]), squareAt(size, [19, 39.6]), sea, SIDES), "the Adriatic").toBe(true);
+        expect(reaches(map, squareAt(size, [14.5, 43.4]), squareAt(size, [19, 38.5]), sea, SIDES), "the Adriatic").toBe(true);
         expect(reaches(map, rome, earth.sizes[size].starts.greeks!, boot, NEIGHBOURS), "Italy to Greece").toBe(false);
         const [sx, sy] = squareAt(size, [14, 36.1]);
         expect(terrain(sx, sy), "Sicily").not.toBe(Terrain.Ocean);
         expect(continent(sx, sy), "Sicily off Italy").not.toBe(continent(rome[0], rome[1]));
+      });
+
+      it("draws Baja California, the Gulf parting it from Mexico as far up as the head of the Gulf", () => {
+        const baja = squareAt(size, [-113, 27]);
+        const mexico = squareAt(size, [-102.5, 25.5]);
+        const head = squareAt(size, [0, 30])[1];
+        expect(land(...baja), "the peninsula").toBe(true);
+        expect(reaches(map, baja, mexico, (x, y) => y >= head && land(x, y), NEIGHBOURS), "across the Gulf").toBe(false);
+        expect(reaches(map, baja, mexico, land, NEIGHBOURS), "round the head of the Gulf").toBe(true);
       });
 
       it("runs the Thames through England, past the English", () => {
@@ -118,8 +127,8 @@ describe("the regional worlds' narrow seas", () => {
 });
 
 describe("Japan", () => {
-  it("is one island near Asia, only as big as a few cities need (asked for: first bigger, then not so huge and far)", () => {
-    for (const [size, least, most, reach, sites] of [["small", 14, 18, 2, 2], ["medium", 26, 33, 2, 3], ["large", 45, 55, 3, 3]] as const) {
+  it("is its real arc off Korea, a little fuller than the data, not huge (asked for: bigger, then too huge, then still huge)", () => {
+    for (const [size, whole, main, sites] of [["small", 13, 11, 1], ["medium", 19, 15, 2], ["large", 30, 23, 2]] as const) {
       const state = newGame(1, { world: "earth", historical: true, civ: "japanese", opponents: 1, size });
       const { map } = state;
       for (const t of map.tiles) { t.special = false; t.secondSpecial = false; delete t.deposit; }
@@ -128,14 +137,15 @@ describe("Japan", () => {
       const home = map.tiles[hy * map.width + hx]!.continent;
       const asia = map.tiles[cy * map.width + cx]!.continent;
       const where = (i: number): [number, number] => [i % map.width, Math.floor(i / map.width)];
-      const japan = map.tiles.flatMap((t, i) => (t.continent === home ? [where(i)] : []));
-      expect(japan.length, size).toBeGreaterThanOrEqual(least);
-      expect(japan.length, size).toBeLessThanOrEqual(most);
+      const honshu = map.tiles.flatMap((t, i) => (t.continent === home ? [where(i)] : []));
+      expect(honshu.length, size).toBe(main);
+      // Japan is all the painted patch, Hokkaido over its strait: nothing beyond two squares of Honshu's arc but Hokkaido's own.
+      const patch = EARTH_PAINT[size]!.find((p) => p.own && p.rows.length >= 9)!;
+      expect(patch.rows.join("").replace(/[^#]/g, "").length, size).toBe(whole);
       const mainland = map.tiles.flatMap((t, i) => (t.continent === asia ? [where(i)] : []));
       let gap = Infinity;
-      for (const [x, y] of japan) for (const [a, b] of mainland) gap = Math.min(gap, Math.max(Math.abs(x - a), Math.abs(y - b)));
-      expect(gap, size).toBeGreaterThanOrEqual(2);
-      expect(gap, size).toBeLessThanOrEqual(reach);
+      for (const [x, y] of honshu) for (const [a, b] of mainland) gap = Math.min(gap, Math.max(Math.abs(x - a), Math.abs(y - b)));
+      expect(gap, size).toBe(2);
       const fit: [number, number, number][] = [];
       map.tiles.forEach((t, i) => {
         const s = t.continent === home ? siteScore(state, ...where(i)) : null;
@@ -192,26 +202,6 @@ describe("homelands", () => {
           }
         expect(desert, `${id} ${size}`).toBeLessThanOrEqual(6);
         expect(farmland, `${id} ${size}`).toBeGreaterThanOrEqual(7);
-      }
-  });
-});
-
-describe("older drawings", () => {
-  const frozen = (file: string) => JSON.parse(readFileSync(new URL(`../legacy/${file}`, import.meta.url), "utf8")) as Record<string, Record<WorldSize, { rows: string[]; starts: Record<string, [number, number]> }>>;
-  const rowsOf = (map: WorldMap) => {
-    const CH = ".gpfhmdtasj";
-    return Array.from({ length: map.height }, (_, y) => Array.from({ length: map.width }, (_, x) => {
-      const t = map.tiles[y * map.width + x]!;
-      return t.river ? CH[t.terrain]!.toUpperCase() : CH[t.terrain]!;
-    }).join(""));
-  };
-
-  it.each<[WorldDrawing, string]>([["oldLands", "old-lands.json"], ["joinedIslands", "joined-islands.json"]])("%s gives back the frozen grids square for square", (drawing, file) => {
-    const old = frozen(file);
-    for (const world of PREMADE_WORLDS)
-      for (const { id: size } of WORLD_SIZES) {
-        expect(rowsOf(decodeWorld(world, size, drawing)), `${world.id} ${size}`).toEqual(old[world.id]![size].rows);
-        expect(world.sizes[size][drawing]?.squares.length ?? 0, `${world.id} ${size}`).toBeGreaterThan(0);
       }
   });
 });

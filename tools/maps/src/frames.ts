@@ -1,4 +1,6 @@
+import type { WorldSize } from "@civ/core";
 import type { Pt } from "./geo.js";
+import { EARTH_PAINT } from "./paint.js";
 
 /**
  * How a premade world is cut out of the globe. Longitude and latitude map
@@ -35,22 +37,22 @@ export interface Frame {
   land?: Pt[][];
   /** Outlines filled with sea (waters the data no longer has). */
   seas?: Pt[][];
-  /** Islands drawn bigger than life, so a people's home holds its cities. */
-  enlarge?: Enlargement[];
+  /** Squares painted by hand at a size, for shapes too fine for its grid. */
+  paint?: Partial<Record<WorldSize, readonly Patch[]>>;
 }
 
 /**
- * Land, lakes, regions, rivers and homelands wholly inside `box` (minLon, minLat, maxLon, maxLat)
- * are stretched by `scale` (longitude, latitude), `from` landing on `to`; the real shape, only larger. It must stop short of
- * the 180th meridian, where the data's longitudes end.
+ * Part of a world drawn by hand, square by square, as the original's Earth was: a thin shape (Italy, Japan, Baja California)
+ * covers half of too few squares to come out of the data, and no line in degrees suits all three grids. Painted squares stand:
+ * the build throws if one would go under.
  */
-export interface Enlargement {
-  box: readonly [number, number, number, number];
-  from: Pt;
-  to: Pt;
-  scale: readonly [number, number];
-  /** A square is land from this share of it up, not half, so an island thin as a ribbon fills its squares. */
-  landFrom: number;
+export interface Patch {
+  /** The square of its first row and column. */
+  at: readonly [number, number];
+  /** "#" land, "." sea, a space as the data has it. */
+  rows: readonly string[];
+  /** Its land is a landmass of its own (Sicily, Japan's islands), its straits as painted; else it joins the land it touches. */
+  own?: boolean;
 }
 
 /** The Aral Sea before it was drained for irrigation. */
@@ -79,30 +81,8 @@ const RED_SEA: Pt[] = [[33.7, 28.8], [34.4, 27.2], [35.4, 25.8], [36.4, 24], [37
 const PERSIAN_GULF: Pt[] = [[48.7, 29.6], [50.4, 27.6], [53, 26.2], [56.3, 26.6], [57.1, 25.4], [59, 24.6], [62.5, 22.5]];
 const GIBRALTAR: Pt[] = [[-8, 36], [-5.5, 35.95], [-2.5, 36.2], [-1.6, 36.9]];
 
-/**
- * Italy, a boot thinner than a square, which came out three squares at Small and a broken chain at Large (asked for
- * 2026-11-06: "improve italy land"): down the Apennines to the toe, and along to the heel. The Adriatic line keeps the
- * thicker boot off Dalmatia: land is drawn after water, so the two must not cross.
- */
-const APENNINES: Pt[] = [[9.5, 44.3], [10.8, 43.6], [12.2, 42.4], [13.2, 41.2], [13.6, 40.6], [14.8, 40.2], [15.9, 39.6], [16.2, 38.9]];
-const APULIA: Pt[] = [[14.8, 40.2], [16, 40.6], [16.6, 40.6]];
-const ADRIATIC: Pt[] = [[14, 44.3], [15, 43.4], [15.9, 43], [16.2, 42.5], [17.8, 42], [18.6, 40.7], [19, 39.6]];
-
-/**
- * Sicily, a little larger and a little south, with a strait off the toe: the grid has no room for the real three
- * kilometres, and two landmasses never touch, so one or the other went under.
- */
-const SICILY: Enlargement = { box: [12.2, 36.5, 15.8, 38.4], from: [14, 37.5], to: [14.5, 36.1], scale: [1.2, 1.2], landFrom: 0.2 };
-
 /** Down Central America, thinner than a square most of the way, so the Americas stay one land at every size (asked for 2026-11-06). */
 const CENTRAL_AMERICA: Pt[] = [[-94.6, 17.4], [-92, 15.6], [-89.2, 14.2], [-86.6, 12.9], [-84.6, 10.6], [-82.6, 8.9], [-80.6, 8.4], [-79, 9], [-77.6, 8.2], [-76, 7.4], [-74.6, 7]];
-
-/**
- * Japan, whose real islands are three columns wide on a small world and left the Japanese no room for a city
- * (asked for 2026-11-06: "make japan island bigger", then "too huge now and far from the main land"). It grows east and
- * south, where the sea is empty, only as far as a city or two needs, a square of sea off Korea on a small world.
- */
-const JAPAN: Enlargement = { box: [128.3, 29.8, 146.1, 46], from: [129.6, 38], to: [131, 37], scale: [1.7, 1.2], landFrom: 0.1 };
 
 export const FRAMES: Frame[] = [
   {
@@ -119,9 +99,9 @@ export const FRAMES: Frame[] = [
     riverNames: ["Euphrates", "Firat", "Al Furat", "Tigris", "Dicle", "Indus", "Ganges", "Huang", "Volga", "Niger", "Rhine", "Rhein", "Murray", "Orinoco", "Jordan", "Thames", "Po"],
     lakeRank: 1,
     seas: [ARAL],
-    water: [RED_SEA, PERSIAN_GULF, GIBRALTAR, ADRIATIC],
-    land: [CENTRAL_AMERICA, APENNINES, APULIA],
-    enlarge: [JAPAN, SICILY],
+    water: [RED_SEA, PERSIAN_GULF, GIBRALTAR],
+    land: [CENTRAL_AMERICA],
+    paint: EARTH_PAINT,
     homes: {
       romans: ROME,
       babylonians: BABYLON,
@@ -195,11 +175,6 @@ export const FRAMES: Frame[] = [
     },
   },
 ];
-
-/** A point where `e` puts it. */
-export function stretched(e: Enlargement, [lon, lat]: Pt): Pt {
-  return [e.to[0] + (lon - e.from[0]) * e.scale[0], e.to[1] + (lat - e.from[1]) * e.scale[1]];
-}
 
 /** Piecewise-linear map from a value to grid units through [value, unit] breakpoints. */
 export function toGrid(points: readonly [number, number][], v: number): number {

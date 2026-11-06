@@ -21,7 +21,6 @@ import {
   WORLD_SIZES,
   type Command,
   type GameState,
-  type WorldDrawing,
 } from "../src/index.js";
 
 function startOf(state: GameState, player: number): [number, number] {
@@ -76,11 +75,11 @@ describe("premade worlds", () => {
   });
 
   it("keep islands off the mainland at every size: Britain off Europe, Japan off Asia, Eurasia whole", () => {
-    const continentOf = (world: string, size: (typeof WORLD_SIZES)[number]["id"], drawing?: WorldDrawing) => {
+    const continentOf = (world: string, size: (typeof WORLD_SIZES)[number]["id"]) => {
       const w = premadeWorld(world);
-      const map = decodeWorld(w, size, drawing);
+      const map = decodeWorld(w, size);
       labelContinents(map);
-      const starts = premadeStarts(w, size, drawing);
+      const starts = premadeStarts(w, size);
       return (civ: string) => { const [x, y] = starts[civ]!; return map.tiles[y * map.width + x]!.continent; };
     };
     for (const size of WORLD_SIZES) {
@@ -93,41 +92,9 @@ describe("premade worlds", () => {
       expect(earth("japanese"), size.id).not.toBe(earth("chinese"));
       expect(earth("americans"), size.id).not.toBe(earth("russians"));
     }
-    // As first drawn (saves before version 13), Britain touched France on Earth.
-    const before = continentOf("earth", "small", "joinedIslands");
-    expect(before("english")).toBe(before("french"));
   });
 
-  it("load saves from before version 13 on the land they were played on", () => {
-    const opts = { world: "earth", historical: true, civ: "english", opponents: 3 };
-    const save = { ...makeSave(newGame(3, opts), opts, []), version: 12 as const };
-    const { state, options } = loadSave(save, () => {});
-    expect(options.joinedIslands).toBe(true);
-    const joined = decodeWorld(premadeWorld("earth"), "small", "joinedIslands");
-    expect(state.map.tiles.map((t) => t.terrain)).toEqual(joined.tiles.map((t) => t.terrain));
-    expect(state.map.tiles.map((t) => t.terrain)).not.toEqual(newGame(3, opts).map.tiles.map((t) => t.terrain));
-    expect(startOf(state, 0)).toEqual([...premadeStarts(premadeWorld("earth"), "small", "joinedIslands").english!]);
-    // A generated world never had islands joined: nothing changes for it.
-    const random = { ...makeSave(newGame(3, { opponents: 2 }), { opponents: 2 }, []), version: 12 as const };
-    expect(loadSave(random, () => {}).options.joinedIslands).toBeUndefined();
-  });
-
-  it("load saves from before version 73 on the land they were played on, a generated world as it was", () => {
-    for (const size of WORLD_SIZES) {
-      const opts = { world: "earth", historical: true, civ: "japanese", opponents: 3, size: size.id };
-      const save = { ...makeSave(newGame(3, opts), opts, []), version: 72 as const };
-      const { state, options } = loadSave(save, () => {});
-      expect(options.oldLands, size.id).toBe(true);
-      const old = decodeWorld(premadeWorld("earth"), size.id, "oldLands");
-      expect(state.map.tiles.map((t) => t.terrain), size.id).toEqual(old.tiles.map((t) => t.terrain));
-      expect(state.map.tiles.map((t) => t.terrain), size.id).not.toEqual(newGame(3, opts).map.tiles.map((t) => t.terrain));
-      expect(startOf(state, 0), size.id).toEqual([...premadeStarts(premadeWorld("earth"), size.id, "oldLands").japanese!]);
-    }
-    const random = { ...makeSave(newGame(3, { opponents: 2 }), { opponents: 2 }, []), version: 72 as const };
-    expect(loadSave(random, () => {}).options.oldLands).toBeUndefined();
-  });
-
-  it("draw starts anywhere on a premade world only on land worth settling, as old saves did not", () => {
+  it("draw starts anywhere on a premade world only on land worth settling", () => {
     for (const seed of [1, 2, 3, 4, 5, 6]) {
       const opts = { world: "middle-east", civ: "romans", opponents: 6, cityStates: false };
       const state = newGame(seed, opts);
@@ -247,7 +214,7 @@ describe("homelands", () => {
 
   it("seats civilizations clear of each other, and of the homelands a smaller game could skip", () => {
     for (const human of nativeCivs(premadeWorld("earth")).slice(0, 8)) expect(closest(newGame(4, { world: "earth", historical: true, opponents: 6, civ: human })), human).toBeGreaterThanOrEqual(6);
-    expect(closest(newGame(4, { world: "earth", historical: true, opponents: 6, civ: "french", crowdedHomelands: true, oldLands: true }))).toBeLessThan(6);
+    expect(Math.min(...[1, 2, 3, 4, 5, 6, 7, 8].map((seed) => closest(newGame(seed, { world: "earth", historical: true, opponents: 6, civ: "french", crowdedHomelands: true }))))).toBeLessThan(6);
   });
 
   it("parts the French and the English when all of Europe plays, each on its own land", () => {

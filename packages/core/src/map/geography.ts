@@ -256,8 +256,8 @@ export function findGeography(map: WorldMap): Geography {
   return { regions, place, land };
 }
 
-/** A premade world's real places from its table (`skip`: squares whose terrain differs from the table's, left in none). */
-export function premadeGeography(map: WorldMap, table: PlaceTable, skip?: ReadonlySet<number>): Geography {
+/** A premade world's real places from its table. */
+export function premadeGeography(map: WorldMap, table: PlaceTable): Geography {
   const { width: w, height: h, tiles } = map;
   const regions: Region[] = [];
   const place = new Int16Array(w * h).fill(-1);
@@ -277,7 +277,6 @@ export function premadeGeography(map: WorldMap, table: PlaceTable, skip?: Readon
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
-      if (skip?.has(i)) continue;
       const wet = tiles[i]!.terrain === Terrain.Ocean;
       const a = PLACE_CHARS.indexOf(table.place[y]?.[x] ?? ".");
       if (a >= 0) put(place, `${wet ? "w" : "f"}${a}`, (wet ? table.waters : table.landforms)[a], i);

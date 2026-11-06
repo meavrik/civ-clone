@@ -62,7 +62,7 @@ describe("civilization colours", () => {
   it("loads a save of before version 72 with the rivals, colours and starts it began with", () => {
     for (const world of [undefined, "earth"]) {
       const opts = { opponents: 6, ...(world ? { world, historical: true } : {}) };
-      const then = newGame(8, { ...opts, eightColors: true, crowdedHomelands: true, ...(world ? { oldLands: true } : {}) });
+      const then = newGame(8, { ...opts, eightColors: true, crowdedHomelands: true });
       const save = { ...makeSave(then, opts, []), version: 71 as const };
       const { state } = loadSave(save, () => {});
       const seats = (g: GameState) => g.players.map((p) => [p.civ, p.color, g.units.find((u) => u.owner === p.id)?.x]);

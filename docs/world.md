@@ -20,9 +20,7 @@ The world: engine overview, map sizes, premade and generated worlds, starts, wha
   a homeland's square, never one that would cut its landmass in two; an island of half a square or more
   keeps its last square if that costs its neighbours less land; else the smaller landmass yields). The
   polar ice rows are a landmass of their own (Antarctica's in the south). `npm run maps` throws if any
-  land joins two landmasses (`mixedLandmasses`). Saves before version 13 on premade worlds load with
-  `joinedIslands`: the old grids, kept as per-size diffs (`PremadeGrid.joinedIslands`) that the tool
-  derives from the frozen `tools/maps/legacy/joined-islands.json` (never rebuild that file). Setup asks the size after a premade world and first in
+  land joins two landmasses (`mixedLandmasses`). Setup asks the size after a premade world and first in
   "Customize world"; "Start a new game" plays the original's size; `?size=large` in the web app.
   Coasts and homelands redrawn (asked for 2026-11-06: "saudi arabia should not be contected by land to africa and asia",
   "conect south america to the north", "make japan island bigger", starts "more suitable for settlers - the hebrew land
@@ -31,23 +29,25 @@ The world: engine overview, map sizes, premade and generated worlds, starts, wha
   through Bab el Mandeb, up the Gulf past Hormuz and through Gibraltar, on each world that shows them (Europe's Gibraltar and
   the Middle East's Bab el Mandeb were shut too), and `Frame.land` down Central America, so the Americas are one continent at
   every size. Arabia still joins Asia in the north and Sinai still joins Africa to Asia, as in life, and the Bosporus stays
-  shut, as Greeks and Hittites share a land. Japan (`Frame.enlarge`, `Enlargement`) keeps its real shape, stretched east and
-  south about Kyushu, 1.7 by 1.2: land, regions, rivers and the Kyoto homeland alike, so names follow it (the Japanese
-  start on Honshu). It must stop short of the 180th meridian, where the build throws, since the data's longitudes end there and
-  land past it would be clipped without a word. An enlarged group of islands is one landmass and a square is land from
-  `landFrom` (0.1) of it, not half: a ribbon like Honshu covers half of very few squares, and the straits between the four
-  islands are narrower than a square. Its size is a judgement the user made by eye, and a test holds it both ways: as first
-  stretched, 2.75 by 1.62, the main island was 22, 43 and 73 squares at Small, Medium and Large, 3, 4 and 5 off Asia and its start
-  5, 7 and 9 off, "too huge now and far from the main land"; it is 16, 29 and 49, 2, 2 and 3 off, one or two squares of sea, the
-  start 3, 4 and 5 off, with 2, 3 and 3 fit city sites. The real islands were 6, 14 and 29 squares with no fit site.
-  Italy (asked for the same day: "improve italy land"), a boot thinner than a square, was three squares at Small and a broken
-  chain at Large: `APENNINES` runs down it to the toe and `APULIA` to the heel, west of the middle, as at Small the heel and
-  Albania fall in one column, and `ADRIATIC` keeps it off Dalmatia. Land is drawn after water, so those lines must not cross: at
-  first the heel ran into the Greek start at Small and row 25 joined Italy to Albania at Medium. Sicily (`SICILY`, an
-  `Enlargement`) is a fifth larger and a degree and a half south, as a square of strait is the least two landmasses may
-  have and the toe or Sicily sank otherwise. The Romans' site goes from 107, 107 and unfit to 120, 124, 124, with 9, 10 and 9
-  squares of land to the city against 9, 9 and 6. The Thames and the Po are drawn on Earth ("add river to england"), the
-  English standing on the Thames at every size; the data holds no other British river.
+  shut, as Greeks and Hittites share a land.
+  Small shapes are painted by hand, square by square, per size (`Frame.paint`, `Patch`, `paint.ts`; asked for 2026-11-06: Japan
+  "too huge now and far from the main land", then "still huge"; "missing Baja California peninsula"; "italy and sicilia are wierd
+  and not recognized"). A shape thinner than a square covers half of too few squares to come out of the data, and no line
+  in degrees suits three grids: stretching Japan's polygons (2.75 by 1.62, then 1.7 by 1.2) only ever gave a bigger, stranger Japan,
+  and lines down Italy at Small bent it at Large. The patches were read off the data's land coverage: at Large a threshold of
+  about 0.3 already draws Italy's leg. "#" is land, "." sea, a space leaves the data's; painted squares never go under, the build
+  throws and names them if two landmasses would meet on them; `own` makes a patch a landmass of its own, its straits as painted, else
+  it joins the land it touches. Judge these at Large first, the size the user plays and looks at. Japan at Large is its real arc
+  in columns 140 to 146, 30 squares to the data's 29 but whole: Honshu with Shikoku and Kyushu in one, 23 squares and 2 fit city
+  sites, a square of sea off Korea, Hokkaido over its strait. It was 6, 14 and 29 scattered squares at Small, Medium and Large with no
+  fit site; it is 13, 19 and 30. Italy is the true leg down from Liguria with a heel and a longer toe, the Gulf of Taranto
+  between them; heel and Albania fall in one column, so at Large two squares of Albania went under and at Medium and Small there is
+  no heel; Dalmatia gave a square at Medium to keep the Adriatic open, as a corner bridges it. Sicily is a flat-topped triangle a
+  row of sea off the toe, a row or two south of its true place, as two landmasses may not touch. Corsica and Sardinia are painted
+  at Large, Sardinia at Medium and Small. The Romans' site goes from 107, 107 and unfit to 119, 124, 122. Baja California is a peninsula
+  one square wide with the Gulf carved down its side out of Sonora, 7 rows long at Large, and a desert zone wider than the data's so
+  it stays desert. The Thames and the Po are drawn on Earth ("add river to england"), the English standing on the Thames at every
+  size; the data holds no other British river.
   Terrain: the desert zones outrank `green`, so the Natural Earth "ARABIAN PENINSULA" swallowed Canaan and Mesopotamia;
   `fertile` hand zones, ranked over mountains and desert, give back the Levant, the Fertile Crescent, the Nile valley, Elam and
   Fars, and the Valley of Mexico, wider than the green really runs as a small world's square is three degrees wide. The
@@ -58,15 +58,15 @@ The world: engine overview, map sizes, premade and generated worlds, starts, wha
   for the score: clearing hills for it stamped a disc of farmland the shape of a city's radius on Iberia, so hills go only for
   the 5 grassland, plains and forest only for food and grass, and good hilly sites stay under 110 (the lowest, 88, is the
   Vikings' Norway on Europe at Medium). Homelands' site scores, Small, Medium, Large, before and after: Earth's mean 97,
-  93, 92 to 119, 116, 114; Hebrews 108, 80, 82 to 125, 113, 110; Japanese unfit at all three to 124, 119, 115; Persians 72, 77,
+  93, 92 to 119, 115, 114; Hebrews 108, 80, 82 to 125, 113, 110; Japanese unfit at all three to 126, 116, 114; Persians 72, 77,
   59 to 110, 112, 106. What seats really began on, 40 seeds of 7 civs, nothing scattered: on unfit land 9, 9, 6% on Earth and
-  11, 16, 12% on Europe, now none; the worst 5% of Earth's sites 72, 77, 59 to 110, 101, 99, their food 10, 12, 10 to 22, 20, 22.
+  11, 16, 12% on Europe, now none; the worst 5% of Earth's sites 72, 77, 59 to 110, 101, 99, their food 10, 12, 10 to 21, 20, 22.
   `homelandStart` is untouched, as it nudges at most 5% of seats. "Anywhere on the map" on a premade world draws only on land
   with a `siteScore` of `START_WORTH` (95) or more (generated worlds keep their draws): the Middle East's worst 5% had been
   60, 57, 54 with 8, 6, 5 food, a lone plains square in the Empty Quarter; they are 103, 95, 97 with 21, 18, 20.
-  Saves before version 73 load with `oldLands`: the old grids as per-size diffs (`PremadeGrid.oldLands`), derived like
-  `joinedIslands` from the frozen `tools/maps/legacy/old-lands.json` (never rebuild that file); a test checks both
-  give back their frozen grids square for square. `npm run headless -- --old-lands` plays them.
+  Old maps are not kept (asked for 2026-11-06: "no need to save previous maps and games related to maps"): a premade world is redrawn
+  freely, and needs no save version for it. A save at this version loads from its snapshot, map and all; an older one, or a
+  save file without a snapshot, replays on today's land and may fail with "replay diverged", which the load menu reports.
   Generated worlds: land from random-walk chunks, terrain from the climate (`climateWorld`): smooth
   heat and rain fields that wrap east-west, rain in latitude belts and on prevailing winds that dry out
   over land and mountains (rain shadows), ranked so biome shares stay steady; mountains on noise ridges
@@ -80,7 +80,7 @@ The world: engine overview, map sizes, premade and generated worlds, starts, wha
   How many civilizations (asked for 2026-11-05: "up to 10 civs ... each premade map would get the maximum civs it can
   have, custom maps would get maximum by map size"): `MAX_CIVS` (10) is one for each colour but the barbarians' red;
   `maxCivsOn(world, size)` is what the land holds, `WORLD_SIZES[].maxCivs` for a generated world (Small 8, Medium and
-  Large 10) and on a premade world 10 but for Earth at Small, 8, as it has less land than a generated Small (1,322
+  Large 10) and on a premade world 10 but for Earth at Small, 8, as it has less land than a generated Small (1,320
   squares against about 1,450, arctic left out); `setupMaxCivs` takes that and one per colour among the civs offered,
   so with homelands Europe seats 9 and the Middle East 8, and started anywhere those worlds seat 10. The menu stays 7
   by default, as in the original. Measured before choosing, 84 headless games to turn 400, 7 civilizations against 10
