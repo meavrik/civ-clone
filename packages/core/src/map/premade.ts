@@ -28,15 +28,20 @@ export interface PremadeGrid {
   starts: Readonly<Record<string, readonly [number, number]>>;
   /** Its real places at this size: seas, lakes, deserts, ranges, continents, islands (`premadeGeography`). */
   places?: PlaceTable;
-  /**
-   * The grid as saves before version 13 played it, before landmasses were kept apart
-   * (`joinedIslands`): the squares (x, y, character) and homelands that differed then.
-   */
-  joinedIslands?: {
-    squares: readonly (readonly [number, number, string])[];
-    starts: Readonly<Record<string, readonly [number, number]>>;
-  };
+  /** The grid as saves before version 13 played it, before landmasses were kept apart. */
+  joinedIslands?: OlderDrawing;
+  /** The grid as saves from then until version 72 played it, before the straits, Panama, Japan and the homelands were redrawn. */
+  oldLands?: OlderDrawing;
 }
+
+/** The squares (x, y, character) and homelands where an older drawing of a grid differed. */
+export interface OlderDrawing {
+  squares: readonly (readonly [number, number, string])[];
+  starts: Readonly<Record<string, readonly [number, number]>>;
+}
+
+/** Which older drawing a game was played on, none for today's. */
+export type WorldDrawing = "joinedIslands" | "oldLands";
 
 export const TERRAIN_CHARS: Readonly<Record<Terrain, string>> = {
   [Terrain.Ocean]: ".",
@@ -74,10 +79,11 @@ export function maxCivsOn(world: string | null | undefined, size: WorldSize = "s
   return WORLD_CIV_LIMITS[world]?.[size] ?? MAX_CIVS;
 }
 
-/** Each civilization's homeland square on the world at that size (as saves before version 13 drew it, with `joinedIslands`). */
-export function premadeStarts(world: PremadeWorld, size: WorldSize = "small", joinedIslands = false): Readonly<Record<string, readonly [number, number]>> {
+/** Each civilization's homeland square on the world at that size, in an older `drawing` if given. */
+export function premadeStarts(world: PremadeWorld, size: WorldSize = "small", drawing?: WorldDrawing): Readonly<Record<string, readonly [number, number]>> {
   const grid = world.sizes[size];
-  return joinedIslands && grid.joinedIslands ? { ...grid.starts, ...grid.joinedIslands.starts } : grid.starts;
+  const older = drawing && grid[drawing];
+  return older ? { ...grid.starts, ...older.starts } : grid.starts;
 }
 
 /** A square of a world's rows: its terrain, upper case marking a river. */
@@ -89,11 +95,8 @@ function decodeSquare(world: PremadeWorld, ch: string, x: number, y: number): Re
   return tile;
 }
 
-/**
- * The world's terrain and rivers as drawn in its rows at that size, with nothing scattered yet;
- * with `joinedIslands`, as saves before version 13 drew it.
- */
-export function decodeWorld(world: PremadeWorld, size: WorldSize = "small", joinedIslands = false): WorldMap {
+/** The world's terrain and rivers as drawn in its rows at that size, or in an older `drawing`, with nothing scattered yet. */
+export function decodeWorld(world: PremadeWorld, size: WorldSize = "small", drawing?: WorldDrawing): WorldMap {
   const { width, height } = worldSize(size);
   const { rows } = world.sizes[size];
   if (rows.length !== height) throw new Error(`${world.id} (${size}): ${rows.length} rows, expected ${height}`);
@@ -103,19 +106,19 @@ export function decodeWorld(world: PremadeWorld, size: WorldSize = "small", join
     if (row.length !== width) throw new Error(`${world.id} (${size}): row ${y} has ${row.length} columns, expected ${width}`);
     for (let x = 0; x < width; x++) tiles.push(decodeSquare(world, row[x]!, x, y));
   }
-  if (joinedIslands) for (const [x, y, ch] of world.sizes[size].joinedIslands?.squares ?? []) tiles[y * width + x] = decodeSquare(world, ch, x, y);
+  if (drawing) for (const [x, y, ch] of world.sizes[size][drawing]?.squares ?? []) tiles[y * width + x] = decodeSquare(world, ch, x, y);
   return { width, height, tiles };
 }
 
 /** A premade world ready to play: its terrain and real places, plus specials and villages from the game's RNG. */
-export function premadeMap(rng: RngState, id: string, size: WorldSize = "small", joinedIslands = false, resources?: number, catalogue?: number): WorldMap {
+export function premadeMap(rng: RngState, id: string, size: WorldSize = "small", drawing?: WorldDrawing, resources?: number, catalogue?: number): WorldMap {
   const world = premadeWorld(id);
-  const map = decodeWorld(world, size, joinedIslands);
+  const map = decodeWorld(world, size, drawing);
   scatterSpecials(map, rng, resources, catalogue);
   labelContinents(map);
   const grid = world.sizes[size];
   // The squares an old grid drew otherwise lie in no place.
-  const changed = joinedIslands ? new Set((grid.joinedIslands?.squares ?? []).map(([x, y]) => y * map.width + x)) : undefined;
+  const changed = drawing ? new Set((grid[drawing]?.squares ?? []).map(([x, y]) => y * map.width + x)) : undefined;
   map.geography = grid.places ? premadeGeography(map, grid.places, changed) : findGeography(map);
   return map;
 }

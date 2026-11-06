@@ -222,8 +222,9 @@ Web app, phone app, headless harness, maps tool. Moved word for word from CLAUDE
   content hash; pages network-first, `ignoreVary`). `base: "./"`, so the build plays from any folder.
 - `tools/headless` — tournament harness: `runGame(config)` plays an `allAi` game through `runAiPlayers`, samples
   per-civ stats, fingerprints the final state; `AIS` registry seats a named AI per civ. `cli.ts` prints tables.
-- `tools/maps` — premade-world builder: `frames.ts` (lon/lat → grid breakpoints per world, homelands),
-  `climate.ts` (Natural Earth regions and hand zones → terrain mixes), `build.ts` (rasterise, rivers, starts),
+- `tools/maps` — premade-world builder: `frames.ts` (lon/lat → grid breakpoints per world, homelands, lines of sea and land,
+  islands enlarged), `climate.ts` (Natural Earth regions and hand zones → terrain mixes), `build.ts` (rasterise, rivers,
+  homelands: the site, then its ground cleared up to `HOMELAND`), `legacy/` (grids old saves played on, frozen, never rebuilt),
   `places.ts` (real names: Natural Earth's lakes, deserts, ranges, plateaus, basins, islands and continents,
   hand outlines for the seas and oceans (`WATERS`: the cache has no marine data; the smaller sea first, the
   oceans last) and some forests, ice sheets and marshes (`LANDFORMS`, named `HAND_ZONES`); a square takes

@@ -91,3 +91,5 @@ The square's window: the yields in the words' size, and what is built on a squar
 token, an arrow, a rook and a pennant (2026-11-05, asked for; no save version).
 Up to ten civilizations (2026-11-05, asked for; save version 72): each premade world seats what it can hold, custom maps by size, two new colours with
 their shields, homelands kept apart, the Foreign Minister and the race for space fit nine rivals, and the other civilizations move a slice of each frame so the page never freezes.
+The premade worlds' coasts and homelands redrawn (2026-11-06, asked for; save version 73): the Red Sea, the Gulf and Gibraltar open, the Americas joined at Panama, Japan one island
+of three to four times the land, the Levant, the Fertile Crescent, the Nile, Fars and the Valley of Mexico green, every homeland a fit city site with food and grass, and drawn starts on premade worlds only on land worth settling.

@@ -173,6 +173,8 @@ export interface NewGameOptions extends MapGenOptions {
   eightColors?: boolean;
   /** Rivals drawn whatever room their homelands leave, and starts kept only three squares apart, as before version 72. Old saves load with it. */
   crowdedHomelands?: boolean;
+  /** The premade worlds as drawn before version 73 (`PremadeGrid.oldLands`). Old saves load with it. */
+  oldLands?: boolean;
   /** Place city-states as the game begins (`placeCityStates`; since save version 45). Every new game in the app asks for them. */
   cityStates?: boolean;
 }
@@ -221,6 +223,8 @@ const HOMELAND_SPACING = 6;
 const HOMELAND_REACH = 8;
 /** A start drawn at random moves up to this far onto the best city site near it (asked for 2026-10-23). */
 const START_NUDGE = 2;
+/** The least a site (`siteScore`) must come to for a start to be drawn on it on a premade world (asked for 2026-11-06). */
+const START_WORTH = 95;
 
 /**
  * The best city site (`siteScore`) within `START_NUDGE` of a start drawn at (x0, y0), on the same land and
@@ -292,8 +296,9 @@ function homelandStart(map: WorldMap, home: readonly [number, number], starts: [
 export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const rng = createRng(seed);
   const world = opts.world ? premadeWorld(opts.world) : undefined;
-  const map = opts.world ? premadeMap(rng, opts.world, opts.size, opts.joinedIslands, opts.resources, opts.catalogue) : generateMap(rng, opts);
-  const homes = world && opts.historical ? premadeStarts(world, opts.size, opts.joinedIslands) : undefined;
+  const drawing = opts.joinedIslands ? "joinedIslands" : opts.oldLands ? "oldLands" : undefined;
+  const map = opts.world ? premadeMap(rng, opts.world, opts.size, drawing, opts.resources, opts.catalogue) : generateMap(rng, opts);
+  const homes = world && opts.historical ? premadeStarts(world, opts.size, drawing) : undefined;
   // The original's yields: shield grassland on its diagonal bands, and no other first special on grassland.
   if (!opts.freecivYields)
     map.tiles.forEach((t, i) => {
@@ -432,7 +437,7 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
   const k = map.width / MAP_WIDTH;
   const sizes = new Map<number, number>();
   for (const t of map.tiles) if (t.terrain !== Terrain.Ocean) sizes.set(t.continent, (sizes.get(t.continent) ?? 0) + 1);
-  const candidates: number[] = [];
+  let candidates: number[] = [];
   const margin = Math.round(6 * k);
   for (let y = margin; y < map.height - margin; y++)
     for (let x = 0; x < map.width; x++) {
@@ -440,6 +445,11 @@ export function newGame(seed: number, opts: NewGameOptions = {}): GameState {
       if ((t.terrain === Terrain.Grassland || t.terrain === Terrain.Plains) && (sizes.get(t.continent) ?? 0) >= 40 * k * k)
         candidates.push(y * map.width + x);
     }
+  // A premade world's deserts are as real as its farmland, and a lone plains square in the Empty Quarter is no place to begin.
+  if (opts.world && !opts.oldLands) {
+    const worth = candidates.filter((i) => (siteScore(state, i % map.width, Math.floor(i / map.width)) ?? 0) >= START_WORTH);
+    if (worth.length) candidates = worth;
+  }
   const starts: [number, number][] = [];
   // The squares drawn, before any moved onto a better site: they keep the draws as they always were.
   const drawn: [number, number][] = [];

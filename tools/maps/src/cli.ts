@@ -21,6 +21,8 @@ const OUT = join(ROOT, "out");
 const WORLDS = resolve(ROOT, "../../packages/core/src/map/worlds");
 /** The worlds as saves before version 13 played them, before landmasses were kept apart: never rebuilt. */
 const JOINED = join(ROOT, "legacy/joined-islands.json");
+/** The worlds as saves before version 73 played them, before straits, Panama, Japan and homelands were redrawn: never rebuilt. */
+const OLD_LANDS = join(ROOT, "legacy/old-lands.json");
 const SOURCE = "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@v5.1.2/geojson/";
 const LAYERS = {
   land: "ne_50m_land.geojson",
@@ -49,6 +51,7 @@ async function main(ids: string[]): Promise<void> {
     rivers: polylines(readGeo(await fetchLayer(LAYERS.rivers))),
   };
   const joined = JSON.parse(readFileSync(JOINED, "utf8")) as Record<string, Record<WorldSize, FrozenGrid>>;
+  const old = JSON.parse(readFileSync(OLD_LANDS, "utf8")) as Record<string, Record<WorldSize, FrozenGrid>>;
   mkdirSync(OUT, { recursive: true });
   const frames = ids.length ? FRAMES.filter((f) => ids.includes(f.id)) : FRAMES;
   if (!frames.length) throw new Error(`unknown world (known: ${FRAMES.map((f) => f.id).join(", ")})`);
@@ -62,7 +65,7 @@ async function main(ids: string[]): Promise<void> {
       console.log(`${frame.name} ${width}x${height}: ${Math.round(performance.now() - t0)} ms`);
       for (const line of world.report) console.log(`  ${line}`);
     }
-    writeFileSync(join(WORLDS, `${frame.id}.ts`), worldModule(frame, built, joined[frame.id]));
+    writeFileSync(join(WORLDS, `${frame.id}.ts`), worldModule(frame, built, joined[frame.id], old[frame.id]));
   }
 }
 

@@ -11,7 +11,7 @@ import type { Pt } from "./geo.js";
 export type Zone =
   | "ice" | "mountains" | "hills" | "desert" | "arid" | "aridHigh" | "swamp" | "wetForest" | "jungle"
   | "jungleMix" | "tundra" | "boreal" | "steppe" | "savanna" | "prairie" | "meadow" | "green" | "delta"
-  | "highland" | "coldHigh" | "medHigh" | "hillyGreen";
+  | "highland" | "coldHigh" | "medHigh" | "hillyGreen" | "fertile";
 
 type Mix = [Terrain, number][];
 const { Grassland: G, Plains: P, Forest: F, Hills: H, Mountains: M, Desert: D, Tundra: T, Arctic: A, Swamp: S, Jungle: J } = Terrain;
@@ -39,11 +39,12 @@ export const MIXES: Record<Zone, Mix> = {
   coldHigh: [[M, 35], [H, 35], [T, 20], [D, 10]],
   medHigh: [[P, 35], [H, 35], [G, 15], [F, 15]],
   hillyGreen: [[F, 35], [H, 35], [G, 30]],
+  fertile: [[G, 50], [P, 25], [H, 15], [F, 10]],
 };
 
 /** Lower wins when several zones cover a square. */
 const PRIORITY: Zone[] = [
-  "ice", "mountains", "desert", "coldHigh", "hills", "swamp", "delta", "jungle", "tundra", "aridHigh", "arid",
+  "ice", "fertile", "mountains", "desert", "coldHigh", "hills", "swamp", "delta", "jungle", "tundra", "aridHigh", "arid",
   "wetForest", "jungleMix", "green", "hillyGreen", "medHigh", "highland", "boreal", "steppe", "savanna", "prairie", "meadow",
 ];
 export const ZONE_RANK = new Map<Zone, number>(PRIORITY.map((z, i) => [z, i]));
@@ -185,6 +186,13 @@ export const HAND_ZONES: { zone: Zone; ring: Pt[]; name?: string }[] = [
   { zone: "green", ring: [[7.8, 45.5], [12.3, 45.5], [12.3, 44.7], [9, 44.7]] }, // Po valley
   { zone: "prairie", ring: [[19, 47.8], [22, 47.8], [21.5, 45.5], [19, 45.5]] }, // Hungarian plain
   { zone: "green", ring: [[29.5, 31.6], [32.4, 31.6], [31.8, 30], [31, 30]] }, // Nile delta
+  // The first farmland, which the big desert and range polygons swallow (asked for 2026-11-06: "the hebrew land
+  // should not be all desert"). A square of a small world is three degrees wide, so these run wider than the green really does.
+  { zone: "fertile", ring: [[34.1, 30.8], [36.2, 30.4], [38.4, 32], [38.8, 35.4], [37.6, 37], [35.7, 37], [35.3, 34.4], [34.2, 32.2]] }, // Canaan and the Levant
+  { zone: "fertile", ring: [[37.3, 35], [37.4, 37.3], [41, 37.7], [44.5, 37.2], [46.4, 35.2], [47.4, 33.2], [46, 32], [44.6, 30.8], [43, 32.4], [39.5, 34.6]] }, // the Fertile Crescent
+  { zone: "fertile", ring: [[30.2, 31.6], [32.7, 31.6], [32.6, 30], [33.4, 26.5], [33.6, 24], [32, 24], [30.9, 27], [29.9, 29.6]] }, // the Nile valley
+  { zone: "fertile", ring: [[48.3, 32.6], [51, 31.9], [54, 31], [55.2, 29.6], [54, 28.4], [51.6, 28.7], [50, 30], [48.6, 30.5]] }, // Elam and Fars
+  { zone: "fertile", ring: [[-103, 21.3], [-98, 21.3], [-96.7, 19.4], [-97.4, 17.7], [-100.5, 17.7], [-103, 19.2]] }, // the Valley of Mexico and the Bajio
   // Rain forest
   { zone: "jungle", ring: [[-13, 10], [-8, 9], [0, 8], [9, 7], [12, 4], [9, 3], [-8, 4], [-14, 8]], name: "the Guinean Rainforest" }, // Guinea coast
   { zone: "jungle", ring: [[-92, 17], [-88, 21.5], [-86, 21], [-83, 14], [-77, 9], [-78, 7], [-83, 8], [-88, 13], [-92, 15]], name: "the Central American Rainforest" }, // Central America

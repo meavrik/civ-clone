@@ -35,6 +35,22 @@ export interface Frame {
   land?: Pt[][];
   /** Outlines filled with sea (waters the data no longer has). */
   seas?: Pt[][];
+  /** Islands drawn bigger than life, so a people's home holds its cities. */
+  enlarge?: Enlargement[];
+}
+
+/**
+ * Land, lakes, regions, rivers and homelands wholly inside `box` (minLon, minLat, maxLon, maxLat)
+ * are stretched by `scale` (longitude, latitude), `from` landing on `to`; the real shape, only larger. It must stop short of
+ * the 180th meridian, where the data's longitudes end.
+ */
+export interface Enlargement {
+  box: readonly [number, number, number, number];
+  from: Pt;
+  to: Pt;
+  scale: readonly [number, number];
+  /** A square is land from this share of it up, not half, so an island thin as a ribbon fills its squares. */
+  landFrom: number;
 }
 
 /** The Aral Sea before it was drained for irrigation. */
@@ -54,6 +70,25 @@ const HATTUSA: Pt = [34.6, 40.0];
 const PERSEPOLIS: Pt = [52.9, 29.9];
 const JERUSALEM: Pt = [35.2, 31.8];
 
+/**
+ * Down the middle of each narrow sea: squares of a rough grid otherwise bridge it, a corner being
+ * enough for a unit, and Yemen meets Eritrea, Oman meets Iran, Spain meets Morocco (asked for 2026-11-06).
+ */
+const BAB_EL_MANDEB: Pt[] = [[41.8, 14.6], [43.3, 12.7], [44.8, 11.9], [47, 12.4]];
+const RED_SEA: Pt[] = [[33.7, 28.8], [34.4, 27.2], [35.4, 25.8], [36.4, 24], [37.6, 21.5], [38.8, 19], [40.2, 16.8], ...BAB_EL_MANDEB];
+const PERSIAN_GULF: Pt[] = [[48.7, 29.6], [50.4, 27.6], [53, 26.2], [56.3, 26.6], [57.1, 25.4], [59, 24.6], [62.5, 22.5]];
+const GIBRALTAR: Pt[] = [[-8, 36], [-5.5, 35.95], [-2.5, 36.2], [-1.6, 36.9]];
+
+/** Down Central America, thinner than a square most of the way, so the Americas stay one land at every size (asked for 2026-11-06). */
+const CENTRAL_AMERICA: Pt[] = [[-94.6, 17.4], [-92, 15.6], [-89.2, 14.2], [-86.6, 12.9], [-84.6, 10.6], [-82.6, 8.9], [-80.6, 8.4], [-79, 9], [-77.6, 8.2], [-76, 7.4], [-74.6, 7]];
+
+/**
+ * Japan, whose real islands are three columns wide on a small world and left the Japanese no room for a city
+ * (asked for 2026-11-06: "make japan island bigger"). It grows east and south, where the sea is empty, more east than
+ * south because a column past 150 degrees spans seven degrees, and stops short of Korea, Sakhalin and Kamchatka.
+ */
+const JAPAN: Enlargement = { box: [128.3, 29.8, 146.1, 46], from: [129.6, 38], to: [134.5, 35.45], scale: [2.75, 1.62], landFrom: 0.14 };
+
 export const FRAMES: Frame[] = [
   {
     id: "earth",
@@ -66,9 +101,12 @@ export const FRAMES: Frame[] = [
     polar: true,
     seam: false,
     riverRank: 2,
-    riverNames: ["Euphrates", "Firat", "Al Furat", "Tigris", "Dicle", "Indus", "Ganges", "Huang", "Volga", "Niger", "Rhine", "Rhein", "Murray", "Orinoco"],
+    riverNames: ["Euphrates", "Firat", "Al Furat", "Tigris", "Dicle", "Indus", "Ganges", "Huang", "Volga", "Niger", "Rhine", "Rhein", "Murray", "Orinoco", "Jordan"],
     lakeRank: 1,
     seas: [ARAL],
+    water: [RED_SEA, PERSIAN_GULF, GIBRALTAR],
+    land: [CENTRAL_AMERICA],
+    enlarge: [JAPAN],
     homes: {
       romans: ROME,
       babylonians: BABYLON,
@@ -104,6 +142,7 @@ export const FRAMES: Frame[] = [
     riverRank: 5,
     riverNames: ["Rhône", "Po", "Thames", "Don", "Dniester", "Garonne", "Duero", "Jordan", "Tisza", "Drava"],
     lakeRank: 3,
+    water: [GIBRALTAR],
     homes: {
       english: LONDON,
       french: PARIS,
@@ -128,6 +167,7 @@ export const FRAMES: Frame[] = [
     riverRank: 6,
     lakeRank: 4,
     seas: [ARAL],
+    water: [BAB_EL_MANDEB],
     homes: {
       egyptians: THEBES,
       babylonians: BABYLON,
@@ -140,6 +180,11 @@ export const FRAMES: Frame[] = [
     },
   },
 ];
+
+/** A point where `e` puts it. */
+export function stretched(e: Enlargement, [lon, lat]: Pt): Pt {
+  return [e.to[0] + (lon - e.from[0]) * e.scale[0], e.to[1] + (lat - e.from[1]) * e.scale[1]];
+}
 
 /** Piecewise-linear map from a value to grid units through [value, unit] breakpoints. */
 export function toGrid(points: readonly [number, number][], v: number): number {

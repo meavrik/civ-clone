@@ -17,9 +17,11 @@ import {
   Terrain,
   labelContinents,
   premadeStarts,
+  siteScore,
   WORLD_SIZES,
   type Command,
   type GameState,
+  type WorldDrawing,
 } from "../src/index.js";
 
 function startOf(state: GameState, player: number): [number, number] {
@@ -74,11 +76,11 @@ describe("premade worlds", () => {
   });
 
   it("keep islands off the mainland at every size: Britain off Europe, Japan off Asia, Eurasia whole", () => {
-    const continentOf = (world: string, size: (typeof WORLD_SIZES)[number]["id"], joined = false) => {
+    const continentOf = (world: string, size: (typeof WORLD_SIZES)[number]["id"], drawing?: WorldDrawing) => {
       const w = premadeWorld(world);
-      const map = decodeWorld(w, size, joined);
+      const map = decodeWorld(w, size, drawing);
       labelContinents(map);
-      const starts = premadeStarts(w, size, joined);
+      const starts = premadeStarts(w, size, drawing);
       return (civ: string) => { const [x, y] = starts[civ]!; return map.tiles[y * map.width + x]!.continent; };
     };
     for (const size of WORLD_SIZES) {
@@ -92,7 +94,7 @@ describe("premade worlds", () => {
       expect(earth("americans"), size.id).not.toBe(earth("russians"));
     }
     // As first drawn (saves before version 13), Britain touched France on Earth.
-    const before = continentOf("earth", "small", true);
+    const before = continentOf("earth", "small", "joinedIslands");
     expect(before("english")).toBe(before("french"));
   });
 
@@ -101,13 +103,39 @@ describe("premade worlds", () => {
     const save = { ...makeSave(newGame(3, opts), opts, []), version: 12 as const };
     const { state, options } = loadSave(save, () => {});
     expect(options.joinedIslands).toBe(true);
-    const joined = decodeWorld(premadeWorld("earth"), "small", true);
+    const joined = decodeWorld(premadeWorld("earth"), "small", "joinedIslands");
     expect(state.map.tiles.map((t) => t.terrain)).toEqual(joined.tiles.map((t) => t.terrain));
     expect(state.map.tiles.map((t) => t.terrain)).not.toEqual(newGame(3, opts).map.tiles.map((t) => t.terrain));
-    expect(startOf(state, 0)).toEqual([...premadeStarts(premadeWorld("earth"), "small", true).english!]);
+    expect(startOf(state, 0)).toEqual([...premadeStarts(premadeWorld("earth"), "small", "joinedIslands").english!]);
     // A generated world never had islands joined: nothing changes for it.
     const random = { ...makeSave(newGame(3, { opponents: 2 }), { opponents: 2 }, []), version: 12 as const };
     expect(loadSave(random, () => {}).options.joinedIslands).toBeUndefined();
+  });
+
+  it("load saves from before version 73 on the land they were played on, a generated world as it was", () => {
+    for (const size of WORLD_SIZES) {
+      const opts = { world: "earth", historical: true, civ: "japanese", opponents: 3, size: size.id };
+      const save = { ...makeSave(newGame(3, opts), opts, []), version: 72 as const };
+      const { state, options } = loadSave(save, () => {});
+      expect(options.oldLands, size.id).toBe(true);
+      const old = decodeWorld(premadeWorld("earth"), size.id, "oldLands");
+      expect(state.map.tiles.map((t) => t.terrain), size.id).toEqual(old.tiles.map((t) => t.terrain));
+      expect(state.map.tiles.map((t) => t.terrain), size.id).not.toEqual(newGame(3, opts).map.tiles.map((t) => t.terrain));
+      expect(startOf(state, 0), size.id).toEqual([...premadeStarts(premadeWorld("earth"), size.id, "oldLands").japanese!]);
+    }
+    const random = { ...makeSave(newGame(3, { opponents: 2 }), { opponents: 2 }, []), version: 72 as const };
+    expect(loadSave(random, () => {}).options.oldLands).toBeUndefined();
+  });
+
+  it("draw starts anywhere on a premade world only on land worth settling, as old saves did not", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const opts = { world: "middle-east", civ: "romans", opponents: 6, cityStates: false };
+      const state = newGame(seed, opts);
+      for (const p of state.players) {
+        const u = state.units.find((u) => u.owner === p.id && u.type === "settlers");
+        if (u) expect(siteScore(state, u.x, u.y) ?? 0, `seed ${seed} ${p.civ}`).toBeGreaterThanOrEqual(95);
+      }
+    }
   });
 
   it("play at the size asked for, every player seeing that map", () => {

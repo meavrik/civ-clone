@@ -1,7 +1,7 @@
-import { MAP_WIDTH, NEIGHBOURS, Terrain, TERRAIN_CHARS, WORLD_SIZES, worldSize, type PlaceTable, type WorldSize } from "@civ/core";
+import { CITY_RADIUS, MAP_WIDTH, NEIGHBOURS, SITE_CENTRES, Terrain, TERRAIN_CHARS, TERRAIN_RULES, WORLD_SIZES, worldSize, type PlaceTable, type WorldSize } from "@civ/core";
 import type { Image } from "@civ/sprites-tool";
 import { HAND_ZONES, latitudeMix, MIXES, patchNoise, pick, regionZone, ZONE_RANK, type Zone } from "./climate.js";
-import { dataLon, fromGrid, project, type Frame } from "./frames.js";
+import { dataLon, fromGrid, project, stretched, type Enlargement, type Frame } from "./frames.js";
 import { bboxOf, prop, ScanFill, supercover, type Polyline, type Pt, type Shape } from "./geo.js";
 import { buildPlaces } from "./places.js";
 
@@ -64,21 +64,58 @@ function coverage(rings: readonly (readonly Pt[])[], bbox: readonly number[], la
 
 const WORLD_BBOX = [-180, -90, 180, 90];
 
+const insideBox = ({ box }: Enlargement, [a, b, c, d]: readonly number[]) => a! >= box[0] && b! >= box[1] && c! <= box[2] && d! <= box[3];
+
+/** The frame's homelands and the data with its islands drawn bigger (`Frame.enlarge`). */
+export function enlarged(frame: Frame, data: GeoData): { frame: Frame; data: GeoData } {
+  const all = frame.enlarge ?? [];
+  if (!all.length) return { frame, data };
+  const shape = (s: Shape): Shape => {
+    const e = all.find((e) => insideBox(e, s.bbox));
+    if (!e) return s;
+    const rings = s.rings.map((ring) => ring.map((p) => stretched(e, p)));
+    const bbox = bboxOf(rings);
+    if (bbox[0] < -180 || bbox[2] > 180) throw new Error(`${frame.id}: an enlarged island crosses the 180th meridian`);
+    return { ...s, rings, bbox };
+  };
+  const line = (l: Polyline): Polyline => {
+    const e = all.find((e) => l.points.every(([x, y]) => insideBox(e, [x, y, x, y])));
+    return e ? { ...l, points: l.points.map((p) => stretched(e, p)) } : l;
+  };
+  const home = (p: Pt): Pt => {
+    const e = all.find((e) => insideBox(e, [p[0], p[1], p[0], p[1]]));
+    return e ? stretched(e, p) : p;
+  };
+  return {
+    frame: {
+      ...frame,
+      homes: Object.fromEntries(Object.entries(frame.homes).map(([civ, p]) => [civ, home(p)])),
+      enlarge: all.map((e) => {
+        const [a, b] = stretched(e, [e.box[0], e.box[1]]);
+        const [c, d] = stretched(e, [e.box[2], e.box[3]]);
+        return { ...e, box: [a, b, c, d] };
+      }),
+    },
+    data: { land: data.land.map(shape), lakes: data.lakes.map(shape), regions: data.regions.map(shape), rivers: data.rivers.map(line) },
+  };
+}
+
 function wrapDist(frame: Frame, W: number, a: readonly [number, number], b: readonly [number, number]): number {
   const dx = Math.abs(a[0] - b[0]);
   return Math.max(frame.global || frame.seam ? Math.min(dx, W - dx) : dx, Math.abs(a[1] - b[1]));
 }
 
-export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"): BuiltWorld {
+export function buildWorld(base: Frame, raw: GeoData, size: WorldSize = "small"): BuiltWorld {
   const { width: W, height: H } = worldSize(size);
-  const frame = scaleFrame(base, size);
+  const { frame: bigger, data } = enlarged(base, raw);
+  const frame = scaleFrame(bigger, size);
   const { lats, lons } = sampleGrid(frame, W, H);
   const report: string[] = [];
   const idx = (x: number, y: number) => y * W + (((x % W) + W) % W);
 
   // ---- land and water ------------------------------------------------------
   // Each square belongs to the landmass covering most of it (see `landmasses`); `owner` is -1 at sea.
-  const group = landmasses(data.land);
+  const group = landmasses(data.land, frame.enlarge);
   const masses = Math.max(0, ...group) + 1;
   const foot = Array.from({ length: masses }, () => ({ squares: [] as number[], cov: [] as number[], area: 0 }));
   const landCov = new Float32Array(W * H);
@@ -109,6 +146,12 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
   const lakeCov = coverage(lakeShapes.flatMap((s) => s.rings), WORLD_BBOX, lats, lons, W, H);
   const land = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) land[i] = landCov[i]! - lakeCov[i]! >= 0.5 ? 1 : 0;
+
+  // An enlarged island fills the squares it only partly covers.
+  byMass.forEach((pieces, m) => {
+    const e = frame.enlarge?.find((e) => pieces.every((p) => insideBox(e, p.bbox)));
+    if (e) foot[m]!.squares.forEach((i, k) => { if (foot[m]!.cov[k]! >= e.landFrom) { land[i] = 1; owner[i] = m; } });
+  });
 
   // Islands smaller than a square still get one if they cover a fair part of it.
   let rescued = 0;
@@ -255,27 +298,17 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
 
   // ---- homelands ----------------------------------------------------------------------
   const starts: Record<string, [number, number]> = {};
-  const good = (t: Terrain, r: boolean) =>
-    t === Terrain.Grassland || t === Terrain.Plains || t === Terrain.Hills || (r && t !== Terrain.Mountains && t !== Terrain.Arctic && t !== Terrain.Ocean);
+  const grid: LandGrid = { terrain, river, W, H };
+  const latOf = (y: number) => fromGrid(frame.lat, y + 0.5);
+  let tilled = 0;
   for (const [civ, home] of Object.entries(frame.homes)) {
     const [hx, hy] = project(frame, home);
-    let best: [number, number] | null = null;
-    let bestScore = Infinity;
-    for (let dy = -3; dy <= 3; dy++)
-      for (let dx = -3; dx <= 3; dx++) {
-        const x = Math.floor(hx) + dx;
-        const y = Math.floor(hy) + dy;
-        if (y < 0 || y >= H || (!frame.global && (x < 0 || x >= W))) continue;
-        const i = idx(x, y);
-        if (!good(terrain[i]!, river[i] === 1)) continue;
-        const ex = x + 0.5 - hx;
-        const ey = y + 0.5 - hy;
-        const score = ex * ex + ey * ey - (river[i] ? 0.6 : 0) + (terrain[i] === Terrain.Hills ? 0.3 : 0);
-        if (score < bestScore) { bestScore = score; best = [((x % W) + W) % W, y]; }
-      }
+    const best = homelandSite(grid, owner, hx, hy, frame.global);
     if (!best) throw new Error(`${frame.id}: no land near the ${civ} homeland`);
+    tilled += tillHomeland(grid, noise, latOf, best[0], best[1]);
     starts[civ] = best;
   }
+  report.push(`homeland squares tilled: ${tilled}`);
   const names = Object.keys(starts);
   let closest = Infinity;
   let pair = "";
@@ -284,7 +317,7 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
       const d = wrapDist(frame, W, starts[names[a]!]!, starts[names[b]!]!);
       if (d < closest) { closest = d; pair = `${names[a]}/${names[b]}`; }
     }
-  report.push(`homelands: ${names.map((n) => `${n} ${starts[n]!.join(",")}`).join("  ")}`);
+  report.push(`homelands: ${names.map((n) => `${n} ${starts[n]!.join(",")} (${Math.round(siteWorth(grid, starts[n]![0], starts[n]![1]).score)})`).join("  ")}`);
   report.push(`closest homelands: ${pair} ${closest} squares`);
   const landTiles = terrain.filter((t) => t !== Terrain.Ocean).length;
   report.push(`land: ${Math.round((landTiles / (W * H)) * 100)}%`);
@@ -308,12 +341,152 @@ export function buildWorld(base: Frame, data: GeoData, size: WorldSize = "small"
   return { rows, landmass: owner, starts, places: places.table, preview: preview(terrain, river, starts, W, H), report };
 }
 
+export interface LandGrid {
+  terrain: Terrain[];
+  river: Uint8Array;
+  W: number;
+  H: number;
+}
+
+/**
+ * What a homeland must come to (asked for 2026-11-06: starts "more suitable for settlers"), by `siteWorth`: about what
+ * good land scored as drawn, enough food to grow on and enough grassland, which is what lets a young city feed a citizen.
+ */
+export const HOMELAND = { score: 110, food: 18, grass: 5 };
+/** How far, in squares, a homeland may leave its true spot. */
+const HOME_REACH = 3;
+/** The squares of land a city's radius wants (`siteScore`: fewer is unfit). */
+const CITY_LAND = 7;
+
+/** What a square gives a city, as `siteScore` reckons it. */
+const squareWorth = (t: Terrain, river: boolean) => {
+  const r = TERRAIN_RULES[t];
+  return r.food * 3 + r.shields * 2 + ((r.originalTrade ?? r.trade) + (river ? 1 : 0)) * 1.5;
+};
+
+/** A site as `siteScore` reckons it with nothing scattered yet, and how much of its radius feeds a city. */
+export function siteWorth({ terrain, river, W, H }: LandGrid, x: number, y: number): { score: number; food: number; grass: number; land: number } {
+  let score = 0;
+  let food = 0;
+  let grass = 0;
+  let land = 0;
+  let sea = false;
+  for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
+    const [dx, dy] = CITY_RADIUS[slot]!;
+    if (y + dy < 0 || y + dy >= H) continue;
+    const i = (y + dy) * W + (((x + dx) % W) + W) % W;
+    const t = terrain[i]!;
+    score += squareWorth(t, river[i] === 1);
+    food += TERRAIN_RULES[t].food;
+    if (t === Terrain.Grassland) grass++;
+    if (t === Terrain.Ocean) sea = true;
+    else land++;
+  }
+  const i = y * W + x;
+  if (river[i]) score += 5;
+  if (terrain[i] === Terrain.Hills) score += 3;
+  if (sea) score += 2;
+  return { score, food, grass, land };
+}
+
+/** A city may stand here (`SITE_CENTRES`). */
+const fitCentre = (t: Terrain, river: boolean) => SITE_CENTRES.has(t) && (river || (t !== Terrain.Desert && t !== Terrain.Forest));
+
+/**
+ * The square for a homeland at (hx, hy): the nearest to the true spot on the land there (never Cyprus for Canaan) with
+ * room for a city, a square by a river as if a little nearer and one on hills a little further. Tilling lifts any site with
+ * room, so a people leaves home only for a shore with none, and two neighbours never meet on the best land between them.
+ * Null when no land lies within `HOME_REACH`.
+ */
+export function homelandSite(grid: LandGrid, owner: Int32Array, hx: number, hy: number, wraps: boolean): [number, number] | null {
+  const { terrain, river, W, H } = grid;
+  const near: { x: number; y: number; i: number; d: number }[] = [];
+  for (let dy = -HOME_REACH; dy <= HOME_REACH; dy++)
+    for (let dx = -HOME_REACH; dx <= HOME_REACH; dx++) {
+      const x = Math.floor(hx) + dx;
+      const y = Math.floor(hy) + dy;
+      if (y < 0 || y >= H || (!wraps && (x < 0 || x >= W))) continue;
+      const wx = ((x % W) + W) % W;
+      const t = terrain[y * W + wx]!;
+      if (t === Terrain.Ocean || t === Terrain.Arctic || t === Terrain.Mountains) continue;
+      near.push({ x: wx, y, i: y * W + wx, d: Math.hypot(x + 0.5 - hx, y + 0.5 - hy) });
+    }
+  if (!near.length) return null;
+  const own = owner[near.reduce((a, b) => (b.d < a.d ? b : a)).i];
+  let best: [number, number] | null = null;
+  let bestCost = Infinity;
+  for (const { x, y, i, d } of near) {
+    if (owner[i] !== own) continue;
+    const cramped = siteWorth(grid, x, y).land < CITY_LAND ? 100 : 0;
+    const cost = cramped + d * d - (river[i] ? 0.6 : 0) + (terrain[i] === Terrain.Hills ? 0.3 : 0);
+    if (cost < bestCost) { bestCost = cost; best = [x, y]; }
+  }
+  return best;
+}
+
+/** What a homeland's ground is cleared to, a step at a time, or undefined where it stays. */
+function tilledTo(t: Terrain, lat: number): Terrain | undefined {
+  switch (t) {
+    case Terrain.Desert: return Terrain.Plains;
+    case Terrain.Mountains: return Terrain.Hills;
+    case Terrain.Tundra: return Math.abs(lat) >= 50 ? Terrain.Forest : Terrain.Plains;
+    case Terrain.Swamp: case Terrain.Jungle: case Terrain.Forest: case Terrain.Plains: case Terrain.Hills: return Terrain.Grassland;
+    default: return undefined;
+  }
+}
+
+/** Ground that is no use until cleared. Plains and forest go only for the food and grass a city lacks, and hills, which `siteScore` makes little of but mined are good land, only for the grass. */
+const POOR_GROUND: ReadonlySet<Terrain> = new Set([Terrain.Desert, Terrain.Mountains, Terrain.Tundra, Terrain.Swamp, Terrain.Jungle]);
+
+/**
+ * Clears a homeland's ground until the site comes to `HOMELAND` or nothing is left to clear: first what a city cannot stand
+ * on, then square by square what helps most, the nearest first among equals. Only poor ground goes for the score, so good
+ * hilly land (Iberia) keeps its look instead of a disc of farmland the shape of a city's radius. Returns the squares cleared.
+ */
+export function tillHomeland(grid: LandGrid, noise: Float32Array, latOf: (y: number) => number, x: number, y: number): number {
+  const { terrain, river, W, H } = grid;
+  let cleared = 0;
+  const centre = y * W + x;
+  while (!fitCentre(terrain[centre]!, river[centre] === 1)) {
+    terrain[centre] = tilledTo(terrain[centre]!, latOf(y)) ?? Terrain.Grassland;
+    cleared++;
+  }
+  for (;;) {
+    const site = siteWorth(grid, x, y);
+    const needFood = site.food < HOMELAND.food;
+    const needGrass = site.grass < HOMELAND.grass;
+    if (site.score >= HOMELAND.score && !needFood && !needGrass) return cleared;
+    let best = -1;
+    let bestTo = Terrain.Ocean;
+    let bestGain = 0;
+    for (let slot = 1; slot < CITY_RADIUS.length; slot++) {
+      const [dx, dy] = CITY_RADIUS[slot]!;
+      if (y + dy < 0 || y + dy >= H) continue;
+      const i = (y + dy) * W + (((x + dx) % W) + W) % W;
+      const t = terrain[i]!;
+      const to = tilledTo(t, latOf(y + dy));
+      if (to === undefined || !(POOR_GROUND.has(t) || needGrass || (needFood && t !== Terrain.Hills))) continue;
+      const on = river[i] === 1;
+      let gain = squareWorth(to, on) - squareWorth(t, on);
+      if (needFood) gain += 6 * (TERRAIN_RULES[to].food - TERRAIN_RULES[t].food);
+      if (needGrass && to === Terrain.Grassland) gain += 6;
+      if (gain <= 0) continue;
+      gain += noise[i]! * 0.4 - Math.hypot(dx, dy) * 0.3;
+      if (gain > bestGain) { bestGain = gain; best = i; bestTo = to; }
+    }
+    if (best < 0) return cleared;
+    terrain[best] = bestTo;
+    cleared++;
+  }
+}
+
 /**
  * Natural Earth's land polygons grouped into landmasses: every polygon is a landmass of
  * its own (Afro-Eurasia is one, Britain another), except where the data cuts one at the
- * 180th meridian (Chukotka, Wrangel, Fiji): pieces meeting there at the same latitude join.
+ * 180th meridian (Chukotka, Wrangel, Fiji): pieces meeting there at the same latitude join. An enlarged group of islands
+ * is one landmass, its straits narrower than a square anyway (Japan's island, asked for 2026-11-06).
  */
-export function landmasses(land: readonly Shape[]): number[] {
+export function landmasses(land: readonly Shape[], enlarged: readonly Enlargement[] = []): number[] {
   const parent = land.map((_, i) => i);
   const find = (i: number): number => {
     while (parent[i] !== i) i = parent[i] = parent[parent[i]!]!;
@@ -327,6 +500,10 @@ export function landmasses(land: readonly Shape[]): number[] {
       if (e !== undefined) parent[find(k)] = find(e);
     }
   });
+  for (const e of enlarged) {
+    const inside = land.flatMap((s, k) => (insideBox(e, s.bbox) ? [k] : []));
+    for (const k of inside) parent[find(k)] = find(inside[0]!);
+  }
   const ids = new Map<number, number>();
   return land.map((_, i) => {
     const root = find(i);
@@ -531,19 +708,19 @@ export function joinedDiff(now: BuiltWorld, old: FrozenGrid): { squares: [number
 }
 
 /**
- * The generated TypeScript module for a world, built at every size. With `joined` (the grids
- * saves before version 13 played on, `legacy/joined-islands.json`), each size also lists the
- * squares and homelands that differed then, before landmasses were kept apart.
+ * The generated TypeScript module for a world, built at every size. With `joined` (the grids saves before
+ * version 13 played on, `legacy/joined-islands.json`) and `old` (those saves before version 73 played on,
+ * `legacy/old-lands.json`), each size also lists the squares and homelands that differed then.
  */
-export function worldModule(frame: Frame, worlds: Readonly<Record<WorldSize, BuiltWorld>>, joined?: Readonly<Record<WorldSize, FrozenGrid>>): string {
-  const legacy = (size: WorldSize): string[] => {
-    const diff = joined?.[size] && joinedDiff(worlds[size], joined[size]);
+export function worldModule(frame: Frame, worlds: Readonly<Record<WorldSize, BuiltWorld>>, joined?: Readonly<Record<WorldSize, FrozenGrid>>, old?: Readonly<Record<WorldSize, FrozenGrid>>): string {
+  const legacy = (size: WorldSize, key: "joinedIslands" | "oldLands", frozen?: Readonly<Record<WorldSize, FrozenGrid>>): string[] => {
+    const diff = frozen?.[size] && joinedDiff(worlds[size], frozen[size]);
     if (!diff) return [];
     const squares = diff.squares.map(([x, y, ch]) => `[${x}, ${y}, "${ch}"]`);
     const lines: string[] = [];
     for (let k = 0; k < squares.length; k += 8) lines.push(`          ${squares.slice(k, k + 8).join(", ")},`);
     return [
-      `      joinedIslands: {`,
+      `      ${key}: {`,
       `        squares: [`,
       ...lines,
       `        ],`,
@@ -564,7 +741,8 @@ export function worldModule(frame: Frame, worlds: Readonly<Record<WorldSize, Bui
       ...Object.entries(world.starts).map(([civ, [x, y]]) => `        ${civ}: [${x}, ${y}],`),
       `      },`,
       ...placeLines(world.places),
-      ...legacy(size),
+      ...legacy(size, "joinedIslands", joined),
+      ...legacy(size, "oldLands", old),
       `    },`,
     ];
   };

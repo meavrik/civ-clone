@@ -24,6 +24,39 @@ The world: engine overview, map sizes, premade and generated worlds, starts, wha
   `joinedIslands`: the old grids, kept as per-size diffs (`PremadeGrid.joinedIslands`) that the tool
   derives from the frozen `tools/maps/legacy/joined-islands.json` (never rebuild that file). Setup asks the size after a premade world and first in
   "Customize world"; "Start a new game" plays the original's size; `?size=large` in the web app.
+  Coasts and homelands redrawn (asked for 2026-11-06: "saudi arabia should not be contected by land to africa and asia",
+  "conect south america to the north", "make japan island bigger", starts "more suitable for settlers - the hebrew land
+  should not be all desert"; save version 73). A square of Earth is two or three degrees across, so narrow seas closed and
+  thin land broke: `Frame.water` lines, connected side to side since a unit steps across a corner, now run down the Red Sea
+  through Bab el Mandeb, up the Gulf past Hormuz and through Gibraltar, on each world that shows them (Europe's Gibraltar and
+  the Middle East's Bab el Mandeb were shut too), and `Frame.land` down Central America, so the Americas are one continent at
+  every size. Arabia still joins Asia in the north and Sinai still joins Africa to Asia, as in life, and the Bosporus stays
+  shut, as Greeks and Hittites share a land. Japan (`Frame.enlarge`, `Enlargement`) keeps its real shape, stretched east and
+  south about Kyushu (2.75 by 1.62, a column past 150 degrees spanning seven degrees): land, regions, rivers and the Kyoto
+  homeland alike, so names follow it (the Japanese start on Honshu). It stops short of the 180th meridian, where the
+  build throws, since the data's longitudes end there and land past it would be clipped without a word. An enlarged group of
+  islands is one landmass and a square is land from `landFrom` (0.14) of it, not half: a ribbon like Honshu covers half of very
+  few squares, and the straits between the four islands are narrower than a square. Japan was 6, 14 and 29 squares at
+  Small, Medium and Large with no fit site; it is 27, 51 and 91, the main island 22, 43 and 73, with 2, 3 and 6 fit sites.
+  Terrain: the desert zones outrank `green`, so the Natural Earth "ARABIAN PENINSULA" swallowed Canaan and Mesopotamia;
+  `fertile` hand zones, ranked over mountains and desert, give back the Levant, the Fertile Crescent, the Nile valley, Elam and
+  Fars, and the Valley of Mexico, wider than the green really runs as a small world's square is three degrees wide. The
+  Jordan is drawn on Earth. Homelands (`build.ts`): `homelandSite` keeps a people on the nearest square of its own land with
+  room for a city, 7 squares of land (`siteScore`: fewer is unfit), and tries nothing better, since a search for the best site
+  put Hebrews on the Egyptians' square in the delta and Aztecs in Guatemala; `tillHomeland` then clears ground up to `HOMELAND`
+  (score 110, 18 food, 5 grassland; `siteWorth` reckons as `siteScore` does, a test holds them together). Only poor ground goes
+  for the score: clearing hills for it stamped a disc of farmland the shape of a city's radius on Iberia, so hills go only for
+  the 5 grassland, plains and forest only for food and grass, and good hilly sites stay under 110 (the lowest, 88, is the
+  Vikings' Norway on Europe at Medium). Homelands' site scores, Small, Medium, Large, before and after: Earth's mean 97,
+  93, 92 to 118, 115, 113; Hebrews 108, 80, 82 to 125, 113, 110; Japanese unfit at all three to 125, 122, 119; Persians 72, 77,
+  59 to 110, 112, 106. What seats really began on, 40 seeds of 7 civs, nothing scattered: on unfit land 9, 9, 6% on Earth and
+  11, 16, 12% on Europe, now none; the worst 5% of Earth's sites 72, 77, 59 to 110, 101, 99, their food 10, 12, 10 to 22, 20, 22.
+  `homelandStart` is untouched, as it nudges at most 5% of seats. "Anywhere on the map" on a premade world draws only on land
+  with a `siteScore` of `START_WORTH` (95) or more (generated worlds keep their draws): the Middle East's worst 5% had been
+  60, 57, 54 with 8, 6, 5 food, a lone plains square in the Empty Quarter; they are 103, 95, 97 with 21, 18, 20.
+  Saves before version 73 load with `oldLands`: the old grids as per-size diffs (`PremadeGrid.oldLands`), derived like
+  `joinedIslands` from the frozen `tools/maps/legacy/old-lands.json` (never rebuild that file); a test checks both
+  give back their frozen grids square for square. `npm run headless -- --old-lands` plays them.
   Generated worlds: land from random-walk chunks, terrain from the climate (`climateWorld`): smooth
   heat and rain fields that wrap east-west, rain in latitude belts and on prevailing winds that dry out
   over land and mountains (rain shadows), ranked so biome shares stay steady; mountains on noise ridges
@@ -37,7 +70,7 @@ The world: engine overview, map sizes, premade and generated worlds, starts, wha
   How many civilizations (asked for 2026-11-05: "up to 10 civs ... each premade map would get the maximum civs it can
   have, custom maps would get maximum by map size"): `MAX_CIVS` (10) is one for each colour but the barbarians' red;
   `maxCivsOn(world, size)` is what the land holds, `WORLD_SIZES[].maxCivs` for a generated world (Small 8, Medium and
-  Large 10) and on a premade world 10 but for Earth at Small, 8, as it has less land than a generated Small (1,319
+  Large 10) and on a premade world 10 but for Earth at Small, 8, as it has less land than a generated Small (1,330
   squares against about 1,450, arctic left out); `setupMaxCivs` takes that and one per colour among the civs offered,
   so with homelands Europe seats 9 and the Middle East 8, and started anywhere those worlds seat 10. The menu stays 7
   by default, as in the original. Measured before choosing, 84 headless games to turn 400, 7 civilizations against 10
