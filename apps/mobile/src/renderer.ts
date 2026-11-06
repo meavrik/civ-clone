@@ -71,6 +71,7 @@ import {
   menuRowRect,
   menuTabAt,
   menuInfoAt,
+  menuMoreAt,
   menuTipAt,
   TOUCH_MENU,
   DESK_MENU,
@@ -566,6 +567,10 @@ export function createRetroRenderer(canvas: HTMLCanvasElement): Renderer {
     menuTipAt: (m, px, py) => {
       const sh = shapeOf(m);
       return !sh.style && menuTipAt(sh.menu, px - sh.dx, py, sh.screenW, menuSize());
+    },
+    menuMoreAt: (m, px, py) => {
+      const sh = shapeOf(m);
+      return sh.style ? null : menuMoreAt(sh.menu, px - sh.dx, py, sh.screenW, menuSize());
     },
     // The city screen's points, through the enlarged box when one is shown.
     citySlotAt: (px, py) => citySlotAt(...cityPoint(px, py)),

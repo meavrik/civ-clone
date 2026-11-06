@@ -136,6 +136,7 @@ import {
   researchStep,
   researchTarget,
   researchOutlook,
+  advanceTip,
   techPictures,
   DIFFICULTIES,
   LEADER_PORTRAITS,
@@ -419,7 +420,7 @@ type Screen =
   | { kind: "end"; card: EndCard }
   | { kind: "spaceship" }
   | { kind: "input"; input: TextInputState; onSubmit: (text: string) => void; under: Screen }
-  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number; sub?: boolean; infoPinned?: number | undefined; pointTo?: { x: number; y: number }; onInfo?: (i: number) => void }
+  | { kind: "menu"; menu: MenuState; onPick: (i: number) => void; under: Screen; onCancel?: () => void; bar?: number; sub?: boolean; infoPinned?: number | undefined; pointTo?: { x: number; y: number }; onMore?: (i: number) => void }
   | { kind: "advanceInfo"; view: AdvanceInfoView; back: Screen }
   | { kind: "report"; page: ReportPage }
   | { kind: "worldMap" };
@@ -2085,8 +2086,9 @@ function askResearch(then: () => void = () => {}): void {
 /**
  * The research list (asked for 2026-11-03: "a basic simple tech list - like the original civ1 game", after two
  * redesigns of the panel were turned down): a menu of the advances that can be researched now, in the tree's order,
- * each with small pictures of what it unlocks after its name (`MenuState.trail`, `techPictures`) and an info mark
- * that opens the window of more about it (`openAdvanceInfo`; I too). A pick researches it; while research is `due`
+ * each with small pictures of what it unlocks after its name (`MenuState.trail`, `techPictures`), an arrow mark whose
+ * tip tells what it unlocks and leads to (`advanceTip`, on hover or click; N too) and an info mark that opens the
+ * window of more about it (`openAdvanceInfo`; I too). A pick researches it; while research is `due`
  * it cannot be left without one (Esc or a click off it leave it standing). `then` runs once it is done. The research
  * panel stays for the New Technology window's View Tech Tree.
  */
@@ -2102,7 +2104,8 @@ function openResearchList(due: boolean, then: () => void = () => {}, under: Scre
     selected: Math.max(0, ids.indexOf(p.researching ?? "")),
     right: ids.map((id) => (id === p.researching ? "under way" : "")),
     trail: ids.map((id) => techPictures(id, p.color)),
-    info: ids.map((id) => ({ title: advance(id).name, lines: [] })),
+    info: ids.map((id) => advanceTip(state, id)),
+    more: true,
   };
   const list: Extract<Screen, { kind: "menu" }> = {
     kind: "menu",
@@ -2114,7 +2117,7 @@ function openResearchList(due: boolean, then: () => void = () => {}, under: Scre
       then();
     },
     onCancel: due ? () => { screenState = list; } : then,
-    onInfo: (i) => openAdvanceInfo(ids[i]!, list),
+    onMore: (i) => openAdvanceInfo(ids[i]!, list),
   };
   screenState = list;
 }
@@ -3769,12 +3772,13 @@ function menuKey(e: KeyboardEvent, sc: Extract<Screen, { kind: "menu" }>): void 
     else if (e.code === "Escape") { screenState = sc.under; sc.onCancel?.(); }
     return;
   }
-  // Rows whose info marks open a window of their own (the research list's): I opens the selected row's.
-  if (sc.onInfo && e.code === "KeyI") { sc.onInfo(m.selected); return; }
-  // Rows that tell what they are (the build menu's): I shows the selected row's tip and keeps it with the selection,
-  // again hides it; Esc hides a tip before it closes the window.
-  if (m.info && (e.code === "KeyI" || (e.code === "Escape" && m.infoShown !== undefined))) {
-    sc.infoPinned = e.code === "KeyI" && m.infoShown === undefined ? m.selected : undefined;
+  // Rows with a window of more (the research list's): I opens the selected row's.
+  if (sc.onMore && e.code === "KeyI") { sc.onMore(m.selected); return; }
+  // Rows that tell what they are: I (N where I opens the window) shows the selected row's tip and keeps it with the
+  // selection, again hides it; Esc hides a tip before it closes the window.
+  const tipKey = sc.onMore ? "KeyN" : "KeyI";
+  if (m.info && (e.code === tipKey || (e.code === "Escape" && m.infoShown !== undefined))) {
+    sc.infoPinned = e.code === tipKey && m.infoShown === undefined ? m.selected : undefined;
     m.infoShown = sc.infoPinned;
     return;
   }
@@ -4061,8 +4065,8 @@ canvas.addEventListener("mousemove", (e) => {
   // A menu's row or button under the pointer is lit, as the windows' buttons are (asked for 2026-11-01); a faded one never.
   if (sc.kind === "menu") {
     const [px, py] = toLogical(e);
-    // An info mark under the pointer shows its row's tip; off it, the tip a click (or I) kept, if any (none where marks open a window).
-    if (sc.menu.info && !sc.onInfo) {
+    // An info mark under the pointer shows its row's tip; off it, the tip a click (or I) kept, if any.
+    if (sc.menu.info) {
       // Over the tip itself it stays.
       if (renderer.menuTipAt?.(sc.menu, px, py)) return;
       const info = renderer.menuInfoAt?.(sc.menu, px, py) ?? null;
@@ -4126,11 +4130,11 @@ function mouseDown(e: MouseEvent): void {
         if (tab !== (sc.menu.tab ?? 0)) { sound.play("click"); showTab(sc.menu, tab); delete sc.infoPinned; }
         return;
       }
-      // An info mark that opens a window (the research list's) opens it.
-      const opens = sc.onInfo ? renderer.menuInfoAt?.(sc.menu, px, py) ?? null : null;
-      if (opens !== null) { sc.onInfo!(opens); return; }
       // An info mark keeps its row's tip up (a tap on the phone shows it), a second click on it or on the tip lets it go.
       if (renderer.menuTipAt?.(sc.menu, px, py)) { delete sc.infoPinned; delete sc.menu.infoShown; return; }
+      // The mark of more (the research list's) opens its window.
+      const opens = sc.onMore ? renderer.menuMoreAt?.(sc.menu, px, py) ?? null : null;
+      if (opens !== null) { sc.onMore!(opens); return; }
       const info = sc.menu.info ? renderer.menuInfoAt?.(sc.menu, px, py) ?? null : null;
       if (info !== null) {
         sc.infoPinned = sc.infoPinned === info ? undefined : info;

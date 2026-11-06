@@ -385,6 +385,11 @@ export interface MenuState {
   info?: (MenuInfo | null)[];
   infoShown?: number | undefined;
   /**
+   * Rows also end in the info mark that opens a window of more (the research list, `Renderer.menuMoreAt`), past the mark
+   * of their tip, which is then an arrow: the tip tells what the row leads on to (`advanceTip`). Modern ignores it.
+   */
+  more?: boolean;
+  /**
    * Small pictures after each row's words, in a column of their own (null: none): what an advance brings in the
    * research list (asked for 2026-11-03: "near each tech can add in small icons the improvements/buildings/units it
    * unlocks - just icons small"). Rows grow to hold them; never buttons. Modern ignores them.
@@ -607,6 +612,8 @@ export interface Renderer {
   menuInfoAt?(menu: MenuState, px: number, py: number): number | null;
   /** Whether a point lies on the tip a menu shows (`MenuState.infoShown`). */
   menuTipAt?(menu: MenuState, px: number, py: number): boolean;
+  /** The row of a menu whose mark of more (`MenuState.more`) lies under a point, or null. */
+  menuMoreAt?(menu: MenuState, px: number, py: number): number | null;
   /** Radius slot under a point on the city screen's resource map, or null. */
   citySlotAt(px: number, py: number): number | null;
   /** True when the point is on the city screen's exit bar. */

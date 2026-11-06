@@ -9,7 +9,7 @@ import { CITY_UNITS_BOX } from "./screens/city-layout.js";
 import { BAR_H } from "./screens/main-layout.js";
 import { drawSquareRing, drawWindowPoint, pointedPlace, sideRoom, type PointedPlace } from "./pointing.js";
 import { CARD_MAX_W, CARD_MIN_W, CARD_NARROW_W, cardLayout, cardNeed, drawSquareCard, type CardLayout } from "./square-card.js";
-import { drawInfoMark, drawMenuTip, INFO_MARK, menuTipRect } from "./menu-info.js";
+import { drawInfoMark, drawMenuTip, drawNextMark, INFO_MARK, menuTipRect } from "./menu-info.js";
 
 export { BAD, DIM, FADED, GOLD, GOOD, INK, NOTE, speckle, stipple } from "./stone.js";
 import { BAD, DIM, FADED, INK, NOTE, speckle, stipple } from "./stone.js";
@@ -284,6 +284,8 @@ const UNIT_ROW = UNIT_PIC + 2;
 const TRAIL_W = 14;
 const TRAIL_H = 12;
 const TRAIL_GAP = 8;
+/** Between the marks at a row's end (`MenuState.more`). */
+const MARK_GAP = 4;
 
 /** The part of the screen a window keeps clear of and leaves lit (`MenuState.keepClear`), or null. */
 function keptClear(m: MenuState): { x: number; y: number; w: number; h: number } | null {
@@ -369,8 +371,8 @@ function layoutAt(m: MenuState, screenW: number, size: MenuSize, clear: boolean,
   // The window's room ends at the screen's foot, or above what it keeps clear of, its shadow too.
   const keep = clear ? keptClear(m) : null;
   const floor = keep ? keep.y - 2 : SCREEN_H;
-  // Rows that tell what they are (`MenuState.info`) end in an info mark.
-  const mark = lists.some((l) => l.info) ? INFO_MARK * t + 4 : 0;
+  // Rows that tell what they are (`MenuState.info`) end in an info mark, those with more (`MenuState.more`) in two marks.
+  const mark = lists.some((l) => l.info) ? INFO_MARK * t + 4 + (m.more ? INFO_MARK * t + MARK_GAP : 0) : 0;
   const itemW = trailed
     ? pic + labelW + trailW + Math.max(0, ...lists.flatMap((l) => (l.right ?? []).map((r) => (r ? tw(r) + 12 : 0)))) + mark
     : Math.max(0, ...lists.flatMap((l) => l.items.map((i, k) => pic + tw(i) + (l.right?.[k] ? tw(l.right[k]!) + 12 : 0) + mark)));
@@ -656,7 +658,9 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
     m.trail?.[i]?.forEach((p, k) => drawSmallPicture(s, p, l.trailX + k * (TRAIL_W + 1), ry - 1 + Math.floor((row - TRAIL_H) / 2), TRAIL_W, TRAIL_H, off));
     // The info mark at the row's end, lit while its tip shows; the second column stands before it.
     const info = infoMarkRect(l, m, i);
-    if (info) drawInfoMark(s, info.x, info.y, t, m.infoShown === i);
+    if (info) (m.more ? drawNextMark : drawInfoMark)(s, info.x, info.y, t, m.infoShown === i);
+    const more = moreMarkRect(l, m, i);
+    if (more) drawInfoMark(s, more.x, more.y, t, false);
     const r = m.right?.[i];
     if (r) write((info ? info.x - 2 : x + 4 + rowW - 6) - (t === 2 ? textWidthLarge(r) : textWidth(r)), ty, r, off ? FADED : sel ? (danger ? shade("town", 7) : shade("azure", 7)) : danger ? BAD : DIM);
   });
@@ -664,7 +668,7 @@ function drawMenuNow(s: Surface, m: MenuState, square: ((s: Surface, x: number, 
   if (scrolls && top + rows < m.items.length) drawMoreArrow(s, l, m.clock);
   // The tip of the row whose info shows, over the window, pointing at its mark.
   const shown = m.infoShown !== undefined ? m.info?.[m.infoShown] : null;
-  const at = shown ? infoMarkRect(l, m, m.infoShown!) : null;
+  const at = shown ? tipMarkRect(l, m, m.infoShown!) : null;
   if (shown && at) {
     const tip = menuTipRect(shown, at, s.width);
     hideArtUnder(s, tip);
@@ -679,28 +683,51 @@ function infoMarkRect(l: MenuLayout, m: MenuState, i: number): { x: number; y: n
   if (l.buttons || !m.info?.[i] || i < l.top || i >= l.top + l.rows) return null;
   const n = INFO_MARK * l.size.text;
   const scrolls = l.rows < m.items.length;
-  const right = l.x + l.w - 4 - (scrolls ? l.size.scroll + 2 : 0);
+  const right = l.x + l.w - 4 - (scrolls ? l.size.scroll + 2 : 0) - (m.more ? n + MARK_GAP : 0);
   return { x: right - 3 - n, y: l.itemsY - 1 + (i - l.top) * l.row + Math.floor((l.row - n) / 2), w: n, h: n };
+}
+
+/** Where the mark of more of row `i` stands (`MenuState.more`): at the row's right end, past the info mark. */
+function moreMarkRect(l: MenuLayout, m: MenuState, i: number): { x: number; y: number; w: number; h: number } | null {
+  const r = m.more ? infoMarkRect(l, m, i) : null;
+  return r && { ...r, x: r.x + r.w + MARK_GAP };
+}
+
+/** What the tip of row `i` stands beside: its info mark and any mark of more, so that the tip never covers one to be clicked. */
+function tipMarkRect(l: MenuLayout, m: MenuState, i: number): { x: number; y: number; w: number; h: number } | null {
+  const at = infoMarkRect(l, m, i);
+  const more = moreMarkRect(l, m, i);
+  return at && more ? { ...at, w: more.x + more.w - at.x } : at;
 }
 
 /** Whether a screen point lies on the tip a menu shows (`MenuState.infoShown`). */
 export function menuTipAt(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): boolean {
   const shown = m.infoShown !== undefined ? m.info?.[m.infoShown] : null;
   const l = shown ? menuLayout(m, screenW, size) : null;
-  const at = l ? infoMarkRect(l, m, m.infoShown!) : null;
+  const at = l ? tipMarkRect(l, m, m.infoShown!) : null;
   if (!shown || !at) return false;
   const r = menuTipRect(shown, at, screenW);
   return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
 }
 
-/** The row of a menu whose info mark lies under a screen point (a pixel round it counting), or null. */
-export function menuInfoAt(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): number | null {
+/** The row of a menu whose mark, as `rect` places them, lies under a screen point (a pixel round it counting), or null. */
+function markAt(m: MenuState, px: number, py: number, screenW: number, size: MenuSize, rect: typeof infoMarkRect): number | null {
   const l = menuLayout(m, screenW, size);
   for (let i = l.top; i < Math.min(m.items.length, l.top + l.rows); i++) {
-    const r = infoMarkRect(l, m, i);
+    const r = rect(l, m, i);
     if (r && px >= r.x - 1 && px <= r.x + r.w && py >= r.y - 1 && py <= r.y + r.h) return i;
   }
   return null;
+}
+
+/** The row of a menu whose info mark lies under a screen point, or null. */
+export function menuInfoAt(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): number | null {
+  return markAt(m, px, py, screenW, size, infoMarkRect);
+}
+
+/** The row of a menu whose mark of more lies under a screen point (`MenuState.more`), or null. */
+export function menuMoreAt(m: MenuState, px: number, py: number, screenW = SCREEN_W, size = DESK_MENU): number | null {
+  return markAt(m, px, py, screenW, size, moreMarkRect);
 }
 
 /**

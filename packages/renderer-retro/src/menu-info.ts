@@ -8,7 +8,8 @@ import { INK, NOTE } from "./stone.js";
  * The build menu's info (asked for 2026-11-02: "on the build menu - add for each building/unit a info icon - when
  * clicked or hover show building/unit info"; `MenuState.info`): a small blue disc with a white i at a row's right end,
  * and the tip it opens beside it, a stone box as the status panel's tips are, the name over a rule and the lines under
- * it, its point reaching to the mark. The tip keeps the font's size on the phone, as the square's window does.
+ * it, its point reaching to the mark. The tip keeps the font's size on the phone, as the square's window does. The
+ * research list's tip hangs from a gold disc with a white arrow, what comes next (`MenuState.more`).
  */
 
 /** The mark's side in screen pixels at the font's size; twice it with words twice the font's (the phone's). */
@@ -31,15 +32,41 @@ const MARK = [
   "....oooooo....",
 ];
 
-/** The mark at screen (x, y), `t` times its size (a fine pixel of the drawing to each of the screen's at 1); lit while its tip shows. */
-export function drawInfoMark(s: Surface, x: number, y: number, t: 1 | 2, lit: boolean): void {
-  const inks: Record<string, number> = { o: shade("azure", 0), b: shade("azure", lit ? 6 : 4), w: C.WHITE! };
+const NEXT_MARK = [
+  "....oooooo....",
+  "..oobbbbbboo..",
+  ".obbbbbbbbbbo.",
+  ".obbbbwwbbbbo.",
+  "obbbbbbwwbbbbo",
+  "obbbbbbbwwbbbo",
+  "obwwwwwwwwwbbo",
+  "obwwwwwwwwwbbo",
+  "obbbbbbbwwbbbo",
+  "obbbbbbwwbbbbo",
+  ".obbbbwwbbbbo.",
+  ".obbbbbbbbbbo.",
+  "..oobbbbbboo..",
+  "....oooooo....",
+];
+
+/** A mark's drawing at screen (x, y), `t` times its size (a fine pixel of the drawing to each of the screen's at 1). */
+function drawMark(s: Surface, grid: string[], inks: Record<string, number>, x: number, y: number, t: 1 | 2): void {
   // The drawing is two fine pixels to a screen pixel at the font's size.
   const n = (t * s.k) / 2;
-  MARK.forEach((row, j) => [...row].forEach((ch, i) => {
+  grid.forEach((row, j) => [...row].forEach((ch, i) => {
     if (ch === ".") return;
     for (let b = 0; b < n; b++) for (let a = 0; a < n; a++) s.fset(x * s.k + i * n + a, y * s.k + j * n + b, inks[ch]!);
   }));
+}
+
+/** The blue mark; lit while its tip shows. */
+export function drawInfoMark(s: Surface, x: number, y: number, t: 1 | 2, lit: boolean): void {
+  drawMark(s, MARK, { o: shade("azure", 0), b: shade("azure", lit ? 6 : 4), w: C.WHITE! }, x, y, t);
+}
+
+/** The gold mark of what comes next; lit while its tip shows. */
+export function drawNextMark(s: Surface, x: number, y: number, t: 1 | 2, lit: boolean): void {
+  drawMark(s, NEXT_MARK, { o: shade("plains", 0), b: shade("plains", lit ? 5 : 3), w: C.WHITE! }, x, y, t);
 }
 
 /** The tip's widest line before it wraps, and its line's height. */

@@ -1,6 +1,7 @@
 import { advance, advancesFor, BUILDINGS, government, SPACE_PARTS, UNIT_TYPES, WONDERS, type GameState } from "@civ/core";
 import type { IconName } from "./icons.js";
 import type { MenuPicture } from "./index.js";
+import type { MenuInfo } from "./production-info.js";
 import { techDetails } from "./research.js";
 
 /**
@@ -55,6 +56,22 @@ export interface AdvanceInfo {
 
 const and = (names: string[]): string =>
   names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+/**
+ * The research list's tip (asked for 2026-11-06: "add to the next tech list an icon that on hover/click would show the
+ * next tech unlocks"; `MenuState.info`): what advance `id` brings, by name, then the advances it opens the way to that
+ * are still unknown, a line each with what else they wait for.
+ */
+export function advanceTip(state: GameState, id: string): MenuInfo {
+  const d = techDetails(state, id);
+  const next = d.opens.filter((o) => o.status !== "known");
+  const lines = [
+    ...d.rows.map((r) => `{${r.icon}}${r.label}: ${r.items.join(", ")}`),
+    ...(next.length ? ["Leads to:"] : []),
+    ...next.map((o) => `{bulb}${o.name}${o.also.length ? ` with ${and(o.also.map((a) => advance(a).name))}` : ""}`),
+  ];
+  return { title: d.name, lines: lines.length ? lines : ["Nothing further to unlock."] };
+}
 
 /** The window's words for advance `id`, for the current player. */
 export function advanceInfo(state: GameState, id: string): AdvanceInfo {

@@ -9,10 +9,16 @@ Research list and panel, opening window, end screen, New Technology window. Move
   after each name small pictures of what it unlocks (asked for: "just icons small"; `MenuState.trail`, renderer-api
   `techPictures`: the government's crown, wonders, buildings and spaceship parts, units; retro draws them 14x12 in a
   column past the longest name, rows 14 high, `drawSmallPicture` in widgets.ts) and an info mark at the row's end
-  (`MenuState.info`, the build menu's mark) that opens the window of more about the advance (the menu `Screen`'s
-  `onInfo`, no tip; I too). A click or Enter researches the row; while research is due the list cannot be left
-  without a pick (Esc or a click off it leave it standing). A list with pictures after its words or info marks is
-  never buttons (`menuButtons`). It opens wherever research is picked: after the New Technology windows when research
+  (`MenuState.more`, the build menu's mark, `Renderer.menuMoreAt`) that opens the window of more about the advance (the
+  menu `Screen`'s `onMore`; I too). Just before it a gold arrow (asked for 2026-11-06: "add to the next tech list an
+  icon that on hover/click would show the next tech unlocks"; `drawNextMark`) holds the build menu's tip
+  (`MenuState.info`, `advanceTip`): the gifts by name (the small pictures have none), then "Leads to:" and the
+  advances still unknown a line each, with what else each waits for ("Religion with Philosophy"); Fusion Power and Future
+  Tech., with neither, say so. Hover shows it, a click or tap keeps it, N for the selected row, Esc hides it. The tip
+  stands clear of both marks (`tipMarkRect`), or it would hide the i of its row and its neighbours'; so the arrow goes
+  first: reached from the arrow, the i is one step right, not under the tip. A click or Enter researches the row; while
+  research is due the list cannot be left without a pick (Esc or a click off it leave it standing). A list with
+  pictures after its words or info marks is never buttons (`menuButtons`). It opens wherever research is picked: after the New Technology windows when research
   is due, science advisor A, Advisors > Research, the status panel's research row. The advance window (renderer-api
   `advance-info.ts`, `advanceInfo`; retro `screens/advance-info.ts`, `drawAdvanceInfo`/`advanceInfoHit`,
   `Renderer.advanceInfo`; the web app's `advanceInfo` screen over the list, which it goes back to): the New
