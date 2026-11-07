@@ -8,6 +8,7 @@ import {
   cityImprovementAt,
   cityImprovementRows,
   cityBoxAt,
+  cityButtonIn,
   cityZoomPlace,
   cityZoomPoint,
   drawCityZoom,
@@ -185,8 +186,8 @@ export function narrowPoint(px: number, py: number): [number, number] {
 /**
  * The city screen's box shown enlarged over the rest (asked for 2026-10-27: "on mobile only - inside the
  * city view - when click on a box area - enlarge it to see it bigger"; `drawCityZoom`): a tap on a box
- * opens it, a tap off it (or on its close box) closes it, and taps on it reach its controls. It closes by
- * itself once the city screen is gone.
+ * opens it, but for a tap on its buttons, which act at once (`cityButtonIn`); a tap off it (or on its close
+ * box) closes it, and taps on it reach its controls. It closes by itself once the city screen is gone.
  */
 let cityZoom: { city: number; zoom: CityZoom } | null = null;
 let cityDrawn = false;
@@ -196,12 +197,12 @@ export function cityZoomed(): boolean {
   return cityZoom !== null;
 }
 
-/** On the city screen with no box enlarged, enlarge the box under logical point (px, py); false off the boxes. */
+/** On the city screen with no box enlarged, enlarge the box under logical point (px, py); false off the boxes and on a button. */
 export function zoomCityAt(px: number, py: number): boolean {
-  const view = shown.city;
-  if (!view || cityZoom || shown.wide) return false;
+  const { state, city: view } = shown;
+  if (!state || !view || cityZoom || shown.wide) return false;
   const box = cityBoxAt(px - inset(), py);
-  if (!box) return false;
+  if (!box || cityButtonIn(state, view, px - inset(), py)) return false;
   cityZoom = { city: view.city, zoom: cityZoomPlace(box, screenW()) };
   return true;
 }

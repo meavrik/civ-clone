@@ -202,6 +202,12 @@ Web app, phone app, headless harness, maps tool. Moved word for word from CLAUDE
   (`cityAnswersAt`: the game leaves the city on a click on nothing), closes it on a tap off it, and scrolls an
   enlarged list that much further a line (`cityZoomScale`). Windows opened over it darken it in turn and leave
   it standing; it goes with the city screen. The title row (close box, View, Happy, citizens) answers at once.
+  So do a box's buttons, as on the web, with no enlarging first (asked for 2026-11-07: "when click on a "change"
+  button or any other specific button, no need to enlarge the panel"; `cityButtonIn`, asked by `zoomCityAt`): Change,
+  Buy, the focus toggles, a line's Stop or Use, the list's bar. Everything else in a box enlarges it, a map square, a
+  unit and a line's words too: they are not buttons, and the map box is nearly all squares, so it could never enlarge
+  if they acted. A menu opened from a button at the normal size stands on the 320x200 screen, not the wide one
+  (`shapeOf`'s `dx`); the build menu fits there at the large size, longest wonder names and all.
   `touch.ts` turns fingers (`gestures.ts`) into the mouse the game knows: tap = mousedown 0, hold 450 ms
   = mousedown 2, drag = pan or the research list's wheel; mouse pointers are left to the browser. On the map
   (since the game's mouse moves units with the right button, 2026-10-27) a tap with a unit in play on a square

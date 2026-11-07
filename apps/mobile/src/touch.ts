@@ -21,7 +21,8 @@ import { syncText } from "./text.js";
  * no Orders on a phone), a tap on a setup card's Choose button picks it, a touch on a rates bar sets
  * that rate, a tap on a spaceship ready to go asks to launch it, and a press held on a city screen
  * renames the city. On the city screen a tap on a box enlarges it (asked for 2026-10-27), and the
- * box's controls answer there; a tap off it closes it. A real mouse is left to the browser.
+ * box's controls answer there; a tap off it closes it. A tap on a box's buttons acts at once, as on the
+ * web, and does not enlarge it (asked for 2026-11-07). A real mouse is left to the browser.
  */
 const fingers = new Recognizer();
 const ring = document.getElementById("ring")!;
@@ -94,7 +95,8 @@ function ordersAt(x: number, y: number, held = false): boolean {
 /**
  * A tap on the city screen, where a box enlarges (`cityZoomed`): with none, a tap on a box opens it; with
  * one, a tap off it (its close box too) closes it and a tap on it goes to the game only where something
- * answers (a click on nothing would leave the city). False: the game takes the tap as ever (the title row).
+ * answers (a click on nothing would leave the city). False: the game takes the tap as ever (the title
+ * row, a box's buttons).
  */
 function cityTap(x: number, y: number): boolean {
   const [px, py] = logicalAt(x, y);

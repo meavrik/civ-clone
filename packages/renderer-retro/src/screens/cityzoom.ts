@@ -1,8 +1,9 @@
-import { moveArt } from "@civ/renderer-api";
+import type { GameState } from "@civ/core";
+import { moveArt, type CityScreenView } from "@civ/renderer-api";
 import { C, DIMMED } from "../palette.js";
 import { SCREEN_H, type Surface } from "../surface.js";
 import { drawCloseBox } from "../widgets.js";
-import { CITY_BOXES, type CityBox } from "./city.js";
+import { CITY_BOXES, cityButtonAt, cityFocusAt, cityImprovementAt, type CityBox } from "./city.js";
 
 /**
  * A box of the city screen blown up over the rest of it, on the phone only (asked for 2026-10-27: "on
@@ -25,6 +26,17 @@ export interface CityZoom {
 /** The box under a point of the 320x200 city screen, or null (its title strip and citizens, the gaps). */
 export function cityBoxAt(px: number, py: number): CityBox | null {
   return CITY_BOXES.find((b) => px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h) ?? null;
+}
+
+/**
+ * A button under a point of the 320x200 city screen (asked for 2026-11-07: "when click on a "change" button or any other
+ * specific button, no need to enlarge the panel. just do the action needed, like in web"): Change, Buy, a focus toggle,
+ * a line's Stop or Use, the list's bar. These answer a tap at once; the rest of a box (its squares, units and lines,
+ * what the enlarging is for) enlarges it first. A map box of squares could otherwise never be enlarged.
+ */
+export function cityButtonIn(state: GameState, view: CityScreenView, px: number, py: number): boolean {
+  const line = cityImprovementAt(state, view, px, py);
+  return cityButtonAt(px, py) !== null || cityFocusAt(px, py) !== null || line?.kind === "scroll" || line?.toggle === true;
 }
 
 /** Where `box` stands enlarged on a screen `screenW` wide: whole times its size, with room all round, in the middle. */

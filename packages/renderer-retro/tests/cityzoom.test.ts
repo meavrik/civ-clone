@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyCommand, autoAssignWorkers, newGame } from "@civ/core";
-import { CITY_BOXES, cityBoxAt, cityButtonAt, cityImprovementAt, cityZoomPlace, cityZoomPoint, drawCityScreen, drawCityZoom, SCREEN_W, Surface } from "../src/index.js";
+import { CITY_BOXES, cityBoxAt, cityButtonAt, cityButtonIn, cityFocusAt, cityImprovementAt, citySlotAt, cityZoomPlace, cityZoomPoint, drawCityScreen, drawCityZoom, SCREEN_W, Surface } from "../src/index.js";
 import { encodePng } from "./png.js";
 
 describe("the phone's enlarged city box", () => {
@@ -63,5 +63,30 @@ describe("the phone's enlarged city box", () => {
     writeFileSync(new URL("./out/city-zoom-production.png", import.meta.url), encodePng(t, 3));
     const change = cityZoomPoint(p, p.x + 20 * 2, p.y + 16 * 2)!;
     expect(cityButtonAt(...change)).toBe("change");
+  });
+
+  it("leaves a box's buttons to act at once, and enlarges for anything else in it", () => {
+    const state = newGame(2026);
+    applyCommand(state, { type: "found", unit: state.units[0]!.id });
+    const city = state.cities[0]!;
+    city.size = 6;
+    // More lines than the list shows, so that it has its bar.
+    city.buildings.push("barracks", "temple", "granary", "library", "marketplace", "city_walls", "courthouse");
+    const view = { city: city.id };
+    const button = (x: number, y: number) => cityButtonIn(state, view, x, y);
+    // Change, Buy, a focus toggle, a line's Stop, the list's arrows.
+    expect(cityButtonAt(220, 136)).toBe("change");
+    expect(cityButtonAt(290, 136)).toBe("buy");
+    expect(cityFocusAt(118, 40)).not.toBeNull();
+    expect(cityImprovementAt(state, view, 300, 61)).toMatchObject({ kind: "line", toggle: true });
+    expect(cityImprovementAt(state, view, 313, 95)).toMatchObject({ kind: "scroll", by: 1 });
+    for (const [x, y] of [[220, 136], [290, 136], [118, 40], [300, 61], [313, 95], [313, 46]] as const) expect(button(x, y), `${x},${y}`).toBe(true);
+    // A line's words, a square of the map and the room under the buttons are no buttons.
+    expect(cityImprovementAt(state, view, 223, 60)).toMatchObject({ kind: "line", toggle: false });
+    expect(citySlotAt(123, 74)).not.toBeNull();
+    for (const [x, y] of [[223, 60], [123, 74], [255, 170]] as const) expect(button(x, y), `${x},${y}`).toBe(false);
+    // The boxes that only tell have none at all.
+    for (const box of CITY_BOXES.filter((b) => b.id === "resources" || b.id === "food"))
+      for (let y = box.y; y < box.y + box.h; y++) for (let x = box.x; x < box.x + box.w; x++) expect(button(x, y), `${x},${y}`).toBe(false);
   });
 });
